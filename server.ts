@@ -5186,14 +5186,17 @@ async function startServer() {
     }
   });
 
-  // --- Vite Middleware or Static Files ---
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
+ // --- Vite Middleware or Static Files ---
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { 
+        middlewareMode: true,
+        allowedHosts: true // <--- ADD THIS LINE HERE
+      },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
     // Serve static files in production
     const distPath = path.join(process.cwd(), 'dist'); 
     app.use(express.static(distPath));
