@@ -61,13 +61,13 @@ export default defineConfig(({mode}) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      host: '0.0.0.0',
-      port: 3000,
-      allowedHosts: true,
-    },
+server: {
+    host: '0.0.0.0', // Necessary for Docker to expose the port
+    port: 3000,      // Match the port your app uses
+    allowedHosts: [
+      'dev.happyinthehome.org',
+      'live.happyinthehome.org'
+    ]
+  },
   };
 });
