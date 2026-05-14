@@ -1,0 +1,6 @@
+{
+  "name": "Happy In The Home Roster Management",
+  "description": "Roster management web application for NDIS/Home Care",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": []
+}

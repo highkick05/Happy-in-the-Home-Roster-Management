@@ -1,0 +1,11 @@
+node_modules
+dist
+data
+uploads
+invoices
+osrm-data
+.env
+dev-database.sqlite
+dev-database.sqlite-shm
+dev-database.sqlite-wal
+.git

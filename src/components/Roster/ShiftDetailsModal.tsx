@@ -1,0 +1,551 @@
+import React from 'react';
+import { X, Trash2, CheckCircle, Edit, Cast, Undo2, ArrowDown } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { ShiftEvent } from './RosterCalendar';
+
+interface ShiftDetailsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: () => void;
+  shift: ShiftEvent | null;
+  onEdit?: (shift: ShiftEvent) => void;
+  servicesList?: any[];
+}
+
+export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEdit, servicesList = [] }: ShiftDetailsModalProps) {
+  const { token, user, settings } = useAuth();
+  if (!isOpen || !shift) return null;
+
+  const formatLocationString = (str: string) => {
+    if (!str) return null;
+    const parsed = str.split(/(\[[\d.,\s-]+\])/);
+    
+    return (
+      <span className="whitespace-pre-wrap flex-1 text-sm leading-relaxed">
+        {parsed.map((part, idx) => {
+          if (part.startsWith('[') && part.endsWith(']')) {
+            return (
+              <span key={idx} className="text-[11px] text-zinc-500 ml-1 font-mono opacity-50 block sm:inline mt-1">
+                {part}
+              </span>
+            );
+          }
+          if (part.includes('(') && part.includes(')')) {
+            const openIdx = part.indexOf('(');
+            const closeIdx = part.lastIndexOf(')');
+            if (openIdx !== -1 && closeIdx !== -1 && openIdx < closeIdx) {
+              const prefix = part.slice(0, openIdx).trim();
+              const address = part.slice(openIdx + 1, closeIdx);
+              const suffix = part.slice(closeIdx + 1);
+              
+              return (
+                <span key={idx} className="flex flex-col">
+                  {prefix && <span className="font-semibold uppercase text-white text-base tracking-tight">{prefix}</span>}
+                  <span className="text-zinc-400 text-xs mt-0.5 opacity-80">{address}{suffix}</span>
+                </span>
+              );
+            }
+          }
+          return <span key={idx} className="text-zinc-300">{part}</span>;
+        })}
+      </span>
+    );
+  };
+
+  const renderFormattedDescription = (desc: string, distance?: number | null, calculatedAt?: string) => {
+    if (!desc) return null;
+
+    if (desc.includes(' → ')) {
+      const parts = desc.split('\n');
+      const title = parts[0]?.trim();
+      const locations = parts[1]?.split(' → ') || [];
+      
+      return (
+        <div className="flex flex-col mt-1">
+          {title && <span className="text-xs font-bold text-brand-green/80 mb-4 uppercase tracking-wider">{title}</span>}
+          <div className="flex flex-col relative before:absolute before:inset-y-[12px] before:left-[11px] before:w-[2px] before:bg-zinc-800/80">
+            {locations.map((loc, i) => {
+              const isStart = i === 0;
+              const isEnd = i === locations.length - 1;
+              let label = isStart ? 'START' : isEnd ? 'RETURN' : 'WAYPOINT';
+
+              if (locations.length > 1) {
+                const firstMatch = locations[0].match(/(\[[\d.,\s-]+\])/);
+                const lastMatch = locations[locations.length - 1].match(/(\[[\d.,\s-]+\])/);
+                if (firstMatch && lastMatch && firstMatch[1] === lastMatch[1]) {
+                  if (isStart) label = 'START: Client Home';
+                  if (isEnd) label = 'RETURN: Client Home';
+                }
+              }
+
+              return (
+                <div key={i} className="flex gap-4 items-start relative z-10 mb-6 last:mb-0">
+                  <div className="flex flex-col items-center">
+                    <div className="w-[24px] h-[24px] rounded-full bg-[#121214] border-2 border-brand-green/50 flex items-center justify-center mt-0.5 shrink-0 z-10">
+                      <div className="w-2 h-2 rounded-full bg-brand-green" />
+                    </div>
+                    {!isEnd && (
+                      <div className="text-zinc-600 mt-2 bg-[#121214]/50 z-10 rounded-full flex items-center justify-center w-5 h-5">
+                        <ArrowDown className="w-3.5 h-3.5 text-zinc-500" strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col flex-1 min-w-0 pt-0.5">
+                    <span className="text-[10px] uppercase text-brand-green/70 font-bold tracking-wider leading-none mb-1">{label}</span>
+                    {formatLocationString(loc)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {distance != null && (
+            <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/[0.08]/60 pl-8">
+              <span className="text-sm font-extrabold text-brand-green bg-brand-green/10 px-3 py-1.5 rounded-md border border-brand-green/20">
+                {distance.toFixed(2)} km
+              </span>
+              {calculatedAt && (
+                <span className="text-[10px] text-zinc-600 font-medium">Calculated: {new Date(calculatedAt).toLocaleString()}</span>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    if (desc.includes(' to ')) {
+      const [from, to] = desc.split(' to ');
+      return (
+        <div className="flex flex-col gap-5 pl-1 mt-1 relative before:absolute before:inset-y-[12px] before:left-[11px] before:w-[2px] before:bg-zinc-800/80">
+          <div className="flex gap-4 items-start relative z-10">
+            <div className="flex flex-col items-center shrink-0">
+              <div className="w-[24px] h-[24px] rounded-full bg-[#121214] border-2 border-brand-teal/50 flex items-center justify-center mt-0.5 shrink-0 z-10">
+                <div className="w-2 h-2 rounded-full bg-indigo-400" />
+              </div>
+              <div className="text-zinc-600 mt-2 bg-[#121214]/50 z-10 rounded-full flex items-center justify-center w-5 h-5">
+                <ArrowDown className="w-3.5 h-3.5 text-zinc-500" strokeWidth={3} />
+              </div>
+            </div>
+            <div className="flex flex-col flex-1 min-w-0 pt-0.5">
+              <span className="text-[10px] uppercase text-brand-teal/70 font-bold tracking-wider leading-none mb-1">From</span>
+              {formatLocationString(from)}
+            </div>
+          </div>
+          <div className="flex gap-4 items-start relative z-10">
+            <div className="flex flex-col items-center shrink-0">
+              <div className="w-[24px] h-[24px] rounded-full bg-[#121214] border-2 border-brand-teal/50 flex items-center justify-center mt-0.5 shrink-0 z-10">
+                <div className="w-2 h-2 rounded-full bg-indigo-400" />
+              </div>
+            </div>
+            <div className="flex flex-col flex-1 min-w-0 pt-0.5">
+               <span className="text-[10px] uppercase text-brand-teal/70 font-bold tracking-wider leading-none mb-1 text-left block">To</span>
+               {formatLocationString(to)}
+            </div>
+          </div>
+          {distance != null && (
+            <div className="flex justify-between items-center mt-2 pt-4 border-t border-white/[0.08]/60 pl-8">
+              <span className="text-sm font-extrabold text-brand-teal bg-indigo-500/10 px-3 py-1.5 rounded-md border border-brand-teal/20">
+                {distance.toFixed(2)} km
+              </span>
+              {calculatedAt && (
+                <span className="text-[10px] text-zinc-600 font-medium">Calculated: {new Date(calculatedAt).toLocaleString()}</span>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return formatLocationString(desc);
+  };
+
+  const handleUpdateStatus = async (status: string) => {
+    try {
+      const isRespite = shift.isRespiteWrapper;
+      const endpoint = isRespite 
+        ? `/api/respite-bookings/${shift.respiteData?.id}/status` 
+        : `/api/shifts/${shift.id}`;
+
+      const res = await fetch(endpoint, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        onSave();
+        onClose();
+        if (status === 'COMPLETED') {
+          // just close smoothly
+        }
+      } else {
+        const err = await res.json();
+        alert(`Failed to update status: ${err.error || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert(`Error updating status: ${e}`);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      const isRespite = shift.isRespiteWrapper;
+      const endpoint = isRespite 
+        ? `/api/respite-bookings/${shift.respiteData?.id}` 
+        : `/api/shifts/${shift.id}`;
+
+      const res = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        onSave();
+        onClose();
+      } else {
+        alert('Failed to delete shift');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const isAdmin = user?.role === 'ADMIN';
+  const isAssignedStaff = user?.id === shift.staffId;
+  const canEdit = isAdmin; // Staff cannot edit shifts anymore
+
+  const handleBackgroundClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 sm:p-4" onClick={handleBackgroundClick}>
+      <div 
+        className="bg-[#121214] border border-white/[0.08] rounded-2xl p-5 sm:p-4 max-w-full sm:max-w-2xl lg:max-w-3xl w-full text-zinc-100 flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden shadow-2xl transition-all" 
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center mb-5 md:mb-6 shrink-0">
+          <h2 className="text-xl font-semibold text-white tracking-tight mb-4">Shift Details</h2>
+          <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04]">
+            <X className="w-5 h-5 md:w-6 md:h-6 text-zinc-300" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 sm:pr-2 pb-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-6">
+            <div className="bg-zinc-800/30 p-3 sm:p-4 rounded-xl border border-white/[0.08]/80">
+              <p className="text-xs md:text-sm text-zinc-500 font-medium mb-1 uppercase tracking-wide">Client</p>
+              <p className="font-bold text-zinc-200">{shift.clientName}</p>
+            </div>
+            <div className="bg-zinc-800/30 p-3 sm:p-4 rounded-xl border border-white/[0.08]/80">
+              <p className="text-xs md:text-sm text-zinc-500 font-medium mb-1 uppercase tracking-wide">Staff</p>
+              <p className="font-bold text-zinc-200">
+                {shift.isRespiteWrapper && shift.respiteData?.shifts
+                  ? Array.from(new Set(shift.respiteData.shifts.map((s: any) => `${s.staff_first_name} ${s.staff_last_name}`))).join(', ')
+                  : shift.staffName}
+              </p>
+            </div>
+            <div className="bg-zinc-800/30 p-3 sm:p-4 rounded-xl border border-white/[0.08]/80">
+              <p className="text-xs md:text-sm text-zinc-500 font-medium mb-1 uppercase tracking-wide">Status</p>
+              <span className={`inline-block px-3 py-1 mt-1 text-xs font-bold uppercase tracking-wider rounded-full shadow-sm ${
+                shift.status === 'DRAFT' ? 'bg-zinc-800 text-zinc-300 border border-white/[0.12]' :
+                shift.status === 'PUBLISHED' ? 'bg-indigo-500/20 text-brand-teal border border-brand-teal/30' :
+                shift.status === 'COMPLETED' ? 'bg-brand-green/20 text-brand-green border border-brand-green/30' :
+                'bg-red-500/20 text-red-400 border border-red-500/30'
+              }`}>
+                {shift.status.replace('_', ' ')}
+              </span>
+            </div>
+            <div className="bg-zinc-800/30 p-3 sm:p-4 rounded-xl border border-white/[0.08]/80">
+              <p className="text-xs md:text-sm text-zinc-500 font-medium mb-1 uppercase tracking-wide">Date & Time</p>
+              <p className="font-bold text-zinc-200">{new Date(shift.start).toLocaleDateString('en-GB').replace(/\//g, '-')}</p>
+              <p className="text-sm text-zinc-400 mt-0.5">{new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+            </div>
+            
+            {shift.status === 'COMPLETED' && (shift.providerTravelKm !== undefined || shift.homeCareTravelKm !== undefined) && (
+              <div className="col-span-1 sm:col-span-2 lg:col-span-4 pt-4 mt-2 border-t border-white/[0.08]/80">
+                 <p className="text-sm md:text-base font-bold text-zinc-300 mb-3">Transport & Travel Details</p>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   {shift.homeCareTravelKm !== undefined && shift.homeCareTravelKm > 0 && (
+                     <div className="bg-indigo-900/10 p-4 rounded-xl border border-brand-teal/20 shadow-sm flex flex-col justify-center">
+                       <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">Home Care Travel (Client Gap)</p>
+                       <p className="text-xl text-indigo-100 font-extrabold">{shift.homeCareTravelKm.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
+                     </div>
+                   )}
+                   {shift.providerTravelKm !== undefined && shift.providerTravelKm > 0 && (
+                     <div className="bg-indigo-900/10 p-4 rounded-xl border border-brand-teal/20 shadow-sm flex flex-col justify-center">
+                       <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">Provider Travel (Distance to Shift)</p>
+                       <p className="text-xl text-indigo-100 font-extrabold">{shift.providerTravelKm.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
+                     </div>
+                   )}
+                   {(shift.homeCareTravelKm === undefined || shift.homeCareTravelKm === 0) && (shift.providerTravelKm === undefined || shift.providerTravelKm === 0) && (
+                     <div className="bg-zinc-800/50 p-4 rounded-xl border border-white/[0.08]/80 shadow-sm flex flex-col justify-center">
+                       <p className="text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider">Provider Travel</p>
+                       <p className="text-xl text-zinc-300 font-extrabold">0.00 <span className="text-sm font-medium text-zinc-500">km</span></p>
+                     </div>
+                   )}
+                   <div className="bg-brand-green/10 p-4 rounded-xl border border-brand-green/20 shadow-sm flex flex-col justify-center">
+                     <p className="text-xs font-medium text-brand-green/80 mb-1 uppercase tracking-wider">Activity Based Transport (ABT)</p>
+                     <p className="text-xl text-white font-extrabold">{shift.abtKm ? shift.abtKm.toFixed(2) : 0} <span className="text-sm font-medium text-brand-green/80">km</span></p>
+                   </div>
+                   {shift.transportRouteLog && (() => {
+                     let log;
+                     try { log = JSON.parse(shift.transportRouteLog); } catch(e) {}
+                     if (!log) return null;
+
+                     return (
+                     <div className="col-span-1 sm:col-span-2 bg-[#09090b]/80 p-4 rounded-xl border border-white/[0.08] shadow-inner mt-2">
+                       <details className="group">
+                          <summary className="text-sm md:text-base font-medium text-zinc-300 cursor-pointer flex items-center hover:text-white transition-colors outline-none list-none">
+                            <span className="flex-1">View Transport Route Log</span>
+                            <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 group-open:rotate-180 transition-transform">
+                              <ArrowDown className="w-3.5 h-3.5 text-zinc-400" />
+                            </div>
+                          </summary>
+                          <div className="mt-4 space-y-4 pt-4 border-t border-white/[0.08]/80">
+                            {log.providerTravel && log.providerTravel.legs && log.providerTravel.legs.length > 0 && (
+                              <div className="flex items-start gap-3">
+                                <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
+                                  <span className="text-xs font-bold text-brand-teal/80 mb-5 uppercase tracking-wider block">Provider Travel (To/From Shift):</span>
+                                  <div className="space-y-6">
+                                    {log.providerTravel.legs.map((leg: any, i: number) => (
+                                      <div key={i} className="mb-2">
+                                        {renderFormattedDescription(leg.description)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-6 pt-5 border-t border-white/[0.08]/80 sm:pl-8 gap-3">
+                                    <span className="flex items-center px-4 py-2 bg-brand-blue hover:bg-brand-teal text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto">
+                                      {shift.providerTravelKm != null ? shift.providerTravelKm.toFixed(2) : log.providerTravel.legs.reduce((sum: number, leg: any) => sum + (leg.distance || 0), 0).toFixed(2)} km
+                                    </span>
+                                    {log.providerTravel.calculatedAt && (
+                                      <span className="text-[10px] md:text-xs text-zinc-500 font-medium self-start sm:self-auto text-left sm:text-right">Calculated: <br className="sm:hidden"/>{new Date(log.providerTravel.calculatedAt).toLocaleString()}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {log.homeCareTravel && log.homeCareTravel.legs && log.homeCareTravel.legs.length > 0 && (
+                              <div className="flex items-start gap-3 pt-2">
+                                <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
+                                  <span className="text-xs font-bold text-brand-teal/80 mb-5 uppercase tracking-wider block">Home Care Travel:</span>
+                                  <div className="space-y-6">
+                                    {log.homeCareTravel.legs.map((leg: any, i: number) => {
+                                      if (leg.distance === 0 && leg.description.includes('Private Commute')) {
+                                        return (
+                                          <div key={i} className="mb-2 text-zinc-400 italic">
+                                            {leg.description}
+                                          </div>
+                                        );
+                                      }
+                                      if (leg.distance === 0) return null;
+                                      return (
+                                        <div key={i} className="mb-2">
+                                          {renderFormattedDescription(leg.description)}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-6 pt-5 border-t border-white/[0.08]/80 sm:pl-8 gap-3">
+                                    <span className="flex items-center px-4 py-2 bg-brand-blue hover:bg-brand-teal text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto">
+                                      {shift.homeCareTravelKm != null ? shift.homeCareTravelKm.toFixed(2) : log.homeCareTravel.legs.reduce((sum: number, leg: any) => sum + (leg.distance || 0), 0).toFixed(2)} km
+                                    </span>
+                                    {log.homeCareTravel.calculatedAt && (
+                                      <span className="text-[10px] md:text-xs text-zinc-500 font-medium self-start sm:self-auto text-left sm:text-right">Calculated: <br className="sm:hidden"/>{new Date(log.homeCareTravel.calculatedAt).toLocaleString()}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {log.abt && (
+                              <div className="flex items-start gap-3 pt-2">
+                                  <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
+                                    <div className="mb-1">{renderFormattedDescription(log.abt.description || 'Activity Based Transport', log.abt.distance, log.abt.calculatedAt)}</div>
+                                  </div>
+                              </div>
+                            )}
+                          </div>
+                       </details>
+                     </div>
+                     );
+                   })()}
+                 </div>
+              </div>
+            )}
+          </div>
+          
+          {isAdmin && (shift.serviceId || (shift.servicesData && shift.servicesData.length > 0)) && !shift.isRespiteWrapper && (
+            <div className="pt-5 mt-5 border-t border-white/[0.08]/80">
+              <p className="text-sm md:text-base font-bold text-zinc-300 mb-4">Billing Information</p>
+              
+              {(() => {
+                const sData = (shift.servicesData && shift.servicesData.length > 0) 
+                  ? shift.servicesData 
+                  : [{ serviceId: shift.serviceId }];
+
+                let grandTotal = 0;
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {sData.map((sd: any, idx: number) => {
+                      const sIdStr = String(sd.serviceId);
+                      const fullService = servicesList.find(s => String(s.id) === sIdStr);
+                      const serviceName = fullService ? fullService.name : (idx === 0 ? shift.serviceName : 'Unknown Service');
+                      const unit = fullService ? (fullService.unit || 'Hour') : (shift.serviceUnit || 'Hour');
+                      const serviceType = fullService ? fullService.type : shift.serviceType;
+                      const ratesJson = fullService ? fullService.rates_json : shift.serviceRatesJson;
+
+                      const startMs = new Date(shift.start).getTime();
+                      const endMs = new Date(shift.end).getTime();
+                      const hours = Math.max(0, (endMs - startMs) / (1000 * 60 * 60));
+                      
+                      let baseRate = Number(fullService ? fullService.rate : (shift.serviceRate || 0));
+                      let dayOfWeek = new Date(shift.start).getDay();
+                      let finalRate = baseRate;
+                      
+                      if (serviceType === 'HOME_CARE' && ratesJson) {
+                         try {
+                            const rates = JSON.parse(ratesJson);
+                            if (dayOfWeek === 0 && rates['Sunday']) finalRate = Number(rates['Sunday']);
+                            else if (dayOfWeek === 6 && rates['Saturday']) finalRate = Number(rates['Saturday']);
+                            else if (rates['Weekday']) finalRate = Number(rates['Weekday']);
+                         } catch(e) {}
+                      } else if (serviceType === 'NDIS' && ratesJson) {
+                         try {
+                            const rates = JSON.parse(ratesJson);
+                            const region = settings?.ndisRegion || 'NSW';
+                            if (rates[region] !== undefined) finalRate = Number(rates[region]);
+                         } catch(e) {}
+                      }
+                      
+                      const qty = (sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== '') ? Number(sd.qtyOverride) : (unit === 'Hour' ? hours : 1);
+                      const subtotal = qty * finalRate;
+                      grandTotal += subtotal;
+
+                      return (
+                        <div key={idx} className="bg-[#121214] p-4 rounded-xl border border-white/[0.08] text-sm md:text-base shadow-sm">
+                          <div className="flex justify-between mb-2">
+                            <span className="text-zinc-500 font-medium">Service</span>
+                            <span className="text-zinc-200 ml-4 text-right truncate font-bold" title={serviceName}>{serviceName}</span>
+                          </div>
+                          <div className="flex justify-between mb-2">
+                            <span className="text-zinc-500 font-medium">Duration/Qty</span>
+                            <span className="text-zinc-200 font-medium">{qty.toFixed(2)} {unit}</span>
+                          </div>
+                          <div className="flex justify-between mb-3">
+                            <span className="text-zinc-500 font-medium">Rate</span>
+                            <span className="text-zinc-200 font-medium">${finalRate.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between pt-3 border-t border-white/[0.08]/80 font-bold">
+                            <span className="text-zinc-400 uppercase tracking-widest text-xs mt-1">Total</span>
+                            <span className="text-brand-teal text-lg">${subtotal.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {sData.length > 1 && (
+                       <div className="md:col-span-2 flex justify-between items-center p-4 md:p-5 bg-indigo-900/10 rounded-xl border border-brand-teal/30 font-bold mb-4 shadow-sm">
+                         <span className="text-brand-teal uppercase tracking-widest text-sm">Grand Total</span>
+                         <span className="text-brand-teal text-xl">${grandTotal.toFixed(2)}</span>
+                       </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+          {shift.isRespiteWrapper && shift.respiteData?.shifts && (
+            <div className="pt-5 mt-5 border-t border-white/[0.08]/80">
+              <p className="text-sm md:text-base font-bold text-zinc-300 mb-4">Respite Information</p>
+              <div className="bg-[#121214] p-4 md:p-5 rounded-xl border border-white/[0.08] text-sm md:text-base mb-4 shadow-sm">
+                <div className="flex justify-between mb-2">
+                  <span className="text-zinc-500 font-medium">Days Configured:</span>
+                  <span className="text-zinc-200 font-bold">
+                    {Array.from(new Set(shift.respiteData.shifts.map((s: any) => new Date(s.start_time).toLocaleDateString()))).length} Day(s)
+                  </span>
+                </div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-zinc-500 font-medium">Shifts Mapped:</span>
+                  <span className="text-zinc-200 font-bold">{shift.respiteData.shifts.length}</span>
+                </div>
+                <div className="mt-4 pt-4 border-t border-white/[0.08]/50 text-xs md:text-sm text-zinc-400 leading-relaxed font-medium">
+                  Open Edit Booking Details to see billing and specific breakdown.
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-6 pt-5 border-t border-white/[0.08]/80 shrink-0">
+          {canEdit && shift.status !== 'COMPLETED' && shift.status !== 'CANCELLED' && (
+            <button 
+              onClick={() => handleUpdateStatus('COMPLETED')}
+              className="w-full flex items-center justify-center px-4 py-3 bg-brand-green/80 hover:bg-brand-green text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-md active:scale-95"
+            >
+              <CheckCircle className="w-5 h-5 mr-2" />
+              Mark Completed
+            </button>
+          )}
+
+          {isAdmin && (
+            <button 
+              onClick={() => {
+                 onClose();
+                 if (onEdit) onEdit(shift);
+              }}
+              className="w-full flex items-center justify-center px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-sm active:scale-95"
+            >
+              <Edit className="w-5 h-5 mr-2 text-zinc-400" />
+              {shift.isRespiteWrapper ? "Edit Booking" : "Edit Shift"}
+            </button>
+          )}
+          
+          {isAdmin && shift.status === 'DRAFT' && (
+            <button 
+              onClick={() => handleUpdateStatus('PUBLISHED')}
+              className="w-full flex items-center justify-center px-4 py-3 bg-brand-blue hover:bg-indigo-500 text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-md active:scale-95"
+            >
+              <Cast className="w-5 h-5 mr-2" />
+              {shift.isRespiteWrapper ? "Publish Booking" : "Publish Shift"}
+            </button>
+          )}
+
+          {isAdmin && shift.status === 'PUBLISHED' && (
+            <button 
+              onClick={() => handleUpdateStatus('DRAFT')}
+              className="w-full flex items-center justify-center px-4 py-3 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 text-amber-500 rounded-xl text-sm md:text-base font-bold transition-all active:scale-95"
+            >
+              <Undo2 className="w-5 h-5 mr-2 shrink-0" />
+              {shift.isRespiteWrapper ? "Unpublish Booking" : "Unpublish Shift"}
+            </button>
+          )}
+
+          {canEdit && shift.status !== 'CANCELLED' && shift.status !== 'COMPLETED' && (
+            <button 
+              onClick={() => handleUpdateStatus('CANCELLED')}
+              className="w-full flex items-center justify-center px-4 py-3 border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-xl text-sm md:text-base font-bold transition-all active:scale-95"
+            >
+              <X className="w-5 h-5 mr-2" />
+              Cancel
+            </button>
+          )}
+
+          {isAdmin && (
+            <button 
+              onClick={handleDelete}
+              className="w-full sm:col-span-2 md:col-span-1 flex items-center justify-center px-4 py-3 border border-red-600/50 hover:bg-red-600 text-red-500 hover:text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-sm active:scale-95"
+            >
+              <Trash2 className="w-5 h-5 mr-2" />
+              {shift.isRespiteWrapper ? "Delete Booking" : "Delete"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
