@@ -61,13 +61,12 @@ export default defineConfig(({mode}) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
-server: {
-    host: '0.0.0.0', // Necessary for Docker to expose the port
-    port: 3000,      // Match the port your app uses
-    allowedHosts: [
-      'dev.happyinthehome.org',
-      'live.happyinthehome.org'
-    ]
+    server: {
+        host: '0.0.0.0',
+        port: 3000,
+        strictPort: true,
+        allowedHosts: true,
+        origin: 'https://dev.happyinthehome.org' // Force the origin
   },
   };
 });
