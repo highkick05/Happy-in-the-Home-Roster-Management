@@ -8,7 +8,7 @@ import { getDay } from 'date-fns/getDay';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
-import { Plus, Maximize, Minimize } from 'lucide-react';
+import { Plus, Maximize, Minimize, Bed, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
 import AddRespiteBookingModal from './AddRespiteBookingModal';
@@ -291,6 +291,11 @@ export default function RosterCalendar() {
   const filteredEvents = events.filter(e => {
     if (clientFilter && e.clientId?.toString() !== clientFilter) return false;
     
+    // Non-admins should not see the respite wrapper, only their child shifts
+    if (user?.role !== 'ADMIN' && e.isRespiteWrapper) {
+      return false;
+    }
+
     // Non-admins should only see their own child shifts
     if (user?.role !== 'ADMIN' && e.isRespiteChild && e.staffId !== user?.id) {
       return false;
@@ -497,6 +502,11 @@ export default function RosterCalendar() {
     if (event.status === 'COMPLETED') backgroundColor = '#a3e635'; // brand-green
     if (event.status === 'IN_PROGRESS') backgroundColor = '#38bdf8'; // light blue
     
+    if (event.isRespiteWrapper) {
+      backgroundColor = '#8b5cf6'; // violet-500
+      border = isSelected ? '2px solid white' : '1px inset #7c3aed';
+    }
+
     return {
       style: {
         backgroundColor,
@@ -547,7 +557,13 @@ export default function RosterCalendar() {
           onTouchStart={handleMouseDown}
           onTouchEnd={handleMouseUp}
         >
-          <span>{title}</span>
+          {event.isRespiteWrapper && (
+            <div className="flex items-center gap-1 mb-0.5 mt-0.5 ml-1">
+              <Bed className="w-4 h-4 text-violet-100 drop-shadow-sm" />
+              <Sparkles className="w-3 h-3 text-amber-300 drop-shadow-sm" />
+            </div>
+          )}
+          <span className={event.isRespiteWrapper ? "px-1" : ""}>{title}</span>
         </div>
       );
     };
