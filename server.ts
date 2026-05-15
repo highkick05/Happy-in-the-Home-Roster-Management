@@ -954,7 +954,14 @@ async function startServer() {
 
   const calculateProviderTravel = async (shift: any) => {
     if (shift.respite_booking_id) return { distance: 0, cost: 0, routeLogs: [] };
-    // Basic implementation of Provider Travel Rules
+    
+    // Check if this is Home Care or NDIS
+    const isHomeCare = (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE');
+    if (isHomeCare) {
+      // HOME CARE LOGIC MOVED TO calculateHomeCareTravel
+      return { distance: 0, cost: 0, routeLogs: [] };
+    }
+
     const staff = db.prepare('SELECT address, first_name, last_name FROM users WHERE id = ?').get(shift.staff_id) as any;
     const client = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(shift.client_id) as any;
     
@@ -969,18 +976,28 @@ async function startServer() {
     const clientHomeStr = `Client Home (${client?.address || 'Unknown'}) ${formatCoords(clientCoords)}`;
 
     try {
-      // Find previous shift today for staff
+      // Find previous shift today for staff (Consecutive NDIS shifts)
       const prevShift = db.prepare(`
         SELECT * FROM shifts 
-        WHERE staff_id = ? AND start_time >= datetime(?, '-14 hours') AND start_time <= datetime(?, '+14 hours') AND end_time <= ? AND id != ? AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+        WHERE staff_id = ? 
+        AND start_time >= datetime(?, '-14 hours') 
+        AND start_time <= datetime(?, '+14 hours') 
+        AND end_time <= ? 
+        AND id != ? 
+        AND status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')
         AND funding_type NOT IN ('HCP', 'Home Care', 'HOME_CARE')
         ORDER BY end_time DESC, start_time DESC LIMIT 1
       `).get(shift.staff_id, shift.start_time, shift.start_time, shift.start_time, shift.id) as any;
 
-      // Find next shift today for staff (to determine if last)
+      // Find next shift today for staff
       const nextShift = db.prepare(`
         SELECT * FROM shifts 
-        WHERE staff_id = ? AND start_time >= datetime(?, '-14 hours') AND start_time <= datetime(?, '+14 hours') AND start_time >= ? AND id != ? AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+        WHERE staff_id = ? 
+        AND start_time >= datetime(?, '-14 hours') 
+        AND start_time <= datetime(?, '+14 hours') 
+        AND start_time >= ? 
+        AND id != ? 
+        AND status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')
         AND funding_type NOT IN ('HCP', 'Home Care', 'HOME_CARE')
         ORDER BY start_time ASC LIMIT 1
       `).get(shift.staff_id, shift.start_time, shift.start_time, shift.end_time, shift.id) as any;
@@ -988,50 +1005,49 @@ async function startServer() {
       let totalDist = 0;
       let routeLogs: any[] = [];
 
-      if ((shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE')) {
-        // HOME CARE LOGIC MOVED TO calculateHomeCareTravel
-        return { distance: 0, cost: 0, routeLogs: [] };
+      // NDIS LOGIC
+      // Incoming Trip
+      const prevGapMins = prevShift ? (new Date(shift.start_time).getTime() - new Date(prevShift.end_time).getTime()) / 60000 : Infinity;
+      
+      if (prevShift && prevGapMins >= 0 && prevGapMins <= 60) {
+        console.log(`[NDIS Travel] Chaining detected: Using Previous Client Address for Start. Gap: ${prevGapMins.toFixed(0)} mins`);
+        const prevClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(prevShift.client_id) as any;
+        const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
+        const prevClientStr = `Previous Client (${prevClientInfo?.address || 'Unknown'}) ${formatCoords(prevClientCoords)}`;
+        
+        const dist = await getOsrmDistance([prevClientCoords, clientCoords]); 
+        totalDist += dist;
+        routeLogs.push({ description: `${prevClientStr} to ${clientHomeStr}`, distance: dist, waypoints: [prevClientCoords, clientCoords], addressStart: prevClientInfo?.address, addressEnd: client?.address });
       } else {
-        // NDIS LOGIC
-        // Incoming Trip
-        const prevGapMins = prevShift ? (new Date(shift.start_time).getTime() - new Date(prevShift.end_time).getTime()) / 60000 : Infinity;
-        if (!prevShift || prevGapMins > 60 || prevGapMins < 0) {
-          console.log(`[DEBUG Provider Travel (Complete)] Check: gap > 60m or first shift. Start: Staff Home`);
-          const distHome = await getOsrmDistance([staffHomeCoords, clientCoords]);
-          totalDist += distHome;
-          const routeDesc = `${staffHomeStr} to ${clientHomeStr}`;
-          routeLogs.push({ description: routeDesc, distance: distHome, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: client?.address });
-        } else {
-          const prevClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(prevShift.client_id) as any;
-          const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
-          const prevClientStr = `Previous Client (${prevClientInfo?.address || 'Unknown'}) ${formatCoords(prevClientCoords)}`;
-          console.log(`[DEBUG Provider Travel (Complete)] Check: gap <= 60m. Start: Previous Client`);
-          const dist = await getOsrmDistance([prevClientCoords, clientCoords]); 
-          totalDist += dist;
-          routeLogs.push({ description: `${prevClientStr} to ${clientHomeStr}`, distance: dist, waypoints: [prevClientCoords, clientCoords], addressStart: prevClientInfo?.address, addressEnd: client?.address });
-        }
+        console.log(`[NDIS Travel] No chaining for start (Gap: ${prevGapMins === Infinity ? 'N/A' : prevGapMins.toFixed(0)} mins). Using Staff Home.`);
+        const distHome = await getOsrmDistance([staffHomeCoords, clientCoords]);
+        totalDist += distHome;
+        const routeDesc = `${staffHomeStr} to ${clientHomeStr}`;
+        routeLogs.push({ description: routeDesc, distance: distHome, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: client?.address });
+      }
 
-        // Outgoing Trip
-        const nextGapMins = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(shift.end_time).getTime()) / 60000 : Infinity;
-        if (!nextShift || nextGapMins > 60 || nextGapMins < 0) {
-           console.log(`[DEBUG Provider Travel (Complete)] Check: gap > 60m or last shift. End: Staff Home`);
-           const distReturn = await getOsrmDistance([clientCoords, staffHomeCoords]);
-           totalDist += distReturn;
-           routeLogs.push({ description: `${clientHomeStr} to Staff Home (Return trip)`, distance: distReturn, waypoints: [clientCoords, staffHomeCoords], addressStart: client?.address, addressEnd: staff?.address });
-        } else {
-           const nextClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(nextShift.client_id) as any;
-           const nextClientCoords = await getRecordCoordinates('clients', nextShift.client_id, nextClientInfo?.address);
-           const nextClientStr = `Next Client (${nextClientInfo?.address || 'Unknown'}) ${formatCoords(nextClientCoords)}`;
-           console.log(`[DEBUG Provider Travel (Complete)] Check: gap <= 60m. End: Next Client`);
-           const distNext = await getOsrmDistance([clientCoords, nextClientCoords]);
-           totalDist += distNext;
-           routeLogs.push({ description: `${clientHomeStr} to ${nextClientStr}`, distance: distNext, waypoints: [clientCoords, nextClientCoords], addressStart: client?.address, addressEnd: nextClientInfo?.address });
-        }
+      // Outgoing Trip
+      const nextGapMins = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(shift.end_time).getTime()) / 60000 : Infinity;
+      
+      if (nextShift && nextGapMins >= 0 && nextGapMins <= 60) {
+        console.log(`[NDIS Travel] Chaining detected: Using Next Client Address for End. Return Trip Bypassed. Gap: ${nextGapMins.toFixed(0)} mins`);
+        const nextClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(nextShift.client_id) as any;
+        const nextClientCoords = await getRecordCoordinates('clients', nextShift.client_id, nextClientInfo?.address);
+        const nextClientStr = `Next Client (${nextClientInfo?.address || 'Unknown'}) ${formatCoords(nextClientCoords)}`;
+        
+        const distNext = await getOsrmDistance([clientCoords, nextClientCoords]);
+        totalDist += distNext;
+        routeLogs.push({ description: `${clientHomeStr} to ${nextClientStr}`, distance: distNext, waypoints: [clientCoords, nextClientCoords], addressStart: client?.address, addressEnd: nextClientInfo?.address });
+      } else {
+        console.log(`[NDIS Travel] No chaining for end (Gap: ${nextGapMins === Infinity ? 'N/A' : nextGapMins.toFixed(0)} mins). Using Return to Staff Home.`);
+        const distReturn = await getOsrmDistance([clientCoords, staffHomeCoords]);
+        totalDist += distReturn;
+        routeLogs.push({ description: `${clientHomeStr} to Staff Home (Return trip)`, distance: distReturn, waypoints: [clientCoords, staffHomeCoords], addressStart: client?.address, addressEnd: staff?.address });
       }
 
       return { distance: totalDist, cost: totalDist * 1.00, routeLogs };
     } catch (e) {
-      console.error('[DEBUG Provider Travel (Complete)] Error calculating provider travel:', e);
+      console.error('[NDIS Travel] Error calculating provider travel:', e);
       return { distance: 0, cost: 0, routeLogs: [] };
     }
   };
