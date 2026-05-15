@@ -495,7 +495,7 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(type, code, name)
     );
-    INSERT OR IGNORE INTO services_new SELECT id, code, name, rate, description, type, unit, reg_group_number, reg_group_name, rates_json, created_at FROM services;
+    INSERT OR IGNORE INTO services_new (id, code, name, rate, description, type, unit, reg_group_number, reg_group_name, rates_json, created_at) SELECT id, code, name, rate, description, type, unit, reg_group_number, reg_group_name, rates_json, created_at FROM services;
     DROP TABLE services;
     ALTER TABLE services_new RENAME TO services;
 
@@ -512,7 +512,7 @@ try {
       FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE RESTRICT,
       CHECK (start_time < end_time)
     );
-    INSERT OR IGNORE INTO respite_bookings_new SELECT id, client_id, service_id, start_time, end_time, status, notes, created_at FROM respite_bookings;
+    INSERT OR IGNORE INTO respite_bookings_new (id, client_id, service_id, start_time, end_time, status, notes, created_at) SELECT id, client_id, service_id, start_time, end_time, status, notes, created_at FROM respite_bookings;
     DROP TABLE respite_bookings;
     ALTER TABLE respite_bookings_new RENAME TO respite_bookings;
 
@@ -562,15 +562,15 @@ try {
       amount REAL NOT NULL CHECK(amount >= 0),
       file_path TEXT,
       status TEXT NOT NULL DEFAULT 'GENERATED' CHECK(status IN ('GENERATED', 'SENT', 'PAID', 'VOID')),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       merged_into_shift_id INTEGER,
       respite_booking_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (shift_id) REFERENCES shifts(id) ON DELETE SET NULL,
       FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE SET NULL,
       FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
       FOREIGN KEY (respite_booking_id) REFERENCES respite_bookings(id) ON DELETE SET NULL
     );
-    INSERT OR IGNORE INTO invoices_new SELECT id, invoice_number, shift_id, provider_id, client_id, amount, file_path, status, created_at, merged_into_shift_id, respite_booking_id FROM invoices;
+    INSERT OR IGNORE INTO invoices_new (id, invoice_number, shift_id, provider_id, client_id, amount, file_path, status, merged_into_shift_id, respite_booking_id, created_at) SELECT id, invoice_number, shift_id, provider_id, client_id, amount, file_path, status, merged_into_shift_id, respite_booking_id, created_at FROM invoices;
     DROP TABLE invoices;
     ALTER TABLE invoices_new RENAME TO invoices;
     CREATE TABLE IF NOT EXISTS quotes_new (
@@ -589,7 +589,7 @@ try {
       FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
       FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE SET NULL
     );
-    INSERT OR IGNORE INTO quotes_new SELECT * FROM quotes;
+    INSERT OR IGNORE INTO quotes_new (id, quote_number, client_id, staff_id, activity_name, activity_date, services_json, amount, file_path, important_notes, status, created_at) SELECT id, quote_number, client_id, staff_id, activity_name, activity_date, services_json, amount, file_path, important_notes, status, created_at FROM quotes;
     DROP TABLE quotes;
     ALTER TABLE quotes_new RENAME TO quotes;
 
@@ -604,7 +604,7 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE RESTRICT
     );
-    INSERT OR IGNORE INTO files_new SELECT * FROM files;
+    INSERT OR IGNORE INTO files_new (id, original_name, system_name, size, uploaded_by, region, folder_path, created_at) SELECT id, original_name, system_name, size, uploaded_by, region, folder_path, created_at FROM files;
     DROP TABLE files;
     ALTER TABLE files_new RENAME TO files;
 
@@ -622,7 +622,7 @@ try {
       FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE RESTRICT,
       FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE RESTRICT
     );
-    INSERT OR IGNORE INTO client_roster_templates_new SELECT * FROM client_roster_templates;
+    INSERT OR IGNORE INTO client_roster_templates_new (id, client_id, day_of_week, start_time, end_time, staff_id, service_id, services_json, created_at) SELECT id, client_id, day_of_week, start_time, end_time, staff_id, service_id, services_json, created_at FROM client_roster_templates;
     DROP TABLE client_roster_templates;
     ALTER TABLE client_roster_templates_new RENAME TO client_roster_templates;
   `);

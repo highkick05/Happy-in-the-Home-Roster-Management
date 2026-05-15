@@ -15,15 +15,18 @@ CREATE TABLE IF NOT EXISTS invoices_new (
   amount REAL NOT NULL CHECK(amount >= 0),
   file_path TEXT,
   status TEXT NOT NULL DEFAULT 'GENERATED' CHECK(status IN ('GENERATED', 'SENT', 'PAID', 'VOID')),
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   merged_into_shift_id INTEGER,
   respite_booking_id INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (shift_id) REFERENCES shifts(id) ON DELETE SET NULL,
   FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE SET NULL,
   FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
   FOREIGN KEY (respite_booking_id) REFERENCES respite_bookings(id) ON DELETE SET NULL
 );
-INSERT OR IGNORE INTO invoices_new SELECT * FROM invoices;
+
+INSERT INTO invoices_new (id, invoice_number, shift_id, provider_id, client_id, amount, file_path, status, merged_into_shift_id, respite_booking_id, created_at)
+SELECT id, invoice_number, shift_id, provider_id, client_id, amount, file_path, status, merged_into_shift_id, respite_booking_id, created_at FROM invoices;
+
 DROP TABLE invoices;
 ALTER TABLE invoices_new RENAME TO invoices;
 
@@ -34,12 +37,15 @@ CREATE TABLE IF NOT EXISTS files_new (
   system_name TEXT NOT NULL,
   size INTEGER NOT NULL CHECK(size >= 0),
   uploaded_by INTEGER NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   region TEXT,
   folder_path TEXT DEFAULT '/',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE RESTRICT
 );
-INSERT OR IGNORE INTO files_new SELECT * FROM files;
+
+INSERT INTO files_new (id, original_name, system_name, size, uploaded_by, region, folder_path, created_at)
+SELECT id, original_name, system_name, size, uploaded_by, region, folder_path, created_at FROM files;
+
 DROP TABLE files;
 ALTER TABLE files_new RENAME TO files;
 
