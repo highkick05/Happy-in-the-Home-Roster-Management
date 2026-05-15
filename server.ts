@@ -991,12 +991,11 @@ async function startServer() {
         return { distance: 0, cost: 0, routeLogs: [] };
       } else {
         // NDIS LOGIC
-        // Rule A & B
-        const prevGapHoursNDIS = prevShift ? (new Date(shift.start_time).getTime() - new Date(prevShift.end_time).getTime()) / 3600000 : Infinity;
-        if (!prevShift || prevGapHoursNDIS > 10) {
-          console.log(`[DEBUG Provider Travel (Complete)] First shift (NDIS). Dist from Staff ${shift.staff_id} Home to Client ${shift.client_id}`);
+        // Incoming Trip
+        const prevGapMins = prevShift ? (new Date(shift.start_time).getTime() - new Date(prevShift.end_time).getTime()) / 60000 : Infinity;
+        if (!prevShift || prevGapMins > 60) {
+          console.log(`[DEBUG Provider Travel (Complete)] Check: gap > 60m or first shift. Start: Staff Home`);
           const distHome = await getOsrmDistance([staffHomeCoords, clientCoords]);
-          console.log(`[DEBUG Provider Travel (Complete)] Client Arrival calc dist: ${distHome} km`);
           totalDist += distHome;
           const routeDesc = `${staffHomeStr} to ${clientHomeStr}`;
           routeLogs.push({ description: routeDesc, distance: distHome, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: client?.address });
@@ -1004,21 +1003,27 @@ async function startServer() {
           const prevClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(prevShift.client_id) as any;
           const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
           const prevClientStr = `Previous Client (${prevClientInfo?.address || 'Unknown'}) ${formatCoords(prevClientCoords)}`;
-          console.log(`[DEBUG Provider Travel (Complete)] Subsequent shift (NDIS). Dist from Client ${prevShift.client_id} to ${shift.client_id}`);
+          console.log(`[DEBUG Provider Travel (Complete)] Check: gap <= 60m. Start: Previous Client`);
           const dist = await getOsrmDistance([prevClientCoords, clientCoords]); 
-          console.log(`[DEBUG Provider Travel (Complete)] Client Arrival calc dist: ${dist} km`);
           totalDist += dist;
           routeLogs.push({ description: `${prevClientStr} to ${clientHomeStr}`, distance: dist, waypoints: [prevClientCoords, clientCoords], addressStart: prevClientInfo?.address, addressEnd: client?.address });
         }
 
-        // Rule C
-        const nextGapHoursNDIS = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(shift.end_time).getTime()) / 3600000 : Infinity;
-        if (!nextShift || nextGapHoursNDIS > 10) {
-           console.log(`[DEBUG Provider Travel (Complete)] Last shift of day (NDIS). Appending Return Home distance: Client ${shift.client_id} -> Staff ${shift.staff_id} Home`);
+        // Outgoing Trip
+        const nextGapMins = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(shift.end_time).getTime()) / 60000 : Infinity;
+        if (!nextShift || nextGapMins > 60) {
+           console.log(`[DEBUG Provider Travel (Complete)] Check: gap > 60m or last shift. End: Staff Home`);
            const distReturn = await getOsrmDistance([clientCoords, staffHomeCoords]);
-           console.log(`[DEBUG Provider Travel (Complete)] Return Home calc dist: ${distReturn} km`);
            totalDist += distReturn;
            routeLogs.push({ description: `${clientHomeStr} to Staff Home (Return trip)`, distance: distReturn, waypoints: [clientCoords, staffHomeCoords], addressStart: client?.address, addressEnd: staff?.address });
+        } else {
+           const nextClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(nextShift.client_id) as any;
+           const nextClientCoords = await getRecordCoordinates('clients', nextShift.client_id, nextClientInfo?.address);
+           const nextClientStr = `Next Client (${nextClientInfo?.address || 'Unknown'}) ${formatCoords(nextClientCoords)}`;
+           console.log(`[DEBUG Provider Travel (Complete)] Check: gap <= 60m. End: Next Client`);
+           const distNext = await getOsrmDistance([clientCoords, nextClientCoords]);
+           totalDist += distNext;
+           routeLogs.push({ description: `${clientHomeStr} to ${nextClientStr}`, distance: distNext, waypoints: [clientCoords, nextClientCoords], addressStart: client?.address, addressEnd: nextClientInfo?.address });
         }
       }
 
