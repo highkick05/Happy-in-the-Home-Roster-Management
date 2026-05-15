@@ -973,13 +973,15 @@ async function startServer() {
       const prevShift = db.prepare(`
         SELECT * FROM shifts 
         WHERE staff_id = ? AND start_time >= datetime(?, '-14 hours') AND start_time <= datetime(?, '+14 hours') AND end_time <= ? AND id != ? AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
-        ORDER BY end_time DESC LIMIT 1
+        AND funding_type NOT IN ('HCP', 'Home Care', 'HOME_CARE')
+        ORDER BY end_time DESC, start_time DESC LIMIT 1
       `).get(shift.staff_id, shift.start_time, shift.start_time, shift.start_time, shift.id) as any;
 
       // Find next shift today for staff (to determine if last)
       const nextShift = db.prepare(`
         SELECT * FROM shifts 
         WHERE staff_id = ? AND start_time >= datetime(?, '-14 hours') AND start_time <= datetime(?, '+14 hours') AND start_time >= ? AND id != ? AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+        AND funding_type NOT IN ('HCP', 'Home Care', 'HOME_CARE')
         ORDER BY start_time ASC LIMIT 1
       `).get(shift.staff_id, shift.start_time, shift.start_time, shift.end_time, shift.id) as any;
 
@@ -993,7 +995,7 @@ async function startServer() {
         // NDIS LOGIC
         // Incoming Trip
         const prevGapMins = prevShift ? (new Date(shift.start_time).getTime() - new Date(prevShift.end_time).getTime()) / 60000 : Infinity;
-        if (!prevShift || prevGapMins > 60) {
+        if (!prevShift || prevGapMins > 60 || prevGapMins < 0) {
           console.log(`[DEBUG Provider Travel (Complete)] Check: gap > 60m or first shift. Start: Staff Home`);
           const distHome = await getOsrmDistance([staffHomeCoords, clientCoords]);
           totalDist += distHome;
@@ -1011,7 +1013,7 @@ async function startServer() {
 
         // Outgoing Trip
         const nextGapMins = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(shift.end_time).getTime()) / 60000 : Infinity;
-        if (!nextShift || nextGapMins > 60) {
+        if (!nextShift || nextGapMins > 60 || nextGapMins < 0) {
            console.log(`[DEBUG Provider Travel (Complete)] Check: gap > 60m or last shift. End: Staff Home`);
            const distReturn = await getOsrmDistance([clientCoords, staffHomeCoords]);
            totalDist += distReturn;
