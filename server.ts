@@ -447,6 +447,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS client_services (
     client_id INTEGER NOT NULL,
     service_id INTEGER NOT NULL,
+    custom_rate REAL,
     PRIMARY KEY (client_id, service_id),
     FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
     FOREIGN KEY(service_id) REFERENCES services(id) ON DELETE CASCADE
@@ -460,11 +461,12 @@ try {
     CREATE TABLE IF NOT EXISTS client_services_new (
       client_id INTEGER NOT NULL,
       service_id INTEGER NOT NULL,
+      custom_rate REAL,
       PRIMARY KEY (client_id, service_id),
       FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
       FOREIGN KEY(service_id) REFERENCES services(id) ON DELETE CASCADE
     );
-    INSERT OR IGNORE INTO client_services_new SELECT client_id, service_id FROM client_services WHERE client_id IS NOT NULL AND service_id IS NOT NULL;
+    INSERT OR IGNORE INTO client_services_new (client_id, service_id) SELECT client_id, service_id FROM client_services WHERE client_id IS NOT NULL AND service_id IS NOT NULL;
     DROP TABLE client_services;
     ALTER TABLE client_services_new RENAME TO client_services;
     
@@ -1332,64 +1334,109 @@ async function startServer() {
 
       // Fetch child shifts staff details for daily distribution
       const shifts = db.prepare(`
-        SELECT s.start_time, s.end_time, u.first_name as s_fn, u.last_name as s_ln
+        SELECT s.start_time, s.end_time, s.service_id, s.services_json, u.first_name as s_fn, u.last_name as s_ln
         FROM shifts s
         LEFT JOIN users u ON s.staff_id = u.id
         WHERE s.respite_booking_id = ?
         ORDER BY s.start_time ASC
       `).all(respiteBookingId) as any[];
 
-      const srv = rb.service_id ? db.prepare('SELECT * FROM services WHERE id = ?').get(rb.service_id) as any : null;
-
-      const dailyStaffMap: Record<string, Set<string>> = {};
+      const dailyMap: Record<string, { staff: Set<string>, sStart: Date, serviceId: number | null }> = {};
       
-      let current = new Date(start);
-      current.setHours(0,0,0,0);
-      const tempEnd = new Date(end);
-      if (tempEnd.getHours() === 0 && tempEnd.getMinutes() === 0 && tempEnd.getTime() > current.getTime()) {
-         // If end time is exactly midnight (e.g. 13 May 00:00), don't bill for the 13th Day. 
-         // But usually STA ends next day. We will iterate using start timestamp to end timestamp.
-      }
-      tempEnd.setHours(0,0,0,0);
-
-      while (current <= tempEnd) {
-         const dStr = shiftDateFormatter.format(current);
-         dailyStaffMap[dStr] = new Set<string>();
-
-         for (const s of shifts) {
-            const shiftDateStr = shiftDateFormatter.format(new Date(s.start_time));
-            if (shiftDateStr === dStr && s.s_fn) {
-               dailyStaffMap[dStr].add(`${s.s_fn} ${s.s_ln}`);
-            }
-         }
-         
-         const nextDay = new Date(current);
-         nextDay.setDate(nextDay.getDate() + 1);
-         if (current.getTime() === tempEnd.getTime()) break;
-         current = nextDay;
+      for (const s of shifts) {
+          const sStart = new Date(s.start_time);
+          const shiftDateStr = shiftDateFormatter.format(sStart);
+          
+          if (!dailyMap[shiftDateStr]) {
+              dailyMap[shiftDateStr] = { staff: new Set<string>(), sStart: sStart, serviceId: null };
+          }
+          if (s.s_fn) dailyMap[shiftDateStr].staff.add(`${s.s_fn} ${s.s_ln}`);
+          
+          if (!dailyMap[shiftDateStr].serviceId) {
+             let srvId = null;
+             if (s.services_json) {
+                 try {
+                    const pj = JSON.parse(s.services_json);
+                    if (pj && pj.length > 0) srvId = pj[0].serviceId;
+                 } catch(e){}
+             }
+             if (!srvId && s.service_id) srvId = s.service_id;
+             if (srvId) dailyMap[shiftDateStr].serviceId = srvId;
+          }
       }
 
       const allLineItems: any[] = [];
       let subtotal = 0;
+      
+      const hd = new Holidays('AU', settingsMap.state || 'WA');
 
-      for (const [dateStr, staffSet] of Object.entries(dailyStaffMap)) {
-         const staffList = Array.from(staffSet);
+      for (const [dateStr, dayData] of Object.entries(dailyMap)) {
+         const staffList = Array.from(dayData.staff);
+         const sStart = dayData.sStart;
+         
+         let srvId = dayData.serviceId;
+         if (!srvId && rb.service_id) srvId = rb.service_id;
+         
+         let finalRate = 0;
+         let srvName = 'STA / Respite';
+         let srvCode = 'N/A';
+         let dayCategory = 'Weekday';
 
-         const rate = srv ? Number(srv.rate || 0) : 0;
-         const amount = rate * 1; // 1 Day Flat Rate
-
+         const dayOfWeek = sStart.getDay();
+         const ymd = dateFormatterAPI.format(sStart);
+         const isPubHol = hd.getHolidays(sStart.getFullYear()).some((h: any) => h.type === 'public' && h.date.startsWith(ymd));
+         
+         if (isPubHol) dayCategory = 'Public Holiday';
+         else if (dayOfWeek === 0) dayCategory = 'Sunday';
+         else if (dayOfWeek === 6) dayCategory = 'Saturday';
+         
+         if (srvId) {
+             const srv = db.prepare('SELECT * FROM services WHERE id = ?').get(srvId) as any;
+             if (srv) {
+                 srvName = srv.name;
+                 srvCode = isHC ? srv.id : (srv.code || 'N/A');
+                 
+                 let baseRate = Number(srv.rate || 0);
+                 
+                 // Look up custom rate for this client/service
+                 const cs = db.prepare('SELECT custom_rate FROM client_services WHERE client_id = ? AND service_id = ?').get(rb.client_id, srvId) as any;
+                 if (cs && cs.custom_rate !== null && cs.custom_rate !== undefined) {
+                     baseRate = Number(cs.custom_rate);
+                 }
+                 
+                 finalRate = baseRate;
+                 if (srv.type === 'HOME_CARE' && srv.rates_json) {
+                    try {
+                        const rates = JSON.parse(srv.rates_json);
+                        if (isPubHol && rates['Public Holiday']) finalRate = Number(rates['Public Holiday']);
+                        else if (dayOfWeek === 0 && rates['Sunday']) finalRate = Number(rates['Sunday']);
+                        else if (dayOfWeek === 6 && rates['Saturday']) finalRate = Number(rates['Saturday']);
+                        else if (rates['Weekday']) finalRate = Number(rates['Weekday']);
+                    } catch(e) {}
+                 } else if (srv.type === 'NDIS' && srv.rates_json) {
+                    try {
+                        const rates = JSON.parse(srv.rates_json);
+                        const region = settingsMap.ndisRegion || 'NSW';
+                        if (rates[region] !== undefined) finalRate = Number(rates[region]);
+                    } catch(e) {}
+                 }
+             }
+         }
+         
+         const description = `${srvName} - ${dayCategory}`;
+         
          allLineItems.push({
             date: dateStr,
             time: '24 Hours',
-            serviceName: srv ? (srv.name || 'STA / Respite') : 'STA / Respite',
-            code: srv ? srv.code : '',
+            serviceName: description,
+            code: srvCode,
             metadata: staffList.length > 0 ? `Provided by ${staffList.join(', ')}` : '',
             qty: 1,
             unit: 'Day',
-            rate: rate,
-            amount: amount
+            rate: finalRate,
+            amount: finalRate
          });
-         subtotal += amount;
+         subtotal += finalRate;
       }
 
       if (allLineItems.length === 0) return null;
@@ -1462,6 +1509,22 @@ async function startServer() {
           }
         } catch (err) {
           console.error(`Failed to backfill invoice ${inv.id}:`, err);
+        }
+      });
+    }
+
+    // Fix respite invoices with $0 amounts
+    const zeroRespiteInvoices = db.prepare('SELECT id, respite_booking_id FROM invoices WHERE respite_booking_id IS NOT NULL AND amount = 0').all() as any[];
+    if (zeroRespiteInvoices.length > 0) {
+      console.log(`Recalculating ${zeroRespiteInvoices.length} respite invoices with $0.00 amount...`);
+      zeroRespiteInvoices.forEach(inv => {
+        try {
+          const data = getInvoiceDataForRespiteBooking(inv.respite_booking_id);
+          if (data && data.subtotal !== undefined) {
+            db.prepare('UPDATE invoices SET amount = ? WHERE id = ?').run(data.subtotal, inv.id);
+          }
+        } catch (err) {
+          console.error(`Failed to update respite invoice ${inv.id}:`, err);
         }
       });
     }
