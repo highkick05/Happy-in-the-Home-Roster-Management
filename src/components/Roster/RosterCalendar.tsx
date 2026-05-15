@@ -554,7 +554,7 @@ export default function RosterCalendar() {
 
       return (
         <div 
-          className="w-full h-full flex flex-row items-center overflow-hidden truncate px-1"
+          className="w-full h-full flex flex-row items-center overflow-hidden truncate px-1 relative"
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
@@ -562,12 +562,39 @@ export default function RosterCalendar() {
           onTouchEnd={handleMouseUp}
         >
           {event.isRespiteWrapper && (
-            <div className="flex items-center gap-1 shrink-0 mr-1">
+            <div className="flex items-center gap-1 shrink-0 mr-1 relative z-10">
               <Bed className="w-3.5 h-3.5 text-violet-100 drop-shadow-sm" />
-              <Sparkles className="w-3 h-3 text-amber-300 drop-shadow-sm" />
             </div>
           )}
-          <span className="truncate">{title}</span>
+          <span className="truncate relative z-10">{title}</span>
+
+          {event.isRespiteWrapper && (
+            <div className="absolute inset-0 pointer-events-none">
+              {Array.from({ length: 12 }).map((_, i) => {
+                const seedId = typeof event.id === 'string' ? event.id.charCodeAt(0) : (Number(event.id) || 123);
+                const seed = seedId + i*13;
+                const top = 10 + (seed % 80);
+                const left = 5 + ((seed * 7) % 90);
+                const delay = (seed % 30) / 10;
+                const duration = 1.5 + (seed % 20) / 10;
+                const size = 6 + (seed % 6);
+                return (
+                  <Sparkles
+                    key={i}
+                    className="absolute text-amber-300 drop-shadow-sm opacity-0"
+                    style={{
+                      top: `${top}%`,
+                      left: `${left}%`,
+                      width: `${size}px`,
+                      height: `${size}px`,
+                      animation: `sparkle-twinkle ${duration}s ease-in-out infinite`,
+                      animationDelay: `${delay}s`,
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
       );
     };
