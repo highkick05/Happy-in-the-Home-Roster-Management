@@ -831,9 +831,9 @@ export default function RosterCalendar() {
                   </button>
                   <button 
                     onClick={handleAddRespiteBooking}
-                    className="flex items-center justify-center px-4 py-2 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[13px] font-medium rounded-md transition-colors w-full sm:w-auto"
+                    className="flex items-center justify-center px-4 py-2 bg-violet-600 hover:bg-violet-500 border border-violet-400/50 text-white text-[13px] font-medium rounded-md transition-all shadow-[inset_0px_1px_rgba(255,255,255,0.2)] w-full sm:w-auto"
                   >
-                    <Plus className="w-4 h-4 mr-2" />
+                    <Bed className="w-4 h-4 mr-2" />
                     STA / Respite
                   </button>
                   <button 
