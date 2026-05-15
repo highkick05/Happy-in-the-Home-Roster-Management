@@ -506,14 +506,11 @@ export default function RosterCalendar() {
     if (event.isRespiteWrapper) {
       backgroundColor = '#8b5cf6'; // violet-500
       border = isSelected ? '2px solid white' : '1px inset #7c3aed';
-      backgroundImage = `url("data:image/svg+xml,%3Csvg width='30' height='30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15 0 L16.5 13.5 L30 15 L16.5 16.5 L15 30 L13.5 16.5 L0 15 L13.5 13.5 Z' fill='rgba(255,255,255,0.1)' /%3E%3C/svg%3E")`;
     }
 
     return {
       style: {
         backgroundColor,
-        backgroundImage,
-        backgroundSize: '30px 30px',
         borderRadius: '6px',
         opacity: isSelected ? 1 : 0.9,
         color: event.status === 'COMPLETED' ? '#0b1120' : 'white',
@@ -569,15 +566,18 @@ export default function RosterCalendar() {
           <span className="truncate relative z-10">{title}</span>
 
           {event.isRespiteWrapper && (
-            <div className="absolute inset-0 pointer-events-none">
-              {Array.from({ length: 12 }).map((_, i) => {
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {Array.from({ length: 25 }).map((_, i) => {
                 const seedId = typeof event.id === 'string' ? event.id.charCodeAt(0) : (Number(event.id) || 123);
-                const seed = seedId + i*13;
-                const top = 10 + (seed % 80);
-                const left = 5 + ((seed * 7) % 90);
-                const delay = (seed % 30) / 10;
-                const duration = 1.5 + (seed % 20) / 10;
-                const size = 6 + (seed % 6);
+                // better deterministic spreading
+                const hash1 = Math.abs(Math.sin(seedId + i + 1)) * 10000;
+                const hash2 = Math.abs(Math.cos(seedId + i + 2)) * 10000;
+                
+                const top = 5 + (hash1 % 90);
+                const left = 2 + (hash2 % 96);
+                const delay = (hash1 % 30) / 10;
+                const duration = 1.5 + (hash2 % 20) / 10;
+                const size = 5 + (hash1 % 6);
                 return (
                   <Sparkles
                     key={i}
