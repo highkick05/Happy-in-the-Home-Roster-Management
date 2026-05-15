@@ -232,10 +232,12 @@ db.exec(`
     file_path TEXT,
     status TEXT NOT NULL DEFAULT 'GENERATED' CHECK(status IN ('GENERATED', 'SENT', 'PAID', 'VOID')),
     merged_into_shift_id INTEGER,
+    respite_booking_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (shift_id) REFERENCES shifts(id) ON DELETE SET NULL,
     FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE SET NULL,
-    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+    FOREIGN KEY (respite_booking_id) REFERENCES respite_bookings(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS quotes (
@@ -562,11 +564,13 @@ try {
       status TEXT NOT NULL DEFAULT 'GENERATED' CHECK(status IN ('GENERATED', 'SENT', 'PAID', 'VOID')),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       merged_into_shift_id INTEGER,
+      respite_booking_id INTEGER,
       FOREIGN KEY (shift_id) REFERENCES shifts(id) ON DELETE SET NULL,
       FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE SET NULL,
-      FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
+      FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+      FOREIGN KEY (respite_booking_id) REFERENCES respite_bookings(id) ON DELETE SET NULL
     );
-    INSERT OR IGNORE INTO invoices_new SELECT id, invoice_number, shift_id, provider_id, client_id, amount, file_path, status, created_at, merged_into_shift_id FROM invoices;
+    INSERT OR IGNORE INTO invoices_new SELECT id, invoice_number, shift_id, provider_id, client_id, amount, file_path, status, created_at, merged_into_shift_id, respite_booking_id FROM invoices;
     DROP TABLE invoices;
     ALTER TABLE invoices_new RENAME TO invoices;
     CREATE TABLE IF NOT EXISTS quotes_new (

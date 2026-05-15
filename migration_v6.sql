@@ -17,9 +17,11 @@ CREATE TABLE IF NOT EXISTS invoices_new (
   status TEXT NOT NULL DEFAULT 'GENERATED' CHECK(status IN ('GENERATED', 'SENT', 'PAID', 'VOID')),
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   merged_into_shift_id INTEGER,
+  respite_booking_id INTEGER,
   FOREIGN KEY (shift_id) REFERENCES shifts(id) ON DELETE SET NULL,
   FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE SET NULL,
-  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+  FOREIGN KEY (respite_booking_id) REFERENCES respite_bookings(id) ON DELETE SET NULL
 );
 INSERT OR IGNORE INTO invoices_new SELECT * FROM invoices;
 DROP TABLE invoices;
