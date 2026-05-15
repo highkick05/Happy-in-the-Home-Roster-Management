@@ -662,6 +662,7 @@ try { db.exec("ALTER TABLE users ADD COLUMN reset_password_token TEXT"); } catch
 try { db.exec("ALTER TABLE users ADD COLUMN reset_password_expires DATETIME"); } catch(e) { /* ignore */ }
 try { db.exec("ALTER TABLE shifts ADD COLUMN home_care_travel_km REAL DEFAULT 0"); } catch(e) { /* ignore */ }
 try { db.exec("ALTER TABLE shifts ADD COLUMN home_care_travel_total REAL DEFAULT 0"); } catch(e) { /* ignore */ }
+try { db.exec("ALTER TABLE invoices ADD COLUMN respite_booking_id INTEGER REFERENCES respite_bookings(id)"); } catch(e) { /* ignore */ }
 
 try {
   db.exec(`
@@ -1289,6 +1290,107 @@ async function startServer() {
         lineItems,
         subtotal
       };
+  };
+
+  const getInvoiceDataForRespiteBooking = (respiteBookingId: number) => {
+      const rb = db.prepare(`
+        SELECT rb.*, c.first_name as c_fn, c.last_name as c_ln, c.ndis_number, c.address as c_address, c.provider_id, c.funding_type,
+               p.company_name as plan_manager_name, p.email as plan_manager_email, p.address as plan_manager_address
+        FROM respite_bookings rb
+        LEFT JOIN clients c ON rb.client_id = c.id
+        LEFT JOIN providers p ON c.provider_id = p.id
+        WHERE rb.id = ?
+      `).get(respiteBookingId) as any;
+
+      if (!rb) return null;
+
+      const shifts = db.prepare('SELECT id FROM shifts WHERE respite_booking_id = ?').all(respiteBookingId) as any[];
+
+      const allLineItems: any[] = [];
+      let subtotal = 0;
+
+      for (const s of shifts) {
+         const data = getInvoiceDataForShift(s.id);
+         if (data && data.lineItems) {
+            allLineItems.push(...data.lineItems);
+            subtotal += data.subtotal;
+         }
+      }
+
+      if (allLineItems.length === 0) return null;
+
+      const settingsRows = db.prepare('SELECT key, value FROM settings').all() as any[];
+      const settingsMap: Record<string, any> = {};
+      settingsRows.forEach(r => {
+        try { settingsMap[r.key] = JSON.parse(r.value); } catch { settingsMap[r.key] = r.value; }
+      });
+      const timezone = settingsMap.timezone || 'Australia/Perth';
+
+      const dateFormatterAPI = getSafeDateTimeFormat('en-CA', {
+        timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit'
+      });
+      const start = new Date(rb.start_time);
+      const yyyymmdd = dateFormatterAPI.format(start).replace(/-/g, '');
+
+      const isHC = (rb.funding_type === 'HCP' || rb.funding_type === 'Home Care' || rb.funding_type === 'HOME_CARE');
+      let invoicePrefix = isHC ? settingsMap.hcInvoicePrefix : settingsMap.ndisInvoicePrefix;
+      if (!invoicePrefix) invoicePrefix = isHC ? 'HC-' : 'INV-';
+      
+      const invoiceNum = `${invoicePrefix}RB${yyyymmdd}-${String(respiteBookingId).padStart(4, '0')}`;
+
+      const invoiceDateFormatter = getSafeDateTimeFormat('en-GB', {
+        timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric'
+      });
+      
+      let finalInvoiceDateStr = invoiceDateFormatter.format(new Date());
+      try {
+        const invRow = db.prepare('SELECT created_at FROM invoices WHERE respite_booking_id = ?').get(respiteBookingId) as any;
+        if (invRow && invRow.created_at) {
+          finalInvoiceDateStr = invoiceDateFormatter.format(new Date(invRow.created_at));
+        } else {
+          finalInvoiceDateStr = invoiceDateFormatter.format(new Date(rb.end_time));
+        }
+      } catch(e) {
+        finalInvoiceDateStr = invoiceDateFormatter.format(new Date(rb.end_time));
+      }
+
+      return {
+        shift: rb,
+        settingsMap,
+        invoiceNum,
+        invoiceDate: finalInvoiceDateStr,
+        lineItems: allLineItems,
+        subtotal
+      };
+  };
+
+  const generateInvoiceForRespiteBooking = (respiteBookingId: number) => {
+    try {
+      const data = getInvoiceDataForRespiteBooking(respiteBookingId);
+      if (!data) return;
+      if (data.lineItems.length === 0) return;
+
+      const { shift, settingsMap, invoiceNum, invoiceDate, lineItems, subtotal } = data;
+      const fileName = `${invoiceNum}.pdf`;
+
+      const existing = db.prepare('SELECT id FROM invoices WHERE respite_booking_id = ?').get(respiteBookingId);
+      if (existing) {
+        db.prepare('UPDATE invoices SET invoice_number=?, amount=?, file_path=?, status=? WHERE respite_booking_id=?').run(
+           invoiceNum, subtotal, fileName, 'GENERATED', respiteBookingId
+        );
+      } else {
+        db.prepare('INSERT INTO invoices (invoice_number, respite_booking_id, client_id, amount, file_path, status) VALUES (?, ?, ?, ?, ?, ?)').run(
+          invoiceNum,
+          respiteBookingId,
+          shift.client_id,
+          subtotal,
+          fileName,
+          'GENERATED'
+        );
+      }
+    } catch (e) {
+      console.error('Failed to generate invoice for respite:', e);
+    }
   };
 
   // Backfill existing invoices
@@ -3203,8 +3305,17 @@ async function startServer() {
         logger.error(`Failed to create notifications for shift ${id}: ${err}`);
       }
 
-      // Generate Invoice
-      generateInvoiceForShift(id);
+      if (shift.respite_booking_id) {
+         const childShifts = db.prepare("SELECT status FROM shifts WHERE respite_booking_id = ?").all(shift.respite_booking_id);
+         const allCompleted = childShifts.every((s: any) => s.status === 'COMPLETED');
+         if (allCompleted) {
+             db.prepare("UPDATE respite_bookings SET status = 'COMPLETED' WHERE id = ?").run(shift.respite_booking_id);
+             generateInvoiceForRespiteBooking(shift.respite_booking_id);
+         }
+      } else {
+         // Generate Invoice for normal shift
+         generateInvoiceForShift(id);
+      }
 
       res.json({ success: true, abt_km, pTravelDistance: pTravel.distance });
     } catch(e: any) {
@@ -3667,12 +3778,15 @@ async function startServer() {
   app.get('/api/invoices', authenticateToken, (req: any, res: any) => {
     let query = `
       SELECT i.*, 
-             s.start_time, s.end_time, s.notes as shift_notes,
+             COALESCE(s.start_time, rb.start_time) as start_time, 
+             COALESCE(s.end_time, rb.end_time) as end_time, 
+             COALESCE(s.notes, rb.notes) as shift_notes,
              c.first_name as client_first_name, c.last_name as client_last_name,
              u.first_name as staff_first_name, u.last_name as staff_last_name,
              (SELECT COUNT(*) FROM invoices sub WHERE sub.merged_into_shift_id = s.id) > 0 as is_merged
       FROM invoices i
       LEFT JOIN shifts s ON i.shift_id = s.id
+      LEFT JOIN respite_bookings rb ON i.respite_booking_id = rb.id
       LEFT JOIN clients c ON i.client_id = c.id
       LEFT JOIN users u ON s.staff_id = u.id
       WHERE i.merged_into_shift_id IS NULL AND i.status != 'VOID'
@@ -4162,6 +4276,42 @@ async function startServer() {
     let paymentDueDays = settingsMap.paymentDueDays || 14;
     doc.font('Helvetica').fontSize(10).text(`THANK YOU FOR YOUR BUSINESS. PAYMENT IS DUE WITHIN ${paymentDueDays} DAYS.`, 50, doc.y, { align: 'center' });
   };
+
+  app.get('/api/invoices/:id/download-by-id', authenticateToken, (req: any, res: any) => {
+    const invoiceId = parseInt(req.params.id);
+    if (!invoiceId) return res.status(400).json({ error: 'Invalid invoiceId' });
+    
+    try {
+      const invoiceRow = db.prepare('SELECT shift_id, respite_booking_id FROM invoices WHERE id = ?').get(invoiceId) as any;
+      if (!invoiceRow) return res.status(404).json({ error: 'Invoice not found' });
+      
+      let data: any = null;
+      if (invoiceRow.respite_booking_id) {
+         data = getInvoiceDataForRespiteBooking(invoiceRow.respite_booking_id);
+      } else if (invoiceRow.shift_id) {
+         data = getInvoiceDataForShift(invoiceRow.shift_id);
+      }
+
+      if (!data) return res.status(404).json({ error: 'Invoice data not found' });
+      if (data.lineItems.length === 0) return res.status(400).json({ error: 'No billable items' });
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${data.invoiceNum}.pdf"`);
+
+      const doc = new PDFDocument({ margin: 50 });
+      doc.pipe(res);
+      
+      buildInvoicePdf(doc, data);
+
+      doc.end();
+
+    } catch (e: any) {
+      console.error('Failed to generate dynamic invoice:', e);
+      if (!res.headersSent) 
+      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      res.status(500).json({ error: String(e) });
+    }
+  });
 
   app.get('/api/invoices/:shiftId/download', authenticateToken, (req: any, res: any) => {
     const shiftId = parseInt(req.params.shiftId);

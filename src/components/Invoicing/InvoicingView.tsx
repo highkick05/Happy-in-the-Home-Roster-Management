@@ -423,9 +423,9 @@ export default function InvoicingView() {
     }
   };
 
-  const downloadInvoice = async (shiftId: number, filename: string) => {
+  const downloadInvoiceById = async (invoiceId: number, filename: string) => {
     try {
-      const res = await fetch(`/api/invoices/${shiftId}/download`, {
+      const res = await fetch(`/api/invoices/${invoiceId}/download-by-id`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -433,7 +433,7 @@ export default function InvoicingView() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = filename || `invoice-${shiftId}.pdf`;
+        a.download = filename || `invoice-${invoiceId}.pdf`;
         a.click();
         window.URL.revokeObjectURL(url);
       } else {
@@ -824,7 +824,7 @@ export default function InvoicingView() {
                       {i.file_path ? (
                         <button 
                           title="Download PDF"
-                          onClick={() => downloadInvoice(i.shift_id, i.file_path)}
+                          onClick={() => downloadInvoiceById(i.id, i.file_path)}
                           className="p-1.5 text-zinc-400 hover:text-brand-teal hover:bg-brand-teal/10 rounded-md transition-colors"
                         >
                           <Download className="w-4 h-4" />
