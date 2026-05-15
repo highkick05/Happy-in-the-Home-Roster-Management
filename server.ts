@@ -188,6 +188,8 @@ db.exec(`
     funding_type TEXT DEFAULT 'NDIS',
     provider_travel_km REAL DEFAULT 0,
     provider_travel_cost REAL DEFAULT 0,
+    home_care_travel_km REAL DEFAULT 0,
+    home_care_travel_total REAL DEFAULT 0,
     abt_km REAL DEFAULT 0,
     abt_cost REAL DEFAULT 0,
     transport_route_log TEXT,
@@ -442,6 +444,10 @@ try { db.exec("ALTER TABLE clients ADD COLUMN address TEXT"); } catch(e) { /* ig
 try { db.exec("ALTER TABLE clients ADD COLUMN representative_name TEXT"); } catch(e) { /* ignore */ }
 try { db.exec("ALTER TABLE clients ADD COLUMN representative_phone TEXT"); } catch(e) { /* ignore */ }
 try { db.exec("ALTER TABLE clients ADD COLUMN representative_email TEXT"); } catch(e) { /* ignore */ }
+try { db.exec("ALTER TABLE shifts ADD COLUMN home_care_travel_km REAL DEFAULT 0"); } catch(e) { /* ignore */ }
+try { db.exec("ALTER TABLE shifts ADD COLUMN home_care_travel_total REAL DEFAULT 0"); } catch(e) { /* ignore */ }
+try { db.exec("ALTER TABLE shifts ADD COLUMN custom_rate REAL"); } catch(e) { /* ignore */ }
+try { db.exec("ALTER TABLE client_services ADD COLUMN custom_rate REAL"); } catch(e) { /* ignore */ }
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS client_services (
@@ -466,7 +472,7 @@ try {
       FOREIGN KEY(client_id) REFERENCES clients(id) ON DELETE CASCADE,
       FOREIGN KEY(service_id) REFERENCES services(id) ON DELETE CASCADE
     );
-    INSERT OR IGNORE INTO client_services_new (client_id, service_id) SELECT client_id, service_id FROM client_services WHERE client_id IS NOT NULL AND service_id IS NOT NULL;
+    INSERT OR IGNORE INTO client_services_new (client_id, service_id, custom_rate) SELECT client_id, service_id, custom_rate FROM client_services WHERE client_id IS NOT NULL AND service_id IS NOT NULL;
     DROP TABLE client_services;
     ALTER TABLE client_services_new RENAME TO client_services;
     
@@ -525,6 +531,8 @@ try {
       funding_type TEXT DEFAULT 'NDIS',
       provider_travel_km REAL DEFAULT 0,
       provider_travel_cost REAL DEFAULT 0,
+      home_care_travel_km REAL DEFAULT 0,
+      home_care_travel_total REAL DEFAULT 0,
       abt_km REAL DEFAULT 0,
       abt_cost REAL DEFAULT 0,
       transport_route_log TEXT,
@@ -535,8 +543,8 @@ try {
       FOREIGN KEY (respite_booking_id) REFERENCES respite_bookings(id) ON DELETE CASCADE,
       CHECK (start_time < end_time)
     );
-    INSERT OR IGNORE INTO shifts_new (id, staff_id, client_id, service_id, respite_booking_id, start_time, end_time, status, notes, created_at, actual_start_time, actual_finish_time, odometer_start_reading, odometer_start_photo, odometer_end_reading, odometer_end_photo, funding_type, provider_travel_km, provider_travel_cost, abt_km, abt_cost, transport_route_log, services_json)
-    SELECT id, staff_id, client_id, service_id, respite_booking_id, start_time, end_time, status, notes, created_at, actual_start_time, actual_finish_time, odometer_start_reading, odometer_start_photo, odometer_end_reading, odometer_end_photo, funding_type, provider_travel_km, provider_travel_cost, abt_km, abt_cost, transport_route_log, services_json FROM shifts;
+    INSERT OR IGNORE INTO shifts_new (id, staff_id, client_id, service_id, respite_booking_id, start_time, end_time, status, notes, created_at, actual_start_time, actual_finish_time, odometer_start_reading, odometer_start_photo, odometer_end_reading, odometer_end_photo, funding_type, provider_travel_km, provider_travel_cost, home_care_travel_km, home_care_travel_total, abt_km, abt_cost, transport_route_log, services_json)
+    SELECT id, staff_id, client_id, service_id, respite_booking_id, start_time, end_time, status, notes, created_at, actual_start_time, actual_finish_time, odometer_start_reading, odometer_start_photo, odometer_end_reading, odometer_end_photo, funding_type, provider_travel_km, provider_travel_cost, home_care_travel_km, home_care_travel_total, abt_km, abt_cost, transport_route_log, services_json FROM shifts;
     DROP TABLE shifts;
     ALTER TABLE shifts_new RENAME TO shifts;
 
@@ -2982,7 +2990,7 @@ async function startServer() {
          SELECT s.id, s.staff_id, s.client_id, s.service_id, s.respite_booking_id,
                 s.start_time, s.end_time, s.status, s.notes, s.created_at, COALESCE(c.funding_type, 'NDIS') as funding_type,
                 s.actual_start_time, s.actual_finish_time, s.services_json,
-                s.provider_travel_km, s.provider_travel_cost, s.abt_km, s.abt_cost, s.transport_route_log,
+                s.provider_travel_km, s.provider_travel_cost, s.home_care_travel_km, s.home_care_travel_total, s.abt_km, s.abt_cost, s.transport_route_log,
                 u.first_name as staff_first_name, u.last_name as staff_last_name,
                 c.first_name as client_first_name, c.last_name as client_last_name,
                 srv.name as service_name, srv.code as service_code, srv.unit as service_unit, srv.type as service_type
