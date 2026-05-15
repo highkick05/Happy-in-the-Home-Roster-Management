@@ -789,61 +789,57 @@ async function startServer() {
       // Find previous shift today for staff
       const prevShift = db.prepare(`
         SELECT * FROM shifts 
-        WHERE staff_id = ? AND start_time >= datetime(?, '-14 hours') AND start_time <= datetime(?, '+14 hours') AND end_time <= ? ${currentShiftId ? 'AND id != ?' : ''} AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+        WHERE staff_id = ? AND end_time <= ? ${currentShiftId ? 'AND id != ?' : ''} AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
         ORDER BY end_time DESC LIMIT 1
       `).get(
-        currentShiftId ? [staffId, newShiftStartTime, newShiftStartTime, newShiftStartTime, currentShiftId] : [staffId, newShiftStartTime, newShiftStartTime, newShiftStartTime]
+        currentShiftId ? [staffId, newShiftStartTime, currentShiftId] : [staffId, newShiftStartTime]
       ) as any;
 
       // Find next shift today for staff (to determine if last)
       const nextShift = db.prepare(`
         SELECT * FROM shifts 
-        WHERE staff_id = ? AND start_time >= datetime(?, '-14 hours') AND start_time <= datetime(?, '+14 hours') AND start_time >= ? ${currentShiftId ? 'AND id != ?' : ''} AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+        WHERE staff_id = ? AND start_time >= ? ${currentShiftId ? 'AND id != ?' : ''} AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
         ORDER BY start_time ASC LIMIT 1
       `).get(
-        currentShiftId ? [staffId, newShiftStartTime, newShiftStartTime, newShiftEndTime, currentShiftId] : [staffId, newShiftStartTime, newShiftStartTime, newShiftEndTime]
+        currentShiftId ? [staffId, newShiftEndTime, currentShiftId] : [staffId, newShiftEndTime]
       ) as any;
 
       if ((fundingType === 'HCP' || fundingType === 'Home Care' || fundingType === 'HOME_CARE')) {
         // HOME CARE LOGIC
-        const prevGapHours = prevShift ? (new Date(newShiftStartTime).getTime() - new Date(prevShift.end_time).getTime()) / 3600000 : Infinity;
-        if (!prevShift || prevGapHours > 10) {
+        const prevGapMins = prevShift ? (new Date(newShiftStartTime).getTime() - new Date(prevShift.end_time).getTime()) / 60000 : Infinity;
+        if (!prevShift || prevGapMins > 60 || prevGapMins < 0) {
            console.log(`[DEBUG Provider Travel (Schedule)] First shift of day for staff ${staffId} (Home Care). No travel allowed (Private Commute).`);
            totalDist += 0;
         } else {
-           const gapMins = (new Date(newShiftStartTime).getTime() - new Date(prevShift.end_time).getTime()) / 60000;
-           if (gapMins < 60) {
-              const prevClientInfo = db.prepare('SELECT address FROM clients WHERE id = ?').get(prevShift.client_id) as any;
-              const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
-              console.log(`[DEBUG Provider Travel (Schedule)] Subsequent shift (Home Care < 60m). Dist from Client ${prevShift.client_id} to ${newShiftClientId}`);
-              const dist = await getOsrmDistance([prevClientCoords, clientCoords]); 
-              console.log(`[DEBUG Provider Travel (Schedule)] Calculated dist: ${dist} km`);
-              totalDist += dist;
-           } else {
-              console.log(`[DEBUG Provider Travel (Schedule)] Subsequent shift (Home Care >= 60m gap). Dist is 0`);
-              totalDist += 0;
-           }
+           const prevClientInfo = db.prepare('SELECT address FROM clients WHERE id = ?').get(prevShift.client_id) as any;
+           const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
+           console.log(`[DEBUG Provider Travel (Schedule)] Subsequent shift (Home Care <= 60m). Dist from Client ${prevShift.client_id} to ${newShiftClientId}`);
+           const dist = await getOsrmDistance([prevClientCoords, clientCoords]); 
+           console.log(`[DEBUG Provider Travel (Schedule)] Calculated dist: ${dist} km`);
+           totalDist += dist;
         }
       } else {
         // NDIS LOGIC
-        const prevGapHoursNDIS = prevShift ? (new Date(newShiftStartTime).getTime() - new Date(prevShift.end_time).getTime()) / 3600000 : Infinity;
-        if (!prevShift || prevGapHoursNDIS > 10) {
-           console.log(`[DEBUG Provider Travel (Schedule)] First shift of day for staff ${staffId} (NDIS). Calculating distance from Home to Client ${newShiftClientId}`);
-           const distHome = await getOsrmDistance([staffHomeCoords, clientCoords]);
-           console.log(`[DEBUG Provider Travel (Schedule)] Calculated Provider Travel from Home -> Client: ${distHome} km`);
-           totalDist += distHome;
-        } else {
+        const prevGapMins = prevShift ? (new Date(newShiftStartTime).getTime() - new Date(prevShift.end_time).getTime()) / 60000 : Infinity;
+        if (prevShift && prevGapMins >= 0 && prevGapMins <= 60) {
            const prevClientInfo = db.prepare('SELECT address FROM clients WHERE id = ?').get(prevShift.client_id) as any;
            const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
            console.log(`[DEBUG Provider Travel (Schedule)] Subsequent shift (${fundingType}). Calculating distance from Previous Client ${prevShift.client_id} to Client ${newShiftClientId}`);
            const dist = await getOsrmDistance([prevClientCoords, clientCoords]);
            console.log(`[DEBUG Provider Travel (Schedule)] Calculated Provider Travel from Previous Client -> Current Client: ${dist} km`);
            totalDist += dist;
+        } else {
+           console.log(`[DEBUG Provider Travel (Schedule)] First shift of sequence for staff ${staffId} (NDIS). Calculating distance from Home to Client ${newShiftClientId}`);
+           const distHome = await getOsrmDistance([staffHomeCoords, clientCoords]);
+           console.log(`[DEBUG Provider Travel (Schedule)] Calculated Provider Travel from Home -> Client: ${distHome} km`);
+           totalDist += distHome;
         }
 
-        const nextGapHoursNDIS = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(newShiftEndTime).getTime()) / 3600000 : Infinity;
-        if (!nextShift || nextGapHoursNDIS > 10) {
-           console.log(`[DEBUG Provider Travel (Schedule)] Last shift of day for staff ${staffId} (NDIS). Appending Return Home distance: Client ${newShiftClientId} -> Staff Home`);
+        const nextGapMins = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(newShiftEndTime).getTime()) / 60000 : Infinity;
+        if (nextShift && nextGapMins >= 0 && nextGapMins <= 60) {
+           console.log(`[DEBUG Provider Travel (Schedule)] Next shift within 60 mins. Bypassing Return to Staff Home.`);
+        } else {
+           console.log(`[DEBUG Provider Travel (Schedule)] Last shift of sequence for staff ${staffId} (NDIS). Appending Return Home distance: Client ${newShiftClientId} -> Staff Home`);
            const distReturn = await getOsrmDistance([clientCoords, staffHomeCoords]);
            console.log(`[DEBUG Provider Travel (Schedule)] Return Home calc dist: ${distReturn} km`);
            totalDist += distReturn;
@@ -980,27 +976,23 @@ async function startServer() {
       const prevShift = db.prepare(`
         SELECT * FROM shifts 
         WHERE staff_id = ? 
-        AND start_time >= datetime(?, '-14 hours') 
-        AND start_time <= datetime(?, '+14 hours') 
         AND end_time <= ? 
         AND id != ? 
         AND status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')
         AND funding_type NOT IN ('HCP', 'Home Care', 'HOME_CARE')
-        ORDER BY end_time DESC, start_time DESC LIMIT 1
-      `).get(shift.staff_id, shift.start_time, shift.start_time, shift.start_time, shift.id) as any;
+        ORDER BY end_time DESC LIMIT 1
+      `).get(shift.staff_id, shift.start_time, shift.id) as any;
 
       // Find next shift today for staff
       const nextShift = db.prepare(`
         SELECT * FROM shifts 
         WHERE staff_id = ? 
-        AND start_time >= datetime(?, '-14 hours') 
-        AND start_time <= datetime(?, '+14 hours') 
         AND start_time >= ? 
         AND id != ? 
         AND status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')
         AND funding_type NOT IN ('HCP', 'Home Care', 'HOME_CARE')
         ORDER BY start_time ASC LIMIT 1
-      `).get(shift.staff_id, shift.start_time, shift.start_time, shift.end_time, shift.id) as any;
+      `).get(shift.staff_id, shift.end_time, shift.id) as any;
 
       let totalDist = 0;
       let routeLogs: any[] = [];
