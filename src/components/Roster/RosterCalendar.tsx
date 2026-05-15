@@ -271,7 +271,7 @@ export default function RosterCalendar() {
         if (e.isRespiteWrapper) return false;
         const diffMs = e.start.getTime() - now.getTime();
         const diffMins = diffMs / 60000;
-        return diffMins <= 15 && diffMins > -1440; // up to 24 hours late
+        return diffMins <= 15; // allow any past published shift to prompt the user
       }).sort((a, b) => a.start.getTime() - b.start.getTime());
       
       if (upcomingShifts.length > 0) {
