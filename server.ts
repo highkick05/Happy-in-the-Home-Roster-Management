@@ -2162,29 +2162,53 @@ async function startServer() {
 
   // --- Respite Bookings APIs ---
   app.get('/api/respite-bookings', authenticateToken, (req: any, res: any) => {
-    if (req.user.role !== 'ADMIN') {
-      return res.json([]);
-    }
+    const isAdmin = req.user.role === 'ADMIN';
 
-    let query = `
+    let bookingsQuery = `
       SELECT rb.*, 
              c.first_name as client_first_name, c.last_name as client_last_name
       FROM respite_bookings rb
       LEFT JOIN clients c ON rb.client_id = c.id
     `;
-    const bookings = db.prepare(query).all();
+    let bookings = [];
+
+    if (isAdmin) {
+      bookings = db.prepare(bookingsQuery).all();
+    } else {
+      const staffQuery = `
+        SELECT DISTINCT rb.*, 
+               c.first_name as client_first_name, c.last_name as client_last_name
+        FROM respite_bookings rb
+        JOIN shifts s ON rb.id = s.respite_booking_id
+        LEFT JOIN clients c ON rb.client_id = c.id
+        WHERE s.staff_id = ? AND s.status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')
+      `;
+      bookings = db.prepare(staffQuery).all(req.user.id);
+    }
     
+    if (bookings.length === 0) {
+      return res.json([]);
+    }
+
+    const bookingIds = bookings.map((b: any) => b.id);
+    const placeholders = bookingIds.map(() => '?').join(',');
+
     // fetch all child shifts and attach them
-    const shiftsQuery = `
+    let shiftsQuery = `
       SELECT s.*, 
              u.first_name as staff_first_name, u.last_name as staff_last_name,
              srv.name as service_name, srv.code as service_code, srv.rate as service_rate, srv.unit as service_unit
       FROM shifts s
       LEFT JOIN users u ON s.staff_id = u.id
       LEFT JOIN services srv ON s.service_id = srv.id
-      WHERE s.respite_booking_id IS NOT NULL
+      WHERE s.respite_booking_id IN (${placeholders})
     `;
-    const childShifts = db.prepare(shiftsQuery).all();
+    
+    if (!isAdmin) {
+      shiftsQuery += ` AND s.status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')`;
+    }
+
+    const childShifts = db.prepare(shiftsQuery).all(...bookingIds);
     
     const mappedBookings = bookings.map((b: any) => ({
       ...b,

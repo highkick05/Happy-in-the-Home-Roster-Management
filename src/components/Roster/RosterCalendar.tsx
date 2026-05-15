@@ -244,7 +244,16 @@ export default function RosterCalendar() {
 
   const filteredEvents = events.filter(e => {
     if (clientFilter && e.clientId?.toString() !== clientFilter) return false;
-    if (staffFilter && e.staffId?.toString() !== staffFilter) return false;
+    
+    if (staffFilter) {
+      if (e.isRespiteWrapper && e.respiteData?.shifts) {
+        // For respite bookings, check if the staff is assigned to any of the child shifts
+        const isStaffAssigned = e.respiteData.shifts.some((s: any) => s.staff_id?.toString() === staffFilter);
+        if (!isStaffAssigned) return false;
+      } else {
+        if (e.staffId?.toString() !== staffFilter) return false;
+      }
+    }
     return true;
   });
 
