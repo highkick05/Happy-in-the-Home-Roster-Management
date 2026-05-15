@@ -258,11 +258,17 @@ export default function RosterCalendar() {
     if (user?.role === 'ADMIN' || !events.length) return;
     
     const now = new Date();
-    let targetShift = events.find(e => e.status === 'IN_PROGRESS');
+    let targetShift = events.find(e => 
+      e.status === 'IN_PROGRESS' && 
+      e.staffId === user?.id && 
+      !e.isRespiteWrapper
+    );
     
     if (!targetShift) {
       const upcomingShifts = events.filter(e => {
         if (e.status !== 'PUBLISHED') return false;
+        if (e.staffId !== user?.id) return false;
+        if (e.isRespiteWrapper) return false;
         const diffMs = e.start.getTime() - now.getTime();
         const diffMins = diffMs / 60000;
         return diffMins <= 15 && diffMins > -1440; // up to 24 hours late
@@ -277,7 +283,7 @@ export default function RosterCalendar() {
       setSelectedShift(targetShift);
       setIsDetailsModalOpen(true);
     }
-  }, [events, user?.role, isDetailsModalOpen]);
+  }, [events, user?.role, user?.id, isDetailsModalOpen]);
 
   useEffect(() => {
     if (selectedShift) {
