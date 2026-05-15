@@ -849,6 +849,7 @@ async function startServer() {
 
   const calculateHomeCareTravel = async (shift: any) => {
     try {
+      if (shift.respite_booking_id) return { distance: 0, cost: 0, routeLogs: [] };
       const isHomeCare = (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE');
       if (!isHomeCare) return { distance: 0, cost: 0, routeLogs: [] };
 
@@ -942,6 +943,7 @@ async function startServer() {
   };
 
   const calculateProviderTravel = async (shift: any) => {
+    if (shift.respite_booking_id) return { distance: 0, cost: 0, routeLogs: [] };
     // Basic implementation of Provider Travel Rules
     const staff = db.prepare('SELECT address, first_name, last_name FROM users WHERE id = ?').get(shift.staff_id) as any;
     const client = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(shift.client_id) as any;
@@ -1304,21 +1306,6 @@ async function startServer() {
 
       if (!rb) return null;
 
-      const shifts = db.prepare('SELECT id FROM shifts WHERE respite_booking_id = ?').all(respiteBookingId) as any[];
-
-      const allLineItems: any[] = [];
-      let subtotal = 0;
-
-      for (const s of shifts) {
-         const data = getInvoiceDataForShift(s.id);
-         if (data && data.lineItems) {
-            allLineItems.push(...data.lineItems);
-            subtotal += data.subtotal;
-         }
-      }
-
-      if (allLineItems.length === 0) return null;
-
       const settingsRows = db.prepare('SELECT key, value FROM settings').all() as any[];
       const settingsMap: Record<string, any> = {};
       settingsRows.forEach(r => {
@@ -1329,7 +1316,12 @@ async function startServer() {
       const dateFormatterAPI = getSafeDateTimeFormat('en-CA', {
         timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit'
       });
+      const shiftDateFormatter = getSafeDateTimeFormat('en-GB', {
+        timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric'
+      });
+
       const start = new Date(rb.start_time);
+      const end = new Date(rb.end_time);
       const yyyymmdd = dateFormatterAPI.format(start).replace(/-/g, '');
 
       const isHC = (rb.funding_type === 'HCP' || rb.funding_type === 'Home Care' || rb.funding_type === 'HOME_CARE');
@@ -1337,6 +1329,70 @@ async function startServer() {
       if (!invoicePrefix) invoicePrefix = isHC ? 'HC-' : 'INV-';
       
       const invoiceNum = `${invoicePrefix}RB${yyyymmdd}-${String(respiteBookingId).padStart(4, '0')}`;
+
+      // Fetch child shifts staff details for daily distribution
+      const shifts = db.prepare(`
+        SELECT s.start_time, s.end_time, u.first_name as s_fn, u.last_name as s_ln
+        FROM shifts s
+        LEFT JOIN users u ON s.staff_id = u.id
+        WHERE s.respite_booking_id = ?
+        ORDER BY s.start_time ASC
+      `).all(respiteBookingId) as any[];
+
+      const srv = rb.service_id ? db.prepare('SELECT * FROM services WHERE id = ?').get(rb.service_id) as any : null;
+
+      const dailyStaffMap: Record<string, Set<string>> = {};
+      
+      let current = new Date(start);
+      current.setHours(0,0,0,0);
+      const tempEnd = new Date(end);
+      if (tempEnd.getHours() === 0 && tempEnd.getMinutes() === 0 && tempEnd.getTime() > current.getTime()) {
+         // If end time is exactly midnight (e.g. 13 May 00:00), don't bill for the 13th Day. 
+         // But usually STA ends next day. We will iterate using start timestamp to end timestamp.
+      }
+      tempEnd.setHours(0,0,0,0);
+
+      while (current <= tempEnd) {
+         const dStr = shiftDateFormatter.format(current);
+         dailyStaffMap[dStr] = new Set<string>();
+
+         for (const s of shifts) {
+            const shiftDateStr = shiftDateFormatter.format(new Date(s.start_time));
+            if (shiftDateStr === dStr && s.s_fn) {
+               dailyStaffMap[dStr].add(`${s.s_fn} ${s.s_ln}`);
+            }
+         }
+         
+         const nextDay = new Date(current);
+         nextDay.setDate(nextDay.getDate() + 1);
+         if (current.getTime() === tempEnd.getTime()) break;
+         current = nextDay;
+      }
+
+      const allLineItems: any[] = [];
+      let subtotal = 0;
+
+      for (const [dateStr, staffSet] of Object.entries(dailyStaffMap)) {
+         const staffList = Array.from(staffSet);
+
+         const rate = srv ? Number(srv.rate || 0) : 0;
+         const amount = rate * 1; // 1 Day Flat Rate
+
+         allLineItems.push({
+            date: dateStr,
+            time: '24 Hours',
+            serviceName: srv ? (srv.name || 'STA / Respite') : 'STA / Respite',
+            code: srv ? srv.code : '',
+            metadata: staffList.length > 0 ? `Provided by ${staffList.join(', ')}` : '',
+            qty: 1,
+            unit: 'Day',
+            rate: rate,
+            amount: amount
+         });
+         subtotal += amount;
+      }
+
+      if (allLineItems.length === 0) return null;
 
       const invoiceDateFormatter = getSafeDateTimeFormat('en-GB', {
         timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric'
@@ -3202,7 +3258,7 @@ async function startServer() {
          }
       }
 
-      if (shift.funding_type === 'NDIS' && resolvedAbtCoordinates.length >= 2) {
+      if (shift.funding_type === 'NDIS' && resolvedAbtCoordinates.length >= 2 && !shift.respite_booking_id) {
          abt_km = await getOsrmDistance(resolvedAbtCoordinates);
          abt_cost = abt_km * 1.00; // $1.00/km Ledger Split
          combinedRouteLog = combinedRouteLog || {};
@@ -3686,13 +3742,13 @@ async function startServer() {
         }
         
         const isHomeCare = (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE');
-        const hc_travel_km = shift.home_care_travel_km || 0;
-        const hc_travel_total = shift.home_care_travel_total || 0;
+        const hc_travel_km = shift.respite_booking_id ? 0 : (shift.home_care_travel_km || 0);
+        const hc_travel_total = shift.respite_booking_id ? 0 : (shift.home_care_travel_total || 0);
         
-        const prov_km = shift.provider_travel_km || 0;
-        const prov_cost = shift.provider_travel_cost || 0;
-        const abt_km = shift.abt_km || 0;
-        const abt_cost = shift.abt_cost || 0;
+        const prov_km = shift.respite_booking_id ? 0 : (shift.provider_travel_km || 0);
+        const prov_cost = shift.respite_booking_id ? 0 : (shift.provider_travel_cost || 0);
+        const abt_km = shift.respite_booking_id ? 0 : (shift.abt_km || 0);
+        const abt_cost = shift.respite_booking_id ? 0 : (shift.abt_cost || 0);
         
         totals.travelKm += isHomeCare ? hc_travel_km : (prov_km + abt_km);
         totals.providerTravelKm = (totals.providerTravelKm || 0) + (isHomeCare ? 0 : prov_km);
@@ -3792,7 +3848,28 @@ async function startServer() {
       WHERE i.merged_into_shift_id IS NULL AND i.status != 'VOID'
       ORDER BY i.created_at DESC
     `;
-    const invoices = db.prepare(query).all();
+    const invoices = db.prepare(query).all() as any[];
+    
+    // For respite bookings, staff_first_name and staff_last_name are null because there's no s.staff_id.
+    // Fetch unique staff members from child shifts.
+    for (const inv of invoices) {
+       if (inv.respite_booking_id && !inv.staff_first_name) {
+          const childStaff = db.prepare(`
+             SELECT DISTINCT u.first_name, u.last_name
+             FROM shifts s
+             JOIN users u ON s.staff_id = u.id
+             WHERE s.respite_booking_id = ?
+          `).all(inv.respite_booking_id) as any[];
+          
+          if (childStaff.length > 0) {
+             const names = childStaff.map(s => `${s.first_name} ${s.last_name}`).join(', ');
+             // Since the table expects staff_first_name and staff_last_name to be merged, we just set `staff_first_name` to the merged string and leave `last_name` empty. 
+             inv.staff_first_name = names;
+             inv.staff_last_name = '';
+          }
+       }
+    }
+
     res.json(invoices);
   });
 
