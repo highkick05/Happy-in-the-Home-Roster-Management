@@ -13,5 +13,3 @@ uploads/
 *.sqlite-wal
 database.sqlite
 *.bak
-osrm-data/
-data/*.sqlite*

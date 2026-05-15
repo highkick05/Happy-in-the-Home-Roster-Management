@@ -231,10 +231,11 @@ db.exec(`
     amount REAL NOT NULL CHECK(amount >= 0),
     file_path TEXT,
     status TEXT NOT NULL DEFAULT 'GENERATED' CHECK(status IN ('GENERATED', 'SENT', 'PAID', 'VOID')),
+    merged_into_shift_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (shift_id) REFERENCES shifts(id),
-    FOREIGN KEY (provider_id) REFERENCES providers(id),
-    FOREIGN KEY (client_id) REFERENCES clients(id)
+    FOREIGN KEY (shift_id) REFERENCES shifts(id) ON DELETE SET NULL,
+    FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE SET NULL,
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS quotes (
@@ -258,10 +259,12 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     original_name TEXT NOT NULL,
     system_name TEXT NOT NULL,
-    size INTEGER NOT NULL,
+    size INTEGER NOT NULL CHECK(size >= 0),
     uploaded_by INTEGER NOT NULL,
+    region TEXT,
+    folder_path TEXT DEFAULT '/',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (uploaded_by) REFERENCES users(id)
+    FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE RESTRICT
   );
 
   CREATE TABLE IF NOT EXISTS audit_logs (
@@ -559,9 +562,9 @@ try {
       status TEXT NOT NULL DEFAULT 'GENERATED' CHECK(status IN ('GENERATED', 'SENT', 'PAID', 'VOID')),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       merged_into_shift_id INTEGER,
-      FOREIGN KEY (shift_id) REFERENCES shifts(id),
-      FOREIGN KEY (provider_id) REFERENCES providers(id),
-      FOREIGN KEY (client_id) REFERENCES clients(id)
+      FOREIGN KEY (shift_id) REFERENCES shifts(id) ON DELETE SET NULL,
+      FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE SET NULL,
+      FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL
     );
     INSERT OR IGNORE INTO invoices_new SELECT id, invoice_number, shift_id, provider_id, client_id, amount, file_path, status, created_at, merged_into_shift_id FROM invoices;
     DROP TABLE invoices;
@@ -585,6 +588,21 @@ try {
     INSERT OR IGNORE INTO quotes_new SELECT * FROM quotes;
     DROP TABLE quotes;
     ALTER TABLE quotes_new RENAME TO quotes;
+
+    CREATE TABLE IF NOT EXISTS files_new (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      original_name TEXT NOT NULL,
+      system_name TEXT NOT NULL,
+      size INTEGER NOT NULL CHECK(size >= 0),
+      uploaded_by INTEGER NOT NULL,
+      region TEXT,
+      folder_path TEXT DEFAULT '/',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE RESTRICT
+    );
+    INSERT OR IGNORE INTO files_new SELECT * FROM files;
+    DROP TABLE files;
+    ALTER TABLE files_new RENAME TO files;
 
     CREATE TABLE IF NOT EXISTS client_roster_templates_new (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
