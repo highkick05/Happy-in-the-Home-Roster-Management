@@ -494,6 +494,7 @@ export default function RosterCalendar() {
 
     let backgroundColor = '#0ea5e9'; // brand-blue
     let border = isSelected ? '2px solid white' : 'none';
+    let backgroundImage = 'none';
 
     if (event.status === 'DRAFT') {
       backgroundColor = '#52525b'; // zinc-600
@@ -505,11 +506,14 @@ export default function RosterCalendar() {
     if (event.isRespiteWrapper) {
       backgroundColor = '#8b5cf6'; // violet-500
       border = isSelected ? '2px solid white' : '1px inset #7c3aed';
+      backgroundImage = `url("data:image/svg+xml,%3Csvg width='30' height='30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15 0 L16.5 13.5 L30 15 L16.5 16.5 L15 30 L13.5 16.5 L0 15 L13.5 13.5 Z' fill='rgba(255,255,255,0.1)' /%3E%3C/svg%3E")`;
     }
 
     return {
       style: {
         backgroundColor,
+        backgroundImage,
+        backgroundSize: '30px 30px',
         borderRadius: '6px',
         opacity: isSelected ? 1 : 0.9,
         color: event.status === 'COMPLETED' ? '#0b1120' : 'white',
@@ -550,7 +554,7 @@ export default function RosterCalendar() {
 
       return (
         <div 
-          className="w-full h-full flex flex-col"
+          className="w-full h-full flex flex-row items-center overflow-hidden truncate px-1"
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
@@ -558,12 +562,12 @@ export default function RosterCalendar() {
           onTouchEnd={handleMouseUp}
         >
           {event.isRespiteWrapper && (
-            <div className="flex items-center gap-1 mb-0.5 mt-0.5 ml-1">
-              <Bed className="w-4 h-4 text-violet-100 drop-shadow-sm" />
+            <div className="flex items-center gap-1 shrink-0 mr-1">
+              <Bed className="w-3.5 h-3.5 text-violet-100 drop-shadow-sm" />
               <Sparkles className="w-3 h-3 text-amber-300 drop-shadow-sm" />
             </div>
           )}
-          <span className={event.isRespiteWrapper ? "px-1" : ""}>{title}</span>
+          <span className="truncate">{title}</span>
         </div>
       );
     };
