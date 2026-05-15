@@ -5115,107 +5115,102 @@ async function startServer() {
       // Section 3: Transport Evidence
       doc.fontSize(16).font('Helvetica-Bold').text('3. Transport Evidence');
       doc.moveDown();
-      let printedTransportCount = 0;
+      
+      const tableHeaders = ['Date', 'Staff', 'Travel Route (From -> To)', 'Category', 'KM', 'Coordinates'];
+      const headerY = doc.y;
+      doc.rect(50, headerY - 5, 500, 20).fill('#f4f4f5');
+      doc.fillColor('black').font('Helvetica-Bold').fontSize(8);
+      doc.text(tableHeaders[0], 55, headerY);
+      doc.text(tableHeaders[1], 105, headerY);
+      doc.text(tableHeaders[2], 180, headerY);
+      doc.text(tableHeaders[3], 340, headerY);
+      doc.text(tableHeaders[4], 420, headerY);
+      doc.text(tableHeaders[5], 450, headerY);
+      doc.y = headerY + 20;
+
       shifts.forEach((s) => {
-        if (s.provider_travel_km > 0 || s.odometer_start_reading || s.odometer_start_photo || s.odometer_end_photo || s.abt_km > 0) {
-           if (printedTransportCount > 0) {
-               doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).lineWidth(2).strokeColor('#e5e7eb').stroke().fillColor('black');
-               doc.moveDown(1.5);
-           }
-           printedTransportCount++;
-           const startTz = formatTz(s.actual_start_time, s.start_time);
-           const endTz = formatTz(s.actual_finish_time, s.end_time);
-           doc.fontSize(12).font('Helvetica-Bold').fillColor('black').text(`Shift ID: ${s.id} | Date: ${startTz.date}`);
-           
-           let routeLog: any = null;
-           if (s.transport_route_log) {
-               try { routeLog = JSON.parse(s.transport_route_log); } catch(e){}
-           }
+        if (s.provider_travel_km > 0 || s.abt_km > 0) {
+            const startTz = formatTz(s.actual_start_time, s.start_time);
+            
+            let routeLog: any = null;
+            if (s.transport_route_log) {
+                try { routeLog = JSON.parse(s.transport_route_log); } catch(e){}
+            }
 
-           if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {
-               doc.moveDown(0.5);
-               doc.fontSize(10).font('Helvetica-Bold').fillColor('#4f46e5').text('PROVIDER TRAVEL (TO/FROM SHIFT):');
-               doc.fillColor('black').font('Helvetica');
-               routeLog.providerTravel.legs.forEach((leg: any, idx: number) => {
-                   doc.moveDown(0.5);
-                   if (idx === 0) {
-                       doc.font('Helvetica-Oblique').text(`Start Odometer: ${s.odometer_start_reading || 'N/A'}`);
-                       drawPdfPhotoIfPresent(doc, s.odometer_start_photo, 'Start Odometer Photo:');
-                       doc.moveDown(0.5);
-                   }
-                   
+            let entries: any[] = [];
+            
+            if (s.provider_travel_km > 0) {
+               let fromStr = 'Unknown';
+               let toStr = 'Unknown';
+               let coords = '';
+               if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {
+                   const leg = routeLog.providerTravel.legs[0]; // main leg
                    if (leg.description && leg.description.includes(' to ')) {
-                       const [fromStr, toStr] = leg.description.split(' to ');
-                       const fromLoc = parseLocationString(fromStr);
-                       const toLoc = parseLocationString(toStr);
-
-                       doc.font('Helvetica-Bold').text(`FROM: ${fromLoc.name || leg.fromName || 'Unknown'}`);
-                       if (fromLoc.address || leg.fromAddress) doc.font('Helvetica').text(fromLoc.address || leg.fromAddress);
-                       if (fromLoc.coords) doc.font('Helvetica-Oblique').fillColor('gray').text(fromLoc.coords).fillColor('black');
-
-                       doc.font('Helvetica-Bold').text(`TO: ${toLoc.name || leg.toName || 'Unknown'}`);
-                       if (toLoc.address || leg.toAddress) doc.font('Helvetica').text(toLoc.address || leg.toAddress);
-                       if (toLoc.coords) doc.font('Helvetica-Oblique').fillColor('gray').text(toLoc.coords).fillColor('black');
+                       const [f, t] = leg.description.split(' to ');
+                       const fl = parseLocationString(f);
+                       const tl = parseLocationString(t);
+                       fromStr = fl.name || leg.fromName || 'Previous Client / Home';
+                       toStr = tl.name || leg.toName || 'Client Location';
+                       if (fl.coords) coords += `From: ${fl.coords}\n`;
+                       if (tl.coords) coords += `To: ${tl.coords}`;
                    } else {
-                       doc.font('Helvetica-Bold').text(`ROUTE:`);
-                       doc.font('Helvetica').text(leg.description || 'Unknown');
+                       fromStr = leg.fromName || 'Previous Client / Home';
+                       toStr = leg.toName || 'Client Location';
                    }
-
-                   if (idx === routeLog.providerTravel.legs.length - 1) {
-                       doc.moveDown(0.5);
-                       doc.font('Helvetica-Oblique').text(`End Odometer: ${s.odometer_end_reading || 'N/A'}`);
-                       drawPdfPhotoIfPresent(doc, s.odometer_end_photo, 'End Odometer Photo:');
-                   }
+               }
+               entries.push({
+                   routeStr: `From: ${fromStr}\nTo: ${toStr}`,
+                   cat: 'Provider Travel',
+                   km: s.provider_travel_km,
+                   coords: coords || 'N/A'
                });
-               doc.moveDown(0.5);
-               doc.fontSize(10).font('Helvetica-Bold').text(`Provider Travel Distance: ${Number(s.provider_travel_km || 0).toFixed(2)} km`);
-           } else {
-               doc.moveDown(0.5);
-               doc.fontSize(10).font('Helvetica-Bold').fillColor('#4f46e5').text('PROVIDER TRAVEL:');
-               doc.fillColor('black');
-               doc.font('Helvetica').text(`Provider Travel Claimed KM: ${Number(s.provider_travel_km || 0).toFixed(2)}`);
-               doc.font('Helvetica-Oblique').text(`Start Odometer: ${s.odometer_start_reading || 'N/A'} (${startTz.time})`);
-               drawPdfPhotoIfPresent(doc, s.odometer_start_photo, 'Start Odometer Photo:');
-               doc.font('Helvetica-Oblique').text(`End Odometer: ${s.odometer_end_reading || 'N/A'} (${endTz.time})`);
-               drawPdfPhotoIfPresent(doc, s.odometer_end_photo, 'End Odometer Photo:');
-           }
+            }
 
-           if (s.abt_km > 0) {
-               doc.moveDown();
-               doc.fontSize(10).font('Helvetica-Bold').fillColor('#059669').text('TRANSPORT DURING SHIFT (ABT):');
-               doc.fillColor('black');
+            if (s.abt_km > 0) {
+               let routeStr = 'ABT Route';
+               let coords = '';
                if (routeLog && routeLog.abt && routeLog.abt.description) {
                    const abtDesc = routeLog.abt.description.replace('Transport during shift:\n', '');
                    const abtParts = abtDesc.split(' → ');
-                   if (abtParts.length === 1) {
-                        doc.font('Helvetica').text(abtDesc);
-                   } else {
-                       abtParts.forEach((partStr: string, idx: number) => {
-                           let label = idx === 0 ? 'START' : (idx === abtParts.length - 1 ? 'RETURN' : 'WAYPOINT');
-                           if (abtParts.length > 1) {
-                              const firstMatch = parseLocationString(abtParts[0]);
-                              const lastMatch = parseLocationString(abtParts[abtParts.length - 1]);
-                              if (firstMatch.coords && lastMatch.coords && firstMatch.coords === lastMatch.coords) {
-                                 if (idx === 0) label = 'START: Client Home';
-                                 if (idx === abtParts.length - 1) label = 'RETURN: Client Home';
-                              }
-                           }
-                           const loc = parseLocationString(partStr);
-                           doc.font('Helvetica-Bold').text(`${label}: ${loc.name}`);
-                           if (loc.address) doc.font('Helvetica').text(loc.address);
-                           if (loc.coords) doc.font('Helvetica-Oblique').fillColor('gray').text(loc.coords).fillColor('black');
-                           doc.moveDown(0.25);
-                       });
-                   }
+                   let waypoints: string[] = [];
+                   abtParts.forEach((partStr: string) => {
+                       const loc = parseLocationString(partStr);
+                       waypoints.push(loc.name || loc.address || 'Unknown');
+                       if (loc.coords) coords += `${loc.coords}\n`;
+                   });
+                   routeStr = waypoints.join('\nTo: ');
+                   if (routeStr.length > 0) routeStr = 'From: ' + routeStr;
                }
-               doc.moveDown(0.5);
-               doc.fontSize(10).font('Helvetica-Bold').text(`Activity Based Transport Claimed KM: ${Number(s.abt_km || 0).toFixed(2)} km`);
-           }
-           
-           doc.moveDown();
+               entries.push({
+                   routeStr: routeStr,
+                   cat: 'Activity Transport',
+                   km: s.abt_km,
+                   coords: coords.trim() || 'N/A'
+               });
+            }
+
+            entries.forEach((e, idx) => {
+               if (doc.y > 650) { 
+                  doc.addPage(); 
+               }
+               let rowStartY = doc.y;
+               doc.font('Helvetica').fontSize(8);
+               doc.text(idx === 0 ? startTz.date : '', 55, rowStartY, { width: 45 });
+               doc.text(idx === 0 ? `${s.staff_first} ${s.staff_last}` : '', 105, rowStartY, { width: 70 });
+               const rowH1 = doc.y;
+               doc.text(e.routeStr, 180, rowStartY, { width: 150 });
+               const rowH2 = doc.y;
+               doc.text(e.cat, 340, rowStartY, { width: 75 });
+               doc.text(e.km.toFixed(2), 420, rowStartY, { width: 25 });
+               doc.font('Helvetica').fontSize(7).text(e.coords, 450, rowStartY, { width: 100 });
+               const rowH3 = doc.y;
+               doc.y = Math.max(rowStartY + 10, rowH1, rowH2, rowH3) + 5;
+            });
+            // Divider
+            doc.moveTo(50, doc.y).lineTo(550, doc.y).lineWidth(0.5).strokeColor('#e4e4e7').stroke();
+            doc.y += 5;
         }
       });
-
       doc.end();
     } catch (e) {
       console.error(e);
@@ -5318,110 +5313,110 @@ async function startServer() {
       doc.moveDown();
       let totalProviderKm = 0;
       let totalAbtKm = 0;
-      let printedVehicleCount = 0;
+      let totalHcKm = 0;
+
+      // Table Header
+      const headerY = doc.y;
+      doc.rect(50, headerY - 5, 500, 20).fill('#f4f4f5');
+      doc.fillColor('black').font('Helvetica-Bold').fontSize(8);
+      doc.text('Date', 55, headerY);
+      doc.text('Client', 115, headerY);
+      doc.text('Travel Category', 200, headerY);
+      doc.text('KM', 320, headerY);
+      doc.text('Odometer (Start - End)', 360, headerY);
+      doc.y = headerY + 20;
+
       shifts.forEach((s) => {
-        if (s.provider_travel_km > 0 || s.odometer_start_reading || s.abt_km > 0 || s.odometer_start_photo || s.odometer_end_photo) {
-           if (printedVehicleCount > 0) {
-               doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).lineWidth(2).strokeColor('#e5e7eb').stroke().fillColor('black');
-               doc.moveDown(1.5);
-           }
-           printedVehicleCount++;
-           totalProviderKm += (s.provider_travel_km || 0);
-           totalAbtKm += (s.abt_km || 0);
+        let rowsToPrint: any[] = [];
+        
+        if (s.provider_travel_km > 0) {
+           rowsToPrint.push({ cat: 'Provider Travel (NDIS)', km: s.provider_travel_km });
+           totalProviderKm += s.provider_travel_km;
+        }
+        if (s.home_care_travel_km > 0) {
+           rowsToPrint.push({ cat: 'Home Care Travel ($1.00/km)', km: s.home_care_travel_km });
+           totalHcKm += s.home_care_travel_km;
+        }
+        if (s.abt_km > 0) {
+           rowsToPrint.push({ cat: 'ABT (NDIS)', km: s.abt_km });
+           totalAbtKm += s.abt_km;
+        }
+
+        // Even if KM is 0, if there are photos or odometer readings, print a row so we can show them
+        if (rowsToPrint.length === 0 && (s.odometer_start_reading || s.odometer_end_reading || s.odometer_start_photo || s.odometer_end_photo)) {
+           rowsToPrint.push({ cat: 'Odometer Record', km: 0 });
+        }
+
+        if (rowsToPrint.length > 0) {
            const startTz = formatTz(s.actual_start_time, s.start_time);
-           const endTz = formatTz(s.actual_finish_time, s.end_time);
-
-           doc.fontSize(12).font('Helvetica-Bold').fillColor('black').text(`Shift ID: ${s.id} | Date: ${startTz.date}`);
            
-           let routeLog: any = null;
-           if (s.transport_route_log) {
-               try { routeLog = JSON.parse(s.transport_route_log); } catch(e){}
-           }
-
-           if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {
-               doc.moveDown(0.5);
-               doc.fontSize(10).font('Helvetica-Bold').fillColor('#4f46e5').text('PROVIDER TRAVEL (TO/FROM SHIFT):');
-               doc.fillColor('black').font('Helvetica');
-               routeLog.providerTravel.legs.forEach((leg: any, idx: number) => {
-                   doc.moveDown(0.5);
-                   if (idx === 0) {
-                       doc.font('Helvetica-Oblique').text(`Start Odometer: ${s.odometer_start_reading || 'N/A'}`);
-                       drawPdfPhotoIfPresent(doc, s.odometer_start_photo, 'Start Odometer Photo:');
-                       doc.moveDown(0.5);
-                   }
-                   
-                   if (leg.description && leg.description.includes(' to ')) {
-                       const [fromStr, toStr] = leg.description.split(' to ');
-                       const fromLoc = parseLocationString(fromStr);
-                       const toLoc = parseLocationString(toStr);
-
-                       doc.font('Helvetica-Bold').text(`FROM: ${fromLoc.name || leg.fromName || 'Unknown'}`);
-                       if (fromLoc.address || leg.fromAddress) doc.font('Helvetica').text(fromLoc.address || leg.fromAddress);
-                       if (fromLoc.coords) doc.font('Helvetica-Oblique').fillColor('gray').text(fromLoc.coords).fillColor('black');
-
-                       doc.font('Helvetica-Bold').text(`TO: ${toLoc.name || leg.toName || 'Unknown'}`);
-                       if (toLoc.address || leg.toAddress) doc.font('Helvetica').text(toLoc.address || leg.toAddress);
-                       if (toLoc.coords) doc.font('Helvetica-Oblique').fillColor('gray').text(toLoc.coords).fillColor('black');
-                   } else {
-                       doc.font('Helvetica-Bold').text(`ROUTE:`);
-                       doc.font('Helvetica').text(leg.description || 'Unknown');
-                   }
-
-                   if (idx === routeLog.providerTravel.legs.length - 1) {
-                       doc.moveDown(0.5);
-                       doc.font('Helvetica-Oblique').text(`End Odometer: ${s.odometer_end_reading || 'N/A'}`);
-                       drawPdfPhotoIfPresent(doc, s.odometer_end_photo, 'End Odometer Photo:');
-                   }
-               });
-               doc.moveDown(0.5);
-               doc.fontSize(10).font('Helvetica-Bold').text(`Provider Travel Distance: ${Number(s.provider_travel_km || 0).toFixed(2)} km`);
-           } else {
-               doc.moveDown(0.5);
-               doc.fontSize(10).font('Helvetica-Bold').fillColor('#4f46e5').text('PROVIDER TRAVEL:');
-               doc.fillColor('black');
-               doc.font('Helvetica').text(`Provider Travel Claimed KM: ${Number(s.provider_travel_km || 0).toFixed(2)}`);
-               doc.font('Helvetica-Oblique').text(`Odometer Delta: Start ${s.odometer_start_reading || 'N/A'} (${startTz.time}) - End ${s.odometer_end_reading || 'N/A'} (${endTz.time})`);
-               drawPdfPhotoIfPresent(doc, s.odometer_start_photo, 'Start Odometer Photo:');
-               drawPdfPhotoIfPresent(doc, s.odometer_end_photo, 'End Odometer Photo:');
-           }
-
-           if (s.abt_km > 0) {
-               doc.moveDown();
-               doc.fontSize(10).font('Helvetica-Bold').fillColor('#059669').text('TRANSPORT DURING SHIFT (ABT):');
-               doc.fillColor('black');
-               if (routeLog && routeLog.abt && routeLog.abt.description) {
-                   const abtDesc = routeLog.abt.description.replace('Transport during shift:\n', '');
-                   const abtParts = abtDesc.split(' → ');
-                   if (abtParts.length === 1) {
-                        doc.font('Helvetica').text(abtDesc);
-                   } else {
-                       abtParts.forEach((partStr: string, idx: number) => {
-                           let label = idx === 0 ? 'START' : (idx === abtParts.length - 1 ? 'RETURN' : 'WAYPOINT');
-                           if (abtParts.length > 1) {
-                              const firstMatch = parseLocationString(abtParts[0]);
-                              const lastMatch = parseLocationString(abtParts[abtParts.length - 1]);
-                              if (firstMatch.coords && lastMatch.coords && firstMatch.coords === lastMatch.coords) {
-                                 if (idx === 0) label = 'START: Client Home';
-                                 if (idx === abtParts.length - 1) label = 'RETURN: Client Home';
-                              }
-                           }
-                           const loc = parseLocationString(partStr);
-                           doc.font('Helvetica-Bold').text(`${label}: ${loc.name}`);
-                           if (loc.address) doc.font('Helvetica').text(loc.address);
-                           if (loc.coords) doc.font('Helvetica-Oblique').fillColor('gray').text(loc.coords).fillColor('black');
-                           doc.moveDown(0.25);
-                       });
-                   }
+           rowsToPrint.forEach((row, idx) => {
+               // Pagination safeguard
+               if (doc.y > 700) {
+                  doc.addPage();
                }
+               
+               let rowStartY = doc.y;
+               doc.font('Helvetica').fontSize(8);
+               doc.text(idx === 0 ? startTz.date : '', 55, rowStartY, { width: 60 });
+               doc.text(idx === 0 ? `${s.client_first} ${s.client_last}` : '', 115, rowStartY, { width: 80 });
+               doc.text(row.cat, 200, rowStartY, { width: 110 });
+               doc.text(row.km.toFixed(2), 320, rowStartY, { width: 35 });
+               
+               if (idx === 0) {
+                   const startOdo = s.odometer_start_reading || 'N/A';
+                   const endOdo = s.odometer_end_reading || 'N/A';
+                   doc.text(`${startOdo} - ${endOdo}`, 360, rowStartY, { width: 180 });
+               }
+               
+               // Move doc.y down to account for text
+               doc.y = Math.max(doc.y, rowStartY + 12);
+           });
+
+           // Odometer Photos - drawn after the rows for this shift
+           if (s.odometer_start_photo || s.odometer_end_photo) {
+               // Check if image space needed
+               if (doc.y > 600) { doc.addPage(); } // require more space for images
+               
                doc.moveDown(0.5);
-               doc.fontSize(10).font('Helvetica-Bold').text(`Activity Based Transport Claimed KM: ${Number(s.abt_km || 0).toFixed(2)} km`);
+               let imgHeight = 0;
+               const currentY = doc.y;
+               doc.fillColor('black');
+               if (s.odometer_start_photo && s.odometer_start_photo.startsWith('data:image/')) {
+                  try {
+                     const base64Data = s.odometer_start_photo.replace(/^data:image\/\w+;base64,/, "");
+                     const imgBuffer = Buffer.from(base64Data, 'base64');
+                     doc.fontSize(7).font('Helvetica-Oblique').text('Start Odo:', 200, currentY);
+                     doc.image(imgBuffer, 200, currentY + 10, { height: 60 });
+                     imgHeight = 70;
+                  } catch(e){}
+               }
+               
+               if (s.odometer_end_photo && s.odometer_end_photo.startsWith('data:image/')) {
+                  try {
+                     const base64Data = s.odometer_end_photo.replace(/^data:image\/\w+;base64,/, "");
+                     const imgBuffer = Buffer.from(base64Data, 'base64');
+                     doc.fontSize(7).font('Helvetica-Oblique').text('End Odo:', 360, currentY);
+                     doc.image(imgBuffer, 360, currentY + 10, { height: 60 });
+                     imgHeight = 70;
+                  } catch(e){}
+               }
+               
+               if (imgHeight > 0) {
+                  doc.y = currentY + imgHeight + 15;
+               }
            }
            
-           doc.moveDown();
+           // Divider line between shifts
+           doc.moveTo(50, doc.y).lineTo(550, doc.y).lineWidth(0.5).strokeColor('#e4e4e7').stroke();
+           doc.y += 5;
         }
       });
-      doc.fontSize(14).font('Helvetica-Bold').text(`Total Provider Travel: ${totalProviderKm.toFixed(2)} km`);
-      doc.text(`Total ABT: ${totalAbtKm.toFixed(2)} km`);
+      doc.moveDown();
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('black');
+      doc.text(`Total Provider Travel (NDIS): ${totalProviderKm.toFixed(2)} km`);
+      doc.text(`Total Home Care Travel: ${totalHcKm.toFixed(2)} km`);
+      doc.text(`Total ABT (NDIS): ${totalAbtKm.toFixed(2)} km`);
 
       doc.end();
     } catch (e) {
