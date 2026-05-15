@@ -8,7 +8,7 @@ const replacementEvidencePack = `// Section 3: Transport Evidence
       doc.fontSize(16).font('Helvetica-Bold').text('3. Transport Evidence');
       doc.moveDown();
       
-      const tableHeaders = ['Date', 'Staff', 'Travel Route (From -> To)', 'Category', 'KM', 'Coordinates'];
+      const tableHeaders = ['Date', 'Staff', 'Travel Route (From -> To)', 'Category', 'KM'];
       const headerY = doc.y;
       doc.rect(50, headerY - 5, 500, 20).fill('#f4f4f5');
       doc.fillColor('black').font('Helvetica-Bold').fontSize(8);
@@ -17,11 +17,10 @@ const replacementEvidencePack = `// Section 3: Transport Evidence
       doc.text(tableHeaders[2], 180, headerY);
       doc.text(tableHeaders[3], 340, headerY);
       doc.text(tableHeaders[4], 420, headerY);
-      doc.text(tableHeaders[5], 450, headerY);
       doc.y = headerY + 20;
 
       shifts.forEach((s) => {
-        if (s.provider_travel_km > 0 || s.abt_km > 0) {
+        if (s.provider_travel_km > 0 || s.home_care_travel_km > 0 || s.abt_km > 0) {
             const startTz = formatTz(s.actual_start_time, s.start_time);
             
             let routeLog: any = null;
@@ -31,13 +30,13 @@ const replacementEvidencePack = `// Section 3: Transport Evidence
 
             let entries: any[] = [];
             
-            if (s.provider_travel_km > 0) {
+            if (s.provider_travel_km > 0 || s.home_care_travel_km > 0) {
                let fromStr = 'Unknown';
                let toStr = 'Unknown';
                let coords = '';
                if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {
-                   const leg = routeLog.providerTravel.legs[0]; // main leg
-                   if (leg.description && leg.description.includes(' to ')) {
+                   const leg = routeLog.providerTravel.legs[0]; 
+                   if (leg && leg.description && leg.description.includes(' to ')) {
                        const [f, t] = leg.description.split(' to ');
                        const fl = parseLocationString(f);
                        const tl = parseLocationString(t);
@@ -45,17 +44,28 @@ const replacementEvidencePack = `// Section 3: Transport Evidence
                        toStr = tl.name || leg.toName || 'Client Location';
                        if (fl.coords) coords += \`From: \${fl.coords}\\n\`;
                        if (tl.coords) coords += \`To: \${tl.coords}\`;
-                   } else {
+                   } else if (leg) {
                        fromStr = leg.fromName || 'Previous Client / Home';
                        toStr = leg.toName || 'Client Location';
                    }
                }
-               entries.push({
-                   routeStr: \`From: \${fromStr}\\nTo: \${toStr}\`,
-                   cat: 'Provider Travel',
-                   km: s.provider_travel_km,
-                   coords: coords || 'N/A'
-               });
+               
+               if (s.provider_travel_km > 0) {
+                   entries.push({
+                       routeStr: \`From: \${fromStr}\\nTo: \${toStr}\`,
+                       cat: 'Provider Travel',
+                       km: s.provider_travel_km,
+                       coords: coords || 'N/A'
+                   });
+               }
+               if (s.home_care_travel_km > 0) {
+                   entries.push({
+                       routeStr: \`From: \${fromStr}\\nTo: \${toStr}\`,
+                       cat: 'Home Care Travel',
+                       km: s.home_care_travel_km,
+                       coords: coords || 'N/A'
+                   });
+               }
             }
 
             if (s.abt_km > 0) {
@@ -91,12 +101,14 @@ const replacementEvidencePack = `// Section 3: Transport Evidence
                doc.text(idx === 0 ? \`\${s.staff_first} \${s.staff_last}\` : '', 105, rowStartY, { width: 70 });
                const rowH1 = doc.y;
                doc.text(e.routeStr, 180, rowStartY, { width: 150 });
+               doc.font('Helvetica').fontSize(7).text(e.coords, 180, doc.y, { width: 150 });
                const rowH2 = doc.y;
+               
+               doc.font('Helvetica').fontSize(8);
                doc.text(e.cat, 340, rowStartY, { width: 75 });
                doc.text(e.km.toFixed(2), 420, rowStartY, { width: 25 });
-               doc.font('Helvetica').fontSize(7).text(e.coords, 450, rowStartY, { width: 100 });
-               const rowH3 = doc.y;
-               doc.y = Math.max(rowStartY + 10, rowH1, rowH2, rowH3) + 5;
+               
+               doc.y = Math.max(rowStartY + 10, rowH1, rowH2) + 5;
             });
             // Divider
             doc.moveTo(50, doc.y).lineTo(550, doc.y).lineWidth(0.5).strokeColor('#e4e4e7').stroke();

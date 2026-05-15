@@ -5116,7 +5116,7 @@ async function startServer() {
       doc.fontSize(16).font('Helvetica-Bold').text('3. Transport Evidence');
       doc.moveDown();
       
-      const tableHeaders = ['Date', 'Staff', 'Travel Route (From -> To)', 'Category', 'KM', 'Coordinates'];
+      const tableHeaders = ['Date', 'Staff', 'Travel Route (From -> To)', 'Category', 'KM'];
       const headerY = doc.y;
       doc.rect(50, headerY - 5, 500, 20).fill('#f4f4f5');
       doc.fillColor('black').font('Helvetica-Bold').fontSize(8);
@@ -5125,11 +5125,10 @@ async function startServer() {
       doc.text(tableHeaders[2], 180, headerY);
       doc.text(tableHeaders[3], 340, headerY);
       doc.text(tableHeaders[4], 420, headerY);
-      doc.text(tableHeaders[5], 450, headerY);
       doc.y = headerY + 20;
 
       shifts.forEach((s) => {
-        if (s.provider_travel_km > 0 || s.abt_km > 0) {
+        if (s.provider_travel_km > 0 || s.home_care_travel_km > 0 || s.abt_km > 0) {
             const startTz = formatTz(s.actual_start_time, s.start_time);
             
             let routeLog: any = null;
@@ -5139,13 +5138,13 @@ async function startServer() {
 
             let entries: any[] = [];
             
-            if (s.provider_travel_km > 0) {
+            if (s.provider_travel_km > 0 || s.home_care_travel_km > 0) {
                let fromStr = 'Unknown';
                let toStr = 'Unknown';
                let coords = '';
                if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {
-                   const leg = routeLog.providerTravel.legs[0]; // main leg
-                   if (leg.description && leg.description.includes(' to ')) {
+                   const leg = routeLog.providerTravel.legs[0]; 
+                   if (leg && leg.description && leg.description.includes(' to ')) {
                        const [f, t] = leg.description.split(' to ');
                        const fl = parseLocationString(f);
                        const tl = parseLocationString(t);
@@ -5153,17 +5152,28 @@ async function startServer() {
                        toStr = tl.name || leg.toName || 'Client Location';
                        if (fl.coords) coords += `From: ${fl.coords}\n`;
                        if (tl.coords) coords += `To: ${tl.coords}`;
-                   } else {
+                   } else if (leg) {
                        fromStr = leg.fromName || 'Previous Client / Home';
                        toStr = leg.toName || 'Client Location';
                    }
                }
-               entries.push({
-                   routeStr: `From: ${fromStr}\nTo: ${toStr}`,
-                   cat: 'Provider Travel',
-                   km: s.provider_travel_km,
-                   coords: coords || 'N/A'
-               });
+               
+               if (s.provider_travel_km > 0) {
+                   entries.push({
+                       routeStr: `From: ${fromStr}\nTo: ${toStr}`,
+                       cat: 'Provider Travel',
+                       km: s.provider_travel_km,
+                       coords: coords || 'N/A'
+                   });
+               }
+               if (s.home_care_travel_km > 0) {
+                   entries.push({
+                       routeStr: `From: ${fromStr}\nTo: ${toStr}`,
+                       cat: 'Home Care Travel',
+                       km: s.home_care_travel_km,
+                       coords: coords || 'N/A'
+                   });
+               }
             }
 
             if (s.abt_km > 0) {
@@ -5199,12 +5209,14 @@ async function startServer() {
                doc.text(idx === 0 ? `${s.staff_first} ${s.staff_last}` : '', 105, rowStartY, { width: 70 });
                const rowH1 = doc.y;
                doc.text(e.routeStr, 180, rowStartY, { width: 150 });
+               doc.font('Helvetica').fontSize(7).text(e.coords, 180, doc.y, { width: 150 });
                const rowH2 = doc.y;
+               
+               doc.font('Helvetica').fontSize(8);
                doc.text(e.cat, 340, rowStartY, { width: 75 });
                doc.text(e.km.toFixed(2), 420, rowStartY, { width: 25 });
-               doc.font('Helvetica').fontSize(7).text(e.coords, 450, rowStartY, { width: 100 });
-               const rowH3 = doc.y;
-               doc.y = Math.max(rowStartY + 10, rowH1, rowH2, rowH3) + 5;
+               
+               doc.y = Math.max(rowStartY + 10, rowH1, rowH2) + 5;
             });
             // Divider
             doc.moveTo(50, doc.y).lineTo(550, doc.y).lineWidth(0.5).strokeColor('#e4e4e7').stroke();
@@ -5320,63 +5332,106 @@ async function startServer() {
       doc.rect(50, headerY - 5, 500, 20).fill('#f4f4f5');
       doc.fillColor('black').font('Helvetica-Bold').fontSize(8);
       doc.text('Date', 55, headerY);
-      doc.text('Client', 115, headerY);
-      doc.text('Travel Category', 200, headerY);
-      doc.text('KM', 320, headerY);
-      doc.text('Odometer (Start - End)', 360, headerY);
+      doc.text('Client', 105, headerY);
+      doc.text('Travel Route', 180, headerY);
+      doc.text('Category', 340, headerY);
+      doc.text('KM', 420, headerY);
+      doc.text('Odo', 450, headerY);
       doc.y = headerY + 20;
 
       shifts.forEach((s) => {
         let rowsToPrint: any[] = [];
         
+        // Parse transport_route_log to get address/coords
+        let routeLog: any = null;
+        if (s.transport_route_log) {
+            try { routeLog = JSON.parse(s.transport_route_log); } catch(e){}
+        }
+        
+        let providerRouteStr = 'Unknown';
+        let providerCoords = 'N/A';
+        if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {
+           const leg = routeLog.providerTravel.legs[0]; 
+           if (leg && leg.description && leg.description.includes(' to ')) {
+               const [f, t] = leg.description.split(' to ');
+               const fl = parseLocationString(f);
+               const tl = parseLocationString(t);
+               providerRouteStr = `From: ${fl.name || leg.fromName || 'Unknown'}\nTo: ${tl.name || leg.toName || 'Client'}`;
+               let coordsArr = [];
+               if (fl.coords) coordsArr.push(`F: ${fl.coords}`);
+               if (tl.coords) coordsArr.push(`T: ${tl.coords}`);
+               providerCoords = coordsArr.join('\n');
+           } else if (leg) {
+               providerRouteStr = `From: ${leg.fromName || 'Unknown'}\nTo: ${leg.toName || 'Client'}`;
+           }
+        }
+
+        let abtRouteStr = 'Activity Transport';
+        let abtCoords = 'N/A';
+        if (routeLog && routeLog.abt && routeLog.abt.description) {
+           const abtDesc = routeLog.abt.description.replace('Transport during shift:\n', '');
+           const abtParts = abtDesc.split(' → ');
+           let waypoints: string[] = [];
+           let coordsArr: string[] = [];
+           abtParts.forEach((partStr: string) => {
+               const loc = parseLocationString(partStr);
+               waypoints.push(loc.name || loc.address || 'Unknown');
+               if (loc.coords) coordsArr.push(loc.coords);
+           });
+           abtRouteStr = 'From: ' + waypoints.join('\nTo: ');
+           if (coordsArr.length > 0) abtCoords = coordsArr.join('\n');
+        }
+
         if (s.provider_travel_km > 0) {
-           rowsToPrint.push({ cat: 'Provider Travel (NDIS)', km: s.provider_travel_km });
+           rowsToPrint.push({ cat: 'Provider Travel', km: s.provider_travel_km, route: providerRouteStr, coords: providerCoords });
            totalProviderKm += s.provider_travel_km;
         }
         if (s.home_care_travel_km > 0) {
-           rowsToPrint.push({ cat: 'Home Care Travel ($1.00/km)', km: s.home_care_travel_km });
+           rowsToPrint.push({ cat: 'Home Care ($1/km)', km: s.home_care_travel_km, route: providerRouteStr, coords: providerCoords });
            totalHcKm += s.home_care_travel_km;
         }
         if (s.abt_km > 0) {
-           rowsToPrint.push({ cat: 'ABT (NDIS)', km: s.abt_km });
+           rowsToPrint.push({ cat: 'ABT (NDIS)', km: s.abt_km, route: abtRouteStr, coords: abtCoords });
            totalAbtKm += s.abt_km;
         }
 
-        // Even if KM is 0, if there are photos or odometer readings, print a row so we can show them
         if (rowsToPrint.length === 0 && (s.odometer_start_reading || s.odometer_end_reading || s.odometer_start_photo || s.odometer_end_photo)) {
-           rowsToPrint.push({ cat: 'Odometer Record', km: 0 });
+           rowsToPrint.push({ cat: 'Odometer Record', km: 0, route: 'N/A', coords: 'N/A' });
         }
 
         if (rowsToPrint.length > 0) {
            const startTz = formatTz(s.actual_start_time, s.start_time);
            
            rowsToPrint.forEach((row, idx) => {
-               // Pagination safeguard
-               if (doc.y > 700) {
+               if (doc.y > 650) {
                   doc.addPage();
                }
                
                let rowStartY = doc.y;
                doc.font('Helvetica').fontSize(8);
-               doc.text(idx === 0 ? startTz.date : '', 55, rowStartY, { width: 60 });
-               doc.text(idx === 0 ? `${s.client_first} ${s.client_last}` : '', 115, rowStartY, { width: 80 });
-               doc.text(row.cat, 200, rowStartY, { width: 110 });
-               doc.text(row.km.toFixed(2), 320, rowStartY, { width: 35 });
+               doc.text(idx === 0 ? startTz.date : '', 55, rowStartY, { width: 45 });
+               doc.text(idx === 0 ? `${s.client_first} ${s.client_last}` : '', 105, rowStartY, { width: 70 });
+               
+               const rowH1 = doc.y;
+               doc.text(row.route, 180, rowStartY, { width: 150 });
+               doc.font('Helvetica').fontSize(7).text(row.coords, 180, doc.y, { width: 150 });
+               
+               const hAfterRoute = doc.y;
+               doc.font('Helvetica').fontSize(8);
+               doc.text(row.cat, 340, rowStartY, { width: 75 });
+               doc.text(row.km.toFixed(2), 420, rowStartY, { width: 25 });
                
                if (idx === 0) {
                    const startOdo = s.odometer_start_reading || 'N/A';
                    const endOdo = s.odometer_end_reading || 'N/A';
-                   doc.text(`${startOdo} - ${endOdo}`, 360, rowStartY, { width: 180 });
+                   doc.text(`${startOdo}-${endOdo}`, 450, rowStartY, { width: 100 });
                }
                
-               // Move doc.y down to account for text
-               doc.y = Math.max(doc.y, rowStartY + 12);
+               doc.y = Math.max(rowStartY + 12, hAfterRoute + 5);
            });
 
-           // Odometer Photos - drawn after the rows for this shift
            if (s.odometer_start_photo || s.odometer_end_photo) {
-               // Check if image space needed
-               if (doc.y > 600) { doc.addPage(); } // require more space for images
+               if (doc.y > 600) { doc.addPage(); } 
                
                doc.moveDown(0.5);
                let imgHeight = 0;
@@ -5407,7 +5462,6 @@ async function startServer() {
                }
            }
            
-           // Divider line between shifts
            doc.moveTo(50, doc.y).lineTo(550, doc.y).lineWidth(0.5).strokeColor('#e4e4e7').stroke();
            doc.y += 5;
         }
