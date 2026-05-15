@@ -1044,14 +1044,8 @@ async function startServer() {
       const nextGapMins = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(shift.end_time).getTime()) / 60000 : Infinity;
       
       if (nextShift && nextGapMins >= 0 && nextGapMins <= 60) {
-        console.log(`[NDIS Travel] Chaining detected: Using Next Client Address for End. Return Trip Bypassed. Gap: ${nextGapMins.toFixed(0)} mins`);
-        const nextClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(nextShift.client_id) as any;
-        const nextClientCoords = await getRecordCoordinates('clients', nextShift.client_id, nextClientInfo?.address);
-        const nextClientStr = `Next Client (${nextClientInfo?.address || 'Unknown'}) ${formatCoords(nextClientCoords)}`;
-        
-        const distNext = await getOsrmDistance([clientCoords, nextClientCoords]);
-        totalDist += distNext;
-        routeLogs.push({ description: `${clientHomeStr} to ${nextClientStr}`, distance: distNext, waypoints: [clientCoords, nextClientCoords], addressStart: client?.address, addressEnd: nextClientInfo?.address });
+        console.log(`[NDIS Travel] Chaining detected: Next shift within 60 mins. Outgoing travel charged to Next Client. Gap: ${nextGapMins.toFixed(0)} mins`);
+        // Do not add any distance. Next shift will cover Client -> NextClient.
       } else {
         console.log(`[NDIS Travel] No chaining for end (Gap: ${nextGapMins === Infinity ? 'N/A' : nextGapMins.toFixed(0)} mins). Using Return to Staff Home.`);
         const distReturn = await getOsrmDistance([clientCoords, staffHomeCoords]);
@@ -5138,64 +5132,97 @@ async function startServer() {
 
             let entries: any[] = [];
             
-            if (s.provider_travel_km > 0 || s.home_care_travel_km > 0) {
-               let fromStr = 'Unknown';
-               let toStr = 'Unknown';
-               let coords = '';
+            if (s.provider_travel_km > 0) {
+               let routeStrs: string[] = [];
+               let coordsStrs: string[] = [];
                if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {
-                   const leg = routeLog.providerTravel.legs[0]; 
-                   if (leg && leg.description && leg.description.includes(' to ')) {
-                       const [f, t] = leg.description.split(' to ');
-                       const fl = parseLocationString(f);
-                       const tl = parseLocationString(t);
-                       fromStr = fl.name || leg.fromName || 'Previous Client / Home';
-                       toStr = tl.name || leg.toName || 'Client Location';
-                       if (fl.coords) coords += `From: ${fl.coords}\n`;
-                       if (tl.coords) coords += `To: ${tl.coords}`;
-                   } else if (leg) {
-                       fromStr = leg.fromName || 'Previous Client / Home';
-                       toStr = leg.toName || 'Client Location';
-                   }
-               }
-               
-               if (s.provider_travel_km > 0) {
-                   entries.push({
-                       routeStr: `From: ${fromStr}\nTo: ${toStr}`,
-                       cat: 'Provider Travel',
-                       km: s.provider_travel_km,
-                       coords: coords || 'N/A'
+                   routeLog.providerTravel.legs.forEach((leg: any, idx: number) => {
+                       let fName = leg.fromName || 'Unknown';
+                       let tName = leg.toName || 'Client';
+                       if (leg.description && leg.description.includes(' to ')) {
+                           const [f, t] = leg.description.split(' to ');
+                           const fl = parseLocationString(f);
+                           const tl = parseLocationString(t);
+                           fName = fl.name ? fl.name + (fl.address ? ` (${fl.address})` : '') : fName;
+                           tName = tl.name ? tl.name + (tl.address ? ` (${tl.address})` : '') : tName;
+                           if (fl.coords) coordsStrs.push(`[Leg ${idx+1}] F: ${fl.coords}`);
+                           if (tl.coords) coordsStrs.push(`[Leg ${idx+1}] T: ${tl.coords}`);
+                       }
+                       routeStrs.push(`[Leg ${idx+1}] From: ${fName}\nTo: ${tName}`);
                    });
                }
-               if (s.home_care_travel_km > 0) {
-                   entries.push({
-                       routeStr: `From: ${fromStr}\nTo: ${toStr}`,
-                       cat: 'Home Care Travel',
-                       km: s.home_care_travel_km,
-                       coords: coords || 'N/A'
+               entries.push({
+                   routeStr: routeStrs.join('\n'),
+                   cat: 'Provider Travel',
+                   km: s.provider_travel_km,
+                   coords: coordsStrs.join('\n') || 'N/A'
+               });
+            }
+
+            if (s.home_care_travel_km > 0) {
+               let routeStrs: string[] = [];
+               let coordsStrs: string[] = [];
+               if (routeLog && routeLog.homeCareTravel && routeLog.homeCareTravel.legs) {
+                   routeLog.homeCareTravel.legs.forEach((leg: any, idx: number) => {
+                       let fName = leg.fromName || 'Unknown';
+                       let tName = leg.toName || 'Client';
+                       if (leg.description && leg.description.includes(' to ')) {
+                           const [f, t] = leg.description.split(' to ');
+                           const fl = parseLocationString(f);
+                           const tl = parseLocationString(t);
+                           fName = fl.name ? fl.name + (fl.address ? ` (${fl.address})` : '') : fName;
+                           tName = tl.name ? tl.name + (tl.address ? ` (${tl.address})` : '') : tName;
+                           if (fl.coords) coordsStrs.push(`[Leg ${idx+1}] F: ${fl.coords}`);
+                           if (tl.coords) coordsStrs.push(`[Leg ${idx+1}] T: ${tl.coords}`);
+                       }
+                       routeStrs.push(`[Leg ${idx+1}] From: ${fName}\nTo: ${tName}`);
+                   });
+               } else if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {
+                   routeLog.providerTravel.legs.forEach((leg: any, idx: number) => {
+                       let fName = leg.fromName || 'Unknown';
+                       let tName = leg.toName || 'Client';
+                       if (leg.description && leg.description.includes(' to ')) {
+                           const [f, t] = leg.description.split(' to ');
+                           const fl = parseLocationString(f);
+                           const tl = parseLocationString(t);
+                           fName = fl.name ? fl.name + (fl.address ? ` (${fl.address})` : '') : fName;
+                           tName = tl.name ? tl.name + (tl.address ? ` (${tl.address})` : '') : tName;
+                           if (fl.coords) coordsStrs.push(`[Leg ${idx+1}] F: ${fl.coords}`);
+                           if (tl.coords) coordsStrs.push(`[Leg ${idx+1}] T: ${tl.coords}`);
+                       }
+                       routeStrs.push(`[Leg ${idx+1}] From: ${fName}\nTo: ${tName}`);
                    });
                }
+               entries.push({
+                   routeStr: routeStrs.join('\n'),
+                   cat: 'Home Care Travel',
+                   km: s.home_care_travel_km,
+                   coords: coordsStrs.join('\n') || 'N/A'
+               });
             }
 
             if (s.abt_km > 0) {
-               let routeStr = 'ABT Route';
-               let coords = '';
+               let routeStrs: string[] = [];
+               let coordsStrs: string[] = [];
                if (routeLog && routeLog.abt && routeLog.abt.description) {
                    const abtDesc = routeLog.abt.description.replace('Transport during shift:\n', '');
                    const abtParts = abtDesc.split(' → ');
                    let waypoints: string[] = [];
                    abtParts.forEach((partStr: string) => {
                        const loc = parseLocationString(partStr);
-                       waypoints.push(loc.name || loc.address || 'Unknown');
-                       if (loc.coords) coords += `${loc.coords}\n`;
+                       const locName = loc.name ? loc.name + (loc.address ? ` (${loc.address})` : '') : (loc.address || 'Unknown');
+                       waypoints.push(locName);
+                       if (loc.coords) coordsStrs.push(loc.coords);
                    });
-                   routeStr = waypoints.join('\nTo: ');
-                   if (routeStr.length > 0) routeStr = 'From: ' + routeStr;
+                   if (waypoints.length > 0) {
+                       routeStrs.push('From: ' + waypoints.join('\nTo: '));
+                   }
                }
                entries.push({
-                   routeStr: routeStr,
+                   routeStr: routeStrs.join('\n'),
                    cat: 'Activity Transport',
                    km: s.abt_km,
-                   coords: coords.trim() || 'N/A'
+                   coords: coordsStrs.join('\n') || 'N/A'
                });
             }
 
@@ -5209,7 +5236,7 @@ async function startServer() {
                doc.text(idx === 0 ? `${s.staff_first} ${s.staff_last}` : '', 105, rowStartY, { width: 70 });
                const rowH1 = doc.y;
                doc.text(e.routeStr, 180, rowStartY, { width: 150 });
-               doc.font('Helvetica').fontSize(7).text(e.coords, 180, doc.y, { width: 150 });
+               doc.font('Helvetica').fontSize(7).text(e.coords, 180, doc.y + 2, { width: 150 });
                const rowH2 = doc.y;
                
                doc.font('Helvetica').fontSize(8);
@@ -5342,56 +5369,91 @@ async function startServer() {
       shifts.forEach((s) => {
         let rowsToPrint: any[] = [];
         
-        // Parse transport_route_log to get address/coords
         let routeLog: any = null;
         if (s.transport_route_log) {
             try { routeLog = JSON.parse(s.transport_route_log); } catch(e){}
         }
         
-        let providerRouteStr = 'Unknown';
-        let providerCoords = 'N/A';
-        if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {
-           const leg = routeLog.providerTravel.legs[0]; 
-           if (leg && leg.description && leg.description.includes(' to ')) {
-               const [f, t] = leg.description.split(' to ');
-               const fl = parseLocationString(f);
-               const tl = parseLocationString(t);
-               providerRouteStr = `From: ${fl.name || leg.fromName || 'Unknown'}\nTo: ${tl.name || leg.toName || 'Client'}`;
-               let coordsArr = [];
-               if (fl.coords) coordsArr.push(`F: ${fl.coords}`);
-               if (tl.coords) coordsArr.push(`T: ${tl.coords}`);
-               providerCoords = coordsArr.join('\n');
-           } else if (leg) {
-               providerRouteStr = `From: ${leg.fromName || 'Unknown'}\nTo: ${leg.toName || 'Client'}`;
-           }
-        }
-
-        let abtRouteStr = 'Activity Transport';
-        let abtCoords = 'N/A';
-        if (routeLog && routeLog.abt && routeLog.abt.description) {
-           const abtDesc = routeLog.abt.description.replace('Transport during shift:\n', '');
-           const abtParts = abtDesc.split(' → ');
-           let waypoints: string[] = [];
-           let coordsArr: string[] = [];
-           abtParts.forEach((partStr: string) => {
-               const loc = parseLocationString(partStr);
-               waypoints.push(loc.name || loc.address || 'Unknown');
-               if (loc.coords) coordsArr.push(loc.coords);
-           });
-           abtRouteStr = 'From: ' + waypoints.join('\nTo: ');
-           if (coordsArr.length > 0) abtCoords = coordsArr.join('\n');
-        }
-
         if (s.provider_travel_km > 0) {
-           rowsToPrint.push({ cat: 'Provider Travel', km: s.provider_travel_km, route: providerRouteStr, coords: providerCoords });
+           let routeStrs: string[] = [];
+           let coordsStrs: string[] = [];
+           if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {
+               routeLog.providerTravel.legs.forEach((leg: any, idx: number) => {
+                   let fName = leg.fromName || 'Unknown';
+                   let tName = leg.toName || 'Client';
+                   if (leg.description && leg.description.includes(' to ')) {
+                       const [f, t] = leg.description.split(' to ');
+                       const fl = parseLocationString(f);
+                       const tl = parseLocationString(t);
+                       fName = fl.name ? fl.name + (fl.address ? ` (${fl.address})` : '') : fName;
+                       tName = tl.name ? tl.name + (tl.address ? ` (${tl.address})` : '') : tName;
+                       if (fl.coords) coordsStrs.push(`[Leg ${idx+1}] F: ${fl.coords}`);
+                       if (tl.coords) coordsStrs.push(`[Leg ${idx+1}] T: ${tl.coords}`);
+                   }
+                   routeStrs.push(`[Leg ${idx+1}] From: ${fName}\nTo: ${tName}`);
+               });
+           }
+           rowsToPrint.push({ cat: 'Provider Travel', km: s.provider_travel_km, route: routeStrs.join('\n'), coords: coordsStrs.join('\n') });
            totalProviderKm += s.provider_travel_km;
         }
+        
         if (s.home_care_travel_km > 0) {
-           rowsToPrint.push({ cat: 'Home Care ($1/km)', km: s.home_care_travel_km, route: providerRouteStr, coords: providerCoords });
+           let routeStrs: string[] = [];
+           let coordsStrs: string[] = [];
+           if (routeLog && routeLog.homeCareTravel && routeLog.homeCareTravel.legs) {
+               routeLog.homeCareTravel.legs.forEach((leg: any, idx: number) => {
+                   let fName = leg.fromName || 'Unknown';
+                   let tName = leg.toName || 'Client';
+                   if (leg.description && leg.description.includes(' to ')) {
+                       const [f, t] = leg.description.split(' to ');
+                       const fl = parseLocationString(f);
+                       const tl = parseLocationString(t);
+                       fName = fl.name ? fl.name + (fl.address ? ` (${fl.address})` : '') : fName;
+                       tName = tl.name ? tl.name + (tl.address ? ` (${tl.address})` : '') : tName;
+                       if (fl.coords) coordsStrs.push(`[Leg ${idx+1}] F: ${fl.coords}`);
+                       if (tl.coords) coordsStrs.push(`[Leg ${idx+1}] T: ${tl.coords}`);
+                   }
+                   routeStrs.push(`[Leg ${idx+1}] From: ${fName}\nTo: ${tName}`);
+               });
+           } else if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {
+               // Fallback using Provider Travel legs structure if Home Care travel is missing its own
+               routeLog.providerTravel.legs.forEach((leg: any, idx: number) => {
+                   let fName = leg.fromName || 'Unknown';
+                   let tName = leg.toName || 'Client';
+                   if (leg.description && leg.description.includes(' to ')) {
+                       const [f, t] = leg.description.split(' to ');
+                       const fl = parseLocationString(f);
+                       const tl = parseLocationString(t);
+                       fName = fl.name ? fl.name + (fl.address ? ` (${fl.address})` : '') : fName;
+                       tName = tl.name ? tl.name + (tl.address ? ` (${tl.address})` : '') : tName;
+                       if (fl.coords) coordsStrs.push(`[Leg ${idx+1}] F: ${fl.coords}`);
+                       if (tl.coords) coordsStrs.push(`[Leg ${idx+1}] T: ${tl.coords}`);
+                   }
+                   routeStrs.push(`[Leg ${idx+1}] From: ${fName}\nTo: ${tName}`);
+               });
+           }
+           rowsToPrint.push({ cat: 'Home Care ($1/km)', km: s.home_care_travel_km, route: routeStrs.join('\n'), coords: coordsStrs.join('\n') });
            totalHcKm += s.home_care_travel_km;
         }
+        
         if (s.abt_km > 0) {
-           rowsToPrint.push({ cat: 'ABT (NDIS)', km: s.abt_km, route: abtRouteStr, coords: abtCoords });
+           let routeStrs: string[] = [];
+           let coordsStrs: string[] = [];
+           if (routeLog && routeLog.abt && routeLog.abt.description) {
+               const abtDesc = routeLog.abt.description.replace('Transport during shift:\n', '');
+               const abtParts = abtDesc.split(' → ');
+               let waypoints: string[] = [];
+               abtParts.forEach((partStr: string) => {
+                   const loc = parseLocationString(partStr);
+                   const locName = loc.name ? loc.name + (loc.address ? ` (${loc.address})` : '') : (loc.address || 'Unknown');
+                   waypoints.push(locName);
+                   if (loc.coords) coordsStrs.push(loc.coords);
+               });
+               if (waypoints.length > 0) {
+                   routeStrs.push('From: ' + waypoints.join('\nTo: '));
+               }
+           }
+           rowsToPrint.push({ cat: 'ABT (NDIS)', km: s.abt_km, route: routeStrs.join('\n'), coords: coordsStrs.join('\n') });
            totalAbtKm += s.abt_km;
         }
 
@@ -5413,8 +5475,8 @@ async function startServer() {
                doc.text(idx === 0 ? `${s.client_first} ${s.client_last}` : '', 105, rowStartY, { width: 70 });
                
                const rowH1 = doc.y;
-               doc.text(row.route, 180, rowStartY, { width: 150 });
-               doc.font('Helvetica').fontSize(7).text(row.coords, 180, doc.y, { width: 150 });
+               doc.text(row.route || 'N/A', 180, rowStartY, { width: 150 });
+               doc.font('Helvetica').fontSize(7).text(row.coords || '', 180, doc.y + 2, { width: 150 });
                
                const hAfterRoute = doc.y;
                doc.font('Helvetica').fontSize(8);
