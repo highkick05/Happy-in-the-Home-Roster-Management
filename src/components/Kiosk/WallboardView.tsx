@@ -36,6 +36,9 @@ export default function WallboardView() {
   const [dailyQuote, setDailyQuote] = useState<{quote: string; author: string} | null>(null);
   const [isToolbarVisible, setIsToolbarVisible] = useState(true);
   const toolbarTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isFlickering, setIsFlickering] = useState(false);
+  const flickerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const stopFlickerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [rotation, setRotation] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -63,6 +66,28 @@ export default function WallboardView() {
       window.removeEventListener('keydown', resetToolbarTimeout);
       window.removeEventListener('touchstart', resetToolbarTimeout);
       if (toolbarTimeoutRef.current) clearTimeout(toolbarTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const triggerFlicker = () => {
+      setIsFlickering(true);
+      if (stopFlickerTimeoutRef.current) clearTimeout(stopFlickerTimeoutRef.current);
+      // Flicker for 150 to 450 ms
+      stopFlickerTimeoutRef.current = setTimeout(() => {
+        setIsFlickering(false);
+      }, 150 + Math.random() * 300);
+      
+      // Schedule next flicker anywhere from 5 to 15 seconds
+      if (flickerTimeoutRef.current) clearTimeout(flickerTimeoutRef.current);
+      flickerTimeoutRef.current = setTimeout(triggerFlicker, 5000 + Math.random() * 10000);
+    };
+
+    flickerTimeoutRef.current = setTimeout(triggerFlicker, 3000 + Math.random() * 5000);
+
+    return () => {
+      if (flickerTimeoutRef.current) clearTimeout(flickerTimeoutRef.current);
+      if (stopFlickerTimeoutRef.current) clearTimeout(stopFlickerTimeoutRef.current);
     };
   }, []);
 
@@ -229,7 +254,7 @@ export default function WallboardView() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="text-2xl md:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-teal via-emerald-400 to-brand-teal bg-[length:200%_auto] animate-gradient -ml-2 sm:-ml-4 md:-ml-6"
+            className={`text-2xl md:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-teal via-emerald-400 to-brand-teal bg-[length:200%_auto] -ml-2 sm:-ml-4 md:-ml-6 ${isFlickering ? 'animate-flicker' : 'animate-gradient'}`}
           >
             Dream Chasers
           </motion.h1>
@@ -241,6 +266,23 @@ export default function WallboardView() {
             }
             .animate-gradient {
               animation: gradient 4s linear infinite;
+            }
+            @keyframes flicker-glitch {
+              0% { opacity: 1; transform: skew(0deg); }
+              10% { opacity: 0.4; transform: skew(-5deg) translate(-1px, 1px); }
+              20% { opacity: 1; transform: skew(0deg); }
+              30% { opacity: 0.1; transform: skew(5deg) translate(1px, -1px); filter: hue-rotate(90deg) saturate(2); }
+              40% { opacity: 1; transform: skew(0deg); }
+              50% { opacity: 0.8; transform: skew(-2deg); }
+              60% { opacity: 1; transform: skew(0deg); }
+              70% { opacity: 0.3; transform: skew(3deg) translate(-1px, -1px); }
+              80% { opacity: 1; transform: skew(0deg); }
+              90% { opacity: 0.6; transform: scaleY(0.9); }
+              100% { opacity: 1; transform: skew(0deg); }
+            }
+            .animate-flicker {
+              animation: flicker-glitch 0.2s linear infinite alternate;
+              text-shadow: 2px 0 #0d9488, -2px 0 #34d399;
             }
           `}</style>
         </div>

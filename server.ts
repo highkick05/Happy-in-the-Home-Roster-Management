@@ -2095,7 +2095,7 @@ async function startServer() {
             console.error('Error fetching quote:', err);
             return res.json({ quote: 'Always code as if the guy who ends up maintaining your code will be a violent psychopath who knows where you live.', author: 'John Woods' });
         }
-        res.json({ quote: quote.QUOTE || quote.quote || 'Keep pushing boundaries!', author: quote.AUTHOR || quote.author || 'Unknown' });
+        res.json({ quote: quote.text || quote.quote || quote.QUOTE || 'Keep pushing boundaries!', author: quote.author || quote.AUTHOR || 'Unknown' });
       });
     } catch (err) {
       res.json({ quote: 'Innovation distinguishes between a leader and a follower.', author: 'Steve Jobs' });
