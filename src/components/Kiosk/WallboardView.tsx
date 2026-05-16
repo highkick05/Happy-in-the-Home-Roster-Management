@@ -8,7 +8,7 @@ import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useAuth } from '../../context/AuthContext';
 import ShiftDetailsModal from '../Roster/ShiftDetailsModal';
-import { MonitorSmartphone, ZoomIn, ZoomOut } from 'lucide-react';
+import { MonitorSmartphone, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 
 const locales = {
   'en-US': enUS,
@@ -39,6 +39,13 @@ export default function WallboardView() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [manualMode, setManualMode] = useState<boolean | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [rotation, setRotation] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return parseInt(params.get('rotate') || '0', 10);
+    }
+    return 0;
+  });
 
   const [isLandscape, setIsLandscape] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -55,12 +62,18 @@ export default function WallboardView() {
       const params = new URLSearchParams(window.location.search);
       if (params.get('mode')) return; // Don't auto-switch if forced via URL
       if (manualMode !== null) return; // Don't auto-switch if user toggled
-      setIsLandscape(window.innerWidth > window.innerHeight);
+      
+      const isRotated90 = rotation === 90 || rotation === 270;
+      const effectiveWidth = isRotated90 ? window.innerHeight : window.innerWidth;
+      const effectiveHeight = isRotated90 ? window.innerWidth : window.innerHeight;
+      setIsLandscape(effectiveWidth > effectiveHeight);
     };
     
+    handleResize(); // ensure correct layout on mount / rotate
+
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [manualMode]);
+  }, [manualMode, rotation]);
 
   const localizer = useMemo(() => {
     const startDayStr = settings?.invoicingStartDay || 'Monday';
@@ -214,8 +227,25 @@ export default function WallboardView() {
     );
   };
 
+  const isRotated90 = rotation === 90 || rotation === 270;
+  
+  const rotatedContainerStyles = isRotated90 ? {
+    position: 'absolute' as const,
+    top: '50%',
+    left: '50%',
+    width: '100vh',
+    height: '100vw',
+    transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+  } : {
+    width: '100vw',
+    height: '100vh',
+    transform: `rotate(${rotation}deg)`,
+    transformOrigin: 'center center'
+  };
+
   return (
-    <div className="w-screen h-screen overflow-hidden bg-zinc-950 font-sans text-zinc-100 relative">
+    <div className="w-screen h-screen overflow-hidden bg-zinc-950 font-sans text-zinc-100 relative" style={{ maxWidth: '100vw', maxHeight: '100vh' }}>
+      <div style={rotatedContainerStyles} className="flex flex-col relative transition-transform duration-500">
       <style>{`
         .rbc-calendar {
           background-color: transparent;
@@ -373,6 +403,25 @@ export default function WallboardView() {
 
         <button 
           onClick={() => {
+            const nextVal = (rotation + 90) % 360;
+            setRotation(nextVal);
+            
+            // Re-evaluate landscape mode immediately
+            const rotated = nextVal === 90 || nextVal === 270;
+            const effectiveWidth = rotated ? window.innerHeight : window.innerWidth;
+            const effectiveHeight = rotated ? window.innerWidth : window.innerHeight;
+            if (manualMode === null) {
+              setIsLandscape(effectiveWidth > effectiveHeight);
+            }
+          }}
+          className="p-3 bg-zinc-900 border border-zinc-700 rounded-full shadow-lg text-zinc-400 hover:text-white"
+          title="Rotate Screen"
+        >
+          <RotateCw className="w-5 h-5" />
+        </button>
+
+        <button 
+          onClick={() => {
             const nextVal = !isLandscape;
             setIsLandscape(nextVal);
             setManualMode(nextVal);
@@ -394,6 +443,7 @@ export default function WallboardView() {
           onUpdate={fetchData}
         />
       )}
+      </div>
     </div>
   );
 }
