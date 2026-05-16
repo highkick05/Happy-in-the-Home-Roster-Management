@@ -196,8 +196,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
         </div>
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Start Time</label>
-          <input
-            type="time"
+          <CustomTimePicker
             required
             className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none font-mono text-sm"
             value={formData.startTime}
@@ -206,8 +205,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
         </div>
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">End Time</label>
-          <input
-            type="time"
+          <CustomTimePicker
             required
             className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none font-mono text-sm"
             value={formData.endTime}
@@ -366,6 +364,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
 
 import QuotesView from './QuotesView';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import CustomTimePicker from '../ui/CustomTimePicker';
 
 export default function InvoicingView() {
   const { token, user } = useAuth();

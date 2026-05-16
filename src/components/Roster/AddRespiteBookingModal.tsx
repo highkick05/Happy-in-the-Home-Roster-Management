@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import CustomTimePicker from '../ui/CustomTimePicker';
 
 interface AddRespiteBookingModalProps {
   isOpen: boolean;
@@ -444,14 +445,14 @@ export default function AddRespiteBookingModal({ isOpen, onClose, onSave, staffL
                                         <label className="text-[10px] uppercase text-zinc-500 mb-1 block">Start Date & Time</label>
                                         <div className="flex gap-1">
                                            <CustomDatePicker  required value={ss.startDate} onChange={(e) => updateStaffShift(stIdx, 'startDate', e.target.value)} className="w-1/2 bg-[#121214] border border-white/[0.12] rounded p-1 text-xs text-white" />
-                                           <input type="time" required value={ss.startTime} onChange={(e) => updateStaffShift(stIdx, 'startTime', e.target.value)} className="w-1/2 bg-[#121214] border border-white/[0.12] rounded p-1 text-xs text-white" />
+                                           <CustomTimePicker required value={ss.startTime} onChange={(e) => updateStaffShift(stIdx, 'startTime', e.target.value)} className="w-1/2 bg-[#121214] border border-white/[0.12] rounded p-1 text-xs text-white" />
                                         </div>
                                       </div>
                                       <div>
                                         <label className="text-[10px] uppercase text-zinc-500 mb-1 block">End Date & Time</label>
                                         <div className="flex gap-1">
                                            <CustomDatePicker  required value={ss.endDate} onChange={(e) => updateStaffShift(stIdx, 'endDate', e.target.value)} className="w-1/2 bg-[#121214] border border-white/[0.12] rounded p-1 text-xs text-white" />
-                                           <input type="time" required value={ss.endTime} onChange={(e) => updateStaffShift(stIdx, 'endTime', e.target.value)} className="w-1/2 bg-[#121214] border border-white/[0.12] rounded p-1 text-xs text-white" />
+                                           <CustomTimePicker required value={ss.endTime} onChange={(e) => updateStaffShift(stIdx, 'endTime', e.target.value)} className="w-1/2 bg-[#121214] border border-white/[0.12] rounded p-1 text-xs text-white" />
                                         </div>
                                       </div>
                                     </div>

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Plus, Trash2, Calendar, AlertCircle, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import CustomTimePicker from '../ui/CustomTimePicker';
 
 interface ClientRosterTemplatesProps {
   client: any;
@@ -602,11 +603,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-zinc-400 mb-1.5">Start Time</label>
-                        <input type="time" required value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors" />
+                        <CustomTimePicker required value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors" />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-zinc-400 mb-1.5">End Time</label>
-                        <input type="time" required value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors" />
+                        <CustomTimePicker required value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors" />
                       </div>
                     </div>
                     

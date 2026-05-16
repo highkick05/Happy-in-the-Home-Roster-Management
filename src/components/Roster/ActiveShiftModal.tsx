@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ShiftEvent } from './RosterCalendar';
+import CustomTimePicker from '../ui/CustomTimePicker';
 
 interface ActiveShiftModalProps {
   isOpen: boolean;
@@ -436,8 +437,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                 {/* 1. Actual Finish Time */}
                 <div className="bg-zinc-800/30 p-5 rounded-2xl border border-white/[0.08]">
                   <label className="block text-sm md:text-base font-medium text-zinc-300 mb-2">Actual Finish Time</label>
-                  <input 
-                    type="time" 
+                  <CustomTimePicker 
                     className="w-full bg-[#09090b] border border-white/[0.12]/50 rounded-xl py-3 px-4 text-lg text-white focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal shadow-inner"
                     value={finishTime}
                     onChange={e => setFinishTime(e.target.value)}
