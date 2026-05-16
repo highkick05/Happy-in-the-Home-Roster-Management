@@ -111,17 +111,17 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex justify-center p-4 overflow-y-auto custom-scrollbar" onClick={onClose}>
-      <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-xl w-full max-w-2xl flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-center p-4 border-b border-white/[0.08]">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-xl w-full max-w-2xl flex flex-col h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center p-4 border-b border-white/[0.08] shrink-0">
           <h2 className="text-xl font-semibold text-white tracking-tight mb-4">{staff ? 'Edit Staff Details' : 'Add New Staff'}</h2>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
         
-        <div className="p-4 flex-1">
-          <form id="staff-form" onSubmit={handleSubmit} className="space-y-6">
+        <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
+          <form id="staff-form" onSubmit={handleSubmit} className="space-y-6 pb-64">
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2 gap-4 pb-2">
@@ -161,7 +161,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
               </div>
               <div>
                 <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Date of Birth</label>
-                <CustomDatePicker name="dob" value={formData.dob} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                <CustomDatePicker position="bottom" name="dob" value={formData.dob} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
               </div>
             </div>
 
