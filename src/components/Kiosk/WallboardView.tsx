@@ -156,53 +156,70 @@ export default function WallboardView() {
     const isInProgress = isActuallyRunning && !isCompleted;
     
     // Default to future/neutral
-    let containerClass = "border-l-4 border-zinc-500 opacity-90 transition-all h-full flex flex-col justify-center px-4 py-3";
+    let containerClass = "border-l-4 border-zinc-500 opacity-90 transition-all h-full flex flex-col justify-center p-4 bg-zinc-900/50";
     
     if (isCompleted) {
-      containerClass = "opacity-50 border-l-4 border-blue-500 transition-all h-full flex flex-col justify-center px-4 py-3";
+      containerClass = "opacity-50 border-l-4 border-blue-500 transition-all h-full flex flex-col justify-center p-4 bg-zinc-900/30";
     } else if (isInProgress) {
-      containerClass = "border-l-4 border-emerald-500 bg-emerald-950/20 transition-all pulse-border h-full flex flex-col justify-center px-4 py-3";
+      containerClass = "border-l-4 border-emerald-500 bg-emerald-950/20 transition-all pulse-border h-full flex flex-col justify-center p-4";
     }
+    
+    const dateStr = format(event.start, 'EEE, d MMM yyyy');
+    const timeStr = `${format(event.start, 'h:mm a')} – ${format(event.end, 'h:mm a')}`;
 
     return (
-      <div className={`w-full hover:brightness-110 cursor-pointer ${containerClass}`}>
+      <div className={`w-full hover:brightness-110 cursor-pointer ${containerClass} rounded-r-xl`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-3 border-b border-zinc-800/60 pb-3 gap-2">
+          <div className="flex items-center gap-3 text-sm md:text-base">
+            <span className="font-semibold text-zinc-200 tracking-wide uppercase text-xs md:text-sm bg-zinc-800/80 px-2 py-1 rounded">
+              {dateStr}
+            </span>
+            <span className="text-zinc-400 font-mono bg-zinc-900/50 px-2 py-1 rounded border border-zinc-800">
+              {timeStr}
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-2 flex-wrap">
+            {isInProgress && (
+              <span className="flex items-center ml-2">
+                <span className="flex h-2 w-2 relative mr-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-xs bg-emerald-500/20 text-emerald-300 font-medium px-2 py-0.5 rounded-full uppercase whitespace-nowrap">
+                  In Progress
+                </span>
+              </span>
+            )}
+            {isCompleted && (
+              <span className="text-xs bg-blue-500/20 text-blue-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
+                Completed
+              </span>
+            )}
+            {!isInProgress && !isCompleted && event.status !== 'DRAFT' && (
+              <span className="text-xs bg-zinc-500/20 text-zinc-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
+                Scheduled
+              </span>
+            )}
+            {event.status === 'DRAFT' && (
+              <span className="text-xs bg-orange-500/20 text-orange-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
+                Draft
+              </span>
+            )}
+          </div>
+        </div>
+
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           <span className={`font-mono text-lg md:text-xl lg:text-2xl ${isInProgress ? 'text-emerald-400 font-bold' : 'text-brand-teal font-medium'}`}>
             {event.staffName || 'Unassigned'}
           </span>
-          {isInProgress && (
-            <span className="flex items-center ml-2">
-              <span className="flex h-2 w-2 relative mr-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-xs bg-emerald-500/20 text-emerald-300 font-medium px-2 py-0.5 rounded-full uppercase whitespace-nowrap">
-                In Progress
-              </span>
-            </span>
-          )}
-          {isCompleted && (
-            <span className="text-xs bg-blue-500/20 text-blue-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
-              Completed
-            </span>
-          )}
-          {!isInProgress && !isCompleted && event.status !== 'DRAFT' && (
-            <span className="text-xs bg-zinc-500/20 text-zinc-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
-              Scheduled
-            </span>
-          )}
-          {event.status === 'DRAFT' && (
-            <span className="text-xs bg-orange-500/20 text-orange-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
-              Draft
-            </span>
-          )}
         </div>
         
         <div className={`font-sans font-bold ${isInProgress ? 'text-emerald-50' : 'text-[#E6EDF3]'} leading-tight mb-1 text-xl md:text-2xl lg:text-3xl`}>
           {event.clientName || 'Unknown Client'}
         </div>
         
-        <div className={`font-sans ${isInProgress ? 'text-emerald-200' : 'text-[#8B949E]'} text-sm md:text-md lg:text-lg`}>
+        <div className={`font-sans ${isInProgress ? 'text-emerald-200' : 'text-[#8B949E]'} text-sm md:text-md lg:text-lg mt-1`}>
           {event.serviceName || (event.isRespiteWrapper ? 'STA / Respite' : 'Support Worker')} 
         </div>
       </div>
@@ -295,63 +312,39 @@ export default function WallboardView() {
 
         /* Layout Overrides */
         .rbc-agenda-view table.rbc-agenda-table {
-          border-spacing: 0 1rem;
+          border-spacing: 0;
           border-collapse: separate;
           border: none;
         }
-        .rbc-agenda-table {
-          table-layout: fixed;
-          width: 100%;
+        .rbc-agenda-table thead {
+          display: none !important;
         }
-        .rbc-agenda-table > thead > tr > th.rbc-agenda-date-cell {
-          width: 25%;
-        }
-        .rbc-agenda-table > thead > tr > th.rbc-agenda-time-cell {
-          width: 20%;
-        }
-        .rbc-agenda-table > thead > tr > th {
-          border-bottom: 2px solid #3f3f46;
-          padding: 0.5rem 1rem;
-          color: #8B949E;
-          font-weight: 500;
-          text-align: left;
+        .rbc-agenda-table, .rbc-agenda-table tbody, .rbc-agenda-table tr, .rbc-agenda-table td {
+          display: block !important;
+          width: 100% !important;
+          border: none !important;
+          padding: 0 !important;
         }
         .rbc-agenda-table > tbody > tr {
-          background-color: #18181b;
-          border-radius: 0.75rem;
-          box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
-          transition: transform 0.2s;
-        }
-        .rbc-agenda-table > tbody > tr:hover {
-          transform: translateY(-2px);
-        }
-        .rbc-agenda-table > tbody > tr > td {
-          border: none;
-          padding: 1rem;
-          vertical-align: middle;
+          background-color: transparent !important;
+          margin-bottom: 2rem !important;
+          box-shadow: none !important;
         }
         .rbc-agenda-date-cell {
-          font-weight: 600;
-          color: #E6EDF3;
-          border-top-left-radius: 0.75rem;
-          border-bottom-left-radius: 0.75rem;
-          border-right: 1px solid #27272a;
+          display: none !important;
         }
         .rbc-agenda-time-cell {
-          font-size: 1.15rem;
-          color: #d4d4d8;
-          border-right: 1px solid #27272a;
-          white-space: nowrap;
+          display: none !important;
         }
         .rbc-agenda-event-cell {
-          padding: 0 !important;
-          border-top-right-radius: 0.75rem;
-          border-bottom-right-radius: 0.75rem;
-          overflow: hidden;
+          display: block !important;
+          width: 100% !important;
+          border-radius: 0.75rem !important;
+          overflow: hidden !important;
+          box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.5) !important;
         }
         .rbc-agenda-event-cell > div { 
            width: 100%;
-           height: 100%;
         }
       `}</style>
       
