@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Download, Users, Briefcase, FileCheck, Search, FileText } from 'lucide-react';
 import { format } from 'date-fns';
+import CustomDatePicker from '../ui/CustomDatePicker';
 
 export default function ComplianceDashboard() {
   const { token, user } = useAuth();

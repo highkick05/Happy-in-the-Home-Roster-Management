@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import CustomDatePicker from '../ui/CustomDatePicker';
 
 interface AddRespiteBookingModalProps {
   isOpen: boolean;

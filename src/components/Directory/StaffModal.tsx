@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import CustomDatePicker from '../ui/CustomDatePicker';
 
 interface StaffModalProps {
   isOpen: boolean;
@@ -160,7 +161,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
               </div>
               <div>
                 <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Date of Birth</label>
-                <input type="date" name="dob" value={formData.dob} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                <CustomDatePicker  name="dob" value={formData.dob} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
               </div>
             </div>
 

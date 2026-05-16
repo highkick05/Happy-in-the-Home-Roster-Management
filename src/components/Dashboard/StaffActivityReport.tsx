@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Activity, Calendar, Download, RefreshCw } from 'lucide-react';
+import CustomDatePicker from '../ui/CustomDatePicker';
 
 export default function StaffActivityReport() {
   const { token, user } = useAuth();

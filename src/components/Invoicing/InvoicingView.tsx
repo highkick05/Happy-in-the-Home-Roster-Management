@@ -365,6 +365,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
 }
 
 import QuotesView from './QuotesView';
+import CustomDatePicker from '../ui/CustomDatePicker';
 
 export default function InvoicingView() {
   const { token, user } = useAuth();

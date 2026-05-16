@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, Calendar, AlertCircle, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import CustomDatePicker from '../ui/CustomDatePicker';
 
 interface ClientRosterTemplatesProps {
   client: any;

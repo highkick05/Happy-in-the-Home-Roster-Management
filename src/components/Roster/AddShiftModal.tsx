@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import CustomDatePicker from '../ui/CustomDatePicker';
 
 interface AddShiftModalProps {
   isOpen: boolean;
@@ -375,8 +376,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Start Date *</label>
-                  <input 
-                    type="date"
+                  <CustomDatePicker 
+                    
                     required
                     value={startDate}
                     onChange={handleStartDateChange}
@@ -385,8 +386,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                 </div>
                 <div>
                   <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">End Date *</label>
-                  <input 
-                    type="date"
+                  <CustomDatePicker 
+                    
                     required
                     value={endDate}
                     onChange={handleEndDateChange}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Save } from 'lucide-react';
+import CustomDatePicker from '../ui/CustomDatePicker';
 
 export default function ProfileView() {
   const { token, user } = useAuth();
