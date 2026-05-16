@@ -35,6 +35,8 @@ export function CustomDatePicker({
   const [dateValue, setDateValue] = useState<Date | null>(null);
   const uniqueId = React.useId();
 
+  const datepickerRef = React.useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleOpenDatepicker = (e: Event) => {
       const customEvent = e as CustomEvent;
@@ -45,6 +47,20 @@ export function CustomDatePicker({
     window.addEventListener('datepicker_open', handleOpenDatepicker);
     return () => window.removeEventListener('datepicker_open', handleOpenDatepicker);
   }, [uniqueId]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (datepickerRef.current && !datepickerRef.current.contains(event.target as Node)) {
+        setShow(false);
+      }
+    };
+    if (show) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [show]);
 
   useEffect(() => {
     let parsedDate: Date | null | undefined = selected;
@@ -128,7 +144,7 @@ export function CustomDatePicker({
 
   // If we pass children to tailwind-datepicker-react, it renders the children instead of its own input.
   return (
-    <div className="w-full relative">
+    <div className="w-full relative" ref={datepickerRef}>
       <Datepicker options={options} onChange={handleChange} show={show} setShow={handleClose}>
         <div className="relative w-full">
           <input 
