@@ -33,6 +33,18 @@ export function CustomDatePicker({
   
   const [show, setShow] = useState<boolean>(false);
   const [dateValue, setDateValue] = useState<Date | null>(null);
+  const uniqueId = React.useId();
+
+  useEffect(() => {
+    const handleOpenDatepicker = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail.id !== uniqueId) {
+        setShow(false);
+      }
+    };
+    window.addEventListener('datepicker_open', handleOpenDatepicker);
+    return () => window.removeEventListener('datepicker_open', handleOpenDatepicker);
+  }, [uniqueId]);
 
   useEffect(() => {
     let parsedDate: Date | null | undefined = selected;
@@ -99,7 +111,7 @@ export function CustomDatePicker({
       prev: () => <ChevronLeft className="w-5 h-5 text-white" />,
       next: () => <ChevronRight className="w-5 h-5 text-white" />,
     },
-    datepickerClassNames: "bottom-full left-0 top-auto mb-2 z-[9999] shadow-2xl w-full custom-datepicker-popup min-w-[280px]",
+    datepickerClassNames: "top-full bottom-auto mt-2 z-[9999] shadow-2xl w-full custom-datepicker-popup min-w-[280px]",
     defaultDate: dateValue,
     language: "en",
     disabledDates: [],
@@ -124,7 +136,10 @@ export function CustomDatePicker({
             className={className + " w-full pl-3 pr-10 cursor-pointer"}
             placeholder={placeholderText || "dd/mm/yyyy"}
             value={dateValue ? dateValue.toLocaleDateString("en-GB") : ""}
-            onFocus={() => setShow(true)}
+            onFocus={() => {
+              setShow(true);
+              window.dispatchEvent(new CustomEvent('datepicker_open', { detail: { id: uniqueId } }));
+            }}
             readOnly
             name={name}
             id={id}
