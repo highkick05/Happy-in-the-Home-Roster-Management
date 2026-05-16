@@ -195,21 +195,36 @@ export default function WallboardView() {
     }
 
     return (
-      <div className={`flex flex-col w-full h-full hover:brightness-110 cursor-pointer ${isLandscape ? 'p-3' : 'py-5 px-4'} ${containerClass}`}>
-        <div className="flex flex-col justify-center h-full">
-          <div className="flex items-center gap-2 mb-1">
+      <div className={`flex flex-col w-full ${isLandscape ? 'h-full p-3' : 'h-auto py-5 px-4'} hover:brightness-110 cursor-pointer ${containerClass}`}>
+        <div className="flex flex-col justify-center h-full min-h-[5rem]">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className={`font-mono ${isLandscape ? 'text-lg md:text-xl' : 'text-lg md:text-2xl'} ${isInProgress ? 'text-emerald-400 font-bold' : 'text-brand-teal font-medium'}`}>
               {event.staffName || 'Unassigned'}
             </span>
             {isInProgress && (
-              <span className="flex h-2 w-2 relative ml-1">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <span className="flex items-center ml-2">
+                <span className="flex h-2 w-2 relative mr-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-xs bg-emerald-500/20 text-emerald-300 font-medium px-2 py-0.5 rounded-full uppercase whitespace-nowrap">
+                  In Progress
+                </span>
               </span>
             )}
             {isCompleted && (
-              <span className="text-xs bg-blue-500/20 text-blue-300 font-medium px-2 py-0.5 rounded-full ml-1 uppercase whitespace-nowrap">
+              <span className="text-xs bg-blue-500/20 text-blue-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
                 Completed
+              </span>
+            )}
+            {!isInProgress && !isCompleted && event.status !== 'DRAFT' && (
+              <span className="text-xs bg-zinc-500/20 text-zinc-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
+                Scheduled
+              </span>
+            )}
+            {event.status === 'DRAFT' && (
+              <span className="text-xs bg-orange-500/20 text-orange-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
+                Draft
               </span>
             )}
           </div>
@@ -220,7 +235,6 @@ export default function WallboardView() {
           
           <div className={`font-sans ${isInProgress ? 'text-emerald-200' : 'text-[#8B949E]'} ${isLandscape ? 'text-xs md:text-sm' : 'text-sm md:text-lg'}`}>
             {event.serviceName || (event.isRespiteWrapper ? 'STA / Respite' : 'Support Worker')} 
-            {event.status === 'DRAFT' && ' • (Draft)'}
           </div>
         </div>
       </div>
@@ -317,32 +331,48 @@ export default function WallboardView() {
           .rbc-agenda-table thead {
             display: none !important; /* Hide header row in portrait */
           }
-          .rbc-agenda-table, .rbc-agenda-table tbody, .rbc-agenda-table tr, .rbc-agenda-table td {
+          .rbc-agenda-table, .rbc-agenda-table tbody {
             display: block !important; 
             width: 100% !important;
           }
           .rbc-agenda-table tr {
+            display: flex !important;
+            flex-direction: column !important;
             margin-bottom: 1.5rem !important;
             border: 1px solid #3f3f46 !important;
             border-radius: 0.75rem !important;
             background: #18181b !important;
             overflow: hidden !important;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3) !important;
+            height: auto !important;
+          }
+          .rbc-agenda-table td {
+            display: block !important;
+            width: 100% !important;
+            height: auto !important;
           }
           .rbc-agenda-table tbody > tr > td {
             border: none !important;
           }
           .rbc-agenda-date-cell {
             padding: 1rem 1rem 0.25rem 1.25rem !important;
+            background-color: #18181b !important;
           }
           .rbc-agenda-time-cell {
-            padding: 0 1rem 0.75rem 1.25rem !important;
+            padding: 0.25rem 1rem 0.75rem 1.25rem !important;
             border-bottom: 1px solid #3f3f46 !important;
             font-size: 1.25rem !important;
             color: #d4d4d8 !important;
+            background-color: #18181b !important;
           }
           .rbc-agenda-event-cell {
             padding: 0 !important;
+            flex-grow: 1;
+            display: flex !important;
+            background-color: #18181b !important;
+          }
+          .rbc-agenda-event-cell > div { /* This targets our AgendaEvent component container */
+             width: 100%;
           }
         ` : `
           /* LANDSCAPE OVERRIDES: Keep table, fix widths */
@@ -370,9 +400,9 @@ export default function WallboardView() {
             views={[Views.AGENDA]}
             culture="en-AU"
             formats={{
-              agendaDateFormat: 'dd/MM/yyyy',
+              agendaDateFormat: 'dd-MM-yyyy',
               agendaHeaderFormat: ({ start, end }: any, culture: any, localizer: any) => 
-                `${localizer.format(start, 'dd/MM/yyyy', culture)} – ${localizer.format(end, 'dd/MM/yyyy', culture)}`
+                `${localizer.format(start, 'dd-MM-yyyy', culture)} – ${localizer.format(end, 'dd-MM-yyyy', culture)}`
             }}
             onSelectEvent={handleSelectEvent}
             components={{
