@@ -111,7 +111,7 @@ export function CustomDatePicker({
       prev: () => <ChevronLeft className="w-5 h-5 text-white" />,
       next: () => <ChevronRight className="w-5 h-5 text-white" />,
     },
-    datepickerClassNames: "top-full bottom-auto mt-2 z-[9999] shadow-2xl w-full custom-datepicker-popup min-w-[280px]",
+    datepickerClassNames: "top-0 left-0 z-[9999] shadow-2xl w-full custom-datepicker-popup min-w-[280px]",
     defaultDate: dateValue,
     language: "en",
     disabledDates: [],
@@ -136,7 +136,7 @@ export function CustomDatePicker({
             className={className + " w-full pl-3 pr-10 cursor-pointer"}
             placeholder={placeholderText || "dd/mm/yyyy"}
             value={dateValue ? dateValue.toLocaleDateString("en-GB") : ""}
-            onFocus={() => {
+            onClick={() => {
               setShow(true);
               window.dispatchEvent(new CustomEvent('datepicker_open', { detail: { id: uniqueId } }));
             }}

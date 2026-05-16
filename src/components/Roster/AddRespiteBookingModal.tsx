@@ -271,12 +271,14 @@ export default function AddRespiteBookingModal({ isOpen, onClose, onSave, staffL
   };
 
   const handleBackgroundClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+    if (e.target === e.currentTarget) {
+      // background clicked
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={handleBackgroundClick}>
-      <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative overflow-hidden max-w-[1200px] w-full text-zinc-100 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative overflow-hidden max-w-[1200px] w-full text-zinc-100 flex flex-col max-h-[90vh]">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-white tracking-tight mb-4">Add STA / Respite Booking</h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-white transition-colors">
