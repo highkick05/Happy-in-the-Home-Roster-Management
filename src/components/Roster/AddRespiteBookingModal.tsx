@@ -404,8 +404,8 @@ export default function AddRespiteBookingModal({ isOpen, onClose, onSave, staffL
 
                       <div className="w-full">
                          <label className="text-xs text-zinc-500 mb-1 block">Date of Service (Billable Date)</label>
-                         <input 
-                            type="date"
+                         <CustomDatePicker 
+                            
                             required
                             value={s.billingDate}
                             onChange={(e) => handleBillingDateChange(e.target.value)}
@@ -441,14 +441,14 @@ export default function AddRespiteBookingModal({ isOpen, onClose, onSave, staffL
                                       <div>
                                         <label className="text-[10px] uppercase text-zinc-500 mb-1 block">Start Date & Time</label>
                                         <div className="flex gap-1">
-                                           <input type="date" required value={ss.startDate} onChange={(e) => updateStaffShift(stIdx, 'startDate', e.target.value)} className="w-1/2 bg-[#121214] border border-white/[0.12] rounded p-1 text-xs text-white" />
+                                           <CustomDatePicker  required value={ss.startDate} onChange={(e) => updateStaffShift(stIdx, 'startDate', e.target.value)} className="w-1/2 bg-[#121214] border border-white/[0.12] rounded p-1 text-xs text-white" />
                                            <input type="time" required value={ss.startTime} onChange={(e) => updateStaffShift(stIdx, 'startTime', e.target.value)} className="w-1/2 bg-[#121214] border border-white/[0.12] rounded p-1 text-xs text-white" />
                                         </div>
                                       </div>
                                       <div>
                                         <label className="text-[10px] uppercase text-zinc-500 mb-1 block">End Date & Time</label>
                                         <div className="flex gap-1">
-                                           <input type="date" required value={ss.endDate} onChange={(e) => updateStaffShift(stIdx, 'endDate', e.target.value)} className="w-1/2 bg-[#121214] border border-white/[0.12] rounded p-1 text-xs text-white" />
+                                           <CustomDatePicker  required value={ss.endDate} onChange={(e) => updateStaffShift(stIdx, 'endDate', e.target.value)} className="w-1/2 bg-[#121214] border border-white/[0.12] rounded p-1 text-xs text-white" />
                                            <input type="time" required value={ss.endTime} onChange={(e) => updateStaffShift(stIdx, 'endTime', e.target.value)} className="w-1/2 bg-[#121214] border border-white/[0.12] rounded p-1 text-xs text-white" />
                                         </div>
                                       </div>

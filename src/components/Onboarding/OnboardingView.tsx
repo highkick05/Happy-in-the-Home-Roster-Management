@@ -439,22 +439,20 @@ export default function OnboardingView() {
                             {['npc', 'ndis_screening', 'wwcc', 'flu_shot'].includes(step.id) && (
                               <div>
                                 <label className="block text-xs text-zinc-400 mb-1">Issue Date</label>
-                                <input 
-                                  type="date" 
+                                <CustomDatePicker 
                                   className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded-lg px-3 py-2 text-white text-sm"
                                   value={formDates[step.id]?.issued || ''}
-                                  onChange={(e) => setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], issued: e.target.value } }))}
+                                  onChange={(e: any) => setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], issued: e.target.value } }))}
                                 />
                               </div>
                             )}
                             {['wwcc', 'ahpra', 'driver_license', 'first_aid', 'cpr'].includes(step.id) && (
                               <div>
                                 <label className="block text-xs text-zinc-400 mb-1">Expiry Date</label>
-                                <input 
-                                  type="date" 
+                                <CustomDatePicker 
                                   className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded-lg px-3 py-2 text-white text-sm"
                                   value={formDates[step.id]?.expires || ''}
-                                  onChange={(e) => setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], expires: e.target.value } }))}
+                                  onChange={(e: any) => setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], expires: e.target.value } }))}
                                 />
                               </div>
                             )}

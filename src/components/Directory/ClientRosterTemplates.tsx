@@ -746,8 +746,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-zinc-400 mb-1.5">Start Date</label>
-                  <input 
-                    type="date" 
+                  <CustomDatePicker 
+                     
                     value={generateStartDate} 
                     onChange={e => {
                       const newStartStr = e.target.value;
@@ -769,7 +769,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-zinc-400 mb-1.5">End Date</label>
-                  <input type="date" value={generateEndDate} onChange={e => setGenerateEndDate(e.target.value)} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors" />
+                  <CustomDatePicker  value={generateEndDate} onChange={e => setGenerateEndDate(e.target.value)} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors" />
                 </div>
               </div>
               

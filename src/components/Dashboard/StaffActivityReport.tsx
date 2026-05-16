@@ -91,15 +91,15 @@ export default function StaffActivityReport() {
           </select>
           <div className="flex items-center space-x-2 bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 focus-within:border-brand-teal transition-colors">
             <Calendar className="w-4 h-4 text-[#8B949E]" />
-            <input
-              type="date"
+            <CustomDatePicker
+              
               value={dateRange.start}
               onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
               className="bg-transparent border-none outline-none text-[#E6EDF3] text-sm"
             />
             <span className="text-[#8B949E]">-</span>
-            <input
-              type="date"
+            <CustomDatePicker
+              
               value={dateRange.end}
               onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
               className="bg-transparent border-none outline-none text-[#E6EDF3] text-sm"

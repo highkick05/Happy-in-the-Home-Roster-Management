@@ -169,8 +169,8 @@ export default function ComplianceDashboard() {
               </div>
               <div className="space-y-1.5">
                  <label className="text-sm font-medium text-[#8B949E]">Start Date</label>
-                 <input 
-                   type="date" 
+                 <CustomDatePicker 
+                    
                    value={clientStartDate} 
                    onChange={e => setClientStartDate(e.target.value)}
                    className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal min-h-[42px] transition-colors" 
@@ -178,8 +178,8 @@ export default function ComplianceDashboard() {
               </div>
               <div className="space-y-1.5">
                  <label className="text-sm font-medium text-[#8B949E]">End Date</label>
-                 <input 
-                   type="date" 
+                 <CustomDatePicker 
+                    
                    value={clientEndDate} 
                    onChange={e => setClientEndDate(e.target.value)}
                    className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal min-h-[42px] transition-colors" 
@@ -225,8 +225,8 @@ export default function ComplianceDashboard() {
               </div>
               <div className="space-y-1.5">
                  <label className="text-sm font-medium text-[#8B949E]">Start Date</label>
-                 <input 
-                   type="date" 
+                 <CustomDatePicker 
+                    
                    value={staffStartDate} 
                    onChange={e => setStaffStartDate(e.target.value)}
                    className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal min-h-[42px] transition-colors" 
@@ -234,8 +234,8 @@ export default function ComplianceDashboard() {
               </div>
               <div className="space-y-1.5">
                  <label className="text-sm font-medium text-[#8B949E]">End Date</label>
-                 <input 
-                   type="date" 
+                 <CustomDatePicker 
+                    
                    value={staffEndDate} 
                    onChange={e => setStaffEndDate(e.target.value)}
                    className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal min-h-[42px] transition-colors" 

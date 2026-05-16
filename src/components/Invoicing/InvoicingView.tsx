@@ -186,8 +186,8 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Date</label>
-          <input
-            type="date"
+          <CustomDatePicker
+            
             required
             className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none font-mono text-sm"
             value={formData.date}

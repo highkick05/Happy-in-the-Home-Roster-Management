@@ -106,7 +106,7 @@ export default function ProfileView() {
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1">Date of Birth</label>
-              <input type="date" value={formData.dob || ''} onChange={e => setFormData({...formData, dob: e.target.value})} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+              <CustomDatePicker  value={formData.dob || ''} onChange={e => setFormData({...formData, dob: e.target.value})} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-zinc-400 mb-1">Address</label>
