@@ -129,7 +129,7 @@ export function CustomDatePicker({
       prev: () => <ChevronLeft className="w-5 h-5 text-white" />,
       next: () => <ChevronRight className="w-5 h-5 text-white" />,
     },
-    datepickerClassNames: `left-0 z-[9999] shadow-2xl w-full custom-datepicker-popup min-w-[280px] ${
+    datepickerClassNames: `left-0 z-[9999] shadow-2xl custom-datepicker-popup min-w-[280px] ${
       position === 'bottom' ? 'top-full bottom-auto mt-2' : 'bottom-full top-auto mb-2'
     }`,
     defaultDate: dateValue,

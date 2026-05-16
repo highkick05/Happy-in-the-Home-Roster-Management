@@ -192,7 +192,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
           </div>
         </div>
         
-        <div className="flex-1 flex flex-col lg:flex-row">
+        <div className="flex-1 overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row">
           
           {/* Main Area */}
           {activeTab === 'ROSTER' && client ? (
@@ -202,7 +202,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
           ) : (
             <>
               {/* Left Column: Client Form Details */}
-              <div className="w-full lg:w-[30%] shrink-0 p-4 overflow-y-auto custom-scrollbar">
+              <div className="w-full lg:w-[30%] p-4 overflow-y-auto custom-scrollbar min-h-0">
             <form id="client-form" onSubmit={handleSubmit} className="space-y-6 pb-64">
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -296,7 +296,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
           </div>
 
           {/* Middle Column: Available Services List */}
-          <div className="w-full lg:flex-1 p-4 lg:border-l border-t lg:border-t-0 border-white/[0.08] flex flex-col min-h-0 bg-[#121214]/30 shrink-0">
+          <div className="w-full lg:flex-1 p-4 lg:border-l border-t lg:border-t-0 border-white/[0.08] flex flex-col min-h-0 bg-[#121214]/30">
             <h3 className="text-base font-medium text-white mb-1">Available Services</h3>
             <p className="text-xs text-zinc-500 mb-4">Select services for this client to assign them easily when creating a shift.</p>
             
@@ -352,7 +352,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
           </div>
 
           {/* Right Column: Selected Services */}
-          <div className="w-full lg:flex-1 p-4 lg:border-l border-t lg:border-t-0 border-white/[0.08] flex flex-col min-h-0 bg-[#121214]/50 shrink-0">
+          <div className="w-full lg:flex-1 p-4 lg:border-l border-t lg:border-t-0 border-white/[0.08] flex flex-col min-h-0 bg-[#121214]/50">
             <h3 className="text-base font-medium text-white mb-1">Personalised Services List</h3>
             <p className="text-xs text-zinc-500 mb-4">You have added the following services.</p>
             
