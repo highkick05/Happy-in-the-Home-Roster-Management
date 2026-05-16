@@ -8,7 +8,7 @@ import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useAuth } from '../../context/AuthContext';
 import ShiftDetailsModal from '../Roster/ShiftDetailsModal';
-import { MonitorSmartphone } from 'lucide-react';
+import { MonitorSmartphone, ZoomIn, ZoomOut } from 'lucide-react';
 
 const locales = {
   'en-US': enUS,
@@ -37,6 +37,9 @@ export default function WallboardView() {
   
   const [selectedShift, setSelectedShift] = useState<ShiftEvent | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [manualMode, setManualMode] = useState<boolean | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+
   const [isLandscape, setIsLandscape] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -51,12 +54,13 @@ export default function WallboardView() {
     const handleResize = () => {
       const params = new URLSearchParams(window.location.search);
       if (params.get('mode')) return; // Don't auto-switch if forced via URL
+      if (manualMode !== null) return; // Don't auto-switch if user toggled
       setIsLandscape(window.innerWidth > window.innerHeight);
     };
     
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [manualMode]);
 
   const localizer = useMemo(() => {
     const startDayStr = settings?.invoicingStartDay || 'Monday';
@@ -276,31 +280,103 @@ export default function WallboardView() {
           50% { border-left-color: rgb(52, 211, 153); }
           100% { border-left-color: rgb(16, 185, 129); }
         }
+
+        /* Responsive Layout Overrides */
+        ${!isLandscape ? `
+          /* PORTRAIT OVERRIDES: Build stacked cards */
+          .rbc-agenda-table thead {
+            display: none; /* Hide header row in portrait */
+          }
+          .rbc-agenda-table, .rbc-agenda-table tbody, .rbc-agenda-table tr, .rbc-agenda-table td {
+            display: block; 
+            width: 100%;
+          }
+          .rbc-agenda-table tr {
+            margin-bottom: 1.5rem;
+            border: 1px solid #3f3f46;
+            border-radius: 0.75rem;
+            background: #18181b;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+          }
+          .rbc-agenda-table tbody > tr > td {
+            border: none;
+          }
+          .rbc-agenda-date-cell {
+            padding: 1rem 1rem 0.25rem 1.25rem;
+          }
+          .rbc-agenda-time-cell {
+            padding: 0 1rem 0.75rem 1.25rem;
+            border-bottom: 1px solid #3f3f46;
+            font-size: 1.25rem;
+            color: #d4d4d8;
+          }
+          .rbc-agenda-event-cell {
+            padding: 0 !important;
+          }
+        ` : `
+          /* LANDSCAPE OVERRIDES: Keep table, fix widths */
+          .rbc-agenda-table {
+            table-layout: fixed;
+          }
+          .rbc-agenda-table > thead > tr > th.rbc-agenda-date-cell {
+            width: 18%;
+          }
+          .rbc-agenda-table > thead > tr > th.rbc-agenda-time-cell {
+            width: 22%;
+          }
+        `}
       `}</style>
       
-      <div className="h-full w-full flex flex-col p-4 md:p-8 pt-0">
-        <Calendar
-          localizer={localizer}
-          events={events}
-          date={date}
-          onNavigate={(newDate) => setDate(newDate)}
-          defaultView={Views.AGENDA}
-          view={Views.AGENDA}
-          views={[Views.AGENDA]}
-          onSelectEvent={handleSelectEvent}
-          components={{
-            agenda: {
-              event: AgendaEvent
-            }
-          }}
-          className="flex-1 rounded-xl bg-zinc-950 overflow-hidden"
-          length={isLandscape ? 7 : 3} // Show more days in landscape?
-        />
+      <div className="h-full w-full flex flex-col p-4 md:p-8 pt-0 overflow-auto">
+        <div style={{ zoom: zoomLevel } as any} className="flex-1 w-full h-full min-h-full">
+          <Calendar
+            localizer={localizer}
+            events={events}
+            date={date}
+            onNavigate={(newDate) => setDate(newDate)}
+            defaultView={Views.AGENDA}
+            view={Views.AGENDA}
+            views={[Views.AGENDA]}
+            onSelectEvent={handleSelectEvent}
+            components={{
+              agenda: {
+                event: AgendaEvent
+              }
+            }}
+            className="flex-1 rounded-xl bg-zinc-950 overflow-hidden h-full min-h-[600px]"
+            length={isLandscape ? 7 : 3} // Show more days in landscape?
+          />
+        </div>
       </div>
 
       <div className="fixed bottom-6 right-6 opacity-30 hover:opacity-100 transition-opacity flex flex-col items-end gap-2 z-50">
+        <div className="flex flex-col items-center justify-center bg-zinc-900 border border-zinc-700 rounded-full shadow-lg p-1">
+          <button 
+            onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 2.5))}
+            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
+            title="Zoom In"
+          >
+            <ZoomIn className="w-5 h-5" />
+          </button>
+          <span className="text-zinc-500 font-mono text-[10px] w-full text-center py-1 select-none">
+            {Math.round(zoomLevel * 100)}%
+          </span>
+          <button 
+            onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.4))}
+            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
+            title="Zoom Out"
+          >
+            <ZoomOut className="w-5 h-5" />
+          </button>
+        </div>
+
         <button 
-          onClick={() => setIsLandscape(!isLandscape)}
+          onClick={() => {
+            const nextVal = !isLandscape;
+            setIsLandscape(nextVal);
+            setManualMode(nextVal);
+          }}
           className="p-3 bg-zinc-900 border border-zinc-700 rounded-full shadow-lg text-zinc-400 hover:text-white"
           title="Toggle Orientation Styles"
         >
