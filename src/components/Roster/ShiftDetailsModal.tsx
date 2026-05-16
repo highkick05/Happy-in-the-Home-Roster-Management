@@ -218,14 +218,15 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
   const canEdit = isAdmin; // Staff cannot edit shifts anymore
 
   const handleBackgroundClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 sm:p-4" onClick={handleBackgroundClick}>
       <div 
         className="bg-[#121214] border border-white/[0.08] rounded-2xl p-5 sm:p-4 max-w-full sm:max-w-2xl lg:max-w-3xl w-full text-zinc-100 flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden shadow-2xl transition-all" 
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-5 md:mb-6 shrink-0">
           <h2 className="text-xl font-semibold text-white tracking-tight mb-4">Shift Details</h2>

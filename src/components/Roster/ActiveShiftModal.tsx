@@ -248,17 +248,17 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
 
   const handleBackgroundClick = (e: React.MouseEvent) => {
     if (isLocked) {
-      e.stopPropagation();
-      return;
+      return; // Do not close but let event bubble
     }
-    onClose();
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 sm:p-4" onClick={handleBackgroundClick}>
       <div 
         className="bg-[#121214] border border-white/[0.08] rounded-2xl p-5 sm:p-4 w-full sm:max-w-lg md:max-w-2xl lg:max-w-3xl text-zinc-100 flex flex-col max-h-[90vh] overflow-hidden shadow-2xl transition-all" 
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex justify-between items-center mb-5 md:mb-6 shrink-0">

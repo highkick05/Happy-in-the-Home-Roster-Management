@@ -327,8 +327,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={handleBackgroundClick}>
-      <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative overflow-hidden max-w-[1200px] w-full text-zinc-100 flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/60 flex justify-center z-50 p-4 overflow-y-auto custom-scrollbar" onClick={handleBackgroundClick}>
+      <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative max-w-[1200px] w-full text-zinc-100 flex flex-col my-auto h-fit">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-white tracking-tight mb-4">{initialData?.id ? 'Edit Shift' : 'Add Shift(s)'}</h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-white transition-colors">
@@ -336,8 +336,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-hidden flex flex-col">
-          <div className="flex flex-col md:flex-row gap-4 overflow-y-auto custom-scrollbar pr-2 pb-4">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
+          <div className="flex flex-col md:flex-row gap-4 pr-2 pb-4">
             
             {/* Left Column: Core Info */}
             <div className="md:w-[320px] shrink-0 space-y-4">
