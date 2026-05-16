@@ -1,6 +1,7 @@
 import React from 'react';
 import DatePicker, { ReactDatePickerProps } from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import '../../datepicker.css';
 
 export interface CustomDatePickerProps extends Omit<ReactDatePickerProps, 'onChange' | 'value'> {
   selected?: Date | null;
@@ -23,8 +24,8 @@ export function CustomDatePicker({
   onDateChange,
   maxDate, 
   placeholderText, 
-  className = "w-full bg-slate-800 text-white border border-slate-700 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500",
-  calendarClassName = "bg-slate-900 border border-slate-700 text-white rounded-lg shadow-xl",
+  className = "w-full bg-[#1A1A1A] border border-white/[0.1] rounded-lg px-3 py-2 text-white text-sm focus:ring-1 focus:ring-brand-teal outline-none",
+  calendarClassName = "bg-[#1A1A1A] border border-white/[0.1] text-white rounded-lg shadow-xl",
   name,
   ...props 
 }: CustomDatePickerProps) {
