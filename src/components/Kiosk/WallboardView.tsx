@@ -1,19 +1,12 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
+import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns/format';
-import { parse } from 'date-fns/parse';
-import { startOfWeek } from 'date-fns/startOfWeek';
-import { getDay } from 'date-fns/getDay';
 import { subDays } from 'date-fns/subDays';
-import { enAU } from 'date-fns/locale/en-AU';
-import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { startOfDay } from 'date-fns/startOfDay';
+import { compareAsc } from 'date-fns/compareAsc';
 import { useAuth } from '../../context/AuthContext';
 import ShiftDetailsModal from '../Roster/ShiftDetailsModal';
 import { ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
-
-const locales = {
-  'en-AU': enAU,
-};
+import { motion, AnimatePresence } from 'motion/react';
 
 export interface ShiftEvent {
   id: number | string;
@@ -47,20 +40,6 @@ export default function WallboardView() {
     }
     return 0;
   });
-
-  const localizer = useMemo(() => {
-    const startDayStr = settings?.invoicingStartDay || 'Monday';
-    const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const weekStartsOn = DAYS_OF_WEEK.indexOf(startDayStr) !== -1 ? DAYS_OF_WEEK.indexOf(startDayStr) : 1;
-    
-    return dateFnsLocalizer({
-      format,
-      parse,
-      startOfWeek: (d: any) => startOfWeek(d, { weekStartsOn: weekStartsOn as any }),
-      getDay,
-      locales,
-    });
-  }, [settings?.invoicingStartDay]);
 
   const fetchData = async () => {
     if (!token) return;
@@ -148,83 +127,9 @@ export default function WallboardView() {
   }, [token, manualMode]);
 
   const handleSelectEvent = (event: ShiftEvent) => {
-    if (event.isRespiteWrapper) {
-      // For wallboard, maybe just ignore or show simplified detail. 
-      // We'll only open individual child shifts.
-      return;
-    }
+    if (event.isRespiteWrapper) return;
     setSelectedShift(event);
     setIsDetailsModalOpen(true);
-  };
-
-  const AgendaEvent = ({ event }: { event: ShiftEvent }) => {
-    const isCompleted = event.status === 'COMPLETED' || !!event.actualEndTime;
-    const isActuallyRunning = event.status === 'IN_PROGRESS' || (!!event.actualStartTime && !event.actualEndTime);
-    const isInProgress = isActuallyRunning && !isCompleted;
-    
-    // Default to future/neutral
-    let containerClass = "border-l-4 border-zinc-500 opacity-90 transition-all flex items-center p-2 bg-zinc-900/50";
-    
-    if (isCompleted) {
-      containerClass = "opacity-50 border-l-4 border-blue-500 transition-all flex items-center p-2 bg-zinc-900/30";
-    } else if (isInProgress) {
-      containerClass = "border-l-4 border-emerald-500 bg-emerald-950/20 transition-all pulse-border flex items-center p-2";
-    }
-    
-    const timeStr = `${format(event.start, 'h:mm a')} – ${format(event.end, 'h:mm a')}`;
-
-    return (
-      <div className={`w-full hover:brightness-110 cursor-pointer ${containerClass} rounded-r`}>
-        <div className="flex flex-row items-center gap-3 w-full">
-          <span className="text-zinc-300 font-mono text-[0.9rem] whitespace-nowrap">
-            {timeStr}
-          </span>
-          
-          <div className="flex flex-row items-baseline gap-2 flex-grow truncate px-2 border-l border-zinc-700/50">
-            <span className={`font-bold text-lg truncate ${isInProgress ? 'text-emerald-50' : 'text-[#E6EDF3]'}`}>
-              {event.clientName || 'Unknown Client'}
-            </span>
-            <span className="text-zinc-600 px-1">•</span>
-            <span className={`text-base truncate ${isInProgress ? 'text-emerald-400 font-medium' : 'text-brand-teal'}`}>
-              {event.staffName || 'Unassigned'}
-            </span>
-            <span className="text-zinc-600 px-1">•</span>
-            <span className={`text-base truncate ${isInProgress ? 'text-emerald-200' : 'text-[#8B949E]'}`}>
-              {event.serviceName || (event.isRespiteWrapper ? 'STA / Respite' : 'Support Worker')} 
-            </span>
-          </div>
-
-          <div className="flex items-center justify-end whitespace-nowrap pr-2">
-            {isInProgress && (
-              <span className="flex items-center ml-2">
-                <span className="flex h-2 w-2 relative mr-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="text-[0.65rem] bg-emerald-500/20 text-emerald-300 font-medium px-2 py-0.5 rounded-full uppercase whitespace-nowrap">
-                  In Progress
-                </span>
-              </span>
-            )}
-            {isCompleted && (
-              <span className="text-[0.65rem] bg-blue-500/20 text-blue-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
-                Completed
-              </span>
-            )}
-            {!isInProgress && !isCompleted && event.status !== 'DRAFT' && (
-              <span className="text-[0.65rem] bg-zinc-500/20 text-zinc-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
-                Scheduled
-              </span>
-            )}
-            {event.status === 'DRAFT' && (
-              <span className="text-[0.65rem] bg-orange-500/20 text-orange-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
-                Draft
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    );
   };
 
   const isRotated90 = rotation === 90 || rotation === 270;
@@ -243,50 +148,187 @@ export default function WallboardView() {
     transformOrigin: 'center center'
   };
 
+  // Group and sort events
+  const groupedEvents = useMemo(() => {
+    const minDate = startOfDay(date);
+    // Filter events to only those > minDate (yesterday)
+    const activeEvents = events.filter(e => e.start >= minDate);
+    
+    // Sort chronologically
+    activeEvents.sort((a, b) => compareAsc(a.start, b.start));
+
+    const groups: Record<string, ShiftEvent[]> = {};
+    activeEvents.forEach(e => {
+      const dayKey = format(e.start, 'EEEE, d MMMM yyyy');
+      if (!groups[dayKey]) groups[dayKey] = [];
+      groups[dayKey].push(e);
+    });
+
+    return Object.keys(groups).map(key => ({
+      dateLabel: key,
+      events: groups[key]
+    }));
+  }, [events, date]);
+
   return (
     <div className="w-screen h-screen overflow-hidden bg-zinc-950 font-sans text-zinc-100 relative" style={{ maxWidth: '100vw', maxHeight: '100vh' }}>
-      <div style={rotatedContainerStyles} className="flex flex-col relative transition-transform duration-500">
+      <div style={rotatedContainerStyles} className="flex flex-col relative transition-transform duration-500 pb-[100px]">
+        {/* Header with Logo and Animated Title */}
+        <div className="flex flex-col sm:flex-row items-center justify-center p-6 gap-6 bg-zinc-900/50 border-b border-zinc-800">
+          {settings?.websiteLogoUrl && (
+             <img src={settings.websiteLogoUrl} alt="Logo" className="h-16 w-auto object-contain drop-shadow-lg" />
+          )}
+          <motion.h1 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="text-4xl md:text-5xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-teal via-emerald-400 to-brand-teal bg-[length:200%_auto] animate-gradient"
+          >
+            Current Vacancies
+          </motion.h1>
+          <style>{`
+            @keyframes gradient {
+              0% { background-position: 0% 50%; }
+              50% { background-position: 100% 50%; }
+              100% { background-position: 0% 50%; }
+            }
+            .animate-gradient {
+              animation: gradient 4s linear infinite;
+            }
+          `}</style>
+        </div>
+
+        <div className="h-full w-full flex flex-col p-4 md:p-8 overflow-auto">
+          <div style={{ zoom: zoomLevel } as any} className="flex-1 w-full max-w-7xl mx-auto flex flex-col gap-8">
+            {groupedEvents.length === 0 ? (
+              <div className="flex items-center justify-center h-48 text-zinc-500 font-medium">
+                No shifts found starting from {format(date, 'd MMM yyyy')}.
+              </div>
+            ) : (
+              groupedEvents.map((group) => (
+                <div key={group.dateLabel} className="flex flex-col gap-3">
+                  <h2 className="text-2xl font-bold tracking-tight text-brand-teal uppercase border-b border-zinc-800 pb-2 mb-2 sticky top-0 bg-zinc-950/80 backdrop-blur-sm z-10">
+                    {group.dateLabel}
+                  </h2>
+                  <div className="flex flex-col gap-2">
+                    {group.events.map(event => {
+                      const isCompleted = event.status === 'COMPLETED' || !!event.actualEndTime;
+                      const isActuallyRunning = event.status === 'IN_PROGRESS' || (!!event.actualStartTime && !event.actualEndTime);
+                      const isInProgress = isActuallyRunning && !isCompleted;
+                      
+                      let containerClass = "border-l-4 border-zinc-500 opacity-90 transition-all flex items-center p-3 sm:p-4 bg-zinc-900/50 shadow-sm";
+                      if (isCompleted) containerClass = "opacity-50 border-l-4 border-blue-500 transition-all flex items-center p-3 sm:p-4 bg-zinc-900/30";
+                      else if (isInProgress) containerClass = "border-l-4 border-emerald-500 bg-emerald-950/20 transition-all flex items-center p-3 sm:p-4 shadow-emerald-900/20 shadow-lg pulse-border";
+
+                      return (
+                        <div 
+                          key={event.id}
+                          onClick={() => handleSelectEvent(event)}
+                          className={`w-full hover:brightness-110 cursor-pointer ${containerClass} rounded-r-xl`}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 w-full">
+                            <div className="text-zinc-300 font-mono text-lg whitespace-nowrap min-w-[140px]">
+                              {format(event.start, 'h:mm a')} <span className="text-zinc-600 px-1">–</span> {format(event.end, 'h:mm a')}
+                            </div>
+                            
+                            <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 sm:items-center flex-grow truncate px-0 sm:px-4 sm:border-l sm:border-zinc-700/50">
+                              <span className={`font-bold text-xl truncate ${isInProgress ? 'text-emerald-50' : 'text-[#E6EDF3]'}`}>
+                                {event.clientName || 'Unknown Client'}
+                              </span>
+                              <span className="hidden sm:inline text-zinc-600">•</span>
+                              <span className={`text-lg truncate ${isInProgress ? 'text-emerald-400 font-medium' : 'text-brand-teal'}`}>
+                                {event.staffName || 'Unassigned'}
+                              </span>
+                              <span className="hidden sm:inline text-zinc-600">•</span>
+                              <span className={`text-base truncate ${isInProgress ? 'text-emerald-200' : 'text-[#8B949E]'}`}>
+                                {event.serviceName || (event.isRespiteWrapper ? 'STA / Respite' : 'Support Worker')} 
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-start sm:justify-end whitespace-nowrap">
+                              {isInProgress && (
+                                <span className="flex items-center">
+                                  <span className="flex h-3 w-3 relative mr-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                                  </span>
+                                  <span className="text-xs bg-emerald-500/20 text-emerald-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
+                                    In Progress
+                                  </span>
+                                </span>
+                              )}
+                              {isCompleted && (
+                                <span className="text-xs bg-blue-500/20 text-blue-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
+                                  Completed
+                                </span>
+                              )}
+                              {!isInProgress && !isCompleted && event.status !== 'DRAFT' && (
+                                <span className="text-xs bg-zinc-500/20 text-zinc-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
+                                  Scheduled
+                                </span>
+                              )}
+                              {event.status === 'DRAFT' && (
+                                <span className="text-xs bg-orange-500/20 text-orange-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
+                                  Draft
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="fixed bottom-6 right-6 opacity-30 hover:opacity-100 transition-opacity flex flex-col items-end gap-2 z-50">
+          <div className="flex flex-col items-center justify-center bg-zinc-900 border border-zinc-700 rounded-full shadow-lg p-1">
+            <button 
+              onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 2.5))}
+              className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-5 h-5" />
+            </button>
+            <span className="text-zinc-500 font-mono text-[10px] w-full text-center py-1 select-none">
+              {Math.round(zoomLevel * 100)}%
+            </span>
+            <button 
+              onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.4))}
+              className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-5 h-5" />
+            </button>
+          </div>
+
+          <button 
+            onClick={() => {
+              const nextVal = (rotation + 90) % 360;
+              setRotation(nextVal);
+            }}
+            className="p-3 bg-zinc-900 border border-zinc-700 rounded-full shadow-lg text-zinc-400 hover:text-white"
+            title="Rotate Display"
+          >
+            <RotateCw className="w-5 h-5" />
+          </button>
+        </div>
+
+        {isDetailsModalOpen && selectedShift && (
+          <ShiftDetailsModal
+            shiftId={selectedShift.id}
+            onClose={() => {
+              setIsDetailsModalOpen(false);
+              setSelectedShift(null);
+            }}
+            onUpdate={fetchData}
+          />
+        )}
+      </div>
       <style>{`
-        .rbc-calendar {
-          background-color: transparent;
-        }
-        .rbc-toolbar {
-          padding: 1rem 1.5rem;
-          border-bottom: 1px solid #27272a; /* zinc-800 */
-        }
-        .rbc-toolbar button {
-          color: #E6EDF3;
-          border-color: #3f3f46; /* zinc-700 */
-          background-color: #18181b; /* zinc-900 */
-        }
-        .rbc-toolbar button:hover, .rbc-toolbar button:active {
-          background-color: #27272a;
-          color: white;
-        }
-        .rbc-toolbar button.rbc-active {
-          background-color: rgb(20, 184, 166) !important; /* brand-teal */
-          color: white !important;
-        }
-        .rbc-agenda-view {
-          border: none !important;
-          color: #E6EDF3;
-        }
-        .rbc-agenda-view table.rbc-agenda-table {
-          border: none;
-        }
-        .rbc-agenda-table thead > tr > th {
-          border-bottom: 1px solid #27272a;
-          padding: 1rem;
-          text-align: left;
-          color: #a1a1aa; /* zinc-400 */
-          text-transform: uppercase;
-          font-weight: 600;
-          font-size: 0.85rem;
-        }
-        .rbc-agenda-table tbody > tr > td {
-          border-top: 1px solid #27272a;
-          vertical-align: middle;
-        }
         .pulse-border {
           animation: borderPulse 2s infinite;
         }
@@ -295,131 +337,7 @@ export default function WallboardView() {
           50% { border-left-color: rgb(52, 211, 153); }
           100% { border-left-color: rgb(16, 185, 129); }
         }
-
-        /* Layout Overrides */
-        .rbc-agenda-view table.rbc-agenda-table {
-          border-spacing: 0;
-          border-collapse: separate;
-          border: none;
-        }
-        .rbc-agenda-table thead {
-          display: none !important;
-        }
-        .rbc-agenda-table, .rbc-agenda-table tbody, .rbc-agenda-table tr, .rbc-agenda-table td {
-          display: block !important;
-          width: 100% !important;
-          border: none !important;
-          padding: 0 !important;
-        }
-        .rbc-agenda-table > tbody > tr {
-          background-color: transparent !important;
-          margin-bottom: 0.5rem !important;
-          box-shadow: none !important;
-        }
-        .rbc-agenda-date-cell {
-          display: block !important;
-          width: 100% !important;
-          border: none !important;
-          padding: 2.5rem 0.5rem 0.75rem 0.5rem !important;
-          font-size: 1.25rem !important;
-          font-weight: 700 !important;
-          color: rgb(20, 184, 166) !important;
-          border-bottom: 1px solid #3f3f46 !important;
-          margin-bottom: 1rem !important;
-          text-transform: uppercase;
-        }
-        .rbc-agenda-table > tbody > tr:first-child .rbc-agenda-date-cell {
-          padding-top: 0.5rem !important;
-        }
-        .rbc-agenda-table td.rbc-agenda-time-cell {
-          display: none !important;
-        }
-        .rbc-agenda-event-cell {
-          display: block !important;
-          width: 100% !important;
-          border-radius: 0.75rem !important;
-          overflow: hidden !important;
-          box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.5) !important;
-        }
-        .rbc-agenda-event-cell > div { 
-           width: 100%;
-        }
       `}</style>
-      
-      <div className="h-full w-full flex flex-col p-4 md:p-8 pt-0 overflow-auto">
-        <div style={{ zoom: zoomLevel } as any} className="flex-1 w-full h-full min-h-full">
-          <Calendar
-            localizer={localizer}
-            events={events}
-            date={date}
-            onNavigate={(newDate) => setDate(newDate)}
-            defaultView={Views.AGENDA}
-            view={Views.AGENDA}
-            views={[Views.AGENDA]}
-            culture="en-AU"
-            formats={{
-              agendaDateFormat: 'EEEE, d MMMM yyyy',
-              agendaHeaderFormat: ({ start, end }: any, culture: any, localizer: any) => 
-                `${localizer.format(start, 'dd-MM-yyyy', culture)} – ${localizer.format(end, 'dd-MM-yyyy', culture)}`,
-              agendaTimeFormat: () => '',
-              agendaTimeRangeFormat: () => ''
-            }}
-            onSelectEvent={handleSelectEvent}
-            components={{
-              agenda: {
-                event: AgendaEvent
-              }
-            }}
-            className="flex-1 rounded-xl bg-zinc-950 overflow-hidden h-full min-h-[600px]"
-            length={7} // Show a full week
-          />
-        </div>
-      </div>
-
-      <div className="fixed bottom-6 right-6 opacity-30 hover:opacity-100 transition-opacity flex flex-col items-end gap-2 z-50">
-        <div className="flex flex-col items-center justify-center bg-zinc-900 border border-zinc-700 rounded-full shadow-lg p-1">
-          <button 
-            onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 2.5))}
-            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
-            title="Zoom In"
-          >
-            <ZoomIn className="w-5 h-5" />
-          </button>
-          <span className="text-zinc-500 font-mono text-[10px] w-full text-center py-1 select-none">
-            {Math.round(zoomLevel * 100)}%
-          </span>
-          <button 
-            onClick={() => setZoomLevel(prev => Math.max(prev - 0.1, 0.4))}
-            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
-            title="Zoom Out"
-          >
-            <ZoomOut className="w-5 h-5" />
-          </button>
-        </div>
-
-        <button 
-          onClick={() => {
-            const nextVal = (rotation + 90) % 360;
-            setRotation(nextVal);
-          }}
-          className="p-3 bg-zinc-900 border border-zinc-700 rounded-full shadow-lg text-zinc-400 hover:text-white"
-          title="Rotate Display"
-        >
-          <RotateCw className="w-5 h-5" />
-        </button>
-      </div>
-
-      {isDetailsModalOpen && selectedShift && (
-        <ShiftDetailsModal
-          shiftId={selectedShift.id}
-          onClose={() => {
-            setIsDetailsModalOpen(false);
-            setSelectedShift(null);
-          }}
-          onUpdate={fetchData}
-        />
-      )}
-      </div>
     </div>
   );
 }
