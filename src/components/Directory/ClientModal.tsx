@@ -159,8 +159,8 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 xl:p-8" onClick={onClose}>
-      <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-xl w-[98vw] max-w-[2400px] h-[95vh] lg:h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/50 z-50 flex justify-center p-4 xl:p-8 overflow-y-auto custom-scrollbar" onClick={onClose}>
+      <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-xl w-[98vw] max-w-[2400px] h-fit my-auto flex flex-col" onClick={(e) => e.stopPropagation()}>
         
         <div className="flex border-b border-white/[0.08] shrink-0 flex-col">
           <div className="flex justify-between items-start pt-4 px-4">
@@ -192,7 +192,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
           </div>
         </div>
         
-        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
+        <div className="flex-1 flex flex-col lg:flex-row">
           
           {/* Main Area */}
           {activeTab === 'ROSTER' && client ? (
@@ -202,7 +202,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
           ) : (
             <>
               {/* Left Column: Client Form Details */}
-              <div className="w-full lg:w-[30%] shrink-0 p-4 overflow-y-auto custom-scrollbar">
+              <div className="w-full lg:w-[30%] shrink-0 p-4">
             <form id="client-form" onSubmit={handleSubmit} className="space-y-6">
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -219,7 +219,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Date of Birth</label>
-                  <CustomDatePicker  name="dob" value={formData.dob} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                  <CustomDatePicker name="dob" value={formData.dob} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
                 </div>
                 <div>
                   <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Funding Type</label>
