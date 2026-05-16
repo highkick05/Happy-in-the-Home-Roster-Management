@@ -175,14 +175,20 @@ export default function WallboardView() {
       <div style={rotatedContainerStyles} className="flex flex-col relative transition-transform duration-500 pb-[100px]">
         {/* Header with Logo and Animated Title */}
         <div className="flex flex-col sm:flex-row items-center justify-center p-6 gap-6 bg-zinc-900/50 border-b border-zinc-800">
-          {settings?.websiteLogoUrl && (
-             <img src={settings.websiteLogoUrl} alt="Logo" className="h-16 w-auto object-contain drop-shadow-lg" />
+          {settings?.websiteLogo && (
+             <motion.img 
+               src={settings.websiteLogo} 
+               alt="Logo" 
+               className="h-16 w-auto object-contain drop-shadow-lg" 
+               animate={{ rotateY: [0, 360, 360] }}
+               transition={{ duration: 60, repeat: Infinity, times: [0, 0.03, 1], ease: "easeInOut" }}
+             />
           )}
           <motion.h1 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="text-4xl md:text-5xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-teal via-emerald-400 to-brand-teal bg-[length:200%_auto] animate-gradient"
+            className="text-3xl md:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-teal via-emerald-400 to-brand-teal bg-[length:200%_auto] animate-gradient"
           >
             Current Vacancies
           </motion.h1>
