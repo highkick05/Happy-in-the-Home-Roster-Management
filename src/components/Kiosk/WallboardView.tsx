@@ -4,6 +4,7 @@ import { format } from 'date-fns/format';
 import { parse } from 'date-fns/parse';
 import { startOfWeek } from 'date-fns/startOfWeek';
 import { getDay } from 'date-fns/getDay';
+import { subDays } from 'date-fns/subDays';
 import { enAU } from 'date-fns/locale/en-AU';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useAuth } from '../../context/AuthContext';
@@ -33,7 +34,7 @@ export interface ShiftEvent {
 export default function WallboardView() {
   const { token, settings } = useAuth();
   const [events, setEvents] = useState<ShiftEvent[]>([]);
-  const [date, setDate] = useState(new Date());
+  const [date, setDate] = useState(() => subDays(new Date(), 1));
   
   const [selectedShift, setSelectedShift] = useState<ShiftEvent | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -136,9 +137,15 @@ export default function WallboardView() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(() => {
+      fetchData();
+      if (!manualMode) {
+        // Keep moving the 'window' forward so yesterday's shifts fall off 24 hours later
+        setDate(subDays(new Date(), 1));
+      }
+    }, 30000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, manualMode]);
 
   const handleSelectEvent = (event: ShiftEvent) => {
     if (event.isRespiteWrapper) {
@@ -353,7 +360,9 @@ export default function WallboardView() {
             formats={{
               agendaDateFormat: 'EEEE, d MMMM yyyy',
               agendaHeaderFormat: ({ start, end }: any, culture: any, localizer: any) => 
-                `${localizer.format(start, 'dd-MM-yyyy', culture)} – ${localizer.format(end, 'dd-MM-yyyy', culture)}`
+                `${localizer.format(start, 'dd-MM-yyyy', culture)} – ${localizer.format(end, 'dd-MM-yyyy', culture)}`,
+              agendaTimeFormat: () => '',
+              agendaTimeRangeFormat: () => ''
             }}
             onSelectEvent={handleSelectEvent}
             components={{
