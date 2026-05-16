@@ -174,12 +174,12 @@ export default function WallboardView() {
     <div className="w-screen h-screen overflow-hidden bg-zinc-950 font-sans text-zinc-100 relative" style={{ maxWidth: '100vw', maxHeight: '100vh' }}>
       <div style={rotatedContainerStyles} className="flex flex-col relative transition-transform duration-500 pb-[100px]">
         {/* Header with Logo and Animated Title */}
-        <div className="flex flex-col sm:flex-row items-center justify-center py-1 px-4 gap-1 lg:gap-2 bg-zinc-900/50 border-b border-zinc-800 min-h-[64px]">
+        <div className="flex flex-col sm:flex-row items-center justify-center py-1 px-4 gap-0 bg-zinc-900/50 border-b border-zinc-800 min-h-[64px]">
           {settings?.websiteLogo && (
              <motion.img 
                src={settings.websiteLogo} 
                alt="Logo" 
-               className="h-16 md:h-20 w-auto object-contain drop-shadow-lg" 
+               className="h-16 md:h-20 w-auto object-contain drop-shadow-lg z-10" 
                animate={{ rotateY: [0, 1080, 1080] }}
                transition={{ duration: 200, repeat: Infinity, times: [0, 0.015, 1], ease: ["easeOut", "linear"] }}
              />
@@ -188,9 +188,9 @@ export default function WallboardView() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="text-2xl md:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-teal via-emerald-400 to-brand-teal bg-[length:200%_auto] animate-gradient"
+            className="text-2xl md:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-teal via-emerald-400 to-brand-teal bg-[length:200%_auto] animate-gradient -ml-2 sm:-ml-4 md:-ml-6"
           >
-            Current Vacancies
+            Dream Chasers
           </motion.h1>
           <style>{`
             @keyframes gradient {
