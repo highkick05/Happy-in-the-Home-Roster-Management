@@ -280,21 +280,6 @@ export default function WallboardView() {
           border-top: 1px solid #27272a;
           vertical-align: middle;
         }
-        .rbc-agenda-date-cell {
-          padding: 1rem;
-          font-weight: 600;
-          font-size: 1.1rem;
-          color: #d4d4d8; /* zinc-300 */
-        }
-        .rbc-agenda-time-cell {
-          padding: 1rem;
-          font-family: monospace;
-          color: #a1a1aa;
-          font-size: 1.1rem;
-        }
-        .rbc-agenda-event-cell {
-          padding: 0 !important;
-        }
         .pulse-border {
           animation: borderPulse 2s infinite;
         }
@@ -324,7 +309,22 @@ export default function WallboardView() {
           margin-bottom: 0.5rem !important;
           box-shadow: none !important;
         }
-        td.rbc-agenda-date-cell, td.rbc-agenda-time-cell {
+        .rbc-agenda-date-cell {
+          display: block !important;
+          width: 100% !important;
+          border: none !important;
+          padding: 2.5rem 0.5rem 0.75rem 0.5rem !important;
+          font-size: 1.25rem !important;
+          font-weight: 700 !important;
+          color: rgb(20, 184, 166) !important;
+          border-bottom: 1px solid #3f3f46 !important;
+          margin-bottom: 1rem !important;
+          text-transform: uppercase;
+        }
+        .rbc-agenda-table > tbody > tr:first-child .rbc-agenda-date-cell {
+          padding-top: 0.5rem !important;
+        }
+        .rbc-agenda-time-cell {
           display: none !important;
         }
         .rbc-agenda-event-cell {
@@ -351,7 +351,7 @@ export default function WallboardView() {
             views={[Views.AGENDA]}
             culture="en-AU"
             formats={{
-              agendaDateFormat: 'dd-MM-yyyy',
+              agendaDateFormat: 'EEEE, d MMMM yyyy',
               agendaHeaderFormat: ({ start, end }: any, culture: any, localizer: any) => 
                 `${localizer.format(start, 'dd-MM-yyyy', culture)} – ${localizer.format(end, 'dd-MM-yyyy', culture)}`
             }}
