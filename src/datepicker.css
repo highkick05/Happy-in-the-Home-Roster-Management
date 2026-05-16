@@ -4,7 +4,7 @@
 }
 .react-datepicker-popper {
   z-index: 50 !important;
-  width: auto !important;
+  width: 100% !important;
 }
 .react-datepicker {
   background-color: #1A1A1A !important;
@@ -12,8 +12,8 @@
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   font-family: inherit !important;
   color: white !important;
-  display: inline-block !important; /* Forces it to not stretch */
-  width: max-content !important;
+  display: block !important;
+  width: 100% !important;
   opacity: 1 !important;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 1), 0 8px 10px -6px rgba(0, 0, 0, 1) !important; /* Improved shadow */
 }
@@ -27,6 +27,8 @@
 .react-datepicker__month-container {
   background-color: #1A1A1A !important;
   background: #1A1A1A !important;
+  width: 100% !important;
+  float: none !important;
 }
 .react-datepicker__current-month {
   color: white !important;

@@ -77,11 +77,12 @@ export function CustomDatePicker({
         onChange={handleChange}
         maxDate={maxDate}
         placeholderText={placeholderText || "dd/mm/yyyy"}
+        dateFormat={props.dateFormat || "dd/MM/yyyy"}
         className={className}
         calendarClassName={calendarClassName}
         wrapperClassName="w-full"
         name={name}
-        portalId="root"
+        popperPlacement="top"
         {...props}
       />
     </div>
