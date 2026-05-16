@@ -180,8 +180,8 @@ export default function WallboardView() {
                src={settings.websiteLogo} 
                alt="Logo" 
                className="h-16 w-auto object-contain drop-shadow-lg" 
-               animate={{ rotateY: [0, 360, 360] }}
-               transition={{ duration: 60, repeat: Infinity, times: [0, 0.03, 1], ease: "easeInOut" }}
+               animate={{ rotateY: [0, 1080, 1080] }}
+               transition={{ duration: 200, repeat: Infinity, times: [0, 0.015, 1], ease: ["easeOut", "linear"] }}
              />
           )}
           <motion.h1 
