@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Upload, FileDown, Plus, Save, X, Database } from 'lucide-react';
+import { Upload, FileDown, Plus, Save, X, Database, CheckSquare } from 'lucide-react';
 import DatabaseSettings from './DatabaseSettings';
+import TestingChecklist from './TestingChecklist';
 
 export default function SettingsView() {
   const { token, user, updateSettings } = useAuth();
-  const [activeTab, setActiveTab] = useState<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'DATABASE'>('GENERAL');
+  const [activeTab, setActiveTab] = useState<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'DATABASE' | 'TESTING'>('GENERAL');
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [generalLoading, setGeneralLoading] = useState(false);
@@ -244,18 +245,28 @@ export default function SettingsView() {
           Branding
         </button>
         {user?.role === 'ADMIN' && (
-          <button
-            onClick={() => setActiveTab('DATABASE')}
-            className={`px-4 py-2 text-[13px] rounded-md transition-colors flex items-center gap-2 ${activeTab === 'DATABASE' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
-          >
-            <Database className="w-3.5 h-3.5" />
-            Database
-          </button>
+          <>
+            <button
+              onClick={() => setActiveTab('TESTING')}
+              className={`px-4 py-2 text-[13px] rounded-md transition-colors flex items-center gap-2 ${activeTab === 'TESTING' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              Testing Checklist
+            </button>
+            <button
+              onClick={() => setActiveTab('DATABASE')}
+              className={`px-4 py-2 text-[13px] rounded-md transition-colors flex items-center gap-2 ${activeTab === 'DATABASE' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
+            >
+              <Database className="w-3.5 h-3.5" />
+              Database
+            </button>
+          </>
         )}
       </div>
 
       <div className="flex-1 bg-brand-navy border border-border-subtle rounded-xl overflow-x-auto flex flex-col shadow-sm">
         {activeTab === 'DATABASE' && <DatabaseSettings />}
+        {activeTab === 'TESTING' && <TestingChecklist />}
         {activeTab === 'GENERAL' && (
           <div className="p-8 max-w-4xl">
             <div className="mb-8">
