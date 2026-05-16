@@ -174,12 +174,12 @@ export default function WallboardView() {
     <div className="w-screen h-screen overflow-hidden bg-zinc-950 font-sans text-zinc-100 relative" style={{ maxWidth: '100vw', maxHeight: '100vh' }}>
       <div style={rotatedContainerStyles} className="flex flex-col relative transition-transform duration-500 pb-[100px]">
         {/* Header with Logo and Animated Title */}
-        <div className="flex flex-col sm:flex-row items-center justify-center p-6 gap-6 bg-zinc-900/50 border-b border-zinc-800">
+        <div className="flex flex-col sm:flex-row items-center justify-center p-6 gap-3 bg-zinc-900/50 border-b border-zinc-800">
           {settings?.websiteLogo && (
              <motion.img 
                src={settings.websiteLogo} 
                alt="Logo" 
-               className="h-16 w-auto object-contain drop-shadow-lg" 
+               className="h-28 w-auto object-contain drop-shadow-lg" 
                animate={{ rotateY: [0, 1080, 1080] }}
                transition={{ duration: 200, repeat: Infinity, times: [0, 0.015, 1], ease: ["easeOut", "linear"] }}
              />
