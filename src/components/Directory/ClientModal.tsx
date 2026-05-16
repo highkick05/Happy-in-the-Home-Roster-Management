@@ -192,7 +192,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
           </div>
         </div>
         
-        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
+        <div className="flex-1 flex flex-col lg:flex-row">
           
           {/* Main Area */}
           {activeTab === 'ROSTER' && client ? (

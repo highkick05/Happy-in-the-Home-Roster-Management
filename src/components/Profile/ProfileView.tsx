@@ -89,7 +89,7 @@ export default function ProfileView() {
         {successMsg && <div className="p-3 bg-green-500/20 text-green-400 border border-green-500/50 rounded-md text-sm">{successMsg}</div>}
         {errorMsg && <div className="p-3 bg-red-500/20 text-red-400 border border-red-500/50 rounded-md text-sm">{errorMsg}</div>}
 
-        <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative overflow-hidden space-y-6">
+        <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative space-y-6">
           <h2 className="text-lg font-medium text-white border-b border-white/[0.08] pb-3 mb-4">Personal Information</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -115,7 +115,7 @@ export default function ProfileView() {
           </div>
         </div>
 
-        <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative overflow-hidden space-y-6">
+        <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative space-y-6">
           <h2 className="text-lg font-medium text-white border-b border-white/[0.08] pb-3 mb-4">Emergency Contact</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -129,7 +129,7 @@ export default function ProfileView() {
           </div>
         </div>
 
-        <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative overflow-hidden space-y-6">
+        <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative space-y-6">
           <h2 className="text-lg font-medium text-white border-b border-white/[0.08] pb-3 mb-4">Financial Details</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
@@ -159,7 +159,7 @@ export default function ProfileView() {
           </div>
         </div>
 
-        <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative overflow-hidden space-y-6">
+        <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative space-y-6">
           <h2 className="text-lg font-medium text-white border-b border-white/[0.08] pb-3 mb-4">Change Password</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
