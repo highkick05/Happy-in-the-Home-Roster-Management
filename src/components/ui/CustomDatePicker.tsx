@@ -71,15 +71,17 @@ export function CustomDatePicker({
   };
 
   return (
-    <div className="dark-datepicker-wrapper relative">
+    <div className="dark-datepicker-wrapper relative w-full">
       <DatePicker
         selected={parsedDate || null}
         onChange={handleChange}
         maxDate={maxDate}
-        placeholderText={placeholderText}
+        placeholderText={placeholderText || "dd/mm/yyyy"}
         className={className}
         calendarClassName={calendarClassName}
+        wrapperClassName="w-full"
         name={name}
+        portalId="root"
         {...props}
       />
     </div>
