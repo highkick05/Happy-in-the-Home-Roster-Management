@@ -182,8 +182,7 @@ export default function WallboardView() {
     const isCompleted = event.status === 'COMPLETED' || !!event.actualEndTime;
     const now = new Date();
     const isActuallyRunning = event.status === 'IN_PROGRESS' || (!!event.actualStartTime && !event.actualEndTime);
-    const isTimeInRange = now >= event.start && now <= event.end;
-    const isInProgress = (isActuallyRunning || isTimeInRange) && !isCompleted;
+    const isInProgress = isActuallyRunning && !isCompleted;
     
     // Default to future/neutral
     let containerClass = "border-l-4 border-zinc-500 bg-zinc-900/40 opacity-90 transition-all rounded-r";
@@ -325,67 +324,48 @@ export default function WallboardView() {
           100% { border-left-color: rgb(16, 185, 129); }
         }
 
-        /* Responsive Layout Overrides */
-        ${!isLandscape ? `
-          /* PORTRAIT OVERRIDES: Build stacked cards */
-          .rbc-agenda-table thead {
-            display: none !important; /* Hide header row in portrait */
-          }
-          .rbc-agenda-table, .rbc-agenda-table tbody {
-            display: block !important; 
-            width: 100% !important;
-          }
-          .rbc-agenda-table tr {
-            display: flex !important;
-            flex-direction: column !important;
-            margin-bottom: 1.5rem !important;
-            border: 1px solid #3f3f46 !important;
-            border-radius: 0.75rem !important;
-            background: #18181b !important;
-            overflow: hidden !important;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3) !important;
-            height: auto !important;
-          }
-          .rbc-agenda-table td {
-            display: block !important;
-            width: 100% !important;
-            height: auto !important;
-          }
-          .rbc-agenda-table tbody > tr > td {
-            border: none !important;
-          }
-          .rbc-agenda-date-cell {
-            padding: 1rem 1rem 0.25rem 1.25rem !important;
-            background-color: #18181b !important;
-          }
-          .rbc-agenda-time-cell {
-            padding: 0.25rem 1rem 0.75rem 1.25rem !important;
-            border-bottom: 1px solid #3f3f46 !important;
-            font-size: 1.25rem !important;
-            color: #d4d4d8 !important;
-            background-color: #18181b !important;
-          }
-          .rbc-agenda-event-cell {
-            padding: 0 !important;
-            flex-grow: 1;
-            display: flex !important;
-            background-color: #18181b !important;
-          }
-          .rbc-agenda-event-cell > div { /* This targets our AgendaEvent component container */
-             width: 100%;
-          }
-        ` : `
-          /* LANDSCAPE OVERRIDES: Keep table, fix widths */
-          .rbc-agenda-table {
-            table-layout: fixed;
-          }
-          .rbc-agenda-table > thead > tr > th.rbc-agenda-date-cell {
-            width: 18%;
-          }
-          .rbc-agenda-table > thead > tr > th.rbc-agenda-time-cell {
-            width: 22%;
-          }
-        `}
+        /* Layout Overrides */
+        .rbc-agenda-table, .rbc-agenda-table tbody {
+          border-color: #3f3f46;
+        }
+        .rbc-agenda-table {
+          table-layout: fixed;
+          width: 100%;
+        }
+        .rbc-agenda-table > thead > tr > th.rbc-agenda-date-cell {
+          width: ${!isLandscape ? '25%' : '18%'};
+        }
+        .rbc-agenda-table > thead > tr > th.rbc-agenda-time-cell {
+          width: ${!isLandscape ? '30%' : '22%'};
+        }
+        .rbc-agenda-table > thead > tr > th {
+          border-bottom: 1px solid #3f3f46;
+          padding: 1rem;
+          color: #8B949E;
+          font-weight: 500;
+          text-align: left;
+        }
+        .rbc-agenda-table > tbody > tr > td {
+          border-color: #3f3f46;
+          border-bottom: 1px solid #27272a;
+        }
+        .rbc-agenda-date-cell {
+          padding: 1rem;
+          font-weight: 600;
+          color: #E6EDF3;
+        }
+        .rbc-agenda-time-cell {
+          padding: 1rem;
+          font-size: ${!isLandscape ? '1.1rem' : '1.25rem'};
+          color: #d4d4d8;
+        }
+        .rbc-agenda-event-cell {
+          padding: 0 !important;
+          vertical-align: middle;
+        }
+        .rbc-agenda-event-cell > div { 
+           width: 100%;
+        }
       `}</style>
       
       <div className="h-full w-full flex flex-col p-4 md:p-8 pt-0 overflow-auto">
