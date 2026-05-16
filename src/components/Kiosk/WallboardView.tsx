@@ -156,71 +156,65 @@ export default function WallboardView() {
     const isInProgress = isActuallyRunning && !isCompleted;
     
     // Default to future/neutral
-    let containerClass = "border-l-4 border-zinc-500 opacity-90 transition-all h-full flex flex-col justify-center p-4 bg-zinc-900/50";
+    let containerClass = "border-l-4 border-zinc-500 opacity-90 transition-all flex items-center p-2 bg-zinc-900/50";
     
     if (isCompleted) {
-      containerClass = "opacity-50 border-l-4 border-blue-500 transition-all h-full flex flex-col justify-center p-4 bg-zinc-900/30";
+      containerClass = "opacity-50 border-l-4 border-blue-500 transition-all flex items-center p-2 bg-zinc-900/30";
     } else if (isInProgress) {
-      containerClass = "border-l-4 border-emerald-500 bg-emerald-950/20 transition-all pulse-border h-full flex flex-col justify-center p-4";
+      containerClass = "border-l-4 border-emerald-500 bg-emerald-950/20 transition-all pulse-border flex items-center p-2";
     }
     
-    const dateStr = format(event.start, 'EEE, d MMM yyyy');
     const timeStr = `${format(event.start, 'h:mm a')} – ${format(event.end, 'h:mm a')}`;
 
     return (
-      <div className={`w-full hover:brightness-110 cursor-pointer ${containerClass} rounded-r-xl`}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-3 border-b border-zinc-800/60 pb-3 gap-2">
-          <div className="flex items-center gap-3 text-sm md:text-base">
-            <span className="font-semibold text-zinc-200 tracking-wide uppercase text-xs md:text-sm bg-zinc-800/80 px-2 py-1 rounded">
-              {dateStr}
+      <div className={`w-full hover:brightness-110 cursor-pointer ${containerClass} rounded-r`}>
+        <div className="flex flex-row items-center gap-3 w-full">
+          <span className="text-zinc-300 font-mono text-[0.9rem] whitespace-nowrap">
+            {timeStr}
+          </span>
+          
+          <div className="flex flex-row items-baseline gap-2 flex-grow truncate px-2 border-l border-zinc-700/50">
+            <span className={`font-bold text-lg truncate ${isInProgress ? 'text-emerald-50' : 'text-[#E6EDF3]'}`}>
+              {event.clientName || 'Unknown Client'}
             </span>
-            <span className="text-zinc-400 font-mono bg-zinc-900/50 px-2 py-1 rounded border border-zinc-800">
-              {timeStr}
+            <span className="text-zinc-600 px-1">•</span>
+            <span className={`text-base truncate ${isInProgress ? 'text-emerald-400 font-medium' : 'text-brand-teal'}`}>
+              {event.staffName || 'Unassigned'}
+            </span>
+            <span className="text-zinc-600 px-1">•</span>
+            <span className={`text-base truncate ${isInProgress ? 'text-emerald-200' : 'text-[#8B949E]'}`}>
+              {event.serviceName || (event.isRespiteWrapper ? 'STA / Respite' : 'Support Worker')} 
             </span>
           </div>
-          
-          <div className="flex items-center gap-2 flex-wrap">
+
+          <div className="flex items-center justify-end whitespace-nowrap pr-2">
             {isInProgress && (
               <span className="flex items-center ml-2">
                 <span className="flex h-2 w-2 relative mr-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                <span className="text-xs bg-emerald-500/20 text-emerald-300 font-medium px-2 py-0.5 rounded-full uppercase whitespace-nowrap">
+                <span className="text-[0.65rem] bg-emerald-500/20 text-emerald-300 font-medium px-2 py-0.5 rounded-full uppercase whitespace-nowrap">
                   In Progress
                 </span>
               </span>
             )}
             {isCompleted && (
-              <span className="text-xs bg-blue-500/20 text-blue-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
+              <span className="text-[0.65rem] bg-blue-500/20 text-blue-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
                 Completed
               </span>
             )}
             {!isInProgress && !isCompleted && event.status !== 'DRAFT' && (
-              <span className="text-xs bg-zinc-500/20 text-zinc-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
+              <span className="text-[0.65rem] bg-zinc-500/20 text-zinc-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
                 Scheduled
               </span>
             )}
             {event.status === 'DRAFT' && (
-              <span className="text-xs bg-orange-500/20 text-orange-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
+              <span className="text-[0.65rem] bg-orange-500/20 text-orange-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
                 Draft
               </span>
             )}
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <span className={`font-mono text-lg md:text-xl lg:text-2xl ${isInProgress ? 'text-emerald-400 font-bold' : 'text-brand-teal font-medium'}`}>
-            {event.staffName || 'Unassigned'}
-          </span>
-        </div>
-        
-        <div className={`font-sans font-bold ${isInProgress ? 'text-emerald-50' : 'text-[#E6EDF3]'} leading-tight mb-1 text-xl md:text-2xl lg:text-3xl`}>
-          {event.clientName || 'Unknown Client'}
-        </div>
-        
-        <div className={`font-sans ${isInProgress ? 'text-emerald-200' : 'text-[#8B949E]'} text-sm md:text-md lg:text-lg mt-1`}>
-          {event.serviceName || (event.isRespiteWrapper ? 'STA / Respite' : 'Support Worker')} 
         </div>
       </div>
     );
@@ -327,13 +321,10 @@ export default function WallboardView() {
         }
         .rbc-agenda-table > tbody > tr {
           background-color: transparent !important;
-          margin-bottom: 2rem !important;
+          margin-bottom: 0.5rem !important;
           box-shadow: none !important;
         }
-        .rbc-agenda-date-cell {
-          display: none !important;
-        }
-        .rbc-agenda-time-cell {
+        td.rbc-agenda-date-cell, td.rbc-agenda-time-cell {
           display: none !important;
         }
         .rbc-agenda-event-cell {
