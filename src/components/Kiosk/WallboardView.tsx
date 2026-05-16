@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns/format';
 import { subDays } from 'date-fns/subDays';
 import { startOfDay } from 'date-fns/startOfDay';
@@ -34,6 +34,9 @@ export default function WallboardView() {
   const [manualMode, setManualMode] = useState<boolean | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [dailyQuote, setDailyQuote] = useState<{quote: string; author: string} | null>(null);
+  const [isToolbarVisible, setIsToolbarVisible] = useState(true);
+  const toolbarTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const [rotation, setRotation] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -41,6 +44,27 @@ export default function WallboardView() {
     }
     return 0;
   });
+
+  const resetToolbarTimeout = () => {
+    setIsToolbarVisible(true);
+    if (toolbarTimeoutRef.current) clearTimeout(toolbarTimeoutRef.current);
+    toolbarTimeoutRef.current = setTimeout(() => {
+      setIsToolbarVisible(false);
+    }, 5000);
+  };
+
+  useEffect(() => {
+    resetToolbarTimeout();
+    window.addEventListener('mousemove', resetToolbarTimeout);
+    window.addEventListener('keydown', resetToolbarTimeout);
+    window.addEventListener('touchstart', resetToolbarTimeout);
+    return () => {
+      window.removeEventListener('mousemove', resetToolbarTimeout);
+      window.removeEventListener('keydown', resetToolbarTimeout);
+      window.removeEventListener('touchstart', resetToolbarTimeout);
+      if (toolbarTimeoutRef.current) clearTimeout(toolbarTimeoutRef.current);
+    };
+  }, []);
 
   const fetchQuote = async () => {
     try {
@@ -328,7 +352,7 @@ export default function WallboardView() {
           </AnimatePresence>
         </div>
 
-        <div className="fixed bottom-24 right-6 opacity-30 hover:opacity-100 transition-opacity flex flex-col items-end gap-2 z-50">
+        <div className={`fixed bottom-24 right-6 transition-all duration-1000 flex flex-col items-end gap-2 z-50 ${isToolbarVisible ? 'opacity-30 hover:opacity-100 translate-x-0 pointer-events-auto' : 'opacity-0 translate-x-12 pointer-events-none'}`}>
           <div className="flex flex-col items-center justify-center bg-zinc-900 border border-zinc-700 rounded-full shadow-lg p-1">
             <button 
               onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 2.5))}
