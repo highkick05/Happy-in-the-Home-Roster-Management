@@ -324,7 +324,7 @@ export default function WallboardView() {
         .rbc-agenda-table > tbody > tr:first-child .rbc-agenda-date-cell {
           padding-top: 0.5rem !important;
         }
-        .rbc-agenda-time-cell {
+        .rbc-agenda-table td.rbc-agenda-time-cell {
           display: none !important;
         }
         .rbc-agenda-event-cell {
