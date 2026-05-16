@@ -296,8 +296,8 @@ export default function OnboardingView() {
             return (
               <div 
                 key={step.id} 
-                className={`border rounded-lg overflow-hidden transition-colors ${
-                  isExpanded ? 'border-brand-teal/50 bg-[#121214]/50' : 'border-white/[0.08] bg-[#121214]/30'
+                className={`border rounded-lg transition-colors ${
+                  isExpanded ? 'border-brand-teal/50 bg-[#121214]/50 relative z-50' : 'border-white/[0.08] bg-[#121214]/30 relative z-0'
                 }`}
               >
                 <div 
