@@ -33,6 +33,7 @@ export default function WallboardView() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [manualMode, setManualMode] = useState<boolean | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [dailyQuote, setDailyQuote] = useState<{quote: string; author: string} | null>(null);
   const [rotation, setRotation] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -40,6 +41,22 @@ export default function WallboardView() {
     }
     return 0;
   });
+
+  const fetchQuote = async () => {
+    try {
+      const res = await fetch('/api/awesome-quotes/daily');
+      const data = await res.json();
+      setDailyQuote(data);
+    } catch(e) {
+       console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchQuote();
+    const interval = setInterval(fetchQuote, 24 * 60 * 60 * 1000); // Daily
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchData = async () => {
     if (!token) return;
@@ -172,9 +189,9 @@ export default function WallboardView() {
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-zinc-950 font-sans text-zinc-100 relative" style={{ maxWidth: '100vw', maxHeight: '100vh' }}>
-      <div style={rotatedContainerStyles} className="flex flex-col relative transition-transform duration-500 pb-[100px]">
+      <div style={rotatedContainerStyles} className="flex flex-col relative transition-transform duration-500 h-full">
         {/* Header with Logo and Animated Title */}
-        <div className="flex flex-col sm:flex-row items-center justify-center py-1 px-4 gap-0 bg-zinc-900/50 border-b border-zinc-800 min-h-[64px]">
+        <div className="flex flex-col sm:flex-row items-center justify-center py-1 px-4 gap-0 bg-zinc-900/50 border-b border-zinc-800 min-h-[64px] shrink-0">
           {settings?.websiteLogo && (
              <motion.img 
                src={settings.websiteLogo} 
@@ -204,8 +221,8 @@ export default function WallboardView() {
           `}</style>
         </div>
 
-        <div className="h-full w-full flex flex-col p-4 md:p-8 overflow-auto">
-          <div style={{ zoom: zoomLevel } as any} className="flex-1 w-full max-w-7xl mx-auto flex flex-col gap-8">
+        <div className="flex-1 w-full flex flex-col p-4 md:p-8 overflow-auto">
+          <div style={{ zoom: zoomLevel } as any} className="flex-1 w-full max-w-7xl mx-auto flex flex-col gap-8 pb-32">
             {groupedEvents.length === 0 ? (
               <div className="flex items-center justify-center h-48 text-zinc-500 font-medium">
                 No shifts found starting from {format(date, 'd MMM yyyy')}.
@@ -290,7 +307,28 @@ export default function WallboardView() {
           </div>
         </div>
 
-        <div className="fixed bottom-6 right-6 opacity-30 hover:opacity-100 transition-opacity flex flex-col items-end gap-2 z-50">
+        {/* Footer with Quote */}
+        <div className="flex flex-col items-center justify-center p-3 sm:px-6 bg-zinc-900/50 border-t border-zinc-800 min-h-[64px] shrink-0">
+          <AnimatePresence mode="wait">
+            {dailyQuote ? (
+              <motion.div 
+                key={dailyQuote.quote}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.8 }}
+                className="text-center w-full max-w-4xl mx-auto flex flex-col items-center justify-center"
+              >
+                <p className="text-sm md:text-base font-medium text-zinc-200 italic leading-snug">"{dailyQuote.quote}"</p>
+                <p className="text-xs md:text-sm text-brand-teal mt-0.5 font-semibold tracking-wide uppercase">— {dailyQuote.author}</p>
+              </motion.div>
+            ) : (
+               <div className="h-8 md:h-10 w-full animate-pulse bg-zinc-800/50 rounded-md"></div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="fixed bottom-24 right-6 opacity-30 hover:opacity-100 transition-opacity flex flex-col items-end gap-2 z-50">
           <div className="flex flex-col items-center justify-center bg-zinc-900 border border-zinc-700 rounded-full shadow-lg p-1">
             <button 
               onClick={() => setZoomLevel(prev => Math.min(prev + 0.1, 2.5))}

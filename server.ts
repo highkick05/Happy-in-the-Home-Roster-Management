@@ -2087,6 +2087,21 @@ async function startServer() {
     }
   });
 
+  app.get('/api/awesome-quotes/daily', (req, res) => {
+    try {
+      const quotesModule = require('awesome-quotes');
+      quotesModule.getQuote('computers', 'en', (err: any, quote: any) => {
+        if (err || !quote) {
+            console.error('Error fetching quote:', err);
+            return res.json({ quote: 'Always code as if the guy who ends up maintaining your code will be a violent psychopath who knows where you live.', author: 'John Woods' });
+        }
+        res.json({ quote: quote.QUOTE || quote.quote || 'Keep pushing boundaries!', author: quote.AUTHOR || quote.author || 'Unknown' });
+      });
+    } catch (err) {
+      res.json({ quote: 'Innovation distinguishes between a leader and a follower.', author: 'Steve Jobs' });
+    }
+  });
+
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
