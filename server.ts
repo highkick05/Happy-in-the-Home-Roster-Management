@@ -2133,19 +2133,28 @@ async function startServer() {
       
       if (fileIds.length > 0) {
         const placeholders = fileIds.map(() => '?').join(',');
-        const existingFiles = db.prepare(`SELECT id, system_name FROM files WHERE id IN (${placeholders})`).all(...fileIds) as any[];
+        const existingFiles = db.prepare(`SELECT id, system_name, date_issued, date_expires FROM files WHERE id IN (${placeholders})`).all(...fileIds) as any[];
         
-        const validFileIds = new Set(existingFiles.filter(f => {
+        const validFileIds = new Set();
+        const fileMetadata = new Map();
+        existingFiles.forEach(f => {
           const filePath = path.join(process.cwd(), 'uploads', f.system_name);
-          return fs.existsSync(filePath);
-        }).map(f => f.id));
+          if (fs.existsSync(filePath)) {
+            validFileIds.add(f.id);
+            fileMetadata.set(f.id, f);
+          }
+        });
         
         for (const stepKey in onboardingData) {
           const step = onboardingData[stepKey];
           if (step.files && Array.isArray(step.files)) {
              const originalLength = step.files.length;
-             step.files = step.files.filter((f: any) => validFileIds.has(f.id));
-             if (step.files.length !== originalLength) {
+             step.files = step.files.filter((f: any) => validFileIds.has(f.id)).map((f: any) => {
+               const meta = fileMetadata.get(f.id);
+               return { ...f, date_issued: meta.date_issued, date_expires: meta.date_expires };
+             });
+             // Always consider modified if we are picking up metadata, or length changed
+             if (step.files.length !== originalLength || step.files.some((f: any) => f.date_issued || f.date_expires)) {
                 modified = true;
              }
              if (step.files.length === 0) {
@@ -2170,6 +2179,11 @@ async function startServer() {
             if (!validFileIds.has(step.fileId)) {
                step.fileId = null;
                if (step.status === 'completed') step.status = 'pending';
+               modified = true;
+            } else {
+               const meta = fileMetadata.get(step.fileId);
+               step.files = [{ id: step.fileId, name: 'Uploaded File', date_issued: meta.date_issued, date_expires: meta.date_expires }];
+               step.fileId = null;
                modified = true;
             }
           }
@@ -4882,10 +4896,12 @@ async function startServer() {
   app.post('/api/files', authenticateToken, upload.single('file'), (req: any, res: any) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const folderPath = req.query.folderPath || '/';
+    const dateIssued = req.body.date_issued || null;
+    const dateExpires = req.body.date_expires || null;
     try {
-      const stmt = db.prepare('INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path) VALUES (?, ?, ?, ?, ?)');
-      const info = stmt.run(req.file.originalname, req.file.filename, req.file.size, req.user.id, folderPath);
-      res.json({ success: true, id: info.lastInsertRowid });
+      const stmt = db.prepare('INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path, date_issued, date_expires) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      const info = stmt.run(req.file.originalname, req.file.filename, req.file.size, req.user.id, folderPath, dateIssued, dateExpires);
+      res.json({ success: true, id: info.lastInsertRowid, date_issued: dateIssued, date_expires: dateExpires });
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });

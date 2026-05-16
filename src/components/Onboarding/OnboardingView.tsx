@@ -23,9 +23,11 @@ const ONBOARDING_STEPS: Step[] = [
   { id: 'tfn_super', title: '8. Tax File Number Declaration & Superannuation Choice', description: 'Completed TFN and Super forms', type: 'upload', links: [{ text: 'TFN Declaration', url: 'https://www.ato.gov.au/forms-and-instructions/tfn-declaration' }, { text: 'Superannuation Standard Choice', url: 'https://www.ato.gov.au/forms-and-instructions/superannuation-standard-choice-form' }] },
   { id: 'ahpra', title: '9. AHPRA Registration (OPTIONAL / NURSES ONLY)', description: 'Current registration (Nurses only)', type: 'upload', links: [{ text: 'AHPRA Registration', url: 'https://www.ahpra.gov.au/Registration.aspx' }] },
   { id: 'driver_license', title: '10. Vehicle & Driver\'s License', description: 'Copy of license and insurance if applicable', type: 'upload', links: [] },
-  { id: 'first_aid', title: '11. First Aid & CPR', description: 'Current First Aid and CPR certificates', type: 'upload', links: [] },
+  { id: 'first_aid', title: '11a. First Aid (HLTAID011)', description: 'Current First Aid certificate', type: 'upload', links: [] },
+  { id: 'cpr', title: '11b. CPR (HLTAID009)', description: 'Current CPR certificate', type: 'upload', links: [] },
   { id: 'immunisation', title: '12. Immunisation history', description: 'Upload your immunisation history statement', type: 'upload', links: [{ text: 'Immunisation history statement', url: 'https://www.servicesaustralia.gov.au/immunisation-history-statement' }] },
   { id: 'covid_vaccine', title: '13. COVID vaccine evidence', description: 'Proof of COVID-19 vaccinations', type: 'upload', links: [{ text: 'COVID-19 vaccination evidence', url: 'https://www.servicesaustralia.gov.au/how-to-get-proof-your-covid-19-vaccinations' }] },
+  { id: 'flu_shot', title: '14. Annual Flu Shot', description: 'Proof of Annual Flu Shot', type: 'upload', links: [] },
 ];
 
 export default function OnboardingView() {
@@ -33,6 +35,21 @@ export default function OnboardingView() {
   const [expandedStep, setExpandedStep] = useState<string | null>('resume');
   const [progressData, setProgressData] = useState<Record<string, { status: 'completed' | 'pending'; fileId?: number | null; files?: { id: number; name: string }[] }>>({});
   const [loading, setLoading] = useState(true);
+  const [formDates, setFormDates] = useState<Record<string, { issued: string, expires: string }>>({});
+  const [uploadError, setUploadError] = useState<Record<string, string>>({});
+
+  const getTrafficLight = (expires?: string | null) => {
+    if (!expires) return null;
+    const expDate = new Date(expires);
+    const today = new Date();
+    const diffTime = expDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) return { color: 'bg-red-500', text: 'Expired' };
+    if (diffDays <= 14) return { color: 'bg-orange-500', text: `Expires in ${diffDays} d` };
+    if (diffDays <= 30) return { color: 'bg-yellow-500', text: `Expires in ${diffDays} d` };
+    return { color: 'bg-brand-green', text: 'Valid' };
+  };
 
   const fetchProgress = async () => {
     try {
@@ -107,12 +124,85 @@ export default function OnboardingView() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Reset error
+    setUploadError(prev => ({ ...prev, [stepId]: '' }));
+
+    let issued = formDates[stepId]?.issued || '';
+    let expires = formDates[stepId]?.expires || '';
+    
+    // VALIDATIONS & CALCULATIONS
+    const today = new Date();
+    
+    if (stepId === 'npc') {
+      if (!issued) {
+        setUploadError(prev => ({ ...prev, [stepId]: 'Date issued is required.' }));
+        return;
+      }
+      const issueDate = new Date(issued);
+      const diffTime = Math.abs(today.getTime() - issueDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays > 180) { // 6 months approx
+        setUploadError(prev => ({ ...prev, [stepId]: 'Police checks must be issued within the last 6 months to be accepted.' }));
+        return;
+      }
+    }
+    
+    if (stepId === 'ndis_screening') {
+      if (!issued) {
+        setUploadError(prev => ({ ...prev, [stepId]: 'Date issued is required.' }));
+        return;
+      }
+      const issueDate = new Date(issued);
+      issueDate.setFullYear(issueDate.getFullYear() + 5);
+      expires = issueDate.toISOString().split('T')[0];
+    }
+    
+    if (stepId === 'wwcc') {
+      if (!issued || !expires) {
+        setUploadError(prev => ({ ...prev, [stepId]: 'Both Issue and Expiry dates are required.' }));
+        return;
+      }
+    }
+
+    if (stepId === 'ahpra' || stepId === 'driver_license') {
+      if (!expires) {
+        setUploadError(prev => ({ ...prev, [stepId]: 'Date expires is required.' }));
+        return;
+      }
+    }
+
+    if (stepId === 'first_aid') {
+      if (!expires) {
+        setUploadError(prev => ({ ...prev, [stepId]: 'Date expires is required.' }));
+        return;
+      }
+    }
+    
+    if (stepId === 'cpr') {
+      if (!expires) {
+        setUploadError(prev => ({ ...prev, [stepId]: 'Date expires is required.' }));
+        return;
+      }
+    }
+    
+    if (stepId === 'flu_shot') {
+      if (!issued) {
+        setUploadError(prev => ({ ...prev, [stepId]: 'Date issued is required.' }));
+        return;
+      }
+      const issueDate = new Date(issued);
+      issueDate.setFullYear(issueDate.getFullYear() + 1);
+      expires = issueDate.toISOString().split('T')[0];
+    }
+
     const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
     const uploadPath = `/Staff/${name ? `${name}/` : ''}Onboarding`;
 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('folderPath', uploadPath);
+    if (issued) formData.append('date_issued', issued);
+    if (expires) formData.append('date_expires', expires);
 
     try {
       const res = await fetch(`/api/files?folderPath=${encodeURIComponent(uploadPath)}`, {
@@ -124,10 +214,10 @@ export default function OnboardingView() {
       if (res.ok && data.id) {
         await updateProgress(stepId, 'completed', { type: 'add', file: { id: data.id, name: file.name } });
       } else {
-        alert('Upload failed: ' + (data.error || 'Unknown error'));
+        setUploadError(prev => ({ ...prev, [stepId]: 'Upload failed: ' + (data.error || 'Unknown error') }));
       }
     } catch (err) {
-      alert('Upload failed');
+      setUploadError(prev => ({ ...prev, [stepId]: 'Upload failed due to network error' }));
     }
     
     if (e.target) {
@@ -339,10 +429,42 @@ export default function OnboardingView() {
                         </div>
                       )}
 
+                      
                       {step.type === 'upload' ? (
                         <div className="space-y-4">
+                          
+                          {/* DYNAMIC DATE INPUTS */}
+                          <div className="flex flex-col gap-3 max-w-sm mb-4">
+                            {['npc', 'ndis_screening', 'wwcc', 'flu_shot'].includes(step.id) && (
+                              <div>
+                                <label className="block text-xs text-zinc-400 mb-1">Issue Date</label>
+                                <input 
+                                  type="date" 
+                                  className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded-lg px-3 py-2 text-white text-sm"
+                                  value={formDates[step.id]?.issued || ''}
+                                  onChange={(e) => setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], issued: e.target.value } }))}
+                                />
+                              </div>
+                            )}
+                            {['wwcc', 'ahpra', 'driver_license', 'first_aid', 'cpr'].includes(step.id) && (
+                              <div>
+                                <label className="block text-xs text-zinc-400 mb-1">Expiry Date</label>
+                                <input 
+                                  type="date" 
+                                  className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded-lg px-3 py-2 text-white text-sm"
+                                  value={formDates[step.id]?.expires || ''}
+                                  onChange={(e) => setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], expires: e.target.value } }))}
+                                />
+                              </div>
+                            )}
+                            {uploadError[step.id] && (
+                              <p className="text-red-500 text-xs mt-1">{uploadError[step.id]}</p>
+                            )}
+                          </div>
+
                           <label className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors text-[14px] font-medium text-white cursor-pointer w-fit">
                             <Upload className="w-4 h-4" />
+
                             Upload File
                             <input 
                               type="file" 
@@ -351,15 +473,32 @@ export default function OnboardingView() {
                             />
                           </label>
 
+                          
                           {progressData[step.id]?.files && progressData[step.id].files!.length > 0 ? (
                             <div className="mt-4 space-y-2">
-                              {progressData[step.id].files!.map(file => (
-                                <div key={file.id} className="flex items-center justify-between p-3 bg-zinc-800 rounded-lg border border-white/[0.12]">
-                                  <div className="flex items-center gap-3">
-                                    <FileIcon className="w-4 h-4 text-brand-teal" />
-                                    <span className="text-[14px] font-medium text-white">{file.name}</span>
+                              {progressData[step.id].files!.map((file: any) => {
+                                const traffic = getTrafficLight(file.date_expires);
+                                return (
+                                <div key={file.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-zinc-800 rounded-lg border border-white/[0.12] gap-2">
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex items-center gap-3">
+                                      <FileIcon className="w-4 h-4 text-brand-teal shrink-0" />
+                                      <span className="text-[14px] font-medium text-white break-all">{file.name}</span>
+                                    </div>
+                                    {(file.date_issued || file.date_expires) && (
+                                      <div className="flex items-center gap-2 ml-7">
+                                        {file.date_issued && <span className="text-xs text-zinc-400">Issued: {file.date_issued}</span>}
+                                        {file.date_expires && <span className="text-xs text-zinc-400">Expires: {file.date_expires}</span>}
+                                        {traffic && (
+                                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-white ${traffic.color}`}>
+                                            {traffic.text}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 self-end sm:self-center">
+
                                     <button
                                       onClick={() => downloadFile(file.id, file.name)}
                                       className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
@@ -376,7 +515,8 @@ export default function OnboardingView() {
                                     </button>
                                   </div>
                                 </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           ) : (
                             isCompleted && progressData[step.id]?.fileId && (
