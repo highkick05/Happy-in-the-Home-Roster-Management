@@ -97,7 +97,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('ADMIN', 'STAFF')),
     first_name TEXT,
     last_name TEXT,
@@ -1605,7 +1605,7 @@ async function startServer() {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
   if (userCount.count === 0) {
     const hash = bcrypt.hashSync('password123', 10);
-    db.prepare('INSERT INTO users (email, password, role, first_name, last_name) VALUES (?, ?, ?, ?, ?)').run('admin@happyinthehome.com', hash, 'ADMIN', 'System', 'Admin');
+    db.prepare('INSERT INTO users (email, password_hash, role, first_name, last_name) VALUES (?, ?, ?, ?, ?)').run('admin@happyinthehome.com', hash, 'ADMIN', 'System', 'Admin');
     console.log('Seeded default admin user: admin@happyinthehome.com / password123');
   }
 
@@ -1670,7 +1670,7 @@ async function startServer() {
     }
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
     
-    if (!user || !bcrypt.compareSync(password, user.password)) {
+    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     
@@ -1783,7 +1783,7 @@ async function startServer() {
 
       const passwordHash = bcrypt.hashSync(password, 10);
       
-      db.prepare('UPDATE users SET password = ?, reset_password_token = NULL, reset_password_expires = NULL WHERE id = ?').run(passwordHash, user.id);
+      db.prepare('UPDATE users SET password_hash = ?, reset_password_token = NULL, reset_password_expires = NULL WHERE id = ?').run(passwordHash, user.id);
 
       res.json({ success: true, message: 'Password has been successfully reset. You can now login.' });
     } catch (error) {
@@ -1845,7 +1845,7 @@ async function startServer() {
     ];
 
     if (password) {
-      query += ', password = ?';
+      query += ', password_hash = ?';
       params.push(bcrypt.hashSync(password, 10));
     }
 
@@ -2211,7 +2211,7 @@ async function startServer() {
     const { email, password, role, firstName, lastName, phone, address, dob, emergencyContactName, emergencyContactPhone, bankName, bankBsb, bankAcc, taxNumber, superFundName, superMemberNumber } = req.body;
     try {
       const hash = bcrypt.hashSync(password, 10);
-      const stmt = db.prepare('INSERT INTO users (email, password, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      const stmt = db.prepare('INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
       const info = stmt.run(email, hash, role || 'STAFF', firstName, lastName, phone, address, dob, emergencyContactName, emergencyContactPhone, bankName, bankBsb, bankAcc, taxNumber, superFundName, superMemberNumber);
       res.json({ id: info.lastInsertRowid, email, role, firstName, lastName, phone, address, dob, emergencyContactName, emergencyContactPhone, bankName, bankBsb, bankAcc, taxNumber, superFundName, superMemberNumber });
     } catch (e: any) {
