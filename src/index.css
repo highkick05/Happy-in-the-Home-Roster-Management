@@ -299,4 +299,5 @@ input:-webkit-autofill:active {
 /* Custom override for tailwind-datepicker-react hardcoded internal w-64 class */
 .custom-datepicker-popup .w-64 {
   width: 100% !important;
+  min-width: 256px !important;
 }

@@ -99,7 +99,7 @@ export function CustomDatePicker({
       prev: () => <ChevronLeft className="w-5 h-5 text-white" />,
       next: () => <ChevronRight className="w-5 h-5 text-white" />,
     },
-    datepickerClassNames: "bottom-full left-0 right-0 top-auto mb-2 z-[9999] shadow-2xl w-full custom-datepicker-popup",
+    datepickerClassNames: "bottom-full left-0 top-auto mb-2 z-[9999] shadow-2xl w-full custom-datepicker-popup min-w-[280px]",
     defaultDate: dateValue,
     language: "en",
     disabledDates: [],
