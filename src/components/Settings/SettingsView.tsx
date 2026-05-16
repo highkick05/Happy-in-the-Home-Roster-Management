@@ -330,13 +330,36 @@ export default function SettingsView() {
               <div className="col-span-2 border-t border-border-subtle pt-6 mt-6">
                  <h4 className="text-md font-medium text-[#E6EDF3] mb-4">Kiosk & Monitoring Display</h4>
                  <div className="bg-brand-navy border border-border-subtle rounded-xl p-5 relative">
-                    <p className="text-sm text-[#8B949E] mb-4">Use this URL to configure standalone, wall-mounted monitoring displays in Kiosk mode. This view dynamically auto-refreshes every 30 seconds.</p>
-                    <div className="flex items-center gap-3">
-                       <input readOnly value={`${window.location.origin}/kiosk/wallboard`} className="flex-1 bg-brand-bg border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none" />
-                       <button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/kiosk/wallboard`)} className="px-4 py-2 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors text-[13px]">Copy Link</button>
-                       <a href="/kiosk/wallboard" target="_blank" rel="noopener noreferrer" className="p-2 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors">
-                          <ExternalLink className="w-4 h-4" />
-                       </a>
+                    <p className="text-sm text-[#8B949E] mb-4">Use these URLs to configure standalone, wall-mounted monitoring displays in Kiosk mode. It dynamically auto-refreshes every 30 seconds.</p>
+                    
+                    <div className="space-y-4">
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[12px] font-medium text-[#8B949E]">Auto-Detect (Recommended)</label>
+                        <div className="flex items-center gap-3">
+                           <input readOnly value={`${window.location.origin}/kiosk/wallboard`} className="flex-1 bg-brand-bg border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none" />
+                           <button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/kiosk/wallboard`)} className="px-4 py-2 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors text-[13px]">Copy Link</button>
+                           <a href="/kiosk/wallboard" target="_blank" rel="noopener noreferrer" className="p-2 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors">
+                              <ExternalLink className="w-4 h-4" />
+                           </a>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[12px] font-medium text-[#8B949E]">Force Landscape</label>
+                          <div className="flex items-center gap-3">
+                             <input readOnly value={`${window.location.origin}/kiosk/wallboard?mode=landscape`} className="flex-1 bg-brand-bg border border-border-subtle rounded-md px-3 py-2 text-[12px] text-[#E6EDF3] outline-none" />
+                             <button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/kiosk/wallboard?mode=landscape`)} className="px-3 py-2 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors text-[12px]">Copy</button>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[12px] font-medium text-[#8B949E]">Force Portrait</label>
+                          <div className="flex items-center gap-3">
+                             <input readOnly value={`${window.location.origin}/kiosk/wallboard?mode=portrait`} className="flex-1 bg-brand-bg border border-border-subtle rounded-md px-3 py-2 text-[12px] text-[#E6EDF3] outline-none" />
+                             <button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/kiosk/wallboard?mode=portrait`)} className="px-3 py-2 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors text-[12px]">Copy</button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                  </div>
               </div>
