@@ -331,9 +331,9 @@ export default function QuotesView() {
   return (
     <div className="flex-1 flex flex-col space-y-4">
       {showGenerateModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-2xl max-h-[95vh] overflow-x-auto flex flex-col">
-            <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg">
+        <div className="fixed inset-0 z-[60] flex justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto custom-scrollbar" onClick={() => setShowGenerateModal(false)}>
+          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-2xl flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg shrink-0">
               <div>
                 <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">Generate Service Quote</h3>
                 <p className="text-sm text-[#8B949E] mt-1">Configure service and cost details for a new quote.</p>
@@ -343,7 +343,7 @@ export default function QuotesView() {
               </button>
             </div>
             
-            <div className="overflow-y-auto custom-scrollbar flex-1">
+            <div className="overflow-visible flex-1">
               <GenerateQuoteForm token={token} onGenerated={() => fetchQuotes()} onClose={() => setShowGenerateModal(false)} />
             </div>
           </div>
