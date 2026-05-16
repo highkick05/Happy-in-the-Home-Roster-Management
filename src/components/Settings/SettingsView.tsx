@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Upload, FileDown, Plus, Save, X, Database, CheckSquare } from 'lucide-react';
+import { Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink } from 'lucide-react';
 import DatabaseSettings from './DatabaseSettings';
 import TestingChecklist from './TestingChecklist';
 
@@ -325,6 +325,20 @@ export default function SettingsView() {
                   </select>
                   <p className="text-[10px] text-[#8B949E] italic mt-1">Powered by date-holidays library for Australian compliance.</p>
                 </div>
+              </div>
+
+              <div className="col-span-2 border-t border-border-subtle pt-6 mt-6">
+                 <h4 className="text-md font-medium text-[#E6EDF3] mb-4">Kiosk & Monitoring Display</h4>
+                 <div className="bg-brand-navy border border-border-subtle rounded-xl p-5 relative">
+                    <p className="text-sm text-[#8B949E] mb-4">Use this URL to configure standalone, wall-mounted monitoring displays in Kiosk mode. This view dynamically auto-refreshes every 30 seconds.</p>
+                    <div className="flex items-center gap-3">
+                       <input readOnly value={`${window.location.origin}/kiosk/wallboard`} className="flex-1 bg-brand-bg border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none" />
+                       <button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/kiosk/wallboard`)} className="px-4 py-2 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors text-[13px]">Copy Link</button>
+                       <a href="/kiosk/wallboard" target="_blank" rel="noopener noreferrer" className="p-2 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors">
+                          <ExternalLink className="w-4 h-4" />
+                       </a>
+                    </div>
+                 </div>
               </div>
 
               <div className="pt-6">
