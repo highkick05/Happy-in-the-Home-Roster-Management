@@ -147,7 +147,7 @@ export default function ComplianceDashboard() {
       </div>
 
       {activeTab === 'evidence' && (
-        <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-x-auto p-4 md:p-6">
+        <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-visible p-4 md:p-6">
            <h3 className="text-lg font-medium text-[#E6EDF3] flex items-center mb-2"><FileCheck className="w-5 h-5 mr-2 text-brand-teal" /> Generate Client Evidence Pack</h3>
            <p className="text-sm text-[#8B949E] mb-6 max-w-4xl">
              Consolidates the Service Delivery Log, Progress Note Archive, and Transport Evidence into a single standard PDF file ready for NDIA or Home Care auditors.
@@ -170,7 +170,7 @@ export default function ComplianceDashboard() {
               <div className="space-y-1.5">
                  <label className="text-sm font-medium text-[#8B949E]">Start Date</label>
                  <CustomDatePicker 
-                    
+                    position="bottom"
                    value={clientStartDate} 
                    onChange={e => setClientStartDate(e.target.value)}
                    className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal min-h-[42px] transition-colors" 
@@ -179,7 +179,7 @@ export default function ComplianceDashboard() {
               <div className="space-y-1.5">
                  <label className="text-sm font-medium text-[#8B949E]">End Date</label>
                  <CustomDatePicker 
-                    
+                    position="bottom"
                    value={clientEndDate} 
                    onChange={e => setClientEndDate(e.target.value)}
                    className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal min-h-[42px] transition-colors" 
@@ -203,7 +203,7 @@ export default function ComplianceDashboard() {
       )}
 
       {activeTab === 'staff' && (
-         <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-x-auto p-4 md:p-6">
+         <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-visible p-4 md:p-6">
            <h3 className="text-lg font-medium text-[#E6EDF3] flex items-center mb-2"><FileText className="w-5 h-5 mr-2 text-brand-green" /> Generate Staff Logbook (Workforce Compliance)</h3>
            <p className="text-sm text-[#8B949E] mb-6 max-w-4xl">
              Produces an Hours Worked Report and a Vehicle Usage Statement showing precise times, shift statuses, and claimed distance cross-referenced against the immutable audit trail.
@@ -226,7 +226,7 @@ export default function ComplianceDashboard() {
               <div className="space-y-1.5">
                  <label className="text-sm font-medium text-[#8B949E]">Start Date</label>
                  <CustomDatePicker 
-                    
+                    position="bottom"
                    value={staffStartDate} 
                    onChange={e => setStaffStartDate(e.target.value)}
                    className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal min-h-[42px] transition-colors" 
@@ -235,7 +235,7 @@ export default function ComplianceDashboard() {
               <div className="space-y-1.5">
                  <label className="text-sm font-medium text-[#8B949E]">End Date</label>
                  <CustomDatePicker 
-                    
+                    position="bottom"
                    value={staffEndDate} 
                    onChange={e => setStaffEndDate(e.target.value)}
                    className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal min-h-[42px] transition-colors" 
