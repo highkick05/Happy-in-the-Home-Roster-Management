@@ -8,7 +8,7 @@ import { enAU } from 'date-fns/locale/en-AU';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useAuth } from '../../context/AuthContext';
 import ShiftDetailsModal from '../Roster/ShiftDetailsModal';
-import { MonitorSmartphone, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 
 const locales = {
   'en-AU': enAU,
@@ -46,34 +46,6 @@ export default function WallboardView() {
     }
     return 0;
   });
-
-  const [isLandscape, setIsLandscape] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('mode') === 'landscape') return true;
-      if (params.get('mode') === 'portrait') return false;
-      return window.innerWidth > window.innerHeight;
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    const handleResize = () => {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('mode')) return; // Don't auto-switch if forced via URL
-      if (manualMode !== null) return; // Don't auto-switch if user toggled
-      
-      const isRotated90 = rotation === 90 || rotation === 270;
-      const effectiveWidth = isRotated90 ? window.innerHeight : window.innerWidth;
-      const effectiveHeight = isRotated90 ? window.innerWidth : window.innerHeight;
-      setIsLandscape(effectiveWidth > effectiveHeight);
-    };
-    
-    handleResize(); // ensure correct layout on mount / rotate
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [manualMode, rotation]);
 
   const localizer = useMemo(() => {
     const startDayStr = settings?.invoicingStartDay || 'Monday';
@@ -180,61 +152,58 @@ export default function WallboardView() {
 
   const AgendaEvent = ({ event }: { event: ShiftEvent }) => {
     const isCompleted = event.status === 'COMPLETED' || !!event.actualEndTime;
-    const now = new Date();
     const isActuallyRunning = event.status === 'IN_PROGRESS' || (!!event.actualStartTime && !event.actualEndTime);
     const isInProgress = isActuallyRunning && !isCompleted;
     
     // Default to future/neutral
-    let containerClass = "border-l-4 border-zinc-500 bg-zinc-900/40 opacity-90 transition-all rounded-r";
+    let containerClass = "border-l-4 border-zinc-500 opacity-90 transition-all h-full flex flex-col justify-center px-4 py-3";
     
     if (isCompleted) {
-      containerClass = "opacity-50 border-l-4 border-blue-500 bg-zinc-900/10 transition-all rounded-r";
+      containerClass = "opacity-50 border-l-4 border-blue-500 transition-all h-full flex flex-col justify-center px-4 py-3";
     } else if (isInProgress) {
-      containerClass = "border-l-4 border-emerald-500 bg-emerald-950/30 transition-all rounded-r border pulse-border";
+      containerClass = "border-l-4 border-emerald-500 bg-emerald-950/20 transition-all pulse-border h-full flex flex-col justify-center px-4 py-3";
     }
 
     return (
-      <div className={`flex flex-col w-full ${isLandscape ? 'h-full p-3' : 'h-auto py-5 px-4'} hover:brightness-110 cursor-pointer ${containerClass}`}>
-        <div className="flex flex-col justify-center h-full min-h-[5rem]">
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <span className={`font-mono ${isLandscape ? 'text-lg md:text-xl' : 'text-lg md:text-2xl'} ${isInProgress ? 'text-emerald-400 font-bold' : 'text-brand-teal font-medium'}`}>
-              {event.staffName || 'Unassigned'}
+      <div className={`w-full hover:brightness-110 cursor-pointer ${containerClass}`}>
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className={`font-mono text-lg md:text-xl lg:text-2xl ${isInProgress ? 'text-emerald-400 font-bold' : 'text-brand-teal font-medium'}`}>
+            {event.staffName || 'Unassigned'}
+          </span>
+          {isInProgress && (
+            <span className="flex items-center ml-2">
+              <span className="flex h-2 w-2 relative mr-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="text-xs bg-emerald-500/20 text-emerald-300 font-medium px-2 py-0.5 rounded-full uppercase whitespace-nowrap">
+                In Progress
+              </span>
             </span>
-            {isInProgress && (
-              <span className="flex items-center ml-2">
-                <span className="flex h-2 w-2 relative mr-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="text-xs bg-emerald-500/20 text-emerald-300 font-medium px-2 py-0.5 rounded-full uppercase whitespace-nowrap">
-                  In Progress
-                </span>
-              </span>
-            )}
-            {isCompleted && (
-              <span className="text-xs bg-blue-500/20 text-blue-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
-                Completed
-              </span>
-            )}
-            {!isInProgress && !isCompleted && event.status !== 'DRAFT' && (
-              <span className="text-xs bg-zinc-500/20 text-zinc-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
-                Scheduled
-              </span>
-            )}
-            {event.status === 'DRAFT' && (
-              <span className="text-xs bg-orange-500/20 text-orange-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
-                Draft
-              </span>
-            )}
-          </div>
-          
-          <div className={`font-sans font-bold ${isInProgress ? 'text-emerald-50' : 'text-[#E6EDF3]'} leading-tight mb-1.5 ${isLandscape ? 'text-xl md:text-2xl' : 'text-2xl md:text-3xl'}`}>
-            {event.clientName || 'Unknown Client'}
-          </div>
-          
-          <div className={`font-sans ${isInProgress ? 'text-emerald-200' : 'text-[#8B949E]'} ${isLandscape ? 'text-xs md:text-sm' : 'text-sm md:text-lg'}`}>
-            {event.serviceName || (event.isRespiteWrapper ? 'STA / Respite' : 'Support Worker')} 
-          </div>
+          )}
+          {isCompleted && (
+            <span className="text-xs bg-blue-500/20 text-blue-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
+              Completed
+            </span>
+          )}
+          {!isInProgress && !isCompleted && event.status !== 'DRAFT' && (
+            <span className="text-xs bg-zinc-500/20 text-zinc-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
+              Scheduled
+            </span>
+          )}
+          {event.status === 'DRAFT' && (
+            <span className="text-xs bg-orange-500/20 text-orange-300 font-medium px-2 py-0.5 rounded-full ml-2 uppercase whitespace-nowrap">
+              Draft
+            </span>
+          )}
+        </div>
+        
+        <div className={`font-sans font-bold ${isInProgress ? 'text-emerald-50' : 'text-[#E6EDF3]'} leading-tight mb-1 text-xl md:text-2xl lg:text-3xl`}>
+          {event.clientName || 'Unknown Client'}
+        </div>
+        
+        <div className={`font-sans ${isInProgress ? 'text-emerald-200' : 'text-[#8B949E]'} text-sm md:text-md lg:text-lg`}>
+          {event.serviceName || (event.isRespiteWrapper ? 'STA / Respite' : 'Support Worker')} 
         </div>
       </div>
     );
@@ -325,46 +294,64 @@ export default function WallboardView() {
         }
 
         /* Layout Overrides */
-        .rbc-agenda-table, .rbc-agenda-table tbody {
-          border-color: #3f3f46;
+        .rbc-agenda-view table.rbc-agenda-table {
+          border-spacing: 0 1rem;
+          border-collapse: separate;
+          border: none;
         }
         .rbc-agenda-table {
           table-layout: fixed;
           width: 100%;
         }
         .rbc-agenda-table > thead > tr > th.rbc-agenda-date-cell {
-          width: ${!isLandscape ? '25%' : '18%'};
+          width: 25%;
         }
         .rbc-agenda-table > thead > tr > th.rbc-agenda-time-cell {
-          width: ${!isLandscape ? '30%' : '22%'};
+          width: 20%;
         }
         .rbc-agenda-table > thead > tr > th {
-          border-bottom: 1px solid #3f3f46;
-          padding: 1rem;
+          border-bottom: 2px solid #3f3f46;
+          padding: 0.5rem 1rem;
           color: #8B949E;
           font-weight: 500;
           text-align: left;
         }
+        .rbc-agenda-table > tbody > tr {
+          background-color: #18181b;
+          border-radius: 0.75rem;
+          box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+          transition: transform 0.2s;
+        }
+        .rbc-agenda-table > tbody > tr:hover {
+          transform: translateY(-2px);
+        }
         .rbc-agenda-table > tbody > tr > td {
-          border-color: #3f3f46;
-          border-bottom: 1px solid #27272a;
+          border: none;
+          padding: 1rem;
+          vertical-align: middle;
         }
         .rbc-agenda-date-cell {
-          padding: 1rem;
           font-weight: 600;
           color: #E6EDF3;
+          border-top-left-radius: 0.75rem;
+          border-bottom-left-radius: 0.75rem;
+          border-right: 1px solid #27272a;
         }
         .rbc-agenda-time-cell {
-          padding: 1rem;
-          font-size: ${!isLandscape ? '1.1rem' : '1.25rem'};
+          font-size: 1.15rem;
           color: #d4d4d8;
+          border-right: 1px solid #27272a;
+          white-space: nowrap;
         }
         .rbc-agenda-event-cell {
           padding: 0 !important;
-          vertical-align: middle;
+          border-top-right-radius: 0.75rem;
+          border-bottom-right-radius: 0.75rem;
+          overflow: hidden;
         }
         .rbc-agenda-event-cell > div { 
            width: 100%;
+           height: 100%;
         }
       `}</style>
       
@@ -391,7 +378,7 @@ export default function WallboardView() {
               }
             }}
             className="flex-1 rounded-xl bg-zinc-950 overflow-hidden h-full min-h-[600px]"
-            length={isLandscape ? 7 : 3} // Show more days in landscape?
+            length={7} // Show a full week
           />
         </div>
       </div>
@@ -421,31 +408,11 @@ export default function WallboardView() {
           onClick={() => {
             const nextVal = (rotation + 90) % 360;
             setRotation(nextVal);
-            
-            // Re-evaluate landscape mode immediately
-            const rotated = nextVal === 90 || nextVal === 270;
-            const effectiveWidth = rotated ? window.innerHeight : window.innerWidth;
-            const effectiveHeight = rotated ? window.innerWidth : window.innerHeight;
-            if (manualMode === null) {
-              setIsLandscape(effectiveWidth > effectiveHeight);
-            }
           }}
           className="p-3 bg-zinc-900 border border-zinc-700 rounded-full shadow-lg text-zinc-400 hover:text-white"
-          title="Rotate Screen"
+          title="Rotate Display"
         >
           <RotateCw className="w-5 h-5" />
-        </button>
-
-        <button 
-          onClick={() => {
-            const nextVal = !isLandscape;
-            setIsLandscape(nextVal);
-            setManualMode(nextVal);
-          }}
-          className="p-3 bg-zinc-900 border border-zinc-700 rounded-full shadow-lg text-zinc-400 hover:text-white"
-          title="Toggle Orientation Styles"
-        >
-          <MonitorSmartphone className="w-5 h-5" />
         </button>
       </div>
 
