@@ -4,14 +4,14 @@ import { format } from 'date-fns/format';
 import { parse } from 'date-fns/parse';
 import { startOfWeek } from 'date-fns/startOfWeek';
 import { getDay } from 'date-fns/getDay';
-import { enUS } from 'date-fns/locale/en-US';
+import { enAU } from 'date-fns/locale/en-AU';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { useAuth } from '../../context/AuthContext';
 import ShiftDetailsModal from '../Roster/ShiftDetailsModal';
 import { MonitorSmartphone, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 
 const locales = {
-  'en-US': enUS,
+  'en-AU': enAU,
 };
 
 export interface ShiftEvent {
@@ -315,31 +315,31 @@ export default function WallboardView() {
         ${!isLandscape ? `
           /* PORTRAIT OVERRIDES: Build stacked cards */
           .rbc-agenda-table thead {
-            display: none; /* Hide header row in portrait */
+            display: none !important; /* Hide header row in portrait */
           }
           .rbc-agenda-table, .rbc-agenda-table tbody, .rbc-agenda-table tr, .rbc-agenda-table td {
-            display: block; 
-            width: 100%;
+            display: block !important; 
+            width: 100% !important;
           }
           .rbc-agenda-table tr {
-            margin-bottom: 1.5rem;
-            border: 1px solid #3f3f46;
-            border-radius: 0.75rem;
-            background: #18181b;
-            overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+            margin-bottom: 1.5rem !important;
+            border: 1px solid #3f3f46 !important;
+            border-radius: 0.75rem !important;
+            background: #18181b !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3) !important;
           }
           .rbc-agenda-table tbody > tr > td {
-            border: none;
+            border: none !important;
           }
           .rbc-agenda-date-cell {
-            padding: 1rem 1rem 0.25rem 1.25rem;
+            padding: 1rem 1rem 0.25rem 1.25rem !important;
           }
           .rbc-agenda-time-cell {
-            padding: 0 1rem 0.75rem 1.25rem;
-            border-bottom: 1px solid #3f3f46;
-            font-size: 1.25rem;
-            color: #d4d4d8;
+            padding: 0 1rem 0.75rem 1.25rem !important;
+            border-bottom: 1px solid #3f3f46 !important;
+            font-size: 1.25rem !important;
+            color: #d4d4d8 !important;
           }
           .rbc-agenda-event-cell {
             padding: 0 !important;
@@ -368,6 +368,12 @@ export default function WallboardView() {
             defaultView={Views.AGENDA}
             view={Views.AGENDA}
             views={[Views.AGENDA]}
+            culture="en-AU"
+            formats={{
+              agendaDateFormat: 'dd/MM/yyyy',
+              agendaHeaderFormat: ({ start, end }: any, culture: any, localizer: any) => 
+                `${localizer.format(start, 'dd/MM/yyyy', culture)} – ${localizer.format(end, 'dd/MM/yyyy', culture)}`
+            }}
             onSelectEvent={handleSelectEvent}
             components={{
               agenda: {
