@@ -98,7 +98,7 @@ export default function WallboardView() {
       
       try {
         if (data.author && data.author !== 'Unknown' && !data.author.includes('Proverb')) {
-            const wikiRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(data.author)}&prop=pageimages&format=json&pithumbsize=200&origin=*`);
+            const wikiRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(data.author)}&prop=pageimages&format=json&pithumbsize=200&origin=*&redirects=1`);
             const wikiData = await wikiRes.json();
             const pages = wikiData.query?.pages;
             if (pages) {
