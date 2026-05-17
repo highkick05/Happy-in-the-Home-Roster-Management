@@ -2413,14 +2413,45 @@ if (!nextShift || gapToNext > 60) {
 
   app.get('/api/awesome-quotes/daily', (req, res) => {
     try {
-      const quotesModule = require('awesome-quotes');
-      quotesModule.getQuote('computers', 'en', (err: any, quote: any) => {
-        if (err || !quote) {
-            console.error('Error fetching quote:', err);
-            return res.json({ quote: 'Always code as if the guy who ends up maintaining your code will be a violent psychopath who knows where you live.', author: 'John Woods' });
-        }
-        res.json({ quote: quote.text || quote.quote || quote.QUOTE || 'Keep pushing boundaries!', author: quote.author || quote.AUTHOR || 'Unknown' });
-      });
+      const quotes = [
+        { quote: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+        { quote: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
+        { quote: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
+        { quote: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+        { quote: "Act as if what you do makes a difference. It does.", author: "William James" },
+        { quote: "What you get by achieving your goals is not as important as what you become by achieving your goals.", author: "Zig Ziglar" },
+        { quote: "I can't change the direction of the wind, but I can adjust my sails to always reach my destination.", author: "Jimmy Dean" },
+        { quote: "You are never too old to set another goal or to dream a new dream.", author: "C.S. Lewis" },
+        { quote: "Limit your 'always' and your 'nevers'.", author: "Amy Poehler" },
+        { quote: "Nothing is impossible. The word itself says 'I'm possible!'", author: "Audrey Hepburn" },
+        { quote: "You are enough just as you are.", author: "Meghan Markle" },
+        { quote: "Keep your face always toward the sunshine, and shadows will fall behind you.", author: "Walt Whitman" },
+        { quote: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
+        { quote: "You define your own life. Don't let other people write your script.", author: "Oprah Winfrey" },
+        { quote: "Spread love everywhere you go.", author: "Mother Teresa" },
+        { quote: "Do what you can, with what you have, where you are.", author: "Theodore Roosevelt" },
+        { quote: "The best way to predict the future is to create it.", author: "Abraham Lincoln" },
+        { quote: "Happiness is not something ready made. It comes from your own actions.", author: "Dalai Lama" },
+        { quote: "The only limit to our realization of tomorrow will be our doubts of today.", author: "Franklin D. Roosevelt" },
+        { quote: "We generate fears while we sit. We overcome them by action.", author: "Dr. Henry Link" },
+        { quote: "Whether you think you can or think you can't, you're right.", author: "Henry Ford" },
+        { quote: "Security is mostly a superstition. Life is either a daring adventure or nothing.", author: "Helen Keller" },
+        { quote: "The man who has confidence in himself gains the confidence of others.", author: "Hasidic Proverb" },
+        { quote: "The pessimist sees difficulty in every opportunity. The optimist sees opportunity in every difficulty.", author: "Winston Churchill" },
+        { quote: "Don't let yesterday take up too much of today.", author: "Will Rogers" },
+        { quote: "You learn more from failure than from success. Don't let it stop you.", author: "Unknown" },
+        { quote: "If you are working on something that you really care about, you don't have to be pushed. The vision pulls you.", author: "Steve Jobs" },
+        { quote: "People who are crazy enough to think they can change the world, are the ones who do.", author: "Rob Siltanen" },
+        { quote: "Failure will never overtake me if my determination to succeed is strong enough.", author: "Og Mandino" },
+        { quote: "Entrepreneurs are great at dealing with uncertainty and also very good at minimizing risk.", author: "Mohnish Pabrai" },
+        { quote: "We may encounter many defeats but we must not be defeated.", author: "Maya Angelou" },
+        { quote: "Knowing is not enough; we must apply. Wishing is not enough; we must do.", author: "Johann Wolfgang Von Goethe" },
+        { quote: "Imagine your life is perfect in every respect; what would it look like?", author: "Brian Tracy" }
+      ];
+      // Use days since epoch to pick a consistent daily quote that cycles through the array over time
+      const dayIndex = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+      const dailyQuote = quotes[dayIndex % quotes.length];
+      res.json(dailyQuote);
     } catch (err) {
       res.json({ quote: 'Innovation distinguishes between a leader and a follower.', author: 'Steve Jobs' });
     }

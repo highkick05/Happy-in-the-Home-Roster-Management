@@ -33,7 +33,7 @@ export default function WallboardView() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [manualMode, setManualMode] = useState<boolean | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const [dailyQuote, setDailyQuote] = useState<{quote: string; author: string} | null>(null);
+  const [dailyQuote, setDailyQuote] = useState<{quote: string; author: string; imageUrl?: string} | null>(null);
   const [isToolbarVisible, setIsToolbarVisible] = useState(true);
   const toolbarTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isFlickering, setIsFlickering] = useState(false);
@@ -95,6 +95,23 @@ export default function WallboardView() {
     try {
       const res = await fetch('/api/awesome-quotes/daily');
       const data = await res.json();
+      
+      try {
+        if (data.author && data.author !== 'Unknown' && !data.author.includes('Proverb')) {
+            const wikiRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(data.author)}&prop=pageimages&format=json&pithumbsize=200&origin=*`);
+            const wikiData = await wikiRes.json();
+            const pages = wikiData.query?.pages;
+            if (pages) {
+                const pageValues = Object.values(pages)[0] as any;
+                if (pageValues.thumbnail?.source) {
+                    data.imageUrl = pageValues.thumbnail.source;
+                }
+            }
+        }
+      } catch (e) {
+          console.error("Failed to fetch wiki image", e);
+      }
+
       setDailyQuote(data);
     } catch(e) {
        console.error(e);
@@ -385,8 +402,19 @@ export default function WallboardView() {
                 transition={{ duration: 0.8 }}
                 className="text-center w-full max-w-4xl mx-auto flex flex-col items-center justify-center"
               >
-                <p className="text-sm md:text-base font-medium text-zinc-200 italic leading-snug">"{dailyQuote.quote}"</p>
-                <p className="text-xs md:text-sm text-brand-teal mt-0.5 font-semibold tracking-wide uppercase">— {dailyQuote.author}</p>
+                <div className="flex items-center justify-center gap-4">
+                  {dailyQuote.imageUrl && (
+                    <img 
+                      src={dailyQuote.imageUrl} 
+                      alt={dailyQuote.author} 
+                      className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border border-zinc-700 shadow-sm"
+                    />
+                  )}
+                  <div className="flex flex-col items-center md:items-start text-center md:text-left">
+                    <p className="text-sm md:text-base font-medium text-zinc-200 italic leading-snug">"{dailyQuote.quote}"</p>
+                    <p className="text-xs md:text-sm text-brand-teal mt-0.5 font-semibold tracking-wide uppercase">— {dailyQuote.author}</p>
+                  </div>
+                </div>
               </motion.div>
             ) : (
                <div className="h-8 md:h-10 w-full animate-pulse bg-zinc-800/50 rounded-md"></div>
