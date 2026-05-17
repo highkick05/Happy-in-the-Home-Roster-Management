@@ -265,6 +265,8 @@ db.exec(`
     uploaded_by INTEGER NOT NULL,
     region TEXT,
     folder_path TEXT DEFAULT '/',
+    date_issued TEXT,
+    date_expires TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE RESTRICT
   );
@@ -421,6 +423,14 @@ try {
 
 try {
   db.exec("ALTER TABLE files ADD COLUMN folder_path TEXT DEFAULT '/'");
+} catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
+
+try {
+  db.exec("ALTER TABLE files ADD COLUMN date_issued TEXT");
+} catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
+
+try {
+  db.exec("ALTER TABLE files ADD COLUMN date_expires TEXT");
 } catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
 
 try {
@@ -601,10 +611,12 @@ try {
       uploaded_by INTEGER NOT NULL,
       region TEXT,
       folder_path TEXT DEFAULT '/',
+      date_issued TEXT,
+      date_expires TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE RESTRICT
     );
-    INSERT OR IGNORE INTO files_new (id, original_name, system_name, size, uploaded_by, region, folder_path, created_at) SELECT id, original_name, system_name, size, uploaded_by, region, folder_path, created_at FROM files;
+    INSERT OR IGNORE INTO files_new (id, original_name, system_name, size, uploaded_by, region, folder_path, date_issued, date_expires, created_at) SELECT id, original_name, system_name, size, uploaded_by, region, folder_path, date_issued, date_expires, created_at FROM files;
     DROP TABLE files;
     ALTER TABLE files_new RENAME TO files;
 
