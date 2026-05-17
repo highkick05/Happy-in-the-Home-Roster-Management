@@ -755,22 +755,29 @@ async function startServer() {
     if (waypoints.length < 2) return 0;
     try {
       const toWaypointInfo = (wp: any) => {
-        if (Array.isArray(wp)) return { location: { latLng: { latitude: wp[1], longitude: wp[0] } } };
-        if (wp.placeId) return { placeId: wp.placeId };
+        if (Array.isArray(wp)) {
+          return { location: { latLng: { latitude: Number(wp[1]), longitude: Number(wp[0]) } } };
+        }
+        if (wp.placeId) {
+          return { placeId: wp.placeId };
+        }
         return null;
       };
       
       const validWaypoints = waypoints.map(toWaypointInfo).filter(Boolean);
       if (validWaypoints.length < 2) return 0;
 
-      const payload = {
+      const payload: any = {
         origin: validWaypoints[0],
         destination: validWaypoints[validWaypoints.length - 1],
-        intermediates: validWaypoints.slice(1, -1),
         travelMode: 'DRIVING'
       };
 
-      const apiKey = process.env.Maps_API_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
+      if (validWaypoints.length > 2) {
+        payload.intermediates = validWaypoints.slice(1, -1);
+      }
+
+      const apiKey = process.env.Maps_API_KEY || process.env.Maps_PLATFORM_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
       if (!apiKey) {
         console.error('[CRITICAL Routes API] Missing Maps_API_KEY. Returning 0 distance.');
         return 0;
@@ -816,7 +823,7 @@ async function startServer() {
       }
 
       // Geocode via Google Geocoding API
-      const apiKey = process.env.Maps_API_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
+      const apiKey = process.env.Maps_API_KEY || process.env.Maps_PLATFORM_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
       const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText)}&key=${apiKey}`;
       console.log(`[DEBUG Geocode] Sending address string to Google API for ${tableName} ID ${recordId}: "${addressText}"`);
       
@@ -2200,7 +2207,7 @@ async function startServer() {
             }
           }
         };
-        const apiKey = process.env.Maps_API_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
+        const apiKey = process.env.Maps_API_KEY || process.env.Maps_PLATFORM_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
         const response = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
           method: 'POST',
           headers: {
@@ -2244,14 +2251,16 @@ async function startServer() {
     }
     try {
       const validWaypoints = placeIds.map((id: string) => ({ placeId: id }));
-      const payload = {
+      const payload: any = {
         origin: validWaypoints[0],
         destination: validWaypoints[validWaypoints.length - 1],
-        intermediates: validWaypoints.slice(1, -1),
         travelMode: 'DRIVING'
       };
+      if (validWaypoints.length > 2) {
+        payload.intermediates = validWaypoints.slice(1, -1);
+      }
 
-      const apiKey = process.env.Maps_API_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
+      const apiKey = process.env.Maps_API_KEY || process.env.Maps_PLATFORM_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
       const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
         method: 'POST',
         headers: {
