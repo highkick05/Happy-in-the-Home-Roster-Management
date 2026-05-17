@@ -791,7 +791,7 @@ async function startServer() {
       const payload: any = {
         origin: validWaypoints[0],
         destination: validWaypoints[validWaypoints.length - 1],
-        travelMode: 'DRIVING'
+        travelMode: 'DRIVE'
       };
 
       if (validWaypoints.length > 2) {
@@ -2275,7 +2275,7 @@ async function startServer() {
       const payload: any = {
         origin: validWaypoints[0],
         destination: validWaypoints[validWaypoints.length - 1],
-        travelMode: 'DRIVING'
+        travelMode: 'DRIVE'
       };
       if (validWaypoints.length > 2) {
         payload.intermediates = validWaypoints.slice(1, -1);
