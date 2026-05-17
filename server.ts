@@ -1329,6 +1329,15 @@ if (!nextShift || gapToNext > 60) {
     const dist = await getGoogleRoutesDistance(currentShiftCoords, staffHomeCoords);
     totalDistance += dist;
     travelBreakdown.push(`[100% Return Trip]: Client to Home = ${dist.toFixed(2)} km`);
+} else {
+    const nextAddress = db.prepare('SELECT address FROM clients WHERE id = ?').get(nextShift.client_id) as any;
+    let rawNextCoords = await getRecordCoordinates('clients', nextShift.client_id, nextAddress?.address);
+    let nextCoords = rawNextCoords ? [Number(rawNextCoords[0]), Number(rawNextCoords[1])] : [0,0];
+
+    const fullDist = await getGoogleRoutesDistance(currentShiftCoords, nextCoords);
+    const splitDist = fullDist / 2;
+    totalDistance += splitDist;
+    travelBreakdown.push(`[50% Transitional Split]: Current Client to Next = ${splitDist.toFixed(2)} km`);
 }
 // --- END NDIS CASCADE LOGIC ---
 
