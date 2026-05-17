@@ -1238,7 +1238,7 @@ async function startServer() {
                     const name = service.name.toLowerCase();
                     if (name.includes('provider travel')) {
                       let billableValue = pTravel.distance; // Fallback
-                      if (pTravel.minutes !== undefined) {
+                      if (pTravel.minutes !== undefined && !name.includes('non-labour')) {
                          const unitStr = (service.unit || 'Hour').toLowerCase();
                          billableValue = (unitStr.includes('minute') || unitStr === 'min') ? pTravel.minutes : pTravel.minutes / 60;
                       }
@@ -1272,7 +1272,7 @@ async function startServer() {
               if (service && service.name && service.name.toLowerCase().includes('provider travel')) {
                 const schedTravel = await calculateScheduledProviderTravel(shift.staff_id, shift.start_time, shift.end_time, shift.client_id, shift.id);
                 let billableValue = schedTravel.distance;
-                if (schedTravel.minutes !== undefined && schedTravel.minutes > 0) {
+                if (schedTravel.minutes !== undefined && schedTravel.minutes > 0 && !service.name.toLowerCase().includes('non-labour')) {
                    const unitStr = (service.unit || 'Hour').toLowerCase();
                    billableValue = (unitStr.includes('minute') || unitStr === 'min') ? schedTravel.minutes : schedTravel.minutes / 60;
                 }
@@ -3355,7 +3355,7 @@ async function startServer() {
             } else if (name.includes('provider travel')) {
               const schedTravel = await calculateScheduledProviderTravel(singleStaffId, startTime, endTime, clientId);
               let billableValue = schedTravel.distance;
-              if (schedTravel.minutes !== undefined && schedTravel.minutes > 0) {
+              if (schedTravel.minutes !== undefined && schedTravel.minutes > 0 && !name.includes('non-labour')) {
                  const unitStr = (srv.unit || 'Hour').toLowerCase();
                  billableValue = (unitStr.includes('minute') || unitStr === 'min') ? schedTravel.minutes : schedTravel.minutes / 60;
               }
@@ -3683,7 +3683,7 @@ async function startServer() {
                   changed = true;
                 } else if (name.includes('provider travel')) {
                   let billableValue = pTravel.distance; // Fallback
-                  if (pTravel.minutes !== undefined) {
+                  if (pTravel.minutes !== undefined && !name.includes('non-labour')) {
                      const unitStr = (service.unit || 'Hour').toLowerCase();
                      billableValue = (unitStr.includes('minute') || unitStr === 'min') ? pTravel.minutes : pTravel.minutes / 60;
                   }
