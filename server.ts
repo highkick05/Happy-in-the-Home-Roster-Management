@@ -786,9 +786,9 @@ async function startServer() {
         return [record.longitude, record.latitude]; // OSRM uses [lon, lat]
       }
 
-      // Geocode via Photon with retry logic
-      const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(addressText)}&limit=1`;
-      console.log(`[DEBUG Geocode] Sending address string to Photon for ${tableName} ID ${recordId}: "${addressText}" via URL: ${photonUrl}`);
+      // Geocode via Nominatim with retry logic
+      const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addressText)}&format=geojson&limit=1`;
+      console.log(`[DEBUG Geocode] Sending address string to Nominatim for ${tableName} ID ${recordId}: "${addressText}" via URL: ${geoUrl}`);
       
       let res;
       let attempts = 0;
@@ -796,22 +796,26 @@ async function startServer() {
       
       while (attempts <= maxAttempts) {
         try {
-          res = await fetch(photonUrl);
+          res = await fetch(geoUrl, {
+            headers: {
+              'User-Agent': 'HappyInTheHome/1.0 (mattwillis02@gmail.com)'
+            }
+          });
           if (res.ok) break;
-          if (res.status === 502 || res.status === 503 || res.status === 504) {
+          if (res.status === 502 || res.status === 503 || res.status === 504 || res.status === 429) {
             attempts++;
             if (attempts <= maxAttempts) {
-              console.log(`[DEBUG Geocode] Photon returned ${res.status}, retrying (${attempts}/${maxAttempts})...`);
-              await new Promise(resolve => setTimeout(resolve, 500));
+              console.log(`[DEBUG Geocode] Nominatim returned ${res.status}, retrying (${attempts}/${maxAttempts})...`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
               continue;
             }
           }
-          throw new Error(`Photon responded with status ${res.status}`);
+          throw new Error(`Nominatim responded with status ${res.status}`);
         } catch (err) {
           attempts++;
           if (attempts <= maxAttempts) {
             console.log(`[DEBUG Geocode] Fetch error, retrying (${attempts}/${maxAttempts})...`, err);
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
             continue;
           }
           throw err;
@@ -819,14 +823,14 @@ async function startServer() {
       }
 
       if (!res || !res.ok) {
-        throw new Error(`Failed to fetch from Photon after ${attempts} attempts`);
+        throw new Error(`Failed to fetch from Nominatim after ${attempts} attempts`);
       }
 
       const data = await res.json();
 
       if (data.features && data.features.length > 0) {
         const coords = data.features[0].geometry.coordinates; // [lon, lat]
-        console.log(`[DEBUG Geocode] Photon returning coordinates for ${tableName} ID ${recordId}: [${coords[0]}, ${coords[1]}]`);
+        console.log(`[DEBUG Geocode] Nominatim returning coordinates for ${tableName} ID ${recordId}: [${coords[0]}, ${coords[1]}]`);
         db.prepare(`UPDATE ${tableName} SET longitude = ?, latitude = ? WHERE id = ?`).run(coords[0], coords[1], recordId);
         return coords;
       } else {
@@ -2159,21 +2163,37 @@ async function startServer() {
     
     async function attemptFetch(): Promise<any> {
       try {
-        const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(String(q))}&limit=5`;
-        const response = await fetch(photonUrl);
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(String(q))}&format=geojson&limit=5`;
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'HappyInTheHome/1.0 (mattwillis02@gmail.com)'
+          }
+        });
         if (!response.ok) {
-          if ((response.status === 502 || response.status === 503 || response.status === 504) && attempts < maxAttempts) {
+          if ((response.status === 502 || response.status === 503 || response.status === 504 || response.status === 429) && attempts < maxAttempts) {
             attempts++;
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
             return attemptFetch();
           }
-          throw new Error(`Photon responded with status ${response.status}`);
+          throw new Error(`Geocode service responded with status ${response.status}`);
         }
-        return await response.json();
+        const data = await response.json();
+        if (data.features) {
+          data.features = data.features.map((f: any) => ({
+            ...f,
+            properties: {
+              ...f.properties,
+              name: f.properties.name || f.properties.display_name.split(',')[0],
+              city: f.properties.city || f.properties.display_name.split(',')[1]?.trim(),
+              state: f.properties.state || f.properties.display_name.split(',').pop()?.trim()
+            }
+          }));
+        }
+        return data;
       } catch (err) {
         if (attempts < maxAttempts) {
           attempts++;
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 1000));
           return attemptFetch();
         }
         throw err;
