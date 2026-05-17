@@ -1276,59 +1276,48 @@ async function startServer() {
            const clientCoords = await getRecordCoordinates('clients', shift.client_id, shift.c_address);
            const clientHomeStr = `Client Home (${shift.c_address || 'Unknown'}) ${formatCoords(clientCoords)}`;
 
-           let prevNdisShift = null;
-           for (let j = i - 1; j >= 0; j--) {
-               if (shifts[j].funding_type === 'NDIS' && !shifts[j].respite_booking_id) {
-                   prevNdisShift = shifts[j];
-                   break;
-               }
-           }
+           const currentShift = shift;
+           const prevShift = i > 0 ? shifts[i - 1] : null;
+           const nextShift = i < shifts.length - 1 ? shifts[i + 1] : null;
 
-           let nextNdisShift = null;
-           for (let j = i + 1; j < shifts.length; j++) {
-               if (shifts[j].funding_type === 'NDIS' && !shifts[j].respite_booking_id) {
-                   nextNdisShift = shifts[j];
-                   break;
-               }
-           }
+           const gapToPrev = prevShift ? (new Date(currentShift.start_time).getTime() - new Date(prevShift.end_time).getTime()) / 60000 : Infinity;
+           const gapToNext = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(currentShift.end_time).getTime()) / 60000 : Infinity;
 
            let totalDist = 0;
            let totalMins = 0;
 
-           // Incoming Leg
-           const prevGapMins = prevNdisShift ? (new Date(shift.start_time).getTime() - new Date(prevNdisShift.end_time).getTime()) / 60000 : Infinity;
-           if (prevNdisShift && prevGapMins >= 0 && prevGapMins <= 60) {
-             const prevClientCoords = await getRecordCoordinates('clients', prevNdisShift.client_id, prevNdisShift.c_address);
-             const prevClientStr = `Previous Client (${prevNdisShift.c_address || 'Unknown'}) ${formatCoords(prevClientCoords)}`;
+           // LEG 1 (ARRIVAL)
+           if (!prevShift || gapToPrev > 60) {
+             const { distance: distHome, minutes: minsHome } = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
+             totalDist += distHome;
+             totalMins += minsHome;
+             pTravel.routeLogs.push({ description: `(100% Allocation) ${staffHomeStr} to ${clientHomeStr}`, distance: distHome, durationMins: minsHome, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: currentShift.c_address });
+           } else {
+             const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevShift.c_address);
+             const prevClientStr = `Previous Client (${prevShift.c_address || 'Unknown'}) ${formatCoords(prevClientCoords)}`;
              const { distance, minutes } = await getGoogleRoutesDistance([prevClientCoords, clientCoords]); 
              const apportionedDist = distance / 2;
              const apportionedMins = minutes / 2;
              totalDist += apportionedDist;
              totalMins += apportionedMins;
-             pTravel.routeLogs.push({ description: `(50% Apportionment) ${prevClientStr} to ${clientHomeStr}`, distance: apportionedDist, durationMins: apportionedMins, waypoints: [prevClientCoords, clientCoords], addressStart: prevNdisShift.c_address, addressEnd: shift.c_address });
-           } else {
-             const { distance: distHome, minutes: minsHome } = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
-             totalDist += distHome;
-             totalMins += minsHome;
-             pTravel.routeLogs.push({ description: `(100% Allocation) ${staffHomeStr} to ${clientHomeStr}`, distance: distHome, durationMins: minsHome, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: shift.c_address });
+             pTravel.routeLogs.push({ description: `(50% Apportionment) ${prevClientStr} to ${clientHomeStr}`, distance: apportionedDist, durationMins: apportionedMins, waypoints: [prevClientCoords, clientCoords], addressStart: prevShift.c_address, addressEnd: currentShift.c_address });
            }
 
-           // Outgoing Leg
-           const nextGapMins = nextNdisShift ? (new Date(nextNdisShift.start_time).getTime() - new Date(shift.end_time).getTime()) / 60000 : Infinity;
-           if (nextNdisShift && nextGapMins >= 0 && nextGapMins <= 60) {
-             const nextClientCoords = await getRecordCoordinates('clients', nextNdisShift.client_id, nextNdisShift.c_address);
-             const nextClientStr = `Next Client (${nextNdisShift.c_address || 'Unknown'}) ${formatCoords(nextClientCoords)}`;
+           // LEG 2 (DEPARTURE)
+           if (nextShift && gapToNext <= 60) {
+             const nextClientCoords = await getRecordCoordinates('clients', nextShift.client_id, nextShift.c_address);
+             const nextClientStr = `Next Client (${nextShift.c_address || 'Unknown'}) ${formatCoords(nextClientCoords)}`;
              const { distance, minutes } = await getGoogleRoutesDistance([clientCoords, nextClientCoords]);
              const apportionedDist = distance / 2;
              const apportionedMins = minutes / 2;
              totalDist += apportionedDist;
              totalMins += apportionedMins;
-             pTravel.routeLogs.push({ description: `(50% Apportionment) ${clientHomeStr} to ${nextClientStr}`, distance: apportionedDist, durationMins: apportionedMins, waypoints: [clientCoords, nextClientCoords], addressStart: shift.c_address, addressEnd: nextNdisShift.c_address });
+             pTravel.routeLogs.push({ description: `(50% Apportionment) ${clientHomeStr} to ${nextClientStr}`, distance: apportionedDist, durationMins: apportionedMins, waypoints: [clientCoords, nextClientCoords], addressStart: currentShift.c_address, addressEnd: nextShift.c_address });
            } else {
              const { distance: distReturn, minutes: minsReturn } = await getGoogleRoutesDistance([clientCoords, staffHomeCoords]);
              totalDist += distReturn;
              totalMins += minsReturn;
-             pTravel.routeLogs.push({ description: `(100% Allocation) ${clientHomeStr} to Staff Home (Return trip)`, distance: distReturn, durationMins: minsReturn, waypoints: [clientCoords, staffHomeCoords], addressStart: shift.c_address, addressEnd: staff?.address });
+             pTravel.routeLogs.push({ description: `(100% Allocation) ${clientHomeStr} to Staff Home (Return trip)`, distance: distReturn, durationMins: minsReturn, waypoints: [clientCoords, staffHomeCoords], addressStart: currentShift.c_address, addressEnd: staff?.address });
            }
 
            // Enforce MMM6 Boundary Checks (Hard cap at 60 mins)
