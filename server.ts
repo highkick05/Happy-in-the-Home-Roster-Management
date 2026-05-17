@@ -1253,9 +1253,21 @@ async function startServer() {
            totalDistance = Number(dist1) + Number(dist2);
            travelBreakdown.push(`[HCP Return-to-Base]: Home to Client = ${Number(dist1).toFixed(2)} km`);
            travelBreakdown.push(`[HCP Return-to-Base]: Client to Home = ${Number(dist2).toFixed(2)} km`);
+
+           // Update services_json so the UI reflects the math
+           let servicesData = [];
+           if (currentShift.services_json) {
+               try { servicesData = JSON.parse(currentShift.services_json); } catch(e) {}
+               for (const sData of servicesData) {
+                   const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
+                   if (service && service.name && service.name.toLowerCase().includes('provider travel')) {
+                       sData.qtyOverride = parseFloat(totalDistance.toFixed(2));
+                   }
+               }
+           }
            
-           db.prepare('UPDATE shifts SET provider_travel_km = ?, travel_breakdown = ? WHERE id = ?').run(
-              totalDistance, JSON.stringify(travelBreakdown), currentShift.id
+           db.prepare('UPDATE shifts SET provider_travel_km = ?, travel_breakdown = ?, services_json = ? WHERE id = ?').run(
+              totalDistance, JSON.stringify(travelBreakdown), JSON.stringify(servicesData), currentShift.id
            );
         } else {
            const prevShift = shifts[i - 1] || null;
