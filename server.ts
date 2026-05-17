@@ -1280,44 +1280,61 @@ async function startServer() {
            const prevShift = i > 0 ? shifts[i - 1] : null;
            const nextShift = i < shifts.length - 1 ? shifts[i + 1] : null;
 
-           const gapToPrev = prevShift ? (new Date(currentShift.start_time).getTime() - new Date(prevShift.end_time).getTime()) / 60000 : Infinity;
-           const gapToNext = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(currentShift.end_time).getTime()) / 60000 : Infinity;
+           const currentStart = new Date(currentShift.start_time).getTime();
+           const currentEnd = new Date(currentShift.end_time).getTime();
+           const prevEnd = prevShift ? new Date(prevShift.end_time).getTime() : 0;
+           const nextStart = nextShift ? new Date(nextShift.start_time).getTime() : 0;
 
-           let totalDist = 0;
+           // Use Math.abs to gracefully handle overlapping shifts or slight negative gaps
+           const gapToPrev = prevShift ? Math.abs((currentStart - prevEnd) / (1000 * 60)) : Infinity;
+           const gapToNext = nextShift ? Math.abs((nextStart - currentEnd) / (1000 * 60)) : Infinity;
+
+           console.log(`[DEBUG CASCADE] Shift ID: ${currentShift.id} | gapToPrev: ${gapToPrev} | gapToNext: ${gapToNext}`);
+
+           let totalDistance = 0;
            let totalMins = 0;
+           let travelBreakdown: string[] = [];
 
-           // LEG 1 (ARRIVAL)
+           // 2. LEG 1 (Arrival)
            if (!prevShift || gapToPrev > 60) {
-             const { distance: distHome, minutes: minsHome } = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
-             totalDist += distHome;
-             totalMins += minsHome;
-             pTravel.routeLogs.push({ description: `(100% Allocation) ${staffHomeStr} to ${clientHomeStr}`, distance: distHome, durationMins: minsHome, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: currentShift.c_address });
+               const { distance, minutes } = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
+               totalDistance += distance;
+               totalMins += minutes;
+               travelBreakdown.push(`[100% Commute]: Home to Client = ${distance.toFixed(2)} km`);
+               pTravel.routeLogs.push({ description: `[100% Commute]: Home to Client = ${distance.toFixed(2)} km`, distance, durationMins: minutes, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: currentShift.c_address });
            } else {
-             const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevShift.c_address);
-             const prevClientStr = `Previous Client (${prevShift.c_address || 'Unknown'}) ${formatCoords(prevClientCoords)}`;
-             const { distance, minutes } = await getGoogleRoutesDistance([prevClientCoords, clientCoords]); 
-             const apportionedDist = distance / 2;
-             const apportionedMins = minutes / 2;
-             totalDist += apportionedDist;
-             totalMins += apportionedMins;
-             pTravel.routeLogs.push({ description: `(50% Apportionment) ${prevClientStr} to ${clientHomeStr}`, distance: apportionedDist, durationMins: apportionedMins, waypoints: [prevClientCoords, clientCoords], addressStart: prevShift.c_address, addressEnd: currentShift.c_address });
+               const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevShift.c_address);
+               const { distance, minutes } = await getGoogleRoutesDistance([prevClientCoords, clientCoords]);
+               const splitDist = distance / 2; // STRICT 50% SPLIT
+               const splitMins = minutes / 2;
+               totalDistance += splitDist;
+               totalMins += splitMins;
+               travelBreakdown.push(`[50% Transitional]: Prev Client to Current = ${splitDist.toFixed(2)} km (Total: ${distance.toFixed(2)})`);
+               pTravel.routeLogs.push({ description: `[50% Transitional]: Prev Client to Current = ${splitDist.toFixed(2)} km (Total: ${distance.toFixed(2)})`, distance: splitDist, durationMins: splitMins, waypoints: [prevClientCoords, clientCoords], addressStart: prevShift.c_address, addressEnd: currentShift.c_address });
            }
 
-           // LEG 2 (DEPARTURE)
-           if (nextShift && gapToNext <= 60) {
-             const nextClientCoords = await getRecordCoordinates('clients', nextShift.client_id, nextShift.c_address);
-             const nextClientStr = `Next Client (${nextShift.c_address || 'Unknown'}) ${formatCoords(nextClientCoords)}`;
-             const { distance, minutes } = await getGoogleRoutesDistance([clientCoords, nextClientCoords]);
-             const apportionedDist = distance / 2;
-             const apportionedMins = minutes / 2;
-             totalDist += apportionedDist;
-             totalMins += apportionedMins;
-             pTravel.routeLogs.push({ description: `(50% Apportionment) ${clientHomeStr} to ${nextClientStr}`, distance: apportionedDist, durationMins: apportionedMins, waypoints: [clientCoords, nextClientCoords], addressStart: currentShift.c_address, addressEnd: nextShift.c_address });
+           // 3. LEG 2 (Departure)
+           if (!nextShift || gapToNext > 60) {
+               const { distance, minutes } = await getGoogleRoutesDistance([clientCoords, staffHomeCoords]);
+               totalDistance += distance;
+               totalMins += minutes;
+               travelBreakdown.push(`[100% Return Trip]: Client to Home = ${distance.toFixed(2)} km`);
+               pTravel.routeLogs.push({ description: `[100% Return Trip]: Client to Home = ${distance.toFixed(2)} km`, distance, durationMins: minutes, waypoints: [clientCoords, staffHomeCoords], addressStart: currentShift.c_address, addressEnd: staff?.address });
            } else {
-             const { distance: distReturn, minutes: minsReturn } = await getGoogleRoutesDistance([clientCoords, staffHomeCoords]);
-             totalDist += distReturn;
-             totalMins += minsReturn;
-             pTravel.routeLogs.push({ description: `(100% Allocation) ${clientHomeStr} to Staff Home (Return trip)`, distance: distReturn, durationMins: minsReturn, waypoints: [clientCoords, staffHomeCoords], addressStart: currentShift.c_address, addressEnd: staff?.address });
+               const nextClientCoords = await getRecordCoordinates('clients', nextShift.client_id, nextShift.c_address);
+               const { distance, minutes } = await getGoogleRoutesDistance([clientCoords, nextClientCoords]);
+               const splitDist = distance / 2; // STRICT 50% SPLIT
+               const splitMins = minutes / 2;
+               totalDistance += splitDist;
+               totalMins += splitMins;
+               travelBreakdown.push(`[50% Transitional]: Current Client to Next = ${splitDist.toFixed(2)} km (Total: ${distance.toFixed(2)})`);
+               pTravel.routeLogs.push({ description: `[50% Transitional]: Current Client to Next = ${splitDist.toFixed(2)} km (Total: ${distance.toFixed(2)})`, distance: splitDist, durationMins: splitMins, waypoints: [clientCoords, nextClientCoords], addressStart: currentShift.c_address, addressEnd: nextShift.c_address });
+           }
+
+           // 4. LOGGING AND CAP
+           console.log(`[DEBUG CASCADE] Final Distance for Shift ${currentShift.id}: ${totalDistance} km`);
+           if (travelBreakdown.length > 0) {
+               console.log(`[DEBUG CASCADE] Travel Breakdown for Shift ${currentShift.id}:`, travelBreakdown);
            }
 
            // Enforce MMM6 Boundary Checks (Hard cap at 60 mins)
@@ -1328,9 +1345,9 @@ async function startServer() {
               billableMins = 60;
            }
 
-           pTravel.distance = totalDist;
+           pTravel.distance = totalDistance;
            pTravel.minutes = billableMins;
-           pTravel.cost = totalDist * 1.00; // non-labor part
+           pTravel.cost = totalDistance * 1.00; // non-labor part
         }
 
         let updatedServicesJson = shift.services_json;
