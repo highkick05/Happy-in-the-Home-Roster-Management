@@ -355,6 +355,9 @@ try {
   db.exec("ALTER TABLE shifts ADD COLUMN services_json TEXT");
 } catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
 try {
+  db.exec("ALTER TABLE shifts ADD COLUMN travel_breakdown TEXT");
+} catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
+try {
   db.exec("ALTER TABLE files ADD COLUMN region TEXT");
 } catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
 
@@ -1240,7 +1243,7 @@ async function startServer() {
 
       const staffInfo = db.prepare('SELECT address FROM users WHERE id = ?').get(staffId) as any;
       let rawStaffHomeCoords = await getRecordCoordinates('users', staffId, staffInfo?.address);
-      const staffHomeCoords = rawStaffHomeCoords ? [Number(rawStaffHomeCoords[1]), Number(rawStaffHomeCoords[0])] : [0,0];
+      const staffHomeCoords = rawStaffHomeCoords ? [Number(rawStaffHomeCoords[0]), Number(rawStaffHomeCoords[1])] : [0,0];
 
       for (let i = 0; i < shifts.length; i++) {
         const currentShift = shifts[i];
@@ -1248,7 +1251,7 @@ async function startServer() {
         const isHomeCare = (currentShift.funding_type === 'HCP' || currentShift.funding_type === 'Home Care' || currentShift.funding_type === 'HOME_CARE');
         
         let rawCurrentShiftCoords = await getRecordCoordinates('clients', currentShift.client_id, currentShift.client_address);
-        const currentShiftCoords = rawCurrentShiftCoords ? [Number(rawCurrentShiftCoords[1]), Number(rawCurrentShiftCoords[0])] : [0,0];
+        const currentShiftCoords = rawCurrentShiftCoords ? [Number(rawCurrentShiftCoords[0]), Number(rawCurrentShiftCoords[1])] : [0,0];
 
         if (isHomeCare) {
            let totalDistance = 0;
@@ -1282,7 +1285,7 @@ async function startServer() {
            if (prevShift) {
               const prevAddress = db.prepare('SELECT address FROM clients WHERE id = ?').get(prevShift.client_id) as any;
               let rawPrevCoords = await getRecordCoordinates('clients', prevShift.client_id, prevAddress?.address);
-              prevCoords = rawPrevCoords ? [Number(rawPrevCoords[1]), Number(rawPrevCoords[0])] : [0,0];
+              prevCoords = rawPrevCoords ? [Number(rawPrevCoords[0]), Number(rawPrevCoords[1])] : [0,0];
            }
 
            const getGoogleRoutesDistanceWrapper = async (wp1: any, wp2: any) => {
