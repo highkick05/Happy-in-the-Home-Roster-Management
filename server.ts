@@ -1333,20 +1333,31 @@ if (!nextShift || gapToNext > 60) {
 // --- END NDIS CASCADE LOGIC ---
 
                // Update services_json so the UI reflects the math
+               const latestShift = db.prepare('SELECT services_json FROM shifts WHERE id = ?').get(currentShift.id) as any;
                let servicesData = [];
-               if (currentShift.services_json) {
-                   try { servicesData = JSON.parse(currentShift.services_json); } catch(e) {}
+               if (latestShift && latestShift.services_json) {
+                   try { 
+                       servicesData = JSON.parse(latestShift.services_json); 
+                       console.log(`[DEBUG CASCADE] NDIS services_json found ${servicesData.length} entries for shift ${currentShift.id}`);
+                   } catch(e) {
+                       console.error('[DEBUG CASCADE] NDIS JSON parse error:', e);
+                   }
                    for (const sData of servicesData) {
                        const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
+                       console.log(`[DEBUG CASCADE] NDIS checking service: "${service?.name}" for sData.serviceId: ${sData.serviceId}`);
                        if (service && service.name && service.name.toLowerCase().includes('provider travel')) {
                            sData.qtyOverride = parseFloat(totalDistance.toFixed(2));
+                           console.log(`[DEBUG CASCADE] NDIS UPDATED qtyOverride to ${sData.qtyOverride} for shift ${currentShift.id}`);
                        }
                    }
                }
 
+               console.log(`[DEBUG CASCADE] NDIS writing totalDistance: ${totalDistance} to shift ${currentShift.id}. Final servicesData length: ${servicesData.length}`);
                db.prepare('UPDATE shifts SET provider_travel_km = ?, travel_breakdown = ?, services_json = ? WHERE id = ?').run(
                   totalDistance, JSON.stringify(travelBreakdown), JSON.stringify(servicesData), currentShift.id
                );
+               const verify = db.prepare('SELECT services_json FROM shifts WHERE id = ?').get(currentShift.id) as any;
+               console.log(`[DEBUG CASCADE] VERIFY shift ${currentShift.id} services_json after update: ${verify?.services_json}`);
            })();
         }
       }
