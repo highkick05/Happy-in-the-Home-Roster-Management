@@ -1310,8 +1310,20 @@ if (!nextShift || gapToNext > 60) {
 }
 // --- END NDIS CASCADE LOGIC ---
 
-               db.prepare('UPDATE shifts SET provider_travel_km = ?, travel_breakdown = ? WHERE id = ?').run(
-                  totalDistance, JSON.stringify(travelBreakdown), currentShift.id
+               // Update services_json so the UI reflects the math
+               let servicesData = [];
+               if (currentShift.services_json) {
+                   try { servicesData = JSON.parse(currentShift.services_json); } catch(e) {}
+                   for (const sData of servicesData) {
+                       const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
+                       if (service && service.name && service.name.toLowerCase().includes('provider travel')) {
+                           sData.qtyOverride = parseFloat(totalDistance.toFixed(2));
+                       }
+                   }
+               }
+
+               db.prepare('UPDATE shifts SET provider_travel_km = ?, travel_breakdown = ?, services_json = ? WHERE id = ?').run(
+                  totalDistance, JSON.stringify(travelBreakdown), JSON.stringify(servicesData), currentShift.id
                );
            })();
         }
@@ -3466,15 +3478,8 @@ if (!nextShift || gapToNext > 60) {
             if (name.includes('activity based transport')) {
               isAbtApproved = true;
               sData.qtyOverride = 0;
-            } else if (name.includes('provider travel')) {
-              const schedTravel = await calculateScheduledProviderTravel(singleStaffId, startTime, endTime, clientId);
-              let billableValue = schedTravel.distance;
-              if (schedTravel.minutes !== undefined && schedTravel.minutes > 0 && !name.includes('non-labour')) {
-                 const unitStr = (srv.unit || 'Hour').toLowerCase();
-                 billableValue = (unitStr.includes('minute') || unitStr === 'min') ? schedTravel.minutes : schedTravel.minutes / 60;
-              }
-              sData.qtyOverride = parseFloat(billableValue.toFixed(2));
             }
+            // Provider travel logic is deferred entirely to the async cascade hook
           }
         }
         
