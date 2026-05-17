@@ -1220,219 +1220,188 @@ async function startServer() {
     }
   };
 
-  const recalculateDayTravelForStaff = async (staffId: string | number, dateIso: string) => {
+  const recalculateDayTravelForStaff = async (staffId: number, dateStr: string) => {
+    try {
+      const shifts = db.prepare(`
+        SELECT s.*, 
+               c.address as client_address
+        FROM shifts s
+        LEFT JOIN clients c ON s.client_id = c.id
+        WHERE s.staff_id = ? AND s.start_time >= datetime(?, '-14 hours') AND s.start_time <= datetime(?, '+14 hours') AND s.status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+        ORDER BY s.start_time ASC
+      `).all(staffId, dateStr, dateStr) as any[];
+
+      if (!shifts || shifts.length === 0) return;
+
+      const staffInfo = db.prepare('SELECT address FROM users WHERE id = ?').get(staffId) as any;
+      let rawStaffHomeCoords = await getRecordCoordinates('users', staffId, staffInfo?.address);
+      const staffHomeCoords = rawStaffHomeCoords ? [Number(rawStaffHomeCoords[1]), Number(rawStaffHomeCoords[0])] : [0,0];
+
+      for (let i = 0; i < shifts.length; i++) {
+        const currentShift = shifts[i];
+        
+        const isHomeCare = (currentShift.funding_type === 'HCP' || currentShift.funding_type === 'Home Care' || currentShift.funding_type === 'HOME_CARE');
+        
+        let rawCurrentShiftCoords = await getRecordCoordinates('clients', currentShift.client_id, currentShift.client_address);
+        const currentShiftCoords = rawCurrentShiftCoords ? [Number(rawCurrentShiftCoords[1]), Number(rawCurrentShiftCoords[0])] : [0,0];
+
+        if (isHomeCare) {
+           let totalDistance = 0;
+           let travelBreakdown: string[] = [];
+           const { distance: dist1 } = await getGoogleRoutesDistance([staffHomeCoords, currentShiftCoords]);
+           const { distance: dist2 } = await getGoogleRoutesDistance([currentShiftCoords, staffHomeCoords]);
+           totalDistance = Number(dist1) + Number(dist2);
+           travelBreakdown.push(`[HCP Return-to-Base]: Home to Client = ${Number(dist1).toFixed(2)} km`);
+           travelBreakdown.push(`[HCP Return-to-Base]: Client to Home = ${Number(dist2).toFixed(2)} km`);
+           
+           db.prepare('UPDATE shifts SET provider_travel_km = ?, travel_breakdown = ? WHERE id = ?').run(
+              totalDistance, JSON.stringify(travelBreakdown), currentShift.id
+           );
+        } else {
+           const prevShift = shifts[i - 1] || null;
+           const nextShift = shifts[i + 1] || null;
+
+           let prevCoords = null;
+           if (prevShift) {
+              const prevAddress = db.prepare('SELECT address FROM clients WHERE id = ?').get(prevShift.client_id) as any;
+              let rawPrevCoords = await getRecordCoordinates('clients', prevShift.client_id, prevAddress?.address);
+              prevCoords = rawPrevCoords ? [Number(rawPrevCoords[1]), Number(rawPrevCoords[0])] : [0,0];
+           }
+
+           const getGoogleRoutesDistanceWrapper = async (wp1: any, wp2: any) => {
+               const res = await getGoogleRoutesDistance([wp1, wp2]);
+               return res.distance;
+           };
+
+           await (async () => {
+               const getGoogleRoutesDistance = getGoogleRoutesDistanceWrapper;
+               
+// --- NDIS CASCADE LOGIC ---
+const currentStart = new Date(currentShift.start_time).getTime();
+const currentEnd = new Date(currentShift.end_time).getTime();
+const prevEnd = prevShift ? new Date(prevShift.end_time).getTime() : 0;
+const nextStart = nextShift ? new Date(nextShift.start_time).getTime() : 0;
+
+const gapToPrev = prevShift ? Math.abs((currentStart - prevEnd) / (1000 * 60)) : Infinity;
+const gapToNext = nextShift ? Math.abs((nextStart - currentEnd) / (1000 * 60)) : Infinity;
+
+console.log(`[DEBUG CASCADE] Shift ID: ${currentShift.id} | gapToPrev: ${gapToPrev} | gapToNext: ${gapToNext}`);
+
+let totalDistance = 0;
+let travelBreakdown = [];
+
+// LEG 1 (Arrival)
+if (!prevShift || gapToPrev > 60) {
+    const dist = await getGoogleRoutesDistance(staffHomeCoords, currentShiftCoords);
+    totalDistance += dist;
+    travelBreakdown.push(`[100% Commute]: Home to Client = ${dist.toFixed(2)} km`);
+} else {
+    const fullDist = await getGoogleRoutesDistance(prevCoords, currentShiftCoords);
+    const splitDist = fullDist / 2;
+    totalDistance += splitDist;
+    travelBreakdown.push(`[50% Transitional Split]: Prev Client to Current = ${splitDist.toFixed(2)} km`);
+}
+
+// LEG 2 (Departure)
+if (!nextShift || gapToNext > 60) {
+    const dist = await getGoogleRoutesDistance(currentShiftCoords, staffHomeCoords);
+    totalDistance += dist;
+    travelBreakdown.push(`[100% Return Trip]: Client to Home = ${dist.toFixed(2)} km`);
+}
+// --- END NDIS CASCADE LOGIC ---
+
+               db.prepare('UPDATE shifts SET provider_travel_km = ?, travel_breakdown = ? WHERE id = ?').run(
+                  totalDistance, JSON.stringify(travelBreakdown), currentShift.id
+               );
+           })();
+        }
+      }
+    } catch (e) {
+      console.error('[DEBUG CASCADE] Error recalculating day travel:', e);
+    }
+  };
+
+  const recalculateStaffTravelForDate = async (staffId: string | number, dateIso: string) => {
     try {
       // 1. Get all remaining active shifts for staffId on dateIso
       const shifts = db.prepare(`
-        SELECT s.*, c.first_name as c_fn, c.last_name as c_ln, c.address as c_address
-        FROM shifts s
-        LEFT JOIN clients c ON s.client_id = c.id
-        WHERE s.staff_id = ? AND s.start_time >= datetime(?, '-14 hours') AND s.start_time <= datetime(?, '+14 hours') 
-        AND s.status NOT IN ('CANCELLED', 'DELETED', 'deleted')
-        ORDER BY s.start_time ASC
+        SELECT * FROM shifts 
+        WHERE staff_id = ? AND start_time >= datetime(?, '-14 hours') AND start_time <= datetime(?, '+14 hours') AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+        ORDER BY start_time ASC
       `).all(staffId, dateIso, dateIso) as any[];
 
       if (!shifts || shifts.length === 0) return;
 
-      console.log(`\n[DEBUG Cascade] ========================================`);
-      console.log(`[DEBUG Cascade] Recalculating travel matrix for staff ${staffId} on ${dateIso}. Found ${shifts.length} shift(s).`);
+      console.log(`[DEBUG Recalculate] Recalculating travel for staff ${staffId} on ${dateIso}. Found ${shifts.length} shift(s).`);
 
-      for (let i = 0; i < shifts.length; i++) {
-        const s = shifts[i];
-        console.log(`[DEBUG Cascade] - Shift ${i + 1}: ${s.c_fn} ${s.c_ln} | Start: ${s.start_time} | End: ${s.end_time} | Status: ${s.status} | Funding: ${s.funding_type}`);
-        if (i > 0) {
-           const prevS = shifts[i-1];
-           const gapMinutes = (new Date(s.start_time).getTime() - new Date(prevS.end_time).getTime()) / (1000 * 60);
-           console.log(`[DEBUG Cascade]   -> Gap from immediately previous shift (any funding): ${gapMinutes.toFixed(2)} minutes`);
-        }
-      }
-      console.log(`[DEBUG Cascade] ========================================\n`);
-
-      const formatCoords = (coords: any) => coords && coords.length === 2 ? `[${coords[0].toFixed(2)}, ${coords[1].toFixed(2)}]` : '';
-
-      for (let i = 0; i < shifts.length; i++) {
-        const shift = shifts[i];
-        
-        if (shift.status === 'INVOICED') {
-           console.log(`[DEBUG Cascade] Skipping ledger modification for shift ${shift.id} because status is INVOICED.`);
-           continue;
-        }
-
-        let pTravel = { distance: 0, cost: 0, minutes: 0, routeLogs: [] as any[] };
-        let hcTravel = { distance: 0, cost: 0, minutes: 0, routeLogs: [] as any[] };
-        let isHomeCare = false;
-        
-        if (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE') {
-           isHomeCare = true;
-           const result = await calculateHomeCareTravel(shift);
-           hcTravel = { ...result, minutes: 0 };
-        } else if (shift.funding_type === 'NDIS' && !shift.respite_booking_id) {
-           // Inline NDIS calculation based on chronological context
-           const staff = db.prepare('SELECT address, first_name, last_name FROM users WHERE id = ?').get(shift.staff_id) as any;
-           const staffName = staff ? `${staff.first_name} ${staff.last_name}`.trim() : 'Unknown Staff';
-           const staffHomeCoords = await getRecordCoordinates('users', shift.staff_id, staff?.address);
-           const staffHomeStr = `Staff Home (${staff?.address || 'Unknown'}) ${formatCoords(staffHomeCoords)}`;
-
-           const clientCoords = await getRecordCoordinates('clients', shift.client_id, shift.c_address);
-           const clientHomeStr = `Client Home (${shift.c_address || 'Unknown'}) ${formatCoords(clientCoords)}`;
-
-           const currentShift = shift;
-           const prevShift = i > 0 ? shifts[i - 1] : null;
-           const nextShift = i < shifts.length - 1 ? shifts[i + 1] : null;
-
-           // 1. Safe Time Gap Calculation
-           const currentStart = new Date(currentShift.start_time).getTime();
-           const currentEnd = new Date(currentShift.end_time).getTime();
-           const prevEnd = prevShift ? new Date(prevShift.end_time).getTime() : 0;
-           const nextStart = nextShift ? new Date(nextShift.start_time).getTime() : 0;
-
-           // Use Math.abs to gracefully handle overlapping shifts or slight negative gaps
-           const gapToPrev = prevShift ? Math.abs((currentStart - prevEnd) / (1000 * 60)) : Infinity;
-           const gapToNext = nextShift ? Math.abs((nextStart - currentEnd) / (1000 * 60)) : Infinity;
-
-           console.log(`[DEBUG CASCADE] Shift ID: ${currentShift.id} | gapToPrev: ${gapToPrev} | gapToNext: ${gapToNext}`);
-
-           let totalDistance = 0;
-           let totalMins = 0;
-           let travelBreakdown: string[] = [];
-
-           // 2. LEG 1 (Arrival)
-           if (!prevShift || gapToPrev > 60) {
-               const { distance, minutes } = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
-               totalDistance += distance;
-               totalMins += minutes;
-               travelBreakdown.push(`[100% Commute]: Home to Client = ${distance.toFixed(2)} km`);
-               pTravel.routeLogs.push({ description: `[100% Commute]: Home to Client = ${distance.toFixed(2)} km`, distance, durationMins: minutes, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: currentShift.c_address });
-           } else {
-               const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevShift.c_address);
-               const { distance, minutes } = await getGoogleRoutesDistance([prevClientCoords, clientCoords]);
-               const splitDist = distance / 2; // STRICT 50% SPLIT
-               const splitMins = minutes / 2;
-               totalDistance += splitDist;
-               totalMins += splitMins;
-               travelBreakdown.push(`[50% Transitional]: Prev Client to Current = ${splitDist.toFixed(2)} km (Total: ${distance.toFixed(2)})`);
-               pTravel.routeLogs.push({ description: `[50% Transitional]: Prev Client to Current = ${splitDist.toFixed(2)} km (Total: ${distance.toFixed(2)})`, distance: splitDist, durationMins: splitMins, waypoints: [prevClientCoords, clientCoords], addressStart: prevShift.c_address, addressEnd: currentShift.c_address });
-           }
-
-           // 3. LEG 2 (Departure)
-           if (!nextShift || gapToNext > 60) {
-               const { distance, minutes } = await getGoogleRoutesDistance([clientCoords, staffHomeCoords]);
-               totalDistance += distance;
-               totalMins += minutes;
-               travelBreakdown.push(`[100% Return Trip]: Client to Home = ${distance.toFixed(2)} km`);
-               pTravel.routeLogs.push({ description: `[100% Return Trip]: Client to Home = ${distance.toFixed(2)} km`, distance, durationMins: minutes, waypoints: [clientCoords, staffHomeCoords], addressStart: currentShift.c_address, addressEnd: staff?.address });
-           } else {
-               const nextClientCoords = await getRecordCoordinates('clients', nextShift.client_id, nextShift.c_address);
-               const { distance, minutes } = await getGoogleRoutesDistance([clientCoords, nextClientCoords]);
-               const splitDist = distance / 2; // STRICT 50% SPLIT
-               const splitMins = minutes / 2;
-               totalDistance += splitDist;
-               totalMins += splitMins;
-               travelBreakdown.push(`[50% Transitional]: Current Client to Next = ${splitDist.toFixed(2)} km (Total: ${distance.toFixed(2)})`);
-               pTravel.routeLogs.push({ description: `[50% Transitional]: Current Client to Next = ${splitDist.toFixed(2)} km (Total: ${distance.toFixed(2)})`, distance: splitDist, durationMins: splitMins, waypoints: [clientCoords, nextClientCoords], addressStart: currentShift.c_address, addressEnd: nextShift.c_address });
-           }
-
-           // 4. LOGGING AND CAP
-           console.log(`[DEBUG CASCADE] Final Distance for Shift ${currentShift.id}: ${totalDistance} km`);
-           if (travelBreakdown.length > 0) {
-               console.log(`[DEBUG CASCADE] Travel Breakdown for Shift ${currentShift.id}:`, travelBreakdown);
-           }
-
-           // Enforce MMM6 Boundary Checks (Hard cap at 60 mins)
-           let billableMins = totalMins;
-           if (totalMins > 60) {
-              console.log(`[NDIS Travel Cap] Capping travel time from ${totalMins.toFixed(2)} mins to 60.0 mins (MMM6 rules).`);
-              pTravel.routeLogs.push({ description: `(Capped) Actual travel time was ${totalMins.toFixed(2)} mins, but capped at 60 mins for MMM6 compliance.`, distance: 0, durationMins: 0, waypoints: [] });
-              billableMins = 60;
-           }
-
-           pTravel.distance = totalDistance;
-           pTravel.minutes = billableMins;
-           pTravel.cost = totalDistance * 1.00; // non-labor part
-        }
-
-        let updatedServicesJson = shift.services_json;
-        if (updatedServicesJson) {
-          try {
-            const servicesData = JSON.parse(updatedServicesJson);
-            if (Array.isArray(servicesData)) {
-              let changed = false;
-              for (const sData of servicesData) {
-                const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
-                if (service && service.name) {
-                  const name = service.name.toLowerCase();
-                  if (name.includes('provider travel') || name.includes('travel')) {
-                    if (isHomeCare) {
-                      sData.qtyOverride = parseFloat(hcTravel.distance.toFixed(2));
-                    } else {
-                      let billableValue = pTravel.distance;
-                      if (pTravel.minutes !== undefined && pTravel.minutes > 0 && !name.includes('non-labour')) {
+      for (const shift of shifts) {
+        if (shift.status === 'COMPLETED') {
+          // Re-calculate actual Provider Travel
+          const pTravel = await calculateProviderTravel(shift);
+          const hcTravel = await calculateHomeCareTravel(shift);
+          
+          let updatedServicesJson = shift.services_json;
+          if (updatedServicesJson) {
+            try {
+              const servicesData = JSON.parse(updatedServicesJson);
+              if (Array.isArray(servicesData)) {
+                let changed = false;
+                for (const sData of servicesData) {
+                  const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
+                  if (service && service.name) {
+                    const name = service.name.toLowerCase();
+                    if (name.includes('provider travel')) {
+                      let billableValue = pTravel.distance; // Fallback
+                      if (pTravel.minutes !== undefined && !name.includes('non-labour')) {
                          const unitStr = (service.unit || 'Hour').toLowerCase();
-                         billableValue = (unitStr.includes('minute') || unitStr === 'min') ? pTravel.minutes : (pTravel.minutes / 60);
+                         billableValue = (unitStr.includes('minute') || unitStr === 'min') ? pTravel.minutes : pTravel.minutes / 60;
                       }
                       sData.qtyOverride = parseFloat(billableValue.toFixed(2));
+                      changed = true;
+                    } else if (name.includes('activity based transport') && shift.abt_km !== undefined) {
+                      sData.qtyOverride = parseFloat(Number(shift.abt_km).toFixed(2));
+                      changed = true;
                     }
-                    changed = true;
-                  } else if (name.includes('activity based transport') && shift.abt_km !== undefined) {
-                    sData.qtyOverride = parseFloat(Number(shift.abt_km).toFixed(2));
-                    changed = true;
                   }
                 }
+                if (changed) {
+                  updatedServicesJson = JSON.stringify(servicesData);
+                }
               }
-              if (changed) {
-                updatedServicesJson = JSON.stringify(servicesData);
+            } catch (e) {
+              console.error("Failed to parse services_json during recalculate:", e);
+            }
+          }
+          
+          db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_cost = ?, home_care_travel_km = ?, home_care_travel_total = ?, services_json = ? WHERE id = ?').run(pTravel.distance, pTravel.cost, hcTravel.distance, hcTravel.cost, updatedServicesJson, shift.id);
+        } else {
+          // Re-calculate scheduled Provider Travel (DRAFT, PUBLISHED, IN_PROGRESS)
+          if (!shift.services_json) continue;
+          let servicesData;
+          try { servicesData = JSON.parse(shift.services_json); } catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
+          if (servicesData && Array.isArray(servicesData)) {
+            let updated = false;
+            for (const sData of servicesData) {
+              const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
+              if (service && service.name && service.name.toLowerCase().includes('provider travel')) {
+                const schedTravel = await calculateScheduledProviderTravel(shift.staff_id, shift.start_time, shift.end_time, shift.client_id, shift.id);
+                let billableValue = schedTravel.distance;
+                if (schedTravel.minutes !== undefined && schedTravel.minutes > 0 && !service.name.toLowerCase().includes('non-labour')) {
+                   const unitStr = (service.unit || 'Hour').toLowerCase();
+                   billableValue = (unitStr.includes('minute') || unitStr === 'min') ? schedTravel.minutes : schedTravel.minutes / 60;
+                }
+                sData.qtyOverride = parseFloat(billableValue.toFixed(2));
+                updated = true;
               }
             }
-          } catch (e) {
-            console.error("Failed to parse services_json during recalculate:", e);
+            if (updated) {
+               db.prepare('UPDATE shifts SET services_json = ? WHERE id = ?').run(JSON.stringify(servicesData), shift.id);
+            }
           }
         }
-        
-        let combinedLog: any = {};
-        try { if (shift.transport_route_log) combinedLog = JSON.parse(shift.transport_route_log); } catch(e) {}
-        
-        if (isHomeCare) {
-           delete combinedLog.providerTravel;
-           combinedLog.homeCareTravel = {
-              distance: hcTravel.distance,
-              cost: hcTravel.cost,
-              legs: hcTravel.routeLogs,
-              calculatedAt: new Date().toISOString()
-           };
-        } else if (shift.funding_type === 'NDIS') {
-           delete combinedLog.homeCareTravel;
-           combinedLog.providerTravel = {
-              distance: pTravel.distance,
-              minutes: pTravel.minutes,
-              cost: pTravel.cost,
-              legs: pTravel.routeLogs,
-              calculatedAt: new Date().toISOString()
-           };
-        }
-
-        db.prepare(`
-           UPDATE shifts 
-           SET provider_travel_km = ?, 
-               provider_travel_cost = ?, 
-               home_care_travel_km = ?, 
-               home_care_travel_total = ?, 
-               services_json = ?,
-               transport_route_log = ?
-           WHERE id = ?
-        `).run(
-           shift.funding_type === 'NDIS' && !shift.respite_booking_id ? pTravel.distance : 0,
-           shift.funding_type === 'NDIS' && !shift.respite_booking_id ? pTravel.cost : 0,
-           isHomeCare ? hcTravel.distance : 0,
-           isHomeCare ? hcTravel.cost : 0,
-           updatedServicesJson,
-           JSON.stringify(combinedLog),
-           shift.id
-        );
       }
-      
-      console.log(`[DEBUG Cascade] Finished recalculating travel for staff ${staffId} on ${dateIso}.`);
-    } catch (e: any) {
-      console.error(`[DEBUG Cascade] Error recalculating travel for staff ${staffId}:`, e);
+    } catch (e) {
+      console.error('[DEBUG Recalculate] Error recalculating staff travel:', e);
     }
   };
 
@@ -3532,9 +3501,11 @@ async function startServer() {
         res.json({ id: shiftIds[0], ids: shiftIds });
         
         // Recalculate after batch insert
-        await new Promise(resolve => setTimeout(resolve, 500));
         for (const single of processedStaffShifts) {
-          await recalculateDayTravelForStaff(single.staffId, startTime);
+          (async () => {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await recalculateDayTravelForStaff(single.staffId, startTime);
+          })().catch(e => console.error(e));
         }
       } else {
         const single = processedStaffShifts[0];
@@ -3542,8 +3513,10 @@ async function startServer() {
         res.json({ id: info.lastInsertRowid });
         
         // Recalculate after single insert
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await recalculateDayTravelForStaff(single.staffId, startTime);
+        (async () => {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await recalculateDayTravelForStaff(single.staffId, startTime);
+        })().catch(e => console.error(e));
       }
     } catch (e: any) {
       
@@ -3552,7 +3525,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/shifts/batch-action', authenticateToken, requireAdmin, async (req: any, res: any) => {
+  app.post('/api/shifts/batch-action', authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
       const { action, shiftIds } = req.body;
       if (!action || !shiftIds || !Array.isArray(shiftIds) || shiftIds.length === 0) {
@@ -3601,11 +3574,13 @@ async function startServer() {
       })();
 
       if (action === 'delete' && uniqueStaffDates.size > 0) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        for (const sd of uniqueStaffDates) {
+        uniqueStaffDates.forEach(sd => {
           const [staffId, startTime] = sd.split('|');
-          await recalculateDayTravelForStaff(staffId, startTime);
-        }
+          (async () => {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await recalculateDayTravelForStaff(staffId, startTime);
+          })().catch(e => console.error(e));
+        });
       }
 
       res.json({ success: true, message: `Batch ${action} completed successfully` });
@@ -3631,7 +3606,7 @@ async function startServer() {
     }
   });
 
-  app.put('/api/shifts/:id', authenticateToken, requireAdmin, async (req: any, res: any) => {
+  app.put('/api/shifts/:id', authenticateToken, requireAdmin, (req: any, res: any) => {
     const { id } = req.params;
     const { staffId, clientId, serviceId, startTime, endTime, status, notes, fundingType, servicesData, providerTravelKm, abtKm } = req.body;
     
@@ -3673,11 +3648,16 @@ async function startServer() {
          generateInvoiceForShift(id);
       }
       
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
+      (async () => {
+         await new Promise(resolve => setTimeout(resolve, 500));
+         await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
+      })().catch(e => console.error(e));
       if (staffId !== undefined && staffId !== existing.staff_id || startTime !== undefined && startTime !== existing.start_time) {
          // Recalculate old date/staff if it changed
-         await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
+         (async () => {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
+         })().catch(e => console.error(e));
       }
 
       res.json({ success: true });
@@ -3897,9 +3877,6 @@ async function startServer() {
         id
       );
 
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);
-
       // Trigger notification for ADMINs
       try {
         const staff = db.prepare('SELECT first_name, last_name FROM users WHERE id = ?').get(shift.staff_id) as any;
@@ -3945,60 +3922,35 @@ async function startServer() {
     }
   });
 
-app.put('/api/shifts/:id', authenticateToken, requireAdmin, async (req: any, res: any) => {
+  app.delete('/api/shifts/:id', authenticateToken, requireAdmin, (req, res) => {
     const { id } = req.params;
-    const { staffId, clientId, serviceId, startTime, endTime, status, notes, fundingType, servicesData, providerTravelKm, abtKm } = req.body;
-    
     try {
-      const existing = db.prepare('SELECT * FROM shifts WHERE id = ?').get(id) as any;
-      if (!existing) return res.status(404).json({ error: 'Not found' });
+      let shiftToUpdate: any;
+      db.transaction(() => {
+        shiftToUpdate = db.prepare('SELECT staff_id, start_time FROM shifts WHERE id = ?').get(id);
+        const invoices = db.prepare('SELECT file_path FROM invoices WHERE shift_id = ?').all(id);
+        invoices.forEach((inv: any) => {
+          if (inv.file_path) {
+            const filePath = path.join(process.cwd(), 'invoices', inv.file_path);
+            if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (e) { logger.warn('Failed to delete file', e); } }
+          }
+        });
+        db.prepare('DELETE FROM invoices WHERE shift_id = ?').run(id);
+        db.prepare('DELETE FROM shifts WHERE id = ?').run(id);
+      })();
 
-      // Build old value for audit logging
-      const oldValue = JSON.stringify(existing);
-
-      const servicesJson = servicesData ? JSON.stringify(servicesData) : existing.services_json;
-      const mainServiceId = serviceId || (servicesData && servicesData.length > 0 ? servicesData[0].serviceId : existing.service_id);
-
-      const stmt = db.prepare('UPDATE shifts SET staff_id = ?, client_id = ?, service_id = ?, start_time = ?, end_time = ?, status = ?, notes = ?, funding_type = ?, services_json = ?, provider_travel_km = ?, abt_km = ? WHERE id = ?');
-      stmt.run(
-         staffId !== undefined ? staffId : existing.staff_id, 
-         clientId !== undefined ? clientId : existing.client_id, 
-         mainServiceId, 
-         startTime !== undefined ? startTime : existing.start_time, 
-         endTime !== undefined ? endTime : existing.end_time, 
-         status !== undefined ? status : existing.status, 
-         notes !== undefined ? notes : existing.notes, 
-         (db.prepare('SELECT funding_type FROM clients WHERE id = ?').get(clientId !== undefined ? clientId : existing.client_id) as any)?.funding_type || 'NDIS',
-         servicesJson,
-         providerTravelKm !== undefined ? providerTravelKm : existing.provider_travel_km,
-         abtKm !== undefined ? abtKm : existing.abt_km,
-         id
-      );
-
-      // Audit Log for COMPLETED shift edits
-      if (existing.status === 'COMPLETED') {
-         const newRecord = db.prepare('SELECT * FROM shifts WHERE id = ?').get(id) as any;
-         db.prepare('INSERT INTO audit_logs (entity_type, entity_id, old_value, new_value, changed_by_user_id) VALUES (?, ?, ?, ?, ?)').run(
-           'shift', id, oldValue, JSON.stringify(newRecord), req.user.id
-         );
-      }
-      
-      if ((status === 'COMPLETED' || existing.status === 'COMPLETED') && (existing.status !== status || servicesJson !== existing.services_json || providerTravelKm !== undefined || abtKm !== undefined)) {
-         generateInvoiceForShift(id);
-      }
-      
-      // Delay before calculation to clear SQLite write locks
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
-      
-      // Check if dates or staff changed, if so, we need to correct the sequence on the old day/staff member's matrix
-      if ((staffId !== undefined && staffId !== existing.staff_id) || (startTime !== undefined && startTime !== existing.start_time)) {
-         await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
+      if (shiftToUpdate) {
+        // Run without awaiting to avoid blocking response, or wrap in async. We can just call it (fire and forget) 
+        // since we want it to happen after transaction
+        (async () => {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await recalculateDayTravelForStaff(shiftToUpdate.staff_id, shiftToUpdate.start_time);
+        })().catch(e => console.error(e));
       }
 
       res.json({ success: true });
     } catch (e: any) {
+      
       logger.error(`API Error: ${e}`, { error: e.stack || e });
       logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
