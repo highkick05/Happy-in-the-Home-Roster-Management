@@ -1224,32 +1224,124 @@ async function startServer() {
     try {
       // 1. Get all remaining active shifts for staffId on dateIso
       const shifts = db.prepare(`
-        SELECT * FROM shifts 
-        WHERE staff_id = ? AND start_time >= datetime(?, '-14 hours') AND start_time <= datetime(?, '+14 hours') AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
-        ORDER BY start_time ASC
+        SELECT s.*, c.first_name as c_fn, c.last_name as c_ln, c.address as c_address
+        FROM shifts s
+        LEFT JOIN clients c ON s.client_id = c.id
+        WHERE s.staff_id = ? AND s.start_time >= datetime(?, '-14 hours') AND s.start_time <= datetime(?, '+14 hours') 
+        AND s.status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED')
+        ORDER BY s.start_time ASC
       `).all(staffId, dateIso, dateIso) as any[];
 
       if (!shifts || shifts.length === 0) return;
 
+      console.log(`\n[DEBUG Cascade] ========================================`);
       console.log(`[DEBUG Cascade] Recalculating travel matrix for staff ${staffId} on ${dateIso}. Found ${shifts.length} shift(s).`);
 
-      for (const shift of shifts) {
+      for (let i = 0; i < shifts.length; i++) {
+        const s = shifts[i];
+        console.log(`[DEBUG Cascade] - Shift ${i + 1}: ${s.c_fn} ${s.c_ln} | Start: ${s.start_time} | End: ${s.end_time} | Status: ${s.status} | Funding: ${s.funding_type}`);
+        if (i > 0) {
+           const prevS = shifts[i-1];
+           const gapMinutes = (new Date(s.start_time).getTime() - new Date(prevS.end_time).getTime()) / (1000 * 60);
+           console.log(`[DEBUG Cascade]   -> Gap from immediately previous shift (any funding): ${gapMinutes.toFixed(2)} minutes`);
+        }
+      }
+      console.log(`[DEBUG Cascade] ========================================\n`);
+
+      const formatCoords = (coords: any) => coords && coords.length === 2 ? `[${coords[0].toFixed(2)}, ${coords[1].toFixed(2)}]` : '';
+
+      for (let i = 0; i < shifts.length; i++) {
+        const shift = shifts[i];
+        
         if (shift.status === 'INVOICED') {
            console.log(`[DEBUG Cascade] Skipping ledger modification for shift ${shift.id} because status is INVOICED.`);
            continue;
         }
 
-        // We run the calculations
-        let pTravel = { distance: 0, cost: 0, minutes: 0, routeLogs: [] };
-        let hcTravel = { distance: 0, cost: 0, minutes: 0, routeLogs: [] };
+        let pTravel = { distance: 0, cost: 0, minutes: 0, routeLogs: [] as any[] };
+        let hcTravel = { distance: 0, cost: 0, minutes: 0, routeLogs: [] as any[] };
         let isHomeCare = false;
         
         if (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE') {
            isHomeCare = true;
-           hcTravel = await calculateHomeCareTravel(shift);
-        } else if (shift.funding_type === 'NDIS') {
-           // NDIS calculation already checks for adjacent shifts dynamically
-           pTravel = await calculateProviderTravel(shift);
+           const result = await calculateHomeCareTravel(shift);
+           hcTravel = { ...result, minutes: 0 };
+        } else if (shift.funding_type === 'NDIS' && !shift.respite_booking_id) {
+           // Inline NDIS calculation based on chronological context
+           const staff = db.prepare('SELECT address, first_name, last_name FROM users WHERE id = ?').get(shift.staff_id) as any;
+           const staffName = staff ? `${staff.first_name} ${staff.last_name}`.trim() : 'Unknown Staff';
+           const staffHomeCoords = await getRecordCoordinates('users', shift.staff_id, staff?.address);
+           const staffHomeStr = `Staff Home (${staff?.address || 'Unknown'}) ${formatCoords(staffHomeCoords)}`;
+
+           const clientCoords = await getRecordCoordinates('clients', shift.client_id, shift.c_address);
+           const clientHomeStr = `Client Home (${shift.c_address || 'Unknown'}) ${formatCoords(clientCoords)}`;
+
+           let prevNdisShift = null;
+           for (let j = i - 1; j >= 0; j--) {
+               if (shifts[j].funding_type === 'NDIS' && !shifts[j].respite_booking_id) {
+                   prevNdisShift = shifts[j];
+                   break;
+               }
+           }
+
+           let nextNdisShift = null;
+           for (let j = i + 1; j < shifts.length; j++) {
+               if (shifts[j].funding_type === 'NDIS' && !shifts[j].respite_booking_id) {
+                   nextNdisShift = shifts[j];
+                   break;
+               }
+           }
+
+           let totalDist = 0;
+           let totalMins = 0;
+
+           // Incoming Leg
+           const prevGapMins = prevNdisShift ? (new Date(shift.start_time).getTime() - new Date(prevNdisShift.end_time).getTime()) / 60000 : Infinity;
+           if (prevNdisShift && prevGapMins >= 0 && prevGapMins <= 60) {
+             const prevClientCoords = await getRecordCoordinates('clients', prevNdisShift.client_id, prevNdisShift.c_address);
+             const prevClientStr = `Previous Client (${prevNdisShift.c_address || 'Unknown'}) ${formatCoords(prevClientCoords)}`;
+             const { distance, minutes } = await getGoogleRoutesDistance([prevClientCoords, clientCoords]); 
+             const apportionedDist = distance / 2;
+             const apportionedMins = minutes / 2;
+             totalDist += apportionedDist;
+             totalMins += apportionedMins;
+             pTravel.routeLogs.push({ description: `(50% Apportionment) ${prevClientStr} to ${clientHomeStr}`, distance: apportionedDist, durationMins: apportionedMins, waypoints: [prevClientCoords, clientCoords], addressStart: prevNdisShift.c_address, addressEnd: shift.c_address });
+           } else {
+             const { distance: distHome, minutes: minsHome } = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
+             totalDist += distHome;
+             totalMins += minsHome;
+             pTravel.routeLogs.push({ description: `(100% Allocation) ${staffHomeStr} to ${clientHomeStr}`, distance: distHome, durationMins: minsHome, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: shift.c_address });
+           }
+
+           // Outgoing Leg
+           const nextGapMins = nextNdisShift ? (new Date(nextNdisShift.start_time).getTime() - new Date(shift.end_time).getTime()) / 60000 : Infinity;
+           if (nextNdisShift && nextGapMins >= 0 && nextGapMins <= 60) {
+             const nextClientCoords = await getRecordCoordinates('clients', nextNdisShift.client_id, nextNdisShift.c_address);
+             const nextClientStr = `Next Client (${nextNdisShift.c_address || 'Unknown'}) ${formatCoords(nextClientCoords)}`;
+             const { distance, minutes } = await getGoogleRoutesDistance([clientCoords, nextClientCoords]);
+             const apportionedDist = distance / 2;
+             const apportionedMins = minutes / 2;
+             totalDist += apportionedDist;
+             totalMins += apportionedMins;
+             pTravel.routeLogs.push({ description: `(50% Apportionment) ${clientHomeStr} to ${nextClientStr}`, distance: apportionedDist, durationMins: apportionedMins, waypoints: [clientCoords, nextClientCoords], addressStart: shift.c_address, addressEnd: nextNdisShift.c_address });
+           } else {
+             const { distance: distReturn, minutes: minsReturn } = await getGoogleRoutesDistance([clientCoords, staffHomeCoords]);
+             totalDist += distReturn;
+             totalMins += minsReturn;
+             pTravel.routeLogs.push({ description: `(100% Allocation) ${clientHomeStr} to Staff Home (Return trip)`, distance: distReturn, durationMins: minsReturn, waypoints: [clientCoords, staffHomeCoords], addressStart: shift.c_address, addressEnd: staff?.address });
+           }
+
+           // Enforce MMM6 Boundary Checks (Hard cap at 60 mins)
+           let billableMins = totalMins;
+           if (totalMins > 60) {
+              console.log(`[NDIS Travel Cap] Capping travel time from ${totalMins.toFixed(2)} mins to 60.0 mins (MMM6 rules).`);
+              pTravel.routeLogs.push({ description: `(Capped) Actual travel time was ${totalMins.toFixed(2)} mins, but capped at 60 mins for MMM6 compliance.`, distance: 0, durationMins: 0, waypoints: [] });
+              billableMins = 60;
+           }
+
+           pTravel.distance = totalDist;
+           pTravel.minutes = billableMins;
+           pTravel.cost = totalDist * 1.00; // non-labor part
         }
 
         let updatedServicesJson = shift.services_json;
