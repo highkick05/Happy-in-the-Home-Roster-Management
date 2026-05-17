@@ -3536,27 +3536,21 @@ if (!nextShift || gapToNext > 60) {
         });
 
         const shiftIds = createShifts(processedStaffShifts);
-        res.json({ id: shiftIds[0], ids: shiftIds });
         
         // Recalculate after batch insert
         for (const single of processedStaffShifts) {
-          (async () => {
-              console.log(`[DEBUG CASCADE] Calling hook for POST batch insert: staffId ${single.staffId}, time: ${startTime}`);
-              await new Promise(resolve => setTimeout(resolve, 500));
-              await recalculateDayTravelForStaff(single.staffId, startTime);
-          })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
+          await recalculateDayTravelForStaff(single.staffId, startTime);
         }
+        
+        res.json({ id: shiftIds[0], ids: shiftIds });
       } else {
         const single = processedStaffShifts[0];
         const info = stmt.run(single.staffId, clientId, mainServiceId, startTime, endTime, status || 'DRAFT', notes, single.servicesJson, single.isAbtApproved ? 1 : 0, fType);
-        res.json({ id: info.lastInsertRowid });
         
         // Recalculate after single insert
-        (async () => {
-            console.log(`[DEBUG CASCADE] Calling hook for POST single insert: staffId ${single.staffId}, time: ${startTime}`);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await recalculateDayTravelForStaff(single.staffId, startTime);
-        })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
+        await recalculateDayTravelForStaff(single.staffId, startTime);
+        
+        res.json({ id: info.lastInsertRowid });
       }
     } catch (e: any) {
       
@@ -3565,7 +3559,7 @@ if (!nextShift || gapToNext > 60) {
     }
   });
 
-  app.post('/api/shifts/batch-action', authenticateToken, requireAdmin, (req: any, res: any) => {
+  app.post('/api/shifts/batch-action', authenticateToken, requireAdmin, async (req: any, res: any) => {
     try {
       const { action, shiftIds } = req.body;
       if (!action || !shiftIds || !Array.isArray(shiftIds) || shiftIds.length === 0) {
@@ -3614,13 +3608,10 @@ if (!nextShift || gapToNext > 60) {
       })();
 
       if (action === 'delete' && uniqueStaffDates.size > 0) {
-        uniqueStaffDates.forEach(sd => {
+        await Promise.all(Array.from(uniqueStaffDates).map(sd => {
           const [staffId, startTime] = sd.split('|');
-          (async () => {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await recalculateDayTravelForStaff(staffId, startTime);
-          })().catch(e => console.error(e));
-        });
+          return recalculateDayTravelForStaff(Number(staffId), startTime);
+        }));
       }
 
       res.json({ success: true, message: `Batch ${action} completed successfully` });
@@ -3646,7 +3637,7 @@ if (!nextShift || gapToNext > 60) {
     }
   });
 
-  app.put('/api/shifts/:id', authenticateToken, requireAdmin, (req: any, res: any) => {
+  app.put('/api/shifts/:id', authenticateToken, requireAdmin, async (req: any, res: any) => {
     const { id } = req.params;
     const { staffId, clientId, serviceId, startTime, endTime, status, notes, fundingType, servicesData, providerTravelKm, abtKm } = req.body;
     
@@ -3688,16 +3679,13 @@ if (!nextShift || gapToNext > 60) {
          generateInvoiceForShift(id);
       }
       
-      (async () => {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
-      })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
+      const targetStaffId = staffId !== undefined ? staffId : existing.staff_id;
+      const targetStartTime = startTime !== undefined ? startTime : existing.start_time;
+      await recalculateDayTravelForStaff(targetStaffId, targetStartTime);
+      
       if (staffId !== undefined && staffId !== existing.staff_id || startTime !== undefined && startTime !== existing.start_time) {
          // Recalculate old date/staff if it changed
-         (async () => {
-             await new Promise(resolve => setTimeout(resolve, 500));
-             await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
-         })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
+         await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
       }
 
       res.json({ success: true });
@@ -3962,7 +3950,7 @@ if (!nextShift || gapToNext > 60) {
     }
   });
 
-  app.delete('/api/shifts/:id', authenticateToken, requireAdmin, (req, res) => {
+  app.delete('/api/shifts/:id', authenticateToken, requireAdmin, async (req, res) => {
     const { id } = req.params;
     try {
       let shiftToUpdate: any;
@@ -3980,12 +3968,7 @@ if (!nextShift || gapToNext > 60) {
       })();
 
       if (shiftToUpdate) {
-        // Run without awaiting to avoid blocking response, or wrap in async. We can just call it (fire and forget) 
-        // since we want it to happen after transaction
-        (async () => {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await recalculateDayTravelForStaff(shiftToUpdate.staff_id, shiftToUpdate.start_time);
-        })().catch(e => console.error(e));
+        await recalculateDayTravelForStaff(shiftToUpdate.staff_id, shiftToUpdate.start_time);
       }
 
       res.json({ success: true });
