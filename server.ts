@@ -810,24 +810,37 @@ async function startServer() {
         headers: {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': apiKey,
-          'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration'
+          'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.legs.distanceMeters,routes.legs.duration'
         },
         body: JSON.stringify(payload)
       });
       
       if (!res.ok) {
         console.error(`[ERROR Routes API] Status: ${res.status}. Returning 0. Payload was:`, await res.text());
-        return { distance: 0, minutes: 0 };
+        return { distance: 0, minutes: 0, legs: [] };
       }
       const data = await res.json();
-      const dist = (data.routes?.[0]?.distanceMeters || 0) / 1000;
+      const route = data.routes?.[0];
+      const dist = (route?.distanceMeters || 0) / 1000;
       let mins = 0;
-      const durationStr = data.routes?.[0]?.duration;
+      const durationStr = route?.duration;
       if (durationStr && durationStr.endsWith('s')) {
         mins = parseFloat(durationStr.replace('s', '')) / 60;
       }
-      console.log(`[DEBUG Routes API] Distance calculated: ${dist} km, Time: ${mins} mins`);
-      return { distance: dist, minutes: mins };
+
+      const legs = (route?.legs || []).map((leg: any) => {
+        let legMins = 0;
+        if (leg.duration && leg.duration.endsWith('s')) {
+          legMins = parseFloat(leg.duration.replace('s', '')) / 60;
+        }
+        return {
+          distance: (leg.distanceMeters || 0) / 1000,
+          minutes: legMins
+        };
+      });
+
+      console.log(`[DEBUG Routes API] Distance calculated: ${dist} km, Time: ${mins} mins, Legs: ${legs.length}`);
+      return { distance: dist, minutes: mins, legs };
     } catch (e) {
       console.error('[CRITICAL Routes API] Failed. Returning 0 distance.', e);
       return { distance: 0, minutes: 0 };
@@ -3652,16 +3665,29 @@ async function startServer() {
       }
 
       if (shift.funding_type === 'NDIS' && resolvedAbtCoordinates.length >= 2 && !shift.respite_booking_id) {
-         const { distance } = await getGoogleRoutesDistance(resolvedAbtCoordinates);
+         const { distance, minutes, legs } = await getGoogleRoutesDistance(resolvedAbtCoordinates);
          abt_km = distance;
          abt_cost = abt_km * 1.00; // $1.00/km Ledger Split
+         
+         const routeLegs = (legs || []).map((leg: any, idx: number) => {
+            const fromAddr = abtAddresses[idx] || 'Point A';
+            const toAddr = abtAddresses[idx+1] || 'Point B';
+            return {
+               description: `${fromAddr} → ${toAddr}`,
+               distance: leg.distance,
+               durationMins: leg.minutes
+            };
+         });
+
          combinedRouteLog = combinedRouteLog || {};
          combinedRouteLog.abt = { 
-            description: `Transport during shift:\n` + abtAddresses.join(' → '),
+            description: `Transport during shift (Total: ${abt_km.toFixed(2)} km)`,
             waypoints: resolvedAbtCoordinates, 
             distance: abt_km, 
+            minutes: minutes,
             cost: abt_cost, 
-            calculatedAt: new Date().toISOString() 
+            calculatedAt: new Date().toISOString(),
+            legs: routeLegs
          };
       }
 

@@ -52,13 +52,13 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
     );
   };
 
-  const renderFormattedDescription = (desc: string, distance?: number | null, calculatedAt?: string) => {
+  const renderFormattedDescription = (desc: string, distance?: number | null, calculatedAt?: string, durationMins?: number | null) => {
     if (!desc) return null;
 
     if (desc.includes(' → ')) {
       const parts = desc.split('\n');
       const title = parts[0]?.trim();
-      const locations = parts[1]?.split(' → ') || [];
+      const locations = parts[parts.length - 1]?.split(' → ') || [];
       
       return (
         <div className="flex flex-col mt-1">
@@ -67,16 +67,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
             {locations.map((loc, i) => {
               const isStart = i === 0;
               const isEnd = i === locations.length - 1;
-              let label = isStart ? 'START' : isEnd ? 'RETURN' : 'WAYPOINT';
-
-              if (locations.length > 1) {
-                const firstMatch = locations[0].match(/(\[[\d.,\s-]+\])/);
-                const lastMatch = locations[locations.length - 1].match(/(\[[\d.,\s-]+\])/);
-                if (firstMatch && lastMatch && firstMatch[1] === lastMatch[1]) {
-                  if (isStart) label = 'START: Client Home';
-                  if (isEnd) label = 'RETURN: Client Home';
-                }
-              }
+              let label = isStart ? 'START' : isEnd ? 'END' : 'WAYPOINT';
 
               return (
                 <div key={i} className="flex gap-4 items-start relative z-10 mb-6 last:mb-0">
@@ -100,9 +91,16 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
           </div>
           {distance != null && (
             <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/[0.08]/60 pl-8">
-              <span className="text-sm font-extrabold text-brand-green bg-brand-green/10 px-3 py-1.5 rounded-md border border-brand-green/20">
-                {distance.toFixed(2)} km
-              </span>
+              <div className="flex gap-3">
+                <span className="text-sm font-black text-brand-green bg-brand-green/10 px-4 py-2 rounded-lg border border-brand-green/30 shadow-sm shadow-brand-green/10">
+                  {distance.toFixed(2)} km
+                </span>
+                {durationMins != null && durationMins > 0 && (
+                   <span className="text-sm font-black text-zinc-300 bg-zinc-800/50 px-4 py-2 rounded-lg border border-white/10 shadow-sm">
+                     {durationMins.toFixed(0)} mins
+                   </span>
+                )}
+              </div>
               {calculatedAt && (
                 <span className="text-[10px] text-zinc-600 font-medium">Calculated: {new Date(calculatedAt).toLocaleString()}</span>
               )}
@@ -143,9 +141,16 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
           </div>
           {distance != null && (
             <div className="flex justify-between items-center mt-2 pt-4 border-t border-white/[0.08]/60 pl-8">
-              <span className="text-sm font-extrabold text-brand-teal bg-indigo-500/10 px-3 py-1.5 rounded-md border border-brand-teal/20">
-                {distance.toFixed(2)} km
-              </span>
+              <div className="flex gap-3">
+                <span className="text-sm font-black text-brand-teal bg-indigo-500/10 px-4 py-2 rounded-lg border border-brand-teal/30 shadow-sm shadow-brand-teal/10">
+                  {distance.toFixed(2)} km
+                </span>
+                {durationMins != null && durationMins > 0 && (
+                   <span className="text-sm font-black text-zinc-300 bg-zinc-800/50 px-4 py-2 rounded-lg border border-white/10 shadow-sm">
+                     {durationMins.toFixed(0)} mins
+                   </span>
+                )}
+              </div>
               {calculatedAt && (
                 <span className="text-[10px] text-zinc-600 font-medium">Calculated: {new Date(calculatedAt).toLocaleString()}</span>
               )}
@@ -155,7 +160,23 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
       );
     }
 
-    return formatLocationString(desc);
+    return (
+      <div className="flex flex-col">
+        {formatLocationString(desc)}
+        {distance != null && distance > 0 && (
+          <div className="mt-3 flex gap-3">
+             <span className="text-xs font-black text-brand-teal bg-indigo-500/10 px-3 py-1.5 rounded-md border border-brand-teal/20">
+               {distance.toFixed(2)} km
+             </span>
+             {durationMins != null && durationMins > 0 && (
+                <span className="text-xs font-black text-zinc-400 bg-zinc-800/50 px-3 py-1.5 rounded-md border border-white/5">
+                  {durationMins.toFixed(0)} mins
+                </span>
+             )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const handleUpdateStatus = async (status: string) => {
@@ -314,7 +335,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                                   <div className="space-y-6">
                                     {log.providerTravel.legs.map((leg: any, i: number) => (
                                       <div key={i} className="mb-2">
-                                        {renderFormattedDescription(leg.description)}
+                                        {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
                                       </div>
                                     ))}
                                   </div>
@@ -346,7 +367,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                                       if (leg.distance === 0) return null;
                                       return (
                                         <div key={i} className="mb-2">
-                                          {renderFormattedDescription(leg.description)}
+                                          {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
                                         </div>
                                       );
                                     })}
@@ -366,7 +387,26 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                             {log.abt && (
                               <div className="flex items-start gap-3 pt-2">
                                   <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
-                                    <div className="mb-1">{renderFormattedDescription(log.abt.description || 'Activity Based Transport', log.abt.distance, log.abt.calculatedAt)}</div>
+                                    <span className="text-xs font-bold text-brand-green/80 mb-5 uppercase tracking-wider block">Activity Based Transport (ABT):</span>
+                                    {log.abt.legs && log.abt.legs.length > 0 ? (
+                                      <div className="space-y-6">
+                                        {log.abt.legs.map((leg: any, i: number) => (
+                                          <div key={i} className="mb-2">
+                                            {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="mb-1">{renderFormattedDescription(log.abt.description || 'Activity Based Transport', log.abt.distance, log.abt.calculatedAt, log.abt.minutes)}</div>
+                                    )}
+                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-6 pt-5 border-t border-white/[0.08]/80 sm:pl-8 gap-3">
+                                      <span className="flex items-center px-4 py-2 bg-brand-green/20 text-brand-green text-[13px] font-black rounded-md border border-brand-green/30 w-full justify-center md:w-auto">
+                                        {log.abt.distance != null ? log.abt.distance.toFixed(2) : 0} km
+                                      </span>
+                                      {log.abt.calculatedAt && (
+                                        <span className="text-[10px] md:text-xs text-zinc-500 font-medium self-start sm:self-auto text-left sm:text-right">Calculated: <br className="sm:hidden"/>{new Date(log.abt.calculatedAt).toLocaleString()}</span>
+                                      )}
+                                    </div>
                                   </div>
                               </div>
                             )}
