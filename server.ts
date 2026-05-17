@@ -1222,15 +1222,20 @@ async function startServer() {
 
   const recalculateDayTravelForStaff = async (staffId: number, dateStr: string) => {
     try {
+      console.log(`[DEBUG CASCADE] INIT recalculateDayTravelForStaff staffId: ${staffId}, dateStr: ${dateStr}`);
+      const startTimeRangeStart = new Date(new Date(dateStr).getTime() - 14 * 3600 * 1000).toISOString();
+      const startTimeRangeEnd = new Date(new Date(dateStr).getTime() + 14 * 3600 * 1000).toISOString();
+
       const shifts = db.prepare(`
         SELECT s.*, 
                c.address as client_address
         FROM shifts s
         LEFT JOIN clients c ON s.client_id = c.id
-        WHERE s.staff_id = ? AND s.start_time >= datetime(?, '-14 hours') AND s.start_time <= datetime(?, '+14 hours') AND s.status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+        WHERE s.staff_id = ? AND s.start_time >= ? AND s.start_time <= ? AND s.status NOT IN ('CANCELLED', 'DELETED', 'deleted')
         ORDER BY s.start_time ASC
-      `).all(staffId, dateStr, dateStr) as any[];
+      `).all(staffId, startTimeRangeStart, startTimeRangeEnd) as any[];
 
+      console.log(`[DEBUG CASCADE] DB found ${shifts ? shifts.length : 0} shifts from ${startTimeRangeStart} to ${startTimeRangeEnd}`);
       if (!shifts || shifts.length === 0) return;
 
       const staffInfo = db.prepare('SELECT address FROM users WHERE id = ?').get(staffId) as any;
@@ -3520,6 +3525,7 @@ if (!nextShift || gapToNext > 60) {
         // Recalculate after batch insert
         for (const single of processedStaffShifts) {
           (async () => {
+              console.log(`[DEBUG CASCADE] Calling hook for POST batch insert: staffId ${single.staffId}, time: ${startTime}`);
               await new Promise(resolve => setTimeout(resolve, 500));
               await recalculateDayTravelForStaff(single.staffId, startTime);
           })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
@@ -3531,6 +3537,7 @@ if (!nextShift || gapToNext > 60) {
         
         // Recalculate after single insert
         (async () => {
+            console.log(`[DEBUG CASCADE] Calling hook for POST single insert: staffId ${single.staffId}, time: ${startTime}`);
             await new Promise(resolve => setTimeout(resolve, 500));
             await recalculateDayTravelForStaff(single.staffId, startTime);
         })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
