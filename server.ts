@@ -1220,7 +1220,7 @@ async function startServer() {
     }
   };
 
-  const recalculateStaffTravelForDate = async (staffId: string | number, dateIso: string) => {
+  const recalculateDayTravelForStaff = async (staffId: string | number, dateIso: string) => {
     try {
       // 1. Get all remaining active shifts for staffId on dateIso
       const shifts = db.prepare(`
@@ -1231,76 +1231,99 @@ async function startServer() {
 
       if (!shifts || shifts.length === 0) return;
 
-      console.log(`[DEBUG Recalculate] Recalculating travel for staff ${staffId} on ${dateIso}. Found ${shifts.length} shift(s).`);
+      console.log(`[DEBUG Cascade] Recalculating travel matrix for staff ${staffId} on ${dateIso}. Found ${shifts.length} shift(s).`);
 
       for (const shift of shifts) {
-        if (shift.status === 'COMPLETED') {
-          // Re-calculate actual Provider Travel
-          const pTravel = await calculateProviderTravel(shift);
-          const hcTravel = await calculateHomeCareTravel(shift);
-          
-          let updatedServicesJson = shift.services_json;
-          if (updatedServicesJson) {
-            try {
-              const servicesData = JSON.parse(updatedServicesJson);
-              if (Array.isArray(servicesData)) {
-                let changed = false;
-                for (const sData of servicesData) {
-                  const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
-                  if (service && service.name) {
-                    const name = service.name.toLowerCase();
-                    if (name.includes('provider travel')) {
-                      let billableValue = pTravel.distance; // Fallback
-                      if (pTravel.minutes !== undefined && !name.includes('non-labour')) {
+        if (shift.status === 'INVOICED') {
+           console.log(`[DEBUG Cascade] Skipping ledger modification for shift ${shift.id} because status is INVOICED.`);
+           continue;
+        }
+
+        // We run the calculations
+        let pTravel = { distance: 0, cost: 0, minutes: 0, routeLogs: [] };
+        let hcTravel = { distance: 0, cost: 0, minutes: 0, routeLogs: [] };
+        let isHomeCare = false;
+        
+        if (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE') {
+           isHomeCare = true;
+           hcTravel = await calculateHomeCareTravel(shift);
+        } else if (shift.funding_type === 'NDIS') {
+           // NDIS calculation already checks for adjacent shifts dynamically
+           pTravel = await calculateProviderTravel(shift);
+        }
+
+        let updatedServicesJson = shift.services_json;
+        if (updatedServicesJson) {
+          try {
+            const servicesData = JSON.parse(updatedServicesJson);
+            if (Array.isArray(servicesData)) {
+              let changed = false;
+              for (const sData of servicesData) {
+                const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
+                if (service && service.name) {
+                  const name = service.name.toLowerCase();
+                  if (name.includes('provider travel') || name.includes('travel')) {
+                    if (isHomeCare) {
+                      sData.qtyOverride = parseFloat(hcTravel.distance.toFixed(2));
+                    } else {
+                      let billableValue = pTravel.distance;
+                      if (pTravel.minutes !== undefined && pTravel.minutes > 0 && !name.includes('non-labour')) {
                          const unitStr = (service.unit || 'Hour').toLowerCase();
-                         billableValue = (unitStr.includes('minute') || unitStr === 'min') ? pTravel.minutes : pTravel.minutes / 60;
+                         billableValue = (unitStr.includes('minute') || unitStr === 'min') ? pTravel.minutes : (pTravel.minutes / 60);
                       }
                       sData.qtyOverride = parseFloat(billableValue.toFixed(2));
-                      changed = true;
-                    } else if (name.includes('activity based transport') && shift.abt_km !== undefined) {
-                      sData.qtyOverride = parseFloat(Number(shift.abt_km).toFixed(2));
-                      changed = true;
                     }
+                    changed = true;
+                  } else if (name.includes('activity based transport') && shift.abt_km !== undefined) {
+                    sData.qtyOverride = parseFloat(Number(shift.abt_km).toFixed(2));
+                    changed = true;
                   }
                 }
-                if (changed) {
-                  updatedServicesJson = JSON.stringify(servicesData);
-                }
               }
-            } catch (e) {
-              console.error("Failed to parse services_json during recalculate:", e);
-            }
-          }
-          
-          db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_cost = ?, home_care_travel_km = ?, home_care_travel_total = ?, services_json = ? WHERE id = ?').run(pTravel.distance, pTravel.cost, hcTravel.distance, hcTravel.cost, updatedServicesJson, shift.id);
-        } else {
-          // Re-calculate scheduled Provider Travel (DRAFT, PUBLISHED, IN_PROGRESS)
-          if (!shift.services_json) continue;
-          let servicesData;
-          try { servicesData = JSON.parse(shift.services_json); } catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
-          if (servicesData && Array.isArray(servicesData)) {
-            let updated = false;
-            for (const sData of servicesData) {
-              const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
-              if (service && service.name && service.name.toLowerCase().includes('provider travel')) {
-                const schedTravel = await calculateScheduledProviderTravel(shift.staff_id, shift.start_time, shift.end_time, shift.client_id, shift.id);
-                let billableValue = schedTravel.distance;
-                if (schedTravel.minutes !== undefined && schedTravel.minutes > 0 && !service.name.toLowerCase().includes('non-labour')) {
-                   const unitStr = (service.unit || 'Hour').toLowerCase();
-                   billableValue = (unitStr.includes('minute') || unitStr === 'min') ? schedTravel.minutes : schedTravel.minutes / 60;
-                }
-                sData.qtyOverride = parseFloat(billableValue.toFixed(2));
-                updated = true;
+              if (changed) {
+                updatedServicesJson = JSON.stringify(servicesData);
               }
             }
-            if (updated) {
-               db.prepare('UPDATE shifts SET services_json = ? WHERE id = ?').run(JSON.stringify(servicesData), shift.id);
-            }
+          } catch (e) {
+            console.error("Failed to parse services_json during recalculate:", e);
           }
         }
+        
+        let combinedLog: any = {};
+        try { if (shift.transport_route_log) combinedLog = JSON.parse(shift.transport_route_log); } catch(e) {}
+        
+        if (isHomeCare) {
+           delete combinedLog.providerTravel;
+           combinedLog.homeCareTravel = {
+              distance: hcTravel.distance,
+              cost: hcTravel.cost,
+              legs: hcTravel.routeLogs,
+              calculatedAt: new Date().toISOString()
+           };
+        } else if (shift.funding_type === 'NDIS') {
+           delete combinedLog.homeCareTravel;
+           combinedLog.providerTravel = {
+              distance: pTravel.distance,
+              minutes: pTravel.minutes,
+              cost: pTravel.cost,
+              legs: pTravel.routeLogs,
+              calculatedAt: new Date().toISOString()
+           };
+        }
+
+        db.prepare(`
+           UPDATE shifts 
+           SET provider_travel_km = ?, 
+               provider_travel_cost = ?, 
+               home_care_travel_km = ?, 
+               home_care_travel_total = ?, 
+               services_json = ?,
+               transport_route_log = ?
+           WHERE id = ?
+        `).run(pTravel.distance, pTravel.cost, hcTravel.distance, hcTravel.cost, updatedServicesJson, JSON.stringify(combinedLog), shift.id);
       }
     } catch (e) {
-      console.error('[DEBUG Recalculate] Error recalculating staff travel:', e);
+      console.error('[DEBUG Cascade] Error recalculating staff travel:', e);
     }
   };
 
@@ -3401,7 +3424,7 @@ async function startServer() {
         
         // Recalculate after batch insert
         for (const single of processedStaffShifts) {
-          recalculateStaffTravelForDate(single.staffId, startTime).catch(e => console.error(e));
+          await recalculateDayTravelForStaff(single.staffId, startTime);
         }
       } else {
         const single = processedStaffShifts[0];
@@ -3409,7 +3432,7 @@ async function startServer() {
         res.json({ id: info.lastInsertRowid });
         
         // Recalculate after single insert
-        recalculateStaffTravelForDate(single.staffId, startTime).catch(e => console.error(e));
+        await recalculateDayTravelForStaff(single.staffId, startTime);
       }
     } catch (e: any) {
       
@@ -3418,7 +3441,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/shifts/batch-action', authenticateToken, requireAdmin, (req: any, res: any) => {
+  app.post('/api/shifts/batch-action', authenticateToken, requireAdmin, async (req: any, res: any) => {
     try {
       const { action, shiftIds } = req.body;
       if (!action || !shiftIds || !Array.isArray(shiftIds) || shiftIds.length === 0) {
@@ -3467,10 +3490,10 @@ async function startServer() {
       })();
 
       if (action === 'delete' && uniqueStaffDates.size > 0) {
-        uniqueStaffDates.forEach(sd => {
+        for (const sd of uniqueStaffDates) {
           const [staffId, startTime] = sd.split('|');
-          recalculateStaffTravelForDate(staffId, startTime).catch(e => console.error(e));
-        });
+          await recalculateDayTravelForStaff(staffId, startTime);
+        }
       }
 
       res.json({ success: true, message: `Batch ${action} completed successfully` });
@@ -3496,7 +3519,7 @@ async function startServer() {
     }
   });
 
-  app.put('/api/shifts/:id', authenticateToken, requireAdmin, (req: any, res: any) => {
+  app.put('/api/shifts/:id', authenticateToken, requireAdmin, async (req: any, res: any) => {
     const { id } = req.params;
     const { staffId, clientId, serviceId, startTime, endTime, status, notes, fundingType, servicesData, providerTravelKm, abtKm } = req.body;
     
@@ -3538,10 +3561,10 @@ async function startServer() {
          generateInvoiceForShift(id);
       }
       
-      recalculateStaffTravelForDate(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time).catch(e => console.error(e));
+      await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
       if (staffId !== undefined && staffId !== existing.staff_id || startTime !== undefined && startTime !== existing.start_time) {
          // Recalculate old date/staff if it changed
-         recalculateStaffTravelForDate(existing.staff_id, existing.start_time).catch(e => console.error(e));
+         await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
       }
 
       res.json({ success: true });
@@ -3761,6 +3784,8 @@ async function startServer() {
         id
       );
 
+      await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);
+
       // Trigger notification for ADMINs
       try {
         const staff = db.prepare('SELECT first_name, last_name FROM users WHERE id = ?').get(shift.staff_id) as any;
@@ -3806,7 +3831,7 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/shifts/:id', authenticateToken, requireAdmin, (req, res) => {
+  app.delete('/api/shifts/:id', authenticateToken, requireAdmin, async (req, res) => {
     const { id } = req.params;
     try {
       let shiftToUpdate: any;
@@ -3824,9 +3849,7 @@ async function startServer() {
       })();
 
       if (shiftToUpdate) {
-        // Run without awaiting to avoid blocking response, or wrap in async. We can just call it (fire and forget) 
-        // since we want it to happen after transaction
-        recalculateStaffTravelForDate(shiftToUpdate.staff_id, shiftToUpdate.start_time).catch(e => console.error(e));
+        await recalculateDayTravelForStaff(shiftToUpdate.staff_id, shiftToUpdate.start_time);
       }
 
       res.json({ success: true });
