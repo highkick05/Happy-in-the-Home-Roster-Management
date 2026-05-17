@@ -752,7 +752,7 @@ async function startServer() {
 
   // --- Google Routes & Travel Logic ---
   const getGoogleRoutesDistance = async (waypoints: any[]) => {
-    if (waypoints.length < 2) return 0;
+    if (waypoints.length < 2) return { distance: 0, minutes: 0 };
     try {
       const toWaypointInfo = (wp: any) => {
         // Handle string formats like "[114.65, -28.73]" or "114.65, -28.73"
@@ -786,7 +786,7 @@ async function startServer() {
       };
       
       const validWaypoints = waypoints.map(toWaypointInfo).filter(Boolean);
-      if (validWaypoints.length < 2) return 0;
+      if (validWaypoints.length < 2) return { distance: 0, minutes: 0 };
 
       const payload: any = {
         origin: validWaypoints[0],
@@ -801,7 +801,7 @@ async function startServer() {
       const apiKey = process.env.Maps_API_KEY || process.env.Maps_PLATFORM_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
       if (!apiKey) {
         console.error('[CRITICAL Routes API] Missing Maps_API_KEY. Returning 0 distance.');
-        return 0;
+        return { distance: 0, minutes: 0 };
       }
 
       console.log(`[DEBUG Routes API] Requesting distance for ${validWaypoints.length} waypoints.`);
@@ -810,22 +810,27 @@ async function startServer() {
         headers: {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': apiKey,
-          'X-Goog-FieldMask': 'routes.distanceMeters'
+          'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration'
         },
         body: JSON.stringify(payload)
       });
       
       if (!res.ok) {
         console.error(`[ERROR Routes API] Status: ${res.status}. Returning 0. Payload was:`, await res.text());
-        return 0;
+        return { distance: 0, minutes: 0 };
       }
       const data = await res.json();
       const dist = (data.routes?.[0]?.distanceMeters || 0) / 1000;
-      console.log(`[DEBUG Routes API] Distance calculated: ${dist} km`);
-      return dist;
+      let mins = 0;
+      const durationStr = data.routes?.[0]?.duration;
+      if (durationStr && durationStr.endsWith('s')) {
+        mins = parseFloat(durationStr.replace('s', '')) / 60;
+      }
+      console.log(`[DEBUG Routes API] Distance calculated: ${dist} km, Time: ${mins} mins`);
+      return { distance: dist, minutes: mins };
     } catch (e) {
       console.error('[CRITICAL Routes API] Failed. Returning 0 distance.', e);
-      return 0;
+      return { distance: 0, minutes: 0 };
     }
   };
 
@@ -939,42 +944,57 @@ async function startServer() {
            const prevClientInfo = db.prepare('SELECT address FROM clients WHERE id = ?').get(prevShift.client_id) as any;
            const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
            console.log(`[DEBUG Provider Travel (Schedule)] Subsequent shift (Home Care <= 60m). Dist from Client ${prevShift.client_id} to ${newShiftClientId}`);
-           const dist = await getGoogleRoutesDistance([prevClientCoords, clientCoords]); 
+           const { distance: dist } = await getGoogleRoutesDistance([prevClientCoords, clientCoords]); 
            console.log(`[DEBUG Provider Travel (Schedule)] Calculated dist: ${dist} km`);
            totalDist += dist;
         }
       } else {
         // NDIS LOGIC
+        let totalMins = 0;
         const prevGapMins = prevShift ? (new Date(newShiftStartTime).getTime() - new Date(prevShift.end_time).getTime()) / 60000 : Infinity;
         if (prevShift && prevGapMins >= 0 && prevGapMins <= 60) {
            const prevClientInfo = db.prepare('SELECT address FROM clients WHERE id = ?').get(prevShift.client_id) as any;
            const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
            console.log(`[DEBUG Provider Travel (Schedule)] Subsequent shift (${fundingType}). Calculating distance from Previous Client ${prevShift.client_id} to Client ${newShiftClientId}`);
-           const dist = await getGoogleRoutesDistance([prevClientCoords, clientCoords]);
-           console.log(`[DEBUG Provider Travel (Schedule)] Calculated Provider Travel from Previous Client -> Current Client: ${dist} km`);
-           totalDist += dist;
+           const { distance: dist, minutes: mins } = await getGoogleRoutesDistance([prevClientCoords, clientCoords]);
+           console.log(`[DEBUG Provider Travel (Schedule)] Calculated Provider Travel from Previous Client -> Current Client: ${dist} km, ${mins} mins`);
+           totalDist += (dist / 2);
+           totalMins += (mins / 2);
         } else {
            console.log(`[DEBUG Provider Travel (Schedule)] First shift of sequence for staff ${staffId} (NDIS). Calculating distance from Home to Client ${newShiftClientId}`);
-           const distHome = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
-           console.log(`[DEBUG Provider Travel (Schedule)] Calculated Provider Travel from Home -> Client: ${distHome} km`);
+           const { distance: distHome, minutes: minsHome } = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
+           console.log(`[DEBUG Provider Travel (Schedule)] Calculated Provider Travel from Home -> Client: ${distHome} km, ${minsHome} mins`);
            totalDist += distHome;
+           totalMins += minsHome;
         }
 
         const nextGapMins = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(newShiftEndTime).getTime()) / 60000 : Infinity;
         if (nextShift && nextGapMins >= 0 && nextGapMins <= 60) {
-           console.log(`[DEBUG Provider Travel (Schedule)] Next shift within 60 mins. Bypassing Return to Staff Home.`);
+           console.log(`[DEBUG Provider Travel (Schedule)] Next shift within 60 mins. Splitting outgoing trip 50/50.`);
+           const nextClientInfo = db.prepare('SELECT address FROM clients WHERE id = ?').get(nextShift.client_id) as any;
+           const nextClientCoords = await getRecordCoordinates('clients', nextShift.client_id, nextClientInfo?.address);
+           const { distance: distNext, minutes: minsNext } = await getGoogleRoutesDistance([clientCoords, nextClientCoords]);
+           totalDist += (distNext / 2);
+           totalMins += (minsNext / 2);
         } else {
            console.log(`[DEBUG Provider Travel (Schedule)] Last shift of sequence for staff ${staffId} (NDIS). Appending Return Home distance: Client ${newShiftClientId} -> Staff Home`);
-           const distReturn = await getGoogleRoutesDistance([clientCoords, staffHomeCoords]);
-           console.log(`[DEBUG Provider Travel (Schedule)] Return Home calc dist: ${distReturn} km`);
+           const { distance: distReturn, minutes: minsReturn } = await getGoogleRoutesDistance([clientCoords, staffHomeCoords]);
+           console.log(`[DEBUG Provider Travel (Schedule)] Return Home calc dist: ${distReturn} km, ${minsReturn} mins`);
            totalDist += distReturn;
+           totalMins += minsReturn;
         }
+        
+        let billableMins = totalMins;
+        if (totalMins > 60) {
+           billableMins = 60; // MMM6 cap
+        }
+        return { distance: totalDist, minutes: billableMins }; // NDIS returns object
       }
       
-      return totalDist;
+      return { distance: totalDist, minutes: 0 }; // Home Care fallback
     } catch (e) {
       console.error('[DEBUG Provider Travel (Schedule)] Error calculating scheduled provider travel:', e);
-      return 0;
+      return { distance: 0, minutes: 0 };
     }
   };
 
@@ -1033,7 +1053,7 @@ async function startServer() {
           const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
           const prevClientName = prevClientInfo ? `${prevClientInfo.first_name} ${prevClientInfo.last_name}`.trim() : 'Unknown Client';
           
-          const dist = await getGoogleRoutesDistance([prevClientCoords, clientCoords]); 
+          const { distance: dist } = await getGoogleRoutesDistance([prevClientCoords, clientCoords]); 
           totalDist += dist;
           console.log(`Home Care: [${prevClientName}] to [${clientName}] | Gap: ${gapMins}min | Result: ${dist}km`);
           
@@ -1120,6 +1140,7 @@ async function startServer() {
       `).get(shift.staff_id, shift.end_time, shift.id) as any;
 
       let totalDist = 0;
+      let totalMins = 0;
       let routeLogs: any[] = [];
 
       // NDIS LOGIC
@@ -1132,34 +1153,57 @@ async function startServer() {
         const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
         const prevClientStr = `Previous Client (${prevClientInfo?.address || 'Unknown'}) ${formatCoords(prevClientCoords)}`;
         
-        const dist = await getGoogleRoutesDistance([prevClientCoords, clientCoords]); 
-        totalDist += dist;
-        routeLogs.push({ description: `${prevClientStr} to ${clientHomeStr}`, distance: dist, waypoints: [prevClientCoords, clientCoords], addressStart: prevClientInfo?.address, addressEnd: client?.address });
+        const { distance, minutes } = await getGoogleRoutesDistance([prevClientCoords, clientCoords]); 
+        const apportionedDist = distance / 2;
+        const apportionedMins = minutes / 2;
+        
+        totalDist += apportionedDist;
+        totalMins += apportionedMins;
+        routeLogs.push({ description: `(50% Apportionment) ${prevClientStr} to ${clientHomeStr}`, distance: apportionedDist, durationMins: apportionedMins, waypoints: [prevClientCoords, clientCoords], addressStart: prevClientInfo?.address, addressEnd: client?.address });
       } else {
-        console.log(`[NDIS Travel] No chaining for start (Gap: ${prevGapMins === Infinity ? 'N/A' : prevGapMins.toFixed(0)} mins). Using Staff Home.`);
-        const distHome = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
+        console.log(`[NDIS Travel] No incoming chaining (Gap: ${prevGapMins === Infinity ? 'N/A' : prevGapMins.toFixed(0)} mins). Using Staff Home.`);
+        const { distance: distHome, minutes: minsHome } = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
         totalDist += distHome;
-        const routeDesc = `${staffHomeStr} to ${clientHomeStr}`;
-        routeLogs.push({ description: routeDesc, distance: distHome, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: client?.address });
+        totalMins += minsHome;
+        routeLogs.push({ description: `(100% Allocation) ${staffHomeStr} to ${clientHomeStr}`, distance: distHome, durationMins: minsHome, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: client?.address });
       }
 
       // Outgoing Trip
       const nextGapMins = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(shift.end_time).getTime()) / 60000 : Infinity;
       
       if (nextShift && nextGapMins >= 0 && nextGapMins <= 60) {
-        console.log(`[NDIS Travel] Chaining detected: Next shift within 60 mins. Outgoing travel charged to Next Client. Gap: ${nextGapMins.toFixed(0)} mins`);
-        // Do not add any distance. Next shift will cover Client -> NextClient.
+        console.log(`[NDIS Travel] Chaining detected: Next shift within 60 mins. Outgoing travel split 50/50. Gap: ${nextGapMins.toFixed(0)} mins`);
+        const nextClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(nextShift.client_id) as any;
+        const nextClientCoords = await getRecordCoordinates('clients', nextShift.client_id, nextClientInfo?.address);
+        const nextClientStr = `Next Client (${nextClientInfo?.address || 'Unknown'}) ${formatCoords(nextClientCoords)}`;
+        
+        const { distance, minutes } = await getGoogleRoutesDistance([clientCoords, nextClientCoords]);
+        const apportionedDist = distance / 2;
+        const apportionedMins = minutes / 2;
+
+        totalDist += apportionedDist;
+        totalMins += apportionedMins;
+        routeLogs.push({ description: `(50% Apportionment) ${clientHomeStr} to ${nextClientStr}`, distance: apportionedDist, durationMins: apportionedMins, waypoints: [clientCoords, nextClientCoords], addressStart: client?.address, addressEnd: nextClientInfo?.address });
       } else {
         console.log(`[NDIS Travel] No chaining for end (Gap: ${nextGapMins === Infinity ? 'N/A' : nextGapMins.toFixed(0)} mins). Using Return to Staff Home.`);
-        const distReturn = await getGoogleRoutesDistance([clientCoords, staffHomeCoords]);
+        const { distance: distReturn, minutes: minsReturn } = await getGoogleRoutesDistance([clientCoords, staffHomeCoords]);
         totalDist += distReturn;
-        routeLogs.push({ description: `${clientHomeStr} to Staff Home (Return trip)`, distance: distReturn, waypoints: [clientCoords, staffHomeCoords], addressStart: client?.address, addressEnd: staff?.address });
+        totalMins += minsReturn;
+        routeLogs.push({ description: `(100% Allocation) ${clientHomeStr} to Staff Home (Return trip)`, distance: distReturn, durationMins: minsReturn, waypoints: [clientCoords, staffHomeCoords], addressStart: client?.address, addressEnd: staff?.address });
       }
 
-      return { distance: totalDist, cost: totalDist * 1.00, routeLogs };
+      // Enforce MMM6 Boundary Checks (Hard cap at 60 mins)
+      let billableMins = totalMins;
+      if (totalMins > 60) {
+         console.log(`[NDIS Travel Cap] Capping travel time from ${totalMins.toFixed(2)} mins to 60.0 mins (MMM6 rules).`);
+         routeLogs.push({ description: `(Capped) Actual travel time was ${totalMins.toFixed(2)} mins, but capped at 60 mins for MMM6 compliance.`, distance: 0, durationMins: 0, waypoints: [] });
+         billableMins = 60;
+      }
+
+      return { distance: totalDist, minutes: billableMins, unCappedMinutes: totalMins, cost: totalDist * 1.00, routeLogs };
     } catch (e) {
       console.error('[NDIS Travel] Error calculating provider travel:', e);
-      return { distance: 0, cost: 0, routeLogs: [] };
+      return { distance: 0, minutes: 0, unCappedMinutes: 0, cost: 0, routeLogs: [] };
     }
   };
 
@@ -1189,12 +1233,16 @@ async function startServer() {
               if (Array.isArray(servicesData)) {
                 let changed = false;
                 for (const sData of servicesData) {
-                  const service = db.prepare('SELECT name FROM services WHERE id = ?').get(sData.serviceId) as any;
+                  const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
                   if (service && service.name) {
                     const name = service.name.toLowerCase();
                     if (name.includes('provider travel')) {
-                      // Note: for HOME CARE, pTravel.distance is 0, so qtyOverride becomes 0 as well. This prevents double billing.
-                      sData.qtyOverride = parseFloat(pTravel.distance.toFixed(2));
+                      let billableValue = pTravel.distance; // Fallback
+                      if (pTravel.minutes !== undefined) {
+                         const unitStr = (service.unit || 'Hour').toLowerCase();
+                         billableValue = (unitStr.includes('minute') || unitStr === 'min') ? pTravel.minutes : pTravel.minutes / 60;
+                      }
+                      sData.qtyOverride = parseFloat(billableValue.toFixed(2));
                       changed = true;
                     } else if (name.includes('activity based transport') && shift.abt_km !== undefined) {
                       sData.qtyOverride = parseFloat(Number(shift.abt_km).toFixed(2));
@@ -1220,10 +1268,15 @@ async function startServer() {
           if (servicesData && Array.isArray(servicesData)) {
             let updated = false;
             for (const sData of servicesData) {
-              const service = db.prepare('SELECT name FROM services WHERE id = ?').get(sData.serviceId) as any;
+              const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
               if (service && service.name && service.name.toLowerCase().includes('provider travel')) {
-                const dist = await calculateScheduledProviderTravel(shift.staff_id, shift.start_time, shift.end_time, shift.client_id, shift.id);
-                sData.qtyOverride = parseFloat(dist.toFixed(2));
+                const schedTravel = await calculateScheduledProviderTravel(shift.staff_id, shift.start_time, shift.end_time, shift.client_id, shift.id);
+                let billableValue = schedTravel.distance;
+                if (schedTravel.minutes !== undefined && schedTravel.minutes > 0) {
+                   const unitStr = (service.unit || 'Hour').toLowerCase();
+                   billableValue = (unitStr.includes('minute') || unitStr === 'min') ? schedTravel.minutes : schedTravel.minutes / 60;
+                }
+                sData.qtyOverride = parseFloat(billableValue.toFixed(2));
                 updated = true;
               }
             }
@@ -3293,15 +3346,20 @@ async function startServer() {
         let isAbtApproved = false;
 
         for (const sData of processedServicesData) {
-          const srv = db.prepare('SELECT name FROM services WHERE id = ?').get(sData.serviceId) as any;
+          const srv = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
           if (srv) {
             const name = srv.name.toLowerCase();
             if (name.includes('activity based transport')) {
               isAbtApproved = true;
               sData.qtyOverride = 0;
             } else if (name.includes('provider travel')) {
-              const dist = await calculateScheduledProviderTravel(singleStaffId, startTime, endTime, clientId);
-              sData.qtyOverride = parseFloat(dist.toFixed(2));
+              const schedTravel = await calculateScheduledProviderTravel(singleStaffId, startTime, endTime, clientId);
+              let billableValue = schedTravel.distance;
+              if (schedTravel.minutes !== undefined && schedTravel.minutes > 0) {
+                 const unitStr = (srv.unit || 'Hour').toLowerCase();
+                 billableValue = (unitStr.includes('minute') || unitStr === 'min') ? schedTravel.minutes : schedTravel.minutes / 60;
+              }
+              sData.qtyOverride = parseFloat(billableValue.toFixed(2));
             }
           }
         }
@@ -3594,7 +3652,8 @@ async function startServer() {
       }
 
       if (shift.funding_type === 'NDIS' && resolvedAbtCoordinates.length >= 2 && !shift.respite_booking_id) {
-         abt_km = await getGoogleRoutesDistance(resolvedAbtCoordinates);
+         const { distance } = await getGoogleRoutesDistance(resolvedAbtCoordinates);
+         abt_km = distance;
          abt_cost = abt_km * 1.00; // $1.00/km Ledger Split
          combinedRouteLog = combinedRouteLog || {};
          combinedRouteLog.abt = { 
@@ -3616,14 +3675,19 @@ async function startServer() {
           if (Array.isArray(servicesData)) {
             let changed = false;
             for (const sData of servicesData) {
-              const service = db.prepare('SELECT name FROM services WHERE id = ?').get(sData.serviceId) as any;
+              const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
               if (service && service.name) {
                 const name = service.name.toLowerCase();
                 if (name.includes('activity based transport')) {
                   sData.qtyOverride = parseFloat(abt_km.toFixed(2));
                   changed = true;
                 } else if (name.includes('provider travel')) {
-                  sData.qtyOverride = parseFloat(pTravel.distance.toFixed(2));
+                  let billableValue = pTravel.distance; // Fallback
+                  if (pTravel.minutes !== undefined) {
+                     const unitStr = (service.unit || 'Hour').toLowerCase();
+                     billableValue = (unitStr.includes('minute') || unitStr === 'min') ? pTravel.minutes : pTravel.minutes / 60;
+                  }
+                  sData.qtyOverride = parseFloat(billableValue.toFixed(2));
                   changed = true;
                 }
               }
