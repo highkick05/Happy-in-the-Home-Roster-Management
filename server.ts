@@ -3504,6 +3504,7 @@ async function startServer() {
         res.json({ id: shiftIds[0], ids: shiftIds });
         
         // Recalculate after batch insert
+        await new Promise(resolve => setTimeout(resolve, 500));
         for (const single of processedStaffShifts) {
           await recalculateDayTravelForStaff(single.staffId, startTime);
         }
@@ -3513,6 +3514,7 @@ async function startServer() {
         res.json({ id: info.lastInsertRowid });
         
         // Recalculate after single insert
+        await new Promise(resolve => setTimeout(resolve, 500));
         await recalculateDayTravelForStaff(single.staffId, startTime);
       }
     } catch (e: any) {
@@ -3571,6 +3573,7 @@ async function startServer() {
       })();
 
       if (action === 'delete' && uniqueStaffDates.size > 0) {
+        await new Promise(resolve => setTimeout(resolve, 500));
         for (const sd of uniqueStaffDates) {
           const [staffId, startTime] = sd.split('|');
           await recalculateDayTravelForStaff(staffId, startTime);
@@ -3642,6 +3645,7 @@ async function startServer() {
          generateInvoiceForShift(id);
       }
       
+      await new Promise(resolve => setTimeout(resolve, 500));
       await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
       if (staffId !== undefined && staffId !== existing.staff_id || startTime !== undefined && startTime !== existing.start_time) {
          // Recalculate old date/staff if it changed
@@ -3865,6 +3869,7 @@ async function startServer() {
         id
       );
 
+      await new Promise(resolve => setTimeout(resolve, 500));
       await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);
 
       // Trigger notification for ADMINs
@@ -3930,6 +3935,7 @@ async function startServer() {
       })();
 
       if (shiftToUpdate) {
+        await new Promise(resolve => setTimeout(resolve, 500));
         await recalculateDayTravelForStaff(shiftToUpdate.staff_id, shiftToUpdate.start_time);
       }
 
