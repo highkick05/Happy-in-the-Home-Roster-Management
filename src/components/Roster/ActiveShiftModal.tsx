@@ -212,7 +212,11 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
       return;
     }
     try {
-      const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`);
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
       const data = await res.json();
       setSearchResults(data.features || []);
     } catch (e) {

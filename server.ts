@@ -2118,6 +2118,23 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
+  app.get('/api/geocode', authenticateToken, async (req: any, res: any) => {
+    const { q } = req.query;
+    if (!q) return res.status(400).json({ error: 'Query required' });
+    try {
+      const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(String(q))}&limit=5`;
+      const response = await fetch(photonUrl);
+      if (!response.ok) {
+        throw new Error(`Photon responded with status ${response.status}`);
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (e) {
+      console.error('Geocode proxy error', e);
+      res.status(500).json({ error: 'Failed to fetch geocode results' });
+    }
+  });
+
   // --- Onboarding APIs ---
   app.get('/api/users/onboarding', authenticateToken, (req: any, res: any) => {
     try {
