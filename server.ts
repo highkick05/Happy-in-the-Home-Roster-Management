@@ -185,6 +185,7 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'DRAFT' CHECK(status IN ('DRAFT', 'PUBLISHED', 'COMPLETED', 'CANCELLED', 'IN_PROGRESS', 'INVOICED')),
     notes TEXT,
     services_json TEXT CHECK(services_json IS NULL OR services_json = '' OR json_valid(services_json)),
+    travel_breakdown TEXT,
     funding_type TEXT DEFAULT 'NDIS',
     provider_travel_km REAL DEFAULT 0,
     provider_travel_cost REAL DEFAULT 0,
@@ -555,14 +556,15 @@ try {
       abt_cost REAL DEFAULT 0,
       transport_route_log TEXT,
       services_json TEXT CHECK(services_json IS NULL OR services_json = '' OR json_valid(services_json)),
+      travel_breakdown TEXT,
       FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE RESTRICT,
       FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
       FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE RESTRICT,
       FOREIGN KEY (respite_booking_id) REFERENCES respite_bookings(id) ON DELETE CASCADE,
       CHECK (start_time < end_time)
     );
-    INSERT OR IGNORE INTO shifts_new (id, staff_id, client_id, service_id, respite_booking_id, start_time, end_time, status, notes, created_at, actual_start_time, actual_finish_time, odometer_start_reading, odometer_start_photo, odometer_end_reading, odometer_end_photo, funding_type, provider_travel_km, provider_travel_cost, home_care_travel_km, home_care_travel_total, abt_km, abt_cost, transport_route_log, services_json)
-    SELECT id, staff_id, client_id, service_id, respite_booking_id, start_time, end_time, status, notes, created_at, actual_start_time, actual_finish_time, odometer_start_reading, odometer_start_photo, odometer_end_reading, odometer_end_photo, funding_type, provider_travel_km, provider_travel_cost, home_care_travel_km, home_care_travel_total, abt_km, abt_cost, transport_route_log, services_json FROM shifts;
+    INSERT OR IGNORE INTO shifts_new (id, staff_id, client_id, service_id, respite_booking_id, start_time, end_time, status, notes, created_at, actual_start_time, actual_finish_time, odometer_start_reading, odometer_start_photo, odometer_end_reading, odometer_end_photo, funding_type, provider_travel_km, provider_travel_cost, home_care_travel_km, home_care_travel_total, abt_km, abt_cost, transport_route_log, services_json, travel_breakdown)
+    SELECT id, staff_id, client_id, service_id, respite_booking_id, start_time, end_time, status, notes, created_at, actual_start_time, actual_finish_time, odometer_start_reading, odometer_start_photo, odometer_end_reading, odometer_end_photo, funding_type, provider_travel_km, provider_travel_cost, home_care_travel_km, home_care_travel_total, abt_km, abt_cost, transport_route_log, services_json, travel_breakdown FROM shifts;
     DROP TABLE shifts;
     ALTER TABLE shifts_new RENAME TO shifts;
 
