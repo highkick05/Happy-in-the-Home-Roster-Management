@@ -1228,7 +1228,7 @@ async function startServer() {
         FROM shifts s
         LEFT JOIN clients c ON s.client_id = c.id
         WHERE s.staff_id = ? AND s.start_time >= datetime(?, '-14 hours') AND s.start_time <= datetime(?, '+14 hours') 
-        AND s.status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED')
+        AND s.status NOT IN ('CANCELLED', 'DELETED', 'deleted')
         ORDER BY s.start_time ASC
       `).all(staffId, dateIso, dateIso) as any[];
 
