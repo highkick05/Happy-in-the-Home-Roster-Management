@@ -750,24 +750,53 @@ async function startServer() {
 
   const JWT_SECRET = process.env.JWT_SECRET || 'happyinthehome-secret-key-123';
 
-  // --- OSRM & Travel Logic ---
-  const getOsrmDistance = async (coords: number[][]) => {
-    if (coords.length < 2) return 0;
+  // --- Google Routes & Travel Logic ---
+  const getGoogleRoutesDistance = async (waypoints: any[]) => {
+    if (waypoints.length < 2) return 0;
     try {
-      const coordsString = coords.map(c => `${c[0]},${c[1]}`).join(';');
-      const baseUrl = process.env.OSRM_URL || 'http://localhost:5000';
-      const url = `${baseUrl}/route/v1/driving/${coordsString}?overview=false`;
-      console.log(`[DEBUG OSRM] Requesting URL: ${url}`);
-      const res = await fetch(url);
+      const toWaypointInfo = (wp: any) => {
+        if (Array.isArray(wp)) return { location: { latLng: { latitude: wp[1], longitude: wp[0] } } };
+        if (wp.placeId) return { placeId: wp.placeId };
+        return null;
+      };
+      
+      const validWaypoints = waypoints.map(toWaypointInfo).filter(Boolean);
+      if (validWaypoints.length < 2) return 0;
+
+      const payload = {
+        origin: validWaypoints[0],
+        destination: validWaypoints[validWaypoints.length - 1],
+        intermediates: validWaypoints.slice(1, -1),
+        travelMode: 'DRIVING'
+      };
+
+      const apiKey = process.env.Maps_API_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
+      if (!apiKey) {
+        console.error('[CRITICAL Routes API] Missing Maps_API_KEY. Returning 0 distance.');
+        return 0;
+      }
+
+      console.log(`[DEBUG Routes API] Requesting distance for ${validWaypoints.length} waypoints.`);
+      const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'routes.distanceMeters'
+        },
+        body: JSON.stringify(payload)
+      });
+      
       if (!res.ok) {
-        console.error(`[ERROR OSRM] Failed matching ${url}. Status: ${res.status}. Returning 0.`);
+        console.error(`[ERROR Routes API] Status: ${res.status}. Returning 0. Payload was:`, await res.text());
         return 0;
       }
       const data = await res.json();
-      console.log(`[DEBUG OSRM] Raw distance output from OSRM: ${data.routes && data.routes[0] ? data.routes[0].distance : 'N/A'}`);
-      return (data.routes[0].distance / 1000) || 0; // In km
+      const dist = (data.routes?.[0]?.distanceMeters || 0) / 1000;
+      console.log(`[DEBUG Routes API] Distance calculated: ${dist} km`);
+      return dist;
     } catch (e) {
-      console.error('[CRITICAL OSRM] OSRM unreachable or failed. Returning 0 distance.', e);
+      console.error('[CRITICAL Routes API] Failed. Returning 0 distance.', e);
       return 0;
     }
   };
@@ -786,9 +815,10 @@ async function startServer() {
         return [record.longitude, record.latitude]; // OSRM uses [lon, lat]
       }
 
-      // Geocode via Nominatim with retry logic
-      const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addressText)}&format=geojson&limit=1`;
-      console.log(`[DEBUG Geocode] Sending address string to Nominatim for ${tableName} ID ${recordId}: "${addressText}" via URL: ${geoUrl}`);
+      // Geocode via Google Geocoding API
+      const apiKey = process.env.Maps_API_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
+      const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText)}&key=${apiKey}`;
+      console.log(`[DEBUG Geocode] Sending address string to Google API for ${tableName} ID ${recordId}: "${addressText}"`);
       
       let res;
       let attempts = 0;
@@ -796,21 +826,17 @@ async function startServer() {
       
       while (attempts <= maxAttempts) {
         try {
-          res = await fetch(geoUrl, {
-            headers: {
-              'User-Agent': 'HappyInTheHome/1.0 (mattwillis02@gmail.com)'
-            }
-          });
+          res = await fetch(geoUrl);
           if (res.ok) break;
-          if (res.status === 502 || res.status === 503 || res.status === 504 || res.status === 429) {
+          if (res.status >= 500 || res.status === 429) {
             attempts++;
             if (attempts <= maxAttempts) {
-              console.log(`[DEBUG Geocode] Nominatim returned ${res.status}, retrying (${attempts}/${maxAttempts})...`);
+              console.log(`[DEBUG Geocode] Google Geocoding returned ${res.status}, retrying (${attempts}/${maxAttempts})...`);
               await new Promise(resolve => setTimeout(resolve, 1000));
               continue;
             }
           }
-          throw new Error(`Nominatim responded with status ${res.status}`);
+          throw new Error(`Google Geocoding responded with status ${res.status}`);
         } catch (err) {
           attempts++;
           if (attempts <= maxAttempts) {
@@ -823,18 +849,19 @@ async function startServer() {
       }
 
       if (!res || !res.ok) {
-        throw new Error(`Failed to fetch from Nominatim after ${attempts} attempts`);
+        throw new Error(`Failed to fetch from Google Geocoding after ${attempts} attempts`);
       }
 
       const data = await res.json();
 
-      if (data.features && data.features.length > 0) {
-        const coords = data.features[0].geometry.coordinates; // [lon, lat]
-        console.log(`[DEBUG Geocode] Nominatim returning coordinates for ${tableName} ID ${recordId}: [${coords[0]}, ${coords[1]}]`);
+      if (data.results && data.results.length > 0) {
+        const location = data.results[0].geometry.location;
+        const coords = [location.lng, location.lat];
+        console.log(`[DEBUG Geocode] Google returning coordinates for ${tableName} ID ${recordId}: [${coords[0]}, ${coords[1]}]`);
         db.prepare(`UPDATE ${tableName} SET longitude = ?, latitude = ? WHERE id = ?`).run(coords[0], coords[1], recordId);
         return coords;
       } else {
-        console.log(`[DEBUG Geocode] Photon query returned no features for address "${addressText}"`);
+        console.log(`[DEBUG Geocode] Google API returned no features for address "${addressText}"`);
       }
     } catch (e) {
       console.warn(`[DEBUG Geocode] Geocoding failed for ${tableName} ${recordId}:`, e);
@@ -884,7 +911,7 @@ async function startServer() {
            const prevClientInfo = db.prepare('SELECT address FROM clients WHERE id = ?').get(prevShift.client_id) as any;
            const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
            console.log(`[DEBUG Provider Travel (Schedule)] Subsequent shift (Home Care <= 60m). Dist from Client ${prevShift.client_id} to ${newShiftClientId}`);
-           const dist = await getOsrmDistance([prevClientCoords, clientCoords]); 
+           const dist = await getGoogleRoutesDistance([prevClientCoords, clientCoords]); 
            console.log(`[DEBUG Provider Travel (Schedule)] Calculated dist: ${dist} km`);
            totalDist += dist;
         }
@@ -895,12 +922,12 @@ async function startServer() {
            const prevClientInfo = db.prepare('SELECT address FROM clients WHERE id = ?').get(prevShift.client_id) as any;
            const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
            console.log(`[DEBUG Provider Travel (Schedule)] Subsequent shift (${fundingType}). Calculating distance from Previous Client ${prevShift.client_id} to Client ${newShiftClientId}`);
-           const dist = await getOsrmDistance([prevClientCoords, clientCoords]);
+           const dist = await getGoogleRoutesDistance([prevClientCoords, clientCoords]);
            console.log(`[DEBUG Provider Travel (Schedule)] Calculated Provider Travel from Previous Client -> Current Client: ${dist} km`);
            totalDist += dist;
         } else {
            console.log(`[DEBUG Provider Travel (Schedule)] First shift of sequence for staff ${staffId} (NDIS). Calculating distance from Home to Client ${newShiftClientId}`);
-           const distHome = await getOsrmDistance([staffHomeCoords, clientCoords]);
+           const distHome = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
            console.log(`[DEBUG Provider Travel (Schedule)] Calculated Provider Travel from Home -> Client: ${distHome} km`);
            totalDist += distHome;
         }
@@ -910,7 +937,7 @@ async function startServer() {
            console.log(`[DEBUG Provider Travel (Schedule)] Next shift within 60 mins. Bypassing Return to Staff Home.`);
         } else {
            console.log(`[DEBUG Provider Travel (Schedule)] Last shift of sequence for staff ${staffId} (NDIS). Appending Return Home distance: Client ${newShiftClientId} -> Staff Home`);
-           const distReturn = await getOsrmDistance([clientCoords, staffHomeCoords]);
+           const distReturn = await getGoogleRoutesDistance([clientCoords, staffHomeCoords]);
            console.log(`[DEBUG Provider Travel (Schedule)] Return Home calc dist: ${distReturn} km`);
            totalDist += distReturn;
         }
@@ -978,7 +1005,7 @@ async function startServer() {
           const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
           const prevClientName = prevClientInfo ? `${prevClientInfo.first_name} ${prevClientInfo.last_name}`.trim() : 'Unknown Client';
           
-          const dist = await getOsrmDistance([prevClientCoords, clientCoords]); 
+          const dist = await getGoogleRoutesDistance([prevClientCoords, clientCoords]); 
           totalDist += dist;
           console.log(`Home Care: [${prevClientName}] to [${clientName}] | Gap: ${gapMins}min | Result: ${dist}km`);
           
@@ -1077,12 +1104,12 @@ async function startServer() {
         const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
         const prevClientStr = `Previous Client (${prevClientInfo?.address || 'Unknown'}) ${formatCoords(prevClientCoords)}`;
         
-        const dist = await getOsrmDistance([prevClientCoords, clientCoords]); 
+        const dist = await getGoogleRoutesDistance([prevClientCoords, clientCoords]); 
         totalDist += dist;
         routeLogs.push({ description: `${prevClientStr} to ${clientHomeStr}`, distance: dist, waypoints: [prevClientCoords, clientCoords], addressStart: prevClientInfo?.address, addressEnd: client?.address });
       } else {
         console.log(`[NDIS Travel] No chaining for start (Gap: ${prevGapMins === Infinity ? 'N/A' : prevGapMins.toFixed(0)} mins). Using Staff Home.`);
-        const distHome = await getOsrmDistance([staffHomeCoords, clientCoords]);
+        const distHome = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
         totalDist += distHome;
         const routeDesc = `${staffHomeStr} to ${clientHomeStr}`;
         routeLogs.push({ description: routeDesc, distance: distHome, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: client?.address });
@@ -1096,7 +1123,7 @@ async function startServer() {
         // Do not add any distance. Next shift will cover Client -> NextClient.
       } else {
         console.log(`[NDIS Travel] No chaining for end (Gap: ${nextGapMins === Infinity ? 'N/A' : nextGapMins.toFixed(0)} mins). Using Return to Staff Home.`);
-        const distReturn = await getOsrmDistance([clientCoords, staffHomeCoords]);
+        const distReturn = await getGoogleRoutesDistance([clientCoords, staffHomeCoords]);
         totalDist += distReturn;
         routeLogs.push({ description: `${clientHomeStr} to Staff Home (Return trip)`, distance: distReturn, waypoints: [clientCoords, staffHomeCoords], addressStart: client?.address, addressEnd: staff?.address });
       }
@@ -2154,42 +2181,43 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
-  app.get('/api/geocode', authenticateToken, async (req: any, res: any) => {
-    const { q } = req.query;
-    if (!q) return res.status(400).json({ error: 'Query required' });
+  app.get('/api/places/autocomplete', authenticateToken, async (req: any, res: any) => {
+    const { input } = req.query;
+    if (!input) return res.status(400).json({ error: 'Input required' });
     
     let attempts = 0;
     const maxAttempts = 2;
     
     async function attemptFetch(): Promise<any> {
       try {
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(String(q))}&format=geojson&limit=5`;
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'HappyInTheHome/1.0 (mattwillis02@gmail.com)'
+        const payload = {
+          input: String(input),
+          includedRegionCodes: ["AU"],
+          locationRestriction: {
+            rectangle: {
+              low: { latitude: -35.1, longitude: 112.9 },
+              high: { latitude: -13.7, longitude: 129.0 }
+            }
           }
+        };
+        const apiKey = process.env.Maps_API_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
+        const response = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': apiKey
+          },
+          body: JSON.stringify(payload)
         });
         if (!response.ok) {
-          if ((response.status === 502 || response.status === 503 || response.status === 504 || response.status === 429) && attempts < maxAttempts) {
+          if ((response.status >= 500 || response.status === 429) && attempts < maxAttempts) {
             attempts++;
             await new Promise(resolve => setTimeout(resolve, 1000));
             return attemptFetch();
           }
-          throw new Error(`Geocode service responded with status ${response.status}`);
+          throw new Error(`Google Places API responded with status ${response.status}`);
         }
-        const data = await response.json();
-        if (data.features) {
-          data.features = data.features.map((f: any) => ({
-            ...f,
-            properties: {
-              ...f.properties,
-              name: f.properties.name || f.properties.display_name.split(',')[0],
-              city: f.properties.city || f.properties.display_name.split(',')[1]?.trim(),
-              state: f.properties.state || f.properties.display_name.split(',').pop()?.trim()
-            }
-          }));
-        }
-        return data;
+        return await response.json();
       } catch (err) {
         if (attempts < maxAttempts) {
           attempts++;
@@ -2204,8 +2232,45 @@ async function startServer() {
       const data = await attemptFetch();
       res.json(data);
     } catch (e) {
-      console.error('Geocode proxy error', e);
-      res.status(503).json({ error: 'Search service temporarily unavailable. Please try again in a moment.' });
+      console.error('Places Autocomplete proxy error', e);
+      res.status(503).json({ error: 'Search service temporarily unavailable.' });
+    }
+  });
+
+  app.post('/api/transport-distance', authenticateToken, async (req: any, res: any) => {
+    const { placeIds } = req.body;
+    if (!placeIds || !Array.isArray(placeIds) || placeIds.length < 2) {
+      return res.json({ distance: 0 });
+    }
+    try {
+      const validWaypoints = placeIds.map((id: string) => ({ placeId: id }));
+      const payload = {
+        origin: validWaypoints[0],
+        destination: validWaypoints[validWaypoints.length - 1],
+        intermediates: validWaypoints.slice(1, -1),
+        travelMode: 'DRIVING'
+      };
+
+      const apiKey = process.env.Maps_API_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
+      const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'routes.distanceMeters'
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!response.ok) {
+        return res.status(500).json({ error: 'Failed to compute route distances' });
+      }
+      const data = await response.json();
+      const meters = data.routes?.[0]?.distanceMeters || 0;
+      res.json({ distance: meters / 1000 });
+    } catch (err) {
+      console.error('Transport distance computation error', err);
+      res.status(500).json({ error: 'Failed to compute route distances' });
     }
   });
 
@@ -3475,25 +3540,31 @@ async function startServer() {
 
          for (const coord of abtCoordinates) {
             if (coord === 'CLIENT_HOME') continue; 
-            if (coord && typeof coord === 'object' && coord.coords && coord.address) {
-               resolvedAbtCoordinates.push(coord.coords);
-               abtAddresses.push(`Community (${coord.address}) ${formatCoords(coord.coords)}`);
+            if (coord && typeof coord === 'object' && coord.address) {
+               if (coord.placeId) {
+                   resolvedAbtCoordinates.push({ placeId: coord.placeId });
+                   abtAddresses.push(`Community (${coord.address})`);
+               } else if (coord.coords) {
+                   resolvedAbtCoordinates.push(coord.coords);
+                   abtAddresses.push(`Community (${coord.address}) ${formatCoords(coord.coords)}`);
+               }
             }
          }
 
          const lastAddedCoord = resolvedAbtCoordinates[resolvedAbtCoordinates.length - 1];
          const isLastWaypointClientHome = clientCoords && lastAddedCoord 
+             && Array.isArray(lastAddedCoord)
              && Math.abs(clientCoords[0] - lastAddedCoord[0]) < 0.0001 
              && Math.abs(clientCoords[1] - lastAddedCoord[1]) < 0.0001;
 
-         if (clientCoords && !isLastWaypointClientHome) {
+         if (clientCoords && !isLastWaypointClientHome && abtCoordinates[abtCoordinates.length - 1] === 'CLIENT_HOME') {
              resolvedAbtCoordinates.push(clientCoords);
              abtAddresses.push(`Client Home (${clientAddress}) ${formatCoords(clientCoords)}`);
          }
       }
 
       if (shift.funding_type === 'NDIS' && resolvedAbtCoordinates.length >= 2 && !shift.respite_booking_id) {
-         abt_km = await getOsrmDistance(resolvedAbtCoordinates);
+         abt_km = await getGoogleRoutesDistance(resolvedAbtCoordinates);
          abt_cost = abt_km * 1.00; // $1.00/km Ledger Split
          combinedRouteLog = combinedRouteLog || {};
          combinedRouteLog.abt = { 

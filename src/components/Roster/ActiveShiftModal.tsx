@@ -18,7 +18,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
   const [notes, setNotes] = useState('');
   const [finishTime, setFinishTime] = useState('');
   const [didTransport, setDidTransport] = useState(false);
-  const [waypoints, setWaypoints] = useState<{name: string, coords: number[] | string}[]>([]);
+  const [waypoints, setWaypoints] = useState<{name: string, placeId?: string, coords?: number[] | string}[]>([]);
   const [returnedHome, setReturnedHome] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -159,7 +159,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
 
   const handleCompleteShift = async () => {
     const resolvedWaypoints = didTransport 
-      ? ['CLIENT_HOME', ...waypoints.map(wp => ({ coords: wp.coords, address: wp.name })), ...(returnedHome ? ['CLIENT_HOME'] : [])] 
+      ? ['CLIENT_HOME', ...waypoints.map(wp => ({ placeId: wp.placeId, address: wp.name })), ...(returnedHome ? ['CLIENT_HOME'] : [])] 
       : null;
 
     if (didTransport && waypoints.length === 0) {
@@ -212,21 +212,22 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
       return;
     }
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`, {
+      const res = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(query)}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
       const data = await res.json();
-      setSearchResults(data.features || []);
+      setSearchResults(data.suggestions || []);
     } catch (e) {
-      console.error('Geocoding error', e);
+      console.error('Places Autocomplete error', e);
     }
   };
 
-  const addWaypoint = (feature: any) => {
-    const name = [feature.properties.name, feature.properties.city, feature.properties.state].filter(Boolean).join(', ');
-    setWaypoints([...waypoints, { name, coords: feature.geometry.coordinates }]);
+  const addWaypoint = (suggestion: any) => {
+    const text = suggestion.placePrediction.text.text;
+    const placeId = suggestion.placePrediction.placeId;
+    setWaypoints([...waypoints, { name: text, placeId }]);
     setSearchQuery('');
     setSearchResults([]);
   };
@@ -487,10 +488,12 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                                 {searchResults.map((res: any, idx: number) => (
                                   <li 
                                     key={idx} 
-                                    className="px-4 py-3 hover:bg-zinc-700 cursor-pointer text-sm md:text-base truncate transition-colors text-zinc-200 hover:text-white"
+                                    className="px-4 py-3 hover:bg-zinc-700 cursor-pointer text-sm md:text-base transition-colors text-zinc-200 hover:text-white"
                                     onClick={() => addWaypoint(res)}
                                   >
-                                    {res.properties.name} <span className="text-zinc-500">{res.properties.city ? `, ${res.properties.city}` : ''}</span>
+                                    <div className="flex flex-col">
+                                      <span className="truncate">{res.placePrediction.text.text}</span>
+                                    </div>
                                   </li>
                                 ))}
                               </ul>
