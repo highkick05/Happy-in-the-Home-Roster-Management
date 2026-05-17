@@ -1280,6 +1280,7 @@ async function startServer() {
            const prevShift = i > 0 ? shifts[i - 1] : null;
            const nextShift = i < shifts.length - 1 ? shifts[i + 1] : null;
 
+           // 1. Safe Time Gap Calculation
            const currentStart = new Date(currentShift.start_time).getTime();
            const currentEnd = new Date(currentShift.end_time).getTime();
            const prevEnd = prevShift ? new Date(prevShift.end_time).getTime() : 0;
@@ -1418,10 +1419,20 @@ async function startServer() {
                services_json = ?,
                transport_route_log = ?
            WHERE id = ?
-        `).run(pTravel.distance, pTravel.cost, hcTravel.distance, hcTravel.cost, updatedServicesJson, JSON.stringify(combinedLog), shift.id);
+        `).run(
+           shift.funding_type === 'NDIS' && !shift.respite_booking_id ? pTravel.distance : 0,
+           shift.funding_type === 'NDIS' && !shift.respite_booking_id ? pTravel.cost : 0,
+           isHomeCare ? hcTravel.distance : 0,
+           isHomeCare ? hcTravel.cost : 0,
+           updatedServicesJson,
+           JSON.stringify(combinedLog),
+           shift.id
+        );
       }
-    } catch (e) {
-      console.error('[DEBUG Cascade] Error recalculating staff travel:', e);
+      
+      console.log(`[DEBUG Cascade] Finished recalculating travel for staff ${staffId} on ${dateIso}.`);
+    } catch (e: any) {
+      console.error(`[DEBUG Cascade] Error recalculating travel for staff ${staffId}:`, e);
     }
   };
 
@@ -3934,31 +3945,60 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/shifts/:id', authenticateToken, requireAdmin, async (req, res) => {
+app.put('/api/shifts/:id', authenticateToken, requireAdmin, async (req: any, res: any) => {
     const { id } = req.params;
+    const { staffId, clientId, serviceId, startTime, endTime, status, notes, fundingType, servicesData, providerTravelKm, abtKm } = req.body;
+    
     try {
-      let shiftToUpdate: any;
-      db.transaction(() => {
-        shiftToUpdate = db.prepare('SELECT staff_id, start_time FROM shifts WHERE id = ?').get(id);
-        const invoices = db.prepare('SELECT file_path FROM invoices WHERE shift_id = ?').all(id);
-        invoices.forEach((inv: any) => {
-          if (inv.file_path) {
-            const filePath = path.join(process.cwd(), 'invoices', inv.file_path);
-            if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (e) { logger.warn('Failed to delete file', e); } }
-          }
-        });
-        db.prepare('DELETE FROM invoices WHERE shift_id = ?').run(id);
-        db.prepare('DELETE FROM shifts WHERE id = ?').run(id);
-      })();
+      const existing = db.prepare('SELECT * FROM shifts WHERE id = ?').get(id) as any;
+      if (!existing) return res.status(404).json({ error: 'Not found' });
 
-      if (shiftToUpdate) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await recalculateDayTravelForStaff(shiftToUpdate.staff_id, shiftToUpdate.start_time);
+      // Build old value for audit logging
+      const oldValue = JSON.stringify(existing);
+
+      const servicesJson = servicesData ? JSON.stringify(servicesData) : existing.services_json;
+      const mainServiceId = serviceId || (servicesData && servicesData.length > 0 ? servicesData[0].serviceId : existing.service_id);
+
+      const stmt = db.prepare('UPDATE shifts SET staff_id = ?, client_id = ?, service_id = ?, start_time = ?, end_time = ?, status = ?, notes = ?, funding_type = ?, services_json = ?, provider_travel_km = ?, abt_km = ? WHERE id = ?');
+      stmt.run(
+         staffId !== undefined ? staffId : existing.staff_id, 
+         clientId !== undefined ? clientId : existing.client_id, 
+         mainServiceId, 
+         startTime !== undefined ? startTime : existing.start_time, 
+         endTime !== undefined ? endTime : existing.end_time, 
+         status !== undefined ? status : existing.status, 
+         notes !== undefined ? notes : existing.notes, 
+         (db.prepare('SELECT funding_type FROM clients WHERE id = ?').get(clientId !== undefined ? clientId : existing.client_id) as any)?.funding_type || 'NDIS',
+         servicesJson,
+         providerTravelKm !== undefined ? providerTravelKm : existing.provider_travel_km,
+         abtKm !== undefined ? abtKm : existing.abt_km,
+         id
+      );
+
+      // Audit Log for COMPLETED shift edits
+      if (existing.status === 'COMPLETED') {
+         const newRecord = db.prepare('SELECT * FROM shifts WHERE id = ?').get(id) as any;
+         db.prepare('INSERT INTO audit_logs (entity_type, entity_id, old_value, new_value, changed_by_user_id) VALUES (?, ?, ?, ?, ?)').run(
+           'shift', id, oldValue, JSON.stringify(newRecord), req.user.id
+         );
+      }
+      
+      if ((status === 'COMPLETED' || existing.status === 'COMPLETED') && (existing.status !== status || servicesJson !== existing.services_json || providerTravelKm !== undefined || abtKm !== undefined)) {
+         generateInvoiceForShift(id);
+      }
+      
+      // Delay before calculation to clear SQLite write locks
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
+      
+      // Check if dates or staff changed, if so, we need to correct the sequence on the old day/staff member's matrix
+      if ((staffId !== undefined && staffId !== existing.staff_id) || (startTime !== undefined && startTime !== existing.start_time)) {
+         await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
       }
 
       res.json({ success: true });
     } catch (e: any) {
-      
       logger.error(`API Error: ${e}`, { error: e.stack || e });
       logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
