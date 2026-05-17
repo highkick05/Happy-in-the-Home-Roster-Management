@@ -429,12 +429,13 @@ export default function WallboardView() {
 
         {isDetailsModalOpen && selectedShift && (
           <ShiftDetailsModal
-            shiftId={selectedShift.id}
+            isOpen={isDetailsModalOpen}
+            shift={selectedShift}
             onClose={() => {
               setIsDetailsModalOpen(false);
               setSelectedShift(null);
             }}
-            onUpdate={fetchData}
+            onSave={fetchData}
           />
         )}
       </div>

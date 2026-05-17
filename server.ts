@@ -812,7 +812,7 @@ async function startServer() {
       const record = db.prepare(`SELECT latitude, longitude FROM ${tableName} WHERE id = ?`).get(recordId) as any;
       if (record && record.latitude && record.longitude) {
         console.log(`[DEBUG Geocode] Found existing coordinates for ${tableName} ID ${recordId}: [${record.longitude}, ${record.latitude}]`);
-        return [record.longitude, record.latitude]; // OSRM uses [lon, lat]
+        return [record.longitude, record.latitude]; // [lon, lat] compatible with GoogleRoutes logic
       }
 
       // Geocode via Google Geocoding API
@@ -1768,7 +1768,7 @@ async function startServer() {
         const notifs = db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50').all(req.user.id);
         res.json(notifs);
      } catch (e: any) {
-        logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+        logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
      }
   });
 
@@ -1777,7 +1777,7 @@ async function startServer() {
         db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0').run(req.user.id);
         res.json({ success: true });
      } catch (e: any) {
-        logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+        logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
      }
   });
 
@@ -1786,7 +1786,7 @@ async function startServer() {
         db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
         res.json({ success: true });
      } catch (e: any) {
-        logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+        logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
      }
   });
 
@@ -1834,7 +1834,7 @@ async function startServer() {
       res.json({ success: true, message: 'If that email exists, we have sent a reset link to it.' });
     } catch (error) {
       console.error('Forgot password error:', error);
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -1863,7 +1863,7 @@ async function startServer() {
       res.json({ success: true, message: 'Password has been successfully reset. You can now login.' });
     } catch (error) {
       console.error('Reset password error:', error);
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -1949,7 +1949,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2003,7 +2003,7 @@ async function startServer() {
       }
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2025,7 +2025,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2055,7 +2055,7 @@ async function startServer() {
       res.setHeader('Cache-Control', 'public, max-age=86400');
       res.send(Buffer.from(buffer));
     } catch (err) {
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2128,7 +2128,7 @@ async function startServer() {
       res.send(JSON.stringify(manifestContent));
     } catch (e: any) {
       console.error('Failed to generate manifest.webmanifest:', e);
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2140,7 +2140,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2158,7 +2158,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2365,7 +2365,7 @@ async function startServer() {
       res.json(onboardingData);
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2375,7 +2375,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2402,7 +2402,7 @@ async function startServer() {
       logger.error(`API Error: ${e}`, { error: e.stack || e });
       res.status(400).json({ error: 'Email already exists' });
       } else {
-        logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+        logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
       }
     }
   });
@@ -2417,7 +2417,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2433,7 +2433,7 @@ async function startServer() {
       console.error(`Error updating staff status:`, e);
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2445,7 +2445,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2500,7 +2500,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2530,7 +2530,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2543,7 +2543,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2555,7 +2555,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2574,7 +2574,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2588,7 +2588,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2601,7 +2601,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2613,7 +2613,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2717,7 +2717,7 @@ async function startServer() {
     } catch(e: any) {
         
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2747,7 +2747,7 @@ async function startServer() {
     } catch(e: any) {
         
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2775,7 +2775,7 @@ async function startServer() {
     } catch (e: any) {
         
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2789,7 +2789,7 @@ async function startServer() {
       } catch(e: any) {
           
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
       }
   });
 
@@ -2819,7 +2819,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2843,7 +2843,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2854,7 +2854,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -2865,7 +2865,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3053,7 +3053,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3181,7 +3181,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3194,7 +3194,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3313,7 +3313,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3377,7 +3377,7 @@ async function startServer() {
       console.error(e);
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3391,7 +3391,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3446,7 +3446,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3463,7 +3463,7 @@ async function startServer() {
     } catch(e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3481,7 +3481,7 @@ async function startServer() {
     } catch(e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3682,7 +3682,7 @@ async function startServer() {
     } catch(e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3713,7 +3713,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3751,7 +3751,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -3923,7 +3923,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4131,7 +4131,7 @@ async function startServer() {
       });
     } catch (e: any) {
       logger.error(`Staff Activity Report Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4194,7 +4194,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4228,7 +4228,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4345,7 +4345,7 @@ async function startServer() {
       console.error(e);
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4371,7 +4371,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4419,7 +4419,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4430,7 +4430,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4450,7 +4450,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4472,7 +4472,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4490,7 +4490,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4691,7 +4691,7 @@ async function startServer() {
       console.error('Failed to generate dynamic invoice:', e);
       if (!res.headersSent) 
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4718,7 +4718,7 @@ async function startServer() {
       console.error('Failed to generate dynamic invoice:', e);
       if (!res.headersSent) 
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4750,7 +4750,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4808,7 +4808,7 @@ async function startServer() {
     } catch(e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4819,7 +4819,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -4833,7 +4833,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -5048,7 +5048,7 @@ async function startServer() {
       console.error("DEBUG QUOTE DOWNLOAD ERROR:", e);
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -5079,7 +5079,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -5103,7 +5103,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -5123,7 +5123,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -5137,7 +5137,7 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -5459,7 +5459,7 @@ async function startServer() {
     } catch (e) {
       console.error(e);
       if (!res.headersSent) {
-         logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+         logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
       }
     }
   });
@@ -5743,7 +5743,7 @@ async function startServer() {
     } catch (e) {
       console.error(e);
       if (!res.headersSent) {
-         logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+         logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
       }
     }
   });
@@ -5759,7 +5759,7 @@ async function startServer() {
        `).all();
        res.json(logs);
     } catch (e: any) {
-       logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+       logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -5775,7 +5775,7 @@ async function startServer() {
     }
     
     const isProd = process.env.NODE_ENV === 'production';
-    logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+    logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
   });
 
   // --- Database Backups & Management ---
@@ -5825,7 +5825,7 @@ async function startServer() {
         }
       });
     } catch (e: any) {
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -5843,7 +5843,7 @@ async function startServer() {
       list.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
       res.json(list);
     } catch (e: any) {
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -5857,7 +5857,7 @@ async function startServer() {
         res.status(404).json({ error: 'File not found' });
       }
     } catch (e: any) {
-      logger.error('API Error masked from frontend', typeof e !== 'undefined' ? { err: String(e), stack: e?.stack } : typeof err !== 'undefined' ? { err: String(err), stack: err?.stack } : {}); res.status(500).json({ error: 'Internal Server Error' });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
