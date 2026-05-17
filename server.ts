@@ -3503,9 +3503,9 @@ if (!nextShift || gapToNext > 60) {
         // Recalculate after batch insert
         for (const single of processedStaffShifts) {
           (async () => {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await recalculateDayTravelForStaff(single.staffId, startTime);
-          })().catch(e => console.error(e));
+              await new Promise(resolve => setTimeout(resolve, 500));
+              await recalculateDayTravelForStaff(single.staffId, startTime);
+          })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
         }
       } else {
         const single = processedStaffShifts[0];
@@ -3514,9 +3514,9 @@ if (!nextShift || gapToNext > 60) {
         
         // Recalculate after single insert
         (async () => {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          await recalculateDayTravelForStaff(single.staffId, startTime);
-        })().catch(e => console.error(e));
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await recalculateDayTravelForStaff(single.staffId, startTime);
+        })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
       }
     } catch (e: any) {
       
@@ -3649,15 +3649,15 @@ if (!nextShift || gapToNext > 60) {
       }
       
       (async () => {
-         await new Promise(resolve => setTimeout(resolve, 500));
-         await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
-      })().catch(e => console.error(e));
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
+      })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
       if (staffId !== undefined && staffId !== existing.staff_id || startTime !== undefined && startTime !== existing.start_time) {
          // Recalculate old date/staff if it changed
          (async () => {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
-         })().catch(e => console.error(e));
+             await new Promise(resolve => setTimeout(resolve, 500));
+             await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
+         })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
       }
 
       res.json({ success: true });
