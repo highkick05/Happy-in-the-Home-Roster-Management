@@ -755,11 +755,32 @@ async function startServer() {
     if (waypoints.length < 2) return 0;
     try {
       const toWaypointInfo = (wp: any) => {
-        if (Array.isArray(wp)) {
-          return { location: { latLng: { latitude: Number(wp[1]), longitude: Number(wp[0]) } } };
+        // Handle string formats like "[114.65, -28.73]" or "114.65, -28.73"
+        let parsedWp = wp;
+        if (typeof wp === 'string') {
+          try {
+             parsedWp = JSON.parse(wp);
+          } catch(e) {
+             const parts = wp.replace(/[\[\]\s]/g, '').split(',');
+             if (parts.length >= 2) {
+               parsedWp = [Number(parts[0]), Number(parts[1])];
+             }
+          }
         }
-        if (wp.placeId) {
-          return { placeId: wp.placeId };
+
+        if (Array.isArray(parsedWp) && parsedWp.length >= 2) {
+          // Explicit mapping: index 1 is latitude (e.g. -28.xx), index 0 is longitude (e.g. 114.xx)
+          return { 
+            location: { 
+              latLng: { 
+                latitude: Number(parsedWp[1]), 
+                longitude: Number(parsedWp[0]) 
+              } 
+            } 
+          };
+        }
+        if (parsedWp && parsedWp.placeId) {
+          return { placeId: parsedWp.placeId };
         }
         return null;
       };
