@@ -385,6 +385,19 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                          {shift.status.replace('_', ' ')}
                        </span>
                     </div>
+                    {checklist.length > 0 && (
+                      <div className="pb-4 border-b border-white/[0.12]/50">
+                        <span className="text-zinc-500 font-medium block mb-3 text-sm md:text-base">Services to provide</span>
+                        <div className="space-y-2">
+                           {checklist.map((item, idx) => (
+                              <div key={idx} className="flex justify-between items-center bg-[#121214]/50 p-3 rounded-lg border border-white/[0.08]/50">
+                                 <span className="text-zinc-200 text-sm md:text-base">{item.serviceName || item.serviceCode || "Task"}</span>
+                                 {(item.qty || item.quantity) && <span className="text-brand-teal text-xs md:text-sm font-semibold">{item.qty || item.quantity} {item.unit || item.unitType || ''}</span>}
+                              </div>
+                           ))}
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <span className="text-zinc-500 font-medium block mb-2 text-sm md:text-base">Shift Notes</span>
                       <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-3 rounded-lg border border-white/[0.08]/50">{shift.notes || "No notes provided."}</p>
@@ -392,14 +405,24 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                   </div>
 
                   {shift.status === 'PUBLISHED' && (
-                    <div className="w-full py-5 bg-[#09090b] border border-white/[0.08] rounded-2xl font-bold text-lg md:text-xl flex items-center justify-center text-zinc-300 shadow-inner">
-                      {canStart ? <span className="text-brand-green animate-pulse">Ready to Start</span> : <span className="text-zinc-400">Starts in: {formatCountdown(startDiffMs)}</span>}
+                    <div className="w-full py-5 bg-[#09090b] border border-white/[0.08] rounded-2xl font-bold text-lg md:text-xl flex flex-col items-center justify-center text-zinc-300 shadow-inner">
+                      {canStart && <span className="text-brand-green animate-pulse mb-1">Ready to Start</span>}
+                      {startDiffMs > 0 ? (
+                         <span className="text-zinc-400 text-base md:text-lg font-medium">Starts in: {formatCountdown(startDiffMs)}</span>
+                      ) : (
+                         <span className="text-zinc-400 text-base md:text-lg font-medium">Started {formatCountdown(Math.abs(startDiffMs))} ago</span>
+                      )}
                     </div>
                   )}
 
                   {shift.status === 'IN_PROGRESS' && (
-                    <div className="w-full py-5 bg-[#09090b] border border-white/[0.08] rounded-2xl font-bold text-lg md:text-xl flex items-center justify-center text-zinc-300 shadow-inner">
-                      {canComplete ? <span className="text-brand-green animate-pulse">Ready to Complete</span> : <span className="text-amber-400">Ends in: {formatCountdown(endDiffMs)}</span>}
+                    <div className="w-full py-5 bg-[#09090b] border border-white/[0.08] rounded-2xl font-bold text-lg md:text-xl flex flex-col items-center justify-center text-zinc-300 shadow-inner">
+                      {canComplete && <span className="text-brand-green animate-pulse mb-1">Ready to Complete</span>}
+                      {endDiffMs > 0 ? (
+                         <span className="text-zinc-400 text-base md:text-lg font-medium">Ends in: {formatCountdown(endDiffMs)}</span>
+                      ) : (
+                         <span className="text-amber-400 text-base md:text-lg font-medium">Overdue by {formatCountdown(Math.abs(endDiffMs))}</span>
+                      )}
                     </div>
                   )}
 
