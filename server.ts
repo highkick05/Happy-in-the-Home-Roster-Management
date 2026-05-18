@@ -1290,23 +1290,25 @@ async function startServer() {
            let totalTravelMinutes = 0;
            let travelBreakdown: string[] = [];
 
-           // If there is no previous shift or gap is > 60 mins, it's considered a "first shift of the day" or "after gap" commute.
-           // We do not pay for this commute.
-           if (!prevShift || gapToPrev > 60) {
+           // RULE 2: FIRST SHIFT
+           if (!prevShift || gapToPrev === Infinity || gapToPrev > 60) {
                totalDistance = 0;
                totalTravelMinutes = 0;
-               travelBreakdown.push(`[Ignored Commute]: No billable provider travel for starting shift`);
+               travelBreakdown.push(`[Ignored Commute]: Home -> First Client (0km)`);
            } else {
-               // Inter-client transition
+               // RULE 3: INTER-CLIENT TRANSITION
                const res = await getGoogleRoutesDistance([prevCoords, currentShiftCoords]);
                totalDistance = res.distance;
                totalTravelMinutes = res.minutes;
                travelBreakdown.push(`[100% Inter-Client]: Prev Client to Current = ${res.distance.toFixed(2)} km (${res.minutes.toFixed(0)} mins)`);
            }
 
-           // For the LAST shift of the day (where gapToNext === Infinity), 
-           // ensure that the final return trip back home is completely ignored
-           // and NOT added to the shift's database tracking columns.
+           // RULE 4: LAST SHIFT OF THE DAY
+           if (!nextShift || gapToNext === Infinity) {
+               // We explicitly ensure that the Client A -> Home route details are NOT computed nor saved.
+               // The provider_travel_km and provider_travel_minutes for the return home leg are 0.
+               travelBreakdown.push(`[Ignored Return Commute]: Client -> Home (0km)`);
+           }
 
            db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, travel_breakdown = ? WHERE id = ?').run(
               totalDistance, parseFloat(totalTravelMinutes.toFixed(2)), JSON.stringify(travelBreakdown), currentShift.id
@@ -3789,14 +3791,16 @@ if (!nextShift || gapToNext > 60) {
 
   app.post('/api/shifts/:id/start', authenticateToken, (req: any, res: any) => {
     const { id } = req.params;
-    const { odometer_start_reading, odometer_start_photo } = req.body;
+    const { odometer_start_reading, odometer_start_photo, actual_start_time } = req.body;
     try {
       const shift = db.prepare('SELECT * FROM shifts WHERE id = ?').get(id) as any;
       if (!shift) return res.status(404).json({ error: 'Shift not found' });
       if (req.user.role !== 'ADMIN' && shift.staff_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
 
-      const startTime = new Date().toISOString();
-      db.prepare('UPDATE shifts SET actual_start_time = ?, status = ?, odometer_start_reading = ?, odometer_start_photo = ? WHERE id = ?').run(startTime, 'IN_PROGRESS', odometer_start_reading || null, odometer_start_photo || null, id);
+      // Use the provided local check-in time, fallback to server time
+      const startTime = actual_start_time || new Date().toISOString();
+      db.prepare('UPDATE shifts SET actual_start_time = ?, status = ?, odometer_start_reading = ?, odometer_start_photo = ? WHERE id = ?')
+        .run(startTime, 'IN_PROGRESS', odometer_start_reading || null, odometer_start_photo || null, id);
       res.json({ success: true, actual_start_time: startTime });
     } catch(e: any) {
       
@@ -3914,6 +3918,12 @@ if (!nextShift || gapToNext > 60) {
 
       // 3. Update DB
       let updatedServicesJson = shift.services_json;
+      const { checklist } = req.body;
+
+      if (checklist && Array.isArray(checklist) && checklist.length > 0) {
+         updatedServicesJson = JSON.stringify(checklist);
+      }
+
       if (updatedServicesJson) {
         try {
           const servicesData = JSON.parse(updatedServicesJson);
@@ -3946,6 +3956,12 @@ if (!nextShift || gapToNext > 60) {
         }
       }
 
+      const isHomeCare = (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE');
+      
+      const finalProviderKm = isHomeCare ? shift.provider_travel_km : pTravel.distance;
+      const finalProviderCost = isHomeCare ? shift.provider_travel_cost : pTravel.cost;
+
+      // ... Update query downwards
       const stmt = db.prepare(`
         UPDATE shifts SET 
           actual_finish_time = ?, 
@@ -3967,8 +3983,8 @@ if (!nextShift || gapToNext > 60) {
       stmt.run(
         actual_finish_time || new Date().toISOString(),
         notes || shift.notes,
-        pTravel.distance,
-        pTravel.cost,
+        finalProviderKm,
+        finalProviderCost,
         hcTravel.distance,
         hcTravel.cost,
         abt_km,

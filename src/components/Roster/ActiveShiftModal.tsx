@@ -12,10 +12,12 @@ interface ActiveShiftModalProps {
 }
 
 export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: ActiveShiftModalProps) {
-  const { token } = useAuth();
+  const { token, settings } = useAuth();
+  const maxEarlyMins = settings?.max_early_clockin_minutes !== undefined ? parseInt(settings.max_early_clockin_minutes as any) : 180;
   
   const [completeMode, setCompleteMode] = useState(false);
   const [notes, setNotes] = useState('');
+  const [checklist, setChecklist] = useState<any[]>([]);
   const [finishTime, setFinishTime] = useState('');
   const [didTransport, setDidTransport] = useState(false);
   const [waypoints, setWaypoints] = useState<{name: string, placeId?: string, coords?: number[] | string}[]>([]);
@@ -73,6 +75,27 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
     setShowCamera(false);
   };
 
+  const saveToLocal = (currNotes: string, currChecklist: any[]) => {
+    if (!shift) return;
+    const storageKey = `shift_progress_${shift.id}`;
+    localStorage.setItem(storageKey, JSON.stringify({
+      notes: currNotes,
+      checklist: currChecklist
+    }));
+  };
+
+  const handleNotesChange = (val: string) => {
+    setNotes(val);
+    saveToLocal(val, checklist);
+  };
+
+  const handleChecklistChange = (idx: number, field: string, val: any) => {
+    const newChecklist = [...checklist];
+    newChecklist[idx][field] = val;
+    setChecklist(newChecklist);
+    saveToLocal(notes, newChecklist);
+  };
+
   useEffect(() => {
     if (!isOpen || !shift) return;
     const interval = setInterval(() => setNowDate(new Date()), 1000);
@@ -87,12 +110,32 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
       setCompleteMode(false);
       setShowCancelPrompt(false);
       setCancelReason('');
-      setNotes(shift.notes || '');
       setDidTransport(false);
       setReturnedHome(false);
       setWaypoints([]);
       setOdometerReading('');
       setOdometerPhoto('');
+      
+      const storageKey = `shift_progress_${shift.id}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setNotes(parsed.notes || '');
+          setChecklist(parsed.checklist || []);
+        } catch(e) {}
+      } else {
+        setNotes(shift.notes || '');
+        if (shift.servicesData && shift.servicesData.length > 0) {
+           setChecklist(shift.servicesData.map((s: any) => ({
+             ...s,
+             completed: true,
+             comment: ''
+           })));
+        } else {
+           setChecklist([]);
+        }
+      }
       
       const now = new Date();
       setFinishTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
@@ -111,6 +154,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
           Authorization: `Bearer ${token}` 
         },
         body: JSON.stringify({
+          actual_start_time: new Date().toISOString(),
           odometer_start_reading: odometerReading,
           odometer_start_photo: odometerPhoto
         })
@@ -167,6 +211,14 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
        return;
     }
 
+    if (!isNDIS) {
+       const incomplete = checklist.find(c => c.completed === false && !c.comment?.trim());
+       if (incomplete) {
+           alert("Please provide an explanation for all incomplete tasks.");
+           return;
+       }
+    }
+
     setLoading(true);
     try {
       // Build actual finish time date object
@@ -179,7 +231,8 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
         notes,
         abtCoordinates: resolvedWaypoints,
         odometer_end_reading: odometerReading,
-        odometer_end_photo: odometerPhoto
+        odometer_end_photo: odometerPhoto,
+        checklist
       };
 
       const res = await fetch(`/api/shifts/${shift.id}/complete`, {
@@ -192,6 +245,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
       });
       
       if (res.ok) {
+        localStorage.removeItem(`shift_progress_${shift.id}`);
         onSave();
         onClose();
       } else {
@@ -240,7 +294,8 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
   const isLocked = (shift.status === 'PUBLISHED' && startDiffMs <= 15 * 60 * 1000 && startDiffMs > -24 * 60 * 60 * 1000) ||
                    shift.status === 'IN_PROGRESS';
 
-  const canStart = startDiffMs <= 0;
+  const isEarlyStart = startDiffMs > 0 && startDiffMs <= maxEarlyMins * 60 * 1000;
+  const canStart = startDiffMs <= maxEarlyMins * 60 * 1000;
   const canComplete = endDiffMs <= 0;
 
   const formatCountdown = (diffMs: number) => {
@@ -275,6 +330,11 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
             <p className="text-sm md:text-base text-zinc-400 mt-1 font-medium">
                {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
             </p>
+            {isEarlyStart && !isLocked && (
+               <span className="inline-block mt-2 px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded-full border border-amber-500/30">
+                  {Math.floor(startDiffMs / 60000)} minutes until shift
+               </span>
+            )}
           </div>
           {!isLocked && (
             <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04]">
@@ -604,9 +664,40 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                     className="w-full bg-[#09090b] border border-white/[0.12]/50 rounded-xl p-4 text-sm md:text-base text-zinc-100 focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal shadow-inner resize-y transition-colors"
                     placeholder="Log any incidents, tasks completed, client mood, etc."
                     value={notes}
-                    onChange={e => setNotes(e.target.value)}
+                    onChange={e => handleNotesChange(e.target.value)}
                   />
                 </div>
+
+                {/* 4. Home Care Checklist */}
+                {!isNDIS && checklist.length > 0 && (
+                   <div className="bg-zinc-800/30 p-5 rounded-2xl border border-white/[0.08]">
+                      <label className="block text-sm md:text-base font-medium text-zinc-300 mb-4">Assigned Tasks</label>
+                      <div className="space-y-4">
+                         {checklist.map((item, idx) => (
+                            <div key={idx} className="flex flex-col bg-[#09090b] border border-white/[0.08] p-4 rounded-xl shadow-inner">
+                               <div className="flex justify-between items-center">
+                                  <span className="text-zinc-200 text-sm md:text-base font-medium pr-4">{item.serviceName || item.serviceCode || "Task"}</span>
+                                  <div className="flex space-x-2 shrink-0">
+                                     <button onClick={() => handleChecklistChange(idx, 'completed', true)} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${item.completed ? 'bg-brand-green text-white shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>Yes</button>
+                                     <button onClick={() => handleChecklistChange(idx, 'completed', false)} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${item.completed === false ? 'bg-red-500 text-white shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>No</button>
+                                  </div>
+                               </div>
+                               {item.completed === false && (
+                                   <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+                                      <input 
+                                         type="text" 
+                                         placeholder="Explanation required..." 
+                                         value={item.comment} 
+                                         onChange={e => handleChecklistChange(idx, 'comment', e.target.value)} 
+                                         className="w-full bg-[#121214] border border-red-500/50 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-red-500 placeholder-red-400/50"
+                                      />
+                                   </div>
+                               )}
+                            </div>
+                         ))}
+                      </div>
+                   </div>
+                )}
               </div>
             </div>
           )}

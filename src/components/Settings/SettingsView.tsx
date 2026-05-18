@@ -30,6 +30,7 @@ export default function SettingsView() {
     payrunFrequency: 'Fortnightly',
     payrunStartDay: 'Monday',
     paymentDueDays: 7,
+    max_early_clockin_minutes: 180,
     ndisRegion: 'NSW',
     state: 'WA',
     websiteLogo: '',
@@ -361,6 +362,22 @@ export default function SettingsView() {
                         </div>
                       </div>
                     </div>
+                 </div>
+              </div>
+
+              <div className="col-span-2 border-t border-border-subtle pt-6 mt-6">
+                 <h4 className="text-md font-medium text-[#E6EDF3] mb-4">Shift & Clock-in Settings</h4>
+                 <div className="flex flex-col gap-2 p-4 border border-border-subtle bg-brand-navy rounded-xl shadow-sm">
+                   <label className="text-sm font-medium text-slate-400">Maximum Early Clock-In Window (Minutes)</label>
+                   <input 
+                     type="number" 
+                     name="max_early_clockin_minutes"
+                     value={settings.max_early_clockin_minutes !== undefined ? settings.max_early_clockin_minutes : 180}
+                     onChange={e => setSettings({...settings, max_early_clockin_minutes: parseInt(e.target.value)})}
+                     className="w-full md:w-1/3 bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                     placeholder="e.g., 180"
+                   />
+                   <p className="text-xs text-slate-500">Controls how many minutes before a shift starts that a support worker can tap 'Start Shift'. Default is 3 hours.</p>
                  </div>
               </div>
 

@@ -322,16 +322,16 @@ export default function WallboardView() {
                       const isActuallyRunning = event.status === 'IN_PROGRESS' || (!!event.actualStartTime && !event.actualEndTime);
                       const isInProgress = isActuallyRunning && !isCompleted;
                       
-                      let containerClass = "transition-all flex items-center p-3 sm:p-4 shadow-sm ";
+                      let containerClass = "transition-all flex items-center p-3 sm:p-4 shadow-sm border-y border-white/[0.05] ";
                       if (event.status === 'DRAFT') {
-                        containerClass += "opacity-90 border-l-4 border-orange-500 bg-orange-500/10";
+                        containerClass += "opacity-90 border-l-[6px] border-orange-400 bg-orange-500/25";
                       } else if (isCompleted) {
-                        containerClass += "opacity-70 border-l-4 border-blue-500 bg-blue-500/15";
+                        containerClass += "opacity-80 border-l-[6px] border-brand-green bg-brand-green/25";
                       } else if (isInProgress) {
-                        containerClass += "border-l-4 border-emerald-500 bg-emerald-500/20 shadow-emerald-500/20 shadow-lg pulse-border";
+                        containerClass += "border-l-[6px] border-emerald-400 bg-emerald-500/35 shadow-emerald-500/30 shadow-lg pulse-border ring-1 ring-emerald-500/50";
                       } else {
                         // SCHEDULED / PUBLISHED -> Zinc (matches Scheduled badge)
-                        containerClass += "opacity-95 border-l-4 border-zinc-400 bg-zinc-500/10";
+                        containerClass += "opacity-95 border-l-[6px] border-zinc-400 bg-zinc-500/25";
                       }
 
                       return (
