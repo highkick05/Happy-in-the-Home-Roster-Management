@@ -3584,11 +3584,8 @@ if (!nextShift || gapToNext > 60) {
         
         // Recalculate after batch insert
         for (const single of processedStaffShifts) {
-          (async () => {
-              console.log(`[DEBUG CASCADE] Calling hook for POST batch insert: staffId ${single.staffId}, time: ${startTime}`);
-              await new Promise(resolve => setTimeout(resolve, 500));
-              await recalculateDayTravelForStaff(single.staffId, startTime);
-          })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
+          console.log(`[DEBUG CASCADE] Calling hook for POST batch insert: staffId ${single.staffId}, time: ${startTime}`);
+          await recalculateDayTravelForStaff(single.staffId, startTime);
         }
         
         res.json({ id: shiftIds[0], ids: shiftIds });
@@ -3597,11 +3594,8 @@ if (!nextShift || gapToNext > 60) {
         const info = stmt.run(single.staffId, clientId, mainServiceId, startTime, endTime, status || 'DRAFT', notes, single.servicesJson, single.isAbtApproved ? 1 : 0, fType);
         
         // Recalculate after single insert
-        (async () => {
-            console.log(`[DEBUG CASCADE] Calling hook for POST single insert: staffId ${single.staffId}, time: ${startTime}`);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await recalculateDayTravelForStaff(single.staffId, startTime);
-        })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
+        console.log(`[DEBUG CASCADE] Calling hook for POST single insert: staffId ${single.staffId}, time: ${startTime}`);
+        await recalculateDayTravelForStaff(single.staffId, startTime);
         
         res.json({ id: info.lastInsertRowid });
       }
@@ -3661,13 +3655,10 @@ if (!nextShift || gapToNext > 60) {
       })();
 
       if (action === 'delete' && uniqueStaffDates.size > 0) {
-        uniqueStaffDates.forEach(sd => {
+        for (const sd of Array.from(uniqueStaffDates)) {
           const [staffId, startTime] = sd.split('|');
-          (async () => {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await recalculateDayTravelForStaff(Number(staffId), startTime);
-          })().catch(e => console.error(e));
-        });
+          await recalculateDayTravelForStaff(Number(staffId), startTime);
+        }
       }
 
       res.json({ success: true, message: `Batch ${action} completed successfully` });
@@ -3735,16 +3726,10 @@ if (!nextShift || gapToNext > 60) {
          generateInvoiceForShift(id);
       }
       
-      (async () => {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
-      })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
+      await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
       if (staffId !== undefined && staffId !== existing.staff_id || startTime !== undefined && startTime !== existing.start_time) {
          // Recalculate old date/staff if it changed
-         (async () => {
-             await new Promise(resolve => setTimeout(resolve, 500));
-             await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
-         })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
+         await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
       }
 
       res.json({ success: true });
@@ -4027,12 +4012,7 @@ if (!nextShift || gapToNext > 60) {
       })();
 
       if (shiftToUpdate) {
-        // Run without awaiting to avoid blocking response, or wrap in async. We can just call it (fire and forget) 
-        // since we want it to happen after transaction
-        (async () => {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await recalculateDayTravelForStaff(shiftToUpdate.staff_id, shiftToUpdate.start_time);
-        })().catch(e => console.error(e));
+        await recalculateDayTravelForStaff(shiftToUpdate.staff_id, shiftToUpdate.start_time);
       }
 
       res.json({ success: true });
