@@ -1290,39 +1290,23 @@ async function startServer() {
            let totalTravelMinutes = 0;
            let travelBreakdown: string[] = [];
 
-           // LEG 1 (Arrival)
+           // If there is no previous shift or gap is > 60 mins, it's considered a "first shift of the day" or "after gap" commute.
+           // We do not pay for this commute.
            if (!prevShift || gapToPrev > 60) {
-               const res = await getGoogleRoutesDistance([staffHomeCoords, currentShiftCoords]);
-               totalDistance += res.distance;
-               totalTravelMinutes += res.minutes;
-               travelBreakdown.push(`[100% Commute]: Home to Client = ${res.distance.toFixed(2)} km (${res.minutes.toFixed(0)} mins)`);
+               totalDistance = 0;
+               totalTravelMinutes = 0;
+               travelBreakdown.push(`[Ignored Commute]: No billable provider travel for starting shift`);
            } else {
+               // Inter-client transition
                const res = await getGoogleRoutesDistance([prevCoords, currentShiftCoords]);
-               const splitDist = res.distance / 2;
-               const splitMins = res.minutes / 2;
-               totalDistance += splitDist;
-               totalTravelMinutes += splitMins;
-               travelBreakdown.push(`[50% Transitional Split]: Prev Client to Current = ${splitDist.toFixed(2)} km (${splitMins.toFixed(0)} mins)`);
+               totalDistance = res.distance;
+               totalTravelMinutes = res.minutes;
+               travelBreakdown.push(`[100% Inter-Client]: Prev Client to Current = ${res.distance.toFixed(2)} km (${res.minutes.toFixed(0)} mins)`);
            }
 
-           // LEG 2 (Departure)
-           if (!nextShift || gapToNext > 60) {
-               const res = await getGoogleRoutesDistance([currentShiftCoords, staffHomeCoords]);
-               totalDistance += res.distance;
-               totalTravelMinutes += res.minutes;
-               travelBreakdown.push(`[100% Return Trip]: Client to Home = ${res.distance.toFixed(2)} km (${res.minutes.toFixed(0)} mins)`);
-           } else {
-               const nextAddress = db.prepare('SELECT address FROM clients WHERE id = ?').get(nextShift.client_id) as any;
-               let rawNextCoords = await getRecordCoordinates('clients', nextShift.client_id, nextAddress?.address);
-               let nextCoords = rawNextCoords ? [Number(rawNextCoords[0]), Number(rawNextCoords[1])] : [0,0];
-
-               const res = await getGoogleRoutesDistance([currentShiftCoords, nextCoords]);
-               const splitDist = res.distance / 2;
-               const splitMins = res.minutes / 2;
-               totalDistance += splitDist;
-               totalTravelMinutes += splitMins;
-               travelBreakdown.push(`[50% Transitional Split]: Current Client to Next = ${splitDist.toFixed(2)} km (${splitMins.toFixed(0)} mins)`);
-           }
+           // For the LAST shift of the day (where gapToNext === Infinity), 
+           // ensure that the final return trip back home is completely ignored
+           // and NOT added to the shift's database tracking columns.
 
            db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, travel_breakdown = ? WHERE id = ?').run(
               totalDistance, parseFloat(totalTravelMinutes.toFixed(2)), JSON.stringify(travelBreakdown), currentShift.id
