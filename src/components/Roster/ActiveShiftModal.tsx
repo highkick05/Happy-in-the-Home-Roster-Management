@@ -385,19 +385,6 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                          {shift.status.replace('_', ' ')}
                        </span>
                     </div>
-                    {checklist.length > 0 && (
-                      <div className="pb-4 border-b border-white/[0.12]/50">
-                        <span className="text-zinc-500 font-medium block mb-3 text-sm md:text-base">Services to provide</span>
-                        <div className="space-y-2">
-                           {checklist.map((item, idx) => (
-                              <div key={idx} className="flex justify-between items-center bg-[#121214]/50 p-3 rounded-lg border border-white/[0.08]/50">
-                                 <span className="text-zinc-200 text-sm md:text-base">{item.serviceName || item.serviceCode || shift.serviceName}</span>
-                                 {(item.qty || item.quantity) && <span className="text-brand-teal text-xs md:text-sm font-semibold">{item.qty || item.quantity} {item.unit || item.unitType || ''}</span>}
-                              </div>
-                           ))}
-                        </div>
-                      </div>
-                    )}
                     <div>
                       <span className="text-zinc-500 font-medium block mb-2 text-sm md:text-base">Shift Notes</span>
                       <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-3 rounded-lg border border-white/[0.08]/50">{shift.notes || "No notes provided."}</p>
