@@ -853,6 +853,7 @@ async function startServer() {
   };
 
   const getRecordCoordinates = async (tableName: 'clients' | 'users', recordId: string | number, addressText?: string) => {
+    if (addressText) addressText = addressText.trim();
     // Return mock coordinates if no address provided
     if (!addressText) {
       console.log(`[DEBUG Geocode] No address provided for ${tableName} ID ${recordId}. Returning mock coords.`);
