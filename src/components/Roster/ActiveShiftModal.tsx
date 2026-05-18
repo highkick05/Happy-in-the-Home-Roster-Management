@@ -391,7 +391,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                         <div className="space-y-2">
                            {checklist.map((item, idx) => (
                               <div key={idx} className="flex justify-between items-center bg-[#121214]/50 p-3 rounded-lg border border-white/[0.08]/50">
-                                 <span className="text-zinc-200 text-sm md:text-base">{item.serviceName || item.serviceCode || "Task"}</span>
+                                 <span className="text-zinc-200 text-sm md:text-base">{item.serviceName || item.serviceCode || shift.serviceName}</span>
                                  {(item.qty || item.quantity) && <span className="text-brand-teal text-xs md:text-sm font-semibold">{item.qty || item.quantity} {item.unit || item.unitType || ''}</span>}
                               </div>
                            ))}
@@ -699,7 +699,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                          {checklist.map((item, idx) => (
                             <div key={idx} className="flex flex-col bg-[#09090b] border border-white/[0.08] p-4 rounded-xl shadow-inner">
                                <div className="flex justify-between items-center">
-                                  <span className="text-zinc-200 text-sm md:text-base font-medium pr-4">{item.serviceName || item.serviceCode || "Task"}</span>
+                                  <span className="text-zinc-200 text-sm md:text-base font-medium pr-4">{item.serviceName || item.serviceCode || shift.serviceName}</span>
                                   <div className="flex space-x-2 shrink-0">
                                      <button onClick={() => handleChecklistChange(idx, 'completed', true)} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${item.completed ? 'bg-brand-green text-white shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>Yes</button>
                                      <button onClick={() => handleChecklistChange(idx, 'completed', false)} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${item.completed === false ? 'bg-red-500 text-white shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}>No</button>
