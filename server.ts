@@ -722,6 +722,7 @@ try { db.exec("ALTER TABLE users ADD COLUMN reset_password_expires DATETIME"); }
 try { db.exec("ALTER TABLE shifts ADD COLUMN home_care_travel_km REAL DEFAULT 0"); } catch(e) { /* ignore */ }
 try { db.exec("ALTER TABLE shifts ADD COLUMN home_care_travel_total REAL DEFAULT 0"); } catch(e) { /* ignore */ }
 try { db.exec("ALTER TABLE invoices ADD COLUMN respite_booking_id INTEGER REFERENCES respite_bookings(id)"); } catch(e) { /* ignore */ }
+try { db.exec("ALTER TABLE shifts ADD COLUMN provider_travel_minutes REAL DEFAULT 0"); } catch(e) { /* ignore */ }
 
 try {
   db.exec(`
@@ -1267,28 +1268,64 @@ async function startServer() {
         const currentShiftCoords = rawCurrentShiftCoords ? [Number(rawCurrentShiftCoords[0]), Number(rawCurrentShiftCoords[1])] : [0,0];
 
         if (isHomeCare) {
-           let totalDistance = 0;
-           let travelBreakdown: string[] = [];
-           const { distance: dist1 } = await getGoogleRoutesDistance([staffHomeCoords, currentShiftCoords]);
-           const { distance: dist2 } = await getGoogleRoutesDistance([currentShiftCoords, staffHomeCoords]);
-           totalDistance = Number(dist1) + Number(dist2);
-           travelBreakdown.push(`[HCP Return-to-Base]: Home to Client = ${Number(dist1).toFixed(2)} km`);
-           travelBreakdown.push(`[HCP Return-to-Base]: Client to Home = ${Number(dist2).toFixed(2)} km`);
+           const prevShift = shifts[i - 1] || null;
+           const nextShift = shifts[i + 1] || null;
 
-           // Update services_json so the UI reflects the math
-           let servicesData = [];
-           if (currentShift.services_json) {
-               try { servicesData = JSON.parse(currentShift.services_json); } catch(e) {}
-               for (const sData of servicesData) {
-                   const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
-                   if (service && service.name && service.name.toLowerCase().includes('provider travel')) {
-                       sData.qtyOverride = parseFloat(totalDistance.toFixed(2));
-                   }
-               }
+           let prevCoords = null;
+           if (prevShift) {
+              const prevAddress = db.prepare('SELECT address FROM clients WHERE id = ?').get(prevShift.client_id) as any;
+              let rawPrevCoords = await getRecordCoordinates('clients', prevShift.client_id, prevAddress?.address);
+              prevCoords = rawPrevCoords ? [Number(rawPrevCoords[0]), Number(rawPrevCoords[1])] : [0,0];
            }
-           
-           db.prepare('UPDATE shifts SET provider_travel_km = ?, travel_breakdown = ?, services_json = ? WHERE id = ?').run(
-              totalDistance, JSON.stringify(travelBreakdown), JSON.stringify(servicesData), currentShift.id
+
+           const currentStart = new Date(currentShift.start_time).getTime();
+           const currentEnd = new Date(currentShift.end_time).getTime();
+           const prevEnd = prevShift ? new Date(prevShift.end_time).getTime() : 0;
+           const nextStart = nextShift ? new Date(nextShift.start_time).getTime() : 0;
+
+           const gapToPrev = prevShift ? Math.abs((currentStart - prevEnd) / (1000 * 60)) : Infinity;
+           const gapToNext = nextShift ? Math.abs((nextStart - currentEnd) / (1000 * 60)) : Infinity;
+
+           let totalDistance = 0;
+           let totalTravelMinutes = 0;
+           let travelBreakdown: string[] = [];
+
+           // LEG 1 (Arrival)
+           if (!prevShift || gapToPrev > 60) {
+               const res = await getGoogleRoutesDistance([staffHomeCoords, currentShiftCoords]);
+               totalDistance += res.distance;
+               totalTravelMinutes += res.minutes;
+               travelBreakdown.push(`[100% Commute]: Home to Client = ${res.distance.toFixed(2)} km (${res.minutes.toFixed(0)} mins)`);
+           } else {
+               const res = await getGoogleRoutesDistance([prevCoords, currentShiftCoords]);
+               const splitDist = res.distance / 2;
+               const splitMins = res.minutes / 2;
+               totalDistance += splitDist;
+               totalTravelMinutes += splitMins;
+               travelBreakdown.push(`[50% Transitional Split]: Prev Client to Current = ${splitDist.toFixed(2)} km (${splitMins.toFixed(0)} mins)`);
+           }
+
+           // LEG 2 (Departure)
+           if (!nextShift || gapToNext > 60) {
+               const res = await getGoogleRoutesDistance([currentShiftCoords, staffHomeCoords]);
+               totalDistance += res.distance;
+               totalTravelMinutes += res.minutes;
+               travelBreakdown.push(`[100% Return Trip]: Client to Home = ${res.distance.toFixed(2)} km (${res.minutes.toFixed(0)} mins)`);
+           } else {
+               const nextAddress = db.prepare('SELECT address FROM clients WHERE id = ?').get(nextShift.client_id) as any;
+               let rawNextCoords = await getRecordCoordinates('clients', nextShift.client_id, nextAddress?.address);
+               let nextCoords = rawNextCoords ? [Number(rawNextCoords[0]), Number(rawNextCoords[1])] : [0,0];
+
+               const res = await getGoogleRoutesDistance([currentShiftCoords, nextCoords]);
+               const splitDist = res.distance / 2;
+               const splitMins = res.minutes / 2;
+               totalDistance += splitDist;
+               totalTravelMinutes += splitMins;
+               travelBreakdown.push(`[50% Transitional Split]: Current Client to Next = ${splitDist.toFixed(2)} km (${splitMins.toFixed(0)} mins)`);
+           }
+
+           db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, travel_breakdown = ? WHERE id = ?').run(
+              totalDistance, parseFloat(totalTravelMinutes.toFixed(2)), JSON.stringify(travelBreakdown), currentShift.id
            );
         } else {
            const prevShift = shifts[i - 1] || null;
@@ -4299,6 +4336,7 @@ if (!nextShift || gapToNext > 60) {
         sundayHours: 0,
         publicHolidayHours: 0,
         travelKm: 0,
+        travelHrs: 0,
         providerTravelKm: 0,
         abtKm: 0,
         homeCareTravelTotal: 0
@@ -4364,7 +4402,8 @@ if (!nextShift || gapToNext > 60) {
         }
         
         const isHomeCare = (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE');
-        const hc_travel_km = shift.respite_booking_id ? 0 : (shift.home_care_travel_km || 0);
+        const hc_travel_km = shift.respite_booking_id ? 0 : (shift.provider_travel_km || shift.home_care_travel_km || 0);
+        const hc_travel_hrs = shift.respite_booking_id ? 0 : ((shift.provider_travel_minutes || 0) / 60);
         const hc_travel_total = shift.respite_booking_id ? 0 : (shift.home_care_travel_total || 0);
         
         const prov_km = shift.respite_booking_id ? 0 : (shift.provider_travel_km || 0);
@@ -4373,6 +4412,7 @@ if (!nextShift || gapToNext > 60) {
         const abt_cost = shift.respite_booking_id ? 0 : (shift.abt_cost || 0);
         
         totals.travelKm += isHomeCare ? hc_travel_km : (prov_km + abt_km);
+        totals.travelHrs += isHomeCare ? hc_travel_hrs : 0;
         totals.providerTravelKm = (totals.providerTravelKm || 0) + (isHomeCare ? 0 : prov_km);
         totals.abtKm = (totals.abtKm || 0) + (isHomeCare ? 0 : abt_km);
         
@@ -4393,6 +4433,7 @@ if (!nextShift || gapToNext > 60) {
           hoursWorked: parseFloat(hours.toFixed(2)),
           dayCategory: dayCategory,
           travelKm: isHomeCare ? parseFloat(hc_travel_km.toFixed(2)) : 0,
+          travelHours: isHomeCare ? parseFloat(hc_travel_hrs.toFixed(2)) : undefined,
           travelReimbursement: isHomeCare ? parseFloat(hc_travel_total.toFixed(2)) : undefined,
           providerTravelKm: 0,
           abtKm: 0,
@@ -4408,6 +4449,7 @@ if (!nextShift || gapToNext > 60) {
             hoursWorked: 0,
             dayCategory: dayCategory,
             travelKm: parseFloat(prov_km.toFixed(2)),
+            travelHours: undefined,
             travelReimbursement: parseFloat(prov_cost.toFixed(2)),
             providerTravelKm: parseFloat(prov_km.toFixed(2)),
             abtKm: 0,
@@ -4424,6 +4466,7 @@ if (!nextShift || gapToNext > 60) {
             hoursWorked: 0,
             dayCategory: dayCategory,
             travelKm: parseFloat(abt_km.toFixed(2)),
+            travelHours: undefined,
             travelReimbursement: parseFloat(abt_cost.toFixed(2)),
             providerTravelKm: 0,
             abtKm: parseFloat(abt_km.toFixed(2)),
@@ -4443,6 +4486,7 @@ if (!nextShift || gapToNext > 60) {
           sundayHours: parseFloat(totals.sundayHours.toFixed(2)),
           publicHolidayHours: parseFloat(totals.publicHolidayHours.toFixed(2)),
           travelKm: parseFloat(totals.travelKm.toFixed(2)),
+          travelHrs: parseFloat(totals.travelHrs.toFixed(2)),
           travelPayTotal: parseFloat((totals.travelPayTotal || 0).toFixed(2))
         }
       });

@@ -127,20 +127,21 @@ export default function StaffActivityReport() {
                 <th className="px-5 py-4 text-center">Day Category</th>
                 <th className="px-5 py-4 text-right">Hours Worked</th>
                 <th className="px-5 py-4 text-right">Travel (Km)</th>
+                <th className="px-5 py-4 text-right">Travel (Hrs)</th>
                 <th className="px-5 py-4 text-right">Travel Reimbursement ($)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {loading && !reportData ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-[#8B949E]">
+                  <td colSpan={9} className="px-5 py-10 text-center text-[#8B949E]">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-brand-teal" />
                     Loading report data...
                   </td>
                 </tr>
               ) : reportData?.log.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-[#8B949E]">
+                  <td colSpan={9} className="px-5 py-10 text-center text-[#8B949E]">
                     No activity found for the selected date range.
                   </td>
                 </tr>
@@ -171,6 +172,7 @@ export default function StaffActivityReport() {
                     </td>
                     <td className="px-5 py-3 text-right tabular-nums text-[#E6EDF3] font-semibold">{row.hoursWorked}</td>
                     <td className="px-5 py-3 text-right tabular-nums">{row.travelKm}</td>
+                    <td className="px-5 py-3 text-right tabular-nums">{row.travelHours !== undefined ? row.travelHours.toFixed(2) : '-'}</td>
                     <td className="px-5 py-3 text-right tabular-nums">{row.travelReimbursement !== undefined ? `$${row.travelReimbursement.toFixed(2)}` : '-'}</td>
                   </tr>
                 ))
@@ -184,7 +186,7 @@ export default function StaffActivityReport() {
             <h3 className="text-sm font-semibold text-[#E6EDF3] uppercase tracking-wider mb-4 flex items-center">
               <Activity className="w-4 h-4 mr-2 text-brand-teal" /> Unit Totals
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
               <div className="bg-brand-navy rounded-lg p-3 border border-border-subtle">
                 <div className="text-[#8B949E] text-xs font-medium mb-1 uppercase tracking-wide">Total Weekday Hrs</div>
                 <div className="text-xl font-bold text-[#E6EDF3] tabular-nums">{reportData.totals.weekdayHours} <span className="text-sm font-normal text-[#8B949E]">hrs</span></div>
@@ -202,8 +204,12 @@ export default function StaffActivityReport() {
                 <div className="text-xl font-bold text-[#E6EDF3] tabular-nums">{reportData.totals.publicHolidayHours} <span className="text-sm font-normal text-[#8B949E]">hrs</span></div>
               </div>
               <div className="bg-gradient-to-br from-brand-teal/10 to-brand-green/10 rounded-lg p-3 border border-brand-teal/20">
-                <div className="text-[#8B949E] text-xs font-medium mb-1 uppercase tracking-wide">Total Travel</div>
+                <div className="text-[#8B949E] text-xs font-medium mb-1 uppercase tracking-wide">Total Travel Km</div>
                 <div className="text-xl font-bold text-brand-teal tabular-nums">{reportData.totals.travelKm} <span className="text-sm font-normal text-brand-teal/70">km</span></div>
+              </div>
+              <div className="bg-gradient-to-br from-brand-teal/10 to-brand-green/10 rounded-lg p-3 border border-brand-teal/20">
+                <div className="text-[#8B949E] text-xs font-medium mb-1 uppercase tracking-wide">Total Travel Hrs</div>
+                <div className="text-xl font-bold text-brand-teal tabular-nums">{reportData.totals.travelHrs !== undefined ? reportData.totals.travelHrs : 0} <span className="text-sm font-normal text-brand-teal/70">hrs</span></div>
               </div>
               <div className="bg-gradient-to-br from-indigo-500/10 to-blue-500/10 rounded-lg p-3 border border-indigo-500/20">
                 <div className="text-[#8B949E] text-xs font-medium mb-1 uppercase tracking-wide">Total Travel Pay</div>
