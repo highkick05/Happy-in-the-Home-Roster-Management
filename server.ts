@@ -1483,7 +1483,8 @@ if (!nextShift || gapToNext > 60) {
         try { settingsMap[r.key] = JSON.parse(r.value); } catch { settingsMap[r.key] = r.value; }
       });
 
-      const timezone = settingsMap.timezone || 'Australia/Perth';
+      let rawTz1 = settingsMap.timezone || 'Australia/Perth';
+      const timezone = typeof rawTz1 === 'string' ? rawTz1.replace(/['"]+/g, '') : rawTz1;
 
       const start = new Date(shift.start_time);
       const end = new Date(shift.end_time);
@@ -1677,7 +1678,8 @@ if (!nextShift || gapToNext > 60) {
       settingsRows.forEach(r => {
         try { settingsMap[r.key] = JSON.parse(r.value); } catch { settingsMap[r.key] = r.value; }
       });
-      const timezone = settingsMap.timezone || 'Australia/Perth';
+      let rawTz2 = settingsMap.timezone || 'Australia/Perth';
+      const timezone = typeof rawTz2 === 'string' ? rawTz2.replace(/['"]+/g, '') : rawTz2;
 
       const dateFormatterAPI = getSafeDateTimeFormat('en-CA', {
         timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit'
@@ -3225,7 +3227,8 @@ if (!nextShift || gapToNext > 60) {
       settingsRows.forEach((r) => {
         try { settingsMap[r.key] = JSON.parse(r.value); } catch { settingsMap[r.key] = r.value; }
       });
-      const timezone = settingsMap.timezone || 'Australia/Perth';
+      let rawTz3 = settingsMap.timezone || 'Australia/Perth';
+      const timezone = typeof rawTz3 === 'string' ? rawTz3.replace(/['"]+/g, '') : rawTz3;
 
       db.transaction(() => {
         if (!dryRun && overwriteConflicts === 'all') {
@@ -3360,7 +3363,8 @@ if (!nextShift || gapToNext > 60) {
       settingsRows.forEach((r) => {
         try { settingsMap[r.key] = JSON.parse(r.value); } catch { settingsMap[r.key] = r.value; }
       });
-      const timezone = settingsMap.timezone || 'Australia/Perth';
+      let rawTz4 = settingsMap.timezone || 'Australia/Perth';
+      const timezone = typeof rawTz4 === 'string' ? rawTz4.replace(/['"]+/g, '') : rawTz4;
 
       db.transaction(() => {
         for (const item of shiftsToOverwrite) {
@@ -3580,7 +3584,11 @@ if (!nextShift || gapToNext > 60) {
         
         // Recalculate after batch insert
         for (const single of processedStaffShifts) {
-          await recalculateDayTravelForStaff(single.staffId, startTime);
+          (async () => {
+              console.log(`[DEBUG CASCADE] Calling hook for POST batch insert: staffId ${single.staffId}, time: ${startTime}`);
+              await new Promise(resolve => setTimeout(resolve, 500));
+              await recalculateDayTravelForStaff(single.staffId, startTime);
+          })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
         }
         
         res.json({ id: shiftIds[0], ids: shiftIds });
@@ -3589,7 +3597,11 @@ if (!nextShift || gapToNext > 60) {
         const info = stmt.run(single.staffId, clientId, mainServiceId, startTime, endTime, status || 'DRAFT', notes, single.servicesJson, single.isAbtApproved ? 1 : 0, fType);
         
         // Recalculate after single insert
-        await recalculateDayTravelForStaff(single.staffId, startTime);
+        (async () => {
+            console.log(`[DEBUG CASCADE] Calling hook for POST single insert: staffId ${single.staffId}, time: ${startTime}`);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await recalculateDayTravelForStaff(single.staffId, startTime);
+        })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
         
         res.json({ id: info.lastInsertRowid });
       }
@@ -3649,10 +3661,13 @@ if (!nextShift || gapToNext > 60) {
       })();
 
       if (action === 'delete' && uniqueStaffDates.size > 0) {
-        await Promise.all(Array.from(uniqueStaffDates).map(sd => {
+        uniqueStaffDates.forEach(sd => {
           const [staffId, startTime] = sd.split('|');
-          return recalculateDayTravelForStaff(Number(staffId), startTime);
-        }));
+          (async () => {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await recalculateDayTravelForStaff(Number(staffId), startTime);
+          })().catch(e => console.error(e));
+        });
       }
 
       res.json({ success: true, message: `Batch ${action} completed successfully` });
@@ -3720,13 +3735,16 @@ if (!nextShift || gapToNext > 60) {
          generateInvoiceForShift(id);
       }
       
-      const targetStaffId = staffId !== undefined ? staffId : existing.staff_id;
-      const targetStartTime = startTime !== undefined ? startTime : existing.start_time;
-      await recalculateDayTravelForStaff(targetStaffId, targetStartTime);
-      
+      (async () => {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
+      })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
       if (staffId !== undefined && staffId !== existing.staff_id || startTime !== undefined && startTime !== existing.start_time) {
          // Recalculate old date/staff if it changed
-         await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
+         (async () => {
+             await new Promise(resolve => setTimeout(resolve, 500));
+             await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
+         })().catch(e => console.error('[DEBUG CASCADE] Ignition failed:', e));
       }
 
       res.json({ success: true });
@@ -4009,7 +4027,12 @@ if (!nextShift || gapToNext > 60) {
       })();
 
       if (shiftToUpdate) {
-        await recalculateDayTravelForStaff(shiftToUpdate.staff_id, shiftToUpdate.start_time);
+        // Run without awaiting to avoid blocking response, or wrap in async. We can just call it (fire and forget) 
+        // since we want it to happen after transaction
+        (async () => {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await recalculateDayTravelForStaff(shiftToUpdate.staff_id, shiftToUpdate.start_time);
+        })().catch(e => console.error(e));
       }
 
       res.json({ success: true });
@@ -4238,7 +4261,8 @@ if (!nextShift || gapToNext > 60) {
         return acc;
       }, {});
 
-      const timezone = settingsMap.timezone || 'Australia/Perth';
+      let rawTz5 = settingsMap.timezone || 'Australia/Perth';
+      const timezone = typeof rawTz5 === 'string' ? rawTz5.replace(/['"]+/g, '') : rawTz5;
       
       let query = `
         SELECT s.*, 
@@ -4561,7 +4585,8 @@ if (!nextShift || gapToNext > 60) {
       settingsRows.forEach(r => {
         try { settingsMap[r.key] = JSON.parse(r.value); } catch { settingsMap[r.key] = r.value; }
       });
-      const timezone = settingsMap.timezone || 'Australia/Perth';
+      let rawTz6 = settingsMap.timezone || 'Australia/Perth';
+      const timezone = typeof rawTz6 === 'string' ? rawTz6.replace(/['"]+/g, '') : rawTz6;
 
       const shiftDateFormatter = getSafeDateTimeFormat('en-GB', {
         timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric'
@@ -5157,7 +5182,8 @@ if (!nextShift || gapToNext > 60) {
       const settingsMap: any = {};
       settingsRows.forEach((row) => { try { settingsMap[row.key] = JSON.parse(row.value); } catch { settingsMap[row.key] = row.value; } });
 
-      const timezone = settingsMap.timezone || 'Australia/Perth';
+      let rawTz7 = settingsMap.timezone || 'Australia/Perth';
+      const timezone = typeof rawTz7 === 'string' ? rawTz7.replace(/['"]+/g, '') : rawTz7;
       const dateFormatter = getSafeDateTimeFormat('en-US', {
          timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric'
       });
@@ -5492,7 +5518,8 @@ if (!nextShift || gapToNext > 60) {
       const settingsRows = db.prepare('SELECT key, value FROM settings').all() as any[];
       const settingsMap: any = {};
       settingsRows.forEach((r: any) => { try { settingsMap[r.key] = JSON.parse(r.value); } catch { settingsMap[r.key] = r.value; } });
-      const tz = settingsMap.timezone || 'Australia/Perth';
+      let rawTz8 = settingsMap.timezone || 'Australia/Perth';
+      const tz = typeof rawTz8 === 'string' ? rawTz8.replace(/['"]+/g, '') : rawTz8;
 
       const formatYMDtoDMY = (ymd: string) => ymd ? ymd.split('-').reverse().join('-') : '';
 
@@ -5777,7 +5804,8 @@ if (!nextShift || gapToNext > 60) {
       const settingsRows = db.prepare('SELECT key, value FROM settings').all() as any[];
       const settingsMap: any = {};
       settingsRows.forEach((r: any) => { try { settingsMap[r.key] = JSON.parse(r.value); } catch { settingsMap[r.key] = r.value; } });
-      const tz = settingsMap.timezone || 'Australia/Perth';
+      let rawTz9 = settingsMap.timezone || 'Australia/Perth';
+      const tz = typeof rawTz9 === 'string' ? rawTz9.replace(/['"]+/g, '') : rawTz9;
 
       const formatYMDtoDMY = (ymd: string) => ymd ? ymd.split('-').reverse().join('-') : '';
 
