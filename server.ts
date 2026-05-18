@@ -84,6 +84,16 @@ function getSafeDateTimeFormat(locale: string, options: Intl.DateTimeFormatOptio
   }
 }
 
+function getTzDayOfWeek(date: Date, tz: string): number {
+  try {
+    const tzDayStr = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(date);
+    return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(tzDayStr);
+  } catch (e) {
+    if (tz !== 'UTC') return getTzDayOfWeek(date, 'UTC');
+    return date.getUTCDay();
+  }
+}
+
 // Initialize DB from module
 // db initialized in db.ts
 
@@ -1531,7 +1541,7 @@ if (!nextShift || gapToNext > 60) {
             let qty = (sd.qtyOverride !== undefined && sd.qtyOverride !== '') ? Number(sd.qtyOverride) : (srv.unit === 'Hour' ? hours : 1);
             if (qty > 0) {
               let baseRate = Number(srv.rate || 0);
-              let dayOfWeek = start.getDay();
+              let dayOfWeek = getTzDayOfWeek(start, timezone);
               let finalRate = baseRate;
               
               if (srv.type === 'HOME_CARE' && srv.rates_json) {
@@ -1748,7 +1758,7 @@ if (!nextShift || gapToNext > 60) {
          let srvCode = 'N/A';
          let dayCategory = 'Weekday';
 
-         const dayOfWeek = sStart.getDay();
+         const dayOfWeek = getTzDayOfWeek(sStart, timezone);
          const ymd = dateFormatterAPI.format(sStart);
          const isPubHol = hd.getHolidays(sStart.getFullYear()).some((h: any) => h.type === 'public' && h.date.startsWith(ymd));
          
@@ -3237,7 +3247,7 @@ if (!nextShift || gapToNext > 60) {
 
         // Loop through dates
         for (let dt = new Date(start); dt <= end; dt.setUTCDate(dt.getUTCDate() + 1)) {
-          const dayOfWeek = dt.getUTCDay(); // 0 is Sunday, 6 is Saturday
+          const dayOfWeek = getTzDayOfWeek(dt, timezone); // 0 is Sunday, 6 is Saturday
           
           const todaysTemplates = templates.filter(t => t.day_of_week === dayOfWeek);
           
@@ -5077,9 +5087,12 @@ if (!nextShift || gapToNext > 60) {
       const settingsMap: Record<string, any> = {};
       settingsRows.forEach(r => { try { settingsMap[r.key] = JSON.parse(r.value); } catch { settingsMap[r.key] = r.value; } });
 
+      let rawTzQuote = settingsMap.timezone || 'Australia/Perth';
+      const timezone = typeof rawTzQuote === 'string' ? rawTzQuote.replace(/['"]+/g, '') : rawTzQuote;
+
       let calculatedAmount = 0;
       const parsedDate = new Date(date);
-      const dayOfWeek = parsedDate.getDay();
+      const dayOfWeek = getTzDayOfWeek(parsedDate, timezone);
 
       if (services && Array.isArray(services)) {
         services.forEach(sd => {
@@ -5184,7 +5197,7 @@ if (!nextShift || gapToNext > 60) {
       } catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
 
       const parsedDate = new Date(quote.activity_date || Date.now());
-      const dayOfWeek = isNaN(parsedDate.getTime()) ? 1 : parsedDate.getDay();
+      const dayOfWeek = isNaN(parsedDate.getTime()) ? 1 : getTzDayOfWeek(parsedDate, timezone);
       let subtotal = 0;
       let lineItems: any[] = [];
 
