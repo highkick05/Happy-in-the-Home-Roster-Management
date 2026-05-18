@@ -322,9 +322,17 @@ export default function WallboardView() {
                       const isActuallyRunning = event.status === 'IN_PROGRESS' || (!!event.actualStartTime && !event.actualEndTime);
                       const isInProgress = isActuallyRunning && !isCompleted;
                       
-                      let containerClass = "border-l-4 border-zinc-500 opacity-90 transition-all flex items-center p-3 sm:p-4 bg-zinc-900/50 shadow-sm";
-                      if (isCompleted) containerClass = "opacity-50 border-l-4 border-blue-500 transition-all flex items-center p-3 sm:p-4 bg-zinc-900/30";
-                      else if (isInProgress) containerClass = "border-l-4 border-emerald-500 bg-emerald-950/20 transition-all flex items-center p-3 sm:p-4 shadow-emerald-900/20 shadow-lg pulse-border";
+                      let containerClass = "transition-all flex items-center p-3 sm:p-4 shadow-sm ";
+                      if (event.status === 'DRAFT') {
+                        containerClass += "opacity-90 border-l-4 border-orange-500 bg-orange-500/10";
+                      } else if (isCompleted) {
+                        containerClass += "opacity-70 border-l-4 border-blue-500 bg-blue-500/15";
+                      } else if (isInProgress) {
+                        containerClass += "border-l-4 border-emerald-500 bg-emerald-500/20 shadow-emerald-500/20 shadow-lg pulse-border";
+                      } else {
+                        // SCHEDULED / PUBLISHED -> Zinc (matches Scheduled badge)
+                        containerClass += "opacity-95 border-l-4 border-zinc-400 bg-zinc-500/10";
+                      }
 
                       return (
                         <div 
