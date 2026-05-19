@@ -272,17 +272,8 @@ export default function RosterCalendar() {
   }, [token]);
 
   useEffect(() => {
-    const handleSyncComplete = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      if (customEvent.detail?.shiftId) {
-        // We are offline and a shift was locked locally, let's update local state immediately
-        setEvents(prev => prev.map(e => 
-          e.id === customEvent.detail.shiftId ? { ...e, status: 'PENDING_SYNC' as any } : e
-        ));
-      } else {
-        // Sync completed, do full refetch
-        if (typeof fetchData === 'function') fetchData();
-      }
+    const handleSyncComplete = () => {
+      fetchData();
     };
   
     window.addEventListener('offline-sync-completed', handleSyncComplete);

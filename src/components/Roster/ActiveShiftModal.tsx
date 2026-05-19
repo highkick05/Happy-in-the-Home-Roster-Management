@@ -143,6 +143,20 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
 
   useEffect(() => {
     if (isOpen && shift) {
+      if (shift.status === 'COMPLETED' || shift.status === 'PENDING_SYNC') {
+         onClose();
+         return;
+      }
+      try {
+         const pendingStr = localStorage.getItem('pending_shifts') || '[]';
+         const pendingArr = JSON.parse(pendingStr);
+         const isCurrentlySyncing = pendingArr.some((pending: any) => pending.shiftId === shift.id);
+         if (isCurrentlySyncing) {
+            onClose();
+            return;
+         }
+      } catch(e) {}
+
       setCompleteMode(false);
       setShowCancelPrompt(false);
       setCancelReason('');
