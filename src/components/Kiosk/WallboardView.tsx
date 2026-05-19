@@ -40,6 +40,31 @@ export default function WallboardView() {
   const flickerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const stopFlickerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const [publicLogo, setPublicLogo] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const fn = async () => {
+      try {
+        const res = await fetch('/api/public-settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.websiteLogo) setPublicLogo(data.websiteLogo);
+        }
+      } catch (e) {
+        console.error("Failed to fetch public settings", e);
+      }
+    };
+    if (!settings?.websiteLogo) {
+      fn();
+    }
+  }, [settings?.websiteLogo]);
+
+  useEffect(() => {
+    const clockInterval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(clockInterval);
+  }, []);
+
   const [rotation, setRotation] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -253,28 +278,39 @@ export default function WallboardView() {
     }));
   }, [events, date]);
 
+  const actualLogo = settings?.websiteLogo || publicLogo;
+
   return (
     <div className="w-screen h-screen overflow-hidden bg-zinc-950 font-sans text-zinc-100 relative" style={{ maxWidth: '100vw', maxHeight: '100vh' }}>
       <div style={rotatedContainerStyles} className="flex flex-col relative transition-transform duration-500 h-full">
         {/* Header with Logo and Animated Title */}
-        <div className="flex flex-col sm:flex-row items-center justify-center py-1 px-4 gap-0 bg-zinc-900/50 border-b border-zinc-800 min-h-[64px] shrink-0">
-          {settings?.websiteLogo && (
-             <motion.img 
-               src={settings.websiteLogo} 
-               alt="Logo" 
-               className="h-16 md:h-20 w-auto object-contain drop-shadow-lg z-10" 
-               animate={{ rotateY: [0, 1080, 1080] }}
-               transition={{ duration: 200, repeat: Infinity, times: [0, 0.015, 1], ease: ["easeOut", "linear"] }}
-             />
-          )}
-          <motion.h1 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className={`text-2xl md:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-teal via-emerald-400 to-brand-teal bg-[length:200%_auto] -ml-2 sm:-ml-4 md:-ml-6 ${isFlickering ? 'animate-flicker' : 'animate-gradient'}`}
-          >
-            Dream Chasers
-          </motion.h1>
+        <div className="flex flex-row items-center justify-between py-1 px-4 gap-0 bg-zinc-900/50 border-b border-zinc-800 min-h-[64px] shrink-0">
+          <div className="flex-1 flex justify-start items-center">
+            {actualLogo && (
+               <motion.img 
+                 src={actualLogo} 
+                 alt="Logo" 
+                 className="h-16 md:h-20 w-auto object-contain drop-shadow-lg z-10" 
+                 animate={{ rotateY: [0, 1080, 1080] }}
+                 transition={{ duration: 200, repeat: Infinity, times: [0, 0.015, 1], ease: ["easeOut", "linear"] }}
+               />
+            )}
+          </div>
+          <div className="flex-none flex justify-center items-center relative">
+            <motion.h1 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className={`text-2xl md:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-teal via-emerald-400 to-brand-teal bg-[length:200%_auto] ${isFlickering ? 'animate-flicker' : 'animate-gradient'}`}
+            >
+              Dream Chasers
+            </motion.h1>
+          </div>
+          <div className="flex-1 flex justify-end items-center">
+            <div className="text-xl md:text-2xl font-mono text-zinc-300 font-semibold tracking-wider">
+               {format(currentTime, 'h:mm:ss a')}
+            </div>
+          </div>
           <style>{`
             @keyframes gradient {
               0% { background-position: 0% 50%; }
