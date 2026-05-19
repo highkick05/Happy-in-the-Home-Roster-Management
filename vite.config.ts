@@ -57,9 +57,8 @@ export default defineConfig(({mode}) => {
           globDirectory: 'dist',
           globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,woff,woff2,ttf,eot,pdf,doc,docx}'],
           maximumFileSizeToCacheInBytes: 52428800,
-          navigateFallback: '/index.html',
-          navigateFallbackAllowlist: [/^(?!\/(api|_hashtag)).*$/],
-          navigateFallbackDenylist: [/^\/api/, /^\/assets/],
+          navigateFallback: 'index.html',
+          navigateFallbackDenylist: [/^\/api/],
           runtimeCaching: [
             {
               urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
