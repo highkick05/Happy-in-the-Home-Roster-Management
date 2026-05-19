@@ -309,6 +309,15 @@ export default function WallboardView() {
             {/* Logo has been moved next to the title */}
           </div>
           <div className="flex-none flex justify-center items-center relative gap-4">
+            {actualLogo && (
+               <motion.img 
+                 src={actualLogo} 
+                 alt="Logo" 
+                 className="h-12 md:h-14 w-auto object-contain drop-shadow-lg z-10" 
+                 animate={{ rotateY: [0, 1080, 1080] }}
+                 transition={{ duration: 200, repeat: Infinity, times: [0, 0.015, 1], ease: ["easeOut", "linear"] }}
+               />
+            )}
             <motion.h1 
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -317,15 +326,6 @@ export default function WallboardView() {
             >
               Dream Chasers
             </motion.h1>
-            {actualLogo && (
-               <motion.img 
-                 src={actualLogo} 
-                 alt="Logo" 
-                 className="h-10 md:h-12 w-auto object-contain drop-shadow-lg z-10" 
-                 animate={{ rotateY: [0, 1080, 1080] }}
-                 transition={{ duration: 200, repeat: Infinity, times: [0, 0.015, 1], ease: ["easeOut", "linear"] }}
-               />
-            )}
           </div>
           <div className="flex-1 flex justify-end items-center">
             <div className="text-xl md:text-2xl font-mono text-zinc-300 font-semibold tracking-wider" style={{ zoom: zoomLevel } as any}>
