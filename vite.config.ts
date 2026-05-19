@@ -10,6 +10,7 @@ export default defineConfig(({mode}) => {
     plugins: [
       VitePWA({
         registerType: 'autoUpdate',
+        injectRegister: 'inline',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
         manifest: {
           name: 'Happy Job Management System',
@@ -49,6 +50,8 @@ export default defineConfig(({mode}) => {
           type: 'module'
         },
         workbox: {
+          skipWaiting: true,
+          clientsClaim: true,
           globDirectory: 'dist',
           globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,woff,woff2,ttf,eot,pdf,doc,docx}'],
           maximumFileSizeToCacheInBytes: 52428800,
