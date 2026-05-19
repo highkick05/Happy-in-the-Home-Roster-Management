@@ -8,8 +8,6 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [
-      react(), 
-      tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
@@ -55,7 +53,7 @@ export default defineConfig(({mode}) => {
           globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,woff,woff2,ttf,eot,pdf,doc,docx}'],
           maximumFileSizeToCacheInBytes: 52428800,
           navigateFallback: '/index.html',
-          navigateFallbackAllowlist: [/^(?!\/(api|_hashtag|assets)).*$/],
+          navigateFallbackAllowlist: [/^(?!\/(api|_hashtag)).*$/],
           runtimeCaching: [
             {
               urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
@@ -87,7 +85,9 @@ export default defineConfig(({mode}) => {
             }
           ]
         }
-      })
+      }),
+      react(), 
+      tailwindcss()
     ],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
@@ -96,6 +96,11 @@ export default defineConfig(({mode}) => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
+    },
+    build: {
+      chunkSizeWarningLimit: 2000,
+      manifest: true,
+      ssrManifest: false,
     },
     server: {
         host: '0.0.0.0',
