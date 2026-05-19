@@ -113,7 +113,7 @@ export function CustomDatePicker({
     todayBtn: false,
     clearBtn: false,
     maxDate: maxDate || new Date("2030-01-01"),
-    minDate: minDate || new Date("1950-01-01"),
+    minDate: minDate || new Date("1900-01-01"),
     theme: {
       background: "bg-[#1A1A1A] border-white/[0.1] w-full",
       todayBtn: "",
