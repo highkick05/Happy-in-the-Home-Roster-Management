@@ -133,7 +133,19 @@ function Layout({ children }: { children: React.ReactNode }) {
        handleOnline();
     }
     
-    return () => window.removeEventListener('online', handleOnline);
+    const syncInterval = setInterval(() => {
+      if (navigator.onLine) {
+        const pendingStr = localStorage.getItem('pending_shifts');
+        if (pendingStr && pendingStr !== '[]') {
+          handleOnline();
+        }
+      }
+    }, 10000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      clearInterval(syncInterval);
+    };
   }, [token]);
 
   return (
