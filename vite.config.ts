@@ -48,16 +48,16 @@ export default defineConfig(({mode}) => {
         },
         devOptions: {
           enabled: true,
-          type: 'module'
+          type: 'module',
+          navigateFallback: 'index.html'
         },
         workbox: {
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,
-          globDirectory: 'dist',
           globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,woff,woff2,ttf,eot,pdf,doc,docx}'],
           maximumFileSizeToCacheInBytes: 52428800,
-          navigateFallback: 'index.html',
+          navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/api/],
           runtimeCaching: [
             {
