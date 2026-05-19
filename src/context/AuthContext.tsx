@@ -28,19 +28,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const originalFetch = window.fetch;
-    window.fetch = async (...args) => {
-      const response = await originalFetch(...args);
-      if (response.status === 401 || response.status === 403) {
-        logout();
-        // Option to redirect to login if not already there, unless it's a kiosk view
-        if (window.location.pathname !== '/login' && !window.location.pathname.startsWith('/kiosk')) {
-          window.location.href = '/login';
-        }
-      }
-      return response;
-    };
+    try {
+      Object.defineProperty(window, 'fetch', {
+        value: async (...args: Parameters<typeof fetch>) => {
+          const response = await originalFetch(...args);
+          if (response.status === 401 || response.status === 403) {
+            logout();
+            // Option to redirect to login if not already there, unless it's a kiosk view
+            if (window.location.pathname !== '/login' && !window.location.pathname.startsWith('/kiosk')) {
+              window.location.href = '/login';
+            }
+          }
+          return response;
+        },
+        configurable: true,
+        writable: true
+      });
+    } catch (e) {
+      console.warn('Could not override window.fetch:', e);
+    }
     return () => {
-      window.fetch = originalFetch;
+      try {
+        Object.defineProperty(window, 'fetch', {
+          value: originalFetch,
+          configurable: true,
+          writable: true
+        });
+      } catch (e) {}
     };
   }, []);
 
