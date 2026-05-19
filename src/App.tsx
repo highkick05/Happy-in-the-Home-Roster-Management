@@ -67,12 +67,74 @@ function Layout({ children }: { children: React.ReactNode }) {
     } ${isDesktopSidebarCollapsed ? "justify-center !px-2" : ""}`;
   };
 
-  const { logout, user, settings } = useAuth();
+  const { logout, user, settings, token } = useAuth();
   const location = useLocation();
 
   React.useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
+
+  React.useEffect(() => {
+    const handleOnline = async () => {
+      const pendingStr = localStorage.getItem('pending_shifts');
+      if (!pendingStr || !token) return;
+      
+      try {
+        const pendingShifts = JSON.parse(pendingStr);
+        if (!Array.isArray(pendingShifts) || pendingShifts.length === 0) return;
+        
+        let allSynced = true;
+        
+        for (let i = 0; i < pendingShifts.length; i++) {
+          const payload = pendingShifts[i];
+          const shiftId = payload.shiftId;
+          
+          try {
+            const res = await fetch(`/api/shifts/${shiftId}/complete`, {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}` 
+              },
+              body: JSON.stringify(payload)
+            });
+            
+            if (!res.ok) {
+               console.error(`Failed to sync shift ${shiftId}`);
+               throw new Error('Sync failed');
+            }
+            
+            // Clean up old formats and individual records
+            localStorage.removeItem(`shift_progress_${shiftId}`);
+            localStorage.removeItem(`pending_sync_shift_${shiftId}`);
+          } catch (e) {
+            console.error('Offline sync loop halted for next attempt:', e);
+            allSynced = false;
+            // Keep the remaining shifts in the queue
+            localStorage.setItem('pending_shifts', JSON.stringify(pendingShifts.slice(i)));
+            break;
+          }
+        }
+        
+        if (allSynced) {
+          localStorage.removeItem('pending_shifts');
+        }
+        
+        window.dispatchEvent(new CustomEvent('offline-sync-completed'));
+      } catch (e) {
+        console.error('Offline sync parsing error:', e);
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    
+    // Attempt initial sync if online when mounted
+    if (navigator.onLine) {
+       handleOnline();
+    }
+    
+    return () => window.removeEventListener('online', handleOnline);
+  }, [token]);
 
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] bg-brand-bg text-[#E6EDF3] font-sans overflow-hidden">

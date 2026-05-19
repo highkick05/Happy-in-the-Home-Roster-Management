@@ -33,7 +33,7 @@ export interface ShiftEvent {
   staffName?: string;
   clientId: number;
   clientName: string;
-  status: 'DRAFT' | 'PUBLISHED' | 'COMPLETED' | 'CANCELLED' | 'IN_PROGRESS';
+  status: 'DRAFT' | 'PUBLISHED' | 'COMPLETED' | 'CANCELLED' | 'IN_PROGRESS' | 'PENDING_SYNC';
   serviceId?: number;
   serviceName?: string;
   serviceCode?: string;
@@ -236,7 +236,24 @@ export default function RosterCalendar() {
           }
         });
 
-        setEvents([...mappedShifts, ...mappedRespites, ...childShifts]);
+        let allEvents = [...mappedShifts, ...mappedRespites, ...childShifts];
+        
+        try {
+           const pendingStr = localStorage.getItem('pending_shifts');
+           if (pendingStr) {
+               const pendingShifts = JSON.parse(pendingStr);
+               if (Array.isArray(pendingShifts)) {
+                   const pendingIds = pendingShifts.map(p => p.shiftId);
+                   allEvents = allEvents.map(e => 
+                      pendingIds.includes(e.id) ? { ...e, status: 'PENDING_SYNC' as any } : e
+                   );
+               }
+           }
+        } catch (err) {
+           console.error('Error applying pending statusses', err);
+        }
+
+        setEvents(allEvents);
       }
       
       if (staffRes.ok) {
@@ -255,9 +272,17 @@ export default function RosterCalendar() {
   }, [token]);
 
   useEffect(() => {
-    const handleSyncComplete = () => {
-      // Call your existing data reload function here
-      if (typeof fetchData === 'function') fetchData();
+    const handleSyncComplete = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail?.shiftId) {
+        // We are offline and a shift was locked locally, let's update local state immediately
+        setEvents(prev => prev.map(e => 
+          e.id === customEvent.detail.shiftId ? { ...e, status: 'PENDING_SYNC' as any } : e
+        ));
+      } else {
+        // Sync completed, do full refetch
+        if (typeof fetchData === 'function') fetchData();
+      }
     };
   
     window.addEventListener('offline-sync-completed', handleSyncComplete);
@@ -520,6 +545,7 @@ export default function RosterCalendar() {
     }
     if (event.status === 'COMPLETED') backgroundColor = '#a3e635'; // brand-green
     if (event.status === 'IN_PROGRESS') backgroundColor = '#38bdf8'; // light blue
+    if (event.status === 'PENDING_SYNC') backgroundColor = '#f59e0b'; // amber-500
     
     if (event.isRespiteWrapper) {
       backgroundColor = '#8b5cf6'; // violet-500
@@ -531,7 +557,7 @@ export default function RosterCalendar() {
         backgroundColor,
         borderRadius: '6px',
         opacity: isSelected ? 1 : 0.9,
-        color: event.status === 'COMPLETED' ? '#0b1120' : 'white',
+        color: (event.status === 'COMPLETED' || event.status === 'PENDING_SYNC') ? '#0b1120' : 'white',
         border,
         display: 'block',
         fontSize: '12px',
@@ -657,6 +683,7 @@ export default function RosterCalendar() {
               {event.status === 'DRAFT' && <span className="bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-amber-500/20">Draft</span>}
               {event.status === 'PUBLISHED' && <span className="bg-indigo-500/10 text-brand-teal px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-brand-teal/20">Published</span>}
               {event.status === 'IN_PROGRESS' && <span className="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-blue-500/30">In Progress</span>}
+              {event.status === 'PENDING_SYNC' && <span className="bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-amber-500/30">Pending Sync</span>}
               {event.status === 'COMPLETED' && <span className="bg-brand-green/10 text-brand-green px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-brand-green/20">Completed</span>}
             </div>
           </div>

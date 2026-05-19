@@ -298,11 +298,15 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
       // Check for network error ("Failed to fetch" is commonly thrown by fetch on network failure)
       if (!navigator.onLine || (e instanceof TypeError && e.message.includes('fetch')) || (e.message && e.message.includes('Failed to fetch'))) {
          offlineHandled = true;
-         const syncPayload = payload;
-         localStorage.setItem(`pending_sync_shift_${shift.id}`, JSON.stringify(syncPayload));
+         setLoading(false);
+         const syncPayload = { ...payload, shiftId: shift.id };
+         const pendingStr = localStorage.getItem('pending_shifts');
+         const pendingArr = pendingStr ? JSON.parse(pendingStr) : [];
+         pendingArr.push(syncPayload);
+         localStorage.setItem('pending_shifts', JSON.stringify(pendingArr));
          console.log("Offline payload locked into localStorage:", syncPayload);
          alert("Offline: Your notes are saved locally on your device. Shift will sync automatically when network is restored.");
-         // Optimistically close modal, keep localStorage intact
+         window.dispatchEvent(new CustomEvent('offline-sync-completed', { detail: { shiftId: shift.id } })); // trigger an immediate ui refresh for badge
          onClose();
          return;
       } else {
