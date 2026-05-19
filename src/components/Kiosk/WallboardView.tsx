@@ -308,7 +308,7 @@ export default function WallboardView() {
           <div className="flex-1 flex justify-start items-center">
             {/* Logo has been moved next to the title */}
           </div>
-          <div className="flex-none flex justify-center items-center relative gap-4">
+          <div className="flex-none flex justify-center items-center relative gap-2">
             {actualLogo && (
                <motion.img 
                  src={actualLogo} 

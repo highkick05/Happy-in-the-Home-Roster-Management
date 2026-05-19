@@ -255,6 +255,18 @@ export default function RosterCalendar() {
   }, [token]);
 
   useEffect(() => {
+    const handleSyncComplete = () => {
+      // Call your existing data reload function here
+      if (typeof fetchData === 'function') fetchData();
+    };
+  
+    window.addEventListener('offline-sync-completed', handleSyncComplete);
+    return () => {
+      window.removeEventListener('offline-sync-completed', handleSyncComplete);
+    };
+  }, [fetchData]);
+
+  useEffect(() => {
     if (user?.role === 'ADMIN' || !events.length) return;
     
     const now = new Date();

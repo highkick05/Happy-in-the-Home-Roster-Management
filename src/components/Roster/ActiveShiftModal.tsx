@@ -11,6 +11,42 @@ interface ActiveShiftModalProps {
   shift: ShiftEvent | null;
 }
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', async () => {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('pending_sync_shift_'));
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    for (const key of keys) {
+      const shiftId = key.replace('pending_sync_shift_', '');
+      try {
+        const payloadStr = localStorage.getItem(key);
+        if (!payloadStr) continue;
+        const payload = JSON.parse(payloadStr);
+
+        const res = await fetch(`/api/shifts/${shiftId}/complete`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          localStorage.removeItem(key);
+          localStorage.removeItem(`shift_progress_${shiftId}`);
+          
+          // Dispatch custom event to notify active UI components
+          window.dispatchEvent(new CustomEvent('offline-sync-completed', { detail: { shiftId } }));
+        }
+      } catch (e) {
+        console.error('Background sync failed for shift', shiftId, e);
+      }
+    }
+  });
+}
+
 export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: ActiveShiftModalProps) {
   const { token, settings } = useAuth();
   const maxEarlyMins = settings?.max_early_clockin_minutes !== undefined ? parseInt(settings.max_early_clockin_minutes as any) : 180;
@@ -220,21 +256,22 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
     }
 
     setLoading(true);
+    
+    // Build actual finish time date object
+    const baseDate = new Date(shift.start);
+    const [h, m] = finishTime.split(':');
+    baseDate.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
+
+    const payload = {
+      actual_finish_time: baseDate.toISOString(),
+      notes,
+      abtCoordinates: resolvedWaypoints,
+      odometer_end_reading: odometerReading,
+      odometer_end_photo: odometerPhoto,
+      checklist
+    };
+
     try {
-      // Build actual finish time date object
-      const baseDate = new Date(shift.start);
-      const [h, m] = finishTime.split(':');
-      baseDate.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
-
-      const payload = {
-        actual_finish_time: baseDate.toISOString(),
-        notes,
-        abtCoordinates: resolvedWaypoints,
-        odometer_end_reading: odometerReading,
-        odometer_end_photo: odometerPhoto,
-        checklist
-      };
-
       const res = await fetch(`/api/shifts/${shift.id}/complete`, {
         method: 'POST',
         headers: { 
@@ -251,9 +288,18 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
       } else {
         alert('Failed to complete shift');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert('Error completing shift');
+      // Check for network error ("Failed to fetch" is commonly thrown by fetch on network failure)
+      if (!navigator.onLine || (e instanceof TypeError && e.message.includes('fetch')) || (e.message && e.message.includes('Failed to fetch'))) {
+         const syncPayload = payload;
+         localStorage.setItem(`pending_sync_shift_${shift.id}`, JSON.stringify(syncPayload));
+         alert("Offline: Your notes are saved locally on your device. Shift will sync automatically when network is restored.");
+         // Optimistically close modal, keep localStorage intact
+         onClose();
+      } else {
+         alert('Error completing shift');
+      }
     } finally {
       setLoading(false);
     }
