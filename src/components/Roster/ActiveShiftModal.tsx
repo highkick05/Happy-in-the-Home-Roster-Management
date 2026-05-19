@@ -237,7 +237,11 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
     }
   };
 
-  const handleCompleteShift = async () => {
+  const handleCompleteShift = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     const resolvedWaypoints = didTransport 
       ? ['CLIENT_HOME', ...waypoints.map(wp => ({ placeId: wp.placeId, address: wp.name })), ...(returnedHome ? ['CLIENT_HOME'] : [])] 
       : null;
@@ -256,6 +260,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
     }
 
     setLoading(true);
+    let offlineHandled = false;
     
     // Build actual finish time date object
     const baseDate = new Date(shift.start);
@@ -292,16 +297,21 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
       console.error(e);
       // Check for network error ("Failed to fetch" is commonly thrown by fetch on network failure)
       if (!navigator.onLine || (e instanceof TypeError && e.message.includes('fetch')) || (e.message && e.message.includes('Failed to fetch'))) {
+         offlineHandled = true;
          const syncPayload = payload;
          localStorage.setItem(`pending_sync_shift_${shift.id}`, JSON.stringify(syncPayload));
+         console.log("Offline payload locked into localStorage:", syncPayload);
          alert("Offline: Your notes are saved locally on your device. Shift will sync automatically when network is restored.");
          // Optimistically close modal, keep localStorage intact
          onClose();
+         return;
       } else {
          alert('Error completing shift');
       }
     } finally {
-      setLoading(false);
+      if (!offlineHandled) {
+        setLoading(false);
+      }
     }
   };
 
