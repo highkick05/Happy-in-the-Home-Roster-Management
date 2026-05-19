@@ -140,9 +140,19 @@ function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col md:flex-row h-[100dvh] bg-brand-bg text-[#E6EDF3] font-sans overflow-hidden">
       {/* Mobile Topbar */}
       <div className="md:hidden flex items-center justify-between p-4 bg-brand-navy border-b border-border-subtle z-20 shrink-0 relative">
-        <h1 className="text-lg font-sans uppercase text-[#E6EDF3] truncate tracking-widest mt-1">
-          {settings?.businessName || "Happy in the Home"}
-        </h1>
+        <div className="flex items-center min-w-0">
+          {settings?.websiteLogo ? (
+            <img 
+              src={settings.websiteLogo} 
+              alt={settings?.businessName || "Company Logo"} 
+              className="h-8 w-auto max-w-[200px] object-contain drop-shadow-lg" 
+            />
+          ) : (
+            <h1 className="text-lg font-sans uppercase text-[#E6EDF3] truncate tracking-widest mt-1">
+              {settings?.businessName || "Happy in the Home"}
+            </h1>
+          )}
+        </div>
         <button 
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2 text-[#8B949E] hover:text-white transition-colors rounded-md hover:bg-white/[0.04]"
