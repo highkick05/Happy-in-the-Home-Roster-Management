@@ -32,7 +32,13 @@ export default function WallboardView() {
   const [selectedShift, setSelectedShift] = useState<ShiftEvent | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [manualMode, setManualMode] = useState<boolean | null>(null);
-  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomLevel, setZoomLevel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('wallboard_zoom');
+      if (saved) return parseFloat(saved);
+    }
+    return 1;
+  });
   const [dailyQuote, setDailyQuote] = useState<{quote: string; author: string; imageUrl?: string} | null>(null);
   const [isToolbarVisible, setIsToolbarVisible] = useState(true);
   const toolbarTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -67,11 +73,25 @@ export default function WallboardView() {
 
   const [rotation, setRotation] = useState(() => {
     if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('wallboard_rotation');
+      if (saved) return parseInt(saved, 10);
       const params = new URLSearchParams(window.location.search);
       return parseInt(params.get('rotate') || '0', 10);
     }
     return 0;
   });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('wallboard_rotation', rotation.toString());
+    }
+  }, [rotation]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('wallboard_zoom', zoomLevel.toString());
+    }
+  }, [zoomLevel]);
 
   const resetToolbarTimeout = () => {
     setIsToolbarVisible(true);
@@ -286,17 +306,9 @@ export default function WallboardView() {
         {/* Header with Logo and Animated Title */}
         <div className="flex flex-row items-center justify-between py-1 px-4 gap-0 bg-zinc-900/50 border-b border-zinc-800 min-h-[64px] shrink-0">
           <div className="flex-1 flex justify-start items-center">
-            {actualLogo && (
-               <motion.img 
-                 src={actualLogo} 
-                 alt="Logo" 
-                 className="h-16 md:h-20 w-auto object-contain drop-shadow-lg z-10" 
-                 animate={{ rotateY: [0, 1080, 1080] }}
-                 transition={{ duration: 200, repeat: Infinity, times: [0, 0.015, 1], ease: ["easeOut", "linear"] }}
-               />
-            )}
+            {/* Logo has been moved next to the title */}
           </div>
-          <div className="flex-none flex justify-center items-center relative">
+          <div className="flex-none flex justify-center items-center relative gap-4">
             <motion.h1 
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -305,9 +317,18 @@ export default function WallboardView() {
             >
               Dream Chasers
             </motion.h1>
+            {actualLogo && (
+               <motion.img 
+                 src={actualLogo} 
+                 alt="Logo" 
+                 className="h-10 md:h-12 w-auto object-contain drop-shadow-lg z-10" 
+                 animate={{ rotateY: [0, 1080, 1080] }}
+                 transition={{ duration: 200, repeat: Infinity, times: [0, 0.015, 1], ease: ["easeOut", "linear"] }}
+               />
+            )}
           </div>
           <div className="flex-1 flex justify-end items-center">
-            <div className="text-xl md:text-2xl font-mono text-zinc-300 font-semibold tracking-wider">
+            <div className="text-xl md:text-2xl font-mono text-zinc-300 font-semibold tracking-wider" style={{ zoom: zoomLevel } as any}>
                {format(currentTime, 'h:mm:ss a')}
             </div>
           </div>
