@@ -75,19 +75,31 @@ export default function RosterCalendar() {
 
   const [events, setEvents] = useState<ShiftEvent[]>([]);
   const [view, setView] = useState<View>(() => {
-    // Read from localStorage if wanted, but basic check is fine
-    // Or we will just default WEEK and let useEffect handle staff
     return Views.WEEK;
   });
 
-  // Ensure staff sees AGENDA by default
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < 1024 : false
+  );
+
   useEffect(() => {
-    if (user && user.role !== 'ADMIN') {
+    const handleResize = () => setIsMobileOrTablet(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isStaffMobileOrTablet = user?.role !== 'ADMIN' && isMobileOrTablet;
+
+  // Ensure staff sees AGENDA by default on mobile/tablet
+  useEffect(() => {
+    if (isStaffMobileOrTablet) {
       setView(Views.AGENDA);
+    } else if (user?.role !== 'ADMIN') {
+      setView(Views.AGENDA); // Actually give all staff agenda by default
     } else {
       setView(Views.WEEK);
     }
-  }, [user?.role]);
+  }, [user?.role, isStaffMobileOrTablet]);
 
   const [date, setDate] = useState(new Date());
 
@@ -659,47 +671,76 @@ export default function RosterCalendar() {
         }
       };
 
+      let bgClass = 'bg-[#121214] border-white/[0.05]';
+      let statusColor = 'text-zinc-400';
+      let badgeLabel = event.status;
+      
+      if (event.status === 'COMPLETED') {
+         bgClass = 'bg-brand-green/10 border-brand-green/20';
+         statusColor = 'text-brand-green';
+      } else if (event.status === 'IN_PROGRESS') {
+         bgClass = 'bg-blue-500/10 border-blue-500/20';
+         statusColor = 'text-blue-400';
+         badgeLabel = 'In Progress';
+      } else if (event.status === 'PENDING_SYNC') {
+         bgClass = 'bg-amber-500/10 border-amber-500/20';
+         statusColor = 'text-amber-500';
+         badgeLabel = 'Pending Sync';
+      } else if (event.status === 'PUBLISHED') {
+         bgClass = 'bg-indigo-500/10 border-brand-teal/20';
+         statusColor = 'text-brand-teal';
+      } else if (event.status === 'DRAFT') {
+         bgClass = 'bg-zinc-800/50 border-zinc-700/50';
+         statusColor = 'text-zinc-500';
+      }
+
+      if (event.isRespiteWrapper) {
+         bgClass = 'bg-violet-500/10 border-violet-500/20';
+         statusColor = 'text-violet-400';
+      }
+
+      const isSelected = multiSelectMode && selectedEventIds.has(event.id);
+      if (isSelected) {
+         bgClass += ' ring-2 ring-brand-blue ring-offset-1 ring-offset-brand-navy';
+      }
+
       return (
         <div 
-           className="flex flex-col w-full cursor-pointer group py-1"
+           className={`flex flex-col w-full cursor-pointer group p-3 my-1 rounded-xl border ${bgClass} hover:opacity-90 transition-all`}
            onMouseDown={handleMouseDown}
            onMouseUp={handleMouseUp}
            onMouseLeave={handleMouseUp}
            onTouchStart={handleMouseDown}
            onTouchEnd={handleMouseUp}
         >
-          <div className="flex flex-wrap items-baseline justify-between gap-1.5">
-            <span className="font-semibold text-zinc-100 text-[15px] tracking-wide group-hover:text-brand-teal transition-colors">{event.title}</span>
-            <div className="flex shrink-0">
-              {event.status === 'DRAFT' && <span className="bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-amber-500/20">Draft</span>}
-              {event.status === 'PUBLISHED' && <span className="bg-indigo-500/10 text-brand-teal px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-brand-teal/20">Published</span>}
-              {event.status === 'IN_PROGRESS' && <span className="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-blue-500/30">In Progress</span>}
-              {event.status === 'PENDING_SYNC' && <span className="bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-amber-500/30">Pending Sync</span>}
-              {event.status === 'COMPLETED' && <span className="bg-brand-green/10 text-brand-green px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-brand-green/20">Completed</span>}
-            </div>
+          <div className="flex items-start justify-between mb-1.5 gap-2">
+            <span className="font-semibold text-zinc-100 text-[14px] leading-tight tracking-wide">{event.title}</span>
+            <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-current ${statusColor} shrink-0`}>
+                {badgeLabel}
+            </span>
           </div>
-          <div className="flex flex-col gap-1 w-full mt-1.5">
+          <div className="flex flex-col gap-1 w-full">
              {event.isRespiteWrapper ? (
-               <span className="bg-indigo-500/10 text-brand-teal px-2 py-0.5 rounded border border-brand-teal/20 font-medium text-[12px] w-fit">STA / Respite</span>
+               <span className="text-violet-400 font-medium text-[12px]">STA / Respite</span>
              ) : (
-               <div className="flex flex-col gap-1 w-full">
+               <div className="flex flex-col gap-1.5 w-full">
                  <div className="flex items-center gap-1">
-                   <span className="bg-[#121214]/60 text-zinc-300 px-2 py-[2px] rounded-md border border-white/[0.12]/50 font-medium text-[12px] w-fit truncate max-w-full">👨‍💼 {event.staffName || 'Unassigned'}</span>
+                   <span className="text-zinc-300 font-medium text-[12px] truncate">👨‍💼 {event.staffName || 'Unassigned'}</span>
                  </div>
                  {event.servicesData && event.servicesData.length > 0 ? (
-                    <div className="flex flex-wrap gap-1 mt-0.5">
+                    <div className="flex flex-wrap gap-1">
                       {event.servicesData.map((sd: any, idx: number) => {
                         const srv = servicesList.find((s: any) => s.id === sd.serviceId);
                         const srvName = srv ? srv.name : (event.serviceName || 'Unknown Service');
                         return (
-                          <span key={idx} className="bg-[#121214]/40 text-zinc-400 px-2 py-[2px] rounded border border-white/[0.12]/40 font-medium text-[11px]" title={srvName}>
+                          <span key={idx} className="bg-black/20 text-zinc-300 px-1.5 py-0.5 rounded outline outline-1 outline-white/5 font-medium text-[10px] max-w-full truncate" title={srvName}>
                             {srvName}
                           </span>
                         );
                       })}
                     </div>
                   ) : (
-                    event.serviceName && <div className="flex flex-wrap gap-1 mt-0.5"><span className="bg-[#121214]/40 text-zinc-400 px-2 py-[2px] rounded border border-white/[0.12]/40 font-medium text-[11px]" title={event.serviceName}>{event.serviceName}</span></div>
+                    event.serviceName && <div className="flex flex-wrap gap-1"><span className="bg-black/20 text-zinc-300 px-1.5 py-0.5 rounded outline outline-1 outline-white/5 font-medium text-[10px] max-w-full truncate" title={event.serviceName}>{event.serviceName}</span></div>
                   )}
                </div>
              )}
@@ -884,23 +925,25 @@ export default function RosterCalendar() {
             </>
           )}
           
-          <button 
-            onClick={() => setIsFullScreen(!isFullScreen)}
-            className="flex items-center justify-center px-3 py-2 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#8B949E] hover:text-[#E6EDF3] rounded-md transition-colors w-full sm:w-auto"
-            title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
-          >
-            {isFullScreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-          </button>
+          {user?.role === 'ADMIN' && (
+            <button 
+              onClick={() => setIsFullScreen(!isFullScreen)}
+              className="flex items-center justify-center px-3 py-2 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#8B949E] hover:text-[#E6EDF3] rounded-md transition-colors w-full sm:w-auto"
+              title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+            >
+              {isFullScreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            </button>
+          )}
         </div>
       </div>
       
-      <div className="flex-1 bg-brand-bg p-4 rounded-lg border border-border-subtle overflow-hidden">
+      <div className="flex-1 bg-brand-bg p-2 md:p-4 rounded-lg border border-border-subtle overflow-y-auto min-h-0">
         <DnDCalendar
           localizer={localizer}
           events={mappedEvents}
           view={view}
           date={date}
-          views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
+          views={isStaffMobileOrTablet ? [Views.AGENDA] : [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
           onView={(view: View) => setView(view)}
           onNavigate={(date: Date) => setDate(date)}
           startAccessor={(e: ShiftEvent) => e.start}
