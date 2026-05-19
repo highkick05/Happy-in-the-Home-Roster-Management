@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, dateFnsLocalizer, View, Views } from 'react-big-calendar';
 import withDragAndDrop, { withDragAndDropProps } from 'react-big-calendar/lib/addons/dragAndDrop';
 import { format } from 'date-fns/format';
@@ -132,15 +132,15 @@ export default function RosterCalendar() {
     fetchHolidays(date.getFullYear());
   }, [date.getFullYear(), token]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!token) return;
     try {
       const [shiftsRes, respiteRes, staffRes, clientsRes, servicesRes] = await Promise.all([
-        fetch('/api/shifts', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/respite-bookings', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/staff', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/clients', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/services', { headers: { Authorization: `Bearer ${token}` } })
+        fetch(`/api/shifts`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/respite-bookings`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/staff`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/clients`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/services`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
       if (shiftsRes.ok && respiteRes.ok) {
@@ -265,7 +265,7 @@ export default function RosterCalendar() {
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     if (token) fetchData();

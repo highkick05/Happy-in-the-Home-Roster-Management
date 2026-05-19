@@ -62,9 +62,10 @@ export default defineConfig(({mode}) => {
           runtimeCaching: [
             {
               urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
-              handler: 'StaleWhileRevalidate',
+              handler: 'NetworkFirst',
               options: {
                 cacheName: 'api-cache',
+                networkTimeoutSeconds: 5,
                 expiration: {
                   maxEntries: 100,
                   maxAgeSeconds: 60 * 60 * 24 * 7, // 1 week
