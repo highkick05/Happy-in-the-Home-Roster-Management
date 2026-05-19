@@ -90,13 +90,20 @@ export default function RosterCalendar() {
 
   const isStaffMobileOrTablet = user?.role !== 'ADMIN' && isMobileOrTablet;
 
-  // Ensure staff sees AGENDA by default on mobile/tablet
+  // Render safe views 
+  const allowedViews = isStaffMobileOrTablet 
+    ? [Views.AGENDA] 
+    : [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA];
+
+  const activeView = allowedViews.includes(view) ? view : Views.AGENDA;
+
+  // Ensure staff sees AGENDA by default on mobile/tablet (if they didn't have it, activeView handles safety during render)
   useEffect(() => {
     if (isStaffMobileOrTablet) {
       setView(Views.AGENDA);
     } else if (user?.role !== 'ADMIN') {
       setView(Views.AGENDA); // Actually give all staff agenda by default
-    } else {
+    } else if (!allowedViews.includes(view)) {
       setView(Views.WEEK);
     }
   }, [user?.role, isStaffMobileOrTablet]);
@@ -942,13 +949,13 @@ export default function RosterCalendar() {
       </div>
       
       <div className="flex-1 bg-brand-bg p-2 md:p-4 rounded-lg border border-border-subtle overflow-y-auto min-h-0 scrollbar-hide">
-        {user?.role === 'ADMIN' && view !== Views.AGENDA ? (
+        {user?.role === 'ADMIN' && activeView !== Views.AGENDA ? (
           <DnDCalendar
             localizer={localizer}
             events={mappedEvents}
-            view={view}
+            view={activeView}
             date={date}
-            views={isStaffMobileOrTablet ? [Views.AGENDA] : [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
+            views={allowedViews}
             onView={(view: View) => setView(view)}
             onNavigate={(date: Date) => setDate(date)}
             startAccessor={(e: ShiftEvent) => e.start}
@@ -962,9 +969,9 @@ export default function RosterCalendar() {
             onSelectSlot={onSelectSlot}
             selectable
             resizable
-            resources={view === Views.DAY ? resources : undefined}
-            resourceIdAccessor={view === Views.DAY ? (r: any) => r?.id : undefined}
-            resourceTitleAccessor={view === Views.DAY ? (r: any) => r?.title : undefined}
+            resources={activeView === Views.DAY ? resources : undefined}
+            resourceIdAccessor={activeView === Views.DAY ? (r: any) => r?.id : undefined}
+            resourceTitleAccessor={activeView === Views.DAY ? (r: any) => r?.title : undefined}
             style={{ height: '100%', minHeight: '500px' }}
             className="text-[#E6EDF3] custom-calendar h-full"
           />
@@ -972,9 +979,9 @@ export default function RosterCalendar() {
           <Calendar
             localizer={localizer}
             events={mappedEvents}
-            view={view}
+            view={activeView}
             date={date}
-            views={isStaffMobileOrTablet ? [Views.AGENDA] : [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
+            views={allowedViews}
             onView={(view: View) => setView(view)}
             onNavigate={(date: Date) => setDate(date)}
             startAccessor={(e: ShiftEvent) => e.start}
@@ -985,9 +992,9 @@ export default function RosterCalendar() {
             onSelectEvent={onSelectEvent}
             onSelectSlot={onSelectSlot}
             selectable
-            resources={view === Views.DAY ? resources : undefined}
-            resourceIdAccessor={view === Views.DAY ? (r: any) => r?.id : undefined}
-            resourceTitleAccessor={view === Views.DAY ? (r: any) => r?.title : undefined}
+            resources={activeView === Views.DAY ? resources : undefined}
+            resourceIdAccessor={activeView === Views.DAY ? (r: any) => r?.id : undefined}
+            resourceTitleAccessor={activeView === Views.DAY ? (r: any) => r?.title : undefined}
             style={{ height: '100%', minHeight: '500px' }}
             className="text-[#E6EDF3] custom-calendar h-full"
           />
