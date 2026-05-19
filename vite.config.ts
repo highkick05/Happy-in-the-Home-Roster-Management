@@ -53,7 +53,8 @@ export default defineConfig(({mode}) => {
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,woff,woff2,ttf,eot,pdf,doc,docx}'],
           maximumFileSizeToCacheInBytes: 52428800,
-          navigateFallback: '/index.html', // Force deep links to use cached shell when offline
+          navigateFallback: '/index.html',
+          navigateFallbackAllowlist: [/^(?!\/(api|_hashtag|assets)).*$/],
           runtimeCaching: [
             {
               urlPattern: ({ url }) => url.pathname.startsWith('/api/'),

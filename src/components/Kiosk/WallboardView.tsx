@@ -308,7 +308,7 @@ export default function WallboardView() {
           <div className="flex-1 flex justify-start items-center">
             {/* Logo has been moved next to the title */}
           </div>
-          <div className="flex-none flex justify-center items-center relative gap-2">
+          <div className="flex-none flex justify-center items-center relative gap-0">
             {actualLogo && (
                <motion.img 
                  src={actualLogo} 
@@ -322,7 +322,7 @@ export default function WallboardView() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: "easeOut" }}
-              className={`text-2xl md:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-teal via-emerald-400 to-brand-teal bg-[length:200%_auto] ${isFlickering ? 'animate-flicker' : 'animate-gradient'}`}
+              className={`-ml-2 text-2xl md:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-teal via-emerald-400 to-brand-teal bg-[length:200%_auto] ${isFlickering ? 'animate-flicker' : 'animate-gradient'}`}
             >
               Dream Chasers
             </motion.h1>
