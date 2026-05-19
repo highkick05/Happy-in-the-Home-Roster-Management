@@ -580,6 +580,8 @@ export default function RosterCalendar() {
         };
       }, []);
 
+      if (!event) return null;
+
       const handleMouseDown = () => {
         if (multiSelectMode) return;
         timerRef.current = setTimeout(() => {
@@ -654,6 +656,8 @@ export default function RosterCalendar() {
           if (timerRef.current) clearTimeout(timerRef.current);
         };
       }, []);
+
+      if (!event) return null;
 
       const handleMouseDown = () => {
         if (multiSelectMode) return;
@@ -937,32 +941,57 @@ export default function RosterCalendar() {
         </div>
       </div>
       
-      <div className="flex-1 bg-brand-bg p-2 md:p-4 rounded-lg border border-border-subtle overflow-y-auto min-h-0">
-        <DnDCalendar
-          localizer={localizer}
-          events={mappedEvents}
-          view={view}
-          date={date}
-          views={isStaffMobileOrTablet ? [Views.AGENDA] : [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
-          onView={(view: View) => setView(view)}
-          onNavigate={(date: Date) => setDate(date)}
-          startAccessor={(e: ShiftEvent) => e.start}
-          endAccessor={(e: ShiftEvent) => e.end}
-          eventPropGetter={eventStyleGetter}
-          dayPropGetter={customDayPropGetter}
-          components={calendarComponents}
-          onEventDrop={onEventDrop}
-          onEventResize={onEventResize}
-          onSelectEvent={onSelectEvent}
-          onSelectSlot={onSelectSlot}
-          selectable
-          resizable
-          resources={view === Views.DAY ? resources : undefined}
-          resourceIdAccessor={view === Views.DAY ? (r: any) => r.id : undefined}
-          resourceTitleAccessor={view === Views.DAY ? (r: any) => r.title : undefined}
-          style={{ height: '100%', minHeight: '500px' }}
-          className="text-[#E6EDF3] custom-calendar h-full"
-        />
+      <div className="flex-1 bg-brand-bg p-2 md:p-4 rounded-lg border border-border-subtle overflow-y-auto min-h-0 scrollbar-hide">
+        {user?.role === 'ADMIN' && view !== Views.AGENDA ? (
+          <DnDCalendar
+            localizer={localizer}
+            events={mappedEvents}
+            view={view}
+            date={date}
+            views={isStaffMobileOrTablet ? [Views.AGENDA] : [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
+            onView={(view: View) => setView(view)}
+            onNavigate={(date: Date) => setDate(date)}
+            startAccessor={(e: ShiftEvent) => e.start}
+            endAccessor={(e: ShiftEvent) => e.end}
+            eventPropGetter={eventStyleGetter}
+            dayPropGetter={customDayPropGetter}
+            components={calendarComponents}
+            onEventDrop={onEventDrop}
+            onEventResize={onEventResize}
+            onSelectEvent={onSelectEvent}
+            onSelectSlot={onSelectSlot}
+            selectable
+            resizable
+            resources={view === Views.DAY ? resources : undefined}
+            resourceIdAccessor={view === Views.DAY ? (r: any) => r?.id : undefined}
+            resourceTitleAccessor={view === Views.DAY ? (r: any) => r?.title : undefined}
+            style={{ height: '100%', minHeight: '500px' }}
+            className="text-[#E6EDF3] custom-calendar h-full"
+          />
+        ) : (
+          <Calendar
+            localizer={localizer}
+            events={mappedEvents}
+            view={view}
+            date={date}
+            views={isStaffMobileOrTablet ? [Views.AGENDA] : [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
+            onView={(view: View) => setView(view)}
+            onNavigate={(date: Date) => setDate(date)}
+            startAccessor={(e: ShiftEvent) => e.start}
+            endAccessor={(e: ShiftEvent) => e.end}
+            eventPropGetter={eventStyleGetter}
+            dayPropGetter={customDayPropGetter}
+            components={calendarComponents}
+            onSelectEvent={onSelectEvent}
+            onSelectSlot={onSelectSlot}
+            selectable
+            resources={view === Views.DAY ? resources : undefined}
+            resourceIdAccessor={view === Views.DAY ? (r: any) => r?.id : undefined}
+            resourceTitleAccessor={view === Views.DAY ? (r: any) => r?.title : undefined}
+            style={{ height: '100%', minHeight: '500px' }}
+            className="text-[#E6EDF3] custom-calendar h-full"
+          />
+        )}
       </div>
 
       <AddShiftModal 

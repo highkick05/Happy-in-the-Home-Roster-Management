@@ -20,6 +20,14 @@ body {
   color: var(--color-text-primary);
 }
 
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
 /* Mobile Responsive Tables (Collapse to Cards) */
 @media (max-width: 768px) {
   table { 
