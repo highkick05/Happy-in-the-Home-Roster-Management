@@ -197,7 +197,20 @@ input:-webkit-autofill:active {
   border: 1px solid #3f3f46 !important;
   border-radius: 12px;
   background-color: transparent !important;
-  overflow: hidden;
+  overflow-y: auto !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.rbc-agenda-view::-webkit-scrollbar {
+  display: none;
+}
+.rbc-agenda-content {
+  overflow-y: auto !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.rbc-agenda-content::-webkit-scrollbar {
+  display: none;
 }
 .rbc-agenda-view table.rbc-agenda-table {
   border: none !important;
