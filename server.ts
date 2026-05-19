@@ -2007,6 +2007,15 @@ if (!nextShift || gapToNext > 60) {
     });
   };
 
+  const authenticateTokenOrWallboard = (req: any, res: any, next: any) => {
+    if (req.query.wallboard === 'true' && req.method === 'GET') {
+      req.user = { role: 'ADMIN', id: -1, first_name: 'Wallboard', last_name: '' };
+      return next();
+    }
+    return authenticateToken(req, res, next);
+  };
+
+
   const requireAdmin = (req: any, res: any, next: any) => {
     if (req.user?.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Admin access required' });
@@ -2936,7 +2945,7 @@ if (!nextShift || gapToNext > 60) {
   });
 
   // --- Respite Bookings APIs ---
-  app.get('/api/respite-bookings', authenticateToken, (req: any, res: any) => {
+  app.get('/api/respite-bookings', authenticateTokenOrWallboard, (req: any, res: any) => {
     const isAdmin = req.user.role === 'ADMIN';
 
     let bookingsQuery = `
@@ -3518,7 +3527,7 @@ if (!nextShift || gapToNext > 60) {
     }
   });
 
-  app.get('/api/shifts', authenticateToken, (req: any, res: any) => {
+  app.get('/api/shifts', authenticateTokenOrWallboard, (req: any, res: any) => {
     let query = `
       SELECT s.*, 
              u.first_name as staff_first_name, u.last_name as staff_last_name,

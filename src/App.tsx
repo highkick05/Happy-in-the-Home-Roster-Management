@@ -238,7 +238,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPasswordView />} />
             <Route path="/reset-password/:token" element={<ResetPasswordView />} />
-            <Route path="/kiosk/wallboard" element={<ProtectedRoute adminOnly><WallboardView /></ProtectedRoute>} />
+            <Route path="/kiosk/wallboard" element={<WallboardView />} />
             <Route path="/" element={<ProtectedRoute adminOnly><Layout><DashboardView /></Layout></ProtectedRoute>} />
             <Route path="/roster" element={<ProtectedRoute><Layout><RosterCalendar /></Layout></ProtectedRoute>} />
             <Route path="/staff" element={<ProtectedRoute adminOnly><Layout><StaffClientsView /></Layout></ProtectedRoute>} />

@@ -32,8 +32,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await originalFetch(...args);
       if (response.status === 401 || response.status === 403) {
         logout();
-        // Option to redirect to login if not already there
-        if (window.location.pathname !== '/login') {
+        // Option to redirect to login if not already there, unless it's a kiosk view
+        if (window.location.pathname !== '/login' && !window.location.pathname.startsWith('/kiosk')) {
           window.location.href = '/login';
         }
       }

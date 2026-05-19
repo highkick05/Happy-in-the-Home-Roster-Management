@@ -125,11 +125,11 @@ export default function WallboardView() {
   }, []);
 
   const fetchData = async () => {
-    if (!token) return;
     try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const [shiftsRes, respiteRes] = await Promise.all([
-        fetch('/api/shifts', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/respite-bookings', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/shifts?wallboard=true', { headers }),
+        fetch('/api/respite-bookings?wallboard=true', { headers })
       ]);
 
       if (shiftsRes.ok && respiteRes.ok) {
