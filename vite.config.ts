@@ -19,6 +19,8 @@ export default defineConfig(({mode}) => {
           type: 'module'
         },
         workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,woff,woff2,ttf,eot,pdf,doc,docx}'],
+          maximumFileSizeToCacheInBytes: 52428800,
           navigateFallback: '/index.html',
           runtimeCaching: [
             {
