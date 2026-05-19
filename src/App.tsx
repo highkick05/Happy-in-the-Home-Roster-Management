@@ -139,13 +139,13 @@ function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] bg-brand-bg text-[#E6EDF3] font-sans overflow-hidden">
       {/* Mobile Topbar */}
-      <div className="md:hidden flex items-center justify-between px-3 py-1 bg-brand-navy border-b border-border-subtle z-20 shrink-0 relative h-16">
-        <div className="flex items-center min-w-0 h-[97%]">
+      <div className="md:hidden flex items-center justify-between px-3 bg-brand-navy border-b border-border-subtle z-20 shrink-0 relative h-16">
+        <div className="flex items-center min-w-0 h-full">
           {settings?.websiteLogo ? (
             <img 
               src={settings.websiteLogo} 
               alt={settings?.businessName || "Company Logo"} 
-              className="h-full w-auto max-w-[200px] object-contain drop-shadow-lg" 
+              className="h-full w-auto max-w-[200px] object-contain drop-shadow-lg scale-[1.4] origin-left py-1" 
             />
           ) : (
             <h1 className="text-lg font-sans uppercase text-[#E6EDF3] truncate tracking-widest mt-1">
