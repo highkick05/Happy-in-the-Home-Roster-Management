@@ -10,6 +10,7 @@ export default defineConfig(({mode}) => {
     plugins: [
       VitePWA({
         registerType: 'autoUpdate',
+        strategy: 'generateSW',
         injectRegister: 'inline',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
         manifest: {
@@ -52,11 +53,13 @@ export default defineConfig(({mode}) => {
         workbox: {
           skipWaiting: true,
           clientsClaim: true,
+          cleanupOutdatedCaches: true,
           globDirectory: 'dist',
           globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,woff,woff2,ttf,eot,pdf,doc,docx}'],
           maximumFileSizeToCacheInBytes: 52428800,
           navigateFallback: '/index.html',
           navigateFallbackAllowlist: [/^(?!\/(api|_hashtag)).*$/],
+          navigateFallbackDenylist: [/^\/api/, /^\/assets/],
           runtimeCaching: [
             {
               urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
