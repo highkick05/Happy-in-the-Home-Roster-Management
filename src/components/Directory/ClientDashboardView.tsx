@@ -1,0 +1,214 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { ArrowLeft, User, Phone, Mail, FileText, Calendar, Building, Home, CheckCircle2 } from 'lucide-react';
+
+export default function ClientDashboardView() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { token, user } = useAuth();
+  
+  const [client, setClient] = useState<any>(null);
+  const [providers, setProviders] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchData();
+  }, [id, token]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [clientRes, providersRes, servicesRes] = await Promise.all([
+        fetch(`/api/clients/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/providers', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/services', { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      
+      if (clientRes.ok) {
+        const clientData = await clientRes.json();
+        setClient(clientData);
+      }
+      if (providersRes.ok) setProviders(await providersRes.json());
+      if (servicesRes.ok) setServices(await servicesRes.json());
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="p-8 text-center text-[#8B949E]">Loading client details...</div>;
+  }
+
+  if (!client) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-red-400 mb-4">Client not found.</p>
+        <button onClick={() => navigate('/clients')} className="text-brand-teal hover:underline">Return to Directory</button>
+      </div>
+    );
+  }
+
+  const provider = providers.find(p => p.id === client.provider_id);
+  const clientServices = services.filter(s => (client.service_ids || []).includes(s.id));
+  const initials = `${(client.first_name || '').charAt(0)}${(client.last_name || '').charAt(0)}`.toUpperCase();
+
+  return (
+    <div className="max-w-7xl mx-auto flex flex-col h-full space-y-6">
+      <div className="flex items-center space-x-4 mb-2">
+        <button 
+          onClick={() => navigate('/clients')}
+          className="p-2 -ml-2 text-[#8B949E] hover:text-white transition-colors rounded-full hover:bg-white/[0.04]"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight flex items-center">
+            {client.first_name} {client.last_name}
+            {client.status === 'SUSPENDED' && (
+              <span className="ml-3 px-2 py-0.5 rounded text-xs font-semibold tracking-wider bg-red-500/10 border border-red-500/20 text-red-400 uppercase">
+                Suspended
+              </span>
+            )}
+          </h2>
+          <div className="text-[#8B949E] text-sm mt-1">
+            Joined {new Date(client.created_at).toLocaleDateString()}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* Left Col - Overview */}
+        <div className="md:col-span-1 space-y-6">
+          <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm">
+            <div className="flex items-center space-x-4 mb-6">
+              <div className="w-16 h-16 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green flex items-center justify-center text-2xl font-semibold shrink-0">
+                {initials || '?'}
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-[#E6EDF3]">{client.first_name} {client.last_name}</h3>
+                <div className="text-sm font-mono text-brand-teal mt-1">
+                  {client.funding_type === 'HOME_CARE' ? `ID: ${client.my_aged_care_id || 'N/A'}` : `NDIS: ${client.ndis_number || 'N/A'}`}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-start space-x-3 text-sm">
+                <Mail className="w-4 h-4 text-[#8B949E] shrink-0 mt-0.5" />
+                <span className="text-[#E6EDF3]">{client.contact_email || 'No email provided'}</span>
+              </div>
+              <div className="flex items-start space-x-3 text-sm">
+                <Phone className="w-4 h-4 text-[#8B949E] shrink-0 mt-0.5" />
+                <span className="text-[#E6EDF3]">{client.contact_phone || 'No phone provided'}</span>
+              </div>
+              <div className="flex items-start space-x-3 text-sm">
+                <Home className="w-4 h-4 text-[#8B949E] shrink-0 mt-0.5" />
+                <span className="text-[#E6EDF3] leading-relaxed">{client.address || 'No address provided'}</span>
+              </div>
+              {client.dob && (
+                <div className="flex items-start space-x-3 text-sm">
+                  <Calendar className="w-4 h-4 text-[#8B949E] shrink-0 mt-0.5" />
+                  <span className="text-[#E6EDF3]">DOB: {new Date(client.dob).toLocaleDateString()}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {(client.representative_name || client.representative_phone || client.representative_email) && (
+            <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm">
+              <h3 className="text-sm font-semibold text-[#8B949E] uppercase tracking-wider mb-4">Representative</h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-start justify-between">
+                  <span className="text-[#8B949E]">Name</span>
+                  <span className="text-[#E6EDF3] font-medium">{client.representative_name || '-'}</span>
+                </div>
+                <div className="flex items-start justify-between">
+                  <span className="text-[#8B949E]">Phone</span>
+                  <span className="text-[#E6EDF3]">{client.representative_phone || '-'}</span>
+                </div>
+                <div className="flex items-start justify-between">
+                  <span className="text-[#8B949E]">Email</span>
+                  <span className="text-[#E6EDF3]">{client.representative_email || '-'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Middle/Right Col - Details & Services */}
+        <div className="md:col-span-2 space-y-6">
+          
+          <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm">
+             <div className="flex items-center space-x-2 text-brand-blue mb-4">
+               <FileText className="w-5 h-5" />
+               <h3 className="text-base font-semibold text-[#E6EDF3]">Care Plan & Details</h3>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 pb-6 border-b border-border-subtle">
+               <div>
+                 <div className="text-xs text-[#8B949E] mb-1">Funding Type</div>
+                 <div className="text-sm font-medium text-[#E6EDF3]">
+                   {client.funding_type === 'HOME_CARE' ? 'Home Care Package' : 'NDIS'}
+                 </div>
+               </div>
+               <div>
+                 <div className="text-xs text-[#8B949E] mb-1">Provider</div>
+                 <div className="text-sm font-medium text-[#E6EDF3] flex items-center">
+                   <Building className="w-3.5 h-3.5 mr-2 text-[#8B949E]" />
+                   {provider ? provider.company_name : 'No Provider Assigned'}
+                 </div>
+               </div>
+             </div>
+             
+             <div>
+               <div className="text-xs text-[#8B949E] mb-2">Care Plan Notes</div>
+               {client.care_plan_details ? (
+                 <div className="text-sm text-[#E6EDF3] whitespace-pre-wrap leading-relaxed bg-brand-bg/50 p-4 rounded-md border border-border-subtle">
+                   {client.care_plan_details}
+                 </div>
+               ) : (
+                 <div className="text-sm text-[#8B949E] italic">No care plan details have been added for this client.</div>
+               )}
+             </div>
+          </div>
+
+          <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm">
+             <div className="flex items-center justify-between mb-4">
+               <h3 className="text-base font-semibold text-[#E6EDF3]">Assigned Services</h3>
+               <span className="bg-brand-green/10 text-brand-green px-2.5 py-1 rounded-full text-xs font-semibold">
+                 {clientServices.length} Services
+               </span>
+             </div>
+             
+             {clientServices.length > 0 ? (
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                 {clientServices.map(s => (
+                   <div key={s.id} className="flex items-start p-3 bg-brand-bg/30 border border-border-subtle rounded-lg">
+                     <CheckCircle2 className="w-4 h-4 text-brand-teal mt-0.5 mr-3 shrink-0" />
+                     <div>
+                       <div className="text-sm font-medium text-[#E6EDF3]">{s.name}</div>
+                       {s.code && <div className="text-xs text-[#8B949E] mt-0.5 font-mono">{s.code}</div>}
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             ) : (
+               <div className="text-center p-6 border border-dashed border-border-subtle rounded-lg text-[#8B949E] text-sm flex flex-col items-center">
+                  <div className="w-10 h-10 rounded-full bg-brand-bg/50 flex items-center justify-center mb-3">
+                    <CheckCircle2 className="w-5 h-5 opacity-40" />
+                  </div>
+                  No services have been configured for this client yet.
+               </div>
+             )}
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  );
+}

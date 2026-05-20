@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Edit2, Ban, CheckCircle, UsersIcon, UserPlus } from 'lucide-react';
+import { Plus, Edit2, Ban, CheckCircle, UsersIcon, UserPlus, Calendar } from 'lucide-react';
 import StaffModal from './StaffModal';
 import ClientModal from './ClientModal';
+import ClientRosterModal from './ClientRosterModal';
 import ProviderModal from './ProviderModal';
 
 export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 'CLIENTS' | 'PROVIDERS' }) {
   const { token, user } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'STAFF' | 'CLIENTS' | 'PROVIDERS'>(type);
 
   useEffect(() => {
@@ -24,6 +27,9 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
 
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<any>(null);
+
+  const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
+  const [selectedRosterClient, setSelectedRosterClient] = useState<any>(null);
 
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<any>(null);
@@ -94,6 +100,11 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const handleEditClient = (c: any) => {
     setSelectedClient(c);
     setIsClientModalOpen(true);
+  };
+
+  const handleRosterBuilder = (c: any) => {
+    setSelectedRosterClient(c);
+    setIsRosterModalOpen(true);
   };
 
   const handleEditProvider = (p: any) => {
@@ -206,7 +217,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               {activeTab === 'CLIENTS' && displayClients.map(c => {
                 const initials = `${(c.first_name || '').charAt(0)}${(c.last_name || '').charAt(0)}`.toUpperCase();
                 return (
-                  <tr key={c.id} onClick={() => handleEditClient(c)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${c.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
+                  <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${c.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
                     <td className="px-4 py-2 sm:py-2.5">
                       <div className="flex items-center gap-3">
                         <div className="w-7 h-7 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green flex items-center justify-center text-[11px] font-semibold shrink-0">
@@ -253,8 +264,11 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                       )}
                     </td>
                     <td className="px-4 py-2 sm:py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                      <button onClick={() => handleEditClient(c)} className="p-1.5 text-[#8B949E] hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]">
+                      <button onClick={() => handleEditClient(c)} className="p-1.5 text-[#8B949E] hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]" title="Edit Client Details">
                         <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleRosterBuilder(c)} className="p-1.5 text-[#8B949E] hover:text-brand-blue transition-colors rounded-md hover:bg-white/[0.04]" title="Roster Builder">
+                        <Calendar className="w-3.5 h-3.5" />
                       </button>
                       <button 
                         onClick={() => handleToggleStatus(c.id, c.status || 'ACTIVE')} 
@@ -345,6 +359,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
         }}
         token={token!}
         client={selectedClient}
+      />
+
+      <ClientRosterModal
+        isOpen={isRosterModalOpen}
+        onClose={() => setIsRosterModalOpen(false)}
+        client={selectedRosterClient}
       />
 
       <ProviderModal

@@ -15,7 +15,6 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
   const [providers, setProviders] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'DETAILS' | 'ROSTER'>('DETAILS');
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -163,25 +162,9 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
       <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-xl w-[98vw] max-w-[2400px] h-[95vh] lg:h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         
         <div className="flex border-b border-white/[0.08] shrink-0 flex-col">
-          <div className="flex justify-between items-start pt-4 px-4">
+          <div className="flex justify-between items-start pt-4 pb-4 px-4">
             <div className="flex flex-col shrink-0">
-              <h2 className="text-xl font-semibold text-white tracking-tight mb-4">{client ? 'Edit Client Details' : 'Add New Client'}</h2>
-              {client && (
-                <div className="flex space-x-6 text-sm font-medium mt-6 mt-auto">
-                  <button 
-                    onClick={() => setActiveTab('DETAILS')}
-                    className={`pb-3 border-b-2 transition-colors ${activeTab === 'DETAILS' ? 'border-brand-teal text-brand-teal' : 'border-transparent text-zinc-400 hover:text-zinc-300'}`}
-                  >
-                    Client Details
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('ROSTER')}
-                    className={`pb-3 border-b-2 transition-colors ${activeTab === 'ROSTER' ? 'border-brand-teal text-brand-teal' : 'border-transparent text-zinc-400 hover:text-zinc-300'}`}
-                  >
-                    Roster Builder
-                  </button>
-                </div>
-              )}
+              <h2 className="text-xl font-semibold text-white tracking-tight">{client ? 'Edit Client Details' : 'Add New Client'}</h2>
             </div>
             
             <div className="mx-6 flex-1"></div>
@@ -195,13 +178,8 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         <div className="flex-1 overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row">
           
           {/* Main Area */}
-          {activeTab === 'ROSTER' && client ? (
-             <div className="flex-1 w-full bg-[#09090b] min-h-0 overflow-y-auto">
-               <ClientRosterTemplates client={client} />
-             </div>
-          ) : (
-            <>
-              {/* Left Column: Client Form Details */}
+          <>
+            {/* Left Column: Client Form Details */}
               <div className="w-full lg:w-[30%] p-4 overflow-y-auto custom-scrollbar min-h-0">
             <form id="client-form" onSubmit={handleSubmit} className="space-y-6 pb-64">
               
@@ -394,19 +372,16 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
             </div>
           </div>
           </>
-          )}
         </div>
 
-        {activeTab === 'DETAILS' && (
-          <div className="p-4 border-t border-white/[0.08] flex justify-end space-x-3 bg-[#121214]/50 shrink-0">
-            <button onClick={onClose} className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:text-white transition-colors">
-              Cancel
-            </button>
-            <button type="submit" form="client-form" className="px-4 py-2 bg-brand-blue hover:bg-brand-teal text-white text-[13px] font-medium rounded-md transition-colors">
-              {client ? 'Save Changes' : 'Add Client'}
-            </button>
-          </div>
-        )}
+        <div className="p-4 border-t border-white/[0.08] flex justify-end space-x-3 bg-[#121214]/50 shrink-0">
+          <button onClick={onClose} className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:text-white transition-colors">
+            Cancel
+          </button>
+          <button type="submit" form="client-form" className="px-4 py-2 bg-brand-blue hover:bg-brand-teal text-white text-[13px] font-medium rounded-md transition-colors">
+            {client ? 'Save Changes' : 'Add Client'}
+          </button>
+        </div>
       </div>
     </div>
   );
