@@ -17,6 +17,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [clients, setClients] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clientTab, setClientTab] = useState<'NDIS' | 'HOME_CARE'>('NDIS');
 
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
@@ -105,20 +106,61 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
     return <div className="p-4 text-zinc-400">You do not have permission to view this page.</div>;
   }
 
+  const isHomeCare = (c: any) => c.funding_type === 'HCP' || c.funding_type === 'Home Care' || c.funding_type === 'HOME_CARE';
+  const ndisClients = clients.filter(c => !isHomeCare(c));
+  const homeCareClients = clients.filter(c => isHomeCare(c));
+  const displayClients = clientTab === 'NDIS' ? ndisClients : homeCareClients;
+
   return (
     <div className="h-full flex flex-col space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight mb-6 md:mb-0">
-          {activeTab === 'STAFF' ? 'Staff Directory' : activeTab === 'CLIENTS' ? 'Client Directory' : 'Provider Directory'}
-        </h2>
+      <div className="flex justify-between items-start md:items-center flex-col md:flex-row gap-4 mb-2">
+        <div className="flex items-center space-x-6">
+          <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight">
+             {activeTab === 'STAFF' ? 'Staff Directory' : activeTab === 'CLIENTS' ? 'Client Directory' : 'Provider Directory'}
+          </h2>
+          {activeTab === 'CLIENTS' && (
+             <div className="hidden sm:flex space-x-1 bg-brand-navy border border-border-subtle p-1 rounded-lg shadow-sm">
+                <button
+                  onClick={() => setClientTab('NDIS')}
+                  className={`flex items-center px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${clientTab === 'NDIS' ? 'bg-brand-bg text-[#E6EDF3]' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+                >
+                  NDIS <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'NDIS' ? 'bg-[#E6EDF3]/10 text-brand-teal' : 'bg-brand-navy border border-border-subtle'}`}>{ndisClients.length}</span>
+                </button>
+                <button
+                  onClick={() => setClientTab('HOME_CARE')}
+                  className={`flex items-center px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${clientTab === 'HOME_CARE' ? 'bg-brand-bg text-[#E6EDF3]' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+                >
+                  Home Care <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'HOME_CARE' ? 'bg-[#E6EDF3]/10 text-brand-green' : 'bg-brand-navy border border-border-subtle'}`}>{homeCareClients.length}</span>
+                </button>
+             </div>
+          )}
+        </div>
+        
         <button 
           onClick={handleAddNew}
-          className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green hover:opacity-90 text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full justify-center md:w-auto"
+          className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green hover:opacity-90 text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full shrink-0 justify-center md:w-auto"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add {activeTab === 'STAFF' ? 'Staff' : activeTab === 'CLIENTS' ? 'Client' : 'Provider'}
         </button>
       </div>
+
+      {activeTab === 'CLIENTS' && (
+          <div className="flex sm:hidden space-x-1 bg-brand-navy border border-border-subtle p-1 rounded-lg shadow-sm mb-4">
+            <button
+              onClick={() => setClientTab('NDIS')}
+              className={`flex-1 flex justify-center items-center px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${clientTab === 'NDIS' ? 'bg-brand-bg text-[#E6EDF3]' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+            >
+              NDIS <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'NDIS' ? 'bg-[#E6EDF3]/10 text-brand-teal' : 'bg-brand-navy border border-border-subtle'}`}>{ndisClients.length}</span>
+            </button>
+            <button
+              onClick={() => setClientTab('HOME_CARE')}
+              className={`flex-1 flex justify-center items-center px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${clientTab === 'HOME_CARE' ? 'bg-brand-bg text-[#E6EDF3]' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+            >
+              Home Care <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'HOME_CARE' ? 'bg-[#E6EDF3]/10 text-brand-green' : 'bg-brand-navy border border-border-subtle'}`}>{homeCareClients.length}</span>
+            </button>
+         </div>
+      )}
 
       <div className="flex-1 bg-brand-navy border border-border-subtle rounded-xl overflow-x-auto shadow-sm">
         {loading ? (
@@ -179,7 +221,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 );
               })}
               
-              {activeTab === 'CLIENTS' && clients.map(c => {
+              {activeTab === 'CLIENTS' && displayClients.map(c => {
                 const initials = `${(c.first_name || '').charAt(0)}${(c.last_name || '').charAt(0)}`.toUpperCase();
                 return (
                   <tr key={c.id} onClick={() => handleEditClient(c)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${c.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
@@ -289,8 +331,8 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               {(activeTab === 'STAFF' && staff.length === 0) && (
                 <tr><td colSpan={3} className="px-4 py-6 text-center text-[#8B949E]">No staff found.</td></tr>
               )}
-              {(activeTab === 'CLIENTS' && clients.length === 0) && (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No clients found.</td></tr>
+              {(activeTab === 'CLIENTS' && displayClients.length === 0) && (
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No clients found in this category.</td></tr>
               )}
               {(activeTab === 'PROVIDERS' && providers.length === 0) && (
                 <tr><td colSpan={3} className="px-4 py-6 text-center text-[#8B949E]">No providers found.</td></tr>
