@@ -112,58 +112,40 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const displayClients = clientTab === 'NDIS' ? ndisClients : homeCareClients;
 
   return (
-    <div className="h-full flex flex-col space-y-6">
-      <div className="flex justify-between items-start md:items-center flex-col md:flex-row gap-4 mb-2">
-        <div className="flex items-center space-x-6">
-          <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight">
-             {activeTab === 'STAFF' ? 'Staff Directory' : activeTab === 'CLIENTS' ? 'Client Directory' : 'Provider Directory'}
-          </h2>
-          {activeTab === 'CLIENTS' && (
-             <div className="hidden sm:flex space-x-1 bg-brand-navy border border-border-subtle p-1 rounded-lg shadow-sm">
-                <button
-                  onClick={() => setClientTab('NDIS')}
-                  className={`flex items-center px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${clientTab === 'NDIS' ? 'bg-brand-bg text-[#E6EDF3]' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
-                >
-                  NDIS <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'NDIS' ? 'bg-[#E6EDF3]/10 text-brand-teal' : 'bg-brand-navy border border-border-subtle'}`}>{ndisClients.length}</span>
-                </button>
-                <button
-                  onClick={() => setClientTab('HOME_CARE')}
-                  className={`flex items-center px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${clientTab === 'HOME_CARE' ? 'bg-brand-bg text-[#E6EDF3]' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
-                >
-                  Home Care <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'HOME_CARE' ? 'bg-[#E6EDF3]/10 text-brand-green' : 'bg-brand-navy border border-border-subtle'}`}>{homeCareClients.length}</span>
-                </button>
-             </div>
+    <div className="h-full flex flex-col">
+      <div className="flex-1 bg-brand-navy border border-border-subtle rounded-xl flex flex-col shadow-sm overflow-hidden">
+        <div className="flex justify-between items-center border-b border-border-subtle bg-brand-bg/30 pr-4">
+          {activeTab === 'CLIENTS' ? (
+            <div className="flex">
+              <button
+                onClick={() => setClientTab('NDIS')}
+                className={`flex items-center px-6 py-4 text-[13px] font-medium transition-colors border-b-2 mb-[-1px] ${clientTab === 'NDIS' ? 'border-brand-teal text-[#E6EDF3] bg-brand-navy' : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3] hover:bg-brand-navy/50'}`}
+              >
+                NDIS <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'NDIS' ? 'bg-brand-teal/10 text-brand-teal' : 'bg-brand-navy border border-border-subtle text-[#8B949E]'}`}>{ndisClients.length}</span>
+              </button>
+              <button
+                onClick={() => setClientTab('HOME_CARE')}
+                className={`flex items-center px-6 py-4 text-[13px] font-medium transition-colors border-b-2 mb-[-1px] ${clientTab === 'HOME_CARE' ? 'border-brand-green text-[#E6EDF3] bg-brand-navy' : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3] hover:bg-brand-navy/50'}`}
+              >
+                Home Care <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'HOME_CARE' ? 'bg-brand-green/10 text-brand-green' : 'bg-brand-navy border border-border-subtle text-[#8B949E]'}`}>{homeCareClients.length}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="px-6 py-4 text-[14px] font-medium text-[#E6EDF3]">
+              {activeTab === 'STAFF' ? 'Staff' : 'Providers'}
+            </div>
           )}
+          <button 
+            onClick={handleAddNew}
+            className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green hover:opacity-90 text-white text-[13px] font-medium rounded-md transition-all shadow-sm shrink-0"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add {activeTab === 'STAFF' ? 'Staff' : activeTab === 'CLIENTS' ? 'Client' : 'Provider'}
+          </button>
         </div>
-        
-        <button 
-          onClick={handleAddNew}
-          className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green hover:opacity-90 text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full shrink-0 justify-center md:w-auto"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add {activeTab === 'STAFF' ? 'Staff' : activeTab === 'CLIENTS' ? 'Client' : 'Provider'}
-        </button>
-      </div>
 
-      {activeTab === 'CLIENTS' && (
-          <div className="flex sm:hidden space-x-1 bg-brand-navy border border-border-subtle p-1 rounded-lg shadow-sm mb-4">
-            <button
-              onClick={() => setClientTab('NDIS')}
-              className={`flex-1 flex justify-center items-center px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${clientTab === 'NDIS' ? 'bg-brand-bg text-[#E6EDF3]' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
-            >
-              NDIS <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'NDIS' ? 'bg-[#E6EDF3]/10 text-brand-teal' : 'bg-brand-navy border border-border-subtle'}`}>{ndisClients.length}</span>
-            </button>
-            <button
-              onClick={() => setClientTab('HOME_CARE')}
-              className={`flex-1 flex justify-center items-center px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${clientTab === 'HOME_CARE' ? 'bg-brand-bg text-[#E6EDF3]' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
-            >
-              Home Care <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'HOME_CARE' ? 'bg-[#E6EDF3]/10 text-brand-green' : 'bg-brand-navy border border-border-subtle'}`}>{homeCareClients.length}</span>
-            </button>
-         </div>
-      )}
-
-      <div className="flex-1 bg-brand-navy border border-border-subtle rounded-xl overflow-x-auto shadow-sm">
-        {loading ? (
+        <div className="flex-1 overflow-x-auto">
+          {loading ? (
           <div className="p-8 text-center text-[#8B949E]">Loading directory...</div>
         ) : (
           <table className="w-full text-left border-collapse">
@@ -340,6 +322,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
             </tbody>
           </table>
         )}
+        </div>
       </div>
 
       <StaffModal
