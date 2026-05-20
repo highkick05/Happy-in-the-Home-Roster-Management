@@ -2604,7 +2604,11 @@ if (!nextShift || gapToNext > 60) {
   // --- Onboarding APIs ---
   app.get('/api/users/onboarding', authenticateToken, (req: any, res: any) => {
     try {
-      const user = db.prepare('SELECT onboarding_json FROM users WHERE id = ?').get(req.user.id) as any;
+      let targetUserId = req.user.id;
+      if (req.user.role === 'ADMIN' && req.query.userId) {
+          targetUserId = parseInt(req.query.userId, 10);
+      }
+      const user = db.prepare('SELECT onboarding_json FROM users WHERE id = ?').get(targetUserId) as any;
       let onboardingData = user?.onboarding_json ? JSON.parse(user.onboarding_json) : {};
 
       let modified = false;
@@ -2685,7 +2689,7 @@ if (!nextShift || gapToNext > 60) {
         }
         
         if (modified) {
-          db.prepare('UPDATE users SET onboarding_json = ? WHERE id = ?').run(JSON.stringify(onboardingData), req.user.id);
+          db.prepare('UPDATE users SET onboarding_json = ? WHERE id = ?').run(JSON.stringify(onboardingData), targetUserId);
         }
       }
 
@@ -2698,7 +2702,11 @@ if (!nextShift || gapToNext > 60) {
 
   app.put('/api/users/onboarding', authenticateToken, (req: any, res: any) => {
     try {
-      db.prepare('UPDATE users SET onboarding_json = ? WHERE id = ?').run(JSON.stringify(req.body), req.user.id);
+      let targetUserId = req.user.id;
+      if (req.user.role === 'ADMIN' && req.body.targetUserId) {
+          targetUserId = parseInt(req.body.targetUserId, 10);
+      }
+      db.prepare('UPDATE users SET onboarding_json = ? WHERE id = ?').run(JSON.stringify(req.body.data || req.body), targetUserId);
       res.json({ success: true });
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: e.stack || e });
@@ -5447,12 +5455,18 @@ if (!nextShift || gapToNext > 60) {
     const folderPath = req.query.folderPath || '/';
     const dateIssued = req.body.date_issued || null;
     const dateExpires = req.body.date_expires || null;
+    
+    let targetUserId = req.user.id;
+    if (req.user.role === 'ADMIN' && req.body.targetUserId) {
+        targetUserId = req.body.targetUserId;
+    }
+
     try {
       const stmt = db.prepare('INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path, date_issued, date_expires) VALUES (?, ?, ?, ?, ?, ?, ?)');
-      const info = stmt.run(req.file.originalname, req.file.filename, req.file.size, req.user.id, folderPath, dateIssued, dateExpires);
+      const info = stmt.run(req.file.originalname, req.file.filename, req.file.size, targetUserId, folderPath, dateIssued, dateExpires);
       
       // Clear notifications immediately upon successful document renewal/upload
-      db.prepare(`DELETE FROM notifications WHERE user_id = ? AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON')`).run(req.user.id);
+      db.prepare(`DELETE FROM notifications WHERE user_id = ? AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON')`).run(targetUserId);
       
       res.json({ success: true, id: info.lastInsertRowid, date_issued: dateIssued, date_expires: dateExpires });
     } catch (e: any) {

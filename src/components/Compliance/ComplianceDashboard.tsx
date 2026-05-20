@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Download, Users, Briefcase, FileCheck, Search, FileText } from 'lucide-react';
+import { Download, Users, Briefcase, FileCheck, Search, FileText, ClipboardList } from 'lucide-react';
 import { format } from 'date-fns';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import OnboardingView from '../Onboarding/OnboardingView';
 
 export default function ComplianceDashboard() {
   const { token, user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'evidence' | 'staff'>('evidence');
+  const [activeTab, setActiveTab] = useState<'evidence' | 'staff' | 'mandatory_documents'>('evidence');
   
   // States for Evidence Pack (Clients)
   const [clients, setClients] = useState<any[]>([]);
@@ -21,6 +22,9 @@ export default function ComplianceDashboard() {
   const [staffStartDate, setStaffStartDate] = useState('');
   const [staffEndDate, setStaffEndDate] = useState('');
   const [isGeneratingLogbook, setIsGeneratingLogbook] = useState(false);
+
+  // States for Mandatory Documents
+  const [selectedStaffForDocs, setSelectedStaffForDocs] = useState('');
 
   // States for Audit Logs
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -144,6 +148,12 @@ export default function ComplianceDashboard() {
         >
           <Users className="w-4 h-4 mr-2" /> Workforce Compliance
         </button>
+        <button
+          onClick={() => setActiveTab('mandatory_documents')}
+          className={`px-4 py-2 text-[13px] rounded-md transition-colors flex items-center ${activeTab === 'mandatory_documents' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+        >
+          <ClipboardList className="w-4 h-4 mr-2" /> Mandatory Documents
+        </button>
       </div>
 
       {activeTab === 'evidence' && (
@@ -255,6 +265,39 @@ export default function ComplianceDashboard() {
              )}
              {isGeneratingLogbook ? 'Generating Logbook...' : 'Download Staff Logbook (PDF)'}
            </button>
+        </div>
+      )}
+
+      {activeTab === 'mandatory_documents' && (
+        <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-hidden p-0">
+          <div className="p-4 md:p-6 border-b border-border-subtle bg-[#121214]">
+            <h3 className="text-lg font-medium text-[#E6EDF3] flex items-center mb-2"><ClipboardList className="w-5 h-5 mr-2 text-brand-teal" /> Global Mandatory Documents</h3>
+            <p className="text-sm text-[#8B949E] mb-6 max-w-4xl">
+              Track and manage all 13 flat matrix mandatory compliance items for individual personnel.
+            </p>
+
+            <div className="w-full max-w-md">
+                <label className="text-sm font-medium text-[#8B949E] mb-1.5 block">Select Staff Member</label>
+                <select 
+                  value={selectedStaffForDocs} 
+                  onChange={e => setSelectedStaffForDocs(e.target.value)}
+                  className="w-full bg-brand-bg border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal transition-colors"
+                >
+                  <option value="">-- Choose Staff --</option>
+                  {staffList.filter(s => s.role === 'STAFF').map(s => (
+                    <option key={s.id} value={s.id}>{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
+                  ))}
+                </select>
+            </div>
+          </div>
+          
+          <div className="bg-black/50">
+            {selectedStaffForDocs ? (
+               <OnboardingView targetUserId={Number(selectedStaffForDocs)} />
+            ) : (
+               <div className="p-8 text-center text-zinc-500 py-20">Select a staff member from the dropdown above to view their compliance matrix.</div>
+            )}
+          </div>
         </div>
       )}
 

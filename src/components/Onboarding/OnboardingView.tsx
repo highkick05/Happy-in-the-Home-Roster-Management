@@ -13,7 +13,7 @@ interface Step {
   links: { text: string; url: string }[];
 }
 
-const ONBOARDING_STEPS: Step[] = [
+export const ONBOARDING_STEPS: Step[] = [
   { id: 'ndis_screening', title: '1. NDIS Worker Screening Check (NWSC) Clearance', description: '5 years validity. Satisfies baseline Aged Care/Home Care worker screening without requiring a separate National Police Check.', type: 'upload', links: [{ text: 'NDIS Worker Screening', url: 'https://www.ndiscommission.gov.au/workers/worker-screening' }] },
   { id: 'wwcc', title: '2. Working with Children Check (WWCC)', description: '3 years validity. Mandatory if supporting clients under the age of 18.', type: 'upload', links: [{ text: 'WWCC Information', url: 'https://www.aifs.gov.au/resources/resource-sheets/pre-employment-screening-working-children-checks-and-police-checks' }] },
   { id: 'vevo', title: '3. Right to Work / VEVO Check', description: 'Non-negotiable structural onboarding check. Monitored for visa holders; marked as static for citizens/PR.', type: 'upload', links: [] },
@@ -24,10 +24,17 @@ const ONBOARDING_STEPS: Step[] = [
   { id: 'manual_handling', title: '8. Manual Handling Competency', description: 'Strictly annual renewal (every 12 months).', type: 'upload', links: [] },
   { id: 'driver_license', title: '9. Valid Driver\'s License', description: 'Annual check to visually inspect physical validity and current license status.', type: 'upload', links: [] },
   { id: 'car_insurance', title: '10. Comprehensive Car Insurance (with Business Use)', description: 'Annual renewal. Must verify explicit inclusion of "Business Use" or "Commuting/Work Travel".', type: 'upload', links: [] },
+  { id: 'flu_shot', title: '11. Annual Influenza Vaccination', description: 'Annual renewal (must be updated before winter peak).', type: 'upload', links: [] },
+  { id: 'immunisation', title: '12. Immunisation History', description: 'One-time onboarding baseline healthcare worker vaccines.', type: 'upload', links: [] },
+  { id: 'covid_vaccine', title: '13. COVID Immunisation Evidence', description: 'Verified record at onboarding or inline with directives.', type: 'upload', links: [] }
 ];
 
-export default function OnboardingView() {
+export default function OnboardingView({ targetUserId }: { targetUserId?: number }) {
   const { token, user } = useAuth();
+  
+  // Choose the context user
+  const contextUserId = targetUserId || user?.id;
+  
   const [expandedStep, setExpandedStep] = useState<string | null>('resume');
   const [progressData, setProgressData] = useState<Record<string, { status: 'completed' | 'pending'; fileId?: number | null; files?: { id: number; name: string }[] }>>({});
   const [loading, setLoading] = useState(true);
@@ -49,7 +56,8 @@ export default function OnboardingView() {
 
   const fetchProgress = async () => {
     try {
-      const res = await fetch('/api/users/onboarding', {
+      const url = contextUserId ? `/api/users/onboarding?userId=${contextUserId}` : '/api/users/onboarding';
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -65,7 +73,7 @@ export default function OnboardingView() {
 
   useEffect(() => {
     fetchProgress();
-  }, [token]);
+  }, [token, contextUserId]);
 
   const updateProgress = async (stepId: string, status: 'completed' | 'pending', fileAction?: { type: 'add' | 'remove'; file: { id: number; name: string } }) => {
     let currentStepData = progressData[stepId] || { status: 'pending', files: [] };
@@ -103,7 +111,7 @@ export default function OnboardingView() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(newData)
+        body: JSON.stringify({ data: newData, targetUserId: contextUserId })
       });
       
       const currentIndex = ONBOARDING_STEPS.findIndex(s => s.id === stepId);
@@ -173,7 +181,7 @@ export default function OnboardingView() {
       }
     }
 
-    if (stepId === 'cpr' || stepId === 'manual_handling') {
+    if (stepId === 'cpr' || stepId === 'manual_handling' || stepId === 'flu_shot') {
       if (!issued && !expires) {
         setUploadError(prev => ({ ...prev, [stepId]: 'Date issued or expires is required.' }));
         return;
@@ -205,6 +213,7 @@ export default function OnboardingView() {
     formData.append('folderPath', uploadPath);
     if (issued) formData.append('date_issued', issued);
     if (expires) formData.append('date_expires', expires);
+    if (contextUserId) formData.append('targetUserId', contextUserId.toString());
 
     try {
       const res = await fetch(`/api/files?folderPath=${encodeURIComponent(uploadPath)}`, {
@@ -478,7 +487,7 @@ export default function OnboardingView() {
                           
                           {/* DYNAMIC DATE INPUTS & IDENTIFIERS */}
                           <div className="flex flex-col gap-3 max-w-sm mb-4">
-                            {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance'].includes(step.id) && (
+                            {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && (
                               <div>
                                 <label className="block text-xs text-zinc-400 mb-1">ID Number / License Reference (Optional)</label>
                                 <input 
@@ -491,7 +500,7 @@ export default function OnboardingView() {
                                 <p className="text-[10px] text-zinc-500 mt-1">Saved identifiers are automatically masked as [ID Number Redacted] for privacy.</p>
                               </div>
                             )}
-                            {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling'].includes(step.id) && (
+                            {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && (
                               <div>
                                 <label className="block text-xs text-zinc-400 mb-1">Issue Date</label>
                                 <CustomDatePicker 
@@ -501,7 +510,7 @@ export default function OnboardingView() {
                                 />
                               </div>
                             )}
-                            {['wwcc', 'ahpra', 'driver_license', 'first_aid', 'cpr', 'manual_handling', 'car_insurance'].includes(step.id) && (
+                            {['wwcc', 'ahpra', 'driver_license', 'first_aid', 'cpr', 'manual_handling', 'car_insurance', 'flu_shot'].includes(step.id) && (
                               <div>
                                 <label className="block text-xs text-zinc-400 mb-1">Expiry Date</label>
                                 <CustomDatePicker 
@@ -550,7 +559,7 @@ export default function OnboardingView() {
                                     </div>
                                     {(file.date_issued || file.date_expires) && (
                                       <div className="flex items-center gap-2 ml-7">
-                                        {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance'].includes(step.id) && (
+                                        {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && (
                                            <span className="text-xs text-zinc-500 font-mono">[ID Number Redacted]</span>
                                         )}
                                         {file.date_issued && <span className="text-xs text-zinc-400">Issued: {file.date_issued}</span>}
