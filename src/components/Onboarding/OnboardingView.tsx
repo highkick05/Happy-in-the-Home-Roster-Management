@@ -38,7 +38,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   const [expandedStep, setExpandedStep] = useState<string | null>('resume');
   const [progressData, setProgressData] = useState<Record<string, { status: 'completed' | 'pending'; fileId?: number | null; files?: { id: number; name: string }[] }>>({});
   const [loading, setLoading] = useState(true);
-  const [formDates, setFormDates] = useState<Record<string, { issued: string, expires: string }>>({});
+  const [formDates, setFormDates] = useState<Record<string, { issued: string, expires: string, idNumber?: string }>>({});
   const [uploadError, setUploadError] = useState<Record<string, string>>({});
 
   const getTrafficLight = (expires?: string | null) => {

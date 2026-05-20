@@ -8,7 +8,7 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [
-      VitePWA({
+      (VitePWA as any)({
         registerType: 'autoUpdate',
         strategy: 'generateSW',
         injectRegister: 'inline',

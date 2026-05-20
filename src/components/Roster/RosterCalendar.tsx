@@ -91,11 +91,11 @@ export default function RosterCalendar() {
   const isStaffMobileOrTablet = user?.role !== 'ADMIN' && isMobileOrTablet;
 
   // Render safe views 
-  const allowedViews = isStaffMobileOrTablet 
+  const allowedViews: any[] = isStaffMobileOrTablet 
     ? [Views.AGENDA] 
     : [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA];
 
-  const activeView = allowedViews.includes(view) ? view : Views.AGENDA;
+  const activeView = allowedViews.includes(view as any) ? view : Views.AGENDA;
 
   // Ensure staff sees AGENDA by default on mobile/tablet (if they didn't have it, activeView handles safety during render)
   useEffect(() => {
@@ -103,7 +103,7 @@ export default function RosterCalendar() {
       setView(Views.AGENDA);
     } else if (user?.role !== 'ADMIN') {
       setView(Views.AGENDA); // Actually give all staff agenda by default
-    } else if (!allowedViews.includes(view)) {
+    } else if (!allowedViews.includes(view as any)) {
       setView(Views.WEEK);
     }
   }, [user?.role, isStaffMobileOrTablet]);

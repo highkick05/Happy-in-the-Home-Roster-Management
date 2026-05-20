@@ -1,9 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Download, Users, Briefcase, FileCheck, Search, FileText, ClipboardList } from 'lucide-react';
+import { 
+  Download, Users, Briefcase, FileCheck, Search, FileText, ClipboardList,
+  AlertTriangle, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, RefreshCw, Eye
+} from 'lucide-react';
 import { format } from 'date-fns';
 import CustomDatePicker from '../ui/CustomDatePicker';
-import OnboardingView from '../Onboarding/OnboardingView';
+
+const ONBOARDING_STEP_LABELS: Record<string, string> = {
+  ndis_screening: 'NDIS Screen Check (NWSC)',
+  wwcc: 'Working with Children Check (WWCC)',
+  vevo: 'Right to Work / VEVO',
+  ahpra: 'AHPRA Registration',
+  ndis_orientation: 'NDIS Orientation Module',
+  cpr: 'HLTAID009 CPR',
+  first_aid: 'HLTAID011 First Aid',
+  manual_handling: 'Manual Handling',
+  driver_license: "Driver's License",
+  car_insurance: 'Car Insurance (Business)',
+  flu_shot: 'Annual Influenza Vaccine',
+  immunisation: 'Immunisation History',
+  covid_vaccine: 'COVID Immunisation'
+};
 
 export default function ComplianceDashboard() {
   const { token, user } = useAuth();
@@ -24,7 +42,10 @@ export default function ComplianceDashboard() {
   const [isGeneratingLogbook, setIsGeneratingLogbook] = useState(false);
 
   // States for Mandatory Documents
-  const [selectedStaffForDocs, setSelectedStaffForDocs] = useState('');
+  const [complianceData, setComplianceData] = useState<any[]>([]);
+  const [loadingCompliance, setLoadingCompliance] = useState(false);
+  const [complianceSearch, setComplianceSearch] = useState('');
+  const [expandedStaffId, setExpandedStaffId] = useState<number | null>(null);
 
   // States for Audit Logs
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -34,6 +55,51 @@ export default function ComplianceDashboard() {
     fetchStaff();
     fetchLogs();
   }, [token]);
+
+  const fetchComplianceData = async () => {
+    setLoadingCompliance(true);
+    try {
+      const res = await fetch('/api/admin/staff-compliance', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setComplianceData(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingCompliance(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'mandatory_documents') {
+      fetchComplianceData();
+    }
+  }, [activeTab, token]);
+
+  const downloadFile = async (id: number, filename: string) => {
+    try {
+      const res = await fetch(`/api/files/download/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        alert('Failed to download file');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error downloading file');
+    }
+  };
 
   const fetchLogs = async () => {
     try {
@@ -272,31 +338,242 @@ export default function ComplianceDashboard() {
         <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-hidden p-0">
           <div className="p-4 md:p-6 border-b border-border-subtle bg-[#121214]">
             <h3 className="text-lg font-medium text-[#E6EDF3] flex items-center mb-2"><ClipboardList className="w-5 h-5 mr-2 text-brand-teal" /> Global Mandatory Documents</h3>
-            <p className="text-sm text-[#8B949E] mb-6 max-w-4xl">
-              Track and manage all 13 flat matrix mandatory compliance items for individual personnel.
+            <p className="text-sm text-[#8B949E]">
+              Summary list of all 13 flat matrix mandatory compliance items for active personnel. Staff members receive automatic daily reminders for expiring credentials.
             </p>
-
-            <div className="w-full max-w-md">
-                <label className="text-sm font-medium text-[#8B949E] mb-1.5 block">Select Staff Member</label>
-                <select 
-                  value={selectedStaffForDocs} 
-                  onChange={e => setSelectedStaffForDocs(e.target.value)}
-                  className="w-full bg-brand-bg border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal transition-colors"
-                >
-                  <option value="">-- Choose Staff --</option>
-                  {staffList.filter(s => s.role === 'STAFF').map(s => (
-                    <option key={s.id} value={s.id}>{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
-                  ))}
-                </select>
-            </div>
           </div>
-          
-          <div className="bg-black/50">
-            {selectedStaffForDocs ? (
-               <OnboardingView targetUserId={Number(selectedStaffForDocs)} />
-            ) : (
-               <div className="p-8 text-center text-zinc-500 py-20">Select a staff member from the dropdown above to view their compliance matrix.</div>
-            )}
+
+          <div className="p-4 md:p-6 bg-brand-bg/50 border-b border-border-subtle flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="relative w-full max-w-md">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <Search className="w-4 h-4 text-[#8B949E]" />
+              </span>
+              <input
+                type="text"
+                placeholder="Search staff by name or email..."
+                value={complianceSearch}
+                onChange={e => setComplianceSearch(e.target.value)}
+                className="w-full bg-brand-navy border border-border-subtle rounded-md pl-10 pr-4 py-2.5 text-sm text-[#E6EDF3] placeholder:text-[#8B949E] focus:ring-1 focus:ring-brand-teal focus:border-brand-teal transition-all"
+              />
+            </div>
+            <button
+              onClick={fetchComplianceData}
+              disabled={loadingCompliance}
+              className="flex items-center px-4 py-2.5 text-sm text-[#E6EDF3] bg-zinc-805 hover:bg-zinc-800 border border-border-subtle rounded-md transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${loadingCompliance ? 'animate-spin' : ''}`} />
+              Refresh Compliance Status
+            </button>
+          </div>
+
+          <div className="bg-brand-navy">
+            {(() => {
+              const filteredCompliance = complianceData.filter(staff => {
+                const sTerm = complianceSearch.toLowerCase();
+                const fullName = `${staff.first_name || ''} ${staff.last_name || ''}`.toLowerCase();
+                const email = (staff.email || '').toLowerCase();
+                return fullName.includes(sTerm) || email.includes(sTerm);
+              });
+
+              const getStaffComplianceSummary = (complianceObj: Record<string, any>) => {
+                let expired = 0;
+                let expiring = 0;
+                let missing = 0;
+                let valid = 0;
+
+                Object.values(complianceObj).forEach((item: any) => {
+                  if (item.status === 'EXPIRED') expired++;
+                  else if (item.status === 'EXPIRING_SOON') expiring++;
+                  else if (item.status === 'MISSING') missing++;
+                  else if (item.status === 'VALID') valid++;
+                });
+
+                const totalUploaded = expired + expiring + valid;
+
+                let pillBg = 'bg-brand-green/10 border-brand-green/20 text-brand-green';
+                let pillText = 'Fully Compliant';
+                let iconClass = 'w-4 h-4 mr-1 text-brand-green';
+
+                if (expired > 0) {
+                  pillBg = 'bg-red-500/10 border-red-500/25 text-red-400';
+                  pillText = `${expired} Expired`;
+                  iconClass = 'w-4 h-4 mr-1 text-red-400';
+                } else if (missing > 0) {
+                  pillBg = 'bg-zinc-500/10 border-border-subtle text-zinc-400';
+                  pillText = `${missing} Missing`;
+                  iconClass = 'w-4 h-4 mr-1 text-zinc-500';
+                } else if (expiring > 0) {
+                  pillBg = 'bg-amber-500/10 border-amber-500/20 text-amber-400';
+                  pillText = `${expiring} Expiring`;
+                  iconClass = 'w-4 h-4 mr-1 text-amber-400';
+                }
+
+                return {
+                  expired,
+                  expiring,
+                  missing,
+                  valid,
+                  totalUploaded,
+                  pillBg,
+                  pillText,
+                  iconClass
+                };
+              };
+
+              if (loadingCompliance) {
+                return (
+                  <div className="flex flex-col items-center justify-center p-12 text-center py-20">
+                    <span className="w-8 h-8 border-4 border-brand-teal/30 border-t-brand-teal rounded-full animate-spin mb-4" />
+                    <p className="text-[#8B949E] text-sm">Loading staff compliance matrix...</p>
+                  </div>
+                );
+              }
+
+              if (filteredCompliance.length === 0) {
+                return (
+                  <div className="p-8 text-center text-zinc-500 py-20">No active staff members found.</div>
+                );
+              }
+
+              return (
+                <div className="divide-y divide-border-subtle">
+                  {filteredCompliance.map(staff => {
+                    const stats = getStaffComplianceSummary(staff.compliance || {});
+                    const isExpanded = expandedStaffId === staff.id;
+
+                    return (
+                      <div key={staff.id} className="transition-all hover:bg-brand-bg/10">
+                        {/* Staff Header Row */}
+                        <div 
+                          onClick={() => setExpandedStaffId(isExpanded ? null : staff.id)}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-5 cursor-pointer select-none gap-4"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-[#E6EDF3] font-medium text-15px flex items-center gap-2">
+                              <span>{staff.first_name} {staff.last_name}</span>
+                              <span className="text-xs text-[#8B949E] font-normal">({staff.email})</span>
+                            </h4>
+                            <p className="text-xs text-[#8B949E] mt-1 flex items-center gap-4">
+                              <span>Compliance Stats: <strong className="text-[#E6EDF3] font-medium">{stats.totalUploaded} of 13</strong> items uploaded</span>
+                              <span>•</span>
+                              <span>Missing: <strong className="text-[#E6EDF3] font-medium">{stats.missing}</strong> items</span>
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs px-3 py-1 font-semibold border ${stats.pillBg}`}>
+                              {stats.pillText}
+                            </span>
+
+                            <span className="p-1 px-2.5 bg-brand-bg hover:bg-brand-bg/80 border border-border-subtle rounded text-xs text-[#E6EDF3] font-medium inline-flex items-center transition-colors">
+                              <Eye className="w-3.5 h-3.5 mr-1" />
+                              {isExpanded ? 'Hide Details' : 'View Details'}
+                              {isExpanded ? <ChevronUp className="w-4 h-4 ml-1.5" /> : <ChevronDown className="w-4 h-4 ml-1.5" />}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Expandable Compliance Grid Details (Strictly Read-Only with Download Option) */}
+                        {isExpanded && (
+                          <div className="p-6 bg-[#0E0E10] border-t border-border-subtle shadow-inner">
+                            <div className="mb-6">
+                              <h5 className="text-[11px] font-semibold uppercase tracking-wider text-[#8B949E] mb-1">Mandatory Documents Compliance Map</h5>
+                              <p className="text-xs text-[#8B949E]">
+                                Overview of flat matrix compliance documents for {staff.first_name} {staff.last_name}. Reminders are systematically emailed to them when nearing expiry.
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {Object.entries(ONBOARDING_STEP_LABELS).map(([key, label]) => {
+                                const item = (staff.compliance || {})[key] || { status: 'MISSING', expiry: null, issued: null, fileName: null, fileId: null };
+                                
+                                let boxStyle = 'bg-brand-navy border-border-subtle';
+                                let textStyle = 'text-zinc-500';
+                                let dotColor = 'bg-zinc-650';
+                                let statusLabel = 'Not Provided';
+
+                                if (item.status === 'VALID') {
+                                  boxStyle = 'bg-brand-green/5 border-brand-green/20';
+                                  textStyle = 'text-brand-green';
+                                  dotColor = 'bg-brand-green';
+                                  statusLabel = 'Up to Date';
+                                } else if (item.status === 'EXPIRING_SOON') {
+                                  boxStyle = 'bg-amber-500/5 border-amber-500/20';
+                                  textStyle = 'text-[#D29922]';
+                                  dotColor = 'bg-[#D29922]';
+                                  statusLabel = 'Expiring Soon';
+                                } else if (item.status === 'EXPIRED') {
+                                  boxStyle = 'bg-red-500/5 border-red-500/20';
+                                  textStyle = 'text-[#F85149]';
+                                  dotColor = 'bg-[#F85149]';
+                                  statusLabel = 'Expired';
+                                }
+
+                                return (
+                                  <div key={key} className={`p-4 rounded-lg border flex flex-col justify-between h-full min-h-[140px] shadow-sm ${boxStyle}`}>
+                                    <div>
+                                      <div className="flex items-start justify-between gap-2 mb-2">
+                                        <span className="text-xs font-semibold text-[#E6EDF3] leading-tight">{label}</span>
+                                        <span className={`flex items-center gap-1.5 text-[10px] font-semibold leading-none uppercase ${textStyle}`}>
+                                          <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+                                          {statusLabel}
+                                        </span>
+                                      </div>
+
+                                      {item.fileName ? (
+                                        <div className="flex items-center gap-1.5 bg-black/30 p-2 rounded border border-white/[0.03] mt-2 mb-2">
+                                          <FileText className="w-3.5 h-3.5 text-brand-teal shrink-0" />
+                                          <span className="text-xs text-[#8B949E] truncate flex-1" title={item.fileName}>
+                                            {item.fileName}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <p className="text-xs text-[#8B949E]/70 mb-2 mt-2 italic">
+                                          No document uploaded
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    <div className="mt-auto border-t border-white/[0.04] pt-2.5 flex items-center justify-between gap-2">
+                                      <div className="text-[11px] text-[#8B949E]">
+                                        {item.expiry ? (
+                                          <span className="flex items-center gap-1.5">
+                                            <Clock className="w-3 h-3 text-[#8B949E]" />
+                                            Expires: {format(new Date(item.expiry), 'dd/MM/yyyy')}
+                                          </span>
+                                        ) : item.issued ? (
+                                          <span className="text-[#8B949E]/70">No Expiry Date</span>
+                                        ) : (
+                                          <span className="text-[#8B949E]/40">—</span>
+                                        )}
+                                      </div>
+
+                                      {item.fileId && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            downloadFile(item.fileId, item.fileName);
+                                          }}
+                                          title="Download uploaded file"
+                                          className="text-xs text-[#E6EDF3] hover:text-brand-teal font-medium flex items-center gap-1 bg-brand-bg hover:bg-brand-bg/80 border border-border-subtle rounded px-2.5 py-1.5 transition-colors"
+                                        >
+                                          <Download className="w-3 h-3" />
+                                          Download
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

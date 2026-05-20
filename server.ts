@@ -2715,6 +2715,92 @@ if (!nextShift || gapToNext > 60) {
   });
 
   // --- Staff (Users) APIs ---
+  app.get('/api/admin/staff-compliance', authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const staffList = db.prepare("SELECT id, first_name, last_name, email, onboarding_json FROM users WHERE role = 'STAFF'").all() as any[];
+      const allFiles = db.prepare('SELECT id, date_issued, date_expires, original_name FROM files').all() as any[];
+      const filesMap = new Map(allFiles.map(f => [f.id, f]));
+
+      const result = staffList.map(staff => {
+        let onboardingData: any = {};
+        try {
+          onboardingData = staff.onboarding_json ? JSON.parse(staff.onboarding_json) : {};
+        } catch (err) {
+          onboardingData = {};
+        }
+
+        const compliance: Record<string, any> = {};
+        const itemKeys = [
+          'ndis_screening',
+          'wwcc',
+          'vevo',
+          'ahpra',
+          'ndis_orientation',
+          'cpr',
+          'first_aid',
+          'manual_handling',
+          'driver_license',
+          'car_insurance',
+          'flu_shot',
+          'immunisation',
+          'covid_vaccine'
+        ];
+
+        itemKeys.forEach(key => {
+          const step = onboardingData[key] || {};
+          let status = 'MISSING';
+          let expiry: string | null = null;
+          let issued: string | null = null;
+          let fileName: string | null = null;
+
+          const stepFiles = step.files || [];
+          let fileId: number | null = null;
+          if (stepFiles.length > 0) {
+            const fInfo = stepFiles[0];
+            fileId = fInfo.id || null;
+            const fileMeta = filesMap.get(fInfo.id) as any;
+            if (fileMeta) {
+              expiry = fileMeta.date_expires || null;
+              issued = fileMeta.date_issued || null;
+              fileName = fileMeta.original_name || null;
+              
+              if (expiry) {
+                const expDate = new Date(expiry);
+                const today = new Date();
+                const diffTime = expDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays <= 0) {
+                  status = 'EXPIRED';
+                } else if (diffDays <= 90) {
+                  status = 'EXPIRING_SOON';
+                } else {
+                  status = 'VALID';
+                }
+              } else {
+                status = 'VALID';
+              }
+            }
+          }
+
+          compliance[key] = { status, expiry, issued, fileName, fileId };
+        });
+
+        return {
+          id: staff.id,
+          first_name: staff.first_name || staff.firstName || '',
+          last_name: staff.last_name || staff.lastName || '',
+          email: staff.email,
+          compliance
+        };
+      });
+
+      res.json(result);
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   app.get('/api/staff', authenticateToken, (req: any, res: any) => {
     if (req.user.role !== 'ADMIN') {
       const staff = db.prepare('SELECT id, first_name, last_name, role FROM users WHERE role = ?').all('STAFF');
@@ -6214,7 +6300,12 @@ if (!nextShift || gapToNext > 60) {
       // Step 1: Evaluate all active date_expires records. We assume valid documents have date_expires.
       // We will look for files belonging to staff members and verify if they are expiring soon or expired.
       // To prevent flooding, we can check if a notification already exists for this file_id/type.
-      const expiringFiles = db.prepare(`SELECT id, uploaded_by, original_name, date_expires FROM files WHERE date_expires IS NOT NULL`).all() as any[];
+      const expiringFiles = db.prepare(`
+        SELECT f.id, f.uploaded_by, f.original_name, f.date_expires, u.email, u.first_name, u.last_name 
+        FROM files f 
+        JOIN users u ON f.uploaded_by = u.id 
+        WHERE f.date_expires IS NOT NULL
+      `).all() as any[];
       const today = new Date();
       const insertNotif = db.prepare('INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)');
       const checkNotif = db.prepare('SELECT id FROM notifications WHERE user_id = ? AND type = ? AND title LIKE ? AND is_read = 0');
@@ -6232,6 +6323,25 @@ if (!nextShift || gapToNext > 60) {
           if (!exists) {
             insertNotif.run(file.uploaded_by, 'DOCUMENT_EXPIRED', title, msg, `/staff/onboarding`);
             logger.info(`Flagged EXPIRED for file ${file.id} (user ${file.uploaded_by})`);
+
+            // Send Email reminder safely if SMTP is configured
+            if (process.env.SMTP_USER && process.env.SMTP_PASS && file.email) {
+              try {
+                await transporter.sendMail({
+                  from: process.env.SMTP_FROM || 'support@happyinthehome.com',
+                  to: file.email,
+                  subject: `Action Required: Document Expired - Happy in the Home`,
+                  text: `Dear ${file.first_name || 'Team Member'},\n\n` +
+                    `This is a friendly reminder that your mandatory document '${file.original_name}' has expired.\n\n` +
+                    `Immediate renewal is required to maintain compliance. Please log in to your Staff Portal and upload the renewed document.\n\n` +
+                    `Regards,\n` +
+                    `Happy in the Home Support Team`
+                });
+                logger.info(`Expiry email notification sent to ${file.email} for file ${file.id}`);
+              } catch (mailErr) {
+                logger.error(`Failed to send expiry email to ${file.email}:`, mailErr);
+              }
+            }
           }
         } else if (diffDays <= 90) {
           // EXPIRING SOON
@@ -6241,6 +6351,25 @@ if (!nextShift || gapToNext > 60) {
           if (!exists) {
             insertNotif.run(file.uploaded_by, 'DOCUMENT_EXPIRING_SOON', title, msg, `/staff/onboarding`);
             logger.info(`Flagged EXPIRING_SOON for file ${file.id} (user ${file.uploaded_by})`);
+
+            // Send Email reminder safely if SMTP is configured
+            if (process.env.SMTP_USER && process.env.SMTP_PASS && file.email) {
+              try {
+                await transporter.sendMail({
+                  from: process.env.SMTP_FROM || 'support@happyinthehome.com',
+                  to: file.email,
+                  subject: `Compliance Alert: Document Expiring Soon - Happy in the Home`,
+                  text: `Dear ${file.first_name || 'Team Member'},\n\n` +
+                    `Your mandatory document '${file.original_name}' is expiring in ${diffDays} days.\n\n` +
+                    `Please ensure you renew and re-upload the document before it expires to remain compliant.\n\n` +
+                    `Regards,\n` +
+                    `Happy in the Home Support Team`
+                });
+                logger.info(`Expiring-soon email notification sent to ${file.email} for file ${file.id}`);
+              } catch (mailErr) {
+                logger.error(`Failed to send expiring-soon email to ${file.email}:`, mailErr);
+              }
+            }
           }
         }
       }
