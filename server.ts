@@ -5687,7 +5687,7 @@ if (!nextShift || gapToNext > 60) {
   // Evidence Pack Export
   app.get('/api/compliance/evidence/matrix', authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const { clientId, startDate, endDate } = req.query;
+      const { clientId, staffId, startDate, endDate } = req.query;
       
       let query = `
         SELECT s.*, 
@@ -5704,6 +5704,10 @@ if (!nextShift || gapToNext > 60) {
       if (clientId) {
         query += ` AND s.client_id = ?`;
         params.push(clientId);
+      }
+      if (staffId) {
+        query += ` AND s.staff_id = ?`;
+        params.push(staffId);
       }
       if (startDate) {
         query += ` AND (s.actual_start_time >= ? OR s.start_time >= ?)`;
@@ -5729,7 +5733,7 @@ if (!nextShift || gapToNext > 60) {
 
   app.get('/api/compliance/export/evidence', authenticateToken, requireAdmin, async (req: any, res: any) => {
     try {
-      const { clientId, startDate, endDate } = req.query;
+      const { clientId, staffId, startDate, endDate } = req.query;
       
       let query = `
         SELECT s.*, 
@@ -5746,6 +5750,10 @@ if (!nextShift || gapToNext > 60) {
       if (clientId) {
         query += ` AND s.client_id = ?`;
         params.push(clientId);
+      }
+      if (staffId) {
+        query += ` AND s.staff_id = ?`;
+        params.push(staffId);
       }
       if (startDate) {
         query += ` AND (s.actual_start_time >= ? OR s.start_time >= ?)`;
@@ -5770,6 +5778,7 @@ if (!nextShift || gapToNext > 60) {
       const evidenceSheet = workbook.addWorksheet('Evidence Dataset');
       evidenceSheet.columns = [
         { header: 'Client Name', key: 'clientName', width: 25 },
+        { header: 'Staff Name', key: 'staffName', width: 25 },
         { header: 'Service Date', key: 'serviceDate', width: 15 },
         { header: 'Shift Timestamps', key: 'shiftTimes', width: 30 },
         { header: 'Care Type', key: 'careType', width: 20 },
@@ -5781,7 +5790,7 @@ if (!nextShift || gapToNext > 60) {
       
       evidenceSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF001c3d' } };
       evidenceSheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
-      evidenceSheet.autoFilter = 'A1:H1';
+      evidenceSheet.autoFilter = 'A1:I1';
 
       // Summary Dashboard
       const summarySheet = workbook.addWorksheet('Summary Dashboard');
@@ -5835,6 +5844,7 @@ if (!nextShift || gapToNext > 60) {
          
          const row = evidenceSheet.addRow({
            clientName: `${s.client_first} ${s.client_last}`,
+           staffName: `${s.staff_first} ${s.staff_last}`,
            serviceDate: dateStr,
            shiftTimes: timeStr,
            careType: s.funding_type === 'HOME_CARE' ? 'Home Care' : 'NDIS Support',

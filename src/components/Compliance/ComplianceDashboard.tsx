@@ -43,6 +43,9 @@ export default function ComplianceDashboard() {
   const [selectedStaff, setSelectedStaff] = useState('');
   const [staffStartDate, setStaffStartDate] = useState('');
   const [staffEndDate, setStaffEndDate] = useState('');
+  const [staffMatrix, setStaffMatrix] = useState<any[]>([]);
+  const [loadingStaffMatrix, setLoadingStaffMatrix] = useState(false);
+  const [staffExportError, setStaffExportError] = useState<string | null>(null);
   const [isGeneratingLogbook, setIsGeneratingLogbook] = useState(false);
 
   // States for Mandatory Documents
@@ -63,6 +66,30 @@ export default function ComplianceDashboard() {
   useEffect(() => {
     fetchMatrix();
   }, [token, selectedClient, clientStartDate, clientEndDate]);
+
+  useEffect(() => {
+    fetchStaffMatrix();
+  }, [token, selectedStaff, staffStartDate, staffEndDate]);
+
+  const fetchStaffMatrix = async () => {
+    setLoadingStaffMatrix(true);
+    try {
+      const q = new URLSearchParams();
+      if (selectedStaff) q.append('staffId', selectedStaff);
+      if (staffStartDate) q.append('startDate', staffStartDate);
+      if (staffEndDate) q.append('endDate', staffEndDate);
+      const res = await fetch(`/api/compliance/evidence/matrix?${q.toString()}`, { // We can reuse the same endpoint if we add staffId filtering!
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setStaffMatrix(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingStaffMatrix(false);
+    }
+  };
 
   const fetchMatrix = async () => {
     setLoadingMatrix(true);
@@ -211,26 +238,42 @@ export default function ComplianceDashboard() {
     }
   };
 
-  const downloadStaffLogbook = async () => {
-    if (!selectedStaff || !staffStartDate || !staffEndDate) return;
+  const downloadStaffLedger = async () => {
     setIsGeneratingLogbook(true);
+    setStaffExportError(null);
     try {
-      const res = await fetch(`/api/compliance/staff-logbook?staffId=${selectedStaff}&startDate=${staffStartDate}&endDate=${staffEndDate}`, {
+      const q = new URLSearchParams();
+      if (selectedStaff) q.append('staffId', selectedStaff);
+      if (staffStartDate) q.append('startDate', staffStartDate);
+      if (staffEndDate) q.append('endDate', staffEndDate);
+      const res = await fetch(`/api/compliance/export/evidence?${q.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error('Failed to generate staff logbook');
+      if (!res.ok) throw new Error('Failed to generate staff evidence ledger. Make sure there is data matching your criteria.');
       
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const formatYMDtoDMY = (ymd: string) => ymd ? ymd.split('-').reverse().join('-') : '';
-      a.download = `Staff_Logbook_${selectedStaff}_${formatYMDtoDMY(staffStartDate)}_to_${formatYMDtoDMY(staffEndDate)}.pdf`;
+      
+      let filename = 'Staff_Evidence_Ledger';
+      if (selectedStaff || staffStartDate || staffEndDate) {
+        let namePart = 'Global';
+        if (selectedStaff) {
+          const s = staffList.find((staff) => staff.id === selectedStaff);
+          if (s) namePart = `${s.first_name || s.firstName}_${s.last_name || s.lastName}`.replace(/\s+/g, '');
+        }
+        const datePart = [staffStartDate, staffEndDate].filter(Boolean).join('_to_');
+        filename = `${filename}_${namePart}${datePart ? `_${datePart}` : ''}`;
+      }
+      
+      a.download = `${filename}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
-    } catch (error) {
-      alert("Error generating staff logbook. " + error);
+    } catch (error: any) {
+      setStaffExportError(error?.message || "An unknown error occurred while exporting.");
+      setTimeout(() => setStaffExportError(null), 5000);
     } finally {
       setIsGeneratingLogbook(false);
     }
@@ -410,21 +453,43 @@ export default function ComplianceDashboard() {
       )}
 
       {activeTab === 'staff' && (
-         <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-visible p-4 md:p-6">
-           <h3 className="text-lg font-medium text-[#E6EDF3] flex items-center mb-2"><FileText className="w-5 h-5 mr-2 text-brand-green" /> Generate Staff Logbook (Workforce Compliance)</h3>
-           <p className="text-sm text-[#8B949E] mb-6 max-w-4xl">
-             Produces an Hours Worked Report and a Vehicle Usage Statement showing precise times, shift statuses, and claimed distance cross-referenced against the immutable audit trail.
-           </p>
+         <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-visible flex flex-col items-stretch">
+           <div className="p-4 md:p-6 border-b border-border-subtle flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative">
+             <div>
+               <h3 className="text-lg font-medium text-[#E6EDF3] flex items-center mb-1"><FileText className="w-5 h-5 mr-2 text-brand-green" /> Staff Logbook (Workforce Compliance)</h3>
+               <p className="text-sm text-[#8B949E] max-w-3xl">
+                 Produces an Hours Worked Report and a Vehicle Usage Statement showing precise times, shift statuses, and claimed distance cross-referenced against the immutable audit trail.
+               </p>
+               {staffExportError && (
+                 <div className="mt-3 text-sm text-red-400 bg-red-400/10 border border-red-400/20 px-3 py-2 rounded-md font-medium">
+                   {staffExportError}
+                 </div>
+               )}
+             </div>
+             
+             <button
+               onClick={downloadStaffLedger}
+               disabled={isGeneratingLogbook || loadingStaffMatrix}
+               className="shrink-0 flex items-center px-4 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green disabled:opacity-50 text-white rounded-md font-medium text-sm shadow-sm transition-all"
+             >
+               {isGeneratingLogbook ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"/> 
+               ) : (
+                  <Download className="w-4 h-4 mr-2" /> 
+               )}
+               {isGeneratingLogbook ? 'Exporting...' : 'Download Staff Logbook (Excel)'}
+             </button>
+           </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="space-y-1.5">
+           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 md:p-6 border-b border-border-subtle bg-brand-bg/50">
+              <div className="space-y-1.5 md:col-span-2">
                  <label className="text-sm font-medium text-[#8B949E]">Select Staff</label>
                  <select 
                    value={selectedStaff} 
                    onChange={e => setSelectedStaff(e.target.value)}
                    className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal transition-colors"
                  >
-                   <option value="">-- Choose Staff --</option>
+                   <option value="">All Staff (Global Ledger)</option>
                    {staffList.filter(s => s.role === 'STAFF').map(s => (
                      <option key={s.id} value={s.id}>{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
                    ))}
@@ -450,20 +515,80 @@ export default function ComplianceDashboard() {
               </div>
            </div>
 
-           <button
-             onClick={downloadStaffLogbook}
-             disabled={!selectedStaff || !staffStartDate || !staffEndDate || isGeneratingLogbook}
-             className="flex items-center px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green disabled:opacity-50 text-white rounded-md font-medium text-sm shadow-sm transition-all"
-           >
-             {isGeneratingLogbook ? (
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"/> 
+           <div className="overflow-x-auto">
+             {loadingStaffMatrix ? (
+                 <div className="flex flex-col items-center justify-center p-12 text-center py-20">
+                   <span className="w-8 h-8 border-4 border-brand-teal/30 border-t-brand-teal rounded-full animate-spin mb-4" />
+                   <p className="text-[#8B949E] text-sm">Loading logbook...</p>
+                 </div>
              ) : (
-                <Download className="w-4 h-4 mr-2" /> 
+                 <table className="w-full text-left text-sm border-collapse">
+                   <thead className="text-xs text-[#E6EDF3] uppercase tracking-wider bg-zinc-800 border-b border-border-subtle font-bold">
+                     <tr>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Staff Name</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Service Date</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Shift Timestamps</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Client</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Logged Hrs</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Progress Note Status</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Transport KM</th>
+                       <th className="px-4 py-3 whitespace-nowrap">Travel Cost</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
+                     {staffMatrix.length === 0 ? (
+                       <tr>
+                         <td colSpan={8} className="px-4 py-8 text-center text-[#8B949E]">No staff records available.</td>
+                       </tr>
+                     ) : (
+                       staffMatrix.map((row, idx) => {
+                         const startString = (row.actual_start_time || row.start_time || '').split('T')[1]?.substring(0, 5) || 'N/A';
+                         const endString = (row.actual_finish_time || row.end_time || '').split('T')[1]?.substring(0, 5) || 'N/A';
+                         
+                         let hrs = 0;
+                         if (row.actual_start_time && row.actual_finish_time) {
+                           hrs = (new Date(row.actual_finish_time).getTime() - new Date(row.actual_start_time).getTime()) / 3600000;
+                         } else if (row.start_time && row.end_time) {
+                           hrs = (new Date(row.end_time).getTime() - new Date(row.start_time).getTime()) / 3600000;
+                         }
+
+                         const km = (row.provider_travel_km || 0) + (row.home_care_travel_km || 0) + (row.abt_km || 0);
+
+                         let noteBadgeCls = 'bg-slate-500/10 border-slate-500/20 text-slate-400';
+                         let noteStatusStr = 'Missing';
+
+                         if (row.notes) {
+                           noteBadgeCls = 'bg-brand-green/10 border-brand-green/20 text-brand-green';
+                           noteStatusStr = 'Completed';
+                         } else if (Math.abs(new Date().getTime() - new Date(row.end_time).getTime()) < 48 * 3600000) {
+                             noteBadgeCls = 'bg-amber-500/10 border-amber-500/20 text-amber-400';
+                             noteStatusStr = 'Pending Sync';
+                         }
+                         
+                         return (
+                           <tr key={row.id} className={idx % 2 === 0 ? 'bg-[#0E0E10]/40 hover:bg-brand-bg' : 'bg-brand-navy hover:bg-brand-bg transition-colors'}>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 font-medium whitespace-nowrap">{row.staff_first} {row.staff_last}</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap text-[#8B949E]">{row.start_time ? row.start_time.split('T')[0] : 'N/A'}</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{startString} - {endString}</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap">{row.client_first} {row.client_last}</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{Math.max(0, hrs).toFixed(2)}h</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap">
+                               <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold border ${noteBadgeCls}`}>
+                                  {noteStatusStr}
+                               </span>
+                             </td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{km} km</td>
+                             <td className="px-4 py-2 whitespace-nowrap font-mono text-xs text-emerald-400 tracking-tight">${km.toFixed(2)}</td>
+                           </tr>
+                         );
+                       })
+                     )}
+                   </tbody>
+                 </table>
              )}
-             {isGeneratingLogbook ? 'Generating Logbook...' : 'Download Staff Logbook (PDF)'}
-           </button>
-        </div>
-      )}
+           </div>
+         </div>
+       )}
 
       {activeTab === 'mandatory_documents' && (
         <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-hidden p-0">
