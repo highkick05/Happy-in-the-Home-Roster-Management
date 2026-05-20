@@ -187,7 +187,19 @@ export default function ComplianceDashboard() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Compliance_Evidence_Ledger.xlsx`;
+      
+      let filename = 'Compliance_Evidence_Ledger';
+      if (selectedClient || clientStartDate || clientEndDate) {
+        let namePart = 'Global';
+        if (selectedClient) {
+          const c = clients.find((client) => client.id === selectedClient);
+          if (c) namePart = `${c.first_name || c.firstName}_${c.last_name || c.lastName}`.replace(/\s+/g, '');
+        }
+        const datePart = [clientStartDate, clientEndDate].filter(Boolean).join('_to_');
+        filename = `${filename}_${namePart}${datePart ? `_${datePart}` : ''}`;
+      }
+      
+      a.download = `${filename}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();

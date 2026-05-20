@@ -5766,6 +5766,23 @@ if (!nextShift || gapToNext > 60) {
       const Workbook = exceljsModule.default ? exceljsModule.default.Workbook : (exceljsModule as any).Workbook;
       const workbook = new Workbook();
       
+      // Evidence Dataset
+      const evidenceSheet = workbook.addWorksheet('Evidence Dataset');
+      evidenceSheet.columns = [
+        { header: 'Client Name', key: 'clientName', width: 25 },
+        { header: 'Service Date', key: 'serviceDate', width: 15 },
+        { header: 'Shift Timestamps', key: 'shiftTimes', width: 30 },
+        { header: 'Care Type', key: 'careType', width: 20 },
+        { header: 'Logged Care Hours', key: 'careHours', width: 20 },
+        { header: 'Progress Note Status', key: 'noteStatus', width: 25 },
+        { header: 'Total Transport Kilometers', key: 'totalKm', width: 30 },
+        { header: 'Calculated Travel Cost', key: 'travelCost', width: 25 }
+      ];
+      
+      evidenceSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF001c3d' } };
+      evidenceSheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      evidenceSheet.autoFilter = 'A1:H1';
+
       // Summary Dashboard
       const summarySheet = workbook.addWorksheet('Summary Dashboard');
       summarySheet.columns = [
@@ -5797,23 +5814,7 @@ if (!nextShift || gapToNext > 60) {
       
       summarySheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF000080' } };
       summarySheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
-      
-      // Evidence Dataset
-      const evidenceSheet = workbook.addWorksheet('Evidence Dataset');
-      evidenceSheet.columns = [
-        { header: 'Client Name', key: 'clientName', width: 25 },
-        { header: 'Service Date', key: 'serviceDate', width: 15 },
-        { header: 'Shift Timestamps', key: 'shiftTimes', width: 30 },
-        { header: 'Care Type', key: 'careType', width: 20 },
-        { header: 'Logged Care Hours', key: 'careHours', width: 20 },
-        { header: 'Progress Note Status', key: 'noteStatus', width: 25 },
-        { header: 'Total Transport Kilometers', key: 'totalKm', width: 30 },
-        { header: 'Calculated Travel Cost', key: 'travelCost', width: 25 }
-      ];
-      
-      evidenceSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF001c3d' } };
-      evidenceSheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
-      evidenceSheet.autoFilter = 'A1:H1';
+
       
       for(let i=0; i<shifts.length; i++) {
          const s = shifts[i];
