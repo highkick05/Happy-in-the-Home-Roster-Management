@@ -5730,7 +5730,6 @@ if (!nextShift || gapToNext > 60) {
   app.get('/api/compliance/export/evidence', authenticateToken, requireAdmin, async (req: any, res: any) => {
     try {
       const { clientId, startDate, endDate } = req.query;
-      const exceljs = await import('exceljs');
       
       let query = `
         SELECT s.*, 
@@ -5763,7 +5762,9 @@ if (!nextShift || gapToNext > 60) {
       
       const shifts = db.prepare(query).all(...params) as any[];
       
-      const workbook = new exceljs.Workbook();
+      const exceljsModule = await import('exceljs');
+      const Workbook = exceljsModule.default ? exceljsModule.default.Workbook : (exceljsModule as any).Workbook;
+      const workbook = new Workbook();
       
       // Summary Dashboard
       const summarySheet = workbook.addWorksheet('Summary Dashboard');

@@ -36,6 +36,7 @@ export default function ComplianceDashboard() {
   const [evidenceMatrix, setEvidenceMatrix] = useState<any[]>([]);
   const [loadingMatrix, setLoadingMatrix] = useState(false);
   const [isGeneratingEvidence, setIsGeneratingEvidence] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // States for Staff Logbook
   const [staffList, setStaffList] = useState<any[]>([]);
@@ -171,6 +172,7 @@ export default function ComplianceDashboard() {
 
   const downloadEvidencePack = async () => {
     setIsGeneratingEvidence(true);
+    setExportError(null);
     try {
       const q = new URLSearchParams();
       if (selectedClient) q.append('clientId', selectedClient);
@@ -179,7 +181,7 @@ export default function ComplianceDashboard() {
       const res = await fetch(`/api/compliance/export/evidence?${q.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error('Failed to generate evidence pack');
+      if (!res.ok) throw new Error('Failed to generate evidence pack. Make sure there is data matching your criteria.');
       
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -189,8 +191,9 @@ export default function ComplianceDashboard() {
       document.body.appendChild(a);
       a.click();
       a.remove();
-    } catch (error) {
-      alert("Error generating evidence pack. " + error);
+    } catch (error: any) {
+      setExportError(error?.message || "An unknown error occurred while exporting.");
+      setTimeout(() => setExportError(null), 5000);
     } finally {
       setIsGeneratingEvidence(false);
     }
@@ -253,12 +256,17 @@ export default function ComplianceDashboard() {
 
       {activeTab === 'evidence' && (
         <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-visible flex flex-col items-stretch">
-           <div className="p-4 md:p-6 border-b border-border-subtle flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+           <div className="p-4 md:p-6 border-b border-border-subtle flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative">
              <div>
                <h3 className="text-lg font-medium text-[#E6EDF3] flex items-center mb-1"><FileCheck className="w-5 h-5 mr-2 text-brand-teal" /> Global Evidence Ledger</h3>
                <p className="text-sm text-[#8B949E] max-w-3xl">
                  Comprehensive log of all completed shifts, compliance statuses, and un-redacted tracking data for NDIA or Home Care auditors.
                </p>
+               {exportError && (
+                 <div className="mt-3 text-sm text-red-400 bg-red-400/10 border border-red-400/20 px-3 py-2 rounded-md font-medium">
+                   {exportError}
+                 </div>
+               )}
              </div>
              
              <button
