@@ -5450,11 +5450,42 @@ if (!nextShift || gapToNext > 60) {
     try {
       const stmt = db.prepare('INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path, date_issued, date_expires) VALUES (?, ?, ?, ?, ?, ?, ?)');
       const info = stmt.run(req.file.originalname, req.file.filename, req.file.size, req.user.id, folderPath, dateIssued, dateExpires);
+      
+      // Clear notifications immediately upon successful document renewal/upload
+      db.prepare(`DELETE FROM notifications WHERE user_id = ? AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON')`).run(req.user.id);
+      
       res.json({ success: true, id: info.lastInsertRowid, date_issued: dateIssued, date_expires: dateExpires });
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
       logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.put('/api/files/:id', authenticateToken, (req: any, res: any) => {
+    const { id } = req.params;
+    const { date_issued, date_expires } = req.body;
+    try {
+      const file = db.prepare('SELECT id, uploaded_by FROM files WHERE id = ?').get(id) as any;
+      if (!file) return res.status(404).json({ error: 'File not found' });
+      
+      if (req.user.role !== 'ADMIN' && file.uploaded_by !== req.user.id) {
+         return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      db.prepare('UPDATE files SET date_issued = ?, date_expires = ? WHERE id = ?').run(
+        date_issued || null, 
+        date_expires || null, 
+        id
+      );
+
+      // Clear notifications for this doc if it was updated
+      db.prepare(`DELETE FROM notifications WHERE user_id = ? AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON')`).run(file.uploaded_by);
+
+      res.json({ success: true });
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -6160,6 +6191,49 @@ if (!nextShift || gapToNext > 60) {
   if (!fs.existsSync(BACKUP_DIR)) {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
   }
+
+  // Daily compliance document expiry check
+  cron.schedule('0 1 * * *', async () => {
+    try {
+      logger.info('Running daily compliance document expiry check...');
+      
+      // Step 1: Evaluate all active date_expires records. We assume valid documents have date_expires.
+      // We will look for files belonging to staff members and verify if they are expiring soon or expired.
+      // To prevent flooding, we can check if a notification already exists for this file_id/type.
+      const expiringFiles = db.prepare(`SELECT id, uploaded_by, original_name, date_expires FROM files WHERE date_expires IS NOT NULL`).all() as any[];
+      const today = new Date();
+      const insertNotif = db.prepare('INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)');
+      const checkNotif = db.prepare('SELECT id FROM notifications WHERE user_id = ? AND type = ? AND title LIKE ? AND is_read = 0');
+      
+      for (const file of expiringFiles) {
+        const expDate = new Date(file.date_expires);
+        const diffTime = expDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays <= 0) {
+          // EXPIRED
+          const title = `Document Expired`;
+          const msg = `Your mandatory document '${file.original_name}' has expired. Immediate action required.`;
+          const exists = checkNotif.get(file.uploaded_by, 'DOCUMENT_EXPIRED', `%${file.original_name}%`);
+          if (!exists) {
+            insertNotif.run(file.uploaded_by, 'DOCUMENT_EXPIRED', title, msg, `/staff/onboarding`);
+            logger.info(`Flagged EXPIRED for file ${file.id} (user ${file.uploaded_by})`);
+          }
+        } else if (diffDays <= 90) {
+          // EXPIRING SOON
+          const title = `Document Expiring Soon`;
+          const msg = `Your mandatory document '${file.original_name}' expires in ${diffDays} days. Please renew it soon.`;
+          const exists = checkNotif.get(file.uploaded_by, 'DOCUMENT_EXPIRING_SOON', `%${file.original_name}%`);
+          if (!exists) {
+            insertNotif.run(file.uploaded_by, 'DOCUMENT_EXPIRING_SOON', title, msg, `/staff/onboarding`);
+            logger.info(`Flagged EXPIRING_SOON for file ${file.id} (user ${file.uploaded_by})`);
+          }
+        }
+      }
+    } catch (e) {
+      logger.error('Error during compliance cron check:', e);
+    }
+  });
 
   // automated nightly backups
   cron.schedule('0 2 * * *', async () => {

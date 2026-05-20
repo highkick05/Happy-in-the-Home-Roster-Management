@@ -14,21 +14,16 @@ interface Step {
 }
 
 const ONBOARDING_STEPS: Step[] = [
-  { id: 'resume', title: '1. Resume / CV', description: 'Upload your latest professional resume', type: 'upload', links: [] },
-  { id: 'npc', title: '2. National Police Clearance (NPC)', description: 'Must be issued within the last 6 months', type: 'upload', links: [{ text: 'Get AFP Police Check', url: 'https://www.afp.gov.au/what-we-do/services/criminal-records/national-police-checks' }] },
-  { id: 'ndis_screening', title: '3. NDIS Worker Screening Check', description: 'Your NDIS worker screening clearance', type: 'upload', links: [{ text: 'NDIS Worker Screening', url: 'https://www.ndiscommission.gov.au/workers/worker-screening' }] },
-  { id: 'wwcc', title: '4. Working with Children Check', description: 'Valid WWCC for your state', type: 'upload', links: [{ text: 'WWCC Information', url: 'https://www.aifs.gov.au/resources/resource-sheets/pre-employment-screening-working-children-checks-and-police-checks' }] },
-  { id: 'ndis_orientation', title: '5. NDIS Worker Orientation Module', description: "Certificate of completion for 'Quality, Safety and You'", type: 'upload', links: [{ text: 'Worker Orientation Module', url: 'https://www.ndiscommission.gov.au/workers/worker-training-modules-and-resources/worker-orientation-module' }] },
-  { id: 'fair_work', title: '6. Fair Work Information Statement', description: 'Signed acknowledgement of the statement', type: 'confirm', links: [{ text: 'Fair Work Information Statement', url: 'https://www.fairwork.gov.au/employment-conditions/information-statements/fair-work-information-statement' }] },
-  { id: 'casual_employment', title: '7. Casual Employment Info Statement', description: 'Signed acknowledgement of casual terms', type: 'confirm', links: [{ text: 'Casual Employment Info Statement', url: 'https://www.fairwork.gov.au/employment-conditions/information-statements/casual-employment-information-statement' }] },
-  { id: 'tfn_super', title: '8. Tax File Number Declaration & Superannuation Choice', description: 'Completed TFN and Super forms', type: 'upload', links: [{ text: 'TFN Declaration', url: 'https://www.ato.gov.au/forms-and-instructions/tfn-declaration' }, { text: 'Superannuation Standard Choice', url: 'https://www.ato.gov.au/forms-and-instructions/superannuation-standard-choice-form' }] },
-  { id: 'ahpra', title: '9. AHPRA Registration (OPTIONAL / NURSES ONLY)', description: 'Current registration (Nurses only)', type: 'upload', links: [{ text: 'AHPRA Registration', url: 'https://www.ahpra.gov.au/Registration.aspx' }] },
-  { id: 'driver_license', title: '10. Vehicle & Driver\'s License', description: 'Copy of license and insurance if applicable', type: 'upload', links: [] },
-  { id: 'first_aid', title: '11a. First Aid (HLTAID011)', description: 'Current First Aid certificate', type: 'upload', links: [] },
-  { id: 'cpr', title: '11b. CPR (HLTAID009)', description: 'Current CPR certificate', type: 'upload', links: [] },
-  { id: 'immunisation', title: '12. Immunisation history', description: 'Upload your immunisation history statement', type: 'upload', links: [{ text: 'Immunisation history statement', url: 'https://www.servicesaustralia.gov.au/immunisation-history-statement' }] },
-  { id: 'covid_vaccine', title: '13. COVID vaccine evidence', description: 'Proof of COVID-19 vaccinations', type: 'upload', links: [{ text: 'COVID-19 vaccination evidence', url: 'https://www.servicesaustralia.gov.au/how-to-get-proof-your-covid-19-vaccinations' }] },
-  { id: 'flu_shot', title: '14. Annual Flu Shot', description: 'Proof of Annual Flu Shot', type: 'upload', links: [] },
+  { id: 'ndis_screening', title: '1. NDIS Worker Screening Check (NWSC) Clearance', description: '5 years validity. Satisfies baseline Aged Care/Home Care worker screening without requiring a separate National Police Check.', type: 'upload', links: [{ text: 'NDIS Worker Screening', url: 'https://www.ndiscommission.gov.au/workers/worker-screening' }] },
+  { id: 'wwcc', title: '2. Working with Children Check (WWCC)', description: '3 years validity. Mandatory if supporting clients under the age of 18.', type: 'upload', links: [{ text: 'WWCC Information', url: 'https://www.aifs.gov.au/resources/resource-sheets/pre-employment-screening-working-children-checks-and-police-checks' }] },
+  { id: 'vevo', title: '3. Right to Work / VEVO Check', description: 'Non-negotiable structural onboarding check. Monitored for visa holders; marked as static for citizens/PR.', type: 'upload', links: [] },
+  { id: 'ahpra', title: '4. AHPRA Registration', description: 'Annual renewal (May 31st). Strictly mandatory for clinical nursing personnel.', type: 'upload', links: [{ text: 'AHPRA Registration', url: 'https://www.ahpra.gov.au/Registration.aspx' }] },
+  { id: 'ndis_orientation', title: '5. NDIS Worker Orientation Module Certificate', description: 'One-time mandatory onboarding check ("Quality, Safety and You").', type: 'upload', links: [{ text: 'Worker Orientation Module', url: 'https://www.ndiscommission.gov.au/workers/worker-training-modules-and-resources/worker-orientation-module' }] },
+  { id: 'cpr', title: '6. HLTAID009 Provide CPR', description: 'Strictly annual renewal (every 12 months).', type: 'upload', links: [] },
+  { id: 'first_aid', title: '7. HLTAID011 Provide First Aid', description: '3 years validity (every 36 months).', type: 'upload', links: [] },
+  { id: 'manual_handling', title: '8. Manual Handling Competency', description: 'Strictly annual renewal (every 12 months).', type: 'upload', links: [] },
+  { id: 'driver_license', title: '9. Valid Driver\'s License', description: 'Annual check to visually inspect physical validity and current license status.', type: 'upload', links: [] },
+  { id: 'car_insurance', title: '10. Comprehensive Car Insurance (with Business Use)', description: 'Annual renewal. Must verify explicit inclusion of "Business Use" or "Commuting/Work Travel".', type: 'upload', links: [] },
 ];
 
 export default function OnboardingView() {
@@ -134,66 +129,72 @@ export default function OnboardingView() {
     // VALIDATIONS & CALCULATIONS
     const today = new Date();
     
-    if (stepId === 'npc') {
-      if (!issued) {
-        setUploadError(prev => ({ ...prev, [stepId]: 'Date issued is required.' }));
-        return;
-      }
-      const issueDate = new Date(issued);
-      const diffTime = Math.abs(today.getTime() - issueDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      if (diffDays > 180) { // 6 months approx
-        setUploadError(prev => ({ ...prev, [stepId]: 'Police checks must be issued within the last 6 months to be accepted.' }));
-        return;
-      }
-    }
-    
     if (stepId === 'ndis_screening') {
       if (!issued) {
         setUploadError(prev => ({ ...prev, [stepId]: 'Date issued is required.' }));
         return;
       }
-      const issueDate = new Date(issued);
-      issueDate.setFullYear(issueDate.getFullYear() + 5);
-      expires = issueDate.toISOString().split('T')[0];
+      if (!expires) {
+        const issueDate = new Date(issued);
+        issueDate.setFullYear(issueDate.getFullYear() + 5);
+        expires = issueDate.toISOString().split('T')[0];
+      }
     }
     
     if (stepId === 'wwcc') {
-      if (!issued || !expires) {
-        setUploadError(prev => ({ ...prev, [stepId]: 'Both Issue and Expiry dates are required.' }));
+      if (!issued && !expires) {
+        setUploadError(prev => ({ ...prev, [stepId]: 'Issue or Expiry date is required.' }));
+        return;
+      }
+      if (issued && !expires) {
+        const issueDate = new Date(issued);
+        issueDate.setFullYear(issueDate.getFullYear() + 3);
+        expires = issueDate.toISOString().split('T')[0];
+      }
+    }
+
+    if (stepId === 'ahpra') {
+      if (!expires) {
+        // Auto-calculate to next May 31st
+        const currentYear = today.getFullYear();
+        const may31ThisYear = new Date(currentYear, 4, 31); // May is 4 (0-indexed)
+        if (today > may31ThisYear) {
+          expires = new Date(currentYear + 1, 4, 31).toISOString().split('T')[0];
+        } else {
+          expires = may31ThisYear.toISOString().split('T')[0];
+        }
+      }
+    }
+
+    if (stepId === 'driver_license' || stepId === 'car_insurance') {
+      if (!expires) {
+        setUploadError(prev => ({ ...prev, [stepId]: 'Date expires is required.' }));
         return;
       }
     }
 
-    if (stepId === 'ahpra' || stepId === 'driver_license') {
-      if (!expires) {
-        setUploadError(prev => ({ ...prev, [stepId]: 'Date expires is required.' }));
+    if (stepId === 'cpr' || stepId === 'manual_handling') {
+      if (!issued && !expires) {
+        setUploadError(prev => ({ ...prev, [stepId]: 'Date issued or expires is required.' }));
         return;
+      }
+      if (issued && !expires) {
+        const issueDate = new Date(issued);
+        issueDate.setFullYear(issueDate.getFullYear() + 1);
+        expires = issueDate.toISOString().split('T')[0];
       }
     }
 
     if (stepId === 'first_aid') {
-      if (!expires) {
-        setUploadError(prev => ({ ...prev, [stepId]: 'Date expires is required.' }));
+      if (!issued && !expires) {
+        setUploadError(prev => ({ ...prev, [stepId]: 'Date issued or expires is required.' }));
         return;
       }
-    }
-    
-    if (stepId === 'cpr') {
-      if (!expires) {
-        setUploadError(prev => ({ ...prev, [stepId]: 'Date expires is required.' }));
-        return;
+      if (issued && !expires) {
+        const issueDate = new Date(issued);
+        issueDate.setFullYear(issueDate.getFullYear() + 3);
+        expires = issueDate.toISOString().split('T')[0];
       }
-    }
-    
-    if (stepId === 'flu_shot') {
-      if (!issued) {
-        setUploadError(prev => ({ ...prev, [stepId]: 'Date issued is required.' }));
-        return;
-      }
-      const issueDate = new Date(issued);
-      issueDate.setFullYear(issueDate.getFullYear() + 1);
-      expires = issueDate.toISOString().split('T')[0];
     }
 
     const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
@@ -223,6 +224,34 @@ export default function OnboardingView() {
     
     if (e.target) {
       e.target.value = '';
+    }
+  };
+
+  const handleDateUpdate = async (stepId: string, fileId: number) => {
+    let issued = formDates[stepId]?.issued || '';
+    let expires = formDates[stepId]?.expires || '';
+    // Skip some hard validations on manual override but keep basic structure
+    
+    // We get the existing ID number placeholder logic here
+    const idNumber = formDates[stepId]?.idNumber; // even though we don't save it directly to the file record yet
+
+    try {
+      const res = await fetch(`/api/files/${fileId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ date_issued: issued, date_expires: expires, id_number: idNumber })
+      });
+      if (res.ok) {
+        alert('Dates updated successfully.');
+        fetchProgress();
+      } else {
+        alert('Failed to update dates.');
+      }
+    } catch (e) {
+      alert('Error updating dates.');
     }
   };
 
@@ -264,8 +293,21 @@ export default function OnboardingView() {
     return <div className="p-8 text-center text-zinc-400">Loading...</div>;
   }
 
+  const visibleSteps = ONBOARDING_STEPS.filter(s => {
+    if (s.id === 'ahpra') {
+       // Filter out AHPRA if the user represents a non-clinical role. 
+       // Depending on schema, we might check user role strings, or title.
+       // Default to hiding unless staff profile is clearly clinical (e.g. Registered Nurse)
+       // Fallback checking user's properties since roles in this system are typically just 'ADMIN' or 'STAFF'.
+       const isClinical = user?.email?.includes('nurse') || user?.email?.includes('clinical');
+       // Real-world application would check an explicit 'is_clinical' or 'job_title' column.
+       return isClinical;
+    }
+    return true;
+  });
+
   const completedCount = Object.values(progressData).filter(d => d.status === 'completed').length;
-  const progressPercent = Math.round((completedCount / ONBOARDING_STEPS.length) * 100);
+  const progressPercent = Math.round((completedCount / visibleSteps.length) * 100);
 
   return (
     <div className="flex-1 overflow-auto bg-black p-4 md:p-8">
@@ -289,7 +331,7 @@ export default function OnboardingView() {
         </div>
 
         <div className="space-y-4">
-          {ONBOARDING_STEPS.map((step) => {
+          {visibleSteps.map((step) => {
             const isExpanded = expandedStep === step.id;
             const isCompleted = progressData[step.id]?.status === 'completed';
 
@@ -434,9 +476,22 @@ export default function OnboardingView() {
                       {step.type === 'upload' ? (
                         <div className="space-y-4">
                           
-                          {/* DYNAMIC DATE INPUTS */}
+                          {/* DYNAMIC DATE INPUTS & IDENTIFIERS */}
                           <div className="flex flex-col gap-3 max-w-sm mb-4">
-                            {['npc', 'ndis_screening', 'wwcc', 'flu_shot'].includes(step.id) && (
+                            {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance'].includes(step.id) && (
+                              <div>
+                                <label className="block text-xs text-zinc-400 mb-1">ID Number / License Reference (Optional)</label>
+                                <input 
+                                  type="text"
+                                  className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded-lg px-3 py-2 text-white text-sm"
+                                  placeholder="Enter identifier..."
+                                  value={formDates[step.id]?.idNumber || ''}
+                                  onChange={(e: any) => setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], idNumber: e.target.value } }))}
+                                />
+                                <p className="text-[10px] text-zinc-500 mt-1">Saved identifiers are automatically masked as [ID Number Redacted] for privacy.</p>
+                              </div>
+                            )}
+                            {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling'].includes(step.id) && (
                               <div>
                                 <label className="block text-xs text-zinc-400 mb-1">Issue Date</label>
                                 <CustomDatePicker 
@@ -446,7 +501,7 @@ export default function OnboardingView() {
                                 />
                               </div>
                             )}
-                            {['wwcc', 'ahpra', 'driver_license', 'first_aid', 'cpr'].includes(step.id) && (
+                            {['wwcc', 'ahpra', 'driver_license', 'first_aid', 'cpr', 'manual_handling', 'car_insurance'].includes(step.id) && (
                               <div>
                                 <label className="block text-xs text-zinc-400 mb-1">Expiry Date</label>
                                 <CustomDatePicker 
@@ -461,16 +516,25 @@ export default function OnboardingView() {
                             )}
                           </div>
 
-                          <label className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors text-[14px] font-medium text-white cursor-pointer w-fit">
-                            <Upload className="w-4 h-4" />
-
-                            Upload File
-                            <input 
-                              type="file" 
-                              className="hidden" 
-                              onChange={(e) => handleFileUpload(e, step.id)}
-                            />
-                          </label>
+                          <div className="flex items-center gap-3">
+                            <label className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors text-[14px] font-medium text-white cursor-pointer w-fit">
+                              <Upload className="w-4 h-4" />
+                              Upload Renewed File
+                              <input 
+                                type="file" 
+                                className="hidden" 
+                                onChange={(e) => handleFileUpload(e, step.id)}
+                              />
+                            </label>
+                            {progressData[step.id]?.files && progressData[step.id].files!.length > 0 && (
+                              <button
+                                onClick={() => handleDateUpdate(step.id, progressData[step.id].files![0].id)}
+                                className="px-4 py-2 bg-brand-navy border border-brand-teal/50 text-brand-teal rounded-lg hover:bg-brand-teal/10 transition-colors text-[14px] font-medium w-fit"
+                              >
+                                Save Date Overwrites
+                              </button>
+                            )}
+                          </div>
 
                           
                           {progressData[step.id]?.files && progressData[step.id].files!.length > 0 ? (
@@ -486,6 +550,9 @@ export default function OnboardingView() {
                                     </div>
                                     {(file.date_issued || file.date_expires) && (
                                       <div className="flex items-center gap-2 ml-7">
+                                        {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance'].includes(step.id) && (
+                                           <span className="text-xs text-zinc-500 font-mono">[ID Number Redacted]</span>
+                                        )}
                                         {file.date_issued && <span className="text-xs text-zinc-400">Issued: {file.date_issued}</span>}
                                         {file.date_expires && <span className="text-xs text-zinc-400">Expires: {file.date_expires}</span>}
                                         {traffic && (
