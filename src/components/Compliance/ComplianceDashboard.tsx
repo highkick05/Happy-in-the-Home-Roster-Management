@@ -532,13 +532,15 @@ export default function ComplianceDashboard() {
                        <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Logged Hrs</th>
                        <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Progress Note Status</th>
                        <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Transport KM</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Start Odometer</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">End Odometer</th>
                        <th className="px-4 py-3 whitespace-nowrap">Travel Cost</th>
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
                      {staffMatrix.length === 0 ? (
                        <tr>
-                         <td colSpan={8} className="px-4 py-8 text-center text-[#8B949E]">No staff records available.</td>
+                         <td colSpan={10} className="px-4 py-8 text-center text-[#8B949E]">No staff records available.</td>
                        </tr>
                      ) : (
                        staffMatrix.map((row, idx) => {
@@ -578,6 +580,12 @@ export default function ComplianceDashboard() {
                                </span>
                              </td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{km} km</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">
+                               {row.odometer_start_reading || ''} {row.odometer_start_photo ? '📸' : ''}
+                             </td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">
+                               {row.odometer_end_reading || ''} {row.odometer_end_photo ? '📸' : ''}
+                             </td>
                              <td className="px-4 py-2 whitespace-nowrap font-mono text-xs text-emerald-400 tracking-tight">${km.toFixed(2)}</td>
                            </tr>
                          );

@@ -5785,12 +5785,16 @@ if (!nextShift || gapToNext > 60) {
         { header: 'Logged Care Hours', key: 'careHours', width: 20 },
         { header: 'Progress Note Status', key: 'noteStatus', width: 25 },
         { header: 'Total Transport Kilometers', key: 'totalKm', width: 30 },
-        { header: 'Calculated Travel Cost', key: 'travelCost', width: 25 }
+        { header: 'Calculated Travel Cost', key: 'travelCost', width: 25 },
+        { header: 'Start Odometer', key: 'startOdo', width: 15 },
+        { header: 'Start Photo', key: 'startPhoto', width: 15 },
+        { header: 'End Odometer', key: 'endOdo', width: 15 },
+        { header: 'End Photo', key: 'endPhoto', width: 15 }
       ];
       
       evidenceSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF001c3d' } };
       evidenceSheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
-      evidenceSheet.autoFilter = 'A1:I1';
+      evidenceSheet.autoFilter = 'A1:M1';
 
       // Summary Dashboard
       const summarySheet = workbook.addWorksheet('Summary Dashboard');
@@ -5852,7 +5856,11 @@ if (!nextShift || gapToNext > 60) {
            noteStatus: s.notes ? 'Completed' : 'Pending',
            totalKm: km,
            // Explicitly set 0 so formatting applies, we'll override it with the formula below
-           travelCost: 0
+           travelCost: 0,
+           startOdo: s.odometer_start_reading || '',
+           startPhoto: '',
+           endOdo: s.odometer_end_reading || '',
+           endPhoto: ''
          });
          
          // Alternating row styling
@@ -5861,7 +5869,40 @@ if (!nextShift || gapToNext > 60) {
          // Currency formatting & Formula for cost
          const costCell = row.getCell('travelCost');
          costCell.numFmt = '"$"#,##0.00';
-         costCell.value = { formula: `G${row.number} * 1.0`, date1904: false };
+         costCell.value = { formula: `H${row.number} * 1.0`, date1904: false };
+
+         // Extract base64 photos and embed them
+         const embedPhoto = (base64Photo: string, colIndex: number) => {
+            if (base64Photo && base64Photo.startsWith('data:image/')) {
+               try {
+                 const matches = base64Photo.match(/^data:image\/(\w+);base64,(.+)$/);
+                 if (matches && matches.length === 3) {
+                   const ext = matches[1] === 'jpeg' ? 'jpeg' : 'png';
+                   const buffer = Buffer.from(matches[2], 'base64');
+                   const imageId = workbook.addImage({ buffer, extension: ext });
+                   
+                   row.height = 60; // Make row taller to fit image
+                   
+                   // Center in cell using custom dimensions
+                   evidenceSheet.addImage(imageId, {
+                     tl: { col: colIndex, row: row.number - 1 },
+                     ext: { width: 50, height: 50 }
+                   });
+                 }
+               } catch(e) {
+                 row.getCell(colIndex + 1).value = 'Error';
+               }
+            } else if (base64Photo) {
+               // If it's a URL or something else, we could just say "Yes"
+               row.getCell(colIndex + 1).value = 'Yes';
+            } else {
+               row.getCell(colIndex + 1).value = 'No';
+            }
+         };
+
+         // startPhoto is col K (index 10), endPhoto is col M (index 12)
+         embedPhoto(s.odometer_start_photo, 10);
+         embedPhoto(s.odometer_end_photo, 12);
       }
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
