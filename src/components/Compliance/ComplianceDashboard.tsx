@@ -29,6 +29,10 @@ export default function ComplianceDashboard() {
   
   // States for Evidence Pack (Clients)
   const [clients, setClients] = useState<any[]>([]);
+  const [selectedClient, setSelectedClient] = useState('');
+  const [clientStartDate, setClientStartDate] = useState('');
+  const [clientEndDate, setClientEndDate] = useState('');
+  
   const [evidenceMatrix, setEvidenceMatrix] = useState<any[]>([]);
   const [loadingMatrix, setLoadingMatrix] = useState(false);
   const [isGeneratingEvidence, setIsGeneratingEvidence] = useState(false);
@@ -53,13 +57,20 @@ export default function ComplianceDashboard() {
     fetchClients();
     fetchStaff();
     fetchLogs();
-    fetchMatrix();
   }, [token]);
+
+  useEffect(() => {
+    fetchMatrix();
+  }, [token, selectedClient, clientStartDate, clientEndDate]);
 
   const fetchMatrix = async () => {
     setLoadingMatrix(true);
     try {
-      const res = await fetch('/api/compliance/evidence/matrix', {
+      const q = new URLSearchParams();
+      if (selectedClient) q.append('clientId', selectedClient);
+      if (clientStartDate) q.append('startDate', clientStartDate);
+      if (clientEndDate) q.append('endDate', clientEndDate);
+      const res = await fetch(`/api/compliance/evidence/matrix?${q.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -161,7 +172,11 @@ export default function ComplianceDashboard() {
   const downloadEvidencePack = async () => {
     setIsGeneratingEvidence(true);
     try {
-      const res = await fetch(`/api/compliance/export/evidence`, {
+      const q = new URLSearchParams();
+      if (selectedClient) q.append('clientId', selectedClient);
+      if (clientStartDate) q.append('startDate', clientStartDate);
+      if (clientEndDate) q.append('endDate', clientEndDate);
+      const res = await fetch(`/api/compliance/export/evidence?${q.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to generate evidence pack');
@@ -258,6 +273,40 @@ export default function ComplianceDashboard() {
                )}
                {isGeneratingEvidence ? 'Exporting...' : 'Export Evidence Ledger (Excel)'}
              </button>
+           </div>
+
+           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 md:p-6 border-b border-border-subtle bg-brand-bg/50">
+              <div className="space-y-1.5 md:col-span-2">
+                 <label className="text-sm font-medium text-[#8B949E]">Filter by Client</label>
+                 <select 
+                   value={selectedClient} 
+                   onChange={e => setSelectedClient(e.target.value)}
+                   className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal transition-colors"
+                 >
+                   <option value="">All Clients (Global Ledger)</option>
+                   {clients.map(c => (
+                     <option key={c.id} value={c.id}>{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
+                   ))}
+                 </select>
+              </div>
+              <div className="space-y-1.5">
+                 <label className="text-sm font-medium text-[#8B949E]">Start Date</label>
+                 <CustomDatePicker 
+                    position="bottom"
+                   value={clientStartDate} 
+                   onChange={e => setClientStartDate(e.target.value)}
+                   className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal min-h-[42px] transition-colors" 
+                 />
+              </div>
+              <div className="space-y-1.5">
+                 <label className="text-sm font-medium text-[#8B949E]">End Date</label>
+                 <CustomDatePicker 
+                    position="bottom"
+                   value={clientEndDate} 
+                   onChange={e => setClientEndDate(e.target.value)}
+                   className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal min-h-[42px] transition-colors" 
+                 />
+              </div>
            </div>
 
            <div className="overflow-x-auto">

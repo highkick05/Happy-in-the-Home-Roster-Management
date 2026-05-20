@@ -5687,9 +5687,9 @@ if (!nextShift || gapToNext > 60) {
   // Evidence Pack Export
   app.get('/api/compliance/evidence/matrix', authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const db = (global as any).__db || require('better-sqlite3')('database.sqlite');
+      const { clientId, startDate, endDate } = req.query;
       
-      const shifts = db.prepare(`
+      let query = `
         SELECT s.*, 
                u.first_name as staff_first, u.last_name as staff_last,
                c.first_name as client_first, c.last_name as client_last,
@@ -5698,8 +5698,27 @@ if (!nextShift || gapToNext > 60) {
         JOIN users u ON s.staff_id = u.id
         JOIN clients c ON s.client_id = c.id
         WHERE s.status = 'COMPLETED'
-        ORDER BY s.actual_start_time DESC
-      `).all() as any[];
+      `;
+      const params: any[] = [];
+      
+      if (clientId) {
+        query += ` AND s.client_id = ?`;
+        params.push(clientId);
+      }
+      if (startDate) {
+        query += ` AND (s.actual_start_time >= ? OR s.start_time >= ?)`;
+        const st = (startDate.includes('T') ? startDate : startDate + 'T00:00:00.000Z');
+        params.push(st, st);
+      }
+      if (endDate) {
+        query += ` AND (s.actual_start_time <= ? OR s.start_time <= ?)`;
+        const et = (endDate.includes('T') ? endDate : endDate + 'T23:59:59.999Z');
+        params.push(et, et);
+      }
+      
+      query += ` ORDER BY s.actual_start_time DESC`;
+      
+      const shifts = db.prepare(query).all(...params) as any[];
 
       res.json(shifts);
     } catch (e) {
@@ -5710,10 +5729,10 @@ if (!nextShift || gapToNext > 60) {
 
   app.get('/api/compliance/export/evidence', authenticateToken, requireAdmin, async (req: any, res: any) => {
     try {
-      const db = (global as any).__db || require('better-sqlite3')('database.sqlite');
-      const exceljs = require('exceljs');
+      const { clientId, startDate, endDate } = req.query;
+      const exceljs = await import('exceljs');
       
-      const shifts = db.prepare(`
+      let query = `
         SELECT s.*, 
                u.first_name as staff_first, u.last_name as staff_last,
                c.first_name as client_first, c.last_name as client_last,
@@ -5722,8 +5741,27 @@ if (!nextShift || gapToNext > 60) {
         JOIN users u ON s.staff_id = u.id
         JOIN clients c ON s.client_id = c.id
         WHERE s.status = 'COMPLETED'
-        ORDER BY s.actual_start_time DESC
-      `).all();
+      `;
+      const params: any[] = [];
+      
+      if (clientId) {
+        query += ` AND s.client_id = ?`;
+        params.push(clientId);
+      }
+      if (startDate) {
+        query += ` AND (s.actual_start_time >= ? OR s.start_time >= ?)`;
+        const st = (startDate.includes('T') ? startDate : startDate + 'T00:00:00.000Z');
+        params.push(st, st);
+      }
+      if (endDate) {
+        query += ` AND (s.actual_start_time <= ? OR s.start_time <= ?)`;
+        const et = (endDate.includes('T') ? endDate : endDate + 'T23:59:59.999Z');
+        params.push(et, et);
+      }
+      
+      query += ` ORDER BY s.actual_start_time DESC`;
+      
+      const shifts = db.prepare(query).all(...params) as any[];
       
       const workbook = new exceljs.Workbook();
       
@@ -5738,7 +5776,7 @@ if (!nextShift || gapToNext > 60) {
       let totalKM = 0;
       let auditLogCount = 0;
       try {
-             auditLogCount = db.prepare("SELECT count(*) as c FROM audit_logs").get().c;
+             auditLogCount = (db.prepare("SELECT count(*) as c FROM audit_logs").get() as any)?.c || 0;
       } catch(e) {}
       
       shifts.forEach((s: any) => {
