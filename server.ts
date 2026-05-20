@@ -5685,6 +5685,147 @@ if (!nextShift || gapToNext > 60) {
   };
 
   // Evidence Pack Export
+  app.get('/api/compliance/evidence/matrix', authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const db = (global as any).__db || require('better-sqlite3')('database.sqlite');
+      
+      const shifts = db.prepare(`
+        SELECT s.*, 
+               u.first_name as staff_first, u.last_name as staff_last,
+               c.first_name as client_first, c.last_name as client_last,
+               c.funding_type
+        FROM shifts s
+        JOIN users u ON s.staff_id = u.id
+        JOIN clients c ON s.client_id = c.id
+        WHERE s.status = 'COMPLETED'
+        ORDER BY s.actual_start_time DESC
+      `).all() as any[];
+
+      res.json(shifts);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to fetch matrix' });
+    }
+  });
+
+  app.get('/api/compliance/export/evidence', authenticateToken, requireAdmin, async (req: any, res: any) => {
+    try {
+      const db = (global as any).__db || require('better-sqlite3')('database.sqlite');
+      const exceljs = require('exceljs');
+      
+      const shifts = db.prepare(`
+        SELECT s.*, 
+               u.first_name as staff_first, u.last_name as staff_last,
+               c.first_name as client_first, c.last_name as client_last,
+               c.funding_type
+        FROM shifts s
+        JOIN users u ON s.staff_id = u.id
+        JOIN clients c ON s.client_id = c.id
+        WHERE s.status = 'COMPLETED'
+        ORDER BY s.actual_start_time DESC
+      `).all();
+      
+      const workbook = new exceljs.Workbook();
+      
+      // Summary Dashboard
+      const summarySheet = workbook.addWorksheet('Summary Dashboard');
+      summarySheet.columns = [
+        { header: 'Metric', key: 'metric', width: 40 },
+        { header: 'Value', key: 'value', width: 25 }
+      ];
+      
+      let totalHours = 0;
+      let totalKM = 0;
+      let auditLogCount = 0;
+      try {
+             auditLogCount = db.prepare("SELECT count(*) as c FROM audit_logs").get().c;
+      } catch(e) {}
+      
+      shifts.forEach((s: any) => {
+        let hrs = 0;
+        if(s.actual_start_time && s.actual_finish_time) {
+          hrs = (new Date(s.actual_finish_time).getTime() - new Date(s.actual_start_time).getTime()) / (1000 * 60 * 60);
+        } else if (s.start_time && s.end_time) {
+          hrs = (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / (1000 * 60 * 60);
+        }
+        totalHours += hrs > 0 ? hrs : 0;
+        totalKM += (s.provider_travel_km || 0) + (s.home_care_travel_km || 0) + (s.abt_km || 0);
+      });
+      
+      summarySheet.addRow({ metric: 'Total Logged Care Hours', value: totalHours.toFixed(2) });
+      summarySheet.addRow({ metric: 'Total Transport KM', value: totalKM.toFixed(2) });
+      summarySheet.addRow({ metric: 'Total Security Audit Logs', value: auditLogCount });
+      
+      summarySheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF000080' } };
+      summarySheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      
+      // Evidence Dataset
+      const evidenceSheet = workbook.addWorksheet('Evidence Dataset');
+      evidenceSheet.columns = [
+        { header: 'Client Name', key: 'clientName', width: 25 },
+        { header: 'Service Date', key: 'serviceDate', width: 15 },
+        { header: 'Shift Timestamps', key: 'shiftTimes', width: 30 },
+        { header: 'Care Type', key: 'careType', width: 20 },
+        { header: 'Logged Care Hours', key: 'careHours', width: 20 },
+        { header: 'Progress Note Status', key: 'noteStatus', width: 25 },
+        { header: 'Total Transport Kilometers', key: 'totalKm', width: 30 },
+        { header: 'Calculated Travel Cost', key: 'travelCost', width: 25 }
+      ];
+      
+      evidenceSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF001c3d' } };
+      evidenceSheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      evidenceSheet.autoFilter = 'A1:H1';
+      
+      for(let i=0; i<shifts.length; i++) {
+         const s = shifts[i];
+         let dateStr = s.start_time ? s.start_time.split('T')[0] : '';
+         
+         const st = (s.actual_start_time || s.start_time || '').split('T')[1];
+         const et = (s.actual_finish_time || s.end_time || '').split('T')[1];
+         const timeStr = `${st?.substring(0,5) || 'N/A'} - ${et?.substring(0,5) || 'N/A'}`;
+         
+         let hrs = 0;
+         if(s.actual_start_time && s.actual_finish_time) {
+           hrs = (new Date(s.actual_finish_time).getTime() - new Date(s.actual_start_time).getTime()) / (1000 * 60 * 60);
+         } else if (s.start_time && s.end_time) {
+           hrs = (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / (1000 * 60 * 60);
+         }
+         
+         const km = (s.provider_travel_km || 0) + (s.home_care_travel_km || 0) + (s.abt_km || 0);
+         
+         const row = evidenceSheet.addRow({
+           clientName: `${s.client_first} ${s.client_last}`,
+           serviceDate: dateStr,
+           shiftTimes: timeStr,
+           careType: s.funding_type === 'HOME_CARE' ? 'Home Care' : 'NDIS Support',
+           careHours: Math.max(0, hrs).toFixed(2),
+           noteStatus: s.notes ? 'Completed' : 'Pending',
+           totalKm: km,
+           // Explicitly set 0 so formatting applies, we'll override it with the formula below
+           travelCost: 0
+         });
+         
+         // Alternating row styling
+         if (i % 2 === 0) row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+         
+         // Currency formatting & Formula for cost
+         const costCell = row.getCell('travelCost');
+         costCell.numFmt = '"$"#,##0.00';
+         costCell.value = { formula: `G${row.number} * 1.0`, date1904: false };
+      }
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="Compliance_Evidence_Ledger.xlsx"');
+      
+      await workbook.xlsx.write(res);
+      res.end();
+      
+    } catch (e) {
+      console.error(e);
+      if(!res.headersSent) res.status(500).json({ error: 'Failed to export Excel' });
+    }
+  });
+
   app.get('/api/compliance/evidence', authenticateToken, requireAdmin, (req: any, res: any) => {
     const { clientId, startDate, endDate } = req.query;
     if (!clientId || !startDate || !endDate) {

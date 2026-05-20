@@ -29,9 +29,8 @@ export default function ComplianceDashboard() {
   
   // States for Evidence Pack (Clients)
   const [clients, setClients] = useState<any[]>([]);
-  const [selectedClient, setSelectedClient] = useState('');
-  const [clientStartDate, setClientStartDate] = useState('');
-  const [clientEndDate, setClientEndDate] = useState('');
+  const [evidenceMatrix, setEvidenceMatrix] = useState<any[]>([]);
+  const [loadingMatrix, setLoadingMatrix] = useState(false);
   const [isGeneratingEvidence, setIsGeneratingEvidence] = useState(false);
 
   // States for Staff Logbook
@@ -54,7 +53,24 @@ export default function ComplianceDashboard() {
     fetchClients();
     fetchStaff();
     fetchLogs();
+    fetchMatrix();
   }, [token]);
+
+  const fetchMatrix = async () => {
+    setLoadingMatrix(true);
+    try {
+      const res = await fetch('/api/compliance/evidence/matrix', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setEvidenceMatrix(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingMatrix(false);
+    }
+  };
 
   const fetchComplianceData = async () => {
     setLoadingCompliance(true);
@@ -143,10 +159,9 @@ export default function ComplianceDashboard() {
   };
 
   const downloadEvidencePack = async () => {
-    if (!selectedClient || !clientStartDate || !clientEndDate) return;
     setIsGeneratingEvidence(true);
     try {
-      const res = await fetch(`/api/compliance/evidence?clientId=${selectedClient}&startDate=${clientStartDate}&endDate=${clientEndDate}`, {
+      const res = await fetch(`/api/compliance/export/evidence`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to generate evidence pack');
@@ -155,8 +170,7 @@ export default function ComplianceDashboard() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const formatYMDtoDMY = (ymd: string) => ymd ? ymd.split('-').reverse().join('-') : '';
-      a.download = `Evidence_Pack_Client_${selectedClient}_${formatYMDtoDMY(clientStartDate)}_to_${formatYMDtoDMY(clientEndDate)}.pdf`;
+      a.download = `Compliance_Evidence_Ledger.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -223,58 +237,106 @@ export default function ComplianceDashboard() {
       </div>
 
       {activeTab === 'evidence' && (
-        <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-visible p-4 md:p-6">
-           <h3 className="text-lg font-medium text-[#E6EDF3] flex items-center mb-2"><FileCheck className="w-5 h-5 mr-2 text-brand-teal" /> Generate Client Evidence Pack</h3>
-           <p className="text-sm text-[#8B949E] mb-6 max-w-4xl">
-             Consolidates the Service Delivery Log, Progress Note Archive, and Transport Evidence into a single standard PDF file ready for NDIA or Home Care auditors.
-           </p>
-
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="space-y-1.5">
-                 <label className="text-sm font-medium text-[#8B949E]">Select Client</label>
-                 <select 
-                   value={selectedClient} 
-                   onChange={e => setSelectedClient(e.target.value)}
-                   className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal transition-colors"
-                 >
-                   <option value="">-- Choose Client --</option>
-                   {clients.map(c => (
-                     <option key={c.id} value={c.id}>{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
-                   ))}
-                 </select>
-              </div>
-              <div className="space-y-1.5">
-                 <label className="text-sm font-medium text-[#8B949E]">Start Date</label>
-                 <CustomDatePicker 
-                    position="bottom"
-                   value={clientStartDate} 
-                   onChange={e => setClientStartDate(e.target.value)}
-                   className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal min-h-[42px] transition-colors" 
-                 />
-              </div>
-              <div className="space-y-1.5">
-                 <label className="text-sm font-medium text-[#8B949E]">End Date</label>
-                 <CustomDatePicker 
-                    position="bottom"
-                   value={clientEndDate} 
-                   onChange={e => setClientEndDate(e.target.value)}
-                   className="w-full bg-brand-navy border border-border-subtle rounded-md p-2.5 text-sm text-[#E6EDF3] focus:ring-1 focus:ring-brand-teal min-h-[42px] transition-colors" 
-                 />
-              </div>
+        <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-visible flex flex-col items-stretch">
+           <div className="p-4 md:p-6 border-b border-border-subtle flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+             <div>
+               <h3 className="text-lg font-medium text-[#E6EDF3] flex items-center mb-1"><FileCheck className="w-5 h-5 mr-2 text-brand-teal" /> Global Evidence Ledger</h3>
+               <p className="text-sm text-[#8B949E] max-w-3xl">
+                 Comprehensive log of all completed shifts, compliance statuses, and un-redacted tracking data for NDIA or Home Care auditors.
+               </p>
+             </div>
+             
+             <button
+               onClick={downloadEvidencePack}
+               disabled={isGeneratingEvidence || loadingMatrix}
+               className="shrink-0 flex items-center px-4 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green disabled:opacity-50 text-white rounded-md font-medium text-sm shadow-sm transition-all"
+             >
+               {isGeneratingEvidence ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"/> 
+               ) : (
+                  <Download className="w-4 h-4 mr-2" /> 
+               )}
+               {isGeneratingEvidence ? 'Exporting...' : 'Export Evidence Ledger (Excel)'}
+             </button>
            </div>
 
-           <button
-             onClick={downloadEvidencePack}
-             disabled={!selectedClient || !clientStartDate || !clientEndDate || isGeneratingEvidence}
-             className="flex items-center px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green disabled:opacity-50 text-white rounded-md font-medium text-sm shadow-sm transition-all shadow-sm"
-           >
-             {isGeneratingEvidence ? (
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"/> 
+           <div className="overflow-x-auto">
+             {loadingMatrix ? (
+                 <div className="flex flex-col items-center justify-center p-12 text-center py-20">
+                   <span className="w-8 h-8 border-4 border-brand-teal/30 border-t-brand-teal rounded-full animate-spin mb-4" />
+                   <p className="text-[#8B949E] text-sm">Loading ledger...</p>
+                 </div>
              ) : (
-                <Download className="w-4 h-4 mr-2" /> 
+                 <table className="w-full text-left text-sm border-collapse">
+                   <thead className="text-xs text-[#E6EDF3] uppercase tracking-wider bg-zinc-800 border-b border-border-subtle font-bold">
+                     <tr>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Client Name</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Service Date</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Shift Timestamps</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Care Type</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Logged Care Hrs</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Progress Note Status</th>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Transport KM</th>
+                       <th className="px-4 py-3 whitespace-nowrap">Travel Cost</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
+                     {evidenceMatrix.length === 0 ? (
+                       <tr>
+                         <td colSpan={8} className="px-4 py-8 text-center text-[#8B949E]">No evidence records available.</td>
+                       </tr>
+                     ) : (
+                       evidenceMatrix.map((row, idx) => {
+                         const startString = (row.actual_start_time || row.start_time || '').split('T')[1]?.substring(0, 5) || 'N/A';
+                         const endString = (row.actual_finish_time || row.end_time || '').split('T')[1]?.substring(0, 5) || 'N/A';
+                         
+                         let hrs = 0;
+                         if (row.actual_start_time && row.actual_finish_time) {
+                           hrs = (new Date(row.actual_finish_time).getTime() - new Date(row.actual_start_time).getTime()) / 3600000;
+                         } else if (row.start_time && row.end_time) {
+                           hrs = (new Date(row.end_time).getTime() - new Date(row.start_time).getTime()) / 3600000;
+                         }
+
+                         const km = (row.provider_travel_km || 0) + (row.home_care_travel_km || 0) + (row.abt_km || 0);
+
+                         let noteBadgeCls = 'bg-slate-500/10 border-slate-500/20 text-slate-400';
+                         let noteStatusStr = 'Missing';
+
+                         if (row.notes) {
+                           noteBadgeCls = 'bg-brand-green/10 border-brand-green/20 text-brand-green';
+                           noteStatusStr = 'Completed';
+                         } else if (Math.abs(new Date().getTime() - new Date(row.end_time).getTime()) < 48 * 3600000) {
+                             // within 48h
+                             noteBadgeCls = 'bg-amber-500/10 border-amber-500/20 text-amber-400';
+                             noteStatusStr = 'Pending Sync';
+                         }
+                         
+                         return (
+                           <tr key={row.id} className={idx % 2 === 0 ? 'bg-[#0E0E10]/40 hover:bg-brand-bg' : 'bg-brand-navy hover:bg-brand-bg transition-colors'}>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 font-medium whitespace-nowrap">{row.client_first} {row.client_last}</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap text-[#8B949E]">{row.start_time ? row.start_time.split('T')[0] : 'N/A'}</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{startString} - {endString}</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap">
+                               <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border ${row.funding_type === 'HOME_CARE' ? 'bg-purple-900/10 border-purple-900/20 text-purple-400' : 'bg-blue-900/10 border-blue-900/20 text-blue-400'}`}>
+                                 {row.funding_type === 'HOME_CARE' ? 'Home Care' : 'NDIS'}
+                               </span>
+                             </td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{Math.max(0, hrs).toFixed(2)}h</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap">
+                               <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold border ${noteBadgeCls}`}>
+                                  {noteStatusStr}
+                               </span>
+                             </td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{km} km</td>
+                             <td className="px-4 py-2 whitespace-nowrap font-mono text-xs text-emerald-400 tracking-tight">${km.toFixed(2)}</td>
+                           </tr>
+                         );
+                       })
+                     )}
+                   </tbody>
+                 </table>
              )}
-             {isGeneratingEvidence ? 'Generating Pack...' : 'Download Evidence Pack (PDF)'}
-           </button>
+           </div>
         </div>
       )}
 
