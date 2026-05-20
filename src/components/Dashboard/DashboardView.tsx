@@ -108,7 +108,7 @@ export default function DashboardView() {
       </div>
 
       {/* NDIS Section */}
-      <div>
+      <div className="hidden lg:block">
         <h3 className="text-lg font-sans text-brand-teal mb-4 flex items-center font-semibold">
           NDIS Metrics
         </h3>
@@ -136,7 +136,7 @@ export default function DashboardView() {
       </div>
 
       {/* Home Care Section */}
-      <div>
+      <div className="hidden lg:block">
         <h3 className="text-lg font-sans text-brand-teal mb-4 mt-6 flex items-center font-semibold">
           Home Care Metrics
         </h3>
