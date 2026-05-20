@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import RosterCalendar from './components/Roster/RosterCalendar';
-import { Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
+import { Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './components/Auth/Login';
 import ForgotPasswordView from './components/Auth/ForgotPasswordView';
@@ -217,8 +217,14 @@ function Layout({ children }: { children: React.ReactNode }) {
           </NavLink>
           {user?.role === 'ADMIN' && (
             <>
-              <NavLink to="/staff" className={getNavClasses} title="Staff & Clients">
-                <Users className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Staff & Clients' : ''}
+              <NavLink to="/staff" className={getNavClasses} title="Staff">
+                <Users className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Staff' : ''}
+              </NavLink>
+              <NavLink to="/clients" className={getNavClasses} title="Clients">
+                <Heart className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Clients' : ''}
+              </NavLink>
+              <NavLink to="/providers" className={getNavClasses} title="Providers">
+                <Building className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Providers' : ''}
               </NavLink>
               <NavLink to="/invoices" className={getNavClasses} title="Invoicing">
                 <FileText className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Invoicing' : ''}
@@ -325,7 +331,9 @@ export default function App() {
             <Route path="/kiosk/wallboard" element={<WallboardView />} />
             <Route path="/" element={<ProtectedRoute adminOnly><Layout><DashboardView /></Layout></ProtectedRoute>} />
             <Route path="/roster" element={<ProtectedRoute><Layout><RosterCalendar /></Layout></ProtectedRoute>} />
-            <Route path="/staff" element={<ProtectedRoute adminOnly><Layout><StaffClientsView /></Layout></ProtectedRoute>} />
+            <Route path="/staff" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="STAFF" /></Layout></ProtectedRoute>} />
+            <Route path="/clients" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="CLIENTS" /></Layout></ProtectedRoute>} />
+            <Route path="/providers" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="PROVIDERS" /></Layout></ProtectedRoute>} />
             <Route path="/invoices" element={<ProtectedRoute adminOnly><Layout><InvoicingView /></Layout></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute adminOnly><Layout><StaffActivityReport /></Layout></ProtectedRoute>} />
             <Route path="/compliance" element={<ProtectedRoute adminOnly><Layout><ComplianceDashboard /></Layout></ProtectedRoute>} />

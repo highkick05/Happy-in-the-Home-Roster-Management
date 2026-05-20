@@ -5,9 +5,13 @@ import StaffModal from './StaffModal';
 import ClientModal from './ClientModal';
 import ProviderModal from './ProviderModal';
 
-export default function StaffClientsView() {
+export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 'CLIENTS' | 'PROVIDERS' }) {
   const { token, user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'STAFF' | 'CLIENTS' | 'PROVIDERS'>('STAFF');
+  const [activeTab, setActiveTab] = useState<'STAFF' | 'CLIENTS' | 'PROVIDERS'>(type);
+
+  useEffect(() => {
+    setActiveTab(type);
+  }, [type]);
 
   const [staff, setStaff] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
@@ -104,34 +108,15 @@ export default function StaffClientsView() {
   return (
     <div className="h-full flex flex-col space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight mb-6 md:mb-0">Directory</h2>
+        <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight mb-6 md:mb-0">
+          {activeTab === 'STAFF' ? 'Staff Directory' : activeTab === 'CLIENTS' ? 'Client Directory' : 'Provider Directory'}
+        </h2>
         <button 
           onClick={handleAddNew}
           className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green hover:opacity-90 text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full justify-center md:w-auto"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add {activeTab === 'STAFF' ? 'Staff' : activeTab === 'CLIENTS' ? 'Client' : 'Provider'}
-        </button>
-      </div>
-
-      <div className="flex space-x-1 bg-brand-navy border border-border-subtle p-1 rounded-lg w-fit max-w-full overflow-x-auto shadow-sm">
-        <button
-          onClick={() => setActiveTab('STAFF')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors ${activeTab === 'STAFF' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
-        >
-          Staff
-        </button>
-        <button
-          onClick={() => setActiveTab('CLIENTS')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors ${activeTab === 'CLIENTS' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
-        >
-          Clients
-        </button>
-        <button
-          onClick={() => setActiveTab('PROVIDERS')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors ${activeTab === 'PROVIDERS' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
-        >
-          Providers
         </button>
       </div>
 
