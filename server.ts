@@ -2893,6 +2893,40 @@ if (!nextShift || gapToNext > 60) {
     res.json(clientsWithServices);
   });
 
+  app.get('/api/clients/:id', authenticateToken, (req: any, res: any) => {
+    try {
+      const client = db.prepare(`
+        SELECT clients.*, providers.company_name as provider_name 
+        FROM clients 
+        LEFT JOIN providers ON clients.provider_id = providers.id
+        WHERE clients.id = ?
+      `).get(req.params.id) as any;
+
+      if (!client) {
+        return res.status(404).json({ error: 'Client not found' });
+      }
+
+      if (req.user.role !== 'ADMIN') {
+        // Limited view for non-admins
+        return res.json({
+          id: client.id,
+          first_name: client.first_name,
+          last_name: client.last_name
+        });
+      }
+
+      const clientServices = db.prepare('SELECT service_id FROM client_services WHERE client_id = ?').all(req.params.id);
+      
+      res.json({
+        ...client,
+        service_ids: clientServices.map((cs: any) => cs.service_id)
+      });
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   app.post('/api/clients', authenticateToken, requireAdmin, (req, res) => {
     try {
       const insertTransaction = db.transaction((reqBody) => {
