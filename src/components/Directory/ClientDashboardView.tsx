@@ -95,6 +95,7 @@ export default function ClientDashboardView() {
         {/* Left Side Menu Shortcuts */}
         <div className="w-full md:w-20 shrink-0 flex flex-row md:flex-col gap-3 overflow-x-auto md:overflow-visible">
            <button 
+             type="button"
              onClick={() => setIsEditModalOpen(true)}
              className="w-16 h-16 shrink-0 rounded-xl bg-brand-navy border border-border-subtle hover:bg-brand-bg/50 hover:border-brand-teal transition-colors flex flex-col items-center justify-center text-[#8B949E] hover:text-brand-teal group shadow-sm"
              title="Edit Profile"
@@ -104,6 +105,7 @@ export default function ClientDashboardView() {
            </button>
            
            <button 
+             type="button"
              onClick={() => setIsRosterModalOpen(true)}
              className="w-16 h-16 shrink-0 rounded-xl bg-brand-navy border border-border-subtle hover:bg-brand-bg/50 hover:border-brand-blue transition-colors flex flex-col items-center justify-center text-[#8B949E] hover:text-brand-blue group shadow-sm"
              title="Roster Builder"
@@ -113,6 +115,8 @@ export default function ClientDashboardView() {
            </button>
 
            <button 
+             type="button"
+             onClick={() => navigate('/progress-notes?client=' + client.id)}
              className="w-16 h-16 shrink-0 rounded-xl bg-brand-navy border border-border-subtle hover:bg-brand-bg/50 hover:border-purple-400 transition-colors flex flex-col items-center justify-center text-[#8B949E] hover:text-purple-400 group shadow-sm"
              title="Progress Notes"
            >
@@ -257,7 +261,8 @@ export default function ClientDashboardView() {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         client={client}
-        onSuccess={handleClientSaved}
+        onSave={handleClientSaved}
+        token={token!}
       />
 
       <ClientRosterModal

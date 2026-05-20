@@ -322,3 +322,14 @@ input:-webkit-autofill:active {
   width: 100% !important;
   min-width: 256px !important;
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 15mm 20mm 15mm 20mm; /* Pre-printed binder margin spacing */
+  }
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+}

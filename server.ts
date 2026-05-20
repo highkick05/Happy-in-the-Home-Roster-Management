@@ -3248,6 +3248,43 @@ if (!nextShift || gapToNext > 60) {
       }
   });
 
+  // --- Progress Notes API ---
+  app.get('/api/progress-notes/:clientId', authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { clientId } = req.params;
+      const { startDate, endDate } = req.query;
+      let query = `
+        SELECT s.id, s.start_time, s.end_time, s.notes, s.service_id,
+               c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
+               u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
+               srv.name as service_name, srv.type as service_type
+        FROM shifts s
+        LEFT JOIN clients c ON s.client_id = c.id
+        LEFT JOIN users u ON s.staff_id = u.id
+        LEFT JOIN services srv ON s.service_id = srv.id
+        WHERE s.client_id = ? AND s.status IN ('COMPLETED', 'PUBLISHED') AND s.notes IS NOT NULL AND s.notes != ''
+      `;
+      const params: any[] = [clientId];
+      
+      if (startDate) {
+        query += ` AND date(s.start_time) >= date(?)`;
+        params.push(startDate);
+      }
+      if (endDate) {
+        query += ` AND date(s.start_time) <= date(?)`;
+        params.push(endDate);
+      }
+      
+      query += ` ORDER BY s.start_time ASC`;
+      
+      const notes = db.prepare(query).all(...params);
+      res.json(notes);
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   // --- Client Roster Templates APIs ---
   app.get('/api/clients/:id/roster-templates', authenticateToken, (req: any, res: any) => {
     try {
