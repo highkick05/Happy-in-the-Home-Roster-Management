@@ -17,7 +17,6 @@ import StaffClientsView from './components/Directory/StaffClientsView';
 import SettingsView from './components/Settings/SettingsView';
 import InvoicingView from './components/Invoicing/InvoicingView';
 import FilesView from './components/Files/FilesView';
-import DashboardView from './components/Dashboard/DashboardView';
 import StaffActivityReport from './components/Dashboard/StaffActivityReport';
 import ProfileView from './components/Profile/ProfileView';
 import ComplianceDashboard from './components/Compliance/ComplianceDashboard';
@@ -208,8 +207,8 @@ function Layout({ children }: { children: React.ReactNode }) {
         
         <nav className="flex-1 px-4 space-y-2 mt-6 overflow-y-auto z-10 relative">
           {user?.role === 'ADMIN' && (
-            <NavLink to="/" className={getNavClasses} title="Dashboard">
-              <Home className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Dashboard' : ''}
+            <NavLink to="/clients" className={getNavClasses} title="Clients">
+              <Heart className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Clients' : ''}
             </NavLink>
           )}
           <NavLink to="/roster" className={getNavClasses} title="Roster">
@@ -219,9 +218,6 @@ function Layout({ children }: { children: React.ReactNode }) {
             <>
               <NavLink to="/staff" className={getNavClasses} title="Staff">
                 <Users className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Staff' : ''}
-              </NavLink>
-              <NavLink to="/clients" className={getNavClasses} title="Clients">
-                <Heart className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Clients' : ''}
               </NavLink>
               <NavLink to="/providers" className={getNavClasses} title="Providers">
                 <Building className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Providers' : ''}
@@ -304,6 +300,14 @@ function ProtectedRoute({ children, adminOnly = false, staffOnly = false }: { ch
   return <>{children}</>;
 }
 
+function RootRedirect() {
+  const { user } = useAuth();
+  if (user?.role === 'ADMIN') {
+    return <Navigate to="/clients" replace />;
+  }
+  return <Navigate to="/roster" replace />;
+}
+
 export default function App() {
   React.useEffect(() => {
     fetch('/api/app-manifest.json').then(r => r.json()).then(data => {
@@ -329,7 +333,7 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPasswordView />} />
             <Route path="/reset-password/:token" element={<ResetPasswordView />} />
             <Route path="/kiosk/wallboard" element={<WallboardView />} />
-            <Route path="/" element={<ProtectedRoute adminOnly><Layout><DashboardView /></Layout></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
             <Route path="/roster" element={<ProtectedRoute><Layout><RosterCalendar /></Layout></ProtectedRoute>} />
             <Route path="/staff" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="STAFF" /></Layout></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="CLIENTS" /></Layout></ProtectedRoute>} />
