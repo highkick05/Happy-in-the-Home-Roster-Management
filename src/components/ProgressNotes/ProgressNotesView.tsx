@@ -8,10 +8,13 @@ export default function ProgressNotesView() {
   const { token, user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   
+  const defaultEndDate = new Date().toISOString().split('T')[0];
+  const defaultStartDate = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>(searchParams.get('client') || '');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>(defaultStartDate);
+  const [endDate, setEndDate] = useState<string>(defaultEndDate);
   
   const [notes, setNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -38,7 +41,11 @@ export default function ProgressNotesView() {
       const res = await fetch('/api/clients', { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
-        setClients(data);
+        const sorted = data.sort((a: any, b: any) => a.first_name.localeCompare(b.first_name));
+        setClients(sorted);
+        if (!selectedClientId && sorted.length > 0) {
+          setSelectedClientId(sorted[0].id.toString());
+        }
       }
     } catch (e) {
       console.error(e);
@@ -91,7 +98,7 @@ export default function ProgressNotesView() {
           <div className="mt-4 sm:mt-0 flex gap-3 w-full sm:w-auto">
             <button 
               onClick={handlePrint}
-              disabled={!selectedClientId || notes.length === 0}
+              disabled={!selectedClientId}
               className="px-4 py-2 bg-brand-green/10 text-brand-green border border-brand-green/20 rounded-md font-medium text-sm flex items-center hover:bg-brand-green/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Printer className="w-4 h-4 mr-2" />
@@ -166,12 +173,17 @@ export default function ProgressNotesView() {
                 <RefreshCw className="w-8 h-8 text-brand-teal animate-spin opacity-60" />
              </div>
           ) : notes.length === 0 ? (
-             <div className="flex flex-col items-center justify-center p-12 py-20 border border-dashed border-border-subtle rounded-xl bg-brand-navy/50 w-full text-center">
-                 <Search className="w-10 h-10 text-[#8B949E] opacity-50 mb-4" />
-                 <h3 className="text-base font-medium text-[#E6EDF3] mb-1">No progress notes found</h3>
-                 <p className="text-[#8B949E] text-sm max-w-sm mx-auto leading-relaxed">
-                   No completed shift notes match the current filters for this client.
-                 </p>
+             <div className="w-full flex justify-center pb-12 overflow-x-auto">
+               <div className="w-full min-w-[700px] max-w-[900px] shadow-2xl overflow-hidden rounded-sm ring-1 ring-white/10 scale-95 origin-top relative group">
+                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[1px]">
+                   <Search className="w-12 h-12 text-white mb-4" />
+                   <h3 className="text-xl font-bold text-white mb-2">No progress notes match the current filters.</h3>
+                   <p className="text-white/80 max-w-sm text-center">
+                     Showing blank template. You can print this blank chart for physical records.
+                   </p>
+                 </div>
+                 <PrintableClinicalChart notes={[]} clientData={selectedClientData} period={{start: startDate, end: endDate}} />
+               </div>
              </div>
           ) : (
             <div className="space-y-6 relative ml-3 w-full max-w-4xl">

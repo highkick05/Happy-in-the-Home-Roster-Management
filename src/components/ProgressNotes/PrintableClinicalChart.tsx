@@ -7,18 +7,20 @@ interface Props {
 }
 
 export default function PrintableClinicalChart({ notes, clientData, period }: Props) {
-  if (!clientData || notes.length === 0) return null;
+  if (!clientData) return null;
 
   // Redaction helper for compliance
   const redact = (value: string | undefined | null, fallback: string = '[Redacted]') => {
-    return value ? value : fallback; // In a strict setting, we'd replace the actual values, but for here we ensure it doesn't show undefined. If requirement says redact ID numbers explicitly:
+    return value ? value : fallback; 
   };
   
   const safeRefNumber = redact(clientData.ndis_number || clientData.my_aged_care_id, '[ID Number Redacted]');
   const dobStr = clientData.dob ? new Date(clientData.dob).toLocaleDateString() : '[Redacted]';
 
+  const rowsToRender = notes.length > 0 ? notes : Array.from({ length: 5 }).map((_, i) => ({ id: `empty-${i}`, isBlank: true }));
+
   return (
-    <div className="w-full text-black font-serif bg-white" style={{ minHeight: '100vh', boxSizing: 'border-box' }}>
+    <div className="w-full text-black font-serif bg-white shadow-sm" style={{ minHeight: '100vh', boxSizing: 'border-box' }}>
       
       {/* Chart Header block */}
       <div className="border-2 border-black w-full mb-6">
@@ -54,13 +56,28 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
          </div>
 
          {/* Table Body */}
-         {notes.map((note, index) => {
+         {rowsToRender.map((note, index) => {
+           if (note.isBlank) {
+              return (
+                <div key={note.id} className={`grid grid-cols-[100px_150px_1fr_200px] ${index !== rowsToRender.length - 1 ? 'border-b border-black' : ''} text-sm break-inside-avoid-page`}>
+                  <div className="p-2 border-r border-black font-sans text-xs min-h-[100px]"></div>
+                  <div className="p-2 border-r border-black font-sans text-xs flex flex-col justify-center"></div>
+                  <div className="p-3 border-r border-black whitespace-pre-wrap leading-relaxed text-[13px] font-serif"></div>
+                  <div className="p-2 flex flex-col justify-end" style={{ minHeight: '80px' }}>
+                     <div className="mt-4 border-t border-black pt-1 px-1">
+                        <span className="text-[9px] uppercase tracking-wider text-gray-400">Sign Here</span>
+                     </div>
+                  </div>
+                </div>
+              );
+           }
+
            const startDate = new Date(note.start_time);
            const dateStr = startDate.toLocaleDateString();
            const startTime = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
            return (
-             <div key={note.id} className={`grid grid-cols-[100px_150px_1fr_200px] ${index !== notes.length - 1 ? 'border-b border-black' : ''} text-sm break-inside-avoid-page`}>
+             <div key={note.id} className={`grid grid-cols-[100px_150px_1fr_200px] ${index !== rowsToRender.length - 1 ? 'border-b border-black' : ''} text-sm break-inside-avoid-page`}>
                 <div className="p-2 border-r border-black font-sans text-xs">
                    <div className="font-bold">{dateStr}</div>
                    <div>{startTime}</div>
