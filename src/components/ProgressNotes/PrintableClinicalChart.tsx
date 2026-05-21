@@ -76,11 +76,10 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
             {/* Table Header Row */}
             <div className="flex border-b-[1.5px] border-black font-bold bg-white">
                <div className="w-[100px] p-2 border-r-[1.5px] border-black flex items-center justify-center text-center text-xs leading-tight shrink-0">
-                  Date<br/>and Time
+                  Date/Time
                </div>
-               <div className="flex-1 p-2 text-xs leading-relaxed px-3">
-                  Write entry in Blue or Black pen.<br/>
-                  <span className="font-normal italic">Sign each entry, print name and designation after signature.</span>
+               <div className="flex-1 p-2 text-xs leading-relaxed px-3 flex items-center">
+                  <span>Write entry in Black pen. <span className="font-normal italic">Sign each entry, print name and designation after signature.</span></span>
                </div>
             </div>
 
@@ -136,7 +135,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
       {/* Footer watermark/metadata on the outside of the box to match the rotated text in photo if possible */}
       <div className="mt-1 flex justify-between px-1 text-[9px] text-black/50 font-sans tracking-widest break-inside-avoid-page">
         <span className="uppercase">Page 1 of 1</span>
-        <span className="uppercase">© Copyright Validated Process System / CR040 PROGRESS NOTES</span>
+        <span className="uppercase">© Copyright Happy in the Home Pty Ltd / CR040 PROGRESS NOTES</span>
       </div>
     </div>
   );
