@@ -3313,7 +3313,7 @@ if (!nextShift || gapToNext > 60) {
         ORDER BY s.start_time ASC
       `).all(...params) as any[];
 
-      const doc = new PDFDocument({ size: 'A4', margin: 40 });
+      const doc = new PDFDocument({ size: 'A4', margins: { top: 40, bottom: 20, left: 40, right: 40 } });
       let dateStr = '';
       if (startDate && startDate !== 'undefined' && endDate && endDate !== 'undefined') {
         dateStr = `_${startDate}_to_${endDate}`;
@@ -3322,10 +3322,10 @@ if (!nextShift || gapToNext > 60) {
       } else if (endDate && endDate !== 'undefined') {
         dateStr = `_until_${endDate}`;
       }
-      const filename = `Progress_Notes_${client.first_name || ''}_${client.last_name || ''}${dateStr}.pdf`.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const filename = `Progress_Notes_${(client.first_name || '').trim()}_${(client.last_name || '').trim()}${dateStr}.pdf`.replace(/[^a-zA-Z0-9_-]/g, '_');
       
-      res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
-      res.setHeader('Content-type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Type', 'application/pdf');
       doc.pipe(res);
 
       const drawFormBorder = () => {
@@ -3353,12 +3353,13 @@ if (!nextShift || gapToNext > 60) {
          
          const safeRefNumber = client.ndis_number || client.my_aged_care_id || '';
          const formattedDOB = client.dob ? new Date(client.dob).toLocaleDateString('en-GB') : '';
+         const safeAddress = (client.address || '').replace(/\r?\n|\r/g, ', ').trim();
 
          const fields = [
-           { label: 'LAST NAME', value: client.last_name || '' },
-           { label: 'GIVEN NAMES', value: client.first_name || '' },
+           { label: 'LAST NAME', value: (client.last_name || '').trim() },
+           { label: 'GIVEN NAMES', value: (client.first_name || '').trim() },
            { label: 'D.O.B', value: formattedDOB },
-           { label: 'ADDRESS', value: client.address || '' },
+           { label: 'ADDRESS', value: safeAddress },
            { label: 'ID NO.', value: safeRefNumber }
          ];
 
@@ -3371,8 +3372,8 @@ if (!nextShift || gapToNext > 60) {
             doc.text(fields[i].label, rightBoxX + 5, y + 5, { width: 65 });
             
             // Draw a faint line inside the row for text underline if needed. We skip to keep it clean.
-            doc.font('Helvetica').fontSize(8);
-            doc.text(fields[i].value, rightBoxX + 70, y + 4, { width: rightBoxW - 75, lineBreak: false });
+            doc.font('Helvetica').fontSize(6); // Adjusted to 6 to fit long addresses
+            doc.text(fields[i].value, rightBoxX + 70, y + 4, { width: rightBoxW - 75, height: rowH - 6, lineBreak: false });
          }
 
          // Separator before column headers
