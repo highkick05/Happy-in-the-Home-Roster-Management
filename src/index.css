@@ -328,8 +328,39 @@ input:-webkit-autofill:active {
     size: A4;
     margin: 15mm 20mm 15mm 20mm; /* Pre-printed binder margin spacing */
   }
-  body {
+  body, html, #root {
     background-color: #ffffff !important;
     color: #000000 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  
+  /* Force Tailwind print utilities to beat responsive variants (e.g. md:flex) */
+  .print\:hidden {
+    display: none !important;
+  }
+  .print\:block {
+    display: block !important;
+  }
+  .print\:flex {
+    display: flex !important;
+  }
+  .print\:overflow-visible {
+    overflow: visible !important;
+  }
+  .print\:h-auto {
+    height: auto !important;
+  }
+  .print\:bg-white {
+    background: #ffffff !important;
+  }
+  .print\:text-black {
+    color: #000000 !important;
+  }
+  .print\:p-0 {
+    padding: 0 !important;
+  }
+  .print\:shadow-none {
+    box-shadow: none !important;
   }
 }

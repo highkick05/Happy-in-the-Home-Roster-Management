@@ -150,7 +150,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   return (
-    <div className="flex flex-col md:flex-row h-[100dvh] print:h-auto bg-brand-bg text-[#E6EDF3] font-sans overflow-hidden print:overflow-visible print:bg-white text-black">
+    <div className="flex flex-col md:flex-row print:block h-[100dvh] print:h-auto bg-brand-bg text-[#E6EDF3] font-sans overflow-hidden print:overflow-visible print:bg-white text-black">
       {/* Mobile Topbar */}
       <div className="md:hidden print:hidden flex items-center justify-between px-3 bg-brand-navy border-b border-border-subtle z-20 shrink-0 relative h-16">
         <div className="flex items-center min-w-0 h-full">

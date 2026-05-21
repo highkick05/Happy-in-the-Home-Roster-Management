@@ -85,7 +85,7 @@ export default function ProgressNotesView() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-brand-bg print:bg-white print:h-auto overflow-hidden print:overflow-visible relative">
+    <div className="flex flex-col h-full bg-brand-bg print:bg-white print:h-auto overflow-hidden print:overflow-visible relative print:block">
       
       {/* --- WEB UI HEADER / FILTER BAR --- */}
       <div className="shrink-0 flex flex-col space-y-4 px-4 sm:px-8 py-6 bg-brand-navy border-b border-border-subtle print:hidden shadow-sm z-10 w-full relative">
