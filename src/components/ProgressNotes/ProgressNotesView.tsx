@@ -163,7 +163,7 @@ export default function ProgressNotesView() {
           {!selectedClientId ? (
              <div className="w-full flex justify-center pb-12 overflow-x-auto print:hidden">
                <div className="w-full min-w-[700px] max-w-[900px] shadow-2xl overflow-hidden rounded-sm ring-1 ring-white/10 scale-95 origin-top relative group">
-                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 opacity-100 backdrop-blur-[2px]">
+                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 opacity-100">
                    <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-6">
                      <FileText className="w-8 h-8 text-white" />
                    </div>
@@ -172,7 +172,7 @@ export default function ProgressNotesView() {
                      Progress notes are individualized health records. Please select a client from the dropdown above to view their unified timeline.
                    </p>
                  </div>
-                 <div className="opacity-90 blur-sm pointer-events-none select-none">
+                 <div className="pointer-events-none select-none">
                    <PrintableClinicalChart clientData={null} notes={[]} period={{start: startDate, end: endDate}} />
                  </div>
                </div>

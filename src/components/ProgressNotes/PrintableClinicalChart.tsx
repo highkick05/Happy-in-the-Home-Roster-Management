@@ -35,35 +35,35 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
          {/* Top Header block */}
          <div className="flex border-b-[1.5px] border-black">
             {/* Left box */}
-            <div className="w-[55%] flex items-center justify-start p-4 md:px-8 border-r-[1.5px] border-black shrink-0">
-               <h1 className="text-2xl md:text-4xl font-bold uppercase tracking-wider leading-tight">
+            <div className="w-[45%] flex items-center justify-start p-4 md:px-8 border-r-[1.5px] border-black shrink-0">
+               <h1 className="text-2xl md:text-[32px] font-bold uppercase tracking-wider leading-none">
                  PROGRESS NOTES
                </h1>
             </div>
             
             {/* Right box (fields) */}
-            <div className="w-[45%] flex flex-col justify-between shrink-0">
+            <div className="w-[55%] flex flex-col justify-between shrink-0">
                <div className="flex items-end px-2 py-1.5 border-b-[1.5px] border-black">
-                 <span className="shrink-0 w-[90px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">Last Name</span>
-                 <span className="flex-1 text-[11px] sm:text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-none truncate">{clientData?.last_name || ''}</span>
+                 <span className="shrink-0 w-[85px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">Last Name</span>
+                 <span className="flex-1 text-[11px] sm:text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-tight break-words">{clientData?.last_name || ''}</span>
                </div>
                <div className="flex items-end px-2 py-1.5 border-b-[1.5px] border-black">
-                 <span className="shrink-0 w-[90px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">Given Names</span>
-                 <span className="flex-1 text-[11px] sm:text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-none truncate">{clientData?.first_name || ''}</span>
+                 <span className="shrink-0 w-[85px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">Given Names</span>
+                 <span className="flex-1 text-[11px] sm:text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-tight break-words">{clientData?.first_name || ''}</span>
                </div>
                <div className="flex items-end px-2 py-1.5 border-b-[1.5px] border-black">
-                 <span className="shrink-0 w-[90px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">D.O.B</span>
-                 <span className="flex-1 text-[11px] sm:text-xs font-mono pl-1 border-b border-black/30 w-full mb-0.5 leading-none truncate">
+                 <span className="shrink-0 w-[85px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">D.O.B</span>
+                 <span className="flex-1 text-[11px] sm:text-xs font-mono pl-1 border-b border-black/30 w-full mb-0.5 leading-tight break-words">
                     {clientData?.dob ? new Date(clientData.dob).toLocaleDateString('en-GB') : ''}
                  </span>
                </div>
                <div className="flex items-end px-2 py-1.5 border-b-[1.5px] border-black">
-                 <span className="shrink-0 w-[90px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">Address</span>
-                 <span className="flex-1 text-[11px] sm:text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-none truncate">{clientData?.address || ''}</span>
+                 <span className="shrink-0 w-[85px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">Address</span>
+                 <span className="flex-1 text-[11px] sm:text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-tight break-words">{clientData?.address || ''}</span>
                </div>
                <div className="flex items-end px-2 py-1.5 h-full">
-                 <span className="shrink-0 w-[90px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">ID No.</span>
-                 <span className="flex-1 text-[11px] sm:text-xs font-mono pl-1 border-b border-black/30 w-full mb-0.5 leading-none truncate">{safeRefNumber}</span>
+                 <span className="shrink-0 w-[85px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">ID No.</span>
+                 <span className="flex-1 text-[11px] sm:text-xs font-mono pl-1 border-b border-black/30 w-full mb-0.5 leading-tight break-words">{safeRefNumber}</span>
                </div>
             </div>
          </div>
