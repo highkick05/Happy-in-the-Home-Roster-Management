@@ -23,8 +23,8 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
          {/* Top Header block */}
          <div className="flex border-b-[1.5px] border-black">
             {/* Left box */}
-            <div className="w-[55%] flex items-center justify-start p-6 px-8 border-r-[1.5px] border-black shrink-0">
-               <h1 className="text-[32px] font-bold uppercase tracking-wider leading-none whitespace-nowrap">
+            <div className="w-[55%] flex items-center justify-center p-4 border-r-[1.5px] border-black shrink-0">
+               <h1 className="text-[32px] font-bold uppercase tracking-wider leading-none whitespace-nowrap text-center">
                  PROGRESS NOTES
                </h1>
             </div>
