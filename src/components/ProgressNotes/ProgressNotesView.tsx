@@ -90,69 +90,73 @@ export default function ProgressNotesView() {
     <div className="flex flex-col h-full bg-brand-bg print:bg-white print:h-auto overflow-hidden print:overflow-visible relative print:block">
       
       {/* --- WEB UI HEADER / FILTER BAR --- */}
-      <div className="shrink-0 flex flex-col space-y-4 px-4 sm:px-8 py-6 bg-brand-navy border-b border-border-subtle print:hidden shadow-sm z-10 w-full relative">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-          <div>
-            <h1 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight">Progress Notes</h1>
-            <p className="text-sm text-[#8B949E] mt-1">Unified chronological timeline to review multi-staff shift progress notes.</p>
-          </div>
+      <div className="shrink-0 flex flex-col justify-center px-4 sm:px-6 py-3 bg-brand-navy border-b border-border-subtle print:hidden shadow-sm z-10 w-full relative">
+        <div className="flex flex-col lg:flex-row shadow-sm justify-between gap-4">
           
-          <div className="mt-4 sm:mt-0 flex gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-6">
+            <div>
+              <h1 className="text-lg font-sans font-semibold text-[#E6EDF3] tracking-tight leading-none mb-1">Progress Notes</h1>
+              <p className="text-[11px] text-[#8B949E] leading-none">Unified chronological timeline to review multi-staff shift progress notes.</p>
+            </div>
+          </div>
+            
+          <div className="flex flex-wrap lg:flex-nowrap items-center gap-3 w-full lg:w-auto">
+            <div className="flex items-center">
+              <span className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider mr-2 hidden sm:inline-block">Client <span className="text-red-400">*</span></span>
+              <div className="relative w-full sm:w-[240px]">
+                <User className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <select
+                  value={selectedClientId}
+                  onChange={(e) => setSelectedClientId(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 min-h-[32px] bg-[#09090b] border border-white/[0.08] text-white rounded text-sm focus:outline-none focus:border-brand-teal appearance-none transition-colors"
+                  title="Client Selector"
+                >
+                  <option value="">-- Choose a client --</option>
+                  {clients.sort((a,b) => a.first_name.localeCompare(b.first_name)).map(c => (
+                    <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex items-center">
+               <span className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider mx-2 hidden sm:inline-block">From</span>
+               <div className="relative">
+                <Calendar className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-1/2 -translate-y-1/2" />
+                 <input
+                   type="date"
+                   value={startDate}
+                   onChange={(e) => setStartDate(e.target.value)}
+                   className="pl-8 pr-2 py-1.5 min-h-[32px] bg-[#09090b] border border-white/[0.08] text-[#E6EDF3] rounded text-xs focus:outline-none focus:border-brand-teal transition-colors"
+                   title="Start Date"
+                 />
+               </div>
+            </div>
+
+            <div className="flex items-center">
+               <span className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider mx-2 hidden sm:inline-block">To</span>
+               <div className="relative">
+                <Calendar className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-1/2 -translate-y-1/2" />
+                 <input
+                   type="date"
+                   value={endDate}
+                   onChange={(e) => setEndDate(e.target.value)}
+                   className="pl-8 pr-2 py-1.5 min-h-[32px] bg-[#09090b] border border-white/[0.08] text-[#E6EDF3] rounded text-xs focus:outline-none focus:border-brand-teal transition-colors"
+                   title="End Date"
+                 />
+               </div>
+            </div>
+
+            <div className="hidden lg:block w-px h-6 bg-white/10 mx-2"></div>
+
             <button 
               onClick={handlePrint}
               disabled={!selectedClientId}
-              className="px-4 py-2 bg-brand-green/10 text-brand-green border border-brand-green/20 rounded-md font-medium text-sm flex items-center hover:bg-brand-green/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 min-h-[32px] bg-brand-green/10 text-brand-green border border-brand-green/20 rounded font-medium text-xs flex items-center justify-center hover:bg-brand-green/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap w-full sm:w-auto"
             >
-              <Printer className="w-4 h-4 mr-2" />
+              <Printer className="w-3.5 h-3.5 mr-2" />
               Print Clinical Chart
             </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-          <div>
-            <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Select Client <span className="text-red-400">*</span></label>
-            <div className="relative">
-              <User className="w-4 h-4 text-[#8B949E] absolute left-3 top-1/2 -translate-y-1/2" />
-              <select
-                value={selectedClientId}
-                onChange={(e) => setSelectedClientId(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-[#09090b] border border-white/[0.08] text-white rounded-md text-sm focus:outline-none focus:border-brand-teal appearance-none transition-colors"
-                title="Client Selector"
-              >
-                <option value="">-- Choose a client --</option>
-                {clients.sort((a,b) => a.first_name.localeCompare(b.first_name)).map(c => (
-                  <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          
-          <div>
-             <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Start Date</label>
-             <div className="relative">
-              <Calendar className="w-4 h-4 text-[#8B949E] absolute left-3 top-1/2 -translate-y-1/2" />
-               <input
-                 type="date"
-                 value={startDate}
-                 onChange={(e) => setStartDate(e.target.value)}
-                 className="w-full pl-9 pr-3 py-2 bg-[#09090b] border border-white/[0.08] text-[#E6EDF3] rounded-md text-sm focus:outline-none focus:border-brand-teal transition-colors"
-                 title="Start Date"
-               />
-             </div>
-          </div>
-          <div>
-             <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">End Date</label>
-             <div className="relative">
-              <Calendar className="w-4 h-4 text-[#8B949E] absolute left-3 top-1/2 -translate-y-1/2" />
-               <input
-                 type="date"
-                 value={endDate}
-                 onChange={(e) => setEndDate(e.target.value)}
-                 className="w-full pl-9 pr-3 py-2 bg-[#09090b] border border-white/[0.08] text-[#E6EDF3] rounded-md text-sm focus:outline-none focus:border-brand-teal transition-colors"
-                 title="End Date"
-               />
-             </div>
           </div>
         </div>
       </div>
