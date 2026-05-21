@@ -43,14 +43,14 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
   }
 
   return (
-    <div className="flex flex-col items-center gap-8 bg-gray-100 p-8 print:p-0 print:bg-white select-none print:block">
+    <div className="flex flex-col items-center gap-8 w-full bg-transparent print:bg-white select-none print:block">
       {pages.map((page, pageIndex) => {
          // calculate how many empty rows to append at the bottom
          // Usually 1 standard row is 26px to 30px
          const emptyRowCount = Math.max(0, Math.floor(page.emptySpace / 30));
          
          return (
-         <div key={pageIndex} className="w-[210mm] min-h-[297mm] md:h-[297mm] bg-white shadow-xl print:shadow-none box-border p-[10mm] print:p-0 relative break-after-page flex flex-col justify-between">
+         <div key={pageIndex} className="w-full max-w-[210mm] min-h-[297mm] md:h-[297mm] bg-white shadow-xl print:shadow-none box-border p-[10mm] print:p-0 relative break-after-page flex flex-col justify-between">
            
            <div className="w-full text-black font-sans text-sm flex-1 flex flex-col">
               
