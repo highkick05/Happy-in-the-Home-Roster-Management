@@ -237,7 +237,7 @@ export default function ProgressNotesView() {
       </div>
 
       {/* --- PRINTABLE CLINICAL CHART (Hidden in Web UI, visible in Print) --- */}
-      <div className="hidden print:block absolute inset-0 bg-white w-full h-full text-black">
+      <div className="hidden print:block bg-white w-full text-black print:overflow-visible">
         <PrintableClinicalChart 
            notes={notes} 
            clientData={selectedClientData} 

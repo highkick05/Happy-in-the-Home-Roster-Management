@@ -150,9 +150,9 @@ function Layout({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   return (
-    <div className="flex flex-col md:flex-row h-[100dvh] bg-brand-bg text-[#E6EDF3] font-sans overflow-hidden">
+    <div className="flex flex-col md:flex-row h-[100dvh] print:h-auto bg-brand-bg text-[#E6EDF3] font-sans overflow-hidden print:overflow-visible print:bg-white text-black">
       {/* Mobile Topbar */}
-      <div className="md:hidden flex items-center justify-between px-3 bg-brand-navy border-b border-border-subtle z-20 shrink-0 relative h-16">
+      <div className="md:hidden print:hidden flex items-center justify-between px-3 bg-brand-navy border-b border-border-subtle z-20 shrink-0 relative h-16">
         <div className="flex items-center min-w-0 h-full">
           {settings?.websiteLogo ? (
             <img 
@@ -177,13 +177,13 @@ function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar overlay for mobile */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-brand-bg/80 backdrop-blur-sm z-30 md:hidden"
+          className="fixed inset-0 bg-brand-bg/80 backdrop-blur-sm z-30 md:hidden print:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 z-40 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-20' : 'w-72 md:w-64'} bg-brand-navy border-r border-border-subtle flex flex-col transition-all duration-300 ease-in-out shrink-0 group`}>
+      <div className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 z-40 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-20' : 'w-72 md:w-64'} bg-brand-navy border-r border-border-subtle flex flex-col transition-all duration-300 ease-in-out shrink-0 group print:hidden`}>
         
         {/* Collapse Toggle */}
         <button 
@@ -271,11 +271,11 @@ function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-brand-bg relative">
-        <header className="h-12 shrink-0 border-b border-border-subtle bg-brand-bg/80 backdrop-blur-md flex items-center justify-end px-4 md:px-8 hidden md:flex sticky top-0 z-[100]">
+      <div className="flex-1 flex flex-col overflow-hidden print:overflow-visible bg-brand-bg print:bg-white relative">
+        <header className="h-12 shrink-0 border-b border-border-subtle bg-brand-bg/80 text-[#E6EDF3] backdrop-blur-md flex items-center justify-end px-4 md:px-8 hidden md:flex sticky top-0 z-[100] print:hidden">
           <DateTimer />
         </header>
-        <main className="flex-1 overflow-auto p-4 md:pt-4 md:pb-6 md:px-8 relative">
+        <main className="flex-1 overflow-auto print:overflow-visible p-4 md:pt-4 md:pb-6 md:px-8 print:p-0 relative">
           {children}
         </main>
       </div>
