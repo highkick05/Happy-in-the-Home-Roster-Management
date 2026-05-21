@@ -3710,6 +3710,225 @@ if (!nextShift || gapToNext > 60) {
   });
 
   // --- Shifts APIs ---
+  app.get('/api/progress-notes/export', authenticateToken, (req: any, res: any) => {
+    try {
+      const { clientId, startDate, endDate } = req.query;
+      if (!clientId) {
+        return res.status(400).json({ error: 'Missing clientId' });
+      }
+
+      // Fetch client
+      const clientQuery = `SELECT * FROM clients WHERE id = ?`;
+      const client = db.prepare(clientQuery).get(clientId) as any;
+      if (!client) {
+         return res.status(404).json({ error: 'Client not found' });
+      }
+
+      // Base query for shifts (progress notes)
+      const params: any[] = [clientId, 'COMPLETED'];
+      let dateFilter = '';
+      if (startDate && startDate !== 'undefined') {
+        dateFilter += ` AND s.start_time >= ?`;
+        params.push(`${startDate}T00:00:00.000Z`);
+      }
+      if (endDate && endDate !== 'undefined') {
+        dateFilter += ` AND s.start_time <= ?`;
+        params.push(`${endDate}T23:59:59.999Z`);
+      }
+
+      const notes = db.prepare(`
+        SELECT 
+          s.id, s.start_time, s.end_time, s.notes,
+          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
+          srv.name as service_name
+        FROM shifts s
+        LEFT JOIN users u ON s.staff_id = u.id
+        LEFT JOIN services srv ON s.service_id = srv.id
+        WHERE s.client_id = ? AND s.status = ? ${dateFilter}
+        AND s.notes IS NOT NULL AND TRIM(s.notes) != ''
+        ORDER BY s.start_time ASC
+      `).all(...params) as any[];
+
+      const doc = new PDFDocument({ size: 'A4', margin: 40 });
+      let dateStr = '';
+      if (startDate && startDate !== 'undefined' && endDate && endDate !== 'undefined') {
+        dateStr = `_${startDate}_to_${endDate}`;
+      } else if (startDate && startDate !== 'undefined') {
+        dateStr = `_from_${startDate}`;
+      } else if (endDate && endDate !== 'undefined') {
+        dateStr = `_until_${endDate}`;
+      }
+      const filename = `Progress_Notes_${client.first_name || ''}_${client.last_name || ''}${dateStr}.pdf`.replace(/[^a-zA-Z0-9_-]/g, '_');
+      
+      res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-type', 'application/pdf');
+      doc.pipe(res);
+
+      const drawFormBorder = () => {
+         const boxX = 40;
+         const boxY = 40;
+         const boxW = doc.page.width - 80;
+         const headerH = 80;
+         
+         // Outer border around entire usable page area (excluding margin at bottom)
+         const usableH = doc.page.height - 90;
+         doc.lineWidth(1).rect(boxX, boxY, boxW, usableH).stroke();
+         
+         // Top header block separator
+         doc.rect(boxX, boxY, boxW, headerH).stroke();
+
+         // Left header box (PROGRESS NOTES)
+         doc.rect(boxX, boxY, boxW * 0.55, headerH).stroke();
+         doc.font('Helvetica-Bold').fontSize(24).fillColor('black');
+         doc.text('PROGRESS NOTES', boxX, boxY + 28, { width: boxW * 0.55, align: 'center' });
+
+         // Right header box fields
+         const rightBoxX = boxX + boxW * 0.55;
+         const rightBoxW = boxW * 0.45;
+         const rowH = headerH / 5;
+         
+         const safeRefNumber = client.ndis_number || client.my_aged_care_id || '';
+         const formattedDOB = client.dob ? new Date(client.dob).toLocaleDateString('en-GB') : '';
+
+         const fields = [
+           { label: 'LAST NAME', value: client.last_name || '' },
+           { label: 'GIVEN NAMES', value: client.first_name || '' },
+           { label: 'D.O.B', value: formattedDOB },
+           { label: 'ADDRESS', value: client.address || '' },
+           { label: 'ID NO.', value: safeRefNumber }
+         ];
+
+         for (let i = 0; i < 5; i++) {
+            const y = boxY + i * rowH;
+            if (i > 0) {
+              doc.moveTo(rightBoxX, y).lineTo(rightBoxX + rightBoxW, y).stroke();
+            }
+            doc.font('Helvetica-Bold').fontSize(7);
+            doc.text(fields[i].label, rightBoxX + 5, y + 5, { width: 65 });
+            
+            // Draw a faint line inside the row for text underline if needed. We skip to keep it clean.
+            doc.font('Helvetica').fontSize(8);
+            doc.text(fields[i].value, rightBoxX + 70, y + 4, { width: rightBoxW - 75, lineBreak: false });
+         }
+
+         // Separator before column headers
+         const colHeaderY = boxY + headerH + 3;
+         // Draw a double line or thicker line
+         doc.lineWidth(2).moveTo(boxX, colHeaderY).lineTo(boxX + boxW, colHeaderY).stroke();
+         doc.lineWidth(1); // reset
+
+         // Column headers
+         const headerStart = colHeaderY;
+         const headerHeight = 22;
+         const col1W = 100;
+         const col2W = boxW - col1W;
+         
+         doc.rect(boxX, headerStart, boxW, headerHeight).stroke();
+         doc.rect(boxX, headerStart, col1W, headerHeight).stroke(); // vertical separator
+
+         doc.font('Helvetica-Bold').fontSize(8);
+         doc.text('Date/Time', boxX, headerStart + 6, { width: col1W, align: 'center' });
+         doc.text('Write entry in Black pen. ', boxX + col1W + 8, headerStart + 7, { continued: true })
+            .font('Helvetica-Oblique').text('Sign each entry, print name and designation after signature.');
+         
+         return { boxX, boxY, boxW, colHeaderY: headerStart + headerHeight, col1W, col2W, maxH: boxY + usableH };
+      };
+
+      let { boxX, boxW, col1W, col2W, colHeaderY, maxH } = drawFormBorder();
+      let currentY = colHeaderY;
+
+      let pageNum = 1;
+      const drawFooter = () => {
+         doc.font('Helvetica').fontSize(6).fillColor('gray');
+         doc.text(`PAGE ${pageNum}`, 40, doc.page.height - 35);
+         doc.text('© COPYRIGHT HAPPY IN THE HOME PTY LTD / CR040 PROGRESS NOTES', 0, doc.page.height - 35, { align: 'right', width: doc.page.width - 40 });
+      };
+
+      if (notes.length === 0) {
+         const rowH = 24.5;
+         while (currentY + rowH <= maxH) {
+           doc.rect(boxX, currentY, col1W, rowH).stroke();
+           doc.rect(boxX + col1W, currentY, col2W, rowH).stroke();
+           currentY += rowH;
+         }
+      } else {
+         doc.font('Helvetica');
+         const padding = 6;
+         
+         notes.forEach((note, index) => {
+            const startDate = new Date(note.start_time);
+            const dateStr = startDate.toLocaleDateString('en-GB');
+            const startTimeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            const svcName = note.service_name || '';
+            const staffName = `${note.staff_first_name || ''} ${note.staff_last_name || ''}`.trim();
+            const staffRole = note.staff_role === 'ADMIN' ? 'Administrator' : 'Support Worker';
+
+            // Calculate height
+            let textHeight = doc.font('Helvetica').fontSize(9).heightOfString(note.notes, { width: col2W - padding * 2, lineGap: 2 });
+            let neededHeight = Math.max(textHeight + 35, 50); // 35px padding + signature area
+
+            if (currentY + neededHeight > maxH) {
+               // Fill remaining space with line so it closes out
+               doc.moveTo(boxX, currentY).lineTo(boxX + boxW, currentY).stroke();
+               drawFooter();
+               doc.addPage();
+               pageNum++;
+               ({ boxX, boxW, col1W, col2W, colHeaderY, maxH } = drawFormBorder());
+               currentY = colHeaderY;
+            }
+
+            // Draw cells
+            doc.rect(boxX, currentY, col1W, neededHeight).stroke();
+            doc.rect(boxX + col1W, currentY, col2W, neededHeight).stroke();
+
+            // Date/Time
+            doc.font('Helvetica-Bold').fontSize(9).fillColor('black');
+            doc.text(dateStr, boxX + padding, currentY + padding);
+            doc.text(startTimeStr, boxX + padding, currentY + padding + 12);
+            if (svcName) {
+               doc.font('Helvetica-Oblique').fontSize(7).fillColor('gray');
+               doc.text(svcName.toUpperCase(), boxX + padding, currentY + padding + 26, { width: col1W - padding*2 });
+               doc.fillColor('black');
+            }
+
+            // Note Text
+            doc.font('Helvetica').fontSize(9).fillColor('black');
+            doc.text(note.notes, boxX + col1W + padding, currentY + padding, { width: col2W - padding * 2, lineGap: 2 });
+
+            // Signature area
+            const sigY = currentY + neededHeight - 16;
+            doc.font('Helvetica-Bold').fontSize(8);
+            doc.text(staffName, boxX + col1W + padding, sigY - 12, { width: col2W - padding * 2, align: 'right' });
+            
+            doc.font('Helvetica').fontSize(6).fillColor('gray');
+            // Signature line
+            doc.lineWidth(0.5).moveTo(doc.page.width - 40 - 120, sigY).lineTo(doc.page.width - 40 - padding, sigY).stroke();
+            doc.text(staffRole.toUpperCase(), doc.page.width - 40 - 120, sigY + 2, { width: 120 - padding, align: 'right' });
+
+            // reset line width
+            doc.lineWidth(1).fillColor('black');
+            currentY += neededHeight;
+         });
+         
+         // Fill remaining with blank lines (optional) if there is space remaining
+         // to mimic a printed form
+         const rowH = 26;
+         while (currentY + rowH <= maxH) {
+             doc.rect(boxX, currentY, col1W, rowH).stroke();
+             doc.rect(boxX + col1W, currentY, col2W, rowH).stroke();
+             currentY += rowH;
+         }
+      }
+      
+      drawFooter();
+      doc.end();
+
+    } catch (e: any) {
+      logger.error('Error generating PDF', { error: e.stack || e });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   app.get('/api/shifts/:id/invoice-preview', authenticateToken, (req: any, res: any) => {
     try {
       const data = getInvoiceDataForShift(Number(req.params.id));

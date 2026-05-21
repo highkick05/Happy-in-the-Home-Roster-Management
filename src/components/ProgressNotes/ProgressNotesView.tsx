@@ -73,6 +73,8 @@ export default function ProgressNotesView() {
     }
   };
 
+  const [isExporting, setIsExporting] = useState(false);
+
   const fetchClientDetails = async (id: string) => {
     try {
       const res = await fetch(`/api/clients/${id}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -82,8 +84,47 @@ export default function ProgressNotesView() {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    if (!selectedClientId) return;
+    setIsExporting(true);
+    try {
+      const url = new URL('/api/progress-notes/export', window.location.origin);
+      url.searchParams.append('clientId', selectedClientId);
+      if (startDate) url.searchParams.append('startDate', startDate);
+      if (endDate) url.searchParams.append('endDate', endDate);
+      
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error('Failed to generate PDF');
+      
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      
+      let dateStr = '';
+      if (startDate && endDate) {
+        dateStr = `_${startDate}_to_${endDate}`;
+      } else if (startDate) {
+        dateStr = `_from_${startDate}`;
+      } else if (endDate) {
+        dateStr = `_until_${endDate}`;
+      }
+      
+      const clientName = selectedClientData ? `${selectedClientData.first_name || ''}_${selectedClientData.last_name || ''}`.replace(/[^a-zA-Z0-9_-]/g, '_') : 'Client';
+      a.download = `Progress_Notes_${clientName}${dateStr}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Error downloading printable progress notes:', error);
+      alert('Error generating PDF');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -151,11 +192,11 @@ export default function ProgressNotesView() {
 
             <button 
               onClick={handlePrint}
-              disabled={!selectedClientId}
+              disabled={!selectedClientId || isExporting}
               className="px-3 py-1.5 min-h-[32px] bg-brand-green/10 text-brand-green border border-brand-green/20 rounded font-medium text-xs flex items-center justify-center hover:bg-brand-green/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap w-full sm:w-auto"
             >
-              <Printer className="w-3.5 h-3.5 mr-2" />
-              Print Clinical Chart
+              <Printer className={`w-3.5 h-3.5 mr-2 ${isExporting ? 'animate-pulse' : ''}`} />
+              {isExporting ? 'Exporting PDF...' : 'Print Clinical Chart'}
             </button>
           </div>
         </div>
@@ -247,15 +288,6 @@ export default function ProgressNotesView() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* --- PRINTABLE CLINICAL CHART (Hidden in Web UI, visible in Print) --- */}
-      <div className="hidden print:block bg-white w-full text-black print:overflow-visible">
-        <PrintableClinicalChart 
-           notes={notes} 
-           clientData={selectedClientData} 
-           period={{start: startDate, end: endDate}} 
-        />
       </div>
 
     </div>
