@@ -72,8 +72,8 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
             {/* Table Body Area */}
             <div className="bg-white">
                {notes.length === 0 ? (
-                  // Exact reproduction of empty ruled lines (26 lines to safely fit a single page)
-                  Array.from({ length: 26 }).map((_, i) => (
+                  // Exact reproduction of empty ruled lines (24 lines to safely fit a single page)
+                  Array.from({ length: 24 }).map((_, i) => (
                     <div key={`line-${i}`} className="flex border-b-[1.5px] border-black last:border-b-0 min-h-[30px]">
                       <div className="w-[120px] border-r-[1.5px] border-black shrink-0"></div>
                       <div className="flex-1"></div>
