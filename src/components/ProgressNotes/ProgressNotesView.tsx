@@ -21,7 +21,7 @@ export default function ProgressNotesView() {
   const [selectedClientData, setSelectedClientData] = useState<any>(null);
 
   useEffect(() => {
-    fetchClients();
+    fetchClients(selectedClientId);
   }, [token]);
 
   useEffect(() => {
@@ -36,15 +36,17 @@ export default function ProgressNotesView() {
     }
   }, [selectedClientId, startDate, endDate, token]);
 
-  const fetchClients = async () => {
+  const fetchClients = async (currentSelectedId: string) => {
     try {
       const res = await fetch('/api/progress-notes/clients', { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
         const sorted = data.sort((a: any, b: any) => a.first_name.localeCompare(b.first_name));
         setClients(sorted);
-        if (!selectedClientId && sorted.length > 0) {
+        if (!currentSelectedId && sorted.length > 0) {
           setSelectedClientId(sorted[0].id.toString());
+        } else if (currentSelectedId && !sorted.some((c: any) => c.id.toString() === currentSelectedId)) {
+          setSelectedClientId(sorted.length > 0 ? sorted[0].id.toString() : '');
         }
       }
     } catch (e) {
@@ -159,15 +161,22 @@ export default function ProgressNotesView() {
       <div className="flex-1 overflow-x-hidden overflow-y-auto w-full print:hidden">
         <div className="p-4 sm:p-8 w-full max-w-5xl mx-auto space-y-6">
           {!selectedClientId ? (
-            <div className="flex flex-col items-center justify-center p-12 py-24 border border-dashed border-border-subtle rounded-xl bg-brand-navy/50 w-full text-center">
-               <div className="w-16 h-16 rounded-full bg-brand-teal/10 flex items-center justify-center mb-6">
-                 <FileText className="w-8 h-8 text-brand-teal opacity-80" />
+             <div className="w-full flex justify-center pb-12 overflow-x-auto print:hidden">
+               <div className="w-full min-w-[700px] max-w-[900px] shadow-2xl overflow-hidden rounded-sm ring-1 ring-white/10 scale-95 origin-top relative group">
+                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 opacity-100 backdrop-blur-[2px]">
+                   <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-6">
+                     <FileText className="w-8 h-8 text-white" />
+                   </div>
+                   <h3 className="text-xl font-bold text-white mb-2 tracking-tight">No Client Selected</h3>
+                   <p className="text-white/80 max-w-md mx-auto text-sm leading-relaxed text-center">
+                     Progress notes are individualized health records. Please select a client from the dropdown above to view their unified timeline.
+                   </p>
+                 </div>
+                 <div className="opacity-90 blur-sm pointer-events-none select-none">
+                   <PrintableClinicalChart clientData={null} notes={[]} period={{start: startDate, end: endDate}} />
+                 </div>
                </div>
-               <h3 className="text-xl font-medium text-[#E6EDF3] mb-2 tracking-tight">No Client Selected</h3>
-               <p className="text-[#8B949E] max-w-md mx-auto text-sm leading-relaxed">
-                 Progress notes are individualized health records. Please select a client from the dropdown above to view their unified timeline.
-               </p>
-            </div>
+             </div>
           ) : loading ? (
              <div className="flex justify-center p-12 w-full">
                 <RefreshCw className="w-8 h-8 text-brand-teal animate-spin opacity-60" />

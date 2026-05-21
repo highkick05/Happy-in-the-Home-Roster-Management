@@ -7,14 +7,12 @@ interface Props {
 }
 
 export default function PrintableClinicalChart({ notes, clientData, period }: Props) {
-  if (!clientData) return null;
-
   // Redaction helper for compliance
-  const redact = (value: string | undefined | null, fallback: string = '[Redacted]') => {
+  const redact = (value: string | undefined | null, fallback: string = '') => {
     return value ? value : fallback; 
   };
   
-  const safeRefNumber = redact(clientData.ndis_number || clientData.my_aged_care_id, '[ID Number Redacted]');
+  const safeRefNumber = clientData ? redact(clientData.ndis_number || clientData.my_aged_care_id, '') : '';
 
   const rowsToRender = notes.length > 0 ? notes : Array.from({ length: 20 }).map((_, i) => ({ id: `empty-${i}`, isBlank: true }));
 
@@ -47,21 +45,21 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
             <div className="w-[45%] flex flex-col justify-between shrink-0">
                <div className="flex items-end px-2 py-1.5 border-b-[1.5px] border-black">
                  <span className="shrink-0 w-[90px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">Last Name</span>
-                 <span className="flex-1 text-[11px] sm:text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-none truncate">{clientData.last_name}</span>
+                 <span className="flex-1 text-[11px] sm:text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-none truncate">{clientData?.last_name || ''}</span>
                </div>
                <div className="flex items-end px-2 py-1.5 border-b-[1.5px] border-black">
                  <span className="shrink-0 w-[90px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">Given Names</span>
-                 <span className="flex-1 text-[11px] sm:text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-none truncate">{clientData.first_name}</span>
+                 <span className="flex-1 text-[11px] sm:text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-none truncate">{clientData?.first_name || ''}</span>
                </div>
                <div className="flex items-end px-2 py-1.5 border-b-[1.5px] border-black">
                  <span className="shrink-0 w-[90px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">D.O.B</span>
                  <span className="flex-1 text-[11px] sm:text-xs font-mono pl-1 border-b border-black/30 w-full mb-0.5 leading-none truncate">
-                    {clientData.dob ? new Date(clientData.dob).toLocaleDateString('en-GB') : ''}
+                    {clientData?.dob ? new Date(clientData.dob).toLocaleDateString('en-GB') : ''}
                  </span>
                </div>
                <div className="flex items-end px-2 py-1.5 border-b-[1.5px] border-black">
                  <span className="shrink-0 w-[90px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">Address</span>
-                 <span className="flex-1 text-[11px] sm:text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-none truncate">{clientData.address || ''}</span>
+                 <span className="flex-1 text-[11px] sm:text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-none truncate">{clientData?.address || ''}</span>
                </div>
                <div className="flex items-end px-2 py-1.5 h-full">
                  <span className="shrink-0 w-[90px] text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap">ID No.</span>
