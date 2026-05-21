@@ -3333,10 +3333,19 @@ if (!nextShift || gapToNext > 60) {
          const boxY = 40;
          const boxW = doc.page.width - 80;
          const headerH = 80;
+         const colHeaderYOffset = 3;
+         const colHeaderHeight = 22;
+         const dataRowHeight = 26;
+
+         // Calculate exact total height so there are no floating extra lines at the bottom
+         const usedAboveRows = headerH + colHeaderYOffset + colHeaderHeight; // 105
+         const availableForRowSpace = doc.page.height - boxY - 50 - usedAboveRows; // leave bottom margin space ~50
+         const maxRows = Math.floor(availableForRowSpace / dataRowHeight);
+         const exactUsableH = usedAboveRows + (maxRows * dataRowHeight);
+         const maxH = boxY + exactUsableH;
          
          // Outer border around entire usable page area (excluding margin at bottom)
-         const usableH = doc.page.height - 90;
-         doc.lineWidth(1).rect(boxX, boxY, boxW, usableH).stroke();
+         doc.lineWidth(1).rect(boxX, boxY, boxW, exactUsableH).stroke();
          
          // Top header block separator
          doc.rect(boxX, boxY, boxW, headerH).stroke();
@@ -3377,14 +3386,14 @@ if (!nextShift || gapToNext > 60) {
          }
 
          // Separator before column headers
-         const colHeaderY = boxY + headerH + 3;
+         const colHeaderY = boxY + headerH + colHeaderYOffset;
          // Draw a double line or thicker line
          doc.lineWidth(2).moveTo(boxX, colHeaderY).lineTo(boxX + boxW, colHeaderY).stroke();
          doc.lineWidth(1); // reset
 
          // Column headers
          const headerStart = colHeaderY;
-         const headerHeight = 22;
+         const headerHeight = colHeaderHeight;
          const col1W = 100;
          const col2W = boxW - col1W;
          
@@ -3396,7 +3405,7 @@ if (!nextShift || gapToNext > 60) {
          doc.text('Write entry in Black pen. ', boxX + col1W + 8, headerStart + 7, { continued: true })
             .font('Helvetica-Oblique').text('Sign each entry, print name and designation after signature.');
          
-         return { boxX, boxY, boxW, colHeaderY: headerStart + headerHeight, col1W, col2W, maxH: boxY + usableH };
+         return { boxX, boxY, boxW, colHeaderY: headerStart + headerHeight, col1W, col2W, maxH };
       };
 
       let { boxX, boxW, col1W, col2W, colHeaderY, maxH } = drawFormBorder();
@@ -3410,11 +3419,13 @@ if (!nextShift || gapToNext > 60) {
       };
 
       if (notes.length === 0) {
-         const rowH = 24.5;
-         while (currentY + rowH <= maxH) {
-           doc.rect(boxX, currentY, col1W, rowH).stroke();
-           doc.rect(boxX + col1W, currentY, col2W, rowH).stroke();
-           currentY += rowH;
+         const rowH = 26;
+         while (currentY < maxH - 1) {
+             const remaining = maxH - currentY;
+             const curRowH = (remaining < rowH * 1.5) ? remaining : rowH;
+             doc.rect(boxX, currentY, col1W, curRowH).stroke();
+             doc.rect(boxX + col1W, currentY, col2W, curRowH).stroke();
+             currentY += curRowH;
          }
       } else {
          doc.font('Helvetica');
@@ -3478,10 +3489,12 @@ if (!nextShift || gapToNext > 60) {
          // Fill remaining with blank lines (optional) if there is space remaining
          // to mimic a printed form
          const rowH = 26;
-         while (currentY + rowH <= maxH) {
-             doc.rect(boxX, currentY, col1W, rowH).stroke();
-             doc.rect(boxX + col1W, currentY, col2W, rowH).stroke();
-             currentY += rowH;
+         while (currentY < maxH - 1) {
+             const remaining = maxH - currentY;
+             const curRowH = (remaining < rowH * 1.5) ? remaining : rowH;
+             doc.rect(boxX, currentY, col1W, curRowH).stroke();
+             doc.rect(boxX + col1W, currentY, col2W, curRowH).stroke();
+             currentY += curRowH;
          }
       }
       
