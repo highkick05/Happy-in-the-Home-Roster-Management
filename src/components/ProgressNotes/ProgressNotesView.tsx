@@ -162,7 +162,7 @@ export default function ProgressNotesView() {
         <div className="p-4 sm:p-8 w-full max-w-5xl mx-auto space-y-6">
           {!selectedClientId ? (
              <div className="w-full flex justify-center pb-12 overflow-x-auto print:hidden">
-               <div className="w-full min-w-[700px] max-w-[900px] shadow-2xl overflow-hidden rounded-sm ring-1 ring-white/10 scale-95 origin-top relative group">
+               <div className="w-full min-w-[700px] max-w-[900px] shadow-2xl overflow-hidden rounded-sm ring-1 ring-white/10 origin-top relative group mx-auto bg-white">
                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 opacity-100">
                    <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-6">
                      <FileText className="w-8 h-8 text-white" />
@@ -183,7 +183,7 @@ export default function ProgressNotesView() {
              </div>
           ) : notes.length === 0 ? (
              <div className="w-full flex justify-center pb-12 overflow-x-auto">
-               <div className="w-full min-w-[700px] max-w-[900px] shadow-2xl overflow-hidden rounded-sm ring-1 ring-white/10 scale-95 origin-top relative group">
+               <div className="w-full min-w-[700px] max-w-[900px] shadow-2xl overflow-hidden rounded-sm ring-1 ring-white/10 origin-top relative group mx-auto bg-white">
                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[1px]">
                    <Search className="w-12 h-12 text-white mb-4" />
                    <h3 className="text-xl font-bold text-white mb-2">No progress notes match the current filters.</h3>

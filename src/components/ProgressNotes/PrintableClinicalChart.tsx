@@ -15,7 +15,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
   const safeRefNumber = clientData ? redact(clientData.ndis_number || clientData.my_aged_care_id, '') : '';
 
   return (
-    <div className="w-full text-black font-sans bg-white shadow-sm p-8 print:p-4 print:shadow-none box-border" style={{ minWidth: '700px' }}>
+    <div className="w-full text-black font-sans bg-white shadow-sm p-8 print:p-0 print:shadow-none box-border min-w-[700px] print:min-w-0 print:w-full">
       
       {/* Outer Page Border Structure */}
       <div className="border-[1.5px] border-black w-full text-sm">
@@ -72,8 +72,8 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
             {/* Table Body Area */}
             <div className="bg-white">
                {notes.length === 0 ? (
-                  // Exact reproduction of empty ruled lines (23 lines to safely fit a single page)
-                  Array.from({ length: 23 }).map((_, i) => (
+                  // Exact reproduction of empty ruled lines (26 lines to safely fit a single page)
+                  Array.from({ length: 26 }).map((_, i) => (
                     <div key={`line-${i}`} className="flex border-b-[1.5px] border-black last:border-b-0 min-h-[30px]">
                       <div className="w-[120px] border-r-[1.5px] border-black shrink-0"></div>
                       <div className="flex-1"></div>
