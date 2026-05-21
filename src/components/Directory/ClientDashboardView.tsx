@@ -13,6 +13,7 @@ export default function ClientDashboardView() {
   const [client, setClient] = useState<any>(null);
   const [providers, setProviders] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
+  const [recentNotes, setRecentNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -25,10 +26,11 @@ export default function ClientDashboardView() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [clientRes, providersRes, servicesRes] = await Promise.all([
+      const [clientRes, providersRes, servicesRes, notesRes] = await Promise.all([
         fetch(`/api/clients/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/providers', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/services', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/services', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/progress-notes/${id}`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
       
       if (clientRes.ok) {
@@ -37,6 +39,12 @@ export default function ClientDashboardView() {
       }
       if (providersRes.ok) setProviders(await providersRes.json());
       if (servicesRes.ok) setServices(await servicesRes.json());
+      if (notesRes.ok) {
+        const _notes = await notesRes.json();
+        // The endpoint returns ordered by start_time ASC. So getting the last 3 means the 3 most recent in time.
+        // We'll reverse it so the absolute most recent is first.
+        setRecentNotes(_notes.slice(-3).reverse());
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -248,6 +256,51 @@ export default function ClientDashboardView() {
                       <CheckCircle2 className="w-5 h-5 opacity-40" />
                     </div>
                     No services have been configured for this client yet.
+                 </div>
+               )}
+            </div>
+
+            <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm">
+               <div className="flex items-center justify-between mb-4">
+                 <div className="flex items-center space-x-2 text-purple-400">
+                   <ClipboardEdit className="w-5 h-5" />
+                   <h3 className="text-base font-semibold text-[#E6EDF3]">Recent Progress Notes</h3>
+                 </div>
+                 <button 
+                   onClick={() => navigate('/progress-notes?client=' + client.id)}
+                   className="text-xs text-brand-teal hover:underline font-medium"
+                 >
+                   View All Notes
+                 </button>
+               </div>
+
+               {recentNotes.length > 0 ? (
+                 <div className="space-y-3">
+                   {recentNotes.map(note => (
+                     <div key={note.id} className="p-4 bg-brand-bg/30 border border-border-subtle rounded-lg space-y-2">
+                       <div className="flex justify-between items-start mb-1">
+                         <div className="flex items-center space-x-2">
+                           <Calendar className="w-4 h-4 text-[#8B949E]" />
+                           <span className="text-xs font-medium text-[#E6EDF3]">
+                             {new Date(note.start_time).toLocaleDateString()} {new Date(note.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                           </span>
+                         </div>
+                         <div className="text-[10px] uppercase text-[#8B949E] px-2 py-0.5 border border-border-subtle rounded bg-brand-bg/50">
+                           {note.staff_first_name} {note.staff_last_name}
+                         </div>
+                       </div>
+                       <div className="text-sm text-[#E6EDF3] leading-relaxed line-clamp-3">
+                         {note.notes}
+                       </div>
+                     </div>
+                   ))}
+                 </div>
+               ) : (
+                 <div className="text-center p-6 border border-dashed border-border-subtle rounded-lg text-[#8B949E] text-sm flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-full bg-brand-bg/50 flex items-center justify-center mb-3">
+                      <ClipboardEdit className="w-5 h-5 opacity-40" />
+                    </div>
+                    No recent progress notes found for this client.
                  </div>
                )}
             </div>
