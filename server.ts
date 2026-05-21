@@ -2907,11 +2907,16 @@ if (!nextShift || gapToNext > 60) {
       }
 
       if (req.user.role !== 'ADMIN') {
-        // Limited view for non-admins
+        // Limited view for non-admins - includes fields necessary for progress notes clinical chart
         return res.json({
           id: client.id,
           first_name: client.first_name,
-          last_name: client.last_name
+          last_name: client.last_name,
+          dob: client.dob,
+          address: client.address,
+          ndis_number: client.ndis_number,
+          my_aged_care_id: client.my_aged_care_id,
+          funding_type: client.funding_type
         });
       }
 
@@ -3249,7 +3254,27 @@ if (!nextShift || gapToNext > 60) {
   });
 
   // --- Progress Notes API ---
-  app.get('/api/progress-notes/:clientId', authenticateToken, requireAdmin, (req: any, res: any) => {
+  app.get('/api/progress-notes/clients', authenticateToken, (req: any, res: any) => {
+    try {
+      if (req.user.role === 'ADMIN') {
+        const clients = db.prepare('SELECT id, first_name, last_name FROM clients').all();
+        return res.json(clients);
+      } else {
+        const clients = db.prepare(`
+          SELECT DISTINCT c.id, c.first_name, c.last_name
+          FROM clients c
+          JOIN shifts s ON s.client_id = c.id
+          WHERE s.staff_id = ? AND s.status IN ('COMPLETED', 'PUBLISHED') AND s.notes IS NOT NULL AND s.notes != ''
+        `).all(req.user.id);
+        return res.json(clients);
+      }
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/progress-notes/:clientId', authenticateToken, (req: any, res: any) => {
     try {
       const { clientId } = req.params;
       const { startDate, endDate } = req.query;
@@ -3265,6 +3290,11 @@ if (!nextShift || gapToNext > 60) {
         WHERE s.client_id = ? AND s.status IN ('COMPLETED', 'PUBLISHED') AND s.notes IS NOT NULL AND s.notes != ''
       `;
       const params: any[] = [clientId];
+      
+      if (req.user.role !== 'ADMIN') {
+        query += ` AND s.staff_id = ?`;
+        params.push(req.user.id);
+      }
       
       if (startDate) {
         query += ` AND date(s.start_time) >= date(?)`;

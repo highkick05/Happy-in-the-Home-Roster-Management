@@ -216,6 +216,9 @@ function Layout({ children }: { children: React.ReactNode }) {
           <NavLink to="/roster" className={getNavClasses} title="Roster">
             <Calendar className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Roster' : ''}
           </NavLink>
+          <NavLink to="/progress-notes" className={getNavClasses} title="Progress Notes">
+            <ClipboardEdit className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Progress Notes' : ''}
+          </NavLink>
           {user?.role === 'ADMIN' && (
             <>
               <NavLink to="/staff" className={getNavClasses} title="Staff">
@@ -223,9 +226,6 @@ function Layout({ children }: { children: React.ReactNode }) {
               </NavLink>
               <NavLink to="/providers" className={getNavClasses} title="Providers">
                 <Building className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Providers' : ''}
-              </NavLink>
-              <NavLink to="/progress-notes" className={getNavClasses} title="Progress Notes">
-                <ClipboardEdit className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Progress Notes' : ''}
               </NavLink>
               <NavLink to="/invoices" className={getNavClasses} title="Invoicing">
                 <FileText className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Invoicing' : ''}
@@ -346,7 +346,7 @@ export default function App() {
             <Route path="/providers" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="PROVIDERS" /></Layout></ProtectedRoute>} />
             <Route path="/invoices" element={<ProtectedRoute adminOnly><Layout><InvoicingView /></Layout></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute adminOnly><Layout><StaffActivityReport /></Layout></ProtectedRoute>} />
-            <Route path="/progress-notes" element={<ProtectedRoute adminOnly><Layout><ProgressNotesView /></Layout></ProtectedRoute>} />
+            <Route path="/progress-notes" element={<ProtectedRoute><Layout><ProgressNotesView /></Layout></ProtectedRoute>} />
             <Route path="/compliance" element={<ProtectedRoute adminOnly><Layout><ComplianceDashboard /></Layout></ProtectedRoute>} />
             <Route path="/files" element={<ProtectedRoute><Layout><FilesView /></Layout></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute staffOnly><Layout><OnboardingView /></Layout></ProtectedRoute>} />

@@ -38,7 +38,7 @@ export default function ProgressNotesView() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/clients', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch('/api/progress-notes/clients', { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
         const sorted = data.sort((a: any, b: any) => a.first_name.localeCompare(b.first_name));
