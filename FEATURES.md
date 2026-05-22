@@ -3,7 +3,7 @@
 This document provides a detailed breakdown of the core functionality, logic blocks, and architectures within your Care Management platform. You can use this as a reference point when requesting updates, redesigns, or new features to pinpoint exact files and workflows.
 
 ## 1. Authentication & User Management
-* **Login & Sessions:** Secure authentication via JWT, rate limiting on login attempts.
+* **Login & Sessions:** Secure authentication via JWT, rate limiting on login attempts, and password reset workflows.
 * **Roles & Permissions:** Separate views and capabilities for Administrators vs. standard Staff.
 * **Profile Management:** Users can update their own details and view notifications.
 * **Onboarding Flow:** Specific steps and state tracking for new staff orientation/onboarding.
@@ -11,9 +11,10 @@ This document provides a detailed breakdown of the core functionality, logic blo
 
 ## 2. Directory Management (Clients, Staff, & Providers)
 * **Client Directory:** Tracks NDIS vs Home Care (`HCP`) funding types, addresses, and active/inactive status.
+* **Client Dashboards:** Dedicated, drill-down profile for individual clients, displaying shift history, roster templates, and care plans.
 * **Staff Directory:** Manages staff addresses (crucial for accurate travel logic), status, and onboarding.
 * **Third-Party Providers:** Admin management of external provider entities.
-* **Files to pinpoint:** `src/components/Directory/` (`ClientModal.tsx`, `StaffModal.tsx`, etc.), `server.ts` (routes: `/api/clients`, `/api/staff`, `/api/providers`).
+* **Files to pinpoint:** `src/components/Directory/` (`ClientModal.tsx`, `StaffModal.tsx`, `ClientDashboardView.tsx`), `server.ts` (routes: `/api/clients`, `/api/staff`, `/api/providers`).
 
 ## 3. Rostering & Shift Lifecycle
 * **Visual Calendar:** The main Roster Calendar UI for assigning, moving, and viewing shifts.
@@ -42,15 +43,22 @@ This document provides a detailed breakdown of the core functionality, logic blo
 * **System Audit Logs:** Immutable tracker for administrative overrides (e.g., manual edits to shift times or kilometers after completion).
 * **Client Evidence Packs:** PDF generation outlining precise transport leg breakdowns (Long/Lat coords, addresses) to satisfy rigorous NDIS audits.
 * **Staff Vehicle Usage Logbooks:** PDF generation for staff payroll and tax deductions encompassing all logged NDIS, HCP, and ABT kilometers/odometer readings.
-* **Files to pinpoint:** `src/components/Compliance/` (`ComplianceDashboard.tsx`), `server.ts` (routes `/api/compliance/*` and PDF rendering functions like `drawPdfPhotoIfPresent`).
+* **Staff Activity Logs:** Time and travel breakdown grouped by staff for payroll reconciliation via UI.
+* **Files to pinpoint:** `src/components/Compliance/` (`ComplianceDashboard.tsx`), `src/components/Dashboard/` (`StaffActivityReport.tsx`), `server.ts` (routes `/api/compliance/*`, `/api/reports/staff-activity`).
 
-## 7. File Management & Attachments
+## 7. Progress Notes & Clinical Governance
+* **Chronological Timeline:** A unified view where multi-staff shift notes are compiled per client.
+* **Printable Clinical Charts:** A dynamic, paginated A4 printable log structure matching standard paper clinical charts.
+* **Files to pinpoint:** `src/components/ProgressNotes/` (`ProgressNotesView.tsx`, `PrintableClinicalChart.tsx`), `server.ts` (routes: `/api/progress-notes/*`).
+
+## 8. File Management & Attachments
 * **General Storage:** Secure uploading and retrieving user or client-related documents.
 * **Branding:** Uploading custom business letterheads and logos applied dynamically to all PDF outputs.
 * **Files to pinpoint:** `src/components/Files/`, `server.ts` (routes: `/api/files/*`, `/api/settings/upload-logo`).
 
-## 8. System Settings & Infrastructure
+## 9. System Settings & Infrastructure
 * **PWA (Progressive Web App):** Installability, manifest generation, and dynamic app icons for mobile use.
 * **Database Management:** Core data safety controls allowing admins to list, download the real-time Live database, and access rotating backups (SQLite `.db` files).
+* **Kiosk Wallboard:** A self-refreshing, non-interactive TV/Kiosk mode for office displays highlighting active shifts.
 * **Error Handling:** Global boundary checking UI in React to catch frontend crashes gracefully.
-* **Files to pinpoint:** `src/components/Settings/`, `src/components/UniversalPWAInstall.tsx`, `src/components/ErrorBoundary.tsx`, `server.ts` (routes: `/api/admin/database/*`, `/api/settings`, `/manifest.webmanifest`).
+* **Files to pinpoint:** `src/components/Settings/`, `src/components/UniversalPWAInstall.tsx`, `src/components/Kiosk/WallboardView.tsx`, `server.ts` (routes: `/api/admin/database/*`, `/api/shifts/in-progress`).

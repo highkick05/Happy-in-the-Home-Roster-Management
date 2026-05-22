@@ -2225,9 +2225,8 @@ if (!nextShift || gapToNext > 60) {
       db.prepare(query).run(...params);
       res.json({ success: true });
     } catch (e: any) {
-      
       logger.error(`API Error: ${e}`, { error: e.stack || e });
-      res.status(400).json({ error: e.message });
+      res.status(400).json({ error: 'Failed to update profile' });
     }
   });
 
@@ -3270,7 +3269,7 @@ if (!nextShift || gapToNext > 60) {
       }
     } catch (e: any) {
       console.error(e);
-      res.status(500).json({ error: e.message });
+      logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -6845,12 +6844,12 @@ if (!nextShift || gapToNext > 60) {
       return next(err);
     }
     
-    if (err.code === 'SQLITE_CONSTRAINT' || err.code === 'SQLITE_CONSTRAINT_CHECK' || err.code === 'SQLITE_CONSTRAINT_FOREIGNKEY' || err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-      return res.status(400).json({ error: `Database validation failed: ${err.message}` });
+    if (err.code && err.code.startsWith('SQLITE_CONSTRAINT')) {
+      return res.status(400).json({ error: 'Database validation failed' });
     }
     
-    const isProd = process.env.NODE_ENV === 'production';
-    logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
+    // We already log this above, return generic error
+    res.status(500).json({ error: 'Internal Server Error' });
   });
 
   // --- Database Backups & Management ---

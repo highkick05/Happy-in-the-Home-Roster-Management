@@ -40,8 +40,17 @@ Before deploying your Care Management platform to a live environment with real c
     - Missing Base64 Odometer images.
     - Missing Coordinates/Addresses in the travel routes.
 - [ ] **Custom Letterhead**: Upload a custom logo in Settings and verify it applies instantly to newly generated PDFs.
+- [ ] **Quotes Generation**: Generate a quote for a client. Verify the service calculation logic sums up correctly, and the Quote PDF matches the expected format.
 
-## 7. Infrastructure & Compliance
+## 7. Progress Notes & Clinical Governance
+- [ ] **Progress Notes Entry**: Create a progress note on a completed shift. Check that it correctly appears in the client's unified chronologic timeline.
+- [ ] **Printable Clinical Chart**: Trigger the "Print Clinical Chart" function. Confirm the formatting strictly adheres to an A4 layout, paginates cleanly across multiple pages, and doesn't overlap text outside the border.
+
+## 8. Reports & Dashboards
+- [ ] **Staff Activity Report**: Open the Staff Activity module. Verify the reported hours correspond accurately to the *Actual Check-In/Check-Out* times rather than the scheduled shift times.
+- [ ] **Kiosk Wallboard**: Navigate to the `/kiosk/wallboard` route. Verify it launches successfully without standard navigation chrome, displaying a live clock and correctly fetching current in-progress tasks.
+
+## 9. Infrastructure & Compliance
 - [ ] **Database Backup**: Go to Admin Settings and manually trigger a Database Download. Verify the `.db` file is playable/readable via a local DB browser (like DB Browser for SQLite). 
 - [ ] **Audit Trail**: Manually modify a completed shift's times or travel km as an Admin. Go to the Compliance Dashboard and verify an audit log was created identifying *who* changed it, *when*, and *why*.
 - [ ] **Error Boundary**: Trigger an intentional frontend error (if possible, perhaps by entering invalid text in a numeric search field) to ensure the white "Something went wrong" failsafe screen appears instead of a blank white page.

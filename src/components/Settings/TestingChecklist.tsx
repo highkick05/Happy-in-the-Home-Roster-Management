@@ -31,6 +31,13 @@ const CHECKLIST_ITEMS = [
   { id: 'fin_merge', category: 'Financials & PDF', label: 'Merge 3 shifts. Ensure totals sum up without dropping transport data.', expected: 'A single invoice contains line items for ALL sub-shifts exactly as if generated separately.' },
   { id: 'fin_pdf', category: 'Financials & PDF', label: 'Open PDFs. Check for UI overlap, missing images or blank coords.', expected: 'PDF layout is completely legible, without cutting text off, capturing photos correctly.' },
   { id: 'fin_logo', category: 'Financials & PDF', label: 'Upload custom logo in Settings and verify it applies instantly to PDFs.', expected: 'The custom Letterhead logo replaces the default system icon across Invoices and Compliance Packs.' },
+  { id: 'fin_quote', category: 'Financials & PDF', label: 'Generate a Quote. Check logic totals and styling.', expected: 'Quote styling follows the corporate PDF template, accurately totaling line items without crashing.' },
+
+  { id: 'clin_progress', category: 'Progress Notes & Clinical Governance', label: 'Create a progress note on a completed shift.', expected: 'The progress note correctly appears in the client\'s unified chronologic timeline.' },
+  { id: 'clin_print', category: 'Progress Notes & Clinical Governance', label: 'Trigger the "Print Clinical Chart" function.', expected: 'The formatting adheres strictly to an A4 layout, paginating cleanly without text overflow.' },
+
+  { id: 'rep_activity', category: 'Reports & Dashboards', label: 'View the Staff Activity Report.', expected: 'Total hours correspond accurately to Actual check-in/out times rather than standard scheduled bounds.' },
+  { id: 'rep_kiosk', category: 'Reports & Dashboards', label: 'Navigate to the Kiosk Wallboard (/kiosk/wallboard).', expected: 'The UI ditches standard navigation chrome to display a TV-friendly wallboard clock and live shifts.' },
 
   { id: 'inf_backup', category: 'Infrastructure & Compliance', label: 'Trigger Database Download. Verify .db file is valid.', expected: 'Downloads database which can be opened in DB Browser showing the full active schema.' },
   { id: 'inf_audit', category: 'Infrastructure & Compliance', label: 'Modify a completed shift as Admin. Verify Audit log was recorded properly.', expected: 'An entry in the compliance tab shows exact details of the manual intervention.' },
