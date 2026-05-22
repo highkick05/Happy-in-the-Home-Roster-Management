@@ -501,8 +501,15 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                               </div>
                             )}
                             {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && (
-                              <div>
-                                <label className="block text-xs text-zinc-400 mb-1">Issue Date</label>
+                              <div className="mb-2">
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="block text-xs text-zinc-400">Issue Date</label>
+                                  {progressData[step.id]?.files?.[0]?.date_expires && (
+                                    <span className="text-xs text-brand-teal font-medium">
+                                      Current expires: {progressData[step.id].files![0].date_expires}
+                                    </span>
+                                  )}
+                                </div>
                                 <CustomDatePicker 
                                   className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded-lg px-3 py-2 text-white text-sm"
                                   value={formDates[step.id]?.issued || ''}
@@ -511,8 +518,15 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                               </div>
                             )}
                             {['wwcc', 'ahpra', 'driver_license', 'first_aid', 'cpr', 'manual_handling', 'car_insurance', 'flu_shot'].includes(step.id) && (
-                              <div>
-                                <label className="block text-xs text-zinc-400 mb-1">Expiry Date</label>
+                              <div className="mb-2">
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="block text-xs text-zinc-400">Expiry Date</label>
+                                  {!['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && progressData[step.id]?.files?.[0]?.date_expires && (
+                                    <span className="text-xs text-brand-teal font-medium">
+                                      Current expires: {progressData[step.id].files![0].date_expires}
+                                    </span>
+                                  )}
+                                </div>
                                 <CustomDatePicker 
                                   className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded-lg px-3 py-2 text-white text-sm"
                                   value={formDates[step.id]?.expires || ''}
@@ -526,9 +540,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                           </div>
 
                           <div className="flex items-center gap-3">
-                            <label className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors text-[14px] font-medium text-white cursor-pointer w-fit">
+                            <label className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors text-[14px] font-medium text-white cursor-pointer w-fit border border-white/[0.1]">
                               <Upload className="w-4 h-4" />
-                              Upload Renewed File
+                              Upload
                               <input 
                                 type="file" 
                                 className="hidden" 
