@@ -118,8 +118,15 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   }
 
   const isHomeCare = (c: any) => c.funding_type === 'HCP' || c.funding_type === 'Home Care' || c.funding_type === 'HOME_CARE';
-  const ndisClients = clients.filter(c => !isHomeCare(c));
-  const homeCareClients = clients.filter(c => isHomeCare(c));
+  
+  const sortClients = (a: any, b: any) => {
+    const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
+    const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
+    return nameA.localeCompare(nameB);
+  };
+
+  const ndisClients = clients.filter(c => !isHomeCare(c)).sort(sortClients);
+  const homeCareClients = clients.filter(c => isHomeCare(c)).sort(sortClients);
   const displayClients = clientTab === 'NDIS' ? ndisClients : homeCareClients;
 
   return (
