@@ -50,7 +50,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
          const emptyRowCount = Math.max(0, Math.floor(page.emptySpace / 30));
          
          return (
-         <div key={pageIndex} className="w-full max-w-[210mm] min-h-[297mm] md:h-[297mm] bg-white shadow-xl print:shadow-none box-border p-[10mm] print:p-0 relative break-after-page flex flex-col justify-between">
+         <div key={pageIndex} className="w-full max-w-[210mm] min-h-[297mm] md:h-[297mm] bg-white shadow-xl print:shadow-none box-border p-0 relative break-after-page flex flex-col justify-between">
            
            <div className="w-full text-black font-sans text-sm flex-1 flex flex-col">
               
