@@ -129,6 +129,13 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const homeCareClients = clients.filter(c => isHomeCare(c)).sort(sortClients);
   const displayClients = clientTab === 'NDIS' ? ndisClients : homeCareClients;
 
+  const sortedStaff = [...staff].sort(sortClients);
+  const sortedProviders = [...providers].sort((a: any, b: any) => {
+    const nameA = a.company_name?.toLowerCase() || '';
+    const nameB = b.company_name?.toLowerCase() || '';
+    return nameA.localeCompare(nameB);
+  });
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 bg-brand-navy border border-border-subtle rounded-xl flex flex-col shadow-sm overflow-hidden">
@@ -177,7 +184,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle text-[13px]">
-              {activeTab === 'STAFF' && staff.map(s => {
+              {activeTab === 'STAFF' && sortedStaff.map(s => {
                 const initials = `${(s.first_name || '').charAt(0)}${(s.last_name || '').charAt(0)}`.toUpperCase();
                 return (
                   <tr key={s.id} onClick={() => handleEditStaff(s)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${s.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
@@ -289,7 +296,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 );
               })}
 
-              {activeTab === 'PROVIDERS' && providers.map(p => {
+              {activeTab === 'PROVIDERS' && sortedProviders.map(p => {
                 const initials = (p.company_name || '').slice(0, 2).toUpperCase();
                 return (
                   <tr key={p.id} onClick={() => handleEditProvider(p)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${p.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
