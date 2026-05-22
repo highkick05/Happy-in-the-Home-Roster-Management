@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, CheckCircle2, ChevronDown, ChevronUp, Link as LinkIcon, Download, Trash2, File as FileIcon, Info } from 'lucide-react';
+import { Upload, CheckCircle2, ChevronDown, ChevronUp, Link as LinkIcon, Download, Trash2, File as FileIcon, Info, Copy, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
 
@@ -26,7 +26,8 @@ export const ONBOARDING_STEPS: Step[] = [
   { id: 'car_insurance', title: '10. Comprehensive Car Insurance (with Business Use)', description: 'Annual renewal. Must verify explicit inclusion of "Business Use" or "Commuting/Work Travel".', type: 'upload', links: [] },
   { id: 'flu_shot', title: '11. Annual Influenza Vaccination', description: 'Annual renewal (must be updated before winter peak).', type: 'upload', links: [] },
   { id: 'immunisation', title: '12. Immunisation History', description: 'One-time onboarding baseline healthcare worker vaccines.', type: 'upload', links: [] },
-  { id: 'covid_vaccine', title: '13. COVID Immunisation Evidence', description: 'Verified record at onboarding or inline with directives.', type: 'upload', links: [] }
+  { id: 'covid_vaccine', title: '13. COVID Immunisation Evidence', description: 'Verified record at onboarding or inline with directives.', type: 'upload', links: [] },
+  { id: 'tfn_super', title: '14. Tax File Number Declaration & Superannuation Choice', description: 'Completed TFN and Super forms.', type: 'upload', links: [] }
 ];
 
 export default function OnboardingView({ targetUserId }: { targetUserId?: number }) {
@@ -40,6 +41,13 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   const [loading, setLoading] = useState(true);
   const [formDates, setFormDates] = useState<Record<string, { issued: string, expires: string, idNumber?: string }>>({});
   const [uploadError, setUploadError] = useState<Record<string, string>>({});
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const handleCopy = (text: string, fieldId: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldId);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   const getTrafficLight = (expires?: string | null) => {
     if (!expires) return null;
@@ -438,13 +446,23 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                               Business Details for the form:
                             </h4>
                             <div className="p-4 border border-white/[0.08] rounded-lg bg-[#121214]/50 space-y-3 text-sm">
-                              <div className="grid grid-cols-1 md:grid-cols-4 gap-1 md:gap-4">
+                              <div className="grid grid-cols-1 md:grid-cols-4 gap-1 md:gap-4 items-center group">
                                 <span className="text-zinc-500 font-medium uppercase text-xs md:col-span-1">Business Name:</span>
-                                <span className="text-white md:col-span-3 uppercase">HAPPY IN THE HOME</span>
+                                <div className="text-white md:col-span-3 flex items-center gap-2">
+                                  <span className="uppercase">HAPPY IN THE HOME</span>
+                                  <button onClick={() => handleCopy('HAPPY IN THE HOME', 'businessName')} className="text-zinc-500 hover:text-white transition-colors p-1" title="Copy Business Name">
+                                    {copiedField === 'businessName' ? <Check className="w-3.5 h-3.5 text-brand-green" /> : <Copy className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
                               </div>
-                              <div className="grid grid-cols-1 md:grid-cols-4 gap-1 md:gap-4">
+                              <div className="grid grid-cols-1 md:grid-cols-4 gap-1 md:gap-4 items-center group">
                                 <span className="text-zinc-500 font-medium uppercase text-xs md:col-span-1">ABN:</span>
-                                <span className="text-white font-medium md:col-span-3">69695033115</span>
+                                <div className="text-white font-medium md:col-span-3 flex items-center gap-2">
+                                  <span>69695033115</span>
+                                  <button onClick={() => handleCopy('69695033115', 'abn')} className="text-zinc-500 hover:text-white transition-colors p-1" title="Copy ABN">
+                                    {copiedField === 'abn' ? <Check className="w-3.5 h-3.5 text-brand-green" /> : <Copy className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -455,6 +473,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                               <video 
                                 src="/tax_super_tutorial.mp4" 
                                 controls 
+                                autoPlay
+                                muted
+                                playsInline
                                 className="w-full aspect-video"
                                 controlsList="nodownload"
                               />
@@ -656,7 +677,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
           <div>
             <h4 className="font-medium text-amber-400 mb-1">IMPORTANT NOTE</h4>
             <p className="text-sm text-zinc-400 leading-relaxed">
-              All documents must be clear, legible, and current. Expired documents will not be accepted. Once all steps are completed, your Employment Agreement will be generated for final signing.
+              All documents must be clear, legible, and current. Expired documents will not be accepted.
             </p>
           </div>
         </div>
