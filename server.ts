@@ -306,8 +306,30 @@ async function startServer() {
                travelBreakdown.push(`[Ignored Return Commute]: Client -> Home (0km)`);
            }
 
-           db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, travel_breakdown = ? WHERE id = ?').run(
-              totalDistance, parseFloat(totalTravelMinutes.toFixed(2)), JSON.stringify(travelBreakdown), currentShift.id
+           // ALSO update transport_route_log with homeCareTravel
+           let currentLogObj: any = {};
+           if (currentShift.transport_route_log) {
+               try { currentLogObj = JSON.parse(currentShift.transport_route_log); } catch(e) {}
+           }
+           let routeLogs: any[] = [];
+           if (totalDistance > 0) {
+              const prevClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(prevShift.client_id) as any;
+              const currentClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(currentShift.client_id) as any;
+              const prevName = prevClientInfo ? `${prevClientInfo.first_name} ${prevClientInfo.last_name}`.trim() : 'Unknown';
+              const currName = currentClientInfo ? `${currentClientInfo.first_name} ${currentClientInfo.last_name}`.trim() : 'Unknown';
+              routeLogs.push({ description: `${prevName} (${prevClientInfo?.address}) to ${currName} (${currentClientInfo?.address})`, distance: totalDistance, waypoints: [prevCoords, currentShiftCoords], addressStart: prevClientInfo?.address, addressEnd: currentClientInfo?.address, homeCareTravel: true });
+           } else {
+              routeLogs.push({ description: 'No billable provider travel for this shift (Private Commute)', distance: 0, waypoints: [], homeCareTravel: true });
+           }
+           currentLogObj.homeCareTravel = {
+               calculatedAt: new Date().toISOString(),
+               distance: totalDistance,
+               cost: totalDistance,
+               legs: routeLogs
+           };
+
+           db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, home_care_travel_km = ?, home_care_travel_total = ?, travel_breakdown = ?, transport_route_log = ? WHERE id = ?').run(
+              totalDistance, parseFloat(totalTravelMinutes.toFixed(2)), totalDistance, totalDistance, JSON.stringify(travelBreakdown), JSON.stringify(currentLogObj), currentShift.id
            );
         } else {
            const prevShift = shifts[i - 1] || null;

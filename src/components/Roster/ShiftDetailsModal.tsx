@@ -413,7 +413,11 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                                   <div className="space-y-6">
                                     {log.homeCareTravel.legs.map((leg: any, i: number) => {
                                       if (leg.distance === 0 && leg.description.includes('Private Commute')) {
-                                        return null;
+                                        return (
+                                          <div key={i} className="mb-2 text-zinc-400 italic">
+                                            {leg.description}
+                                          </div>
+                                        );
                                       }
                                       if (leg.distance === 0) return null;
                                       return (
