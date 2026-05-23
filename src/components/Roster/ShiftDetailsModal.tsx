@@ -317,28 +317,26 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
               <div className="col-span-1 sm:col-span-2 lg:col-span-4 pt-4 mt-2 border-t border-white/[0.08]/80">
                  <p className="text-sm md:text-base font-bold text-zinc-300 mb-3">Transport & Travel Details</p>
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                   {shift.homeCareTravelKm !== undefined && shift.homeCareTravelKm > 0 && (
-                     <div className="bg-indigo-900/10 p-4 rounded-xl border border-brand-teal/20 shadow-sm flex flex-col justify-center">
-                       <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">Home Care Travel (Client Gap)</p>
-                       <p className="text-xl text-indigo-100 font-extrabold">{shift.homeCareTravelKm.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
-                     </div>
-                   )}
-                   {shift.providerTravelKm !== undefined && shift.providerTravelKm > 0 && (
-                     <div className="bg-indigo-900/10 p-4 rounded-xl border border-brand-teal/20 shadow-sm flex flex-col justify-center">
-                       <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">
-                         {(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') ? 'Home Care Travel (Client Gap)' : 'Provider Travel (Distance to Shift)'}
-                       </p>
-                       <p className="text-xl text-indigo-100 font-extrabold">{shift.providerTravelKm.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
-                     </div>
-                   )}
-                   {(shift.homeCareTravelKm === undefined || shift.homeCareTravelKm === 0) && (shift.providerTravelKm === undefined || shift.providerTravelKm === 0) && (
-                     <div className="bg-zinc-800/50 p-4 rounded-xl border border-white/[0.08]/80 shadow-sm flex flex-col justify-center">
-                       <p className="text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider">
-                         {(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') ? 'Home Care Travel (Client Gap)' : 'Provider Travel'}
-                       </p>
-                       <p className="text-xl text-zinc-300 font-extrabold">0.00 <span className="text-sm font-medium text-zinc-500">km</span></p>
-                     </div>
-                   )}
+                   {(() => {
+                     const isHCP = shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP';
+                     const km = isHCP ? (shift.homeCareTravelKm || shift.providerTravelKm || 0) : (shift.providerTravelKm || 0);
+                     const title = isHCP ? 'Home Care Travel (Client Gap)' : 'Provider Travel (Distance to Shift)';
+                     
+                     if (km > 0) {
+                       return (
+                         <div className="bg-indigo-900/10 p-4 rounded-xl border border-brand-teal/20 shadow-sm flex flex-col justify-center">
+                           <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">{title}</p>
+                           <p className="text-xl text-indigo-100 font-extrabold">{km.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
+                         </div>
+                       );
+                     }
+                     return (
+                       <div className="bg-zinc-800/50 p-4 rounded-xl border border-white/[0.08]/80 shadow-sm flex flex-col justify-center">
+                         <p className="text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider">{isHCP ? 'Home Care Travel (Client Gap)' : 'Provider Travel'}</p>
+                         <p className="text-xl text-zinc-300 font-extrabold">0.00 <span className="text-sm font-medium text-zinc-500">km</span></p>
+                       </div>
+                     );
+                   })()}
                    {!(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') && (
                      <div className="bg-brand-green/10 p-4 rounded-xl border border-brand-green/20 shadow-sm flex flex-col justify-center">
                        <p className="text-xs font-medium text-brand-green/80 mb-1 uppercase tracking-wider">Activity Based Transport (ABT)</p>
@@ -402,35 +400,6 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                                     </span>
                                     {log.providerTravel.calculatedAt && (
                                       <span className="text-[10px] md:text-xs text-zinc-500 font-medium self-start sm:self-auto text-left sm:text-right">Calculated: <br className="sm:hidden"/>{new Date(log.providerTravel.calculatedAt).toLocaleString()}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {log && log.homeCareTravel && log.homeCareTravel.legs && log.homeCareTravel.legs.length > 0 && (
-                              <div className="flex items-start gap-3 pt-2">
-                                <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
-                                  <span className="text-xs font-bold text-brand-teal/80 mb-5 uppercase tracking-wider block">Home Care Travel:</span>
-                                  <div className="space-y-6">
-                                    {log.homeCareTravel.legs.map((leg: any, i: number) => {
-                                      if (leg.distance === 0 && leg.description.includes('Private Commute')) {
-                                        return null;
-                                      }
-                                      if (leg.distance === 0) return null;
-                                      return (
-                                        <div key={i} className="mb-2">
-                                          {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                  <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-6 pt-5 border-t border-white/[0.08]/80 sm:pl-8 gap-3">
-                                    <span className="flex items-center px-4 py-2 bg-brand-blue hover:bg-brand-teal text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto">
-                                      {shift.homeCareTravelKm != null ? shift.homeCareTravelKm.toFixed(2) : log.homeCareTravel.legs.reduce((sum: number, leg: any) => sum + (leg.distance || 0), 0).toFixed(2)} km
-                                    </span>
-                                    {log.homeCareTravel.calculatedAt && (
-                                      <span className="text-[10px] md:text-xs text-zinc-500 font-medium self-start sm:self-auto text-left sm:text-right">Calculated: <br className="sm:hidden"/>{new Date(log.homeCareTravel.calculatedAt).toLocaleString()}</span>
                                     )}
                                   </div>
                                 </div>
