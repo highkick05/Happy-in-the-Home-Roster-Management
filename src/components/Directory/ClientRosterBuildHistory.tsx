@@ -11,7 +11,69 @@ interface Props {
 }
 
 export default function ClientRosterBuildHistory({ clientId, isOpen, onClose, onRevertSuccess }: Props) {
-  const { token, user } = useAuth();
+  const { token, user, settings } = useAuth();
+  const tz = typeof settings?.timezone === 'string' ? settings.timezone.replace(/['"]+/g, '') : 'Australia/Perth';
+
+  const formatDateString = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('T')[0].split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return dateStr;
+  };
+
+  const formatDateTimeLocal = (dateIso: string) => {
+    if (!dateIso) return '';
+    try {
+      const d = new Date(dateIso);
+      const str = d.toLocaleString('en-AU', {
+        timeZone: tz,
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+      // str might be "14/05/2026, 10:00 am". Replace / with -
+      return str.replace(/\//g, '-');
+    } catch {
+      return new Date(dateIso).toLocaleString();
+    }
+  };
+
+  const formatTimeLocal = (dateIso: string) => {
+    if (!dateIso) return '';
+    try {
+      const d = new Date(dateIso);
+      return d.toLocaleTimeString('en-AU', {
+        timeZone: tz,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    } catch {
+      return dateIso;
+    }
+  };
+
+  const formatDateLocal = (dateIso: string) => {
+    if (!dateIso) return '';
+    try {
+      const d = new Date(dateIso);
+      const str = d.toLocaleDateString('en-AU', {
+        timeZone: tz,
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+      return str.replace(/\//g, '-');
+    } catch {
+      return dateIso;
+    }
+  };
+
   const [builds, setBuilds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedBuildId, setExpandedBuildId] = useState<string | null>(null);
@@ -120,10 +182,10 @@ export default function ClientRosterBuildHistory({ clientId, isOpen, onClose, on
                   <div className="p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
                     <div className="flex-1">
                       <div className="text-sm font-medium text-white mb-1">
-                        Build Date: {new Date(build.created_at).toLocaleString()}
+                        Build Date: {formatDateTimeLocal(build.created_at)}
                       </div>
                       <div className="text-xs text-zinc-400">
-                        Target Date Range: {build.date_range_start} to {build.date_range_end}
+                        Target Date Range: {formatDateString(build.date_range_start)} to {formatDateString(build.date_range_end)}
                       </div>
                       <div className="text-xs text-brand-teal font-medium mt-1">
                         {build.shift_count} Shifts Generated
@@ -163,10 +225,10 @@ export default function ClientRosterBuildHistory({ clientId, isOpen, onClose, on
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-white/[0.04]">
-                            {shiftsCache[build.id].map(shift => (
+                            {shiftsCache[build.id].map((shift: any) => (
                               <tr key={shift.id} className="hover:bg-white/[0.02]">
-                                <td className="py-2 px-3 text-white">{shift.date}</td>
-                                <td className="py-2 px-3 text-zinc-300">{shift.start_time.split('T')[1].substring(0,5)} - {shift.end_time.split('T')[1].substring(0,5)}</td>
+                                <td className="py-2 px-3 text-white">{formatDateLocal(shift.start_time)}</td>
+                                <td className="py-2 px-3 text-zinc-300">{formatTimeLocal(shift.start_time)} - {formatTimeLocal(shift.end_time)}</td>
                                 <td className="py-2 px-3 text-zinc-300">{shift.staff_first_name} {shift.staff_last_name}</td>
                                 <td className="py-2 px-3 text-zinc-400">{shift.service_name || '-'}</td>
                               </tr>
