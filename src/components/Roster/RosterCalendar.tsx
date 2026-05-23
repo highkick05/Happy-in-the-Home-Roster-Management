@@ -8,7 +8,7 @@ import { getDay } from 'date-fns/getDay';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
-import { Plus, Maximize, Minimize, Bed, Sparkles } from 'lucide-react';
+import { Plus, Maximize, Minimize, Bed, Star } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
 import AddRespiteBookingModal from './AddRespiteBookingModal';
@@ -635,9 +635,9 @@ export default function RosterCalendar() {
                 const duration = 1.5 + (hash2 % 20) / 10;
                 const size = 5 + (hash1 % 6);
                 return (
-                  <Sparkles
+                  <Star
                     key={i}
-                    className="absolute text-amber-300 drop-shadow-sm opacity-0"
+                    className="absolute text-white fill-white drop-shadow-sm opacity-0"
                     style={{
                       top: `${top}%`,
                       left: `${left}%`,
