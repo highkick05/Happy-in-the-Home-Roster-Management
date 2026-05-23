@@ -684,84 +684,46 @@ async function startServer() {
               prevCoords = rawPrevCoords ? [Number(rawPrevCoords[0]), Number(rawPrevCoords[1])] : [0,0];
            }
 
-           const getGoogleRoutesDistanceWrapper = async (wp1: any, wp2: any) => {
-               const res = await getGoogleRoutesDistance([wp1, wp2]);
-               return res.distance;
+           // NDIS CASCADE LOGIC
+           console.log(`[DEBUG CASCADE] NDIS recalculating provider travel for shift ${currentShift.id}`);
+           const pTravel = await calculateProviderTravel(currentShift);
+
+           let combinedRouteLog: any = null;
+           if (currentShift.transport_route_log) {
+               try { combinedRouteLog = JSON.parse(currentShift.transport_route_log); } catch(e){}
+           }
+           combinedRouteLog = combinedRouteLog || {};
+           combinedRouteLog.providerTravel = {
+               calculatedAt: new Date().toISOString(),
+               distance: pTravel.distance,
+               cost: pTravel.cost,
+               legs: pTravel.routeLogs
            };
+           const transportRouteLogStr = JSON.stringify(combinedRouteLog);
 
-           await (async () => {
-               const getGoogleRoutesDistance = getGoogleRoutesDistanceWrapper;
-               
-// --- NDIS CASCADE LOGIC ---
-const currentStart = new Date(currentShift.start_time).getTime();
-const currentEnd = new Date(currentShift.end_time).getTime();
-const prevEnd = prevShift ? new Date(prevShift.end_time).getTime() : 0;
-const nextStart = nextShift ? new Date(nextShift.start_time).getTime() : 0;
+           const travelBreakdown = (pTravel.routeLogs || []).map((log: any) => log.description);
 
-const gapToPrev = prevShift ? Math.abs((currentStart - prevEnd) / (1000 * 60)) : Infinity;
-const gapToNext = nextShift ? Math.abs((nextStart - currentEnd) / (1000 * 60)) : Infinity;
-
-console.log(`[DEBUG CASCADE] Shift ID: ${currentShift.id} | gapToPrev: ${gapToPrev} | gapToNext: ${gapToNext}`);
-
-let totalDistance = 0;
-let travelBreakdown = [];
-
-// LEG 1 (Arrival)
-if (!prevShift || gapToPrev > 60) {
-    const dist = await getGoogleRoutesDistance(staffHomeCoords, currentShiftCoords);
-    totalDistance += dist;
-    travelBreakdown.push(`[100% Commute]: Home to Client = ${dist.toFixed(2)} km`);
-} else {
-    const fullDist = await getGoogleRoutesDistance(prevCoords, currentShiftCoords);
-    const splitDist = fullDist / 2;
-    totalDistance += splitDist;
-    travelBreakdown.push(`[50% Transitional Split]: Prev Client to Current = ${splitDist.toFixed(2)} km`);
-}
-
-// LEG 2 (Departure)
-if (!nextShift || gapToNext > 60) {
-    const dist = await getGoogleRoutesDistance(currentShiftCoords, staffHomeCoords);
-    totalDistance += dist;
-    travelBreakdown.push(`[100% Return Trip]: Client to Home = ${dist.toFixed(2)} km`);
-} else {
-    const nextAddress = db.prepare('SELECT address FROM clients WHERE id = ?').get(nextShift.client_id) as any;
-    let rawNextCoords = await getRecordCoordinates('clients', nextShift.client_id, nextAddress?.address);
-    let nextCoords = rawNextCoords ? [Number(rawNextCoords[0]), Number(rawNextCoords[1])] : [0,0];
-
-    const fullDist = await getGoogleRoutesDistance(currentShiftCoords, nextCoords);
-    const splitDist = fullDist / 2;
-    totalDistance += splitDist;
-    travelBreakdown.push(`[50% Transitional Split]: Current Client to Next = ${splitDist.toFixed(2)} km`);
-}
-// --- END NDIS CASCADE LOGIC ---
-
-               // Update services_json so the UI reflects the math
-               const latestShift = db.prepare('SELECT services_json FROM shifts WHERE id = ?').get(currentShift.id) as any;
-               let servicesData = [];
-               if (latestShift && latestShift.services_json) {
-                   try { 
-                       servicesData = JSON.parse(latestShift.services_json); 
-                       console.log(`[DEBUG CASCADE] NDIS services_json found ${servicesData.length} entries for shift ${currentShift.id}`);
-                   } catch(e) {
-                       console.error('[DEBUG CASCADE] NDIS JSON parse error:', e);
-                   }
-                   for (const sData of servicesData) {
-                       const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
-                       console.log(`[DEBUG CASCADE] NDIS checking service: "${service?.name}" for sData.serviceId: ${sData.serviceId}`);
-                       if (service && service.name && service.name.toLowerCase().includes('provider travel')) {
-                           sData.qtyOverride = parseFloat(totalDistance.toFixed(2));
-                           console.log(`[DEBUG CASCADE] NDIS UPDATED qtyOverride to ${sData.qtyOverride} for shift ${currentShift.id}`);
-                       }
+           // Update services_json so the UI reflects the math
+           const latestShift = db.prepare('SELECT services_json FROM shifts WHERE id = ?').get(currentShift.id) as any;
+           let servicesData: any[] = [];
+           if (latestShift && latestShift.services_json) {
+               try { 
+                   servicesData = JSON.parse(latestShift.services_json); 
+               } catch(e) {
+                   console.error('[DEBUG CASCADE] NDIS JSON parse error:', e);
+               }
+               for (const sData of servicesData) {
+                   const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
+                   if (service && service.name && service.name.toLowerCase().includes('provider travel')) {
+                       sData.qtyOverride = parseFloat(pTravel.distance.toFixed(2));
                    }
                }
+           }
 
-               console.log(`[DEBUG CASCADE] NDIS writing totalDistance: ${totalDistance} to shift ${currentShift.id}. Final servicesData length: ${servicesData.length}`);
-               db.prepare('UPDATE shifts SET provider_travel_km = ?, travel_breakdown = ?, services_json = ? WHERE id = ?').run(
-                  totalDistance, JSON.stringify(travelBreakdown), JSON.stringify(servicesData), currentShift.id
-               );
-               const verify = db.prepare('SELECT services_json FROM shifts WHERE id = ?').get(currentShift.id) as any;
-               console.log(`[DEBUG CASCADE] VERIFY shift ${currentShift.id} services_json after update: ${verify?.services_json}`);
-           })();
+           console.log(`[DEBUG CASCADE] NDIS writing totalDistance: ${pTravel.distance} to shift ${currentShift.id}.`);
+           db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, travel_breakdown = ?, transport_route_log = ?, services_json = ? WHERE id = ?').run(
+              pTravel.distance, pTravel.minutes, JSON.stringify(travelBreakdown), transportRouteLogStr, JSON.stringify(servicesData), currentShift.id
+           );
         }
       }
     } catch (e) {
