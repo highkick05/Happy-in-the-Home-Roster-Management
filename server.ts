@@ -724,6 +724,44 @@ async function startServer() {
            db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, travel_breakdown = ?, transport_route_log = ?, services_json = ? WHERE id = ?').run(
               pTravel.distance, pTravel.minutes, JSON.stringify(travelBreakdown), transportRouteLogStr, JSON.stringify(servicesData), currentShift.id
            );
+
+           if (prevShift) {
+               console.log(`[NDIS Sync] Retroactively updating preceding shift: ${prevShift.id}`);
+               const prevPTravel = await calculateProviderTravel(prevShift);
+               let prevRouteLog: any = {};
+               try {
+                   prevRouteLog = JSON.parse(prevShift.transport_route_log || '{}');
+               } catch(e) {}
+               prevRouteLog.providerTravel = {
+                   calculatedAt: new Date().toISOString(),
+                   distance: prevPTravel.distance,
+                   cost: prevPTravel.cost,
+                   legs: prevPTravel.routeLogs
+               };
+               const prevBreakdown = (prevPTravel.routeLogs || []).map((log: any) => log.description);
+               db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, travel_breakdown = ?, transport_route_log = ? WHERE id = ?').run(
+                   prevPTravel.distance, prevPTravel.minutes, JSON.stringify(prevBreakdown), JSON.stringify(prevRouteLog), prevShift.id
+               );
+           }
+
+           if (nextShift) {
+               console.log(`[NDIS Sync] Retroactively updating succeeding shift: ${nextShift.id}`);
+               const nextPTravel = await calculateProviderTravel(nextShift);
+               let nextRouteLog: any = {};
+               try {
+                   nextRouteLog = JSON.parse(nextShift.transport_route_log || '{}');
+               } catch(e) {}
+               nextRouteLog.providerTravel = {
+                   calculatedAt: new Date().toISOString(),
+                   distance: nextPTravel.distance,
+                   cost: nextPTravel.cost,
+                   legs: nextPTravel.routeLogs
+               };
+               const nextBreakdown = (nextPTravel.routeLogs || []).map((log: any) => log.description);
+               db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, travel_breakdown = ?, transport_route_log = ? WHERE id = ?').run(
+                   nextPTravel.distance, nextPTravel.minutes, JSON.stringify(nextBreakdown), JSON.stringify(nextRouteLog), nextShift.id
+               );
+           }
         }
       }
     } catch (e) {
