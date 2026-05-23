@@ -510,7 +510,7 @@ async function startServer() {
         SELECT * FROM shifts 
         WHERE staff_id = ? 
         AND DATE(start_time) = DATE(?)
-        AND start_time <= ? 
+        AND DATETIME(start_time) <= DATETIME(?) 
         AND id != ? 
         AND status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')
         AND funding_type NOT IN ('HCP', 'Home Care', 'HOME_CARE')
@@ -522,7 +522,7 @@ async function startServer() {
         SELECT * FROM shifts 
         WHERE staff_id = ? 
         AND DATE(start_time) = DATE(?)
-        AND start_time >= ? 
+        AND DATETIME(start_time) >= DATETIME(?) 
         AND id != ? 
         AND status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')
         AND funding_type NOT IN ('HCP', 'Home Care', 'HOME_CARE')
