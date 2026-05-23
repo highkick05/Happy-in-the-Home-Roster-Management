@@ -406,6 +406,36 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                               </div>
                             )}
 
+                            {log && log.homeCareTravel && log.homeCareTravel.legs && log.homeCareTravel.legs.length > 0 && (
+                              <div className="flex items-start gap-3 pt-2">
+                                <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
+                                  <span className="text-xs font-bold text-brand-teal/80 mb-5 uppercase tracking-wider block">Home Care Travel Route:</span>
+                                  <div className="space-y-6">
+                                    {log.homeCareTravel.legs.map((leg: any, i: number) => {
+                                      if (leg.distance === 0 && leg.description.includes('Private Commute')) {
+                                        return null;
+                                      }
+                                      if (leg.distance === 0) return null;
+                                      return (
+                                        <div key={i} className="mb-2">
+                                          {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-6 pt-5 border-t border-white/[0.08]/80 sm:pl-8 gap-3">
+                                    <span className="flex items-center px-4 py-2 bg-brand-blue hover:bg-brand-teal text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto">
+                                      {shift.homeCareTravelKm != null ? shift.homeCareTravelKm.toFixed(2) : log.homeCareTravel.legs.reduce((sum: number, leg: any) => sum + (leg.distance || 0), 0).toFixed(2)} km
+                                    </span>
+                                    {log.homeCareTravel.calculatedAt && (
+                                      <span className="text-[10px] md:text-xs text-zinc-500 font-medium self-start sm:self-auto text-left sm:text-right">Calculated: <br className="sm:hidden"/>{new Date(log.homeCareTravel.calculatedAt).toLocaleString()}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+
                             {log && log.abt && (
                               <div className="flex items-start gap-3 pt-2">
                                   <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
