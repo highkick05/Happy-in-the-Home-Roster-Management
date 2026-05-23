@@ -119,7 +119,7 @@ export default function ClientDashboardView() {
              title="Roster Builder"
            >
              <Calendar className="w-5 h-5 mb-1.5" />
-             <span className="text-[10px] font-medium leading-none text-center px-1">Roster</span>
+             <span className="text-[10px] font-medium leading-none text-center px-1">Roster Builder</span>
            </button>
 
            <button 

@@ -12,8 +12,8 @@ export default function ClientRosterModal({ isOpen, onClose, client }: ClientRos
   if (!isOpen || !client) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 xl:p-8" onClick={onClose}>
-      <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-xl w-[98vw] max-w-[1400px] h-[95vh] lg:h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-0" onClick={onClose}>
+      <div className="bg-[#09090b] border-0 sm:border border-white/[0.08] w-full h-full overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         
         <div className="flex border-b border-white/[0.08] shrink-0 flex-col">
           <div className="flex justify-between items-start pt-4 pb-4 px-4">
