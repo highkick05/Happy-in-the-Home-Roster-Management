@@ -117,30 +117,20 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                              return (
                                <div key={note.id} className={`flex ${!isLastItem ? 'border-b-[1.5px] border-black' : ''}`}>
                                   {/* Date & Time Column */}
-                                  <div className="w-[120px] p-2 text-xs border-r-[1.5px] border-black shrink-0 font-medium relative">
+                                  <div className="w-[120px] p-2 text-xs border-r-[1.5px] border-black shrink-0 font-medium h-full">
                                      <div>{dateStr}</div>
                                      <div className="mt-1">{startTime}</div>
-                                     {note.service_name && (
-                                        <div className="mt-3 text-[10px] text-black/60 font-semibold uppercase leading-tight">
-                                           {note.service_name}
-                                        </div>
-                                     )}
                                   </div>
                                   
                                   {/* Narrative & Signature Column */}
-                                  <div className="flex-1 flex flex-col justify-between pt-[2px]">
-                                     <div className="px-3 py-2 text-[13px] font-serif leading-relaxed whitespace-pre-wrap min-h-[50px]">
-                                        {note.notes}
-                                     </div>
-                                     
-                                     <div className="flex justify-end p-2 pb-[6px] mt-1 shrink-0">
-                                       <div className="text-right flex flex-col items-end">
-                                          <div className="text-[11px] font-semibold font-sans mb-[2px]">{note.staff_first_name} {note.staff_last_name}</div>
-                                          <div className="border-t border-black min-w-[120px] pt-1 text-[9px] uppercase text-black/60 font-sans text-center">
-                                             {note.staff_role === 'ADMIN' ? 'Administrator' : 'Support Worker'}
-                                          </div>
-                                       </div>
-                                     </div>
+                                  <div className="flex-1 px-3 py-2 text-[13px] font-serif leading-relaxed whitespace-pre-wrap min-h-[50px]">
+                                     <span>{note.notes}</span>
+                                     <span className="font-sans font-semibold text-[11px] ml-4 tracking-normal">
+                                        {note.staff_first_name} {note.staff_last_name}
+                                     </span>
+                                     <span className="font-sans text-[10px] text-black/70 uppercase ml-1 tracking-normal">
+                                        ({note.staff_role === 'ADMIN' ? 'Administrator' : 'Support Worker'})
+                                     </span>
                                   </div>
                                </div>
                              );
