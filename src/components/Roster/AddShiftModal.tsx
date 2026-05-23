@@ -328,8 +328,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex justify-center z-50 p-4 overflow-y-auto custom-scrollbar" onClick={handleBackgroundClick}>
-      <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative max-w-[1200px] w-full text-zinc-100 flex flex-col my-auto h-fit">
+    <div className="fixed inset-0 bg-black/60 flex justify-center items-start z-50 p-4 overflow-y-auto custom-scrollbar" onClick={handleBackgroundClick}>
+      <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative max-w-[1200px] w-full text-zinc-100 flex flex-col my-10 shrink-0 h-fit">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-white tracking-tight mb-4">{initialData?.id ? 'Edit Shift' : 'Add Shift(s)'}</h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-white transition-colors">
