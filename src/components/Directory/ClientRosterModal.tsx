@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import ClientRosterTemplates from './ClientRosterTemplates';
 
@@ -11,9 +12,9 @@ interface ClientRosterModalProps {
 export default function ClientRosterModal({ isOpen, onClose, client }: ClientRosterModalProps) {
   if (!isOpen || !client) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 md:p-6" onClick={onClose}>
-      <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-2xl w-full max-w-[1600px] h-full max-h-[96vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+  const modalContent = (
+    <div className="fixed inset-0 bg-black/80 z-[999] flex items-center justify-center p-2 sm:p-4 md:p-6" onClick={onClose}>
+      <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-2xl w-full max-w-none h-full overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         
         <div className="flex border-b border-white/[0.08] shrink-0 flex-col">
           <div className="flex justify-between items-start pt-4 pb-4 px-4">
@@ -34,4 +35,6 @@ export default function ClientRosterModal({ isOpen, onClose, client }: ClientRos
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
