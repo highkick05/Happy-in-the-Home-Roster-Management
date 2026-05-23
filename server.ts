@@ -260,8 +260,14 @@ async function startServer() {
         let rawCurrentShiftCoords = await getRecordCoordinates('clients', currentShift.client_id, currentShift.client_address);
         const currentShiftCoords = rawCurrentShiftCoords ? [Number(rawCurrentShiftCoords[0]), Number(rawCurrentShiftCoords[1])] : [0,0];
 
+        const prevShift = shifts[i - 1] || null;
+        const currentStart = new Date(currentShift.start_time).getTime();
+        const prevEnd = prevShift ? new Date(prevShift.end_time).getTime() : 0;
+        const gapToPrev = prevShift ? Math.abs((currentStart - prevEnd) / (1000 * 60)) : Infinity;
+
+        console.log(`[DEBUG CASCADE] Shift ${currentShift.id}: prevShiftID? ${prevShift?.id}, gapToPrev: ${gapToPrev.toFixed(1)} mins, isHomeCare: ${isHomeCare}`);
+
         if (isHomeCare) {
-           const prevShift = shifts[i - 1] || null;
            const nextShift = shifts[i + 1] || null;
 
            let prevCoords = null;
@@ -271,12 +277,9 @@ async function startServer() {
               prevCoords = rawPrevCoords ? [Number(rawPrevCoords[0]), Number(rawPrevCoords[1])] : [0,0];
            }
 
-           const currentStart = new Date(currentShift.start_time).getTime();
            const currentEnd = new Date(currentShift.end_time).getTime();
-           const prevEnd = prevShift ? new Date(prevShift.end_time).getTime() : 0;
            const nextStart = nextShift ? new Date(nextShift.start_time).getTime() : 0;
 
-           const gapToPrev = prevShift ? Math.abs((currentStart - prevEnd) / (1000 * 60)) : Infinity;
            const gapToNext = nextShift ? Math.abs((nextStart - currentEnd) / (1000 * 60)) : Infinity;
 
            let totalDistance = 0;
