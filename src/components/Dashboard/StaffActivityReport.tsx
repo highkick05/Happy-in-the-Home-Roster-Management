@@ -37,7 +37,7 @@ export default function StaffActivityReport() {
   const fetchReport = async () => {
     try {
       setLoading(true);
-      let url = `/api/reports/staff-activity?startDate=${dateRange.start}&endDate=${dateRange.end}`;
+      let url = `/api/reports/staff-activity?startDate=${dateRange.start}&endDate=${dateRange.end}&_t=${Date.now()}`;
       if (staffFilter) {
         url += `&staffId=${staffFilter}`;
       }
