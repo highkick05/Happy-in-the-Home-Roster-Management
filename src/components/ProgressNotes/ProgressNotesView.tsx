@@ -240,52 +240,11 @@ export default function ProgressNotesView() {
                </div>
              </div>
           ) : (
-            <div className="space-y-6 relative ml-3 w-full max-w-4xl">
-              <div className="absolute top-0 bottom-0 left-[21px] w-px bg-white/[0.05]" />
-              
-              {notes.map((note) => {
-                 const startTime = new Date(note.start_time);
-                 const dateStr = startTime.toLocaleDateString('en-AU', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-                 const timeStr = startTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
-                 const endTimeStr = note.end_time ? new Date(note.end_time).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) : '-';
-                 
-                 return (
-                    <div key={note.id} className="relative pl-12 pr-4 sm:pr-0">
-                       <div className="absolute left-0 top-6 w-11 flex justify-center">
-                         <div className="w-3 h-3 rounded-full bg-brand-teal border-[3px] border-brand-bg shadow-[0_0_0_4px_rgba(20,184,166,0.1)] shrink-0 z-10" />
-                       </div>
-                       
-                       <div className="bg-[#09090b] border border-white/[0.08] rounded-xl overflow-hidden shadow-sm group hover:border-brand-teal/40 transition-colors w-full">
-                          <div className="px-5 py-4 border-b border-white/[0.05] bg-white/[0.01] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 w-full">
-                            <div>
-                               <div className="flex items-center gap-2 mb-1">
-                                 <Calendar className="w-4 h-4 text-brand-teal" />
-                                 <span className="font-semibold text-[#E6EDF3] tracking-tight">{dateStr}</span>
-                                 <span className="text-[#8B949E] text-xs font-mono bg-white/[0.04] px-1.5 py-0.5 rounded mx-1">{timeStr} - {endTimeStr}</span>
-                               </div>
-                               <div className="text-xs text-[#8B949E] flex items-center">
-                                 <span className="text-[#8B949E]">Service Type:</span>
-                                 <span className="text-brand-blue ml-1.5 bg-brand-blue/10 px-1.5 py-0.5 rounded mr-3">{note.service_name || 'General Support'} {note.service_type === 'HOME_CARE' ? '(HCP)' : '(NDIS)'}</span>
-                               </div>
-                            </div>
-                            <div className="flex items-center text-sm">
-                               <div className="w-7 h-7 rounded-full bg-brand-purple/10 border border-brand-purple/20 text-brand-purple flex items-center justify-center text-[10px] font-semibold shrink-0 mr-2">
-                                 {`${(note.staff_first_name || '').charAt(0)}${(note.staff_last_name || '').charAt(0)}`}
-                               </div>
-                               <span className="text-[#E6EDF3] font-medium">{note.staff_first_name} {note.staff_last_name}</span>
-                               <span className="text-[#8B949E] text-xs ml-1.5">({note.staff_role === 'ADMIN' ? 'Admin' : 'Support Worker'})</span>
-                            </div>
-                          </div>
-                          <div className="px-5 py-6">
-                            <div className="text-sm text-[#E6EDF3] whitespace-pre-wrap leading-relaxed">
-                               {note.notes}
-                            </div>
-                          </div>
-                       </div>
-                    </div>
-                 );
-              })}
-            </div>
+             <div className="w-full flex justify-center pb-12 overflow-x-auto">
+               <div className="w-full min-w-[700px] max-w-[900px] shadow-2xl overflow-hidden rounded-sm ring-1 ring-white/10 mx-auto bg-white">
+                 <PrintableClinicalChart notes={notes} clientData={selectedClientData} period={{start: startDate, end: endDate}} />
+               </div>
+             </div>
           )}
         </div>
       </div>
