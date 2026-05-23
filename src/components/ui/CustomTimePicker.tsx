@@ -96,7 +96,7 @@ export function CustomTimePicker({
       </div>
 
       {show && (
-        <div className="absolute z-[100] mt-1 p-3 bg-[#1A1A1A] border border-white/[0.1] rounded-lg shadow-2xl flex gap-3 min-w-[240px] left-0">
+        <div className="absolute z-[100] mt-1 p-3 bg-[#1A1A1A] border border-white/[0.1] rounded-lg shadow-2xl flex gap-3 min-w-[240px] right-0">
           {/* Hours */}
           <div className="flex flex-col flex-1">
              <div className="text-[10px] uppercase text-zinc-500 font-bold mb-2 text-center border-b border-white/5 pb-1">Hr</div>

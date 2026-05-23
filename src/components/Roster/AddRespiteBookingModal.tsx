@@ -278,22 +278,22 @@ export default function AddRespiteBookingModal({ isOpen, onClose, onSave, staffL
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex justify-center z-50 p-4 overflow-y-auto custom-scrollbar" onClick={handleBackgroundClick}>
-      <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative max-w-[1200px] w-full text-zinc-100 flex flex-col h-fit my-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-white tracking-tight mb-4">Add STA / Respite Booking</h2>
+    <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4" onClick={handleBackgroundClick}>
+      <div className="bg-[#111111] border border-white/[0.05] rounded-xl shadow-lg relative max-w-[1200px] w-full text-zinc-100 flex flex-col max-h-[90vh]">
+        <div className="flex justify-between items-center p-6 border-b border-white/[0.08] shrink-0">
+          <h2 className="text-xl font-semibold text-white tracking-tight">Add STA / Respite Booking</h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
           {formError && (
-            <div className="mx-6 mt-4 mb-2 p-3 bg-red-500/10 border border-red-500/50 rounded-md text-red-400 text-sm whitespace-pre-wrap">
+            <div className="mx-6 mt-4 mb-2 p-3 bg-red-500/10 border border-red-500/50 rounded-md text-red-400 text-sm whitespace-pre-wrap shrink-0">
               {formError}
             </div>
           )}
-          <div className="flex flex-col md:flex-row gap-4 pr-2 pb-4 lg:p-4 lg:pt-0">
+          <div className="flex flex-col md:flex-row gap-4 p-6 lg:p-6 lg:pt-4">
             
               <div className="md:w-[320px] shrink-0 space-y-4">
               <div>
@@ -491,9 +491,10 @@ export default function AddRespiteBookingModal({ isOpen, onClose, onSave, staffL
             </div>
 
           </div>
+        </div>
 
-          <div className="pt-4 border-t border-white/[0.08] flex justify-between items-center space-x-2 mt-auto">
-            {initialData?.id && (
+        <div className="p-6 border-t border-white/[0.08] flex justify-between items-center space-x-2 shrink-0 bg-[#111111] rounded-b-xl">
+          {initialData?.id && (
               <button
                 type="button"
                 onClick={handleDelete}
@@ -519,7 +520,6 @@ export default function AddRespiteBookingModal({ isOpen, onClose, onSave, staffL
               </button>
             </div>
           </div>
-        </div>
       </div>
     </div>
   );
