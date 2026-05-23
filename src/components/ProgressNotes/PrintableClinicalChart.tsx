@@ -94,55 +94,68 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                  </div>
 
                  {/* Internal Content Frame */}
-                 <div className="border-t-[3px] border-black mt-[1.5px] bg-white flex-1 flex flex-col">
+                 <div className="border-t-[3px] border-black mt-[1.5px] bg-white flex-1 flex flex-col relative">
                     
                     {/* Table Header Row */}
-                    <div className="flex border-b-[1.5px] border-black font-bold bg-white shrink-0">
-                       <div className="w-[120px] p-2 border-r-[1.5px] border-black flex items-center justify-center text-center text-xs leading-tight shrink-0">
+                    <div className="flex border-b-[1.5px] border-black font-bold bg-white shrink-0 relative z-20">
+                       <div className="w-[120px] h-[30px] flex items-center justify-center text-center text-xs leading-tight shrink-0 border-r-[1.5px] border-black">
                           Date/Time
                        </div>
-                       <div className="flex-1 p-2 text-[11px] leading-relaxed px-3 flex items-center">
+                       <div className="flex-1 h-[30px] p-2 text-[11px] leading-relaxed px-3 flex items-center">
                           <span>Write entry in Black pen. <span className="font-normal italic">Sign each entry, print name and designation after signature.</span></span>
                        </div>
                     </div>
 
-                    {/* Table Body Area */}
-                    <div className="bg-white flex flex-col flex-1">
-                       {page.items.map((note, index) => {
-                             const startDate = new Date(note.start_time);
-                             const dateStr = startDate.toLocaleDateString('en-GB');
-                             const startTime = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-                             const isLastItem = index === page.items.length - 1 && emptyRowCount === 0;
-                             
-                             return (
-                               <div key={note.id} className={`flex ${!isLastItem ? 'border-b-[1.5px] border-black' : ''}`}>
-                                  {/* Date & Time Column */}
-                                  <div className="w-[120px] p-2 text-xs border-r-[1.5px] border-black shrink-0 font-medium h-full">
-                                     <div>{dateStr}</div>
-                                     <div className="mt-1">{startTime}</div>
-                                  </div>
-                                  
-                                  {/* Narrative & Signature Column */}
-                                  <div className="flex-1 px-3 py-2 text-[13px] font-serif leading-relaxed whitespace-pre-wrap min-h-[50px]">
-                                     <span>{note.notes}</span>
-                                     <span className="font-sans font-semibold text-[11px] ml-4 tracking-normal">
-                                        {note.staff_first_name} {note.staff_last_name}
-                                     </span>
-                                     <span className="font-sans text-[10px] text-black/70 uppercase ml-1 tracking-normal">
-                                        ({note.staff_role === 'ADMIN' ? 'Administrator' : 'Support Worker'})
-                                     </span>
-                                  </div>
-                               </div>
-                             );
-                       })}
+                    {/* Table Body Area - using background grid for unbreakable rows */}
+                    <div 
+                      className="flex-1 relative w-full z-10"
+                      style={{ 
+                        backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent 28.5px, black 28.5px, black 30px)`,
+                        backgroundSize: '100% 30px'
+                      }}
+                    >
+                       {/* Vertical column separator */}
+                       <div className="absolute top-0 bottom-0 left-[120px] w-[1.5px] bg-black z-0"></div>
                        
-                       {/* Fill empty remaining rows */}
-                       {Array.from({ length: emptyRowCount }).map((_, i) => (
-                           <div key={`empty-${i}`} className={`flex flex-1 ${i !== emptyRowCount - 1 ? 'border-b-[1.5px] border-black' : ''} min-h-[30px]`}>
-                              <div className="w-[120px] border-r-[1.5px] border-black shrink-0"></div>
-                              <div className="flex-1"></div>
-                           </div>
-                       ))}
+                       <div className="relative z-10 w-full h-full flex flex-col">
+                         {page.items.map((note) => {
+                               const startDate = new Date(note.start_time);
+                               const dateStr = startDate.toLocaleDateString('en-GB');
+                               const startTime = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                               
+                               // Calculate how many 30px rows this note needs to consume.
+                               // 1 row = 30px. We want to align exactly to grid.
+                               // Minimum 1 row.
+                               const chars = note.notes ? note.notes.length : 0;
+                               const strTotal = note.notes + note.staff_first_name + note.staff_last_name;
+                               const lines = Math.max(1, Math.ceil(strTotal.length / 85));
+                               const rowsNeeded = Math.max(1, lines);
+                               const rowHeightPX = rowsNeeded * 30;
+                               
+                               return (
+                                 <div key={note.id} className="flex w-full" style={{ height: `${rowHeightPX}px` }}>
+                                    {/* Date & Time Column */}
+                                    <div className="w-[120px] p-1 text-xs shrink-0 font-medium flex flex-col justify-start">
+                                       <div className="leading-tight">{dateStr}</div>
+                                       <div className="leading-tight">{startTime}</div>
+                                    </div>
+                                    
+                                    {/* Narrative & Signature Column */}
+                                    <div className="flex-1 px-3 py-1 flex items-start">
+                                       <div className="text-[13px] font-serif leading-[16px] break-words">
+                                         <span>{note.notes}</span>
+                                         <span className="font-sans font-semibold text-[11px] ml-4 tracking-normal whitespace-nowrap">
+                                            {note.staff_first_name} {note.staff_last_name}
+                                         </span>
+                                         <span className="font-sans text-[10px] text-black/70 uppercase ml-1 tracking-normal whitespace-nowrap">
+                                            ({note.staff_role === 'ADMIN' ? 'Administrator' : 'Support Worker'})
+                                         </span>
+                                       </div>
+                                    </div>
+                                 </div>
+                               );
+                         })}
+                       </div>
                     </div>
                  </div>
               </div>

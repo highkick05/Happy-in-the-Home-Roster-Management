@@ -2416,84 +2416,72 @@ async function startServer() {
          doc.text('© COPYRIGHT HAPPY IN THE HOME PTY LTD / CR040 PROGRESS NOTES', 0, doc.page.height - 35, { align: 'right', width: doc.page.width - 40 });
       };
 
-      if (notes.length === 0) {
-         const rowH = 26;
-         while (currentY < maxH - 1) {
-             const remaining = maxH - currentY;
-             const curRowH = (remaining < rowH * 1.5) ? remaining : rowH;
-             doc.rect(boxX, currentY, col1W, curRowH).stroke();
-             doc.rect(boxX + col1W, currentY, col2W, curRowH).stroke();
-             currentY += curRowH;
-         }
-      } else {
+      // Draw the background grid on the initial page
+      const rowH = 26;
+      let gridY = currentY;
+      while (gridY < maxH - 1) {
+          const remaining = maxH - gridY;
+          const curRowH = (remaining < rowH * 1.5) ? remaining : rowH;
+          doc.rect(boxX, gridY, col1W, curRowH).stroke();
+          doc.rect(boxX + col1W, gridY, col2W, curRowH).stroke();
+          gridY += curRowH;
+      }
+
+      if (notes.length > 0) {
          doc.font('Helvetica');
-         const padding = 6;
          
          notes.forEach((note, index) => {
             const startDate = new Date(note.start_time);
             const dateStr = startDate.toLocaleDateString('en-GB');
             const startTimeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-            const svcName = note.service_name || '';
+            
             const staffName = `${note.staff_first_name || ''} ${note.staff_last_name || ''}`.trim();
             const staffRole = note.staff_role === 'ADMIN' ? 'Administrator' : 'Support Worker';
 
-            // Calculate height
-            let textHeight = doc.font('Helvetica').fontSize(9).heightOfString(note.notes, { width: col2W - padding * 2, lineGap: 2 });
-            let neededHeight = Math.max(textHeight + 35, 50); // 35px padding + signature area
+            // Calculate height in multiples of rowH
+            const strTotal = (note.notes || '') + staffName + staffRole;
+            const lines = Math.max(1, Math.ceil(strTotal.length / 85));
+            const neededHeight = Math.max(1, lines) * rowH;
 
             if (currentY + neededHeight > maxH) {
-               // Fill remaining space with line so it closes out
-               doc.moveTo(boxX, currentY).lineTo(boxX + boxW, currentY).stroke();
                drawFooter();
                doc.addPage();
                pageNum++;
                ({ boxX, boxW, col1W, col2W, colHeaderY, maxH } = drawFormBorder());
                currentY = colHeaderY;
+               
+               // Draw the background grid on the new page
+               let newGridY = currentY;
+               while (newGridY < maxH - 1) {
+                   const remaining = maxH - newGridY;
+                   const curRowH = (remaining < rowH * 1.5) ? remaining : rowH;
+                   doc.rect(boxX, newGridY, col1W, curRowH).stroke();
+                   doc.rect(boxX + col1W, newGridY, col2W, curRowH).stroke();
+                   newGridY += curRowH;
+               }
             }
 
-            // Draw cells
-            doc.rect(boxX, currentY, col1W, neededHeight).stroke();
-            doc.rect(boxX + col1W, currentY, col2W, neededHeight).stroke();
-
+            // Text drawing (no boxes or borders drawn here, already done!)
             // Date/Time
-            doc.font('Helvetica-Bold').fontSize(9).fillColor('black');
-            doc.text(dateStr, boxX + padding, currentY + padding);
-            doc.text(startTimeStr, boxX + padding, currentY + padding + 12);
-            if (svcName) {
-               doc.font('Helvetica-Oblique').fontSize(7).fillColor('gray');
-               doc.text(svcName.toUpperCase(), boxX + padding, currentY + padding + 26, { width: col1W - padding*2 });
-               doc.fillColor('black');
-            }
+            doc.font('Helvetica-Bold').fontSize(8).fillColor('black');
+            doc.text(dateStr, boxX + 4, currentY + 4);
+            doc.text(startTimeStr, boxX + 4, currentY + 14);
 
             // Note Text
             doc.font('Helvetica').fontSize(9).fillColor('black');
-            doc.text(note.notes, boxX + col1W + padding, currentY + padding, { width: col2W - padding * 2, lineGap: 2 });
-
-            // Signature area
-            const sigY = currentY + neededHeight - 16;
-            doc.font('Helvetica-Bold').fontSize(8);
-            doc.text(staffName, boxX + col1W + padding, sigY - 12, { width: col2W - padding * 2, align: 'right' });
             
-            doc.font('Helvetica').fontSize(6).fillColor('gray');
-            // Signature line
-            doc.lineWidth(0.5).moveTo(doc.page.width - 40 - 120, sigY).lineTo(doc.page.width - 40 - padding, sigY).stroke();
-            doc.text(staffRole.toUpperCase(), doc.page.width - 40 - 120, sigY + 2, { width: 120 - padding, align: 'right' });
+            // Signature inline formulation matching UI
+            const sigText = `   ${staffName} (${staffRole})`;
+            const fullNoteString = `${note.notes || ''}${sigText}`;
+            
+            doc.text(fullNoteString, boxX + col1W + 6, currentY + 6, { 
+               width: col2W - 12,
+               height: neededHeight - 6,
+               lineGap: 4
+            });
 
-            // reset line width
-            doc.lineWidth(1).fillColor('black');
             currentY += neededHeight;
          });
-         
-         // Fill remaining with blank lines (optional) if there is space remaining
-         // to mimic a printed form
-         const rowH = 26;
-         while (currentY < maxH - 1) {
-             const remaining = maxH - currentY;
-             const curRowH = (remaining < rowH * 1.5) ? remaining : rowH;
-             doc.rect(boxX, currentY, col1W, curRowH).stroke();
-             doc.rect(boxX + col1W, currentY, col2W, curRowH).stroke();
-             currentY += curRowH;
-         }
       }
       
       drawFooter();
