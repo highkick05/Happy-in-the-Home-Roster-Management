@@ -335,10 +335,12 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                        <p className="text-xl text-zinc-300 font-extrabold">0.00 <span className="text-sm font-medium text-zinc-500">km</span></p>
                      </div>
                    )}
-                   <div className="bg-brand-green/10 p-4 rounded-xl border border-brand-green/20 shadow-sm flex flex-col justify-center">
-                     <p className="text-xs font-medium text-brand-green/80 mb-1 uppercase tracking-wider">Activity Based Transport (ABT)</p>
-                     <p className="text-xl text-white font-extrabold">{shift.abtKm ? shift.abtKm.toFixed(2) : 0} <span className="text-sm font-medium text-brand-green/80">km</span></p>
-                   </div>
+                   {!(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') && (
+                     <div className="bg-brand-green/10 p-4 rounded-xl border border-brand-green/20 shadow-sm flex flex-col justify-center">
+                       <p className="text-xs font-medium text-brand-green/80 mb-1 uppercase tracking-wider">Activity Based Transport (ABT)</p>
+                       <p className="text-xl text-white font-extrabold">{shift.abtKm ? shift.abtKm.toFixed(2) : 0} <span className="text-sm font-medium text-brand-green/80">km</span></p>
+                     </div>
+                   )}
                    {shift.transportRouteLog && (() => {
                      let log;
                      try { log = JSON.parse(shift.transportRouteLog); } catch(e) {}
