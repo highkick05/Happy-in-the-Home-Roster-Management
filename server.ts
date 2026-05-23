@@ -3612,7 +3612,7 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/shifts/:id', authenticateToken, requireAdmin, async (req, res) => {
+  app.delete('/api/shifts/:id', authenticateToken, requireAdmin, async (req: any, res: any) => {
     const { id } = req.params;
     try {
       let shiftToUpdate: any;
@@ -3853,6 +3853,9 @@ async function startServer() {
 
   app.get('/api/reports/staff-activity', authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       const { startDate, endDate, staffId } = req.query;
       const settingsMap: any = db.prepare('SELECT key, value FROM settings').all().reduce((acc: any, row: any) => {
         acc[row.key] = typeof row.value === 'string' && (row.value.startsWith('{') || row.value.startsWith('[')) ? (()=>{try{return JSON.parse(row.value)}catch{return row.value}})() : row.value;
