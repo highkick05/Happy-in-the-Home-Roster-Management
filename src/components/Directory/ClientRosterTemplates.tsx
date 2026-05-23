@@ -112,6 +112,16 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       end.setDate(start.getDate() + 13);
     } else if (val === 'Month') {
       end = new Date(start.getFullYear(), start.getMonth() + 1, 0, 12, 0, 0);
+    } else if (val === '2 Months') {
+      end = new Date(start.getFullYear(), start.getMonth() + 2, 0, 12, 0, 0);
+    } else if (val === '3 Months') {
+      end = new Date(start.getFullYear(), start.getMonth() + 3, 0, 12, 0, 0);
+    } else if (val === '6 Months') {
+      end = new Date(start.getFullYear(), start.getMonth() + 6, 0, 12, 0, 0);
+    } else if (val === '9 Months') {
+      end = new Date(start.getFullYear(), start.getMonth() + 9, 0, 12, 0, 0);
+    } else if (val === '12 Months') {
+      end = new Date(start.getFullYear(), start.getMonth() + 12, 0, 12, 0, 0);
     }
     const yEnd = end.getFullYear();
     const mEnd = String(end.getMonth() + 1).padStart(2, '0');
@@ -544,8 +554,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       </div>
 
       {/* Add Template Modal */}
-      {showAddTemplateModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+      {showAddTemplateModal && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
           <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-2xl max-w-[80vw] w-[80vw] h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#121214]">
               <div>
@@ -713,14 +723,15 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Run Builder Modal */}
-      {showRunBuilderModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
-          <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-2xl max-w-md w-full flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#121214]">
+      {showRunBuilderModal && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-2xl max-w-md w-full flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#121214] rounded-t-xl">
               <div className="flex items-center">
                 <Calendar className="w-5 h-5 text-brand-teal mr-2.5" />
                 <h3 className="text-xl font-semibold text-white">Run Roster Builder</h3>
@@ -741,6 +752,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                   <option value="Week">1 Week</option>
                   <option value="Fortnight">1 Fortnight</option>
                   <option value="Month">1 Month</option>
+                  <option value="2 Months">2 Months</option>
+                  <option value="3 Months">3 Months</option>
+                  <option value="6 Months">6 Months</option>
+                  <option value="9 Months">9 Months</option>
+                  <option value="12 Months">12 Months</option>
                 </select>
               </div>
               
@@ -760,6 +776,11 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                       if (generateDuration === 'Week') end.setDate(start.getDate() + 6);
                       else if (generateDuration === 'Fortnight') end.setDate(start.getDate() + 13);
                       else if (generateDuration === 'Month') end = new Date(start.getFullYear(), start.getMonth() + 1, 0, 12, 0, 0);
+                      else if (generateDuration === '2 Months') end = new Date(start.getFullYear(), start.getMonth() + 2, 0, 12, 0, 0);
+                      else if (generateDuration === '3 Months') end = new Date(start.getFullYear(), start.getMonth() + 3, 0, 12, 0, 0);
+                      else if (generateDuration === '6 Months') end = new Date(start.getFullYear(), start.getMonth() + 6, 0, 12, 0, 0);
+                      else if (generateDuration === '9 Months') end = new Date(start.getFullYear(), start.getMonth() + 9, 0, 12, 0, 0);
+                      else if (generateDuration === '12 Months') end = new Date(start.getFullYear(), start.getMonth() + 12, 0, 12, 0, 0);
                       const yEnd = end.getFullYear();
                       const mEnd = String(end.getMonth() + 1).padStart(2, '0');
                       const dEnd = String(end.getDate()).padStart(2, '0');
@@ -804,7 +825,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               )}
             </div>
             
-            <div className="p-4 border-t border-white/[0.08] bg-[#121214] flex justify-end gap-3 shrink-0">
+            <div className="p-4 border-t border-white/[0.08] bg-[#121214] rounded-b-xl flex justify-end gap-3 shrink-0">
               <button 
                 type="button"
                 onClick={() => setShowRunBuilderModal(false)}
@@ -821,11 +842,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {showConflictsModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {showConflictsModal && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
           <div className="bg-[#121214] border border-white/[0.08] rounded-xl shadow-2xl max-w-lg w-full flex flex-col overflow-hidden">
             <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#121214]/50">
               <div>
@@ -865,7 +887,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
