@@ -112,6 +112,9 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
     
     if (desc.includes(' to ')) {
       const [from, to] = desc.split(' to ');
+      const isConsecutive = from.includes('50% Apportionment') && to.toLowerCase().includes('next client');
+      const isReturn = to.toLowerCase().includes('staff home');
+
       return (
         <div className="flex flex-col gap-5 pl-1 mt-1 relative before:absolute before:inset-y-[12px] before:left-[11px] before:w-[2px] before:bg-zinc-800/80">
           <div className="flex gap-4 items-start relative z-10">
@@ -135,8 +138,31 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
               </div>
             </div>
             <div className="flex flex-col flex-1 min-w-0 pt-0.5">
-               <span className="text-[10px] uppercase text-brand-teal/70 font-bold tracking-wider leading-none mb-1 text-left block">To</span>
-               {formatLocationString(to)}
+               {isConsecutive ? (
+                 <>
+                   <span className="text-[10px] uppercase text-brand-teal/70 font-bold tracking-wider leading-none mb-1 text-left block">
+                     TO: NEXT CLIENT HOME
+                   </span>
+                   {formatLocationString(to.replace(/Next Client/i, 'Client').trim())}
+                   <span className="mt-2 inline-flex items-center px-2 py-1 rounded text-[10px] font-bold bg-brand-teal/10 text-brand-teal border border-brand-teal/20 w-max">
+                     (Consecutive Shift - Distance Split 50%)
+                   </span>
+                 </>
+               ) : isReturn ? (
+                 <>
+                   <span className="text-[10px] uppercase text-brand-teal/70 font-bold tracking-wider leading-none mb-1 text-left block">
+                     TO: STAFF HOME (Return trip)
+                   </span>
+                   {formatLocationString(to.replace(/\(Return trip\)/i, '').trim())}
+                 </>
+               ) : (
+                 <>
+                   <span className="text-[10px] uppercase text-brand-teal/70 font-bold tracking-wider leading-none mb-1 text-left block">
+                     To
+                   </span>
+                   {formatLocationString(to)}
+                 </>
+               )}
             </div>
           </div>
           {distance != null && (
