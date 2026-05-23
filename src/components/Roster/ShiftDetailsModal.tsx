@@ -323,13 +323,13 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                        <p className="text-xl text-indigo-100 font-extrabold">{shift.homeCareTravelKm.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
                      </div>
                    )}
-                   {shift.providerTravelKm !== undefined && shift.providerTravelKm > 0 && (
+                   {shift.providerTravelKm !== undefined && shift.providerTravelKm > 0 && !(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') && (
                      <div className="bg-indigo-900/10 p-4 rounded-xl border border-brand-teal/20 shadow-sm flex flex-col justify-center">
                        <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">Provider Travel (Distance to Shift)</p>
                        <p className="text-xl text-indigo-100 font-extrabold">{shift.providerTravelKm.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
                      </div>
                    )}
-                   {(shift.homeCareTravelKm === undefined || shift.homeCareTravelKm === 0) && (shift.providerTravelKm === undefined || shift.providerTravelKm === 0) && (
+                   {(shift.homeCareTravelKm === undefined || shift.homeCareTravelKm === 0) && (shift.providerTravelKm === undefined || shift.providerTravelKm === 0) && !(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') && (
                      <div className="bg-zinc-800/50 p-4 rounded-xl border border-white/[0.08]/80 shadow-sm flex flex-col justify-center">
                        <p className="text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider">Provider Travel</p>
                        <p className="text-xl text-zinc-300 font-extrabold">0.00 <span className="text-sm font-medium text-zinc-500">km</span></p>
