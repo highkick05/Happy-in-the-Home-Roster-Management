@@ -3333,10 +3333,27 @@ async function startServer() {
       // Build old value for audit logging
       const oldValue = JSON.stringify(existing);
 
-      const servicesJson = servicesData ? JSON.stringify(servicesData) : existing.services_json;
-      const mainServiceId = serviceId || (servicesData && servicesData.length > 0 ? servicesData[0].serviceId : existing.service_id);
+      let processedServicesData = servicesData ? JSON.parse(JSON.stringify(servicesData)) : [];
+      let isAbtApproved = existing.is_abt_approved === 1;
 
-      const stmt = db.prepare('UPDATE shifts SET staff_id = ?, client_id = ?, service_id = ?, start_time = ?, end_time = ?, status = ?, notes = ?, funding_type = ?, services_json = ?, provider_travel_km = ?, abt_km = ? WHERE id = ?');
+      if (servicesData) {
+        isAbtApproved = false;
+        for (const sData of processedServicesData) {
+          const srv = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
+          if (srv) {
+            const name = srv.name.toLowerCase();
+            if (name.includes('activity based transport')) {
+              isAbtApproved = true;
+              sData.qtyOverride = 0;
+            }
+          }
+        }
+      }
+
+      const servicesJson = servicesData ? JSON.stringify(processedServicesData) : existing.services_json;
+      const mainServiceId = serviceId || (processedServicesData && processedServicesData.length > 0 ? processedServicesData[0].serviceId : existing.service_id);
+
+      const stmt = db.prepare('UPDATE shifts SET staff_id = ?, client_id = ?, service_id = ?, start_time = ?, end_time = ?, status = ?, notes = ?, funding_type = ?, services_json = ?, is_abt_approved = ?, provider_travel_km = ?, abt_km = ? WHERE id = ?');
       stmt.run(
          staffId !== undefined ? staffId : existing.staff_id, 
          clientId !== undefined ? clientId : existing.client_id, 
@@ -3347,10 +3364,18 @@ async function startServer() {
          notes !== undefined ? notes : existing.notes, 
          (db.prepare('SELECT funding_type FROM clients WHERE id = ?').get(clientId !== undefined ? clientId : existing.client_id) as any)?.funding_type || 'NDIS',
          servicesJson,
+         isAbtApproved ? 1 : 0,
          providerTravelKm !== undefined ? providerTravelKm : existing.provider_travel_km,
          abtKm !== undefined ? abtKm : existing.abt_km,
          id
       );
+
+      // Recalculate travel immediately after UPDATE database operation
+      await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
+      if (staffId !== undefined && staffId !== existing.staff_id || startTime !== undefined && startTime !== existing.start_time) {
+         // Recalculate old date/staff if it changed
+         await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
+      }
 
       // Audit Log for COMPLETED shift edits
       if (existing.status === 'COMPLETED') {
@@ -3362,12 +3387,6 @@ async function startServer() {
       
       if ((status === 'COMPLETED' || existing.status === 'COMPLETED') && (existing.status !== status || servicesJson !== existing.services_json || providerTravelKm !== undefined || abtKm !== undefined)) {
          generateInvoiceForShift(id);
-      }
-      
-      await recalculateDayTravelForStaff(staffId !== undefined ? staffId : existing.staff_id, startTime !== undefined ? startTime : existing.start_time);
-      if (staffId !== undefined && staffId !== existing.staff_id || startTime !== undefined && startTime !== existing.start_time) {
-         // Recalculate old date/staff if it changed
-         await recalculateDayTravelForStaff(existing.staff_id, existing.start_time);
       }
 
       res.json({ success: true });
