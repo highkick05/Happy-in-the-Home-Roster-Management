@@ -323,15 +323,19 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                        <p className="text-xl text-indigo-100 font-extrabold">{shift.homeCareTravelKm.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
                      </div>
                    )}
-                   {shift.providerTravelKm !== undefined && shift.providerTravelKm > 0 && !(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') && (
+                   {shift.providerTravelKm !== undefined && shift.providerTravelKm > 0 && (
                      <div className="bg-indigo-900/10 p-4 rounded-xl border border-brand-teal/20 shadow-sm flex flex-col justify-center">
-                       <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">Provider Travel (Distance to Shift)</p>
+                       <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">
+                         {(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') ? 'Home Care Travel (Client Gap)' : 'Provider Travel (Distance to Shift)'}
+                       </p>
                        <p className="text-xl text-indigo-100 font-extrabold">{shift.providerTravelKm.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
                      </div>
                    )}
-                   {(shift.homeCareTravelKm === undefined || shift.homeCareTravelKm === 0) && (shift.providerTravelKm === undefined || shift.providerTravelKm === 0) && !(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') && (
+                   {(shift.homeCareTravelKm === undefined || shift.homeCareTravelKm === 0) && (shift.providerTravelKm === undefined || shift.providerTravelKm === 0) && (
                      <div className="bg-zinc-800/50 p-4 rounded-xl border border-white/[0.08]/80 shadow-sm flex flex-col justify-center">
-                       <p className="text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider">Provider Travel</p>
+                       <p className="text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider">
+                         {(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') ? 'Home Care Travel (Client Gap)' : 'Provider Travel'}
+                       </p>
                        <p className="text-xl text-zinc-300 font-extrabold">0.00 <span className="text-sm font-medium text-zinc-500">km</span></p>
                      </div>
                    )}
@@ -341,10 +345,18 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                        <p className="text-xl text-white font-extrabold">{shift.abtKm ? shift.abtKm.toFixed(2) : 0} <span className="text-sm font-medium text-brand-green/80">km</span></p>
                      </div>
                    )}
-                   {shift.transportRouteLog && (() => {
-                     let log;
-                     try { log = JSON.parse(shift.transportRouteLog); } catch(e) {}
-                     if (!log) return null;
+                   {(shift.travelBreakdown || shift.transportRouteLog) && (() => {
+                     let log: any = null;
+                     if (shift.transportRouteLog) {
+                       try { log = JSON.parse(shift.transportRouteLog); } catch(e) {}
+                     }
+                     
+                     let breakdownArr: string[] = [];
+                     if (shift.travelBreakdown) {
+                       try { breakdownArr = JSON.parse(shift.travelBreakdown); } catch(e) {}
+                     }
+
+                     if (!log && breakdownArr.length === 0) return null;
 
                      return (
                      <div className="col-span-1 sm:col-span-2 bg-[#09090b]/80 p-4 rounded-xl border border-white/[0.08] shadow-inner mt-2">
@@ -356,7 +368,24 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                             </div>
                           </summary>
                           <div className="mt-4 space-y-4 pt-4 border-t border-white/[0.08]/80">
-                            {log.providerTravel && log.providerTravel.legs && log.providerTravel.legs.length > 0 && (
+                            {breakdownArr && breakdownArr.length > 0 && (
+                              <div className="flex items-start gap-3">
+                                <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
+                                  <span className="text-xs font-bold text-brand-teal/80 mb-5 uppercase tracking-wider block">Calculated Travel Journey:</span>
+                                  <div className="space-y-3">
+                                    {breakdownArr.map((item, idx) => {
+                                      const isZero = item.includes('0km') || item.includes('Ignored');
+                                      return (
+                                        <div key={idx} className={`text-sm ${isZero ? 'text-zinc-500 italic' : 'text-zinc-200'}`}>
+                                          {item}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {log && log.providerTravel && log.providerTravel.legs && log.providerTravel.legs.length > 0 && !(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') && (
                               <div className="flex items-start gap-3">
                                 <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
                                   <span className="text-xs font-bold text-brand-teal/80 mb-5 uppercase tracking-wider block">Provider Travel (To/From Shift):</span>
@@ -379,18 +408,14 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                               </div>
                             )}
 
-                            {log.homeCareTravel && log.homeCareTravel.legs && log.homeCareTravel.legs.length > 0 && (
+                            {log && log.homeCareTravel && log.homeCareTravel.legs && log.homeCareTravel.legs.length > 0 && (
                               <div className="flex items-start gap-3 pt-2">
                                 <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
                                   <span className="text-xs font-bold text-brand-teal/80 mb-5 uppercase tracking-wider block">Home Care Travel:</span>
                                   <div className="space-y-6">
                                     {log.homeCareTravel.legs.map((leg: any, i: number) => {
                                       if (leg.distance === 0 && leg.description.includes('Private Commute')) {
-                                        return (
-                                          <div key={i} className="mb-2 text-zinc-400 italic">
-                                            {leg.description}
-                                          </div>
-                                        );
+                                        return null;
                                       }
                                       if (leg.distance === 0) return null;
                                       return (
@@ -412,7 +437,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                               </div>
                             )}
 
-                            {log.abt && (
+                            {log && log.abt && (
                               <div className="flex items-start gap-3 pt-2">
                                   <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
                                     <span className="text-xs font-bold text-brand-green/80 mb-5 uppercase tracking-wider block">Activity Based Transport (ABT):</span>

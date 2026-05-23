@@ -55,6 +55,7 @@ export interface ShiftEvent {
   abtKm?: number;
   abtCost?: number;
   transportRouteLog?: string;
+  travelBreakdown?: string;
 }
 
 export default function RosterCalendar() {
