@@ -3977,7 +3977,7 @@ async function startServer() {
         totals.providerTravelKm = (totals.providerTravelKm || 0) + (isHomeCare ? 0 : prov_km);
         totals.abtKm = (totals.abtKm || 0) + (isHomeCare ? 0 : abt_km);
         
-        const shiftTravelPay = isHomeCare ? hc_travel_total : (prov_cost + abt_cost);
+        const shiftTravelPay = isHomeCare ? 0 : (prov_cost + abt_cost);
         totals.travelPayTotal = (totals.travelPayTotal || 0) + shiftTravelPay;
 
         const dayOnly = parts.find((p: any) => p.type === 'day')?.value || '';
@@ -3995,7 +3995,7 @@ async function startServer() {
           dayCategory: dayCategory,
           travelKm: isHomeCare ? parseFloat(hc_travel_km.toFixed(2)) : 0,
           travelHours: isHomeCare ? parseFloat(hc_travel_hrs.toFixed(2)) : undefined,
-          travelReimbursement: isHomeCare ? parseFloat(hc_travel_total.toFixed(2)) : undefined,
+          travelReimbursement: undefined,
           providerTravelKm: 0,
           abtKm: 0,
           staffName: `${shift.staff_first_name} ${shift.staff_last_name}`,
