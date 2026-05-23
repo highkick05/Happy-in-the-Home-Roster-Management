@@ -20,6 +20,7 @@ import crypto from 'crypto';
 import { getGoogleRoutesDistance, getRecordCoordinates, formatCoords } from './utils/mapUtils.js';
 import { calculateProviderTravel } from './utils/travelCalculator.js';
 import { calculateHomeCareTravel } from './utils/homeCareCalculator.js';
+import { calculateAbtTravel } from './utils/abtCalculator.js';
 
 const logger = winston.createLogger({
   level: 'info',
@@ -3465,70 +3466,23 @@ async function startServer() {
         };
       }
 
-      let resolvedAbtCoordinates: any[] = [];
-      let abtAddresses: string[] = [];
-      // formatCoords imported
-
       if (Array.isArray(abtCoordinates) && abtCoordinates.length > 0) {
-         const client = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(shift.client_id) as any;
-         const clientAddress = client?.address || 'Unknown';
-         const clientCoords = await getRecordCoordinates('clients', shift.client_id, client?.address);
-
-         if (clientCoords) {
-            resolvedAbtCoordinates.push(clientCoords);
-            abtAddresses.push(`Client Home (${clientAddress}) ${formatCoords(clientCoords)}`);
-         }
-
-         for (const coord of abtCoordinates) {
-            if (coord === 'CLIENT_HOME') continue; 
-            if (coord && typeof coord === 'object' && coord.address) {
-               if (coord.placeId) {
-                   resolvedAbtCoordinates.push({ placeId: coord.placeId });
-                   abtAddresses.push(`Community (${coord.address})`);
-               } else if (coord.coords) {
-                   resolvedAbtCoordinates.push(coord.coords);
-                   abtAddresses.push(`Community (${coord.address}) ${formatCoords(coord.coords)}`);
-               }
-            }
-         }
-
-         const lastAddedCoord = resolvedAbtCoordinates[resolvedAbtCoordinates.length - 1];
-         const isLastWaypointClientHome = clientCoords && lastAddedCoord 
-             && Array.isArray(lastAddedCoord)
-             && Math.abs(clientCoords[0] - lastAddedCoord[0]) < 0.0001 
-             && Math.abs(clientCoords[1] - lastAddedCoord[1]) < 0.0001;
-
-         if (clientCoords && !isLastWaypointClientHome && abtCoordinates[abtCoordinates.length - 1] === 'CLIENT_HOME') {
-             resolvedAbtCoordinates.push(clientCoords);
-             abtAddresses.push(`Client Home (${clientAddress}) ${formatCoords(clientCoords)}`);
-         }
-      }
-
-      if (shift.funding_type === 'NDIS' && resolvedAbtCoordinates.length >= 2 && !shift.respite_booking_id) {
-         const { distance, minutes, legs } = await getGoogleRoutesDistance(resolvedAbtCoordinates);
-         abt_km = distance;
-         abt_cost = abt_km * 1.00; // $1.00/km Ledger Split
+         const abtTravel = await calculateAbtTravel(shift, abtCoordinates);
+         abt_km = abtTravel.distance;
+         abt_cost = abtTravel.cost;
          
-         const routeLegs = (legs || []).map((leg: any, idx: number) => {
-            const fromAddr = abtAddresses[idx] || 'Point A';
-            const toAddr = abtAddresses[idx+1] || 'Point B';
-            return {
-               description: `${fromAddr} → ${toAddr}`,
-               distance: leg.distance,
-               durationMins: leg.minutes
+         if (abt_km > 0) {
+            combinedRouteLog = combinedRouteLog || {};
+            combinedRouteLog.abt = {
+               description: (abtTravel.routeLogs as any).description,
+               waypoints: (abtTravel.routeLogs as any).waypoints,
+               distance: abt_km,
+               minutes: (abtTravel as any).minutes,
+               cost: abt_cost,
+               calculatedAt: new Date().toISOString(),
+               legs: (abtTravel.routeLogs as any).legs
             };
-         });
-
-         combinedRouteLog = combinedRouteLog || {};
-         combinedRouteLog.abt = { 
-            description: `Transport during shift (Total: ${abt_km.toFixed(2)} km)`,
-            waypoints: resolvedAbtCoordinates, 
-            distance: abt_km, 
-            minutes: minutes,
-            cost: abt_cost, 
-            calculatedAt: new Date().toISOString(),
-            legs: routeLegs
-         };
+         }
       }
 
       transport_route_log = combinedRouteLog ? JSON.stringify(combinedRouteLog) : null;
