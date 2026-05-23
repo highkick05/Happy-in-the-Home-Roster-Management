@@ -382,7 +382,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                 <div>
                   <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Start Date *</label>
                   <CustomDatePicker 
-                    
+                    position="bottom"
                     required
                     value={startDate}
                     onChange={handleStartDateChange}
@@ -392,7 +392,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                 <div>
                   <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">End Date *</label>
                   <CustomDatePicker 
-                    
+                    position="bottom"
                     required
                     value={endDate}
                     onChange={handleEndDateChange}

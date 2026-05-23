@@ -408,7 +408,7 @@ export default function AddRespiteBookingModal({ isOpen, onClose, onSave, staffL
                       <div className="w-full">
                          <label className="text-xs text-zinc-500 mb-1 block">Date of Service (Billable Date)</label>
                          <CustomDatePicker 
-                            
+                            position="bottom"
                             required
                             value={s.billingDate}
                             onChange={(e) => handleBillingDateChange(e.target.value)}
@@ -445,7 +445,7 @@ export default function AddRespiteBookingModal({ isOpen, onClose, onSave, staffL
                                         <label className="text-[10px] uppercase text-zinc-500 mb-1 block">Start Date & Time</label>
                                         <div className="flex gap-2">
                                            <div className="w-1/2 flex">
-                                             <CustomDatePicker  required value={ss.startDate} onChange={(e) => updateStaffShift(stIdx, 'startDate', e.target.value)} className="w-full bg-[#121214] border border-white/[0.12] rounded px-2 py-1.5 text-[11px] text-white" />
+                                             <CustomDatePicker position="bottom" required value={ss.startDate} onChange={(e) => updateStaffShift(stIdx, 'startDate', e.target.value)} className="w-full bg-[#121214] border border-white/[0.12] rounded px-2 py-1.5 text-[11px] text-white" />
                                            </div>
                                            <div className="w-1/2 flex">
                                              <CustomTimePicker required value={ss.startTime} onChange={(e) => updateStaffShift(stIdx, 'startTime', e.target.value)} className="w-full bg-[#121214] border border-white/[0.12] rounded px-2 py-1.5 text-[11px] text-white" />
@@ -456,7 +456,7 @@ export default function AddRespiteBookingModal({ isOpen, onClose, onSave, staffL
                                         <label className="text-[10px] uppercase text-zinc-500 mb-1 block">End Date & Time</label>
                                         <div className="flex gap-2">
                                            <div className="w-1/2 flex">
-                                             <CustomDatePicker  required value={ss.endDate} onChange={(e) => updateStaffShift(stIdx, 'endDate', e.target.value)} className="w-full bg-[#121214] border border-white/[0.12] rounded px-2 py-1.5 text-[11px] text-white" />
+                                             <CustomDatePicker position="bottom" required value={ss.endDate} onChange={(e) => updateStaffShift(stIdx, 'endDate', e.target.value)} className="w-full bg-[#121214] border border-white/[0.12] rounded px-2 py-1.5 text-[11px] text-white" />
                                            </div>
                                            <div className="w-1/2 flex">
                                              <CustomTimePicker required value={ss.endTime} onChange={(e) => updateStaffShift(stIdx, 'endTime', e.target.value)} className="w-full bg-[#121214] border border-white/[0.12] rounded px-2 py-1.5 text-[11px] text-white" />
