@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, Calendar, AlertCircle, X, History } from 'lucide-react';
+import { Plus, Trash2, Calendar, AlertCircle, X, History, Download } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
@@ -428,6 +428,15 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
            <div className="flex items-center gap-2">
              {user?.role === 'ADMIN' && (
                <>
+                 <a
+                   href={`/api/clients/${clientId}/roster-templates/pdf?token=${token}`}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="px-3 py-1.5 bg-[#121214] hover:bg-zinc-800 text-white border border-white/[0.08] rounded-lg text-sm font-medium transition-colors flex items-center"
+                 >
+                   <Download className="w-4 h-4 mr-2" />
+                   PDF
+                 </a>
                  <button
                    onClick={() => setShowHistoryModal(true)}
                    className="px-3 py-1.5 bg-[#121214] hover:bg-zinc-800 text-white border border-white/[0.08] rounded-lg text-sm font-medium transition-colors flex items-center"

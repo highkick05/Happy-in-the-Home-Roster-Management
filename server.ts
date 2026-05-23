@@ -1355,7 +1355,13 @@ if (!nextShift || gapToNext > 60) {
   // Auth Middleware
   const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    let token = authHeader && authHeader.split(' ')[1];
+    
+    // Also allow token from query string (for PDF downloads etc)
+    if (!token && req.query.token) {
+       token = req.query.token;
+    }
+
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
     
     jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
@@ -2906,6 +2912,104 @@ if (!nextShift || gapToNext > 60) {
   });
 
   // --- Client Roster Templates APIs ---
+  app.get('/api/clients/:id/roster-templates/pdf', authenticateToken, (req: any, res: any) => {
+    try {
+      const clientId = req.params.id;
+      const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId) as any;
+      if (!client) {
+        return res.status(404).json({ error: 'Client not found' });
+      }
+
+      const templates = db.prepare(`
+        SELECT t.*, 
+               u.first_name as staff_first_name, u.last_name as staff_last_name,
+               srv.name as service_name
+        FROM client_roster_templates t
+        LEFT JOIN users u ON t.staff_id = u.id
+        LEFT JOIN services srv ON t.service_id = srv.id
+        WHERE t.client_id = ?
+        ORDER BY t.day_of_week, t.start_time
+      `).all(clientId) as any[];
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Roster_Templates_${client.first_name}_${client.last_name}.pdf"`);
+
+      const doc = new PDFDocument({ margin: 40, size: 'A4', layout: 'landscape' });
+      doc.pipe(res);
+
+      doc.fontSize(20).font('Helvetica-Bold').text(`Roster Templates: ${client.first_name} ${client.last_name}`, { align: 'center' });
+      doc.moveDown(1.5);
+      
+      const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      
+      // Group templates by day
+      const templatesByDay: any = {};
+      DAYS_OF_WEEK.forEach((d, i) => templatesByDay[i] = []);
+      templates.forEach((t) => {
+        templatesByDay[t.day_of_week].push(t);
+      });
+
+      // Quick table drawing since standard colors are requested
+      let currentY = doc.y;
+      
+      const colWidths = [120, 150, 180, 250];
+      const headers = ['Day', 'Time', 'Staff', 'Services'];
+      const marginX = 40;
+
+      // Draw header row
+      doc.font('Helvetica-Bold').fontSize(12);
+      doc.rect(marginX, currentY, 700, 25).fillAndStroke('#f3f4f6', '#d1d5db');
+      doc.fillColor('#000000').text(headers[0], marginX + 5, currentY + 7);
+      doc.text(headers[1], marginX + colWidths[0] + 5, currentY + 7);
+      doc.text(headers[2], marginX + colWidths[0] + colWidths[1] + 5, currentY + 7);
+      doc.text(headers[3], marginX + colWidths[0] + colWidths[1] + colWidths[2] + 5, currentY + 7);
+
+      currentY += 25;
+
+      doc.font('Helvetica').fontSize(10);
+      
+      for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+         const dayTemplates = templatesByDay[dayIdx];
+         if (dayTemplates.length === 0) continue;
+         
+         const startY = currentY;
+         
+         for (const t of dayTemplates) {
+             // Handle pagination loosely
+             if (currentY > 520) {
+                 doc.addPage({ margin: 40, size: 'A4', layout: 'landscape' });
+                 currentY = 40;
+             }
+             
+             let servicesText = t.service_name || '';
+             if (t.services_json) {
+                 try {
+                     const parsed = JSON.parse(t.services_json);
+                     if (parsed.length > 0) {
+                         servicesText = parsed.length + ' service(s) configured';
+                     }
+                 } catch(e) {}
+             }
+             
+             doc.rect(marginX, currentY, 700, 25).stroke();
+             doc.fillColor('#000000');
+             doc.text(DAYS_OF_WEEK[dayIdx], marginX + 5, currentY + 7);
+             doc.text(`${t.start_time} - ${t.end_time}`, marginX + colWidths[0] + 5, currentY + 7);
+             const staffName = t.staff_first_name ? `${t.staff_first_name} ${t.staff_last_name}` : 'Unassigned';
+             doc.text(staffName, marginX + colWidths[0] + colWidths[1] + 5, currentY + 7);
+             doc.text(servicesText, marginX + colWidths[0] + colWidths[1] + colWidths[2] + 5, currentY + 7);
+             
+             currentY += 25;
+         }
+      }
+
+      doc.end();
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   app.get('/api/clients/:id/roster-templates', authenticateToken, (req: any, res: any) => {
     try {
       const templates = db.prepare(`
