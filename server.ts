@@ -2934,74 +2934,80 @@ if (!nextShift || gapToNext > 60) {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="Roster_Templates_${client.first_name}_${client.last_name}.pdf"`);
 
-      const doc = new PDFDocument({ margin: 40, size: 'A4', layout: 'landscape' });
+      const doc = new PDFDocument({ margin: 20, size: 'A4', layout: 'landscape' });
       doc.pipe(res);
 
-      doc.fontSize(20).font('Helvetica-Bold').text(`Roster Templates: ${client.first_name} ${client.last_name}`, { align: 'center' });
-      doc.moveDown(1.5);
+      doc.fontSize(16).font('Helvetica-Bold').text(`Roster Templates: ${client.first_name} ${client.last_name}`, { align: 'center' });
+      doc.moveDown(1);
       
-      const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      // We want Monday to Sunday order
+      const DAYS_ORDER = [1, 2, 3, 4, 5, 6, 0]; // 1=Monday... 0=Sunday
+      const DAY_NAMES = {
+        1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday', 0: 'Sunday'
+      };
       
-      // Group templates by day
-      const templatesByDay: any = {};
-      DAYS_OF_WEEK.forEach((d, i) => templatesByDay[i] = []);
+      const templatesByDay: Record<number, any[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
       templates.forEach((t) => {
         templatesByDay[t.day_of_week].push(t);
       });
 
-      // Quick table drawing since standard colors are requested
-      let currentY = doc.y;
-      
-      const colWidths = [120, 150, 180, 250];
-      const headers = ['Day', 'Time', 'Staff', 'Services'];
-      const marginX = 40;
+      const startY = doc.y;
+      const colWidth = 110;
+      const marginX = 20;
+      const spacing = 5;
 
-      // Draw header row
-      doc.font('Helvetica-Bold').fontSize(12);
-      doc.rect(marginX, currentY, 700, 25).fillAndStroke('#f3f4f6', '#d1d5db');
-      doc.fillColor('#000000').text(headers[0], marginX + 5, currentY + 7);
-      doc.text(headers[1], marginX + colWidths[0] + 5, currentY + 7);
-      doc.text(headers[2], marginX + colWidths[0] + colWidths[1] + 5, currentY + 7);
-      doc.text(headers[3], marginX + colWidths[0] + colWidths[1] + colWidths[2] + 5, currentY + 7);
+      DAYS_ORDER.forEach((dayIdx, i) => {
+        const x = marginX + i * (colWidth + spacing);
+        const dayTemplates = templatesByDay[dayIdx] || [];
+        
+        // Draw column header
+        doc.roundedRect(x, startY, colWidth, 25, 4).fillAndStroke('#f4f4f5', '#e4e4e7');
+        doc.fillColor('#18181b').font('Helvetica-Bold').fontSize(10);
+        
+        const headerText = `${DAY_NAMES[dayIdx]}  ${dayTemplates.length} SHIFT${dayTemplates.length !== 1 ? 'S' : ''}`;
+        doc.text(headerText, x + 5, startY + 7, { width: colWidth - 10, align: 'left' });
 
-      currentY += 25;
+        let currentY = startY + 30;
 
-      doc.font('Helvetica').fontSize(10);
-      
-      for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
-         const dayTemplates = templatesByDay[dayIdx];
-         if (dayTemplates.length === 0) continue;
-         
-         const startY = currentY;
-         
-         for (const t of dayTemplates) {
-             // Handle pagination loosely
-             if (currentY > 520) {
-                 doc.addPage({ margin: 40, size: 'A4', layout: 'landscape' });
-                 currentY = 40;
-             }
-             
-             let servicesText = t.service_name || '';
-             if (t.services_json) {
-                 try {
-                     const parsed = JSON.parse(t.services_json);
-                     if (parsed.length > 0) {
-                         servicesText = parsed.length + ' service(s) configured';
-                     }
-                 } catch(e) {}
-             }
-             
-             doc.rect(marginX, currentY, 700, 25).stroke();
-             doc.fillColor('#000000');
-             doc.text(DAYS_OF_WEEK[dayIdx], marginX + 5, currentY + 7);
-             doc.text(`${t.start_time} - ${t.end_time}`, marginX + colWidths[0] + 5, currentY + 7);
-             const staffName = t.staff_first_name ? `${t.staff_first_name} ${t.staff_last_name}` : 'Unassigned';
-             doc.text(staffName, marginX + colWidths[0] + colWidths[1] + 5, currentY + 7);
-             doc.text(servicesText, marginX + colWidths[0] + colWidths[1] + colWidths[2] + 5, currentY + 7);
-             
-             currentY += 25;
-         }
-      }
+        // Draw cards
+        dayTemplates.forEach((t) => {
+           // Basic calculations for card height
+           let servicesText = t.service_name || '';
+           if (t.services_json) {
+               try {
+                   const parsed = JSON.parse(t.services_json);
+                   if (parsed.length > 0) {
+                       servicesText = `${parsed.length} service(s)`;
+                       // If we want more detail, we could read it here
+                   }
+               } catch(e) {}
+           }
+           
+           const cardHeight = 70;
+           
+           // Background
+           doc.roundedRect(x, currentY, colWidth, cardHeight, 4).fillAndStroke('#ffffff', '#e4e4e7');
+           
+           // Time
+           doc.fillColor('#18181b').font('Helvetica-Bold').fontSize(10);
+           doc.text(`${t.start_time} - ${t.end_time}`, x + 5, currentY + 5);
+           
+           // Staff
+           const staffName = t.staff_first_name ? `${t.staff_first_name} ${t.staff_last_name}` : 'Unassigned';
+           // Tag for staff
+           doc.roundedRect(x + 5, currentY + 20, colWidth - 10, 14, 2).fillAndStroke('#f4f4f5', '#e4e4e7');
+           doc.fillColor('#52525b').font('Helvetica').fontSize(8);
+           doc.text(staffName, x + 7, currentY + 23, { width: colWidth - 14, ellipsis: true });
+
+           // Service
+           // Tiny bullet point
+           doc.circle(x + 8, currentY + 45, 2).fill('#3b82f6');
+           doc.fillColor('#18181b').font('Helvetica').fontSize(9);
+           doc.text(servicesText, x + 13, currentY + 42, { width: colWidth - 18, height: 24, ellipsis: true });
+
+           currentY += cardHeight + 5;
+        });
+      });
 
       doc.end();
     } catch (e: any) {
