@@ -509,23 +509,25 @@ async function startServer() {
       const prevShift = db.prepare(`
         SELECT * FROM shifts 
         WHERE staff_id = ? 
-        AND end_time <= ? 
+        AND DATE(start_time) = DATE(?)
+        AND start_time <= ? 
         AND id != ? 
         AND status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')
         AND funding_type NOT IN ('HCP', 'Home Care', 'HOME_CARE')
-        ORDER BY end_time DESC LIMIT 1
-      `).get(shift.staff_id, shift.start_time, shift.id) as any;
+        ORDER BY start_time DESC LIMIT 1
+      `).get(shift.staff_id, shift.start_time, shift.start_time, shift.id) as any;
 
       // Find next shift today for staff
       const nextShift = db.prepare(`
         SELECT * FROM shifts 
         WHERE staff_id = ? 
+        AND DATE(start_time) = DATE(?)
         AND start_time >= ? 
         AND id != ? 
         AND status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')
         AND funding_type NOT IN ('HCP', 'Home Care', 'HOME_CARE')
         ORDER BY start_time ASC LIMIT 1
-      `).get(shift.staff_id, shift.end_time, shift.id) as any;
+      `).get(shift.staff_id, shift.start_time, shift.start_time, shift.id) as any;
 
       let totalDist = 0;
       let totalMins = 0;
@@ -533,9 +535,9 @@ async function startServer() {
 
       // NDIS LOGIC
       // Incoming Trip
-      const prevGapMins = prevShift ? (new Date(shift.start_time).getTime() - new Date(prevShift.end_time).getTime()) / 60000 : Infinity;
+      const prevGapMins = prevShift ? Math.abs(new Date(shift.start_time).getTime() - new Date(prevShift.end_time).getTime()) / 60000 : Infinity;
       
-      if (prevShift && prevGapMins >= 0 && prevGapMins <= 60) {
+      if (prevShift && prevGapMins <= 60) {
         console.log(`[NDIS Travel] Chaining detected: Using Previous Client Address for Start. Gap: ${prevGapMins.toFixed(0)} mins`);
         const prevClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(prevShift.client_id) as any;
         const prevClientCoords = await getRecordCoordinates('clients', prevShift.client_id, prevClientInfo?.address);
@@ -557,9 +559,9 @@ async function startServer() {
       }
 
       // Outgoing Trip
-      const nextGapMins = nextShift ? (new Date(nextShift.start_time).getTime() - new Date(shift.end_time).getTime()) / 60000 : Infinity;
+      const nextGapMins = nextShift ? Math.abs(new Date(nextShift.start_time).getTime() - new Date(shift.end_time).getTime()) / 60000 : Infinity;
       
-      if (nextShift && nextGapMins >= 0 && nextGapMins <= 60) {
+      if (nextShift && nextGapMins <= 60) {
         console.log(`[NDIS Travel] Chaining detected: Next shift within 60 mins. Outgoing travel split 50/50. Gap: ${nextGapMins.toFixed(0)} mins`);
         const nextClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(nextShift.client_id) as any;
         const nextClientCoords = await getRecordCoordinates('clients', nextShift.client_id, nextClientInfo?.address);
