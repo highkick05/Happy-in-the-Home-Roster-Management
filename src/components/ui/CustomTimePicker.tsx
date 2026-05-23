@@ -85,12 +85,12 @@ export function CustomTimePicker({
           value={value ? `${hour}:${minute} ${ampm}` : ""}
           placeholder={placeholder}
           onClick={() => setShow(!show)}
-          className={`${className} cursor-pointer pr-10`}
+          className={`${className} cursor-pointer pr-7`}
           name={name}
           id={id}
           required={required}
         />
-        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-zinc-400">
+        <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-zinc-400">
           <Clock className="w-4 h-4" />
         </div>
       </div>
