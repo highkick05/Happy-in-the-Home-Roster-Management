@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, Calendar, AlertCircle, X } from 'lucide-react';
+import { Plus, Trash2, Calendar, AlertCircle, X, History } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
+import ClientRosterBuildHistory from './ClientRosterBuildHistory';
 
 interface ClientRosterTemplatesProps {
   client: any;
@@ -141,6 +142,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   const [showConflictsModal, setShowConflictsModal] = useState(false);
   const [showAddTemplateModal, setShowAddTemplateModal] = useState(false);
   const [showRunBuilderModal, setShowRunBuilderModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [existingShiftsCount, setExistingShiftsCount] = useState(0);
   const [clientConflictsList, setClientConflictsList] = useState<any[]>([]);
   const [selectedConflictsToOverwrite, setSelectedConflictsToOverwrite] = useState<Set<number>>(new Set());
@@ -396,6 +398,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         setGenerateResult(data);
         setShowConflictsModal(false);
         setShowRunBuilderModal(false); // Close Modal on success
+        window.dispatchEvent(new CustomEvent('offline-sync-completed'));
       } else {
         alert(data.error || 'Failed to generate roster.');
       }
@@ -425,6 +428,13 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
            <div className="flex items-center gap-2">
              {user?.role === 'ADMIN' && (
                <>
+                 <button
+                   onClick={() => setShowHistoryModal(true)}
+                   className="px-3 py-1.5 bg-[#121214] hover:bg-zinc-800 text-white border border-white/[0.08] rounded-lg text-sm font-medium transition-colors flex items-center"
+                 >
+                   <History className="w-4 h-4 mr-2" />
+                   Build History
+                 </button>
                  <button
                    onClick={() => setShowRunBuilderModal(true)}
                    className="px-3 py-1.5 bg-brand-green/80 hover:bg-brand-green text-white rounded-lg text-sm font-medium transition-colors flex items-center"
@@ -890,6 +900,19 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         </div>,
         document.body
       )}
+
+      {/* Build History Modal */}
+      <ClientRosterBuildHistory 
+        clientId={clientId} 
+        isOpen={showHistoryModal} 
+        onClose={() => setShowHistoryModal(false)}
+        onRevertSuccess={() => {
+          // You may want to fetch shifts or inform the parent to refresh global roster if necessary.
+          // Since this is in templates, if they go to global roster, it will fetch fresh anyway.
+          // But maybe we should fetch the client's current shifts if we show them here?
+          // We don't show shifts here, so a simple alert or notification is fine.
+        }}
+      />
     </div>
   );
 }

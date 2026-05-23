@@ -3672,10 +3672,10 @@ if (!nextShift || gapToNext > 60) {
         return res.status(400).json({ error: 'Start date must be before or equal to end date' });
       }
 
-      // Cap at 3 months for safety
-      const msIn3Months = 90 * 24 * 60 * 60 * 1000;
-      if (end.getTime() - start.getTime() > msIn3Months) {
-        return res.status(400).json({ error: 'Date range cannot exceed 3 months.' });
+      // Cap at 12 months for safety
+      const msIn12Months = 366 * 24 * 60 * 60 * 1000;
+      if (end.getTime() - start.getTime() > msIn12Months) {
+        return res.status(400).json({ error: 'Date range cannot exceed 12 months.' });
       }
 
       const templates = db.prepare('SELECT * FROM client_roster_templates WHERE client_id = ?').all(clientId) as any[];
@@ -3698,6 +3698,12 @@ if (!nextShift || gapToNext > 60) {
       });
       let rawTz3 = settingsMap.timezone || 'Australia/Perth';
       const timezone = typeof rawTz3 === 'string' ? rawTz3.replace(/['"]+/g, '') : rawTz3;
+
+      let generatedBatchId: string | null = null;
+      if (!dryRun) {
+        const crypto = require('crypto');
+        generatedBatchId = crypto.randomUUID();
+      }
 
       db.transaction(() => {
         if (!dryRun && overwriteConflicts === 'all') {
@@ -3786,16 +3792,26 @@ if (!nextShift || gapToNext > 60) {
             if (servicesData.length > 0) mainServiceId = servicesData[0].serviceId;
 
             const stmt = db.prepare(`
-              INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, status)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, status, batch_id)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             `);
             const shiftInfo = stmt.run(
               clientId, assignedStaffId, mainServiceId, JSON.stringify(servicesData),
               startDateTime.toISOString(), endDateTime.toISOString(), 
-              'DRAFT' // Always set generated shifts to DRAFT so they can be reviewed
+              'DRAFT', // Always set generated shifts to DRAFT so they can be reviewed
+              generatedBatchId
             );
             shiftsCreated.push(shiftInfo.lastInsertRowid);
           }
+        }
+        
+        if (!dryRun && shiftsCreated.length > 0 && generatedBatchId) {
+          db.prepare(`
+            INSERT INTO roster_builds (id, client_id, shift_count, date_range_start, date_range_end)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(
+            generatedBatchId, clientId, shiftsCreated.length, start.toISOString().split('T')[0], end.toISOString().split('T')[0]
+          );
         }
         
         // If dryRun, we can rollback just in case, but no INSERT or DELETE was made
@@ -3809,6 +3825,64 @@ if (!nextShift || gapToNext > 60) {
       
       logger.error(`API Error: ${e}`, { error: e.stack || e });
       logger.error('API Error masked from frontend', {}); res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  // Get Builds history
+  app.get('/api/clients/:id/roster-builds', authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const builds = db.prepare('SELECT * FROM roster_builds WHERE client_id = ? ORDER BY created_at DESC').all(req.params.id);
+      res.json(builds);
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  // Get shifts by batch id
+  app.get('/api/roster/builds/:batchId/shifts', authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const shifts = db.prepare(`
+        SELECT s.id, s.start_time, s.end_time, 
+               u.first_name as staff_first_name, u.last_name as staff_last_name, 
+               svc.name as service_name
+        FROM shifts s
+        LEFT JOIN users u ON s.staff_id = u.id
+        LEFT JOIN services svc ON s.service_id = svc.id
+        WHERE s.batch_id = ?
+        ORDER BY s.start_time ASC
+      `).all(req.params.batchId);
+
+      // Add a formatted date from start_time
+      const formattedShifts = shifts.map((s: any) => {
+        const utcDate = s.start_time ? new Date(s.start_time) : new Date();
+        const dateStr = utcDate.toISOString().split('T')[0];
+        return {
+          ...s,
+          date: dateStr
+        };
+      });
+
+      res.json(formattedShifts);
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  // Revert Build (Delete by batchId)
+  app.delete('/api/roster/builds/:batchId', authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      let deletedCount = 0;
+      db.transaction(() => {
+        const result = db.prepare('DELETE FROM shifts WHERE batch_id = ?').run(req.params.batchId);
+        deletedCount = result.changes;
+        db.prepare('DELETE FROM roster_builds WHERE id = ?').run(req.params.batchId);
+      })();
+      res.json({ success: true, deletedCount });
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
