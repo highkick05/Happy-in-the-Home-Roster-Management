@@ -21,6 +21,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [providers, setProviders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientTab, setClientTab] = useState<'NDIS' | 'HOME_CARE'>('NDIS');
+  const [staffTab, setStaffTab] = useState<'STAFF' | 'ADMIN'>('STAFF');
 
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
@@ -130,6 +131,10 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const displayClients = clientTab === 'NDIS' ? ndisClients : homeCareClients;
 
   const sortedStaff = [...staff].sort(sortClients);
+  const staffRoleStaff = sortedStaff.filter(s => s.role === 'STAFF');
+  const staffRoleAdmin = sortedStaff.filter(s => s.role === 'ADMIN');
+  const displayStaff = staffTab === 'STAFF' ? staffRoleStaff : staffRoleAdmin;
+
   const sortedProviders = [...providers].sort((a: any, b: any) => {
     const nameA = a.company_name?.toLowerCase() || '';
     const nameB = b.company_name?.toLowerCase() || '';
@@ -155,9 +160,24 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 Home Care <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'HOME_CARE' ? 'bg-brand-green/10 text-brand-green' : 'bg-brand-navy border border-border-subtle text-[#8B949E]'}`}>{homeCareClients.length}</span>
               </button>
             </div>
+          ) : activeTab === 'STAFF' ? (
+            <div className="flex">
+              <button
+                onClick={() => setStaffTab('STAFF')}
+                className={`flex items-center px-6 py-4 text-[13px] font-medium transition-colors border-b-2 mb-[-1px] ${staffTab === 'STAFF' ? 'border-brand-teal text-[#E6EDF3] bg-brand-navy' : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3] hover:bg-brand-navy/50'}`}
+              >
+                Staff <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${staffTab === 'STAFF' ? 'bg-brand-teal/10 text-brand-teal' : 'bg-brand-navy border border-border-subtle text-[#8B949E]'}`}>{staffRoleStaff.length}</span>
+              </button>
+              <button
+                onClick={() => setStaffTab('ADMIN')}
+                className={`flex items-center px-6 py-4 text-[13px] font-medium transition-colors border-b-2 mb-[-1px] ${staffTab === 'ADMIN' ? 'border-brand-green text-[#E6EDF3] bg-brand-navy' : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3] hover:bg-brand-navy/50'}`}
+              >
+                Admins <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${staffTab === 'ADMIN' ? 'bg-brand-green/10 text-brand-green' : 'bg-brand-navy border border-border-subtle text-[#8B949E]'}`}>{staffRoleAdmin.length}</span>
+              </button>
+            </div>
           ) : (
-            <div className="px-6 py-4 text-[14px] font-medium text-[#E6EDF3]">
-              {activeTab === 'STAFF' ? 'Staff' : 'Providers'}
+            <div className="px-6 py-4 text-[14px] font-medium text-[#E6EDF3] flex items-center">
+              Providers <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-brand-navy border border-border-subtle text-[#8B949E]">{sortedProviders.length}</span>
             </div>
           )}
           <button 
@@ -184,7 +204,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle text-[13px]">
-              {activeTab === 'STAFF' && sortedStaff.map(s => {
+              {activeTab === 'STAFF' && displayStaff.map(s => {
                 const initials = `${(s.first_name || '').charAt(0)}${(s.last_name || '').charAt(0)}`.toUpperCase();
                 return (
                   <tr key={s.id} onClick={() => handleEditStaff(s)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${s.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
@@ -338,8 +358,8 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 );
               })}
 
-              {(activeTab === 'STAFF' && staff.length === 0) && (
-                <tr><td colSpan={3} className="px-4 py-6 text-center text-[#8B949E]">No staff found.</td></tr>
+              {(activeTab === 'STAFF' && displayStaff.length === 0) && (
+                <tr><td colSpan={3} className="px-4 py-6 text-center text-[#8B949E]">No staff found in this category.</td></tr>
               )}
               {(activeTab === 'CLIENTS' && displayClients.length === 0) && (
                 <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No clients found in this category.</td></tr>
