@@ -2392,7 +2392,7 @@ async function startServer() {
          // Column headers
          const headerStart = colHeaderY;
          const headerHeight = colHeaderHeight;
-         const col1W = 100;
+         const col1W = 120;
          const col2W = boxW - col1W;
          
          doc.rect(boxX, headerStart, boxW, headerHeight).stroke();
@@ -2464,8 +2464,7 @@ async function startServer() {
             // Text drawing (no boxes or borders drawn here, already done!)
             // Date/Time
             doc.font('Helvetica-Bold').fontSize(8).fillColor('black');
-            doc.text(dateStr, boxX + 4, currentY + 4);
-            doc.text(startTimeStr, boxX + 4, currentY + 14);
+            doc.text(`${dateStr} ${startTimeStr}`, boxX, currentY + 6, { align: 'center', width: col1W });
 
             // Note Text
             doc.font('Helvetica').fontSize(9).fillColor('black');

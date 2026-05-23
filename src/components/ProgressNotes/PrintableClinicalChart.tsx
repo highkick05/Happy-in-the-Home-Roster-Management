@@ -98,7 +98,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                     
                     {/* Table Header Row */}
                     <div className="flex border-b-[1.5px] border-black font-bold bg-white shrink-0 relative z-20">
-                       <div className="w-[120px] h-[30px] flex items-center justify-center text-center text-xs leading-tight shrink-0 border-r-[1.5px] border-black">
+                       <div className="w-[130px] h-[30px] flex items-center justify-center text-center text-xs leading-tight shrink-0 border-r-[1.5px] border-black">
                           Date/Time
                        </div>
                        <div className="flex-1 h-[30px] p-2 text-[11px] leading-relaxed px-3 flex items-center">
@@ -115,7 +115,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                       }}
                     >
                        {/* Vertical column separator */}
-                       <div className="absolute top-0 bottom-0 left-[120px] w-[1.5px] bg-black z-0"></div>
+                       <div className="absolute top-0 bottom-0 left-[calc(130px-1.5px)] w-[1.5px] bg-black z-0"></div>
                        
                        <div className="relative z-10 w-full h-full flex flex-col">
                          {page.items.map((note) => {
@@ -135,9 +135,11 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                                return (
                                  <div key={note.id} className="flex w-full" style={{ height: `${rowHeightPX}px` }}>
                                     {/* Date & Time Column */}
-                                    <div className="w-[120px] p-1 text-xs shrink-0 font-medium flex flex-col justify-start">
-                                       <div className="leading-tight">{dateStr}</div>
-                                       <div className="leading-tight">{startTime}</div>
+                                    <div className="w-[130px] p-2 text-xs shrink-0 font-medium flex items-start justify-center pt-2">
+                                       <div className="leading-tight whitespace-nowrap text-center flex gap-1">
+                                         <span>{dateStr}</span>
+                                         <span>{startTime}</span>
+                                       </div>
                                     </div>
                                     
                                     {/* Narrative & Signature Column */}
