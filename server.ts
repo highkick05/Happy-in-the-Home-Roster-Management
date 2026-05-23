@@ -212,11 +212,22 @@ db.exec(`
     odometer_start_photo TEXT,
     odometer_end_reading TEXT,
     odometer_end_photo TEXT,
+    batch_id TEXT,
     FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE RESTRICT,
     FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
     FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE RESTRICT,
     FOREIGN KEY (respite_booking_id) REFERENCES respite_bookings(id) ON DELETE CASCADE,
     CHECK (start_time < end_time)
+  );
+
+  CREATE TABLE IF NOT EXISTS roster_builds (
+    id TEXT PRIMARY KEY,
+    client_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    shift_count INTEGER NOT NULL DEFAULT 0,
+    date_range_start TEXT,
+    date_range_end TEXT,
+    FOREIGN KEY(client_id) REFERENCES clients(id)
   );
 
   CREATE TABLE IF NOT EXISTS client_roster_templates (
@@ -476,6 +487,7 @@ try { db.exec("ALTER TABLE clients ADD COLUMN representative_email TEXT"); } cat
 try { db.exec("ALTER TABLE shifts ADD COLUMN home_care_travel_km REAL DEFAULT 0"); } catch(e) { /* ignore */ }
 try { db.exec("ALTER TABLE shifts ADD COLUMN home_care_travel_total REAL DEFAULT 0"); } catch(e) { /* ignore */ }
 try { db.exec("ALTER TABLE shifts ADD COLUMN custom_rate REAL"); } catch(e) { /* ignore */ }
+try { db.exec("ALTER TABLE shifts ADD COLUMN batch_id TEXT"); } catch(e) { /* ignore */ }
 try { db.exec("ALTER TABLE client_services ADD COLUMN custom_rate REAL"); } catch(e) { /* ignore */ }
 
 db.exec(`
@@ -567,14 +579,15 @@ try {
       transport_route_log TEXT,
       services_json TEXT CHECK(services_json IS NULL OR services_json = '' OR json_valid(services_json)),
       travel_breakdown TEXT,
+      batch_id TEXT,
       FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE RESTRICT,
       FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
       FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE RESTRICT,
       FOREIGN KEY (respite_booking_id) REFERENCES respite_bookings(id) ON DELETE CASCADE,
       CHECK (start_time < end_time)
     );
-    INSERT OR IGNORE INTO shifts_new (id, staff_id, client_id, service_id, respite_booking_id, start_time, end_time, status, notes, created_at, actual_start_time, actual_finish_time, odometer_start_reading, odometer_start_photo, odometer_end_reading, odometer_end_photo, funding_type, provider_travel_km, provider_travel_cost, home_care_travel_km, home_care_travel_total, abt_km, abt_cost, transport_route_log, services_json, travel_breakdown)
-    SELECT id, staff_id, client_id, service_id, respite_booking_id, start_time, end_time, status, notes, created_at, actual_start_time, actual_finish_time, odometer_start_reading, odometer_start_photo, odometer_end_reading, odometer_end_photo, funding_type, provider_travel_km, provider_travel_cost, home_care_travel_km, home_care_travel_total, abt_km, abt_cost, transport_route_log, services_json, travel_breakdown FROM shifts;
+    INSERT OR IGNORE INTO shifts_new (id, staff_id, client_id, service_id, respite_booking_id, start_time, end_time, status, notes, created_at, actual_start_time, actual_finish_time, odometer_start_reading, odometer_start_photo, odometer_end_reading, odometer_end_photo, funding_type, provider_travel_km, provider_travel_cost, home_care_travel_km, home_care_travel_total, abt_km, abt_cost, transport_route_log, services_json, travel_breakdown, batch_id)
+    SELECT id, staff_id, client_id, service_id, respite_booking_id, start_time, end_time, status, notes, created_at, actual_start_time, actual_finish_time, odometer_start_reading, odometer_start_photo, odometer_end_reading, odometer_end_photo, funding_type, provider_travel_km, provider_travel_cost, home_care_travel_km, home_care_travel_total, abt_km, abt_cost, transport_route_log, services_json, travel_breakdown, batch_id FROM shifts;
     DROP TABLE shifts;
     ALTER TABLE shifts_new RENAME TO shifts;
 
