@@ -354,8 +354,8 @@ async function startServer() {
            }
 
            console.log(`[DEBUG CASCADE] NDIS writing totalDistance: ${pTravel.distance} to shift ${currentShift.id}.`);
-           db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, travel_breakdown = ?, transport_route_log = ?, services_json = ? WHERE id = ?').run(
-              pTravel.distance, pTravel.minutes, JSON.stringify(travelBreakdown), transportRouteLogStr, JSON.stringify(servicesData), currentShift.id
+           db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, provider_travel_cost = ?, travel_breakdown = ?, transport_route_log = ?, services_json = ? WHERE id = ?').run(
+              pTravel.distance, pTravel.minutes, pTravel.cost, JSON.stringify(travelBreakdown), transportRouteLogStr, JSON.stringify(servicesData), currentShift.id
            );
 
            if (prevShift) {
@@ -372,8 +372,8 @@ async function startServer() {
                    legs: prevPTravel.routeLogs
                };
                const prevBreakdown = (prevPTravel.routeLogs || []).map((log: any) => log.description);
-               db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, travel_breakdown = ?, transport_route_log = ? WHERE id = ?').run(
-                   prevPTravel.distance, prevPTravel.minutes, JSON.stringify(prevBreakdown), JSON.stringify(prevRouteLog), prevShift.id
+               db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, provider_travel_cost = ?, travel_breakdown = ?, transport_route_log = ? WHERE id = ?').run(
+                   prevPTravel.distance, prevPTravel.minutes, prevPTravel.cost, JSON.stringify(prevBreakdown), JSON.stringify(prevRouteLog), prevShift.id
                );
            }
 
@@ -391,8 +391,8 @@ async function startServer() {
                    legs: nextPTravel.routeLogs
                };
                const nextBreakdown = (nextPTravel.routeLogs || []).map((log: any) => log.description);
-               db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, travel_breakdown = ?, transport_route_log = ? WHERE id = ?').run(
-                   nextPTravel.distance, nextPTravel.minutes, JSON.stringify(nextBreakdown), JSON.stringify(nextRouteLog), nextShift.id
+               db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, provider_travel_cost = ?, travel_breakdown = ?, transport_route_log = ? WHERE id = ?').run(
+                   nextPTravel.distance, nextPTravel.minutes, nextPTravel.cost, JSON.stringify(nextBreakdown), JSON.stringify(nextRouteLog), nextShift.id
                );
            }
         }
