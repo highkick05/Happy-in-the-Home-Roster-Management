@@ -108,7 +108,7 @@ export default function UniversalPWAInstall() {
                 <div className="mt-1">
                   <button 
                     onClick={handleInstallClick}
-                    className="w-full bg-gradient-to-r from-[#0ea5e9] to-[#06b6d4] hover:from-[#06b6d4] hover:to-[#0ea5e9] text-white font-medium py-2.5 rounded-xl shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 text-[13px]"
+                    className="w-full bg-gradient-to-r from-brand-teal to-brand-green hover:opacity-90 text-white font-medium py-2.5 rounded-xl shadow-lg hover:shadow-brand-teal/25 transition-all flex items-center justify-center gap-2 text-[13px]"
                   >
                     <Download className="w-4 h-4" /> Install Now
                   </button>
