@@ -36,6 +36,15 @@ const logger = winston.createLogger({
   ],
 });
 
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception', { error: err.message || String(err), stack: err.stack });
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  const errorMsg = reason?.message || String(reason);
+  const stack = reason?.stack;
+  logger.error('Unhandled Rejection at Promise', { error: errorMsg, stack });
+});
 
 let _filename: string;
 let _dirname: string;
