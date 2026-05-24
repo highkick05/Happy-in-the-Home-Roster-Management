@@ -75,7 +75,7 @@ process.on('exit', closeDb);
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
   closeDb();
-  process.exit(1);
+  // // process.exit(1); // Do not crash on unhandled rejection in this environment // Do not crash on uncaught exception in this environment
 });
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
