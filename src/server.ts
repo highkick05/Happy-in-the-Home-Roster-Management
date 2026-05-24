@@ -3774,7 +3774,7 @@ async function startServer() {
           }
         }
         
-        const st = new Date(shift.actual_start_time || shift.start_time);
+        const rosterT = new Date(shift.start_time);
 
         let servicesArray: any[] = [];
         try {
@@ -3806,10 +3806,10 @@ async function startServer() {
            hours = primaryQtyOverride;
         }
 
-        const ymd = ymdFormatter.format(st); 
+        const ymd = ymdFormatter.format(rosterT); 
         const isPubHol = hd.isHoliday(new Date(ymd)); 
         
-        const parts = shiftDateFormatter.formatToParts(st);
+        const parts = shiftDateFormatter.formatToParts(rosterT);
         let weekdayStr = parts.find((p: any) => p.type === 'weekday')?.value || '';
         
         let dayCategory = 'Weekday';
@@ -3864,16 +3864,11 @@ async function startServer() {
 
         const rows = [];
         
-        const valHrs = parseFloat(hours.toFixed(2));
-        
         rows.push({
           id: shift.id + '_base',
           dateAndDay: dayStr,
           serviceProvided: serviceProvided,
-          weekdayHours: dayCategory === 'Weekday' ? valHrs : 0,
-          saturdayHours: dayCategory === 'Saturday' ? valHrs : 0,
-          sundayHours: dayCategory === 'Sunday' ? valHrs : 0,
-          publicHolidayHours: dayCategory === 'Public Holiday' ? valHrs : 0,
+          hoursWorked: parseFloat(hours.toFixed(2)),
           dayCategory: dayCategory,
           travelKm: isHomeCare ? parseFloat(hc_travel_km.toFixed(2)) : 0,
           travelHours: isHomeCare ? parseFloat(hc_travel_hrs.toFixed(2)) : undefined,
@@ -3889,10 +3884,7 @@ async function startServer() {
             id: shift.id + '_prov',
             dateAndDay: dayStr,
             serviceProvided: 'Provider Travel',
-            weekdayHours: 0,
-            saturdayHours: 0,
-            sundayHours: 0,
-            publicHolidayHours: 0,
+            hoursWorked: 0,
             dayCategory: dayCategory,
             travelKm: parseFloat(prov_km.toFixed(2)),
             travelHours: undefined,
@@ -3909,10 +3901,7 @@ async function startServer() {
             id: shift.id + '_abt',
             dateAndDay: dayStr,
             serviceProvided: 'Activity Based Transport',
-            weekdayHours: 0,
-            saturdayHours: 0,
-            sundayHours: 0,
-            publicHolidayHours: 0,
+            hoursWorked: 0,
             dayCategory: dayCategory,
             travelKm: parseFloat(abt_km.toFixed(2)),
             travelHours: undefined,
