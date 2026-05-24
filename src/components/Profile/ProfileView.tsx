@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Save } from 'lucide-react';
+import { Save, RefreshCw } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 
 export default function ProfileView() {
@@ -75,6 +75,22 @@ export default function ProfileView() {
       setErrorMsg(e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleHardReset = async () => {
+    if (window.confirm("Are you sure? This will log you out, clear all offline data, and refresh the app to ensure you have the latest updates.")) {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (let registration of registrations) await registration.unregister();
+      }
+      localStorage.clear();
+      sessionStorage.clear();
+      if ('caches' in window) {
+        const cacheKeys = await caches.keys();
+        for (const key of cacheKeys) await caches.delete(key);
+      }
+      window.location.reload(); 
     }
   };
 
@@ -176,6 +192,20 @@ export default function ProfileView() {
           </button>
         </div>
       </form>
+
+      <div className="mt-12 pt-8 border-t border-border-subtle">
+        <h3 className="text-sm font-semibold text-[#E6EDF3] uppercase tracking-wide mb-2">System Maintenance</h3>
+        <p className="text-xs text-[#8B949E] mb-4 max-w-md">
+          If you are experiencing issues with data not updating or the app behaving unexpectedly, use this button to perform a complete cache reset.
+        </p>
+        <button 
+          onClick={handleHardReset}
+          className="flex items-center px-4 py-2 bg-brand-navy hover:bg-brand-bg border border-border-subtle text-red-400 rounded-md text-sm transition-colors"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Hard Reset App Cache
+        </button>
+      </div>
     </div>
   );
 }
