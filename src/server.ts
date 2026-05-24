@@ -5176,7 +5176,10 @@ async function startServer() {
           }
         }
         totalHours += hrs > 0 ? hrs : 0;
-        totalKM += (s.provider_travel_km || 0) + (s.home_care_travel_km || 0) + (s.abt_km || 0);
+        const isHC = (s.funding_type === 'HCP' || s.funding_type === 'Home Care' || s.funding_type === 'HOME_CARE');
+        const hc_km = isHC ? (s.home_care_travel_km || s.provider_travel_km || 0) : 0;
+        const p_km = isHC ? 0 : (s.provider_travel_km || 0);
+        totalKM += p_km + hc_km + (s.abt_km || 0);
       });
       
       summarySheet.addRow({ metric: 'Total Logged Care Hours', value: totalHours.toFixed(2) });
@@ -5221,9 +5224,11 @@ async function startServer() {
            }
          }
          
-         const km = (s.provider_travel_km || 0) + (s.home_care_travel_km || 0) + (s.abt_km || 0);
-         
          const isHomeCare = (s.funding_type === 'HOME_CARE' || s.funding_type === 'Home Care' || s.funding_type === 'HCP');
+         const hc_km = isHomeCare ? (s.home_care_travel_km || s.provider_travel_km || 0) : 0;
+         const p_km = isHomeCare ? 0 : (s.provider_travel_km || 0);
+         const km = p_km + hc_km + (s.abt_km || 0);
+         
          const row = evidenceSheet.addRow({
            clientName: `${s.client_first} ${s.client_last}`,
            staffName: `${s.staff_first} ${s.staff_last}`,
@@ -5452,8 +5457,9 @@ async function startServer() {
             }
 
             let entries: any[] = [];
+            const isHC = (s.funding_type === 'HCP' || s.funding_type === 'Home Care' || s.funding_type === 'HOME_CARE');
             
-            if (s.provider_travel_km > 0) {
+            if (!isHC && s.provider_travel_km > 0) {
                let routeStrs: string[] = [];
                let coordsStrs: string[] = [];
                if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {
@@ -5696,7 +5702,9 @@ async function startServer() {
             try { routeLog = JSON.parse(s.transport_route_log); } catch(e){}
         }
         
-        if (s.provider_travel_km > 0) {
+        const isHC = (s.funding_type === 'HCP' || s.funding_type === 'Home Care' || s.funding_type === 'HOME_CARE');
+
+        if (!isHC && s.provider_travel_km > 0) {
            let routeStrs: string[] = [];
            let coordsStrs: string[] = [];
            if (routeLog && routeLog.providerTravel && routeLog.providerTravel.legs) {

@@ -428,7 +428,10 @@ export default function ComplianceDashboard() {
                            }
                          }
 
-                         const km = (row.provider_travel_km || 0) + (row.home_care_travel_km || 0) + (row.abt_km || 0);
+                         const isHC = (row.funding_type === 'HOME_CARE' || row.funding_type === 'Home Care' || row.funding_type === 'HCP');
+                         const hc_km = isHC ? (row.home_care_travel_km || row.provider_travel_km || 0) : 0;
+                         const p_km = isHC ? 0 : (row.provider_travel_km || 0);
+                         const km = p_km + hc_km + (row.abt_km || 0);
 
                          let noteBadgeCls = 'bg-slate-500/10 border-slate-500/20 text-slate-400';
                          let noteStatusStr = 'Missing';
@@ -596,7 +599,10 @@ export default function ComplianceDashboard() {
                            }
                          }
 
-                         const km = (row.provider_travel_km || 0) + (row.home_care_travel_km || 0) + (row.abt_km || 0);
+                         const isHC = (row.funding_type === 'HOME_CARE' || row.funding_type === 'Home Care' || row.funding_type === 'HCP');
+                         const hc_km = isHC ? (row.home_care_travel_km || row.provider_travel_km || 0) : 0;
+                         const p_km = isHC ? 0 : (row.provider_travel_km || 0);
+                         const km = p_km + hc_km + (row.abt_km || 0);
 
                          let noteBadgeCls = 'bg-slate-500/10 border-slate-500/20 text-slate-400';
                          let noteStatusStr = 'Missing';
