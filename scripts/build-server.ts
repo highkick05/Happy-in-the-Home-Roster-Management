@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 esbuild.build({
-  entryPoints: [path.resolve(__dirname, '../server.ts')],
+  entryPoints: [path.resolve(__dirname, '../src/server.ts')],
   bundle: true,
   platform: 'node',
   target: 'node20',
