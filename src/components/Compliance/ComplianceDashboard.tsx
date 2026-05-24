@@ -403,10 +403,29 @@ export default function ComplianceDashboard() {
                          const endString = (row.actual_finish_time || row.end_time || '').split('T')[1]?.substring(0, 5) || 'N/A';
                          
                          let hrs = 0;
-                         if (row.actual_start_time && row.actual_finish_time) {
-                           hrs = (new Date(row.actual_finish_time).getTime() - new Date(row.actual_start_time).getTime()) / 3600000;
-                         } else if (row.start_time && row.end_time) {
-                           hrs = (new Date(row.end_time).getTime() - new Date(row.start_time).getTime()) / 3600000;
+                         let qtyOverride = null;
+                         try {
+                           if (row.services_json) {
+                             const srvList = JSON.parse(row.services_json);
+                             if (srvList.length > 0 && srvList[0].qtyOverride !== undefined && srvList[0].qtyOverride !== '') {
+                               qtyOverride = parseFloat(srvList[0].qtyOverride);
+                             }
+                           }
+                         } catch (e) {}
+
+                         if (qtyOverride !== null && !isNaN(qtyOverride)) {
+                           hrs = qtyOverride;
+                         } else {
+                           if (row.actual_start_time && row.actual_finish_time) {
+                             const aHrs = (new Date(row.actual_finish_time).getTime() - new Date(row.actual_start_time).getTime()) / 3600000;
+                             if (aHrs > 0) {
+                               hrs = aHrs;
+                             } else {
+                               hrs = (new Date(row.end_time).getTime() - new Date(row.start_time).getTime()) / 3600000;
+                             }
+                           } else if (row.start_time && row.end_time) {
+                             hrs = (new Date(row.end_time).getTime() - new Date(row.start_time).getTime()) / 3600000;
+                           }
                          }
 
                          const km = (row.provider_travel_km || 0) + (row.home_care_travel_km || 0) + (row.abt_km || 0);
@@ -440,7 +459,11 @@ export default function ComplianceDashboard() {
                                </span>
                              </td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{km} km</td>
-                             <td className="px-4 py-2 whitespace-nowrap font-mono text-xs text-emerald-400 tracking-tight">${km.toFixed(2)}</td>
+                             <td className="px-4 py-2 whitespace-nowrap font-mono text-xs text-emerald-400 tracking-tight">
+                                {(row.funding_type === 'HOME_CARE' || row.funding_type === 'Home Care' || row.funding_type === 'HCP') 
+                                  ? '-' 
+                                  : "$" + ((row.provider_travel_cost || 0) + (row.abt_cost || 0)).toFixed(2)}
+                              </td>
                            </tr>
                          );
                        })
@@ -548,10 +571,29 @@ export default function ComplianceDashboard() {
                          const endString = (row.actual_finish_time || row.end_time || '').split('T')[1]?.substring(0, 5) || 'N/A';
                          
                          let hrs = 0;
-                         if (row.actual_start_time && row.actual_finish_time) {
-                           hrs = (new Date(row.actual_finish_time).getTime() - new Date(row.actual_start_time).getTime()) / 3600000;
-                         } else if (row.start_time && row.end_time) {
-                           hrs = (new Date(row.end_time).getTime() - new Date(row.start_time).getTime()) / 3600000;
+                         let qtyOverride = null;
+                         try {
+                           if (row.services_json) {
+                             const srvList = JSON.parse(row.services_json);
+                             if (srvList.length > 0 && srvList[0].qtyOverride !== undefined && srvList[0].qtyOverride !== '') {
+                               qtyOverride = parseFloat(srvList[0].qtyOverride);
+                             }
+                           }
+                         } catch (e) {}
+
+                         if (qtyOverride !== null && !isNaN(qtyOverride)) {
+                           hrs = qtyOverride;
+                         } else {
+                           if (row.actual_start_time && row.actual_finish_time) {
+                             const aHrs = (new Date(row.actual_finish_time).getTime() - new Date(row.actual_start_time).getTime()) / 3600000;
+                             if (aHrs > 0) {
+                               hrs = aHrs;
+                             } else {
+                               hrs = (new Date(row.end_time).getTime() - new Date(row.start_time).getTime()) / 3600000;
+                             }
+                           } else if (row.start_time && row.end_time) {
+                             hrs = (new Date(row.end_time).getTime() - new Date(row.start_time).getTime()) / 3600000;
+                           }
                          }
 
                          const km = (row.provider_travel_km || 0) + (row.home_care_travel_km || 0) + (row.abt_km || 0);
@@ -586,7 +628,11 @@ export default function ComplianceDashboard() {
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">
                                {row.odometer_end_reading || ''} {row.odometer_end_photo ? '📸' : ''}
                              </td>
-                             <td className="px-4 py-2 whitespace-nowrap font-mono text-xs text-emerald-400 tracking-tight">${km.toFixed(2)}</td>
+                             <td className="px-4 py-2 whitespace-nowrap font-mono text-xs text-emerald-400 tracking-tight">
+                                {(row.funding_type === 'HOME_CARE' || row.funding_type === 'Home Care' || row.funding_type === 'HCP') 
+                                  ? '-' 
+                                  : "$" + ((row.provider_travel_cost || 0) + (row.abt_cost || 0)).toFixed(2)}
+                              </td>
                            </tr>
                          );
                        })

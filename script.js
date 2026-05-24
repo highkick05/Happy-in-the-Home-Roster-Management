@@ -1,4 +1,4 @@
-const fs = require('fs');
+import fs from 'fs';
 let content = fs.readFileSync('src/components/Compliance/ComplianceDashboard.tsx', 'utf8');
 
 const hrsOrig = '                         let hrs = 0;\n                         if (row.actual_start_time && row.actual_finish_time) {\n                           hrs = (new Date(row.actual_finish_time).getTime() - new Date(row.actual_start_time).getTime()) / 3600000;\n                         } else if (row.start_time && row.end_time) {\n                           hrs = (new Date(row.end_time).getTime() - new Date(row.start_time).getTime()) / 3600000;\n                         }';
