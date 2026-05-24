@@ -3765,9 +3765,15 @@ async function startServer() {
       };
 
       const activityLog = shifts.flatMap(shift => {
+        let baseHrs = 0;
+        if (shift.actual_start_time && shift.actual_finish_time) {
+          baseHrs = (new Date(shift.actual_finish_time).getTime() - new Date(shift.actual_start_time).getTime()) / 3600000;
+        } else if (shift.start_time && shift.end_time) {
+          baseHrs = (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / 3600000;
+        }
+        let hours = Math.max(0, baseHrs);
+        
         const st = new Date(shift.actual_start_time || shift.start_time);
-        const et = new Date(shift.actual_finish_time || shift.end_time);
-        let hours = Math.max(0, et.getTime() - st.getTime()) / 3600000;
 
         let servicesArray: any[] = [];
         try {
