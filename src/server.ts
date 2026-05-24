@@ -3769,6 +3769,36 @@ async function startServer() {
         const et = new Date(shift.actual_finish_time || shift.end_time);
         let hours = Math.max(0, et.getTime() - st.getTime()) / 3600000;
 
+        let servicesArray: any[] = [];
+        try {
+          servicesArray = shift.services_json ? JSON.parse(shift.services_json) : [];
+        } catch(e) {}
+        
+        let primaryQtyOverride: number | null = null;
+        let serviceNamesList: string[] = [];
+        
+        if (servicesArray.length > 0) {
+           for (const sData of servicesArray) {
+              const srv = db.prepare('SELECT name FROM services WHERE id = ?').get(sData.serviceId) as any;
+              if (srv && srv.name) {
+                 const nameLower = srv.name.toLowerCase();
+                 // Do not list Provider Travel or ABT here; they get their own dedicated rows
+                 if (!nameLower.includes('provider travel') && !nameLower.includes('activity based transport')) {
+                    if (!serviceNamesList.includes(srv.name)) {
+                       serviceNamesList.push(srv.name);
+                    }
+                    if (primaryQtyOverride === null && sData.qtyOverride !== undefined && sData.qtyOverride !== '') {
+                        primaryQtyOverride = Number(sData.qtyOverride);
+                    }
+                 }
+              }
+           }
+        }
+        
+        if (primaryQtyOverride !== null && primaryQtyOverride > 0) {
+           hours = primaryQtyOverride;
+        }
+
         const ymd = ymdFormatter.format(st); 
         const isPubHol = hd.isHoliday(new Date(ymd)); 
         
@@ -3787,27 +3817,6 @@ async function startServer() {
           totals.sundayHours += hours;
         } else {
           totals.weekdayHours += hours;
-        }
-
-        let servicesArray: any[] = [];
-        try {
-          servicesArray = shift.services_json ? JSON.parse(shift.services_json) : [];
-        } catch(e) {}
-        
-        let serviceNamesList: string[] = [];
-        if (servicesArray.length > 0) {
-           for (const sData of servicesArray) {
-              const srv = db.prepare('SELECT name FROM services WHERE id = ?').get(sData.serviceId) as any;
-              if (srv && srv.name) {
-                 const nameLower = srv.name.toLowerCase();
-                 // Do not list Provider Travel or ABT here; they get their own dedicated rows
-                 if (!nameLower.includes('provider travel') && !nameLower.includes('activity based transport')) {
-                    if (!serviceNamesList.includes(srv.name)) {
-                       serviceNamesList.push(srv.name);
-                    }
-                 }
-              }
-           }
         }
         
         let serviceProvided = shift.service_name || '';
