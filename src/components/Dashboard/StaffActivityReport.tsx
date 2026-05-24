@@ -125,7 +125,10 @@ export default function StaffActivityReport() {
                 <th className="px-5 py-4 min-w-[150px]">Client</th>
                 <th className="px-5 py-4 min-w-[200px]">Service Provided</th>
                 <th className="px-5 py-4 text-center">Day Category</th>
-                <th className="px-5 py-4 text-right">Hours Worked</th>
+                <th className="px-5 py-4 text-right min-w-[120px]">Weekday (Hrs)</th>
+                <th className="px-5 py-4 text-right min-w-[120px]">Saturday (Hrs)</th>
+                <th className="px-5 py-4 text-right min-w-[120px]">Sunday (Hrs)</th>
+                <th className="px-5 py-4 text-right min-w-[120px]">Pub Hol (Hrs)</th>
                 <th className="px-5 py-4 text-right">Travel (Km)</th>
                 <th className="px-5 py-4 text-right">Travel (Hrs)</th>
                 <th className="px-5 py-4 text-right">Travel Reimbursement ($)</th>
@@ -134,14 +137,14 @@ export default function StaffActivityReport() {
             <tbody className="divide-y divide-border-subtle">
               {loading && !reportData ? (
                 <tr>
-                  <td colSpan={9} className="px-5 py-10 text-center text-[#8B949E]">
+                  <td colSpan={12} className="px-5 py-10 text-center text-[#8B949E]">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-brand-teal" />
                     Loading report data...
                   </td>
                 </tr>
               ) : reportData?.log.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-5 py-10 text-center text-[#8B949E]">
+                  <td colSpan={12} className="px-5 py-10 text-center text-[#8B949E]">
                     No activity found for the selected date range.
                   </td>
                 </tr>
@@ -170,7 +173,10 @@ export default function StaffActivityReport() {
                         {row.dayCategory}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-[#E6EDF3] font-semibold">{row.hoursWorked}</td>
+                    <td className={`px-5 py-3 text-right tabular-nums font-semibold ${row.weekdayHours > 0 ? 'text-[#E6EDF3]' : 'text-[#8B949E]/40'}`}>{row.weekdayHours}</td>
+                    <td className={`px-5 py-3 text-right tabular-nums font-semibold ${row.saturdayHours > 0 ? 'text-[#E6EDF3]' : 'text-[#8B949E]/40'}`}>{row.saturdayHours}</td>
+                    <td className={`px-5 py-3 text-right tabular-nums font-semibold ${row.sundayHours > 0 ? 'text-[#E6EDF3]' : 'text-[#8B949E]/40'}`}>{row.sundayHours}</td>
+                    <td className={`px-5 py-3 text-right tabular-nums font-semibold ${row.publicHolidayHours > 0 ? 'text-[#E6EDF3]' : 'text-[#8B949E]/40'}`}>{row.publicHolidayHours}</td>
                     <td className="px-5 py-3 text-right tabular-nums">{row.travelKm}</td>
                     <td className="px-5 py-3 text-right tabular-nums">{row.travelHours !== undefined ? row.travelHours.toFixed(2) : '-'}</td>
                     <td className="px-5 py-3 text-right tabular-nums">{row.travelReimbursement !== undefined ? `$${row.travelReimbursement.toFixed(2)}` : '-'}</td>

@@ -3765,13 +3765,14 @@ async function startServer() {
       };
 
       const activityLog = shifts.flatMap(shift => {
-        let baseHrs = 0;
+        let scheduledHrs = (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / 3600000;
+        let hours = Math.max(0, scheduledHrs);
         if (shift.actual_start_time && shift.actual_finish_time) {
-          baseHrs = (new Date(shift.actual_finish_time).getTime() - new Date(shift.actual_start_time).getTime()) / 3600000;
-        } else if (shift.start_time && shift.end_time) {
-          baseHrs = (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / 3600000;
+          let actualHrs = (new Date(shift.actual_finish_time).getTime() - new Date(shift.actual_start_time).getTime()) / 3600000;
+          if (actualHrs > 0.01) {
+            hours = actualHrs;
+          }
         }
-        let hours = Math.max(0, baseHrs);
         
         const st = new Date(shift.actual_start_time || shift.start_time);
 
@@ -3863,11 +3864,16 @@ async function startServer() {
 
         const rows = [];
         
+        const valHrs = parseFloat(hours.toFixed(2));
+        
         rows.push({
           id: shift.id + '_base',
           dateAndDay: dayStr,
           serviceProvided: serviceProvided,
-          hoursWorked: parseFloat(hours.toFixed(2)),
+          weekdayHours: dayCategory === 'Weekday' ? valHrs : 0,
+          saturdayHours: dayCategory === 'Saturday' ? valHrs : 0,
+          sundayHours: dayCategory === 'Sunday' ? valHrs : 0,
+          publicHolidayHours: dayCategory === 'Public Holiday' ? valHrs : 0,
           dayCategory: dayCategory,
           travelKm: isHomeCare ? parseFloat(hc_travel_km.toFixed(2)) : 0,
           travelHours: isHomeCare ? parseFloat(hc_travel_hrs.toFixed(2)) : undefined,
@@ -3883,7 +3889,10 @@ async function startServer() {
             id: shift.id + '_prov',
             dateAndDay: dayStr,
             serviceProvided: 'Provider Travel',
-            hoursWorked: 0,
+            weekdayHours: 0,
+            saturdayHours: 0,
+            sundayHours: 0,
+            publicHolidayHours: 0,
             dayCategory: dayCategory,
             travelKm: parseFloat(prov_km.toFixed(2)),
             travelHours: undefined,
@@ -3900,7 +3909,10 @@ async function startServer() {
             id: shift.id + '_abt',
             dateAndDay: dayStr,
             serviceProvided: 'Activity Based Transport',
-            hoursWorked: 0,
+            weekdayHours: 0,
+            saturdayHours: 0,
+            sundayHours: 0,
+            publicHolidayHours: 0,
             dayCategory: dayCategory,
             travelKm: parseFloat(abt_km.toFixed(2)),
             travelHours: undefined,
