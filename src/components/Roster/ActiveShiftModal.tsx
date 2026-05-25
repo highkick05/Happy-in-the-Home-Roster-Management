@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera } from 'lucide-react';
+import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera, RotateCcw, CheckSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ShiftEvent } from './RosterCalendar';
 import CustomTimePicker from '../ui/CustomTimePicker';
@@ -222,6 +222,30 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
     }
   };
 
+  const handleUndoStartShift = async () => {
+    if (!confirm("Are you sure you want to undo starting this shift? This will set it back to PUBLISHED.")) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/shifts/${shift.id}/undo-start`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        }
+      });
+      if (res.ok) {
+        onSave(); // Refresh data back to PUBLISHED
+      } else {
+        alert('Failed to undo start shift');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error undoing start shift');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCancelShift = async () => {
     if (!cancelReason.trim()) {
       alert("Please provide a reason for cancellation.");
@@ -365,8 +389,8 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
   const startDiffMs = shift.start.getTime() - nowDate.getTime();
   const endDiffMs = shift.end.getTime() - nowDate.getTime();
   
-  const isLocked = (shift.status === 'PUBLISHED' && startDiffMs <= 15 * 60 * 1000 && startDiffMs > -24 * 60 * 60 * 1000) ||
-                   shift.status === 'IN_PROGRESS';
+  const isLocked = ((shift.status === 'PUBLISHED' && startDiffMs <= maxEarlyMins * 60 * 1000 && startDiffMs > -24 * 60 * 60 * 1000) ||
+                   shift.status === 'IN_PROGRESS');
 
   const isEarlyStart = startDiffMs > 0 && startDiffMs <= maxEarlyMins * 60 * 1000;
   const canStart = startDiffMs <= maxEarlyMins * 60 * 1000;
@@ -842,7 +866,17 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                 </>
               )}
               {shift.status === 'IN_PROGRESS' && (
-                <div className="col-span-1 sm:col-span-2">
+                <div className="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-[1fr_3fr] gap-3">
+                  <button 
+                     onClick={handleUndoStartShift}
+                     disabled={loading}
+                     className="w-full py-5 bg-transparent border-2 border-red-500/30 hover:border-red-500/60 hover:bg-red-500/10 text-red-400 rounded-2xl font-bold flex items-center justify-center transition-all shadow-sm shrink-0"
+                     title="Undo Start Shift"
+                  >
+                     <RotateCcw className="w-5 h-5 md:w-6 md:h-6 sm:mr-2" /> 
+                     <span className="sm:hidden ml-2 text-base">Undo Start</span>
+                     <span className="hidden sm:inline text-base">Undo</span>
+                  </button>
                   <button 
                     onClick={() => setCompleteMode(true)}
                     disabled={!canComplete}

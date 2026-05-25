@@ -3258,6 +3258,22 @@ async function startServer() {
     }
   });
 
+  app.post('/api/shifts/:id/undo-start', authenticateToken, (req: any, res: any) => {
+    const { id } = req.params;
+    try {
+      const shift = db.prepare('SELECT * FROM shifts WHERE id = ?').get(id) as any;
+      if (!shift) return res.status(404).json({ error: 'Shift not found' });
+      if (req.user.role !== 'ADMIN' && shift.staff_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+
+      db.prepare('UPDATE shifts SET actual_start_time = NULL, status = ?, odometer_start_reading = NULL, odometer_start_photo = NULL WHERE id = ?')
+        .run('PUBLISHED', id);
+      res.json({ success: true });
+    } catch(e: any) {
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   app.post('/api/shifts/:id/complete', authenticateToken, async (req: any, res: any) => {
     const { id } = req.params;
     const { actual_finish_time, notes, abtCoordinates, odometer_end_reading, odometer_end_photo } = req.body; 

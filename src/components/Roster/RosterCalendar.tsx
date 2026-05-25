@@ -319,7 +319,8 @@ export default function RosterCalendar() {
         if (e.isRespiteWrapper) return false;
         const diffMs = e.start.getTime() - now.getTime();
         const diffMins = diffMs / 60000;
-        return diffMins <= 15; // allow any past published shift to prompt the user
+        const maxEarly = settings?.max_early_clockin_minutes !== undefined ? parseInt(settings.max_early_clockin_minutes as string) : 180;
+        return diffMins <= maxEarly;
       }).sort((a, b) => a.start.getTime() - b.start.getTime());
       
       if (upcomingShifts.length > 0) {
