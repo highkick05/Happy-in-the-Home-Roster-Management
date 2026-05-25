@@ -1067,7 +1067,7 @@ async function startServer() {
       db.prepare(query).run(...params);
       res.json({ success: true });
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(400).json({ error: 'Failed to update profile' });
     }
   });
@@ -1083,7 +1083,7 @@ async function startServer() {
       res.json(settings);
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1137,7 +1137,7 @@ async function startServer() {
          try { fs.unlinkSync(req.file.path); } catch (e) {}
       }
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1159,7 +1159,7 @@ async function startServer() {
       res.json({ holidays: holidaysList, state });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1275,7 +1275,7 @@ async function startServer() {
       res.json(settings);
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1293,7 +1293,7 @@ async function startServer() {
       res.json({ success: true, settings });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1537,7 +1537,7 @@ async function startServer() {
 
       res.json(onboardingData);
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1551,7 +1551,7 @@ async function startServer() {
       db.prepare('UPDATE users SET onboarding_json = ? WHERE id = ?').run(JSON.stringify(req.body.data || req.body), targetUserId);
       res.json({ success: true });
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1638,7 +1638,7 @@ async function startServer() {
 
       res.json(result);
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1662,7 +1662,7 @@ async function startServer() {
     } catch (e: any) {
       if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
         
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(400).json({ error: 'Email already exists' });
       } else {
         res.status(500).json({ error: 'Internal Server Error' });
@@ -1679,7 +1679,7 @@ async function startServer() {
       res.json({ id, email, role, firstName, lastName, phone, address, dob, emergencyContactName, emergencyContactPhone, bankName, bankBsb, bankAcc, taxNumber, superFundName, superMemberNumber });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1695,7 +1695,7 @@ async function startServer() {
     } catch (e: any) {
       console.error(`Error updating staff status:`, e);
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1707,7 +1707,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1769,7 +1769,7 @@ async function startServer() {
         service_ids: clientServices.map((cs: any) => cs.service_id)
       });
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1801,7 +1801,7 @@ async function startServer() {
       res.json({ id: clientId });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1831,7 +1831,7 @@ async function startServer() {
       res.json({ id: req.params.id });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1844,7 +1844,7 @@ async function startServer() {
       res.json({ success: true, status });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1856,7 +1856,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1875,7 +1875,7 @@ async function startServer() {
       res.json({ id: info.lastInsertRowid, companyName, contactName, email, phone, address });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1889,7 +1889,7 @@ async function startServer() {
       res.json({ id, companyName, contactName, email, phone, address });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1902,7 +1902,7 @@ async function startServer() {
       res.json({ success: true, status });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -1914,7 +1914,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2018,7 +2018,7 @@ async function startServer() {
         res.json({ id: bookingId });
     } catch(e: any) {
         
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2048,7 +2048,7 @@ async function startServer() {
         res.json({ success: true });
     } catch(e: any) {
         
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2076,7 +2076,7 @@ async function startServer() {
         res.json({ success: true });
     } catch (e: any) {
         
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2090,7 +2090,7 @@ async function startServer() {
           res.json({ success: true });
       } catch(e: any) {
           
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
       }
   });
@@ -2331,7 +2331,7 @@ async function startServer() {
       doc.end();
 
     } catch (e: any) {
-      logger.error('Error generating PDF', { error: e.stack || e });
+      logger.error('Error generating PDF', { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2372,7 +2372,7 @@ async function startServer() {
       const notes = db.prepare(query).all(...params);
       res.json(notes);
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2477,7 +2477,7 @@ async function startServer() {
 
       doc.end();
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2506,7 +2506,7 @@ async function startServer() {
       res.json(templates);
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2530,7 +2530,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2541,7 +2541,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2552,7 +2552,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2761,7 +2761,7 @@ async function startServer() {
       res.json({ success: true, createdCount: shiftsCreated.length, conflicts, clientConflicts, dryRun });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2772,7 +2772,7 @@ async function startServer() {
       const builds = db.prepare('SELECT * FROM roster_builds WHERE client_id = ? ORDER BY created_at DESC').all(req.params.id);
       res.json(builds);
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2803,7 +2803,7 @@ async function startServer() {
 
       res.json(formattedShifts);
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2819,7 +2819,7 @@ async function startServer() {
       })();
       res.json({ success: true, deletedCount });
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2948,7 +2948,7 @@ async function startServer() {
       res.json({ success: true, createdCount: shiftsCreated.length, conflicts });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -2962,7 +2962,7 @@ async function startServer() {
       res.json({ success: true, data });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -3083,7 +3083,7 @@ async function startServer() {
       }
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -3147,7 +3147,7 @@ async function startServer() {
     } catch (e: any) {
       console.error(e);
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -3161,7 +3161,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -3237,7 +3237,7 @@ async function startServer() {
 
       res.json({ success: true });
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -3254,7 +3254,7 @@ async function startServer() {
       res.json({ success: true });
     } catch(e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -3274,7 +3274,7 @@ async function startServer() {
       res.json({ success: true, actual_start_time: startTime });
     } catch(e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -3459,7 +3459,7 @@ async function startServer() {
       res.json({ success: true, abt_km, pTravelDistance: pTravel.distance });
     } catch(e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -3488,7 +3488,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -3526,7 +3526,7 @@ async function startServer() {
       res.json({ id: info.lastInsertRowid, code, name, rate, description, type: type || 'NDIS' });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -3698,7 +3698,7 @@ async function startServer() {
       res.json({ success: true, imported, updated });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -3933,7 +3933,7 @@ async function startServer() {
         }
       });
     } catch (e: any) {
-      logger.error(`Staff Activity Report Error: ${e}`, { error: e.stack || e });
+      logger.error(`Staff Activity Report Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -3996,7 +3996,7 @@ async function startServer() {
       res.json({ clients: clientsWithServices, staff, services });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4030,7 +4030,7 @@ async function startServer() {
       res.json({ success: true, invoice });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4148,7 +4148,7 @@ async function startServer() {
     } catch (e: any) {
       console.error(e);
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4174,7 +4174,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4222,7 +4222,7 @@ async function startServer() {
 
       res.json({ success: true });
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4233,7 +4233,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4253,7 +4253,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4275,7 +4275,7 @@ async function startServer() {
       res.json(shifts);
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4293,7 +4293,7 @@ async function startServer() {
       }
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4494,7 +4494,7 @@ async function startServer() {
     } catch (e: any) {
       console.error('Failed to generate dynamic invoice:', e);
       if (!res.headersSent) 
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4521,7 +4521,7 @@ async function startServer() {
     } catch (e: any) {
       console.error('Failed to generate dynamic invoice:', e);
       if (!res.headersSent) 
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4553,7 +4553,7 @@ async function startServer() {
       res.json(quotes);
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4614,7 +4614,7 @@ async function startServer() {
       res.json({ success: true });
     } catch(e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4625,7 +4625,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4639,7 +4639,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4855,7 +4855,7 @@ async function startServer() {
     } catch (e: any) {
       console.error("DEBUG QUOTE DOWNLOAD ERROR:", e);
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4896,7 +4896,7 @@ async function startServer() {
       res.json({ success: true, id: info.lastInsertRowid, date_issued: dateIssued, date_expires: dateExpires });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4923,7 +4923,7 @@ async function startServer() {
 
       res.json({ success: true });
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4947,7 +4947,7 @@ async function startServer() {
       }
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4967,7 +4967,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
@@ -4981,7 +4981,7 @@ async function startServer() {
       res.json({ message: 'Cleanup complete: Removed orphaned or deleted/cancelled shifts.' });
     } catch (e: any) {
       
-      logger.error(`API Error: ${e}`, { error: e.stack || e });
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });

@@ -744,7 +744,13 @@ export default function InvoicingView() {
                       />
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-[#E6EDF3]">
-                      {new Date(i.created_at).toLocaleDateString()}
+                      {(() => {
+                        const d = new Date(i.start_time || i.created_at);
+                        const day = String(d.getDate()).padStart(2, '0');
+                        const month = String(d.getMonth() + 1).padStart(2, '0');
+                        const year = d.getFullYear();
+                        return `${day}-${month}-${year}`;
+                      })()}
                     </td>
                     <td className="px-4 py-4 text-[#E6EDF3]">
                       {i.client_first_name} {i.client_last_name}

@@ -409,7 +409,15 @@ export default function QuotesView() {
                     <td className="px-4 py-4 whitespace-nowrap">
                       <input type="checkbox" className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-navy" checked={selectedIds.includes(q.id)} onChange={() => toggleSelection(q.id)} />
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-[#E6EDF3]">{new Date(q.created_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-4 whitespace-nowrap text-[#E6EDF3]">
+                      {(() => {
+                        const d = new Date(q.activity_date || q.created_at);
+                        const day = String(d.getDate()).padStart(2, '0');
+                        const month = String(d.getMonth() + 1).padStart(2, '0');
+                        const year = d.getFullYear();
+                        return `${day}-${month}-${year}`;
+                      })()}
+                    </td>
                     <td className="px-4 py-4 whitespace-nowrap font-medium text-[#E6EDF3]">{q.quote_number}</td>
                     <td className="px-4 py-4 text-[#E6EDF3]">{q.client_first_name} {q.client_last_name}</td>
                     <td className="px-4 py-4 text-[#E6EDF3]">{q.activity_name}</td>
