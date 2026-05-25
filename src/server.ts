@@ -2282,9 +2282,9 @@ async function startServer() {
          doc.font('Helvetica');
          
          notes.forEach((note, index) => {
-            const startDate = new Date(note.start_time);
-            const dateStr = startDate.toLocaleDateString('en-GB');
-            const startTimeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            const recordDate = new Date(note.actual_finish_time || note.end_time || note.start_time);
+            const dateStr = recordDate.toLocaleDateString('en-GB');
+            const startTimeStr = recordDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
             
             const staffName = `${note.staff_first_name || ''} ${note.staff_last_name || ''}`.trim();
             const staffRole = note.staff_role === 'ADMIN' ? 'Administrator' : 'Support Worker';
@@ -2348,7 +2348,7 @@ async function startServer() {
       const { clientId } = req.params;
       const { startDate, endDate } = req.query;
       let query = `
-        SELECT s.id, s.start_time, s.end_time, s.notes, s.service_id,
+        SELECT s.id, s.start_time, s.end_time, s.actual_finish_time, s.notes, s.service_id,
                c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
                u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
                srv.name as service_name, srv.type as service_type

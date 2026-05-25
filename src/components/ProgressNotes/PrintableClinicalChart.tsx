@@ -118,9 +118,9 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                        
                        <div className="relative z-10 w-full h-full flex flex-col">
                          {page.items.map((note) => {
-                               const startDate = new Date(note.start_time);
-                               const dateStr = startDate.toLocaleDateString('en-GB');
-                               const startTime = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                               const endDate = new Date(note.actual_finish_time || note.end_time || note.start_time);
+                               const dateStr = endDate.toLocaleDateString('en-GB');
+                               const endTime = endDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
                                
                                // calculate how many rows... we actually don't need fixed height if we use leading-[30px]!
                                // It will naturally scale in 30px increments.
@@ -130,13 +130,13 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                                     <div className="w-[130px] px-2 shrink-0 font-medium flex items-start justify-center pt-[7px]">
                                        <div className="leading-none text-[11px] whitespace-nowrap text-center flex gap-1">
                                          <span>{dateStr}</span>
-                                         <span>{startTime}</span>
+                                         <span>{endTime}</span>
                                        </div>
                                     </div>
                                     
                                     {/* Narrative & Signature Column */}
                                     <div className="flex-1 px-3 flex items-start">
-                                       <div className="text-[13px] font-serif leading-[30px] break-words w-full">
+                                       <div className="text-[13px] font-serif break-words w-full" style={{ lineHeight: '30px' }}>
                                          <span>{note.notes}</span>
                                          <span className="font-sans font-semibold text-[11px] ml-4 tracking-normal whitespace-nowrap">
                                             {note.staff_first_name} {note.staff_last_name}
