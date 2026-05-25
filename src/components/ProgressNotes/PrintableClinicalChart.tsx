@@ -15,7 +15,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
   const safeRefNumber = clientData ? redact(clientData.ndis_number || clientData.my_aged_care_id, '') : '';
 
   // Pagination logic to mirror PDFKit layout exactly
-  const PAGE_CAPACITY = 630; // 21 rows of 30px
+  const PAGE_CAPACITY = 648; // 27 rows of 24px
   const pages: { items: any[]; emptySpace: number }[] = [];
   let currentPageItems: any[] = [];
   let currentUsed = 0;
@@ -23,7 +23,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
   notes.forEach((note) => {
     const strTotal = (note.notes || '') + (note.staff_first_name || '') + (note.staff_last_name || '');
     const lines = Math.max(1, Math.ceil(strTotal.length / 85));
-    const neededHeight = lines * 30;
+    const neededHeight = lines * 24;
 
     if (currentUsed + neededHeight > PAGE_CAPACITY && currentPageItems.length > 0) {
       pages.push({ items: currentPageItems, emptySpace: PAGE_CAPACITY - currentUsed });
@@ -45,8 +45,8 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
     <div className="flex flex-col items-center gap-8 w-full bg-transparent p-4 md:p-8 print:p-0 print:bg-white select-none print:block">
       {pages.map((page, pageIndex) => {
          // calculate how many empty rows to append at the bottom
-         // Usually 1 standard row is 26px to 30px
-         const emptyRowCount = Math.max(0, Math.floor(page.emptySpace / 30));
+         // Usually 1 standard row is 24px
+         const emptyRowCount = Math.max(0, Math.floor(page.emptySpace / 24));
          
          return (
          <div key={pageIndex} className="w-full max-w-[210mm] min-h-[297mm] bg-white shadow-xl print:shadow-none box-border p-[15mm] print:p-0 relative break-after-page flex flex-col justify-between">
@@ -97,10 +97,10 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                     
                     {/* Table Header Row */}
                     <div className="flex border-b-[1.5px] border-black font-bold bg-white shrink-0 relative z-20">
-                       <div className="w-[130px] h-[30px] flex items-center justify-center text-center text-xs leading-tight shrink-0 border-r-[1.5px] border-black">
+                       <div className="w-[130px] h-[24px] flex items-center justify-center text-center text-xs leading-tight shrink-0 border-r-[1.5px] border-black">
                           Date/Time
                        </div>
-                       <div className="flex-1 h-[30px] p-2 text-[11px] leading-relaxed px-3 flex items-center">
+                       <div className="flex-1 h-[24px] p-2 text-[11px] leading-relaxed px-3 flex items-center">
                           <span>Write entry in Black pen. <span className="font-normal italic">Sign each entry, print name and designation after signature.</span></span>
                        </div>
                     </div>
@@ -109,8 +109,8 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                     <div 
                       className="flex-1 relative w-full z-10"
                       style={{ 
-                        backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent 28.5px, black 28.5px, black 30px)`,
-                        backgroundSize: '100% 30px'
+                        backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent 22.5px, black 22.5px, black 24px)`,
+                        backgroundSize: '100% 24px'
                       }}
                     >
                        {/* Vertical column separator */}
@@ -122,12 +122,12 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                                const dateStr = endDate.toLocaleDateString('en-GB');
                                const endTime = endDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
                                
-                               // calculate how many rows... we actually don't need fixed height if we use leading-[30px]!
-                               // It will naturally scale in 30px increments.
+                               // calculate how many rows... we actually don't need fixed height if we use leading-[24px]!
+                               // It will naturally scale in 24px increments.
                                return (
-                                 <div key={note.id} className="flex w-full" style={{ minHeight: '30px' }}>
+                                 <div key={note.id} className="flex w-full" style={{ minHeight: '24px' }}>
                                     {/* Date & Time Column */}
-                                    <div className="w-[130px] px-2 shrink-0 font-medium flex items-start justify-center pt-[7px]">
+                                    <div className="w-[130px] px-2 shrink-0 font-medium flex items-start justify-center pt-[5px]">
                                        <div className="leading-none text-[11px] whitespace-nowrap text-center flex gap-1">
                                          <span>{dateStr}</span>
                                          <span>{endTime}</span>
@@ -136,7 +136,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                                     
                                     {/* Narrative & Signature Column */}
                                     <div className="flex-1 px-3 flex items-start">
-                                       <div className="text-[13px] font-serif break-words w-full" style={{ lineHeight: '30px' }}>
+                                       <div className="text-[13px] font-serif break-words w-full" style={{ lineHeight: '24px' }}>
                                          <span>{note.notes}</span>
                                          <span className="font-sans font-semibold text-[11px] ml-4 tracking-normal whitespace-nowrap">
                                             {note.staff_first_name} {note.staff_last_name}

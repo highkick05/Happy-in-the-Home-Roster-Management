@@ -2151,7 +2151,7 @@ async function startServer() {
 
       const notes = db.prepare(`
         SELECT 
-          s.id, s.start_time, s.end_time, s.notes,
+          s.id, s.start_time, s.end_time, s.actual_finish_time, s.notes,
           u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
           srv.name as service_name
         FROM shifts s
@@ -2184,12 +2184,11 @@ async function startServer() {
          const headerH = 80;
          const colHeaderYOffset = 3;
          const colHeaderHeight = 22;
-         const dataRowHeight = 26;
+         const dataRowHeight = 24;
 
          // Calculate exact total height so there are no floating extra lines at the bottom
          const usedAboveRows = headerH + colHeaderYOffset + colHeaderHeight; // 105
-         const availableForRowSpace = doc.page.height - boxY - 50 - usedAboveRows; // leave bottom margin space ~50
-         const maxRows = Math.floor(availableForRowSpace / dataRowHeight);
+         const maxRows = 27;
          const exactUsableH = usedAboveRows + (maxRows * dataRowHeight);
          const maxH = boxY + exactUsableH;
          
@@ -2268,7 +2267,7 @@ async function startServer() {
       };
 
       // Draw the background grid on the initial page
-      const rowH = 26;
+      const rowH = 24;
       let gridY = currentY;
       while (gridY < maxH - 1) {
           const remaining = maxH - gridY;
