@@ -119,6 +119,34 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
   
+  // Data consistency sync for old templates
+  try {
+    db.prepare(`
+      UPDATE shifts
+      SET funding_type = (SELECT funding_type FROM clients WHERE clients.id = shifts.client_id)
+      WHERE funding_type != (SELECT funding_type FROM clients WHERE clients.id = shifts.client_id)
+         OR funding_type IS NULL
+    `).run();
+    console.log('[DEBUG] Completed funding_type backfill synchronization.');
+
+    const missingLogShifts = db.prepare(`
+      SELECT DISTINCT staff_id, DATE(start_time) as shift_date 
+      FROM shifts 
+      WHERE transport_route_log IS NULL 
+      AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+    `).all() as any[];
+
+    if (missingLogShifts.length > 0) {
+      console.log(`[DEBUG] Found ${missingLogShifts.length} staff-days with missing transport logs. Running cascade sweep...`);
+      (async () => {
+        for (const item of missingLogShifts) {
+           await recalculateDayTravelForStaff(item.staff_id, item.shift_date);
+        }
+        console.log(`[DEBUG] Completed cascade sweep for missing logs.`);
+      })();
+    }
+  } catch(e) { console.error('Data sync error:', e); }
+
   app.set("trust proxy", 1);
 
   app.use(express.json({ limit: '50mb' }));
@@ -2594,6 +2622,9 @@ async function startServer() {
       const templates = db.prepare('SELECT * FROM client_roster_templates WHERE client_id = ?').all(clientId) as any[];
       if (!templates.length) return res.status(400).json({ error: 'No templates found for this client.' });
       
+      const clientRow = db.prepare('SELECT funding_type FROM clients WHERE id = ?').get(clientId) as any;
+      const fundingType = clientRow?.funding_type || 'NDIS';
+
       const shiftsCreated = [];
       const conflicts = [];
       const clientConflicts = [];
@@ -2699,26 +2730,42 @@ async function startServer() {
             if (!assignedStaffId) continue; // Skip creating shift if there is a conflict and no staff
 
             let servicesData = [];
+            let isAbtApproved = false;
+            
             if (tmpl.services_json) {
               try {
                 servicesData = JSON.parse(tmpl.services_json);
+                for (const sData of servicesData) {
+                  const srv = db.prepare('SELECT name FROM services WHERE id = ?').get(sData.serviceId) as any;
+                  if (srv && srv.name.toLowerCase().includes('activity based transport')) {
+                    isAbtApproved = true;
+                    sData.qtyOverride = 0;
+                  }
+                }
               } catch(e: any) { logger.warn('JSON Parse Error:', e.message); }
             } else if (tmpl.service_id) {
               servicesData = [{ serviceId: tmpl.service_id }];
+              const srv = db.prepare('SELECT name FROM services WHERE id = ?').get(tmpl.service_id) as any;
+              if (srv && srv.name.toLowerCase().includes('activity based transport')) {
+                isAbtApproved = true;
+                servicesData[0].qtyOverride = 0;
+              }
             }
             
             let mainServiceId = null;
             if (servicesData.length > 0) mainServiceId = servicesData[0].serviceId;
 
             const stmt = db.prepare(`
-              INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, status, batch_id)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, status, batch_id, funding_type, is_abt_approved)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
             const shiftInfo = stmt.run(
               clientId, assignedStaffId, mainServiceId, JSON.stringify(servicesData),
               startDateTime.toISOString(), endDateTime.toISOString(), 
               'DRAFT', // Always set generated shifts to DRAFT so they can be reviewed
-              generatedBatchId
+              generatedBatchId,
+              fundingType,
+              isAbtApproved ? 1 : 0
             );
             shiftsCreated.push(shiftInfo.lastInsertRowid);
             if (assignedStaffId) {
@@ -2743,6 +2790,7 @@ async function startServer() {
       })();
 
       if (!dryRun && affectedStaffDates.size > 0) {
+         console.log(`[DEBUG TRIGGER] Running template sweep for ${affectedStaffDates.size} unique staff-date combinations.`);
          for (const sd of affectedStaffDates) {
             const [staffId, shiftDateStr] = sd.split('|');
             await recalculateDayTravelForStaff(Number(staffId), shiftDateStr);
@@ -2838,6 +2886,9 @@ async function startServer() {
       let rawTz4 = settingsMap.timezone || 'Australia/Perth';
       const timezone = typeof rawTz4 === 'string' ? rawTz4.replace(/['"]+/g, '') : rawTz4;
 
+      const clientRow = db.prepare('SELECT funding_type FROM clients WHERE id = ?').get(clientId) as any;
+      const fundingType = clientRow?.funding_type || 'NDIS';
+
       const affectedStaffDates = new Set<string>();
 
       db.transaction(() => {
@@ -2914,25 +2965,41 @@ async function startServer() {
           if (!assignedStaffId) continue; // Skip creating shift if there is a conflict and no staff
 
           let servicesData = [];
+          let isAbtApproved = false;
+          
           if (tmpl.services_json) {
             try {
               servicesData = JSON.parse(tmpl.services_json);
-            } catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
+              for (const sData of servicesData) {
+                const srv = db.prepare('SELECT name FROM services WHERE id = ?').get(sData.serviceId) as any;
+                if (srv && srv.name.toLowerCase().includes('activity based transport')) {
+                  isAbtApproved = true;
+                  sData.qtyOverride = 0;
+                }
+              }
+            } catch(e: any) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
           } else if (tmpl.service_id) {
             servicesData = [{ serviceId: tmpl.service_id }];
+            const srv = db.prepare('SELECT name FROM services WHERE id = ?').get(tmpl.service_id) as any;
+            if (srv && srv.name.toLowerCase().includes('activity based transport')) {
+              isAbtApproved = true;
+              servicesData[0].qtyOverride = 0;
+            }
           }
           
           let mainServiceId = null;
           if (servicesData.length > 0) mainServiceId = servicesData[0].serviceId;
 
           const stmt = db.prepare(`
-            INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, status, funding_type, is_abt_approved)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
           const shiftInfo = stmt.run(
             clientId, assignedStaffId, mainServiceId, JSON.stringify(servicesData),
             startDateTime.toISOString(), endDateTime.toISOString(), 
-            'DRAFT' // Always set to DRAFT so they can be reviewed before publishing
+            'DRAFT', // Always set to DRAFT so they can be reviewed before publishing
+            fundingType,
+            isAbtApproved ? 1 : 0
           );
           shiftsCreated.push(shiftInfo.lastInsertRowid);
           if (assignedStaffId) {
@@ -2942,6 +3009,7 @@ async function startServer() {
       })();
 
       if (affectedStaffDates.size > 0) {
+         console.log(`[DEBUG TRIGGER] Running template sweep for ${affectedStaffDates.size} unique staff-date combinations.`);
          for (const sd of affectedStaffDates) {
             const [staffId, shiftDateStr] = sd.split('|');
             await recalculateDayTravelForStaff(Number(staffId), shiftDateStr);
@@ -3438,6 +3506,7 @@ async function startServer() {
         id
       );
 
+      console.log(`[DEBUG TRIGGER] Shift ${id} completed. Triggering cascade engine.`);
       await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);
 
       // Trigger notification for ADMINs
