@@ -21,8 +21,13 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
   let currentUsed = 0;
 
   notes.forEach((note) => {
-    const strTotal = (note.notes || '') + (note.staff_first_name || '') + (note.staff_last_name || '');
-    const lines = Math.max(1, Math.ceil(strTotal.length / 85));
+    const strTotal = (note.notes || '') + (note.staff_first_name || '') + (note.staff_last_name || '   (Support Worker)');
+    const explicitLines = strTotal.split('\n');
+    let lines = 0;
+    explicitLines.forEach(l => {
+         lines += Math.max(1, Math.ceil(l.length / 95));
+    });
+    
     const neededHeight = lines * 24;
 
     if (currentUsed + neededHeight > PAGE_CAPACITY && currentPageItems.length > 0) {
@@ -57,7 +62,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
               <div className="border-[1.5px] border-black w-full flex-1 flex flex-col">
                  
                  {/* Top Header block */}
-                 <div className="flex border-b-[1.5px] border-black shrink-0">
+                 <div className="flex border-b-[1.5px] border-black shrink-0 h-[80px]">
                     {/* Left box */}
                     <div className="w-[55%] flex items-center justify-center p-4 border-r-[1.5px] border-black shrink-0">
                        <h1 className="text-[32px] font-bold uppercase tracking-wider leading-none whitespace-nowrap text-center">
@@ -127,7 +132,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                                return (
                                  <div key={note.id} className="flex w-full" style={{ minHeight: '24px' }}>
                                     {/* Date & Time Column */}
-                                    <div className="w-[130px] px-2 shrink-0 font-medium flex items-start justify-center pt-[5px]">
+                                    <div className="w-[130px] px-2 shrink-0 font-bold flex items-start justify-center pt-[5px]">
                                        <div className="leading-none text-[11px] whitespace-nowrap text-center flex gap-1">
                                          <span>{dateStr}</span>
                                          <span>{endTime}</span>
@@ -136,7 +141,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                                     
                                     {/* Narrative & Signature Column */}
                                     <div className="flex-1 px-3 flex items-start">
-                                       <div className="text-[13px] font-serif break-words w-full" style={{ lineHeight: '24px' }}>
+                                       <div className="text-[13px] font-sans break-words w-full" style={{ lineHeight: '24px' }}>
                                          <span>{note.notes}</span>
                                          <span className="font-sans font-semibold text-[11px] ml-4 tracking-normal whitespace-nowrap">
                                             {note.staff_first_name} {note.staff_last_name}

@@ -2125,6 +2125,32 @@ async function startServer() {
 
   app.get('/api/progress-notes/export', authenticateToken, (req: any, res: any) => {
     try {
+      const settingsRows = db.prepare('SELECT key, value FROM settings').all() as any[];
+      const settingsMap: any = {};
+      settingsRows.forEach((r: any) => { try { settingsMap[r.key] = JSON.parse(r.value); } catch { settingsMap[r.key] = r.value; } });
+      let rawTz = settingsMap.timezone || 'Australia/Perth';
+      const tz = typeof rawTz === 'string' ? rawTz.replace(/['"]+/g, '') : rawTz;
+
+      const formatYMDtoDMY = (ymd: string) => ymd ? ymd.split('-').reverse().join('-') : '';
+      const formatTz = (isoObj: string | null | undefined, fallbackObj: string) => {
+          const target = isoObj || fallbackObj;
+          if (!target) return { date: 'N/A', time: 'N/A' };
+          try {
+             const d = new Date(target);
+             if (isNaN(d.getTime())) {
+                 return { date: formatYMDtoDMY(target.split('T')[0] || target), time: target.split('T')[1]?.substring(0,5) || target };
+             }
+             const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+             const parts = formatter.formatToParts(d);
+             const getP = (t: string) => parts.find(p => p.type === t)?.value || '';
+             const date = `${getP('day')}/${getP('month')}/${getP('year')}`;
+             const time = `${getP('hour')}:${getP('minute')}`;
+             return { date, time };
+          } catch(e) {
+             return { date: 'N/A', time: 'N/A' };
+          }
+      };
+
       const { clientId, startDate, endDate } = req.query;
       if (!clientId) {
         return res.status(400).json({ error: 'Missing clientId' });
@@ -2182,8 +2208,8 @@ async function startServer() {
          const boxY = 40;
          const boxW = doc.page.width - 80;
          const headerH = 80;
-         const colHeaderYOffset = 3;
-         const colHeaderHeight = 22;
+         const colHeaderYOffset = 4.5;
+         const colHeaderHeight = 24;
          const dataRowHeight = 24;
 
          // Calculate exact total height so there are no floating extra lines at the bottom
@@ -2225,11 +2251,10 @@ async function startServer() {
             if (i > 0) {
               doc.moveTo(rightBoxX, y).lineTo(rightBoxX + rightBoxW, y).stroke();
             }
-            doc.font('Helvetica-Bold').fontSize(7);
+            doc.font('Helvetica-Bold').fontSize(8);
             doc.text(fields[i].label, rightBoxX + 5, y + 5, { width: 65 });
             
-            // Draw a faint line inside the row for text underline if needed. We skip to keep it clean.
-            doc.font('Helvetica').fontSize(6); // Adjusted to 6 to fit long addresses
+            doc.font('Helvetica').fontSize(8); // Increased to 8
             doc.text(fields[i].value, rightBoxX + 70, y + 4, { width: rightBoxW - 75, height: rowH - 6, lineBreak: false });
          }
 
@@ -2279,9 +2304,9 @@ async function startServer() {
 
       if (notes.length > 0) {
          notes.forEach((note, index) => {
-            const recordDate = new Date(note.actual_finish_time || note.end_time || note.start_time);
-            const dateStr = recordDate.toLocaleDateString('en-GB');
-            const startTimeStr = recordDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            const tzData = formatTz(note.actual_finish_time || note.end_time, note.start_time);
+            const dateStr = tzData.date;
+            const startTimeStr = tzData.time;
             
             const staffName = `${note.staff_first_name || ''} ${note.staff_last_name || ''}`.trim();
             const staffRole = note.staff_role === 'ADMIN' ? 'Administrator' : 'Support Worker';
@@ -2317,7 +2342,8 @@ async function startServer() {
             }
 
             // Calculate exact start positions to vertically center text
-            const topPadding = Math.max(0, (rowH - fontHeight) / 2);
+            // Helvetica size 9 cap height is est 6-7px. Visually centering in 24px:
+            const topPadding = 7.5; 
 
             // Text drawing (no boxes or borders drawn here, already done!)
             // Date/Time
