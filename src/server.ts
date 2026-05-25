@@ -2251,11 +2251,11 @@ async function startServer() {
             if (i > 0) {
               doc.moveTo(rightBoxX, y).lineTo(rightBoxX + rightBoxW, y).stroke();
             }
-            doc.font('Helvetica-Bold').fontSize(8);
-            doc.text(fields[i].label, rightBoxX + 5, y + 5, { width: 65 });
+            doc.font('Helvetica-Bold').fontSize(8.5);
+            doc.text(fields[i].label, rightBoxX + 5, y + 4.5, { width: 70 });
             
-            doc.font('Helvetica').fontSize(8); // Increased to 8
-            doc.text(fields[i].value, rightBoxX + 70, y + 4, { width: rightBoxW - 75, height: rowH - 6, lineBreak: false });
+            doc.font('Helvetica').fontSize(9.5); // Increased further
+            doc.text(fields[i].value, rightBoxX + 80, y + 3.5, { width: rightBoxW - 85, height: rowH - 4, lineBreak: false });
          }
 
          // Separator before column headers
@@ -2318,10 +2318,13 @@ async function startServer() {
             const sigText = `   ${staffName} (${staffRole})`;
             const fullNoteString = `${note.notes || ''}${sigText}`;
 
-            // Calculate height using exact line wrapping
-            const rawHeight = doc.heightOfString(fullNoteString, { width: col2W - 12, lineGap: 0 });
-            const exactLines = Math.max(1, Math.round(rawHeight / fontHeight));
-            const neededHeight = exactLines * rowH;
+            // Calculate height using EXACT SAME math as frontend so pages match:
+            const explicitLinesCount = fullNoteString.split('\n');
+            let exactLinesCount = 0;
+            explicitLinesCount.forEach(l => {
+                 exactLinesCount += Math.max(1, Math.ceil(l.length / 90)); // matching React 90
+            });
+            const neededHeight = exactLinesCount * rowH;
 
             if (currentY + neededHeight > maxH) {
                drawFooter();
@@ -2351,7 +2354,7 @@ async function startServer() {
             doc.text(`${dateStr} ${startTimeStr}`, boxX, currentY + topPadding, { align: 'center', width: col1W });
 
             // Note Text
-            doc.font('Helvetica').fontSize(9).fillColor('black');
+            doc.font('Helvetica').fontSize(8.5).fillColor('black');
             
             doc.text(fullNoteString, boxX + col1W + 6, currentY + topPadding, { 
                width: col2W - 12,

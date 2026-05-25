@@ -25,7 +25,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
     const explicitLines = strTotal.split('\n');
     let lines = 0;
     explicitLines.forEach(l => {
-         lines += Math.max(1, Math.ceil(l.length / 95));
+         lines += Math.max(1, Math.ceil(l.length / 90));
     });
     
     const neededHeight = lines * 24;
@@ -62,7 +62,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
               <div className="border-[1.5px] border-black w-full flex-1 flex flex-col">
                  
                  {/* Top Header block */}
-                 <div className="flex border-b-[1.5px] border-black shrink-0 h-[80px]">
+                 <div className="flex border-b-[1.5px] border-black shrink-0">
                     {/* Left box */}
                     <div className="w-[55%] flex items-center justify-center p-4 border-r-[1.5px] border-black shrink-0">
                        <h1 className="text-[32px] font-bold uppercase tracking-wider leading-none whitespace-nowrap text-center">
