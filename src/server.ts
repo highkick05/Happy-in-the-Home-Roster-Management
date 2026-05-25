@@ -2567,7 +2567,7 @@ async function startServer() {
   }
 
   // Generate shifts from templates
-  app.post('/api/clients/:id/generate-roster', authenticateToken, requireAdmin, (req: any, res: any) => {
+  app.post('/api/clients/:id/generate-roster', authenticateToken, requireAdmin, async (req: any, res: any) => {
     try {
       const { startDate, endDate, overwriteConflicts, dryRun } = req.body;
       const clientId = req.params.id;
@@ -2617,6 +2617,8 @@ async function startServer() {
         const crypto = require('crypto');
         generatedBatchId = crypto.randomUUID();
       }
+
+      const cascadeTravelJobs = new Map<string, { staffId: number, dateIso: string }>();
 
       db.transaction(() => {
         if (!dryRun && overwriteConflicts === 'all') {
@@ -2719,6 +2721,9 @@ async function startServer() {
               generatedBatchId
             );
             shiftsCreated.push(shiftInfo.lastInsertRowid);
+            if (assignedStaffId) {
+               cascadeTravelJobs.set(`${assignedStaffId}_${startDateTime.toISOString()}`, { staffId: assignedStaffId, dateIso: startDateTime.toISOString() });
+            }
           }
         }
         
@@ -2736,6 +2741,12 @@ async function startServer() {
             // Throw error to rollback anything, but we already didn't modify
         }
       })();
+
+      if (!dryRun && cascadeTravelJobs.size > 0) {
+         for (const job of cascadeTravelJobs.values()) {
+            await recalculateDayTravelForStaff(job.staffId, job.dateIso);
+         }
+      }
 
       res.json({ success: true, createdCount: shiftsCreated.length, conflicts, clientConflicts, dryRun });
     } catch (e: any) {
@@ -2803,7 +2814,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/clients/:id/resolve-roster-conflicts', authenticateToken, requireAdmin, (req: any, res: any) => {
+  app.post('/api/clients/:id/resolve-roster-conflicts', authenticateToken, requireAdmin, async (req: any, res: any) => {
     try {
       const { shiftsToOverwrite } = req.body;
       const clientId = req.params.id;
@@ -2825,6 +2836,8 @@ async function startServer() {
       });
       let rawTz4 = settingsMap.timezone || 'Australia/Perth';
       const timezone = typeof rawTz4 === 'string' ? rawTz4.replace(/['"]+/g, '') : rawTz4;
+
+      const cascadeTravelJobs = new Map<string, { staffId: number, dateIso: string }>();
 
       db.transaction(() => {
         for (const item of shiftsToOverwrite) {
@@ -2921,8 +2934,17 @@ async function startServer() {
             'DRAFT' // Always set to DRAFT so they can be reviewed before publishing
           );
           shiftsCreated.push(shiftInfo.lastInsertRowid);
+          if (assignedStaffId) {
+             cascadeTravelJobs.set(`${assignedStaffId}_${startDateTime.toISOString()}`, { staffId: assignedStaffId, dateIso: startDateTime.toISOString() });
+          }
         }
       })();
+
+      if (cascadeTravelJobs.size > 0) {
+         for (const job of cascadeTravelJobs.values()) {
+            await recalculateDayTravelForStaff(job.staffId, job.dateIso);
+         }
+      }
 
       res.json({ success: true, createdCount: shiftsCreated.length, conflicts });
     } catch (e: any) {
@@ -3413,6 +3435,8 @@ async function startServer() {
         odometer_end_photo || null,
         id
       );
+
+      await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);
 
       // Trigger notification for ADMINs
       try {
