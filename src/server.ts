@@ -369,9 +369,9 @@ async function startServer() {
       const invoiceNum = `${invoicePrefix}${yyyymmdd}-${String(shiftId).padStart(4, '0')}`;
       
       const shiftDateFormatter = getSafeDateTimeFormat('en-GB', {
-        timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric'
+        timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric'
       });
-      const shiftDateStr = shiftDateFormatter.format(start);
+      const shiftDateStr = shiftDateFormatter.format(start).replace(/\//g, '-');
       
       const staffName = `${shift.s_fn} ${shift.s_ln}`;
       
@@ -435,7 +435,7 @@ async function startServer() {
                 date: sd.date || shiftDateStr,
                 time: sd.time || timeStr,
                 serviceName: srv.name,
-                code: isHC ? srv.id : srv.code,
+                code: srv.code || srv.id,
                 metadata: sd.staffName ? `Provided by ${sd.staffName}` : `Provided by ${staffName}`,
                 qty: parseFloat(qty.toFixed(2)),
                 unit: mappedUnit,
@@ -501,21 +501,10 @@ async function startServer() {
       }
 
       const invoiceDateFormatter = getSafeDateTimeFormat('en-GB', {
-        timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric'
+        timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric'
       });
 
-      // Try to find if an invoice already exists to use its created_at date
-      let finalInvoiceDateStr = invoiceDateFormatter.format(new Date());
-      try {
-        const invRow = db.prepare('SELECT created_at FROM invoices WHERE shift_id = ?').get(shiftId) as any;
-        if (invRow && invRow.created_at) {
-          finalInvoiceDateStr = invoiceDateFormatter.format(new Date(invRow.created_at));
-        } else {
-          finalInvoiceDateStr = invoiceDateFormatter.format(new Date(shift.actual_finish_time || shift.end_time));
-        }
-      } catch(e) {
-        finalInvoiceDateStr = invoiceDateFormatter.format(new Date(shift.actual_finish_time || shift.end_time));
-      }
+      let finalInvoiceDateStr = invoiceDateFormatter.format(start).replace(/\//g, '-');
 
       return {
         shift,
@@ -551,7 +540,7 @@ async function startServer() {
         timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit'
       });
       const shiftDateFormatter = getSafeDateTimeFormat('en-GB', {
-        timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric'
+        timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric'
       });
 
       const start = new Date(rb.start_time);
@@ -577,7 +566,7 @@ async function startServer() {
       
       for (const s of shifts) {
           const sStart = new Date(s.start_time);
-          const shiftDateStr = shiftDateFormatter.format(sStart);
+          const shiftDateStr = shiftDateFormatter.format(sStart).replace(/\//g, '-');
           
           if (!dailyMap[shiftDateStr]) {
               dailyMap[shiftDateStr] = { staff: new Set<string>(), sStart: sStart, serviceId: null };
@@ -626,7 +615,7 @@ async function startServer() {
              const srv = db.prepare('SELECT * FROM services WHERE id = ?').get(srvId) as any;
              if (srv) {
                  srvName = srv.name;
-                 srvCode = isHC ? srv.id : (srv.code || 'N/A');
+                 srvCode = srv.code || srv.id || 'N/A';
                  
                  let baseRate = Number(srv.rate || 0);
                  
@@ -674,20 +663,10 @@ async function startServer() {
       if (allLineItems.length === 0) return null;
 
       const invoiceDateFormatter = getSafeDateTimeFormat('en-GB', {
-        timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric'
+        timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric'
       });
       
-      let finalInvoiceDateStr = invoiceDateFormatter.format(new Date());
-      try {
-        const invRow = db.prepare('SELECT created_at FROM invoices WHERE respite_booking_id = ?').get(respiteBookingId) as any;
-        if (invRow && invRow.created_at) {
-          finalInvoiceDateStr = invoiceDateFormatter.format(new Date(invRow.created_at));
-        } else {
-          finalInvoiceDateStr = invoiceDateFormatter.format(new Date(rb.end_time));
-        }
-      } catch(e) {
-        finalInvoiceDateStr = invoiceDateFormatter.format(new Date(rb.end_time));
-      }
+      let finalInvoiceDateStr = invoiceDateFormatter.format(new Date(rb.start_time)).replace(/\//g, '-');
 
       return {
         shift: rb,
@@ -4065,7 +4044,7 @@ async function startServer() {
       const timezone = typeof rawTz6 === 'string' ? rawTz6.replace(/['"]+/g, '') : rawTz6;
 
       const shiftDateFormatter = getSafeDateTimeFormat('en-GB', {
-        timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric'
+        timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric'
       });
       const timeFormatter = getSafeDateTimeFormat('en-US', {
         timeZone: timezone, hour: '2-digit', minute: '2-digit'
@@ -4090,7 +4069,7 @@ async function startServer() {
          const start = new Date(shift.start_time);
          const end = new Date(shift.end_time);
          const hours = Math.abs(end.getTime() - start.getTime()) / 36e5;
-         const shiftDateStr = shiftDateFormatter.format(start);
+         const shiftDateStr = shiftDateFormatter.format(start).replace(/\//g, '-');
          const timeStr = `${timeFormatter.format(start)} - ${timeFormatter.format(end)}`;
          const staffName = `${shift.s_fn || ''} ${shift.s_ln || ''}`.trim();
 
@@ -4663,18 +4642,19 @@ async function startServer() {
 
       let rawTz7 = settingsMap.timezone || 'Australia/Perth';
       const timezone = typeof rawTz7 === 'string' ? rawTz7.replace(/['"]+/g, '') : rawTz7;
-      const dateFormatter = getSafeDateTimeFormat('en-US', {
-         timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric'
+      const dateFormatter = getSafeDateTimeFormat('en-GB', {
+         timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric'
       });
 
       let quoteDateStr = '';
       try {
-        quoteDateStr = dateFormatter.format(new Date(quote.created_at || Date.now()));
-      } catch(e) { quoteDateStr = String(quote.created_at); }
+        // Use activity_date as requested
+        quoteDateStr = dateFormatter.format(new Date(quote.activity_date)).replace(/\//g, '-');
+      } catch(e) { quoteDateStr = String(quote.activity_date); }
 
       let activityDateStr = '';
       try {
-        activityDateStr = dateFormatter.format(new Date(quote.activity_date));
+        activityDateStr = dateFormatter.format(new Date(quote.activity_date)).replace(/\//g, '-');
       } catch(e) { activityDateStr = String(quote.activity_date); }
 
       let servicesData: any[] = [];
