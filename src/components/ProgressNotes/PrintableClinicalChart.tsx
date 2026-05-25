@@ -15,16 +15,15 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
   const safeRefNumber = clientData ? redact(clientData.ndis_number || clientData.my_aged_care_id, '') : '';
 
   // Pagination logic to mirror PDFKit layout exactly
-  const PAGE_CAPACITY = 646; // Heuristic height capacity from PDF logic
+  const PAGE_CAPACITY = 630; // 21 rows of 30px
   const pages: { items: any[]; emptySpace: number }[] = [];
   let currentPageItems: any[] = [];
   let currentUsed = 0;
 
   notes.forEach((note) => {
-    const chars = note.notes ? note.notes.length : 0;
-    const lines = Math.max(1, Math.ceil(chars / 85));
-    const textHeight = lines * 12; 
-    const neededHeight = Math.max(textHeight + 35, 50);
+    const strTotal = (note.notes || '') + (note.staff_first_name || '') + (note.staff_last_name || '');
+    const lines = Math.max(1, Math.ceil(strTotal.length / 85));
+    const neededHeight = lines * 30;
 
     if (currentUsed + neededHeight > PAGE_CAPACITY && currentPageItems.length > 0) {
       pages.push({ items: currentPageItems, emptySpace: PAGE_CAPACITY - currentUsed });
@@ -123,28 +122,21 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                                const dateStr = startDate.toLocaleDateString('en-GB');
                                const startTime = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
                                
-                               // Calculate how many 30px rows this note needs to consume.
-                               // 1 row = 30px. We want to align exactly to grid.
-                               // Minimum 1 row.
-                               const chars = note.notes ? note.notes.length : 0;
-                               const strTotal = note.notes + note.staff_first_name + note.staff_last_name;
-                               const lines = Math.max(1, Math.ceil(strTotal.length / 85));
-                               const rowsNeeded = Math.max(1, lines);
-                               const rowHeightPX = rowsNeeded * 30;
-                               
+                               // calculate how many rows... we actually don't need fixed height if we use leading-[30px]!
+                               // It will naturally scale in 30px increments.
                                return (
-                                 <div key={note.id} className="flex w-full" style={{ height: `${rowHeightPX}px` }}>
+                                 <div key={note.id} className="flex w-full" style={{ minHeight: '30px' }}>
                                     {/* Date & Time Column */}
-                                    <div className="w-[130px] p-2 text-xs shrink-0 font-medium flex items-start justify-center pt-2">
-                                       <div className="leading-tight whitespace-nowrap text-center flex gap-1">
+                                    <div className="w-[130px] px-2 shrink-0 font-medium flex items-start justify-center pt-[7px]">
+                                       <div className="leading-none text-[11px] whitespace-nowrap text-center flex gap-1">
                                          <span>{dateStr}</span>
                                          <span>{startTime}</span>
                                        </div>
                                     </div>
                                     
                                     {/* Narrative & Signature Column */}
-                                    <div className="flex-1 px-3 py-1 flex items-start">
-                                       <div className="text-[13px] font-serif leading-[16px] break-words">
+                                    <div className="flex-1 px-3 flex items-start">
+                                       <div className="text-[13px] font-serif leading-[30px] break-words w-full">
                                          <span>{note.notes}</span>
                                          <span className="font-sans font-semibold text-[11px] ml-4 tracking-normal whitespace-nowrap">
                                             {note.staff_first_name} {note.staff_last_name}
