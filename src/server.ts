@@ -2618,7 +2618,7 @@ async function startServer() {
         generatedBatchId = crypto.randomUUID();
       }
 
-      const cascadeTravelJobs = new Map<string, { staffId: number, dateIso: string }>();
+      const affectedStaffDates = new Set<string>();
 
       db.transaction(() => {
         if (!dryRun && overwriteConflicts === 'all') {
@@ -2722,7 +2722,7 @@ async function startServer() {
             );
             shiftsCreated.push(shiftInfo.lastInsertRowid);
             if (assignedStaffId) {
-               cascadeTravelJobs.set(`${assignedStaffId}_${startDateTime.toISOString()}`, { staffId: assignedStaffId, dateIso: startDateTime.toISOString() });
+               affectedStaffDates.add(`${assignedStaffId}|${shiftDateStr}`);
             }
           }
         }
@@ -2742,9 +2742,10 @@ async function startServer() {
         }
       })();
 
-      if (!dryRun && cascadeTravelJobs.size > 0) {
-         for (const job of cascadeTravelJobs.values()) {
-            await recalculateDayTravelForStaff(job.staffId, job.dateIso);
+      if (!dryRun && affectedStaffDates.size > 0) {
+         for (const sd of affectedStaffDates) {
+            const [staffId, shiftDateStr] = sd.split('|');
+            await recalculateDayTravelForStaff(Number(staffId), shiftDateStr);
          }
       }
 
@@ -2837,7 +2838,7 @@ async function startServer() {
       let rawTz4 = settingsMap.timezone || 'Australia/Perth';
       const timezone = typeof rawTz4 === 'string' ? rawTz4.replace(/['"]+/g, '') : rawTz4;
 
-      const cascadeTravelJobs = new Map<string, { staffId: number, dateIso: string }>();
+      const affectedStaffDates = new Set<string>();
 
       db.transaction(() => {
         for (const item of shiftsToOverwrite) {
@@ -2935,14 +2936,15 @@ async function startServer() {
           );
           shiftsCreated.push(shiftInfo.lastInsertRowid);
           if (assignedStaffId) {
-             cascadeTravelJobs.set(`${assignedStaffId}_${startDateTime.toISOString()}`, { staffId: assignedStaffId, dateIso: startDateTime.toISOString() });
+             affectedStaffDates.add(`${assignedStaffId}|${shiftDateStr}`);
           }
         }
       })();
 
-      if (cascadeTravelJobs.size > 0) {
-         for (const job of cascadeTravelJobs.values()) {
-            await recalculateDayTravelForStaff(job.staffId, job.dateIso);
+      if (affectedStaffDates.size > 0) {
+         for (const sd of affectedStaffDates) {
+            const [staffId, shiftDateStr] = sd.split('|');
+            await recalculateDayTravelForStaff(Number(staffId), shiftDateStr);
          }
       }
 
