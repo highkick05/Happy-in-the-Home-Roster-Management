@@ -2279,8 +2279,6 @@ async function startServer() {
       }
 
       if (notes.length > 0) {
-         doc.font('Helvetica');
-         
          notes.forEach((note, index) => {
             const recordDate = new Date(note.actual_finish_time || note.end_time || note.start_time);
             const dateStr = recordDate.toLocaleDateString('en-GB');
@@ -2289,10 +2287,17 @@ async function startServer() {
             const staffName = `${note.staff_first_name || ''} ${note.staff_last_name || ''}`.trim();
             const staffRole = note.staff_role === 'ADMIN' ? 'Administrator' : 'Support Worker';
 
-            // Calculate height in multiples of rowH
-            const strTotal = (note.notes || '') + staffName + staffRole;
-            const lines = Math.max(1, Math.ceil(strTotal.length / 85));
-            const neededHeight = Math.max(1, lines) * rowH;
+            doc.font('Helvetica').fontSize(9);
+            const fontHeight = doc.currentLineHeight();
+            const gap = Math.max(0, rowH - fontHeight);
+
+            const sigText = `   ${staffName} (${staffRole})`;
+            const fullNoteString = `${note.notes || ''}${sigText}`;
+
+            // Calculate height using exact line wrapping
+            const rawHeight = doc.heightOfString(fullNoteString, { width: col2W - 12, lineGap: 0 });
+            const exactLines = Math.max(1, Math.round(rawHeight / fontHeight));
+            const neededHeight = exactLines * rowH;
 
             if (currentY + neededHeight > maxH) {
                drawFooter();
@@ -2312,22 +2317,21 @@ async function startServer() {
                }
             }
 
+            // Calculate exact start positions to vertically center text
+            const topPadding = Math.max(0, (rowH - fontHeight) / 2);
+
             // Text drawing (no boxes or borders drawn here, already done!)
             // Date/Time
             doc.font('Helvetica-Bold').fontSize(8).fillColor('black');
-            doc.text(`${dateStr} ${startTimeStr}`, boxX, currentY + 6, { align: 'center', width: col1W });
+            doc.text(`${dateStr} ${startTimeStr}`, boxX, currentY + topPadding, { align: 'center', width: col1W });
 
             // Note Text
             doc.font('Helvetica').fontSize(9).fillColor('black');
             
-            // Signature inline formulation matching UI
-            const sigText = `   ${staffName} (${staffRole})`;
-            const fullNoteString = `${note.notes || ''}${sigText}`;
-            
-            doc.text(fullNoteString, boxX + col1W + 6, currentY + 6, { 
+            doc.text(fullNoteString, boxX + col1W + 6, currentY + topPadding, { 
                width: col2W - 12,
-               height: neededHeight - 6,
-               lineGap: 4
+               height: neededHeight,
+               lineGap: gap
             });
 
             currentY += neededHeight;
