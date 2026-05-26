@@ -81,7 +81,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       isActive 
         ? "bg-brand-green/10 text-white [&>svg]:text-brand-green shadow-[inset_2px_0_0_0_var(--color-brand-green)]"
         : "text-[#8B949E] hover:text-white hover:bg-white/[0.03] [&>svg]:text-[#8B949E] hover:[&>svg]:text-brand-teal"
-    } ${isDesktopSidebarCollapsed ? "justify-center !px-2" : ""}`;
+    } ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? "justify-center !px-2" : ""}`;
   };
 
   const { logout, user, settings, token } = useAuth();
