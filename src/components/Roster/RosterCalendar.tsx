@@ -802,23 +802,23 @@ export default function RosterCalendar() {
                 {event.title}
               </span>
               
-              <div className="flex flex-col md:flex-row md:items-center gap-1.5 md:gap-3 w-full">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-1.5 lg:gap-3 w-full min-w-0">
                 {event.isRespiteWrapper ? (
                   <span className="text-violet-400 font-medium text-sm">STA / Respite</span>
                 ) : (
                   <>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-zinc-400 font-medium text-sm md:text-lg truncate">
+                    <div className="flex items-center gap-1 shrink-0 min-w-0">
+                      <span className="text-zinc-400 font-medium text-sm md:text-base lg:text-lg truncate">
                         👨‍💼 {event.staffName || 'Unassigned'}
                       </span>
                     </div>
                     {event.servicesData && event.servicesData.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1 min-w-0">
                         {event.servicesData.map((sd: any, idx: number) => {
                           const srv = servicesList.find((s: any) => s.id === sd.serviceId);
                           const srvName = srv ? srv.name : (event.serviceName || 'Unknown Service');
                           return (
-                            <span key={idx} className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-xs md:text-base max-w-full truncate" title={srvName}>
+                            <span key={idx} className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-xs md:text-sm lg:text-base max-w-full truncate" title={srvName}>
                               {srvName}
                             </span>
                           );
@@ -826,8 +826,8 @@ export default function RosterCalendar() {
                       </div>
                     ) : (
                       event.serviceName && (
-                        <div className="flex flex-wrap gap-1">
-                          <span className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-xs md:text-base max-w-full truncate" title={event.serviceName}>
+                        <div className="flex flex-wrap gap-1 min-w-0">
+                          <span className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-xs md:text-sm lg:text-base max-w-full truncate" title={event.serviceName}>
                             {event.serviceName}
                           </span>
                         </div>
@@ -839,7 +839,7 @@ export default function RosterCalendar() {
             </div>
 
             {/* Badge on right */}
-            <div className="flex items-center justify-start md:justify-end whitespace-nowrap shrink-0 mt-3 md:mt-0">
+            <div className="flex items-center justify-start md:justify-end whitespace-nowrap shrink-0 mt-3 md:mt-0 md:ml-auto md:pl-2">
               <span className={`text-[10px] md:text-xs font-bold uppercase tracking-wider px-3 py-1 mr-4 md:mr-0 inline-flex rounded-full border ${badgeClass}`}>
                 {badgeLabel}
               </span>
