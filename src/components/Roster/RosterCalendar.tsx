@@ -815,7 +815,7 @@ export default function RosterCalendar() {
                     {event.servicesData && event.servicesData.length > 0 ? (
                       <div className="flex flex-wrap gap-1 min-w-0">
                         {event.servicesData.map((sd: any, idx: number) => {
-                          const srv = servicesList.find((s: any) => s.id === sd.serviceId);
+                          const srv = servicesList.find((s: any) => String(s.id) === String(sd.serviceId));
                           const srvName = srv ? srv.name : (event.serviceName || 'Unknown Service');
                           return (
                             <span key={idx} className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-xs md:text-sm lg:text-base max-w-full truncate" title={srvName}>
