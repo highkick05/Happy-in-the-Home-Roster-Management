@@ -28,7 +28,7 @@ export default function CustomAgenda({ events, date, length, localizer, componen
       ) : (
         groupedEvents.map(group => (
           <div key={group.dateLabel} className="flex flex-col gap-3 mb-6 relative">
-            <h2 className="text-xl md:text-2xl font-bold tracking-tight text-brand-teal uppercase border-b border-zinc-800 pb-2 mb-2 sticky top-0 bg-brand-bg/95 backdrop-blur-md z-10 shadow-sm">
+            <h2 className="text-xl md:text-2xl font-bold tracking-tight text-brand-teal uppercase border-b border-zinc-800 pb-2 mb-2">
               {group.dateLabel}
             </h2>
             <div className="flex flex-col gap-2">
