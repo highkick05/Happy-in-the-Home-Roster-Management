@@ -3531,8 +3531,8 @@ async function startServer() {
         abt_cost,
         transport_route_log,
         updatedServicesJson,
-        odometer_end_reading || null,
-        odometer_end_photo || null
+        shift.status === 'COMPLETED' ? (odometer_end_reading || shift.odometer_end_reading) : (odometer_end_reading || null),
+        shift.status === 'COMPLETED' ? (odometer_end_photo || shift.odometer_end_photo) : (odometer_end_photo || null)
       ];
 
       if (actual_start_time) {

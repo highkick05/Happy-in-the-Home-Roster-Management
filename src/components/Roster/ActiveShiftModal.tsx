@@ -733,72 +733,74 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                       )}
                     </div>
 
-                    <div className="bg-zinc-800/40 border border-white/[0.12]/50 rounded-2xl p-5 space-y-4 shadow-sm">
-                      <h4 className="text-sm md:text-base font-bold text-zinc-100 uppercase tracking-wide flex items-center">
-                        <MapPin className="w-5 h-5 mr-2 text-brand-green shrink-0" /> END ODOMETER
-                      </h4>
-                      <p className="text-xs md:text-sm text-zinc-400 leading-relaxed font-medium">
-                        Record your odometer at the end of the shift.
-                      </p>
-                      
-                      <div>
-                        <input 
-                          type="number" 
-                          placeholder="e.g. 85025"
-                          className="w-full bg-[#09090b] border border-white/[0.08] rounded-xl py-3 px-4 text-base md:text-lg text-white focus:outline-none focus:border-brand-green shadow-inner transition-colors"
-                          value={odometerReading}
-                          onChange={e => setOdometerReading(e.target.value)}
-                        />
-                      </div>
-                      
-                      {showCamera ? (
-                        <div className="relative rounded-xl overflow-hidden border border-white/[0.12] bg-black shadow-inner">
-                          <video 
-                            ref={videoRef} 
-                            autoPlay 
-                            playsInline 
-                            className="w-full h-48 md:h-64 object-cover"
+                    {shift.status !== 'COMPLETED' && (
+                      <div className="bg-zinc-800/40 border border-white/[0.12]/50 rounded-2xl p-5 space-y-4 shadow-sm">
+                        <h4 className="text-sm md:text-base font-bold text-zinc-100 uppercase tracking-wide flex items-center">
+                          <MapPin className="w-5 h-5 mr-2 text-brand-green shrink-0" /> END ODOMETER
+                        </h4>
+                        <p className="text-xs md:text-sm text-zinc-400 leading-relaxed font-medium">
+                          Record your odometer at the end of the shift.
+                        </p>
+                        
+                        <div>
+                          <input 
+                            type="number" 
+                            placeholder="e.g. 85025"
+                            className="w-full bg-[#09090b] border border-white/[0.08] rounded-xl py-3 px-4 text-base md:text-lg text-white focus:outline-none focus:border-brand-green shadow-inner transition-colors"
+                            value={odometerReading}
+                            onChange={e => setOdometerReading(e.target.value)}
                           />
-                          <canvas ref={canvasRef} className="hidden" />
-                          <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-6">
+                        </div>
+                        
+                        {showCamera ? (
+                          <div className="relative rounded-xl overflow-hidden border border-white/[0.12] bg-black shadow-inner">
+                            <video 
+                              ref={videoRef} 
+                              autoPlay 
+                              playsInline 
+                              className="w-full h-48 md:h-64 object-cover"
+                            />
+                            <canvas ref={canvasRef} className="hidden" />
+                            <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-6">
+                              <button 
+                                onClick={takePhoto}
+                                className="bg-white text-black rounded-full p-4 shadow-xl active:scale-95 transition-transform"
+                              >
+                                <Camera className="w-6 h-6" />
+                              </button>
+                              <button 
+                                onClick={stopCamera}
+                                className="bg-zinc-800/90 text-white rounded-full p-4 shadow-xl active:scale-95 transition-transform backdrop-blur-sm"
+                              >
+                                <X className="w-6 h-6" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
                             <button 
-                              onClick={takePhoto}
-                              className="bg-white text-black rounded-full p-4 shadow-xl active:scale-95 transition-transform"
+                              onClick={startCamera}
+                              className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl py-3 px-4 text-sm md:text-base flex justify-center items-center font-medium transition-colors border border-white/[0.12] shadow-sm"
                             >
-                              <Camera className="w-6 h-6" />
-                            </button>
-                            <button 
-                              onClick={stopCamera}
-                              className="bg-zinc-800/90 text-white rounded-full p-4 shadow-xl active:scale-95 transition-transform backdrop-blur-sm"
-                            >
-                              <X className="w-6 h-6" />
+                              <Camera className="w-5 h-5 mr-2 text-zinc-400" />
+                              {odometerPhoto ? 'Retake Photo' : 'Take Photo (Optional)'}
                             </button>
                           </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <button 
-                            onClick={startCamera}
-                            className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl py-3 px-4 text-sm md:text-base flex justify-center items-center font-medium transition-colors border border-white/[0.12] shadow-sm"
-                          >
-                            <Camera className="w-5 h-5 mr-2 text-zinc-400" />
-                            {odometerPhoto ? 'Retake Photo' : 'Take Photo (Optional)'}
-                          </button>
-                        </div>
-                      )}
+                        )}
 
-                      {odometerPhoto && !showCamera && (
-                        <div className="mt-3 text-center relative max-w-max mx-auto">
-                          <img src={odometerPhoto} alt="Odometer Preview" className="max-h-36 rounded-lg border-2 border-white/[0.12] shadow-md" />
-                          <button 
-                            onClick={() => setOdometerPhoto('')}
-                            className="absolute -top-3 -right-3 bg-red-500 rounded-full text-white p-1.5 shadow-lg hover:bg-red-400 transition-transform active:scale-90"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                        {odometerPhoto && !showCamera && (
+                          <div className="mt-3 text-center relative max-w-max mx-auto">
+                            <img src={odometerPhoto} alt="Odometer Preview" className="max-h-36 rounded-lg border-2 border-white/[0.12] shadow-md" />
+                            <button 
+                              onClick={() => setOdometerPhoto('')}
+                              className="absolute -top-3 -right-3 bg-red-500 rounded-full text-white p-1.5 shadow-lg hover:bg-red-400 transition-transform active:scale-90"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
 
