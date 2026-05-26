@@ -2884,7 +2884,7 @@ async function startServer() {
     try {
       let deletedCount = 0;
       db.transaction(() => {
-        const result = db.prepare('DELETE FROM shifts WHERE batch_id = ?').run(req.params.batchId);
+        const result = db.prepare("DELETE FROM shifts WHERE batch_id = ? AND status != 'COMPLETED'").run(req.params.batchId);
         deletedCount = result.changes;
         db.prepare('DELETE FROM roster_builds WHERE id = ?').run(req.params.batchId);
       })();
