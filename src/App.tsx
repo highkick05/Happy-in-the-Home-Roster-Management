@@ -58,7 +58,23 @@ function DateTimer() {
 
 function Layout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = React.useState(false);
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = React.useState(() => window.innerWidth < 1024);
+  const userManuallyToggled = React.useRef(false);
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      if (!userManuallyToggled.current) {
+        setIsDesktopSidebarCollapsed(window.innerWidth < 1024);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const toggleDesktopSidebar = () => {
+    userManuallyToggled.current = true;
+    setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed);
+  };
   
   const getNavClasses = ({ isActive }: { isActive: boolean }) => {
     return `flex items-center px-4 py-2.5 text-[13px] font-semibold tracking-wide transition-all duration-200 rounded-lg ${
@@ -187,7 +203,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         
         {/* Collapse Toggle */}
         <button 
-          onClick={() => setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed)}
+          onClick={toggleDesktopSidebar}
           className="hidden md:flex absolute -right-3.5 top-14 bg-brand-navy border border-border-subtle w-7 h-7 rounded-full items-center justify-center text-[#8B949E] hover:text-white hover:border-brand-teal transition-all z-50 hover:bg-brand-teal/10"
         >
           {isDesktopSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
