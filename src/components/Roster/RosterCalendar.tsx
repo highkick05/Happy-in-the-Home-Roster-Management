@@ -558,6 +558,7 @@ export default function RosterCalendar() {
     if (event.status === 'COMPLETED') backgroundColor = '#a3e635'; // brand-green
     if (event.status === 'IN_PROGRESS') backgroundColor = '#38bdf8'; // light blue
     if (event.status === 'PENDING_SYNC') backgroundColor = '#f59e0b'; // amber-500
+    if (event.status === 'CANCELLED') backgroundColor = '#ef4444'; // red-500
     
     if (event.isRespiteWrapper) {
       backgroundColor = '#8b5cf6'; // violet-500
@@ -705,6 +706,10 @@ export default function RosterCalendar() {
       } else if (event.status === 'DRAFT') {
          bgClass = 'bg-zinc-800/50 border-zinc-700/50';
          statusColor = 'text-zinc-500';
+      } else if (event.status === 'CANCELLED') {
+         bgClass = 'bg-red-500/10 border-red-500/20';
+         statusColor = 'text-red-500';
+         badgeLabel = 'Cancelled';
       }
 
       if (event.isRespiteWrapper) {

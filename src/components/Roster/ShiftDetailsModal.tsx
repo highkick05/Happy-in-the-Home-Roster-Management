@@ -302,6 +302,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                 shift.status === 'DRAFT' ? 'bg-zinc-800 text-zinc-300 border border-white/[0.12]' :
                 shift.status === 'PUBLISHED' ? 'bg-indigo-500/20 text-brand-teal border border-brand-teal/30' :
                 shift.status === 'COMPLETED' ? 'bg-brand-green/20 text-brand-green border border-brand-green/30' :
+                shift.status === 'IN_PROGRESS' || shift.status === 'PENDING_SYNC' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
                 'bg-red-500/20 text-red-400 border border-red-500/30'
               }`}>
                 {shift.status.replace('_', ' ')}

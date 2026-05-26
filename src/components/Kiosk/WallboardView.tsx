@@ -235,7 +235,7 @@ export default function WallboardView() {
 
         // Filter out drafts / cancelled so wallboard stays clean if desired, or keep them to show status.
         // Wallboard shouldn't show deleted or cancelled usually, but we'll show what's passed.
-        setEvents([...mappedShifts, ...mappedRespites, ...childShifts].filter((e: any) => ['PUBLISHED', 'IN_PROGRESS', 'COMPLETED', 'DRAFT'].includes(e.status)));
+        setEvents([...mappedShifts, ...mappedRespites, ...childShifts].filter((e: any) => ['PUBLISHED', 'IN_PROGRESS', 'COMPLETED', 'DRAFT', 'CANCELLED'].includes(e.status)));
       }
     } catch (e) {
       console.error(e);
@@ -375,12 +375,15 @@ export default function WallboardView() {
                   </h2>
                   <div className="flex flex-col gap-2">
                     {group.events.map(event => {
-                      const isCompleted = event.status === 'COMPLETED' || !!event.actualEndTime;
-                      const isActuallyRunning = event.status === 'IN_PROGRESS' || (!!event.actualStartTime && !event.actualEndTime);
+                      const isCancelled = event.status === 'CANCELLED';
+                      const isCompleted = (event.status === 'COMPLETED' || !!event.actualEndTime) && !isCancelled;
+                      const isActuallyRunning = (event.status === 'IN_PROGRESS' || (!!event.actualStartTime && !event.actualEndTime)) && !isCancelled;
                       const isInProgress = isActuallyRunning && !isCompleted;
                       
                       let containerClass = "transition-all flex items-center p-3 sm:p-4 shadow-sm border-y border-white/[0.05] ";
-                      if (event.status === 'DRAFT') {
+                      if (isCancelled) {
+                        containerClass += "opacity-80 border-l-[6px] border-red-500 bg-red-500/25";
+                      } else if (event.status === 'DRAFT') {
                         containerClass += "opacity-90 border-l-[6px] border-orange-400 bg-orange-500/25";
                       } else if (isCompleted) {
                         containerClass += "opacity-80 border-l-[6px] border-brand-green bg-brand-green/25";
@@ -417,6 +420,11 @@ export default function WallboardView() {
                             </div>
 
                             <div className="flex items-center justify-start sm:justify-end whitespace-nowrap">
+                              {isCancelled && (
+                                <span className="text-xs bg-red-500/20 text-red-400 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
+                                  Cancelled
+                                </span>
+                              )}
                               {isInProgress && (
                                 <span className="flex items-center">
                                   <span className="flex h-3 w-3 relative mr-2">
@@ -433,7 +441,7 @@ export default function WallboardView() {
                                   Completed
                                 </span>
                               )}
-                              {!isInProgress && !isCompleted && event.status !== 'DRAFT' && (
+                              {!isInProgress && !isCompleted && !isCancelled && event.status !== 'DRAFT' && (
                                 <span className="text-xs bg-zinc-500/20 text-zinc-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
                                   Scheduled
                                 </span>
