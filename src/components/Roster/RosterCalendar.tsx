@@ -19,6 +19,8 @@ const locales = {
   'en-US': enUS,
 };
 
+import CustomAgenda from './CustomAgenda';
+
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const DnDCalendar = withDragAndDrop(Calendar);
@@ -99,6 +101,15 @@ export default function RosterCalendar() {
     : [Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA];
 
   const activeView = allowedViews.includes(view as any) ? view : Views.AGENDA;
+
+  const calendarViewsMapping = React.useMemo(() => {
+    const vObj: any = {};
+    if (allowedViews.includes(Views.MONTH)) vObj[Views.MONTH] = true;
+    if (allowedViews.includes(Views.WEEK)) vObj[Views.WEEK] = true;
+    if (allowedViews.includes(Views.DAY)) vObj[Views.DAY] = true;
+    if (allowedViews.includes(Views.AGENDA)) vObj[Views.AGENDA] = CustomAgenda;
+    return vObj;
+  }, [allowedViews]);
 
   // Ensure staff sees AGENDA by default on mobile/tablet (if they didn't have it, activeView handles safety during render)
   useEffect(() => {
@@ -717,83 +728,122 @@ export default function RosterCalendar() {
         }
       };
 
-      let bgClass = 'bg-[#121214] border-white/[0.05]';
-      let statusColor = 'text-zinc-400';
+      let containerClass = 'transition-all flex flex-col md:flex-row md:items-center p-3 sm:p-4 shadow-sm border-y border-white/[0.05] ';
       let badgeLabel = event.status;
+      let badgeClass = 'text-zinc-400 bg-zinc-900 border-zinc-700/50';
       
-      if (event.status === 'COMPLETED') {
-         bgClass = 'bg-brand-green/10 border-brand-green/20';
-         statusColor = 'text-brand-green';
-      } else if (event.status === 'IN_PROGRESS') {
-         bgClass = 'bg-blue-500/10 border-blue-500/20';
-         statusColor = 'text-blue-400';
-         badgeLabel = 'In Progress';
+      const isCancelled = event.status === 'CANCELLED';
+      const isCompleted = event.status === 'COMPLETED' && !isCancelled;
+      const isInProgress = event.status === 'IN_PROGRESS' && !isCancelled;
+
+      if (isCancelled) {
+         containerClass += 'opacity-80 border-l-[6px] border-red-500 bg-red-500/10 hover:bg-red-500/20';
+         badgeClass = 'text-red-400 bg-red-500/20 border-red-500/30';
+         badgeLabel = 'Cancelled';
+      } else if (event.status === 'DRAFT') {
+         containerClass += 'opacity-90 border-l-[6px] border-zinc-600 bg-zinc-800/30 hover:bg-zinc-800/50';
+         badgeClass = 'text-zinc-400 bg-zinc-800 border-zinc-700/50';
       } else if (event.status === 'PENDING_SYNC') {
-         bgClass = 'bg-amber-500/10 border-amber-500/20';
-         statusColor = 'text-amber-500';
+         containerClass += 'opacity-90 border-l-[6px] border-amber-500 bg-amber-500/10 hover:bg-amber-500/20';
+         badgeClass = 'text-amber-500 bg-amber-500/20 border-amber-500/30';
          badgeLabel = 'Pending Sync';
       } else if (event.status === 'PUBLISHED') {
-         bgClass = 'bg-indigo-500/10 border-brand-teal/20';
-         statusColor = 'text-brand-teal';
-      } else if (event.status === 'DRAFT') {
-         bgClass = 'bg-zinc-800/50 border-zinc-700/50';
-         statusColor = 'text-zinc-500';
-      } else if (event.status === 'CANCELLED') {
-         bgClass = 'bg-red-500/10 border-red-500/20';
-         statusColor = 'text-red-500';
-         badgeLabel = 'Cancelled';
+         containerClass += 'opacity-95 border-l-[6px] border-brand-teal bg-brand-teal/5 hover:bg-brand-teal/10';
+         badgeClass = 'text-brand-teal bg-brand-teal/20 border-brand-teal/30';
+      } else if (isCompleted) {
+         containerClass += 'opacity-80 border-l-[6px] border-brand-green bg-brand-green/10 hover:bg-brand-green/20';
+         badgeClass = 'text-brand-green bg-brand-green/20 border-brand-green/30';
+      } else if (isInProgress) {
+         containerClass += 'border-l-[6px] border-blue-400 bg-blue-500/10 hover:bg-blue-500/20 ring-1 ring-blue-500/30';
+         badgeClass = 'text-blue-400 bg-blue-500/20 border-blue-500/30';
+         badgeLabel = 'In Progress';
+      } else {
+         containerClass += 'border-l-[6px] border-zinc-700 bg-zinc-800/20 hover:bg-zinc-800/40';
       }
 
       if (event.isRespiteWrapper) {
-         bgClass = 'bg-violet-500/10 border-violet-500/20';
-         statusColor = 'text-violet-400';
+         containerClass = containerClass.replace(/border-l-\[6px\] border-[a-z-]+-[0-9]+/, 'border-l-[6px] border-violet-500');
+         containerClass = containerClass.replace(/bg-[a-z-]+-[0-9]+\/10/, 'bg-violet-500/10');
+         badgeClass = 'text-violet-400 bg-violet-500/20 border-violet-500/30';
       }
 
       const isSelected = multiSelectMode && selectedEventIds.has(event.id);
       if (isSelected) {
-         bgClass += ' ring-2 ring-brand-blue ring-offset-1 ring-offset-brand-navy';
+         containerClass += ' ring-2 ring-brand-blue ring-offset-2 ring-offset-brand-navy';
       }
+
+      const startText = event.start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+      const endText = event.end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
 
       return (
         <div 
-           className={`flex flex-col w-full cursor-pointer group p-3 my-1 rounded-xl border ${bgClass} hover:opacity-90 transition-all`}
+           className={`${containerClass} rounded-r-xl cursor-pointer w-full group relative`}
            onMouseDown={handleMouseDown}
            onMouseUp={handleMouseUp}
            onMouseLeave={handleMouseUp}
            onTouchStart={handleMouseDown}
            onTouchEnd={handleMouseUp}
         >
-          <div className="flex items-start justify-between mb-1.5 gap-2">
-            <span className="font-semibold text-zinc-100 text-[14px] leading-tight tracking-wide">{event.title}</span>
-            <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-current ${statusColor} shrink-0`}>
-                {badgeLabel}
-            </span>
-          </div>
-          <div className="flex flex-col gap-1 w-full">
-             {event.isRespiteWrapper ? (
-               <span className="text-violet-400 font-medium text-[12px]">STA / Respite</span>
-             ) : (
-               <div className="flex flex-col gap-1.5 w-full">
-                 <div className="flex items-center gap-1">
-                   <span className="text-zinc-300 font-medium text-[12px] truncate">👨‍💼 {event.staffName || 'Unassigned'}</span>
-                 </div>
-                 {event.servicesData && event.servicesData.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {event.servicesData.map((sd: any, idx: number) => {
-                        const srv = servicesList.find((s: any) => s.id === sd.serviceId);
-                        const srvName = srv ? srv.name : (event.serviceName || 'Unknown Service');
-                        return (
-                          <span key={idx} className="bg-black/20 text-zinc-300 px-1.5 py-0.5 rounded outline outline-1 outline-white/5 font-medium text-[10px] max-w-full truncate" title={srvName}>
-                            {srvName}
-                          </span>
-                        );
-                      })}
+          <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-6 w-full">
+            {/* Time Column */}
+            <div className="text-zinc-300 font-mono text-sm md:text-lg whitespace-nowrap min-w-[140px] flex items-center gap-1.5">
+              {event.isRespiteWrapper ? (
+                <span className="text-brand-teal/80 font-medium text-[12px] bg-indigo-500/5 px-2 py-0.5 rounded border border-brand-teal/10">Multi-day</span>
+              ) : (
+                <>
+                  {startText} <span className="text-zinc-600 font-bold">–</span> {endText}
+                </>
+              )}
+            </div>
+            
+            {/* Wording in middle, unmodified logic but formatted horizontally */}
+            <div className="flex flex-col gap-1 w-full flex-grow truncate px-0 md:px-4 md:border-l md:border-zinc-700/50">
+              <span className="font-bold text-zinc-100 text-base md:text-xl leading-tight tracking-wide truncate">
+                {event.title}
+              </span>
+              
+              <div className="flex flex-col md:flex-row md:items-center gap-1.5 md:gap-3 w-full">
+                {event.isRespiteWrapper ? (
+                  <span className="text-violet-400 font-medium text-sm">STA / Respite</span>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-zinc-400 font-medium text-sm md:text-lg truncate">
+                        👨‍💼 {event.staffName || 'Unassigned'}
+                      </span>
                     </div>
-                  ) : (
-                    event.serviceName && <div className="flex flex-wrap gap-1"><span className="bg-black/20 text-zinc-300 px-1.5 py-0.5 rounded outline outline-1 outline-white/5 font-medium text-[10px] max-w-full truncate" title={event.serviceName}>{event.serviceName}</span></div>
-                  )}
-               </div>
-             )}
+                    {event.servicesData && event.servicesData.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {event.servicesData.map((sd: any, idx: number) => {
+                          const srv = servicesList.find((s: any) => s.id === sd.serviceId);
+                          const srvName = srv ? srv.name : (event.serviceName || 'Unknown Service');
+                          return (
+                            <span key={idx} className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-xs md:text-base max-w-full truncate" title={srvName}>
+                              {srvName}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      event.serviceName && (
+                        <div className="flex flex-wrap gap-1">
+                          <span className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-xs md:text-base max-w-full truncate" title={event.serviceName}>
+                            {event.serviceName}
+                          </span>
+                        </div>
+                      )
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Badge on right */}
+            <div className="flex items-center justify-start md:justify-end whitespace-nowrap shrink-0 mt-3 md:mt-0">
+              <span className={`text-[10px] md:text-xs font-bold uppercase tracking-wider px-3 py-1 mr-4 md:mr-0 inline-flex rounded-full border ${badgeClass}`}>
+                {badgeLabel}
+              </span>
+            </div>
           </div>
         </div>
       );
@@ -994,7 +1044,7 @@ export default function RosterCalendar() {
             events={mappedEvents}
             view={activeView}
             date={date}
-            views={allowedViews}
+            views={calendarViewsMapping}
             onView={(view: View) => setView(view)}
             onNavigate={(date: Date) => setDate(date)}
             startAccessor={(e: ShiftEvent) => e.start}
@@ -1020,7 +1070,7 @@ export default function RosterCalendar() {
             events={mappedEvents}
             view={activeView}
             date={date}
-            views={allowedViews}
+            views={calendarViewsMapping}
             onView={(view: View) => setView(view)}
             onNavigate={(date: Date) => setDate(date)}
             startAccessor={(e: ShiftEvent) => e.start}
