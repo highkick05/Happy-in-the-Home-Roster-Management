@@ -20,9 +20,9 @@ export default function CustomAgenda({ events, date, length, localizer, componen
   const AgendaEvent = components?.agenda?.event || components?.event || (({ event }: any) => <div>{event.title}</div>);
 
   return (
-    <div className="h-full overflow-y-auto p-4 md:p-6 custom-agenda-view bg-zinc-950/20">
+    <div className="h-full overflow-y-auto p-2 md:p-6 custom-agenda-view bg-zinc-950/20">
       {groupedEvents.length === 0 ? (
-        <div className="flex items-center justify-center p-8 text-zinc-500 font-medium bg-black/20 rounded-xl border border-white/5">
+        <div className="flex items-center justify-center p-4 md:p-8 text-zinc-500 font-medium bg-black/20 rounded-xl border border-white/5 mx-2 md:mx-0">
           No shifts found starting from {format(date, 'd MMM yyyy')} for the next {length || 30} days.
         </div>
       ) : (
