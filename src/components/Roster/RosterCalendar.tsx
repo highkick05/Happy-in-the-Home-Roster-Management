@@ -308,21 +308,17 @@ export default function RosterCalendar() {
     };
   }, [fetchData]);
 
-  const autoOpenedRef = React.useRef(false);
-
-  useEffect(() => {
-    if (user?.role === 'ADMIN' || !events.length) return;
-    if (autoOpenedRef.current) return;
-    
+  // Helper to find outstanding shifts for staff users
+  const getOutstandingShift = React.useCallback(() => {
+    if (user?.role === 'ADMIN') return null;
     const now = new Date();
-    let targetShift = events.find(e => 
+    let target = events.find((e: any) => 
       e.status === 'IN_PROGRESS' && 
       e.staffId === user?.id && 
       !e.isRespiteWrapper
     );
-    
-    if (!targetShift) {
-      const upcomingShifts = events.filter(e => {
+    if (!target) {
+      const upcomingShifts = events.filter((e: any) => {
         if (e.status !== 'PUBLISHED') return false;
         if (e.staffId !== user?.id) return false;
         if (e.isRespiteWrapper) return false;
@@ -330,19 +326,33 @@ export default function RosterCalendar() {
         const diffMins = diffMs / 60000;
         const maxEarly = settings?.max_early_clockin_minutes !== undefined ? parseInt(settings.max_early_clockin_minutes as string) : 180;
         return diffMins <= maxEarly;
-      }).sort((a, b) => a.start.getTime() - b.start.getTime());
+      }).sort((a: any, b: any) => a.start.getTime() - b.start.getTime());
       
       if (upcomingShifts.length > 0) {
-        targetShift = upcomingShifts[0];
+        target = upcomingShifts[0];
       }
     }
+    return target;
+  }, [events, user, settings]);
+
+  const lastAutoOpenedShiftId = React.useRef<string | number | null>(null);
+
+  useEffect(() => {
+    if (user?.role === 'ADMIN' || !events.length) return;
     
-    if (targetShift && !isDetailsModalOpen) {
-      autoOpenedRef.current = true;
+    const targetShift = getOutstandingShift();
+    
+    // Auto-open if we have an outstanding shift and haven't auto-opened IT specifically before
+    // OR if we don't have it open. 
+    if (targetShift && !isDetailsModalOpen && lastAutoOpenedShiftId.current !== targetShift.id) {
+      lastAutoOpenedShiftId.current = targetShift.id;
       setSelectedShift(targetShift);
       setIsDetailsModalOpen(true);
+    } else if (!targetShift) {
+      // If there are no outstanding shifts, clear the ref so if one appears, it pops up
+      lastAutoOpenedShiftId.current = null;
     }
-  }, [events, user?.role, user?.id]);
+  }, [events, user?.role, user?.id, getOutstandingShift, isDetailsModalOpen]);
 
   useEffect(() => {
     if (selectedShift) {
@@ -444,6 +454,19 @@ export default function RosterCalendar() {
       });
       return;
     }
+    
+    // For staff users, prevent editing past shifts if there are outstanding ones
+    if (user?.role !== 'ADMIN') {
+      const outstanding = getOutstandingShift();
+      if (outstanding && outstanding.id !== event.id) {
+        // Pop open the outstanding shift instead
+        lastAutoOpenedShiftId.current = outstanding.id;
+        setSelectedShift(outstanding);
+        setIsDetailsModalOpen(true);
+        return;
+      }
+    }
+
     setSelectedShift(event);
     setIsDetailsModalOpen(true);
   };
