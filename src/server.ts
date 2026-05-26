@@ -3877,6 +3877,9 @@ async function startServer() {
       const ymdFormatter = getSafeDateTimeFormat('en-CA', {
          timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit'
       });
+      const timeFormatter = getSafeDateTimeFormat('en-US', {
+        timeZone: timezone, hour: '2-digit', minute: '2-digit'
+      });
 
       const totals: any = {
         weekdayHours: 0,
@@ -3988,11 +3991,14 @@ async function startServer() {
         const yearOnly = parts.find((p: any) => p.type === 'year')?.value || '';
         const dayStr = `${weekdayStr} ${dayOnly}/${monthOnly}/${yearOnly}`;
 
+        const timeStr = `${timeFormatter.format(new Date(shift.start_time))} - ${timeFormatter.format(new Date(shift.end_time))}`;
+
         const rows = [];
         
         rows.push({
           id: shift.id + '_base',
           dateAndDay: dayStr,
+          timeString: timeStr,
           serviceProvided: serviceProvided,
           hoursWorked: parseFloat(hours.toFixed(2)),
           dayCategory: dayCategory,
@@ -4009,6 +4015,7 @@ async function startServer() {
           rows.push({
             id: shift.id + '_prov',
             dateAndDay: dayStr,
+            timeString: '-', // Secondary travel item
             serviceProvided: 'Provider Travel',
             hoursWorked: 0,
             dayCategory: dayCategory,
@@ -4026,6 +4033,7 @@ async function startServer() {
           rows.push({
             id: shift.id + '_abt',
             dateAndDay: dayStr,
+            timeString: '-', // Secondary transport item
             serviceProvided: 'Activity Based Transport',
             hoursWorked: 0,
             dayCategory: dayCategory,

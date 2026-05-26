@@ -121,6 +121,7 @@ export default function StaffActivityReport() {
             <thead className="text-xs uppercase bg-brand-bg text-[#8B949E] sticky top-0 z-10 font-medium border-b border-border-subtle">
               <tr>
                 <th className="px-5 py-4 min-w-[150px]">Date & Day</th>
+                <th className="px-5 py-4 min-w-[150px]">Time</th>
                 <th className="px-5 py-4">Staff Member</th>
                 <th className="px-5 py-4 min-w-[150px]">Client</th>
                 <th className="px-5 py-4 min-w-[200px]">Service Provided</th>
@@ -134,14 +135,14 @@ export default function StaffActivityReport() {
             <tbody className="divide-y divide-border-subtle">
               {loading && !reportData ? (
                 <tr>
-                  <td colSpan={9} className="px-5 py-10 text-center text-[#8B949E]">
+                  <td colSpan={10} className="px-5 py-10 text-center text-[#8B949E]">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-brand-teal" />
                     Loading report data...
                   </td>
                 </tr>
               ) : reportData?.log.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-5 py-10 text-center text-[#8B949E]">
+                  <td colSpan={10} className="px-5 py-10 text-center text-[#8B949E]">
                     No activity found for the selected date range.
                   </td>
                 </tr>
@@ -149,6 +150,7 @@ export default function StaffActivityReport() {
                 reportData?.log.map((row: any) => (
                   <tr key={row.id} className="hover:bg-brand-bg/50 transition-colors">
                     <td className="px-5 py-3 whitespace-nowrap text-[#E6EDF3] font-medium">{row.dateAndDay}</td>
+                    <td className="px-5 py-3 whitespace-nowrap text-[#8B949E] text-xs">{row.timeString}</td>
                     <td className="px-5 py-3 text-[#E6EDF3]">{row.staffName}</td>
                     <td className="px-5 py-3 text-[#E6EDF3]">{row.clientName}</td>
                     <td className="px-5 py-3 font-medium">
