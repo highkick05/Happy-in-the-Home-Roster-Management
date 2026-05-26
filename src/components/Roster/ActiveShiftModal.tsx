@@ -54,6 +54,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
   const [completeMode, setCompleteMode] = useState(false);
   const [notes, setNotes] = useState('');
   const [checklist, setChecklist] = useState<any[]>([]);
+  const [startTimeStr, setStartTimeStr] = useState('');
   const [finishTime, setFinishTime] = useState('');
   const [didTransport, setDidTransport] = useState(false);
   const [waypoints, setWaypoints] = useState<{name: string, placeId?: string, coords?: number[] | string}[]>([]);
@@ -143,7 +144,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
 
   useEffect(() => {
     if (isOpen && shift) {
-      if (shift.status === 'COMPLETED' || shift.status === 'PENDING_SYNC') {
+      if (shift.status === 'PENDING_SYNC') {
          onClose();
          return;
       }
@@ -151,13 +152,18 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
          const pendingStr = localStorage.getItem('pending_shifts') || '[]';
          const pendingArr = JSON.parse(pendingStr);
          const isCurrentlySyncing = pendingArr.some((pending: any) => pending.shiftId === shift.id);
-         if (isCurrentlySyncing) {
+         if (isCurrentlySyncing && shift.status !== 'COMPLETED') {
             onClose();
             return;
          }
       } catch(e) {}
 
-      setCompleteMode(false);
+      if (shift.status === 'COMPLETED') {
+         setCompleteMode(true);
+      } else {
+         setCompleteMode(false);
+      }
+      
       setShowCancelPrompt(false);
       setCancelReason('');
       setDidTransport(false);
@@ -179,16 +185,29 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
         if (shift.servicesData && shift.servicesData.length > 0) {
            setChecklist(shift.servicesData.map((s: any) => ({
              ...s,
-             completed: true,
-             comment: ''
+             completed: s.completed !== undefined ? s.completed : true,
+             comment: s.comment || ''
            })));
         } else {
            setChecklist([]);
         }
       }
       
-      const now = new Date();
-      setFinishTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
+      if (shift.actualStartTime) {
+         const actualStartDate = new Date(shift.actualStartTime);
+         setStartTimeStr(actualStartDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
+      } else {
+         const startd = new Date(shift.start);
+         setStartTimeStr(startd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
+      }
+
+      if (shift.actualFinishTime) {
+         const actualFinishDate = new Date(shift.actualFinishTime);
+         setFinishTime(actualFinishDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
+      } else {
+         const now = new Date();
+         setFinishTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
+      }
     }
   }, [isOpen, shift]);
 
@@ -300,12 +319,18 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
     setLoading(true);
     let offlineHandled = false;
     
-    // Build actual finish time date object
     const baseDate = new Date(shift.start);
-    const [h, m] = finishTime.split(':');
-    baseDate.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
+    const [hf, mf] = finishTime.split(':');
+    baseDate.setHours(parseInt(hf, 10), parseInt(mf, 10), 0, 0);
 
+    const startDate = new Date(shift.start);
+    if (startTimeStr) {
+      const [hs, ms] = startTimeStr.split(':');
+      startDate.setHours(parseInt(hs, 10), parseInt(ms, 10), 0, 0);
+    }
+    
     const payload = {
+      actual_start_time: startDate.toISOString(),
       actual_finish_time: baseDate.toISOString(),
       notes,
       abtCoordinates: resolvedWaypoints,
@@ -607,14 +632,24 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
               <h3 className="text-xl font-semibold border-b border-white/[0.08] pb-3 text-white mb-4">Complete Shift Checklist</h3>
               
               <div className="flex flex-col space-y-6 sm:mx-auto w-full">
-                {/* 1. Actual Finish Time */}
-                <div className="bg-zinc-800/30 p-5 rounded-2xl border border-white/[0.08]">
-                  <label className="block text-sm md:text-base font-medium text-zinc-300 mb-2">Actual Finish Time</label>
-                  <CustomTimePicker 
-                    className="w-full bg-[#09090b] border border-white/[0.12]/50 rounded-xl py-3 px-4 text-lg text-white focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal shadow-inner"
-                    value={finishTime}
-                    onChange={e => setFinishTime(e.target.value)}
-                  />
+                {/* Time Modifications */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-zinc-800/30 p-5 rounded-2xl border border-white/[0.08]">
+                    <label className="block text-sm md:text-base font-medium text-zinc-300 mb-2">Actual Start Time</label>
+                    <CustomTimePicker 
+                      className="w-full bg-[#09090b] border border-white/[0.12]/50 rounded-xl py-3 px-4 text-lg text-white focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal shadow-inner"
+                      value={startTimeStr}
+                      onChange={e => setStartTimeStr(e.target.value)}
+                    />
+                  </div>
+                  <div className="bg-zinc-800/30 p-5 rounded-2xl border border-white/[0.08]">
+                    <label className="block text-sm md:text-base font-medium text-zinc-300 mb-2">Actual Finish Time</label>
+                    <CustomTimePicker 
+                      className="w-full bg-[#09090b] border border-white/[0.12]/50 rounded-xl py-3 px-4 text-lg text-white focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal shadow-inner"
+                      value={finishTime}
+                      onChange={e => setFinishTime(e.target.value)}
+                    />
+                  </div>
                 </div>
 
                 {/* 2. Transport & Odometer */}

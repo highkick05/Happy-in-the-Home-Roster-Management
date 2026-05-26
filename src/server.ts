@@ -3400,7 +3400,7 @@ async function startServer() {
 
   app.post('/api/shifts/:id/complete', authenticateToken, async (req: any, res: any) => {
     const { id } = req.params;
-    const { actual_finish_time, notes, abtCoordinates, odometer_end_reading, odometer_end_photo } = req.body; 
+    const { actual_start_time, actual_finish_time, notes, abtCoordinates, odometer_end_reading, odometer_end_photo } = req.body; 
     
     try {
       const shift = db.prepare('SELECT * FROM shifts WHERE id = ?').get(id) as any;
@@ -3504,7 +3504,7 @@ async function startServer() {
       const finalProviderCost = isHomeCare ? shift.provider_travel_cost : pTravel.cost;
 
       // ... Update query downwards
-      const stmt = db.prepare(`
+      let updateQueryStr = `
         UPDATE shifts SET 
           actual_finish_time = ?, 
           notes = ?, 
@@ -3519,10 +3519,8 @@ async function startServer() {
           services_json = ?,
           odometer_end_reading = ?,
           odometer_end_photo = ?
-        WHERE id = ?
-      `);
-
-      stmt.run(
+      `;
+      const updateParams = [
         actual_finish_time || new Date().toISOString(),
         notes || shift.notes,
         finalProviderKm,
@@ -3534,9 +3532,19 @@ async function startServer() {
         transport_route_log,
         updatedServicesJson,
         odometer_end_reading || null,
-        odometer_end_photo || null,
-        id
-      );
+        odometer_end_photo || null
+      ];
+
+      if (actual_start_time) {
+        updateQueryStr += `, actual_start_time = ? `;
+        updateParams.push(actual_start_time);
+      }
+
+      updateQueryStr += ` WHERE id = ?`;
+      updateParams.push(id);
+
+      const stmt = db.prepare(updateQueryStr);
+      stmt.run(...updateParams);
 
       console.log(`[DEBUG TRIGGER] Shift ${id} completed. Triggering cascade engine.`);
       await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);

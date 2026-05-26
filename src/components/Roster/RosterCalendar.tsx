@@ -56,6 +56,8 @@ export interface ShiftEvent {
   abtCost?: number;
   transportRouteLog?: string;
   travelBreakdown?: string;
+  actualStartTime?: string;
+  actualFinishTime?: string;
 }
 
 export default function RosterCalendar() {
@@ -198,6 +200,8 @@ export default function RosterCalendar() {
           abtKm: d.abt_km,
           abtCost: d.abt_cost,
           transportRouteLog: d.transport_route_log,
+          actualStartTime: d.actual_start_time,
+          actualFinishTime: d.actual_finish_time,
         }));
         
         const mappedRespites: any[] = [];
@@ -248,6 +252,8 @@ export default function RosterCalendar() {
                 abtKm: s.abt_km,
                 abtCost: s.abt_cost,
                 transportRouteLog: s.transport_route_log,
+                actualStartTime: s.actual_start_time,
+                actualFinishTime: s.actual_finish_time,
                 isRespiteChild: true,
                 respiteBookingId: d.id,
                 respiteData: d
@@ -302,8 +308,11 @@ export default function RosterCalendar() {
     };
   }, [fetchData]);
 
+  const autoOpenedRef = React.useRef(false);
+
   useEffect(() => {
     if (user?.role === 'ADMIN' || !events.length) return;
+    if (autoOpenedRef.current) return;
     
     const now = new Date();
     let targetShift = events.find(e => 
@@ -329,10 +338,11 @@ export default function RosterCalendar() {
     }
     
     if (targetShift && !isDetailsModalOpen) {
+      autoOpenedRef.current = true;
       setSelectedShift(targetShift);
       setIsDetailsModalOpen(true);
     }
-  }, [events, user?.role, user?.id, isDetailsModalOpen]);
+  }, [events, user?.role, user?.id]);
 
   useEffect(() => {
     if (selectedShift) {
