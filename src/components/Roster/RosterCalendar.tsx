@@ -355,12 +355,11 @@ export default function RosterCalendar() {
   }, [events, user?.role, user?.id, getOutstandingShift, isDetailsModalOpen]);
 
   useEffect(() => {
-    if (selectedShift) {
-      const updatedShift = events.find(e => e.id === selectedShift.id);
-      if (updatedShift && updatedShift !== selectedShift) {
-        setSelectedShift(updatedShift);
-      }
-    }
+    setSelectedShift(prev => {
+      if (!prev) return prev;
+      const updatedShift = events.find(e => e.id === prev.id);
+      return (updatedShift && updatedShift !== prev) ? updatedShift : prev;
+    });
   }, [events]);
 
   const filteredEvents = events.filter(e => {
@@ -1092,6 +1091,7 @@ export default function RosterCalendar() {
 
       {user?.role !== 'ADMIN' && selectedShift && (
         <ActiveShiftModal
+          key={`active-shift-${selectedShift.id}`}
           isOpen={isDetailsModalOpen}
           onClose={() => setIsDetailsModalOpen(false)}
           onSave={fetchData}
