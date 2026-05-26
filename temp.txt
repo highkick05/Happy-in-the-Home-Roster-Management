@@ -1,0 +1,1065 @@
+907-     try {
+908-        const notifs = db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50').all(req.user.id);
+909-        res.json(notifs);
+910-     } catch (e: any) {
+911-      logger.error('API Error', Object.assign({}, e, { message: e?.message, stack: e?.stack }));
+912:      res.status(500).json({ error: 'Internal Server Error' });
+913-    }
+914-  });
+915-
+916-  app.put('/api/notifications/read-all', authenticateToken, (req: any, res: any) => {
+917-     try {
+918-        db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0').run(req.user.id);
+919-        res.json({ success: true });
+920-     } catch (e: any) {
+921-      logger.error('API Error', Object.assign({}, e, { message: e?.message, stack: e?.stack }));
+922:      res.status(500).json({ error: 'Internal Server Error' });
+923-    }
+924-  });
+925-
+926-  app.put('/api/notifications/:id/read', authenticateToken, (req: any, res: any) => {
+927-     try {
+928-        db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
+929-        res.json({ success: true });
+930-     } catch (e: any) {
+931-      logger.error('API Error', Object.assign({}, e, { message: e?.message, stack: e?.stack }));
+932:      res.status(500).json({ error: 'Internal Server Error' });
+933-    }
+934-  });
+935-
+936-  const transporter = nodemailer.createTransport({
+937-    host: process.env.SMTP_HOST || 'smtp.hostinger.com',
+--
+975-
+976-      await transporter.sendMail(mailOptions);
+977-      res.json({ success: true, message: 'If that email exists, we have sent a reset link to it.' });
+978-    } catch (error) {
+979-      console.error('Forgot password error:', error);
+980:      res.status(500).json({ error: 'Internal Server Error' });
+981-    }
+982-  });
+983-
+984-  app.post('/api/auth/reset-password', (req, res) => {
+985-    const { token, password } = req.body;
+--
+1004-      db.prepare('UPDATE users SET password_hash = ?, reset_password_token = NULL, reset_password_expires = NULL WHERE id = ?').run(passwordHash, user.id);
+1005-
+1006-      res.json({ success: true, message: 'Password has been successfully reset. You can now login.' });
+1007-    } catch (error) {
+1008-      console.error('Reset password error:', error);
+1009:      res.status(500).json({ error: 'Internal Server Error' });
+1010-    }
+1011-  });
+1012-
+1013-  app.get('/api/me', authenticateToken, (req: any, res: any) => {
+1014-    const user = db.prepare('SELECT id, email, role, first_name, last_name FROM users WHERE id = ?').get(req.user.id) as any;
+--
+1089-      });
+1090-      res.json(settings);
+1091-    } catch (e: any) {
+1092-      
+1093-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1094:      res.status(500).json({ error: 'Internal Server Error' });
+1095-    }
+1096-  });
+1097-
+1098-  const persistentAssetsDir = path.join(process.cwd(), 'uploads', 'assets');
+1099-  if (!fs.existsSync(persistentAssetsDir)) {
+--
+1143-      if (req.file && fs.existsSync(req.file.path)) {
+1144-         try { fs.unlinkSync(req.file.path); } catch (e) {}
+1145-      }
+1146-      
+1147-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1148:      res.status(500).json({ error: 'Internal Server Error' });
+1149-    }
+1150-  });
+1151-
+1152-  app.get('/api/holidays', authenticateToken, (req, res) => {
+1153-    try {
+--
+1165-      const holidaysList = hd.getHolidays(year).filter(h => h.type === 'public');
+1166-      res.json({ holidays: holidaysList, state });
+1167-    } catch (e: any) {
+1168-      
+1169-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1170:      res.status(500).json({ error: 'Internal Server Error' });
+1171-    }
+1172-  });
+1173-
+1174-  app.get('/api/pwa-icon/:size', async (req, res) => {
+1175-    try {
+--
+1196-      res.setHeader('Content-Type', response.headers.get('content-type') || 'image/jpeg');
+1197-      res.setHeader('Cache-Control', 'public, max-age=86400');
+1198-      res.send(Buffer.from(buffer));
+1199-    } catch (err: any) {
+1200-      logger.error('API Error', Object.assign({}, err, { message: err?.message, stack: err?.stack }));
+1201:      res.status(500).json({ error: 'Internal Server Error' });
+1202-    }
+1203-  });
+1204-
+1205-  app.get(['/api/app-manifest.json', '/manifest.webmanifest'], (req, res) => {
+1206-    try {
+--
+1269-
+1270-      res.type('application/manifest+json');
+1271-      res.send(JSON.stringify(manifestContent));
+1272-    } catch (e: any) {
+1273-      console.error('Failed to generate manifest.webmanifest:', e);
+1274:      res.status(500).json({ error: 'Internal Server Error' });
+1275-    }
+1276-  });
+1277-
+1278-  app.get('/api/settings', authenticateToken, requireAdmin, (req, res) => {
+1279-    try {
+--
+1281-      const settings = rows.reduce((acc, row) => ({ ...acc, [row.key]: JSON.parse(row.value) }), {});
+1282-      res.json(settings);
+1283-    } catch (e: any) {
+1284-      
+1285-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1286:      res.status(500).json({ error: 'Internal Server Error' });
+1287-    }
+1288-  });
+1289-
+1290-  app.put('/api/settings', authenticateToken, requireAdmin, (req, res) => {
+1291-    try {
+--
+1299-      insertMany(settings);
+1300-      res.json({ success: true, settings });
+1301-    } catch (e: any) {
+1302-      
+1303-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1304:      res.status(500).json({ error: 'Internal Server Error' });
+1305-    }
+1306-  });
+1307-
+1308-  app.get('/api/awesome-quotes/daily', (req, res) => {
+1309-    try {
+--
+1437-        },
+1438-        body: JSON.stringify(payload)
+1439-      });
+1440-      
+1441-      if (!response.ok) {
+1442:        return res.status(500).json({ error: 'Failed to compute route distances' });
+1443-      }
+1444-      const data = await response.json();
+1445-      const meters = data.routes?.[0]?.distanceMeters || 0;
+1446-      res.json({ distance: meters / 1000 });
+1447-    } catch (err) {
+1448-      console.error('Transport distance computation error', err);
+1449:      res.status(500).json({ error: 'Failed to compute route distances' });
+1450-    }
+1451-  });
+1452-
+1453-  // --- Onboarding APIs ---
+1454-  app.get('/api/users/onboarding', authenticateToken, (req: any, res: any) => {
+--
+1543-      }
+1544-
+1545-      res.json(onboardingData);
+1546-    } catch (e: any) {
+1547-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1548:      res.status(500).json({ error: 'Internal Server Error' });
+1549-    }
+1550-  });
+1551-
+1552-  app.put('/api/users/onboarding', authenticateToken, (req: any, res: any) => {
+1553-    try {
+--
+1557-      }
+1558-      db.prepare('UPDATE users SET onboarding_json = ? WHERE id = ?').run(JSON.stringify(req.body.data || req.body), targetUserId);
+1559-      res.json({ success: true });
+1560-    } catch (e: any) {
+1561-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1562:      res.status(500).json({ error: 'Internal Server Error' });
+1563-    }
+1564-  });
+1565-
+1566-  // --- Staff (Users) APIs ---
+1567-  app.get('/api/admin/staff-compliance', authenticateToken, requireAdmin, (req: any, res: any) => {
+--
+1644-      });
+1645-
+1646-      res.json(result);
+1647-    } catch (e: any) {
+1648-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1649:      res.status(500).json({ error: 'Internal Server Error' });
+1650-    }
+1651-  });
+1652-
+1653-  app.get('/api/staff', authenticateToken, (req: any, res: any) => {
+1654-    if (req.user.role !== 'ADMIN') {
+--
+1670-      if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+1671-        
+1672-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1673-      res.status(400).json({ error: 'Email already exists' });
+1674-      } else {
+1675:        res.status(500).json({ error: 'Internal Server Error' });
+1676-      }
+1677-    }
+1678-  });
+1679-
+1680-  app.put('/api/staff/:id', authenticateToken, requireAdmin, (req, res) => {
+--
+1685-      stmt.run(email, role, firstName, lastName, phone, address, dob, emergencyContactName, emergencyContactPhone, bankName, bankBsb, bankAcc, taxNumber, superFundName, superMemberNumber, id);
+1686-      res.json({ id, email, role, firstName, lastName, phone, address, dob, emergencyContactName, emergencyContactPhone, bankName, bankBsb, bankAcc, taxNumber, superFundName, superMemberNumber });
+1687-    } catch (e: any) {
+1688-      
+1689-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1690:      res.status(500).json({ error: 'Internal Server Error' });
+1691-    }
+1692-  });
+1693-
+1694-  app.put('/api/staff/:id/status', authenticateToken, requireAdmin, (req, res) => {
+1695-    const { id } = req.params;
+--
+1701-      res.json({ success: true, status });
+1702-    } catch (e: any) {
+1703-      console.error(`Error updating staff status:`, e);
+1704-      
+1705-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1706:      res.status(500).json({ error: 'Internal Server Error' });
+1707-    }
+1708-  });
+1709-
+1710-  app.delete('/api/staff/:id', authenticateToken, requireAdmin, (req, res) => {
+1711-    const { id } = req.params;
+--
+1713-      db.prepare('UPDATE users SET status = ? WHERE id = ?').run('SUSPENDED', id);
+1714-      res.json({ success: true });
+1715-    } catch (e: any) {
+1716-      
+1717-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1718:      res.status(500).json({ error: 'Internal Server Error' });
+1719-    }
+1720-  });
+1721-
+1722-  // --- Clients APIs ---
+1723-  app.get('/api/clients', authenticateToken, (req: any, res: any) => {
+--
+1775-        ...client,
+1776-        service_ids: clientServices.map((cs: any) => cs.service_id)
+1777-      });
+1778-    } catch (e: any) {
+1779-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1780:      res.status(500).json({ error: 'Internal Server Error' });
+1781-    }
+1782-  });
+1783-
+1784-  app.post('/api/clients', authenticateToken, requireAdmin, (req, res) => {
+1785-    try {
+--
+1807-      const clientId = insertTransaction(req.body);
+1808-      res.json({ id: clientId });
+1809-    } catch (e: any) {
+1810-      
+1811-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1812:      res.status(500).json({ error: 'Internal Server Error' });
+1813-    }
+1814-  });
+1815-
+1816-  app.put('/api/clients/:id', authenticateToken, requireAdmin, (req, res) => {
+1817-    try {
+--
+1837-      updateTransaction(req.body, req.params.id);
+1838-      res.json({ id: req.params.id });
+1839-    } catch (e: any) {
+1840-      
+1841-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1842:      res.status(500).json({ error: 'Internal Server Error' });
+1843-    }
+1844-  });
+1845-
+1846-  app.put('/api/clients/:id/status', authenticateToken, requireAdmin, (req, res) => {
+1847-    const { id } = req.params;
+--
+1850-      db.prepare('UPDATE clients SET status = ? WHERE id = ?').run(status, id);
+1851-      res.json({ success: true, status });
+1852-    } catch (e: any) {
+1853-      
+1854-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1855:      res.status(500).json({ error: 'Internal Server Error' });
+1856-    }
+1857-  });
+1858-
+1859-  app.delete('/api/clients/:id', authenticateToken, requireAdmin, (req, res) => {
+1860-    const { id } = req.params;
+--
+1862-      db.prepare('UPDATE clients SET status = ? WHERE id = ?').run('SUSPENDED', id);
+1863-      res.json({ success: true });
+1864-    } catch (e: any) {
+1865-      
+1866-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1867:      res.status(500).json({ error: 'Internal Server Error' });
+1868-    }
+1869-  });
+1870-
+1871-  // --- Providers APIs ---
+1872-  app.get('/api/providers', authenticateToken, requireAdmin, (req, res) => {
+--
+1881-      const info = stmt.run(companyName, contactName, email, phone, address);
+1882-      res.json({ id: info.lastInsertRowid, companyName, contactName, email, phone, address });
+1883-    } catch (e: any) {
+1884-      
+1885-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1886:      res.status(500).json({ error: 'Internal Server Error' });
+1887-    }
+1888-  });
+1889-
+1890-  app.put('/api/providers/:id', authenticateToken, requireAdmin, (req, res) => {
+1891-    const { companyName, contactName, email, phone, address } = req.body;
+--
+1895-      stmt.run(companyName, contactName, email, phone, address, id);
+1896-      res.json({ id, companyName, contactName, email, phone, address });
+1897-    } catch (e: any) {
+1898-      
+1899-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1900:      res.status(500).json({ error: 'Internal Server Error' });
+1901-    }
+1902-  });
+1903-
+1904-  app.put('/api/providers/:id/status', authenticateToken, requireAdmin, (req, res) => {
+1905-    const { id } = req.params;
+--
+1908-      db.prepare('UPDATE providers SET status = ? WHERE id = ?').run(status, id);
+1909-      res.json({ success: true, status });
+1910-    } catch (e: any) {
+1911-      
+1912-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1913:      res.status(500).json({ error: 'Internal Server Error' });
+1914-    }
+1915-  });
+1916-
+1917-  app.delete('/api/providers/:id', authenticateToken, requireAdmin, (req, res) => {
+1918-    const { id } = req.params;
+--
+1920-      db.prepare('UPDATE providers SET status = ? WHERE id = ?').run('SUSPENDED', id);
+1921-      res.json({ success: true });
+1922-    } catch (e: any) {
+1923-      
+1924-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+1925:      res.status(500).json({ error: 'Internal Server Error' });
+1926-    }
+1927-  });
+1928-
+1929-  // --- Respite Bookings APIs ---
+1930-  app.get('/api/respite-bookings', authenticateTokenOrWallboard, (req: any, res: any) => {
+--
+2024-        const bookingId = createRespite(servicesData);
+2025-        res.json({ id: bookingId });
+2026-    } catch(e: any) {
+2027-        
+2028-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2029:      res.status(500).json({ error: 'Internal Server Error' });
+2030-    }
+2031-  });
+2032-
+2033-  // Update Respite Booking
+2034-  app.put('/api/respite-bookings/:id', authenticateToken, requireAdmin, (req, res) => {
+--
+2054-        })(servicesData);
+2055-        res.json({ success: true });
+2056-    } catch(e: any) {
+2057-        
+2058-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2059:      res.status(500).json({ error: 'Internal Server Error' });
+2060-    }
+2061-  });
+2062-
+2063-  app.put('/api/respite-bookings/:id/status', authenticateToken, requireAdmin, (req, res) => {
+2064-    const bookingId = req.params.id;
+--
+2082-
+2083-        res.json({ success: true });
+2084-    } catch (e: any) {
+2085-        
+2086-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2087:      res.status(500).json({ error: 'Internal Server Error' });
+2088-    }
+2089-  });
+2090-
+2091-  app.delete('/api/respite-bookings/:id', authenticateToken, requireAdmin, (req, res) => {
+2092-      try {
+--
+2096-          })();
+2097-          res.json({ success: true });
+2098-      } catch(e: any) {
+2099-          
+2100-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2101:      res.status(500).json({ error: 'Internal Server Error' });
+2102-      }
+2103-  });
+2104-
+2105-  // --- Progress Notes API ---
+2106-  app.get('/api/progress-notes/clients', authenticateToken, (req: any, res: any) => {
+--
+2117-        `).all(req.user.id);
+2118-        return res.json(clients);
+2119-      }
+2120-    } catch (e: any) {
+2121-      console.error(e);
+2122:      res.status(500).json({ error: 'Internal Server Error' });
+2123-    }
+2124-  });
+2125-
+2126-  app.get('/api/progress-notes/export', authenticateToken, (req: any, res: any) => {
+2127-    try {
+--
+2369-      drawFooter();
+2370-      doc.end();
+2371-
+2372-    } catch (e: any) {
+2373-      logger.error('Error generating PDF', { error: "Internal Server Error" });
+2374:      res.status(500).json({ error: 'Internal Server Error' });
+2375-    }
+2376-  });
+2377-
+2378-  app.get('/api/progress-notes/:clientId', authenticateToken, (req: any, res: any) => {
+2379-    try {
+--
+2410-      
+2411-      const notes = db.prepare(query).all(...params);
+2412-      res.json(notes);
+2413-    } catch (e: any) {
+2414-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2415:      res.status(500).json({ error: 'Internal Server Error' });
+2416-    }
+2417-  });
+2418-
+2419-  // --- Client Roster Templates APIs ---
+2420-  app.get('/api/clients/:id/roster-templates/pdf', authenticateToken, (req: any, res: any) => {
+--
+2515-      });
+2516-
+2517-      doc.end();
+2518-    } catch (e: any) {
+2519-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2520:      res.status(500).json({ error: 'Internal Server Error' });
+2521-    }
+2522-  });
+2523-
+2524-  app.get('/api/clients/:id/roster-templates', authenticateToken, (req: any, res: any) => {
+2525-    try {
+--
+2544-      });
+2545-      res.json(templates);
+2546-    } catch (e: any) {
+2547-      
+2548-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2549:      res.status(500).json({ error: 'Internal Server Error' });
+2550-    }
+2551-  });
+2552-
+2553-  app.post('/api/clients/:id/roster-templates', authenticateToken, requireAdmin, (req: any, res: any) => {
+2554-    try {
+--
+2568-      })();
+2569-      res.json({ success: true });
+2570-    } catch (e: any) {
+2571-      
+2572-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2573:      res.status(500).json({ error: 'Internal Server Error' });
+2574-    }
+2575-  });
+2576-
+2577-  app.delete('/api/clients/:id/roster-templates/clear', authenticateToken, requireAdmin, (req: any, res: any) => {
+2578-    try {
+2579-      db.prepare('DELETE FROM client_roster_templates WHERE client_id = ?').run(req.params.id);
+2580-      res.json({ success: true });
+2581-    } catch (e: any) {
+2582-      
+2583-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2584:      res.status(500).json({ error: 'Internal Server Error' });
+2585-    }
+2586-  });
+2587-
+2588-  app.delete('/api/client-roster-templates/:id', authenticateToken, requireAdmin, (req: any, res: any) => {
+2589-    try {
+2590-      db.prepare('DELETE FROM client_roster_templates WHERE id = ?').run(req.params.id);
+2591-      res.json({ success: true });
+2592-    } catch (e: any) {
+2593-      
+2594-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2595:      res.status(500).json({ error: 'Internal Server Error' });
+2596-    }
+2597-  });
+2598-
+2599-  function getUtcTimeFromLocal(dateStr: string, timeStr: string, timeZone: string) {
+2600-    const localIso = `${dateStr}T${timeStr}:00`;
+--
+2831-
+2832-      res.json({ success: true, createdCount: shiftsCreated.length, conflicts, clientConflicts, dryRun });
+2833-    } catch (e: any) {
+2834-      
+2835-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2836:      res.status(500).json({ error: 'Internal Server Error' });
+2837-    }
+2838-  });
+2839-
+2840-  // Get Builds history
+2841-  app.get('/api/clients/:id/roster-builds', authenticateToken, requireAdmin, (req: any, res: any) => {
+2842-    try {
+2843-      const builds = db.prepare('SELECT * FROM roster_builds WHERE client_id = ? ORDER BY created_at DESC').all(req.params.id);
+2844-      res.json(builds);
+2845-    } catch (e: any) {
+2846-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2847:      res.status(500).json({ error: 'Internal Server Error' });
+2848-    }
+2849-  });
+2850-
+2851-  // Get shifts by batch id
+2852-  app.get('/api/roster/builds/:batchId/shifts', authenticateToken, requireAdmin, (req: any, res: any) => {
+--
+2873-      });
+2874-
+2875-      res.json(formattedShifts);
+2876-    } catch (e: any) {
+2877-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2878:      res.status(500).json({ error: 'Internal Server Error' });
+2879-    }
+2880-  });
+2881-
+2882-  // Revert Build (Delete by batchId)
+2883-  app.delete('/api/roster/builds/:batchId', authenticateToken, requireAdmin, (req: any, res: any) => {
+--
+2889-        db.prepare('DELETE FROM roster_builds WHERE id = ?').run(req.params.batchId);
+2890-      })();
+2891-      res.json({ success: true, deletedCount });
+2892-    } catch (e: any) {
+2893-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+2894:      res.status(500).json({ error: 'Internal Server Error' });
+2895-    }
+2896-  });
+2897-
+2898-  app.post('/api/clients/:id/resolve-roster-conflicts', authenticateToken, requireAdmin, async (req: any, res: any) => {
+2899-    try {
+--
+3050-
+3051-      res.json({ success: true, createdCount: shiftsCreated.length, conflicts });
+3052-    } catch (e: any) {
+3053-      
+3054-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3055:      res.status(500).json({ error: 'Internal Server Error' });
+3056-    }
+3057-  });
+3058-
+3059-  // --- Shifts APIs ---
+3060-
+--
+3064-      if (!data) return res.status(404).json({ error: 'Invoice data not found' });
+3065-      res.json({ success: true, data });
+3066-    } catch (e: any) {
+3067-      
+3068-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3069:      res.status(500).json({ error: 'Internal Server Error' });
+3070-    }
+3071-  });
+3072-
+3073-  app.get('/api/shifts', authenticateTokenOrWallboard, (req: any, res: any) => {
+3074-    let query = `
+--
+3185-        res.json({ id: info.lastInsertRowid });
+3186-      }
+3187-    } catch (e: any) {
+3188-      
+3189-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3190:      res.status(500).json({ error: 'Internal Server Error' });
+3191-    }
+3192-  });
+3193-
+3194-  app.post('/api/shifts/batch-action', authenticateToken, requireAdmin, async (req: any, res: any) => {
+3195-    try {
+--
+3249-      res.json({ success: true, message: `Batch ${action} completed successfully` });
+3250-    } catch (e: any) {
+3251-      console.error(e);
+3252-      
+3253-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3254:      res.status(500).json({ error: 'Internal Server Error' });
+3255-    }
+3256-  });
+3257-
+3258-  app.post('/api/shifts/publish-all', authenticateToken, requireAdmin, (req: any, res: any) => {
+3259-    try {
+--
+3263-      })();
+3264-      res.json({ success: true });
+3265-    } catch (e: any) {
+3266-      
+3267-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3268:      res.status(500).json({ error: 'Internal Server Error' });
+3269-    }
+3270-  });
+3271-
+3272-  app.put('/api/shifts/:id', authenticateToken, requireAdmin, async (req: any, res: any) => {
+3273-    const { id } = req.params;
+--
+3339-      }
+3340-
+3341-      res.json({ success: true });
+3342-    } catch (e: any) {
+3343-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3344:      res.status(500).json({ error: 'Internal Server Error' });
+3345-    }
+3346-  });
+3347-
+3348-  app.post('/api/shifts/:id/cancel', authenticateToken, (req: any, res: any) => {
+3349-    const { id } = req.params;
+--
+3356-      db.prepare('UPDATE shifts SET status = ?, notes = ? WHERE id = ?').run('CANCELLED', reason ? `Cancelled: ${reason}` : 'Cancelled by staff', id);
+3357-      res.json({ success: true });
+3358-    } catch(e: any) {
+3359-      
+3360-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3361:      res.status(500).json({ error: 'Internal Server Error' });
+3362-    }
+3363-  });
+3364-
+3365-  app.post('/api/shifts/:id/start', authenticateToken, (req: any, res: any) => {
+3366-    const { id } = req.params;
+--
+3376-        .run(startTime, 'IN_PROGRESS', odometer_start_reading || null, odometer_start_photo || null, id);
+3377-      res.json({ success: true, actual_start_time: startTime });
+3378-    } catch(e: any) {
+3379-      
+3380-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3381:      res.status(500).json({ error: 'Internal Server Error' });
+3382-    }
+3383-  });
+3384-
+3385-  app.post('/api/shifts/:id/undo-start', authenticateToken, (req: any, res: any) => {
+3386-    const { id } = req.params;
+--
+3392-      db.prepare('UPDATE shifts SET actual_start_time = NULL, status = ?, odometer_start_reading = NULL, odometer_start_photo = NULL WHERE id = ?')
+3393-        .run('PUBLISHED', id);
+3394-      res.json({ success: true });
+3395-    } catch(e: any) {
+3396-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3397:      res.status(500).json({ error: 'Internal Server Error' });
+3398-    }
+3399-  });
+3400-
+3401-  app.post('/api/shifts/:id/complete', authenticateToken, async (req: any, res: any) => {
+3402-    const { id } = req.params;
+--
+3588-
+3589-      res.json({ success: true, abt_km, pTravelDistance: pTravel.distance });
+3590-    } catch(e: any) {
+3591-      
+3592-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3593:      res.status(500).json({ error: 'Internal Server Error' });
+3594-    }
+3595-  });
+3596-
+3597-  app.delete('/api/shifts/:id', authenticateToken, requireAdmin, async (req: any, res: any) => {
+3598-    const { id } = req.params;
+--
+3617-
+3618-      res.json({ success: true });
+3619-    } catch (e: any) {
+3620-      
+3621-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3622:      res.status(500).json({ error: 'Internal Server Error' });
+3623-    }
+3624-  });
+3625-
+3626-  // --- Services APIs ---
+3627-  app.get('/api/services', authenticateToken, (req: any, res: any) => {
+--
+3655-      const info = stmt.run(code, name, rate, description, type || 'NDIS');
+3656-      res.json({ id: info.lastInsertRowid, code, name, rate, description, type: type || 'NDIS' });
+3657-    } catch (e: any) {
+3658-      
+3659-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3660:      res.status(500).json({ error: 'Internal Server Error' });
+3661-    }
+3662-  });
+3663-
+3664-  app.post('/api/services/import', authenticateToken, requireAdmin, upload.single('file'), (req: any, res: any) => {
+3665-    if (!req.file) {
+--
+3827-
+3828-      res.json({ success: true, imported, updated });
+3829-    } catch (e: any) {
+3830-      
+3831-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+3832:      res.status(500).json({ error: 'Internal Server Error' });
+3833-    }
+3834-  });
+3835-
+3836-  app.get('/api/reports/staff-activity', authenticateToken, requireAdmin, (req: any, res: any) => {
+3837-    try {
+--
+4070-          travelPayTotal: parseFloat((totals.travelPayTotal || 0).toFixed(2))
+4071-        }
+4072-      });
+4073-    } catch (e: any) {
+4074-      logger.error(`Staff Activity Report Error: ${e}`, { error: "Internal Server Error" });
+4075:      res.status(500).json({ error: 'Internal Server Error' });
+4076-    }
+4077-  });
+4078-
+4079-  // --- Invoices APIs ---
+4080-  app.get('/api/invoices', authenticateToken, (req: any, res: any) => {
+--
+4133-      
+4134-      res.json({ clients: clientsWithServices, staff, services });
+4135-    } catch (e: any) {
+4136-      
+4137-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4138:      res.status(500).json({ error: 'Internal Server Error' });
+4139-    }
+4140-  });
+4141-
+4142-  app.post('/api/invoices/manual', authenticateToken, requireAdmin, (req: any, res: any) => {
+4143-    const { clientId, staffId, services, date, startTime, endTime } = req.body;
+--
+4167-      const invoice = db.prepare('SELECT * FROM invoices WHERE shift_id = ?').get(shiftId);
+4168-      res.json({ success: true, invoice });
+4169-    } catch (e: any) {
+4170-      
+4171-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4172:      res.status(500).json({ error: 'Internal Server Error' });
+4173-    }
+4174-  });
+4175-
+4176-  app.post('/api/invoices/merge', authenticateToken, requireAdmin, (req: any, res: any) => {
+4177-    const { invoiceIds } = req.body;
+--
+4285-      res.json({ success: true });
+4286-    } catch (e: any) {
+4287-      console.error(e);
+4288-      
+4289-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4290:      res.status(500).json({ error: 'Internal Server Error' });
+4291-    }
+4292-  });
+4293-
+4294-  app.post('/api/invoices/undo-merge/:id', authenticateToken, requireAdmin, (req: any, res: any) => {
+4295-    const mergedInvoiceId = parseInt(req.params.id);
+--
+4311-      })();
+4312-      res.json({ success: true });
+4313-    } catch (e: any) {
+4314-      
+4315-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4316:      res.status(500).json({ error: 'Internal Server Error' });
+4317-    }
+4318-  });
+4319-
+4320-  app.put('/api/invoices/:id/status', authenticateToken, requireAdmin, (req: any, res: any) => {
+4321-    const { status } = req.body;
+--
+4359-      }
+4360-
+4361-      res.json({ success: true });
+4362-    } catch (e: any) {
+4363-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4364:      res.status(500).json({ error: 'Internal Server Error' });
+4365-    }
+4366-  });
+4367-
+4368-  app.delete('/api/invoices/:id', authenticateToken, requireAdmin, (req: any, res: any) => {
+4369-    try {
+4370-      db.prepare('DELETE FROM invoices WHERE id = ?').run(req.params.id);
+4371-      res.json({ success: true });
+4372-    } catch (e: any) {
+4373-      
+4374-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4375:      res.status(500).json({ error: 'Internal Server Error' });
+4376-    }
+4377-  });
+4378-
+4379-  app.post('/api/invoices/bulk-delete', authenticateToken, requireAdmin, (req: any, res: any) => {
+4380-    const { invoiceIds } = req.body;
+--
+4390-      db.prepare(`DELETE FROM invoices WHERE id IN (${placeholders})`).run(...invoiceIds);
+4391-      res.json({ success: true });
+4392-    } catch (e: any) {
+4393-      
+4394-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4395:      res.status(500).json({ error: 'Internal Server Error' });
+4396-    }
+4397-  });
+4398-
+4399-  app.get('/api/invoices/pending-shifts', authenticateToken, requireAdmin, (req: any, res: any) => {
+4400-    try {
+--
+4412-      const shifts = db.prepare(query).all();
+4413-      res.json(shifts);
+4414-    } catch (e: any) {
+4415-      
+4416-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4417:      res.status(500).json({ error: 'Internal Server Error' });
+4418-    }
+4419-  });
+4420-
+4421-  app.post('/api/invoices/:shiftId/generate', authenticateToken, requireAdmin, (req: any, res: any) => {
+4422-    const shiftId = parseInt(req.params.shiftId);
+--
+4430-        res.status(400).json({ error: 'Failed to generate invoice. Shift might not have cost-bearing items.' });
+4431-      }
+4432-    } catch (e: any) {
+4433-      
+4434-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4435:      res.status(500).json({ error: 'Internal Server Error' });
+4436-    }
+4437-  });
+4438-
+4439-  const buildInvoicePdf = (doc: any, data: any) => {
+4440-    const { shift, settingsMap, invoiceNum, invoiceDate, lineItems, subtotal } = data;
+--
+4631-
+4632-    } catch (e: any) {
+4633-      console.error('Failed to generate dynamic invoice:', e);
+4634-      if (!res.headersSent) 
+4635-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4636:      res.status(500).json({ error: 'Internal Server Error' });
+4637-    }
+4638-  });
+4639-
+4640-  app.get('/api/invoices/:shiftId/download', authenticateToken, (req: any, res: any) => {
+4641-    const shiftId = parseInt(req.params.shiftId);
+--
+4658-
+4659-    } catch (e: any) {
+4660-      console.error('Failed to generate dynamic invoice:', e);
+4661-      if (!res.headersSent) 
+4662-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4663:      res.status(500).json({ error: 'Internal Server Error' });
+4664-    }
+4665-  });
+4666-
+4667-  app.get('/api/invoices/download/:filename', authenticateToken, (req: any, res: any) => {
+4668-    const filename = req.params.filename;
+--
+4690-      const quotes = db.prepare(query).all();
+4691-      res.json(quotes);
+4692-    } catch (e: any) {
+4693-      
+4694-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4695:      res.status(500).json({ error: 'Internal Server Error' });
+4696-    }
+4697-  });
+4698-
+4699-  app.post('/api/quotes', authenticateToken, requireAdmin, (req: any, res: any) => {
+4700-    const { clientId, activityName, date, services, importantNotes } = req.body;
+--
+4751-
+4752-      res.json({ success: true });
+4753-    } catch(e: any) {
+4754-      
+4755-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4756:      res.status(500).json({ error: 'Internal Server Error' });
+4757-    }
+4758-  });
+4759-
+4760-  app.delete('/api/quotes/:id', authenticateToken, requireAdmin, (req: any, res: any) => {
+4761-    try {
+4762-      db.prepare('DELETE FROM quotes WHERE id = ?').run(req.params.id);
+4763-      res.json({ success: true });
+4764-    } catch (e: any) {
+4765-      
+4766-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4767:      res.status(500).json({ error: 'Internal Server Error' });
+4768-    }
+4769-  });
+4770-
+4771-  app.post('/api/quotes/bulk-delete', authenticateToken, requireAdmin, (req: any, res: any) => {
+4772-    const { quoteIds } = req.body;
+--
+4776-      db.prepare(`DELETE FROM quotes WHERE id IN (${placeholders})`).run(...quoteIds);
+4777-      res.json({ success: true });
+4778-    } catch (e: any) {
+4779-      
+4780-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4781:      res.status(500).json({ error: 'Internal Server Error' });
+4782-    }
+4783-  });
+4784-
+4785-  app.get('/api/quotes/:id/download', authenticateToken, (req: any, res: any) => {
+4786-    try {
+--
+4993-
+4994-    } catch (e: any) {
+4995-      console.error("DEBUG QUOTE DOWNLOAD ERROR:", e);
+4996-      
+4997-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+4998:      res.status(500).json({ error: 'Internal Server Error' });
+4999-    }
+5000-  });
+5001-
+5002-  app.get('/api/files', authenticateToken, (req: any, res: any) => {
+5003-    let query = `
+--
+5034-      
+5035-      res.json({ success: true, id: info.lastInsertRowid, date_issued: dateIssued, date_expires: dateExpires });
+5036-    } catch (e: any) {
+5037-      
+5038-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+5039:      res.status(500).json({ error: 'Internal Server Error' });
+5040-    }
+5041-  });
+5042-
+5043-  app.put('/api/files/:id', authenticateToken, (req: any, res: any) => {
+5044-    const { id } = req.params;
+--
+5061-      db.prepare(`DELETE FROM notifications WHERE user_id = ? AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON')`).run(file.uploaded_by);
+5062-
+5063-      res.json({ success: true });
+5064-    } catch (e: any) {
+5065-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+5066:      res.status(500).json({ error: 'Internal Server Error' });
+5067-    }
+5068-  });
+5069-
+5070-  app.get('/api/files/download/:id', authenticateToken, (req: any, res: any) => {
+5071-    const { id } = req.params;
+--
+5085-        res.status(404).json({ error: 'File on disk not found' });
+5086-      }
+5087-    } catch (e: any) {
+5088-      
+5089-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+5090:      res.status(500).json({ error: 'Internal Server Error' });
+5091-    }
+5092-  });
+5093-
+5094-  app.delete('/api/files/:id', authenticateToken, (req: any, res: any) => {
+5095-    const { id } = req.params;
+--
+5105-      db.prepare('DELETE FROM files WHERE id = ?').run(id);
+5106-      res.json({ success: true });
+5107-    } catch (e: any) {
+5108-      
+5109-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+5110:      res.status(500).json({ error: 'Internal Server Error' });
+5111-    }
+5112-  });
+5113-
+5114-  // Cleanup endpoint
+5115-  app.post('/api/cleanup', authenticateToken, requireAdmin, (req, res) => {
+--
+5119-      })();
+5120-      res.json({ message: 'Cleanup complete: Removed orphaned or deleted/cancelled shifts.' });
+5121-    } catch (e: any) {
+5122-      
+5123-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+5124:      res.status(500).json({ error: 'Internal Server Error' });
+5125-    }
+5126-  });
+5127-
+5128-
+5129-  // Compliance & Audit Endpoints
+--
+5203-      const shifts = db.prepare(query).all(...params) as any[];
+5204-
+5205-      res.json(shifts);
+5206-    } catch (e) {
+5207-      console.error(e);
+5208:      res.status(500).json({ error: 'Failed to fetch matrix' });
+5209-    }
+5210-  });
+5211-
+5212-  app.get('/api/compliance/export/evidence', authenticateToken, requireAdmin, async (req: any, res: any) => {
+5213-    try {
+--
+5432-      await workbook.xlsx.write(res);
+5433-      res.end();
+5434-      
+5435-    } catch (e) {
+5436-      console.error(e);
+5437:      if(!res.headersSent) res.status(500).json({ error: 'Failed to export Excel' });
+5438-    }
+5439-  });
+5440-
+5441-  app.get('/api/compliance/evidence', authenticateToken, requireAdmin, (req: any, res: any) => {
+5442-    const { clientId, startDate, endDate } = req.query;
+--
+5718-      });
+5719-      doc.end();
+5720-    } catch (e) {
+5721-      console.error(e);
+5722-      if (!res.headersSent) {
+5723:         res.status(500).json({ error: 'Internal Server Error' });
+5724-      }
+5725-    }
+5726-  });
+5727-  // Staff logbook export
+5728-  app.get('/api/compliance/staff-logbook', authenticateToken, requireAdmin, (req: any, res: any) => {
+--
+6005-
+6006-      doc.end();
+6007-    } catch (e) {
+6008-      console.error(e);
+6009-      if (!res.headersSent) {
+6010:         res.status(500).json({ error: 'Internal Server Error' });
+6011-      }
+6012-    }
+6013-  });
+6014-  // Compliance logging
+6015-  app.get('/api/compliance/logs', authenticateToken, requireAdmin, (req: any, res: any) => {
+--
+6022-         LIMIT 100
+6023-       `).all();
+6024-       res.json(logs);
+6025-    } catch (e: any) {
+6026-      logger.error('API Error', Object.assign({}, e, { message: e?.message, stack: e?.stack }));
+6027:      res.status(500).json({ error: 'Internal Server Error' });
+6028-    }
+6029-  });
+6030-
+6031-  
+6032-  // --- Database Backups & Management ---
+--
+6161-          fs.unlinkSync(tempFilepath);
+6162-        }
+6163-      });
+6164-    } catch (e: any) {
+6165-      logger.error('API Error', Object.assign({}, e, { message: e?.message, stack: e?.stack }));
+6166:      res.status(500).json({ error: 'Internal Server Error' });
+6167-    }
+6168-  });
+6169-
+6170-  app.get('/api/admin/database/list', authenticateToken, requireAdmin, (req: any, res: any) => {
+6171-    try {
+--
+6180-      });
+6181-      list.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+6182-      res.json(list);
+6183-    } catch (e: any) {
+6184-      logger.error('API Error', Object.assign({}, e, { message: e?.message, stack: e?.stack }));
+6185:      res.status(500).json({ error: 'Internal Server Error' });
+6186-    }
+6187-  });
+6188-
+6189-  app.get('/api/admin/database/download-backup/:filename', authenticateToken, requireAdmin, (req: any, res: any) => {
+6190-    try {
+--
+6195-      } else {
+6196-        res.status(404).json({ error: 'File not found' });
+6197-      }
+6198-    } catch (e: any) {
+6199-      logger.error('API Error', Object.assign({}, e, { message: e?.message, stack: e?.stack }));
+6200:      res.status(500).json({ error: 'Internal Server Error' });
+6201-    }
+6202-  });
+6203-
+6204- 
+6205- // --- Vite Middleware or Static Files ---
+--
+6241-    if (err instanceof SyntaxError && 'body' in err) {
+6242-      return res.status(400).json({ error: 'Invalid payload format' });
+6243-    }
+6244-
+6245-    // Mask the stack trace in the response
+6246:    res.status(500).json({ error: 'Internal Server Error. Please contact support.' });
+6247-  });
+6248-
+6249-  app.listen(PORT, '0.0.0.0', () => {
+6250-    console.log(`Server running on http://localhost:${PORT}`);
+6251-  });

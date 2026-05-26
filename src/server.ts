@@ -6242,8 +6242,12 @@ async function startServer() {
       return res.status(400).json({ error: 'Invalid payload format' });
     }
 
-    // Mask the stack trace in the response
-    res.status(500).json({ error: 'Internal Server Error. Please contact support.' });
+    // Production-Grade Stability: Mask 500-level stack traces from the frontend
+    const isDev = process.env.NODE_ENV === 'development';
+    res.status(500).json({ 
+      error: 'Internal Server Error. Please contact support.',
+      ...(isDev ? { detail: err.message, stack: err.stack } : {}) 
+    });
   });
 
   app.listen(PORT, '0.0.0.0', () => {
