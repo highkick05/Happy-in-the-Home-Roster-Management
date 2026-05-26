@@ -657,7 +657,10 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                   <>
                     <div className="bg-indigo-900/10 border border-brand-teal/20 rounded-2xl p-5 shadow-sm">
                       <div className="flex justify-between items-center">
-                        <label className="text-sm md:text-base text-indigo-200 font-semibold pr-4 leading-snug">Did you transport the client?</label>
+                        <div className="flex flex-col pr-4">
+                          <label className="text-sm md:text-base text-indigo-200 font-semibold leading-snug">Did you transport the client?</label>
+                          <span className="text-xs text-indigo-300/70 mt-1">(Will update or replace any previous transport entered)</span>
+                        </div>
                         <button 
                           onClick={() => setDidTransport(!didTransport)}
                           className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${didTransport ? 'bg-indigo-500' : 'bg-zinc-700'}`}
