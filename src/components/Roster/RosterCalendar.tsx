@@ -786,7 +786,7 @@ export default function RosterCalendar() {
         >
           <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-6 w-full">
             {/* Time Column */}
-            <div className="text-zinc-300 font-mono text-sm md:text-lg whitespace-nowrap min-w-[140px] flex items-center gap-1.5">
+            <div className="text-zinc-300 font-mono text-sm md:text-lg whitespace-nowrap shrink-0 min-w-[160px] flex items-center gap-1.5">
               {event.isRespiteWrapper ? (
                 <span className="text-brand-teal/80 font-medium text-[12px] bg-indigo-500/5 px-2 py-0.5 rounded border border-brand-teal/10">Multi-day</span>
               ) : (
@@ -797,7 +797,7 @@ export default function RosterCalendar() {
             </div>
             
             {/* Wording in middle, unmodified logic but formatted horizontally */}
-            <div className="flex flex-col gap-1 w-full flex-grow truncate px-0 md:px-4 md:border-l md:border-zinc-700/50">
+            <div className="flex flex-col gap-1 flex-1 min-w-0 px-0 md:px-4 md:border-l md:border-zinc-700/50">
               <span className="font-bold text-zinc-100 text-base md:text-xl leading-tight tracking-wide truncate">
                 {event.title}
               </span>
