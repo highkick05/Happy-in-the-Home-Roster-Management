@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useDropzone } from 'react-dropzone';
 import { Folder, File, UploadCloud, Trash2, Download, ChevronRight, CornerLeftUp } from 'lucide-react';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 export default function FilesView() {
   const { token, user } = useAuth();
@@ -13,11 +14,14 @@ export default function FilesView() {
     return `/Staff${name ? `/${name}` : ''}`;
   }, [user]);
 
-  const [currentPath, setCurrentPath] = useState(staffRoot);
+  const [currentPath, setCurrentPath] = useLocalStorage('files_current_path', staffRoot);
 
   useEffect(() => {
-    setCurrentPath(staffRoot);
-  }, [staffRoot]);
+    // Ensure the user doesn't end up in an unauthorized path from previous sessions
+    if (user?.role !== 'ADMIN' && !currentPath.startsWith(staffRoot)) {
+      setCurrentPath(staffRoot);
+    }
+  }, [staffRoot, currentPath, setCurrentPath, user?.role]);
 
   useEffect(() => {
     fetchFiles();
