@@ -687,7 +687,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                     value={s.rateOverride || ''}
                                     onChange={(e) => updateServiceEntry(index, 'rateOverride', e.target.value)}
                                     placeholder={`$${rate.toFixed(2)}`}
-                                    className="w-16 bg-[#09090b] border border-white/[0.08] rounded px-1.5 py-1 text-sm text-zinc-200 focus:border-brand-teal outline-none"
+                                    className="w-24 bg-[#09090b] border border-white/[0.08] rounded px-1.5 py-1 text-sm text-zinc-200 focus:border-brand-teal outline-none"
                                   />
                                 </div>
                                 {unit !== 'Hour' && (

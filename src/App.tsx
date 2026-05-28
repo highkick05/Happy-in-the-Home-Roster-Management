@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import RosterCalendar from './components/Roster/RosterCalendar';
-import { Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit } from 'lucide-react';
+import { Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './components/Auth/Login';
 import ForgotPasswordView from './components/Auth/ForgotPasswordView';
@@ -60,6 +60,22 @@ function Layout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = React.useState(() => window.innerWidth < 1024);
   const userManuallyToggled = React.useRef(false);
+
+  const handleHardReset = async () => {
+    if (window.confirm("Are you sure? This will log you out, clear all offline data, and refresh the app to ensure you have the latest updates.")) {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (let registration of registrations) await registration.unregister();
+      }
+      localStorage.clear();
+      sessionStorage.clear();
+      if ('caches' in window) {
+        const cacheKeys = await caches.keys();
+        for (const key of cacheKeys) await caches.delete(key);
+      }
+      window.location.reload(); 
+    }
+  };
 
   React.useEffect(() => {
     const handleResize = () => {
@@ -277,9 +293,14 @@ function Layout({ children }: { children: React.ReactNode }) {
           {!isDesktopSidebarCollapsed || isMobileMenuOpen ? (
             <div className="mb-2 px-3 text-xs text-brand-teal font-medium tracking-wide truncate">Logged in as {user?.firstName}</div>
           ) : null}
-          <NavLink to="/profile" className={getNavClasses} title="Profile">
-            <User className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Profile' : ''}
-          </NavLink>
+          <div className="flex items-center space-x-2">
+            <NavLink to="/profile" className={(props: {isActive: boolean}) => `${getNavClasses(props)} flex-1`} title="Profile">
+              <User className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Profile' : ''}
+            </NavLink>
+            <button onClick={handleHardReset} title="Sync / Reset App Cache" className={`flex-shrink-0 flex items-center justify-center h-[38px] w-[38px] bg-brand-navy hover:bg-brand-bg text-[#8B949E] hover:text-[#E6EDF3] border border-transparent hover:border-border-subtle rounded-lg transition-colors`}>
+              <RefreshCw className="w-5 h-5" />
+            </button>
+          </div>
           <button onClick={logout} className={`flex items-center px-4 py-2.5 text-[13px] font-semibold tracking-wide transition-all duration-200 rounded-lg text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.03] [&>svg]:text-[#8B949E] hover:[&>svg]:text-white w-full ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? "justify-center !px-2" : ""}`} title="Sign Out">
             <LogOut className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Sign Out' : ''}
           </button>

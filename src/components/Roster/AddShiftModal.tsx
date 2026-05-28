@@ -517,7 +517,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                                 value={s.rateOverride || ''}
                                 onChange={(e) => updateServiceEntry(index, 'rateOverride', e.target.value)}
                                 placeholder={`$${rate.toFixed(2)}`}
-                                className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
+                                className="w-24 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
                               />
                             </div>
                             <div>
