@@ -520,6 +520,10 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                             if (rates[region] !== undefined) finalRate = Number(rates[region]);
                          } catch(e) {}
                       }
+
+                      if (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== '') {
+                        finalRate = Number(sd.rateOverride);
+                      }
                       
                       const qty = (sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== '') ? Number(sd.qtyOverride) : (unit === 'Hour' ? hours : 1);
                       const subtotal = qty * finalRate;
