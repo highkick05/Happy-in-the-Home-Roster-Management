@@ -30,7 +30,7 @@ import NotificationsDropdown from './components/NotificationsDropdown';
 import WallboardView from './components/Kiosk/WallboardView';
 
 
-function DateTimer({ onOpenQuickLinks }: { onOpenQuickLinks: () => void }) {
+function DateTimer() {
   const [now, setNow] = React.useState(new Date());
   
   React.useEffect(() => {
@@ -48,17 +48,7 @@ function DateTimer({ onOpenQuickLinks }: { onOpenQuickLinks: () => void }) {
   return (
     <div className="flex items-center space-x-6">
       <div className="text-2xl font-sans uppercase tracking-wide text-white">{dayName}</div>
-      <div className="flex items-center space-x-3">
-        <button 
-          onClick={onOpenQuickLinks}
-          title="Quick Links & Portals"
-          className="relative p-2 text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.04] rounded-lg transition-all flex items-center justify-center border border-transparent hover:border-border-subtle"
-        >
-          <Bookmark className="w-5 h-5 text-brand-teal" />
-          <span className="absolute top-1 right-1 flex h-1.5 w-1.5 rounded-full bg-brand-green animate-pulse" />
-        </button>
-        <NotificationsDropdown />
-      </div>
+      <NotificationsDropdown />
       <div className="flex flex-col text-right">
         <div className="text-xs font-semibold uppercase text-[#8B949E] tracking-wider">{dateStr}</div>
         <div className="text-xs font-sans text-brand-teal uppercase mt-0.5 tracking-wider">{timeStr}</div>
@@ -69,7 +59,6 @@ function DateTimer({ onOpenQuickLinks }: { onOpenQuickLinks: () => void }) {
 
 function Layout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-  const [isQuickLinksOpen, setIsQuickLinksOpen] = React.useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = React.useState(() => window.innerWidth < 1024);
   const userManuallyToggled = React.useRef(false);
 
@@ -212,13 +201,6 @@ function Layout({ children }: { children: React.ReactNode }) {
         </div>
         <div className="flex items-center space-x-1">
           <button 
-            onClick={() => setIsQuickLinksOpen(true)}
-            title="Quick Links & Portals"
-            className="p-2 text-[#8B949E] hover:text-white transition-colors rounded-md hover:bg-white/[0.04]"
-          >
-            <Bookmark className="w-5 h-5 text-brand-teal" />
-          </button>
-          <button 
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="p-2 text-[#8B949E] hover:text-white transition-colors rounded-md hover:bg-white/[0.04]"
           >
@@ -331,15 +313,15 @@ function Layout({ children }: { children: React.ReactNode }) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden print:overflow-visible bg-brand-bg print:bg-white relative">
         <header className="h-12 shrink-0 border-b border-border-subtle bg-brand-bg/80 text-[#E6EDF3] backdrop-blur-md flex items-center justify-end px-4 md:px-8 hidden md:flex sticky top-0 z-[100] print:hidden">
-          <DateTimer onOpenQuickLinks={() => setIsQuickLinksOpen(true)} />
+          <DateTimer />
         </header>
         <main className={`flex-1 overflow-auto print:overflow-visible ${location.pathname.includes('/roster') || location.pathname.includes('/kiosk') ? 'p-0 md:pt-4 md:pb-6 md:px-8' : 'p-4 md:pt-4 md:pb-6 md:px-8'} print:p-0 relative`}>
           {children}
         </main>
       </div>
 
-      {/* Quick Links Floating Drawer */}
-      <QuickLinksDrawer isOpen={isQuickLinksOpen} onClose={() => setIsQuickLinksOpen(false)} />
+      {/* Quick Links Floating Hover Tab */}
+      <QuickLinksDrawer />
     </div>
   );
 }
