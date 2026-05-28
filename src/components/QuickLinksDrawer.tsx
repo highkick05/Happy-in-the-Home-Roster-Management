@@ -45,7 +45,7 @@ function BrandLogoIcon({ domain, customIconUrl, fallbackIcon, color, alt }: Bran
 
   return (
     <div 
-      className="w-11 h-11 bg-[#0E0E10]/95 rounded-xl flex items-center justify-center p-2 border border-[#30363D] group-hover:scale-105 group-hover:border-[currentColor] transition-all duration-300 relative shadow-sm overflow-hidden"
+      className="w-12 h-12 flex items-center justify-center relative rounded-xl overflow-hidden transition-all duration-300"
       style={{ color: color }}
     >
       {logoUrl && !imgError ? (
@@ -59,10 +59,10 @@ function BrandLogoIcon({ domain, customIconUrl, fallbackIcon, color, alt }: Bran
               setImgError(true);
             }
           }}
-          className="w-full h-full object-contain filter group-hover:brightness-110 transition-all rounded-md"
+          className="w-full h-full object-contain filter group-hover:brightness-110 group-hover:scale-110 transition-all rounded-lg"
         />
       ) : (
-        <div style={{ color }} className="transform group-hover:rotate-6 transition-transform duration-300">
+        <div style={{ color }} className="transform group-hover:rotate-6 transition-transform duration-300 w-7 h-7 flex items-center justify-center">
           {fallbackIcon}
         </div>
       )}
@@ -206,19 +206,19 @@ export default function QuickLinksDrawer() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: '100%', opacity: 0.8 }}
               transition={{ type: 'spring', damping: 26, stiffness: 240 }}
-              className="bg-brand-navy/95 border border-[#30363D] shadow-2xl rounded-l-2xl p-3 mr-0 select-none backdrop-blur-md flex flex-col items-center space-y-2.5 relative"
+              className="bg-brand-navy/95 border border-[#30363D] shadow-2xl rounded-l-xl p-1.5 mr-0 select-none backdrop-blur-md flex flex-col items-center space-y-2 relative"
             >
               {/* Top Handle Arrow indicator */}
               <button 
                 onClick={() => setIsOpen(false)}
-                className="p-1 hover:bg-white/[0.04] rounded-md text-[#8B949E] hover:text-[#E6EDF3] transition-colors mb-1 shadow-sm border border-transparent hover:border-border-subtle/40"
+                className="p-1 hover:bg-white/[0.04] rounded-md text-[#8B949E] hover:text-[#E6EDF3] transition-colors mb-0.5 shadow-sm border border-transparent"
                 title="Collapse Panel"
               >
                 <ChevronLeft className="w-4 h-4 rotate-180" />
               </button>
 
               {/* Vertical Stack of Square Brand Icon Tiles */}
-              <div className="flex flex-col space-y-2.5">
+              <div className="flex flex-col space-y-2">
                 {links.map((link) => (
                   <a
                     key={link.id}
@@ -228,17 +228,17 @@ export default function QuickLinksDrawer() {
                     referrerPolicy="no-referrer"
                     onMouseEnter={() => setActiveTooltipId(link.id)}
                     onMouseLeave={() => setActiveTooltipId(null)}
-                    className="group relative flex items-center justify-center p-1.5 cursor-pointer bg-[#0E0E10]/80 hover:bg-[#161B22] border border-[#21262D] rounded-2xl select-none aspect-square transition-all duration-300 transform hover:-translate-x-1"
+                    className="group relative flex items-center justify-center p-1 cursor-pointer bg-transparent hover:bg-[#161B22]/80 rounded-xl select-none aspect-square transition-all duration-300 transform hover:-translate-x-1"
                   >
                     {/* Radial Glow Overlay */}
                     <div 
-                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-2xl" 
+                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-xl" 
                       style={{
                         background: `radial-gradient(circle at center, ${link.glowColor} 0%, transparent 75%)`
                       }}
                     />
 
-                    {/* Highly polished Brand Logo Icon without labels */}
+                    {/* Highly polished Brand Logo Icon without labels or borders */}
                     <BrandLogoIcon 
                       domain={link.domain}
                       customIconUrl={link.customIconUrl}
@@ -248,8 +248,8 @@ export default function QuickLinksDrawer() {
                     />
 
                     {/* Small External Link corner badge */}
-                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                      <ExternalLink className="w-2.5 h-2.5 text-[#58A6FF]/70" />
+                    <div className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <ExternalLink className="w-2 h-2 text-[#58A6FF]/70" />
                     </div>
 
                     {/* Sleek Tooltip popout towards left side */}
@@ -260,7 +260,7 @@ export default function QuickLinksDrawer() {
                           animate={{ opacity: 1, x: -6 }}
                           exit={{ opacity: 0, x: -10 }}
                           transition={{ duration: 0.15 }}
-                          className="absolute right-full top-1/2 -translate-y-1/2 bg-brand-bg border border-[#30363D] text-white shadow-xl rounded-xl py-2 px-3 mr-2 w-48 text-left uppercase tracking-wider select-none pointer-events-none "
+                          className="absolute right-full top-1/2 -translate-y-1/2 bg-brand-bg border border-[#30363D] text-white shadow-xl rounded-xl py-2 px-3 mr-2 w-48 text-left uppercase tracking-wider select-none pointer-events-none z-[300]"
                         >
                           <p className="font-bold text-xs text-[#58A6FF] leading-snug">{link.shortTitle}</p>
                           <p className="text-[10px] text-[#8B949E] lowercase mt-0.5 font-sans leading-relaxed tracking-normal">{link.description}</p>
@@ -275,7 +275,7 @@ export default function QuickLinksDrawer() {
 
               {/* Status Indicator pulse on bottom */}
               <div className="pt-2 border-t border-border-subtle/40 flex items-center justify-center w-full">
-                <span className="flex h-2 w-2 rounded-full bg-brand-green relative">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-brand-green relative">
                   <span className="absolute inline-flex h-full w-full rounded-full bg-brand-green opacity-75 animate-ping" />
                 </span>
               </div>
