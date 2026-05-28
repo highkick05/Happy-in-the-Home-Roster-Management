@@ -358,6 +358,7 @@ async function startServer() {
       const shift = db.prepare(`
         SELECT s.*, 
                c.first_name as c_fn, c.last_name as c_ln, c.ndis_number, c.address as c_address, c.provider_id,
+               c.funding_type as client_funding_type,
                srv.rate, srv.name as service_name, srv.code as service_code, srv.type as service_type, srv.unit as service_unit,
                u.first_name as s_fn, u.last_name as s_ln,
                p.company_name as plan_manager_name, p.email as plan_manager_email, p.address as plan_manager_address
@@ -370,6 +371,11 @@ async function startServer() {
       `).get(shiftId) as any;
 
       if (!shift) return null;
+      
+      // Fallback for older merged shifts that might lack funding_type
+      if (!shift.funding_type) {
+         shift.funding_type = shift.client_funding_type || 'NDIS';
+      }
 
       const settingsRows = db.prepare('SELECT key, value FROM settings').all() as any[];
       const settingsMap: Record<string, any> = {};
@@ -4278,12 +4284,16 @@ async function startServer() {
       // and we append their individual services sequentially.
 
       db.transaction(() => {
+        // Fetch client funding type
+        const clientRow = db.prepare('SELECT funding_type FROM clients WHERE id = ?').get(clientId) as any;
+        const clientFundingType = clientRow?.funding_type || 'NDIS';
+
         // Create new shift representing the merged invoice
         const mainServiceId = allMergedServices[0].serviceId;
         const shiftResult = db.prepare(`
-          INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, status, notes)
-          VALUES (?, ?, ?, ?, ?, ?, 'COMPLETED', ?)
-        `).run(clientId, mainStaffId, mainServiceId, JSON.stringify(allMergedServices), latestStartTime, latestEndTime, 'Merged Invoice Summary');
+          INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, status, notes, funding_type)
+          VALUES (?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?)
+        `).run(clientId, mainStaffId, mainServiceId, JSON.stringify(allMergedServices), latestStartTime, latestEndTime, 'Merged Invoice Summary', clientFundingType);
         
         const newShiftId = shiftResult.lastInsertRowid as number;
         

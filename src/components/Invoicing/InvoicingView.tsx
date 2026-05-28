@@ -454,7 +454,11 @@ export default function InvoicingView() {
     if (selectedInvoiceIds.length === filteredInvoices.length && filteredInvoices.length > 0) {
       setSelectedInvoiceIds([]);
     } else {
-      setSelectedInvoiceIds(filteredInvoices.map(i => i.id));
+      if (filteredInvoices.length > 0) {
+         const firstClient = filteredInvoices[0].client_id;
+         const sameClientInvoices = filteredInvoices.filter(i => i.client_id === firstClient);
+         setSelectedInvoiceIds(sameClientInvoices.map(i => i.id));
+      }
     }
   };
 
@@ -732,14 +736,20 @@ export default function InvoicingView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
-                {filteredInvoices.map(i => (
-                  <tr key={i.id} className={`transition-colors group ${i.status === 'SENT' ? 'bg-brand-green/10 hover:bg-brand-green/20' : 'hover:bg-brand-bg/50'}`}>
+                {filteredInvoices.map(i => {
+                  const isChecked = selectedInvoiceIds.includes(i.id);
+                  const firstSelected = invoices.find(inv => inv.id === selectedInvoiceIds[0]);
+                  const isDisabled = firstSelected && firstSelected.client_id !== i.client_id && !isChecked;
+                  
+                  return (
+                  <tr key={i.id} className={`transition-colors group ${i.status === 'SENT' ? 'bg-brand-green/10 hover:bg-brand-green/20' : 'hover:bg-brand-bg/50'} ${isDisabled ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-4 whitespace-nowrap">
                       <input
                         type="checkbox"
+                        disabled={!!isDisabled}
                         onClick={(e) => e.stopPropagation()}
-                        className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-navy"
-                        checked={selectedInvoiceIds.includes(i.id)}
+                        className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-navy disabled:opacity-50"
+                        checked={isChecked}
                         onChange={() => toggleInvoiceSelection(i.id)}
                       />
                     </td>
@@ -849,7 +859,8 @@ export default function InvoicingView() {
                       )}
                     </td>
                   </tr>
-                ))}
+                );
+                })}
                 {filteredInvoices.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-4 py-12 text-center text-sm">
