@@ -4,9 +4,11 @@ import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Activity, Calendar, Download, RefreshCw } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 
+import { useLocalStorage } from '../../hooks/useLocalStorage';
+
 export default function StaffActivityReport() {
   const { token, user } = useAuth();
-  const [dateRange, setDateRange] = useState({
+  const [dateRange, setDateRange] = useLocalStorage('activity_date_range', {
     start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     end: format(endOfMonth(new Date()), 'yyyy-MM-dd')
   });
@@ -18,7 +20,7 @@ export default function StaffActivityReport() {
   } | null>(null);
 
   const [staffList, setStaffList] = useState<any[]>([]);
-  const [staffFilter, setStaffFilter] = useState('');
+  const [staffFilter, setStaffFilter] = useLocalStorage('activity_staff_filter', '');
 
   const fetchStaff = async () => {
     try {
@@ -57,6 +59,15 @@ export default function StaffActivityReport() {
   useEffect(() => {
     fetchStaff();
   }, []);
+
+  useEffect(() => {
+    if (staffList.length > 0 && staffFilter) {
+      const recordExists = staffList.some((s: any) => s.id.toString() === staffFilter);
+      if (!recordExists) {
+        setStaffFilter('');
+      }
+    }
+  }, [staffList, staffFilter, setStaffFilter]);
 
   useEffect(() => {
     fetchReport();

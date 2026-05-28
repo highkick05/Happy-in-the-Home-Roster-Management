@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 const ONBOARDING_STEP_LABELS: Record<string, string> = {
   ndis_screening: 'NDIS Screen Check (NWSC)',
@@ -25,13 +26,13 @@ const ONBOARDING_STEP_LABELS: Record<string, string> = {
 
 export default function ComplianceDashboard() {
   const { token, user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'evidence' | 'staff' | 'mandatory_documents'>('evidence');
+  const [activeTab, setActiveTab] = useLocalStorage<'evidence' | 'staff' | 'mandatory_documents'>('compliance_active_tab', 'evidence');
   
   // States for Evidence Pack (Clients)
   const [clients, setClients] = useState<any[]>([]);
-  const [selectedClient, setSelectedClient] = useState('');
-  const [clientStartDate, setClientStartDate] = useState('');
-  const [clientEndDate, setClientEndDate] = useState('');
+  const [selectedClient, setSelectedClient] = useLocalStorage('compliance_selected_client', '');
+  const [clientStartDate, setClientStartDate] = useLocalStorage('compliance_client_start', '');
+  const [clientEndDate, setClientEndDate] = useLocalStorage('compliance_client_end', '');
   
   const [evidenceMatrix, setEvidenceMatrix] = useState<any[]>([]);
   const [loadingMatrix, setLoadingMatrix] = useState(false);
@@ -40,9 +41,9 @@ export default function ComplianceDashboard() {
 
   // States for Staff Logbook
   const [staffList, setStaffList] = useState<any[]>([]);
-  const [selectedStaff, setSelectedStaff] = useState('');
-  const [staffStartDate, setStaffStartDate] = useState('');
-  const [staffEndDate, setStaffEndDate] = useState('');
+  const [selectedStaff, setSelectedStaff] = useLocalStorage('compliance_selected_staff', '');
+  const [staffStartDate, setStaffStartDate] = useLocalStorage('compliance_staff_start', '');
+  const [staffEndDate, setStaffEndDate] = useLocalStorage('compliance_staff_end', '');
   const [staffMatrix, setStaffMatrix] = useState<any[]>([]);
   const [loadingStaffMatrix, setLoadingStaffMatrix] = useState(false);
   const [staffExportError, setStaffExportError] = useState<string | null>(null);
@@ -62,6 +63,22 @@ export default function ComplianceDashboard() {
     fetchStaff();
     fetchLogs();
   }, [token]);
+
+  useEffect(() => {
+    if (clients.length > 0 && selectedClient) {
+      if (!clients.some(c => c.id.toString() === selectedClient)) {
+        setSelectedClient('');
+      }
+    }
+  }, [clients, selectedClient, setSelectedClient]);
+
+  useEffect(() => {
+    if (staffList.length > 0 && selectedStaff) {
+      if (!staffList.some(s => s.id.toString() === selectedStaff)) {
+        setSelectedStaff('');
+      }
+    }
+  }, [staffList, selectedStaff, setSelectedStaff]);
 
   useEffect(() => {
     fetchMatrix();
