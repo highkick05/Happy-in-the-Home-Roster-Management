@@ -369,7 +369,7 @@ import CustomTimePicker from '../ui/CustomTimePicker';
 export default function InvoicingView() {
   const { token, user } = useAuth();
   const [tab, setTab] = useState<'invoices' | 'quotes'>('invoices');
-  const [subTab, setSubTab] = useState<'active' | 'paid'>('active');
+  const [subTab, setSubTab] = useState<'active' | 'sent' | 'paid'>('active');
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewShiftId, setPreviewShiftId] = useState<number | null>(null);
@@ -394,7 +394,11 @@ export default function InvoicingView() {
   const clientsList = Array.from(new Set(invoices.map(i => `${i.client_first_name} ${i.client_last_name}`.trim()))).filter(Boolean).sort();
   const staffList = Array.from(new Set(invoices.map(i => `${i.staff_first_name || ''} ${i.staff_last_name || ''}`.trim()))).filter(Boolean).sort();
 
-  const currentTabInvoices = invoices.filter(i => subTab === 'paid' ? i.status === 'PAID' : i.status !== 'PAID');
+  const currentTabInvoices = invoices.filter(i => {
+    if (subTab === 'paid') return i.status === 'PAID';
+    if (subTab === 'sent') return i.status === 'SENT';
+    return i.status !== 'PAID' && i.status !== 'SENT' && i.status !== 'VOID';
+  });
 
   const filteredInvoices = currentTabInvoices.filter(i => {
     const clientName = `${i.client_first_name} ${i.client_last_name}`.trim();
@@ -648,6 +652,12 @@ export default function InvoicingView() {
               Active
             </button>
             <button
+              onClick={() => setSubTab('sent')}
+              className={`px-4 py-1.5 rounded-sm text-sm font-medium transition-colors ${subTab === 'sent' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+            >
+              Sent
+            </button>
+            <button
               onClick={() => setSubTab('paid')}
               className={`px-4 py-1.5 rounded-sm text-sm font-medium transition-colors ${subTab === 'paid' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
             >
@@ -783,7 +793,7 @@ export default function InvoicingView() {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right flex items-center justify-end space-x-1">
-                       {subTab === 'active' && i.status !== 'SENT' && (
+                       {subTab === 'active' && (
                          <button
                            title="Lock & Send"
                            onClick={() => handleUpdateStatus(i.id, 'SENT')}
@@ -792,14 +802,23 @@ export default function InvoicingView() {
                            <Send className="w-4 h-4" />
                          </button>
                        )}
-                       {subTab === 'active' && i.status === 'SENT' && (
-                         <button
-                           title="Mark as Paid"
-                           onClick={() => handleUpdateStatus(i.id, 'PAID')}
-                           className="p-1.5 text-zinc-400 hover:text-brand-green hover:bg-brand-green/10 rounded-md transition-colors"
-                         >
-                           <DollarSign className="w-4 h-4" />
-                         </button>
+                       {subTab === 'sent' && (
+                         <>
+                           <button
+                             title="Mark as Paid"
+                             onClick={() => handleUpdateStatus(i.id, 'PAID')}
+                             className="p-1.5 text-zinc-400 hover:text-brand-green hover:bg-brand-green/10 rounded-md transition-colors"
+                           >
+                             <DollarSign className="w-4 h-4" />
+                           </button>
+                           <button
+                             title="Mark as Active"
+                             onClick={() => handleUpdateStatus(i.id, 'GENERATED')}
+                             className="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-amber-400/10 rounded-md transition-colors"
+                           >
+                             <Undo className="w-4 h-4" />
+                           </button>
+                         </>
                        )}
                        {subTab === 'paid' && (
                          <>
