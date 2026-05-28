@@ -76,65 +76,67 @@ export default function ClientDashboardView() {
 
   return (
     <div className="w-full flex flex-col h-full space-y-6">
-      <div className="flex items-center space-x-4 mb-2 shrink-0">
-        <button 
-          onClick={() => navigate('/clients')}
-          className="p-2 -ml-2 text-[#8B949E] hover:text-white transition-colors rounded-full hover:bg-white/[0.04]"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div>
-          <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight flex items-center">
-            {client.first_name} {client.last_name}
-            {client.status === 'SUSPENDED' && (
-              <span className="ml-3 px-2 py-0.5 rounded text-xs font-semibold tracking-wider bg-red-500/10 border border-red-500/20 text-red-400 uppercase">
-                Suspended
-              </span>
-            )}
-          </h2>
-          <div className="text-[#8B949E] text-sm mt-1">
-            Joined {new Date(client.created_at).toLocaleDateString()}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2 shrink-0">
+        <div className="flex items-center space-x-4">
+          <button 
+            onClick={() => navigate('/clients')}
+            className="p-2 -ml-2 text-[#8B949E] hover:text-white transition-colors rounded-full hover:bg-white/[0.04]"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight flex items-center">
+              {client.first_name} {client.last_name}
+              {client.status === 'SUSPENDED' && (
+                <span className="ml-3 px-2 py-0.5 rounded text-xs font-semibold tracking-wider bg-red-500/10 border border-red-500/20 text-red-400 uppercase">
+                  Suspended
+                </span>
+              )}
+            </h2>
+            <div className="text-[#8B949E] text-sm mt-1">
+              Joined {new Date(client.created_at).toLocaleDateString()}
+            </div>
           </div>
+        </div>
+
+        {/* Top Right Action Shortcuts */}
+        <div className="flex items-center space-x-3">
+          <button 
+            type="button"
+            onClick={() => setIsEditModalOpen(true)}
+            className="px-3 py-1.5 min-h-[36px] bg-brand-navy border border-border-subtle hover:border-brand-teal text-[#8B949E] hover:text-[#E6EDF3] rounded-lg text-xs font-semibold flex items-center space-x-2 transition-colors duration-155 shadow-sm"
+            title="Edit Profile"
+          >
+            <Edit2 className="w-4 h-4 text-brand-teal" />
+            <span>Edit Profile</span>
+          </button>
+          
+          <button 
+            type="button"
+            onClick={() => setIsRosterModalOpen(true)}
+            className="px-3 py-1.5 min-h-[36px] bg-brand-navy border border-border-subtle hover:border-brand-blue text-[#8B949E] hover:text-[#E6EDF3] rounded-lg text-xs font-semibold flex items-center space-x-2 transition-colors duration-155 shadow-sm"
+            title="Roster Builder"
+          >
+            <Calendar className="w-4 h-4 text-brand-blue" />
+            <span>Roster Builder</span>
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => navigate('/progress-notes?client=' + client.id)}
+            className="px-3 py-1.5 min-h-[36px] bg-brand-navy border border-border-subtle hover:border-purple-400 text-[#8B949E] hover:text-[#E6EDF3] rounded-lg text-xs font-semibold flex items-center space-x-2 transition-colors duration-155 shadow-sm"
+            title="Progress Notes"
+          >
+            <ClipboardEdit className="w-4 h-4 text-purple-400" />
+            <span>Progress Notes</span>
+          </button>
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-6 flex-1 min-h-0">
+      <div className="flex-1 min-h-0">
         
-        {/* Left Side Menu Shortcuts */}
-        <div className="w-full md:w-20 shrink-0 flex flex-row md:flex-col gap-3 overflow-x-auto md:overflow-visible">
-           <button 
-             type="button"
-             onClick={() => setIsEditModalOpen(true)}
-             className="w-16 h-16 shrink-0 rounded-xl bg-brand-navy border border-border-subtle hover:bg-brand-bg/50 hover:border-brand-teal transition-colors flex flex-col items-center justify-center text-[#8B949E] hover:text-brand-teal group shadow-sm"
-             title="Edit Profile"
-           >
-             <Edit2 className="w-5 h-5 mb-1.5" />
-             <span className="text-[10px] font-medium leading-none text-center px-1">Edit</span>
-           </button>
-           
-           <button 
-             type="button"
-             onClick={() => setIsRosterModalOpen(true)}
-             className="w-16 h-16 shrink-0 rounded-xl bg-brand-navy border border-border-subtle hover:bg-brand-bg/50 hover:border-brand-blue transition-colors flex flex-col items-center justify-center text-[#8B949E] hover:text-brand-blue group shadow-sm"
-             title="Roster Builder"
-           >
-             <Calendar className="w-5 h-5 mb-1.5" />
-             <span className="text-[10px] font-medium leading-none text-center px-1">Roster Builder</span>
-           </button>
-
-           <button 
-             type="button"
-             onClick={() => navigate('/progress-notes?client=' + client.id)}
-             className="w-16 h-16 shrink-0 rounded-xl bg-brand-navy border border-border-subtle hover:bg-brand-bg/50 hover:border-purple-400 transition-colors flex flex-col items-center justify-center text-[#8B949E] hover:text-purple-400 group shadow-sm"
-             title="Progress Notes"
-           >
-             <ClipboardEdit className="w-5 h-5 mb-1.5" />
-             <span className="text-[10px] font-medium leading-none text-center px-1">Notes</span>
-           </button>
-        </div>
-
         {/* Main Content Grid */}
-        <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-6 overflow-y-auto pr-2 pb-6">
+        <div className="h-full grid grid-cols-1 xl:grid-cols-3 gap-6 overflow-y-auto pr-2 pb-6">
           
           {/* Left Col - Overview */}
           <div className="xl:col-span-1 space-y-6">
