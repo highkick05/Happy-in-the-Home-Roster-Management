@@ -9,7 +9,6 @@ import {
   Terminal, 
   PenTool, 
   Server,
-  X,
   ExternalLink
 } from 'lucide-react';
 
@@ -18,39 +17,54 @@ interface QuickLink {
   title: string;
   shortTitle: string;
   url: string;
-  domain: string;
+  domain?: string;
+  customIconUrl?: string;
   color: string;
   glowColor: string;
   icon: React.ReactNode;
   description: string;
 }
 
-function BrandLogoIcon({ domain, fallbackIcon, color, alt }: { domain: string; fallbackIcon: React.ReactNode; color: string; alt: string }) {
+interface BrandLogoIconProps {
+  domain?: string;
+  customIconUrl?: string;
+  fallbackIcon: React.ReactNode;
+  color: string;
+  alt: string;
+}
+
+function BrandLogoIcon({ domain, customIconUrl, fallbackIcon, color, alt }: BrandLogoIconProps) {
   const [imgError, setImgError] = React.useState(false);
-  // Using high-resolution Google Favicon Service
-  const logoUrl = `https://www.google.com/s2/favicons?sz=128&domain=${domain}`;
+  
+  // Choose highest fidelity image source
+  const logoUrl = customIconUrl 
+    ? customIconUrl 
+    : domain 
+      ? `https://www.google.com/s2/favicons?sz=128&domain=${domain}`
+      : null;
 
   return (
     <div 
-      className="w-11 h-11 bg-brand-bg/90 rounded-xl flex items-center justify-center p-2.5 border border-[#30363D] group-hover:scale-105 group-hover:border-[currentColor] transition-all duration-300 relative shadow-sm overflow-hidden"
+      className="w-11 h-11 bg-[#0E0E10]/95 rounded-xl flex items-center justify-center p-2 border border-[#30363D] group-hover:scale-105 group-hover:border-[currentColor] transition-all duration-300 relative shadow-sm overflow-hidden"
       style={{ color: color }}
     >
-      {!imgError ? (
+      {logoUrl && !imgError ? (
         <img
           src={logoUrl}
           alt={alt}
           referrerPolicy="no-referrer"
-          onError={() => setImgError(true)} // If error, render fallback
+          onError={() => setImgError(true)}
           onLoad={(e) => {
-            // Some fallback responses from s2 favicon are 1x1 pixels or generic. If natural width is too small, we might fallback.
-            if (e.currentTarget.naturalWidth < 16) {
+            if (e.currentTarget.naturalWidth < 12) {
               setImgError(true);
             }
           }}
-          className="w-full h-full object-contain filter group-hover:brightness-110 transition-all"
+          className="w-full h-full object-contain filter group-hover:brightness-110 transition-all rounded-md"
         />
       ) : (
-        fallbackIcon
+        <div style={{ color }} className="transform group-hover:rotate-6 transition-transform duration-300">
+          {fallbackIcon}
+        </div>
       )}
     </div>
   );
@@ -59,6 +73,7 @@ function BrandLogoIcon({ domain, fallbackIcon, color, alt }: { domain: string; f
 export default function QuickLinksDrawer() {
   const [isOpen, setIsOpen] = React.useState(false);
   const closeTimeout = React.useRef<NodeJS.Timeout | null>(null);
+  const [activeTooltipId, setActiveTooltipId] = React.useState<string | null>(null);
 
   const handleMouseEnter = () => {
     if (closeTimeout.current) {
@@ -71,7 +86,7 @@ export default function QuickLinksDrawer() {
   const handleMouseLeave = () => {
     closeTimeout.current = setTimeout(() => {
       setIsOpen(false);
-    }, 400); // 400ms comfortable buffer to prevent accidental closes
+    }, 350); // Comfortable buffer to prevent accidental closes
   };
 
   const handleToggle = () => {
@@ -92,20 +107,20 @@ export default function QuickLinksDrawer() {
       url: 'https://go.xero.com/app/!S5BQ2/homepage',
       domain: 'xero.com',
       color: '#00b7e5',
-      glowColor: 'rgba(0,183,229,0.15)',
-      icon: <DollarSign className="w-5 h-5 text-[#00b7e5]" />,
-      description: 'Ledger & invoicing'
+      glowColor: 'rgba(0,183,229,0.25)',
+      icon: <DollarSign className="w-5 h-5" />,
+      description: 'Ledger, invoices & payroll'
     },
     {
       id: 'hubdoc',
-      title: 'Hubdoc Login',
+      title: 'Hubdoc Extraction',
       shortTitle: 'Hubdoc',
       url: 'https://app.hubdoc.com/login',
       domain: 'hubdoc.com',
       color: '#f27a24',
-      glowColor: 'rgba(242,122,36,0.15)',
-      icon: <Receipt className="w-5 h-5 text-[#f27a24]" />,
-      description: 'Extract operational cost bills'
+      glowColor: 'rgba(242,122,36,0.25)',
+      icon: <Receipt className="w-5 h-5" />,
+      description: 'Receipts & document scans'
     },
     {
       id: 'gemini',
@@ -114,9 +129,9 @@ export default function QuickLinksDrawer() {
       url: 'https://gemini.google.com/app/5626c960cbeb3707',
       domain: 'gemini.google.com',
       color: '#8a5cf5',
-      glowColor: 'rgba(138,92,245,0.15)',
-      icon: <Sparkles className="w-5 h-5 text-[#8a5cf5]" />,
-      description: 'Dialogue model assistant'
+      glowColor: 'rgba(138,92,245,0.25)',
+      icon: <Sparkles className="w-5 h-5" />,
+      description: 'Conversational assistant'
     },
     {
       id: 'aistudio',
@@ -125,9 +140,9 @@ export default function QuickLinksDrawer() {
       url: 'https://aistudio.google.com/apps/87e3cdb9-264a-49c1-97bb-8bab763826d7?showAssistant=true&showCode=true',
       domain: 'aistudio.google.com',
       color: '#0ea5e9',
-      glowColor: 'rgba(14,165,233,0.15)',
-      icon: <Terminal className="w-5 h-5 text-[#0ea5e9]" />,
-      description: 'Model API playground'
+      glowColor: 'rgba(14,165,233,0.25)',
+      icon: <Terminal className="w-5 h-5" />,
+      description: 'Developer workspace'
     },
     {
       id: 'docuseal',
@@ -136,51 +151,43 @@ export default function QuickLinksDrawer() {
       url: 'https://sign.happyinthehome.org/',
       domain: 'docuseal.co',
       color: '#3b82f6',
-      glowColor: 'rgba(59,130,246,0.15)',
-      icon: <PenTool className="w-5 h-5 text-[#3b82f6]" />,
-      description: 'Workflow document signatures'
+      glowColor: 'rgba(59,130,246,0.25)',
+      icon: <PenTool className="w-5 h-5" />,
+      description: 'Electronic signatures & templates'
     },
     {
       id: 'nginx-proxy',
       title: 'Nginx Proxy Manager',
       shortTitle: 'Nginx Proxy',
       url: 'https://nginx.happyinthehome.org/',
-      domain: 'nginx.com',
+      customIconUrl: 'https://raw.githubusercontent.com/NginxProxyManager/nginx-proxy-manager/master/frontend/src/images/logo.png',
       color: '#10b981',
-      glowColor: 'rgba(16,185,129,0.15)',
-      icon: <Server className="w-5 h-5 text-[#10b981]" />,
-      description: 'SSL & sub-domain config'
+      glowColor: 'rgba(16,185,129,0.25)',
+      icon: <Server className="w-5 h-5" />,
+      description: 'Secure SSL & routing config'
     }
   ];
 
   return (
     <div 
       id="quick-links-hover-panel"
-      className="fixed right-0 top-1/2 -translate-y-1/2 z-[200] print:hidden flex items-center justify-end"
+      className="fixed right-0 top-1/2 -translate-y-1/2 z-[200] print:hidden flex items-center justify-end h-auto"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Backdrop for click outside block on mobile only */}
-      {isOpen && (
-        <div 
-          onClick={() => setIsOpen(false)} 
-          className="fixed inset-0 bg-transparent z-[199] cursor-default"
-        />
-      )}
-
       <div className="relative flex items-center justify-end z-[201]">
         <AnimatePresence mode="wait">
           {!isOpen ? (
             /* Floating Sidemenu Hover Tab Handle */
             <motion.div
               key="tab-handle"
-              initial={{ x: 10, opacity: 0 }}
+              initial={{ x: 8, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 10, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              exit={{ x: 8, opacity: 0 }}
+              transition={{ duration: 0.15 }}
               onClick={handleToggle}
-              className="flex flex-col items-center justify-center bg-brand-navy border border-r-0 border-border-subtle hover:border-brand-teal rounded-l-xl py-4 px-1.5 shadow-xl select-none w-7 cursor-pointer hover:w-8 transition-all group"
-              title="Quick references (Hover to reveal)"
+              className="flex flex-col items-center justify-center bg-brand-navy border border-r-0 border-border-subtle hover:border-brand-teal rounded-l-xl py-4 px-1.5 shadow-2xl select-none w-7 cursor-pointer hover:w-8 transition-all group"
+              title="Quick links (Hover to open)"
             >
               <Bookmark className="w-4 h-4 text-brand-teal group-hover:scale-110 transition-transform" />
               <div 
@@ -189,39 +196,29 @@ export default function QuickLinksDrawer() {
               >
                 Portals
               </div>
-              <span className="mt-2 flex h-1.5 w-1.5 shrink-0 rounded-full bg-brand-green group-hover:bg-brand-teal transition-colors" />
+              <span className="mt-2.5 flex h-1.5 w-1.5 shrink-0 rounded-full bg-brand-green group-hover:bg-brand-teal transition-colors" />
             </motion.div>
           ) : (
-            /* Hover Slide out Panel */
+            /* Hover Slide out Column Dock */
             <motion.div
-              key="hover-panel"
-              initial={{ x: '100%', opacity: 0.5 }}
+              key="hover-column-dock"
+              initial={{ x: '100%', opacity: 0.8 }}
               animate={{ x: 0, opacity: 1 }}
-              exit={{ x: '100%', opacity: 0.5 }}
-              transition={{ type: 'spring', damping: 24, stiffness: 220 }}
-              className="w-[330px] bg-brand-navy/95 border border-[#30363D] shadow-2xl rounded-l-2xl p-4 mr-0 select-none backdrop-blur-md relative"
+              exit={{ x: '100%', opacity: 0.8 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 240 }}
+              className="bg-brand-navy/95 border border-[#30363D] shadow-2xl rounded-l-2xl p-3 mr-0 select-none backdrop-blur-md flex flex-col items-center space-y-2.5 relative"
             >
-              {/* Card Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-border-subtle/40 mb-3">
-                <div className="flex items-center space-x-2">
-                  <span className="p-1.5 bg-brand-teal/10 text-brand-teal rounded-lg">
-                    <Bookmark className="w-4 h-4" />
-                  </span>
-                  <div>
-                    <h3 className="font-bold text-xs uppercase tracking-wider text-white">External Portals</h3>
-                    <p className="text-[10px] text-[#8B949E]">Quick links (opens in a new tab)</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setIsOpen(false)}
-                  className="p-1 hover:bg-white/[0.04] rounded-md text-[#8B949E] hover:text-[#E6EDF3] transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              {/* Top Handle Arrow indicator */}
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="p-1 hover:bg-white/[0.04] rounded-md text-[#8B949E] hover:text-[#E6EDF3] transition-colors mb-1 shadow-sm border border-transparent hover:border-border-subtle/40"
+                title="Collapse Panel"
+              >
+                <ChevronLeft className="w-4 h-4 rotate-180" />
+              </button>
 
-              {/* Grid of Square Tiles */}
-              <div className="grid grid-cols-2 gap-2.5">
+              {/* Vertical Stack of Square Brand Icon Tiles */}
+              <div className="flex flex-col space-y-2.5">
                 {links.map((link) => (
                   <a
                     key={link.id}
@@ -229,47 +226,58 @@ export default function QuickLinksDrawer() {
                     target="_blank"
                     rel="noreferrer"
                     referrerPolicy="no-referrer"
-                    className="group relative flex flex-col items-center justify-center p-3 cursor-pointer bg-[#0E0E10]/80 hover:bg-brand-navy-light/40 border border-[#21262D] rounded-xl text-center select-none aspect-square transition-all duration-300 transform hover:-translate-y-0.5 overflow-hidden"
-                    style={{
-                      '--hover-glow': link.glowColor
-                    } as React.CSSProperties}
+                    onMouseEnter={() => setActiveTooltipId(link.id)}
+                    onMouseLeave={() => setActiveTooltipId(null)}
+                    className="group relative flex items-center justify-center p-1.5 cursor-pointer bg-[#0E0E10]/80 hover:bg-[#161B22] border border-[#21262D] rounded-2xl select-none aspect-square transition-all duration-300 transform hover:-translate-x-1"
                   >
-                    {/* Shadow / Glow Overlay */}
+                    {/* Radial Glow Overlay */}
                     <div 
-                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" 
+                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none rounded-2xl" 
                       style={{
-                        background: `radial-gradient(circle at center, ${link.glowColor} 0%, transparent 70%)`
+                        background: `radial-gradient(circle at center, ${link.glowColor} 0%, transparent 75%)`
                       }}
                     />
 
-                    {/* External Link tiny marker */}
-                    <ExternalLink className="absolute top-2 right-2 w-3 h-3 text-[#484F58] opacity-0 group-hover:opacity-100 group-hover:text-[#8B949E]/70 transition-all duration-200" />
-
-                    {/* Styled Brand Logo Icon from API container */}
+                    {/* Highly polished Brand Logo Icon without labels */}
                     <BrandLogoIcon 
                       domain={link.domain}
+                      customIconUrl={link.customIconUrl}
                       fallbackIcon={link.icon}
                       color={link.color}
                       alt={link.title}
                     />
 
-                    {/* Service Name */}
-                    <span className="font-bold text-xs text-[#E6EDF3] group-hover:text-white tracking-wide transition-colors mt-2">
-                      {link.shortTitle}
-                    </span>
+                    {/* Small External Link corner badge */}
+                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <ExternalLink className="w-2.5 h-2.5 text-[#58A6FF]/70" />
+                    </div>
 
-                    {/* Short Description */}
-                    <span className="text-[9px] text-[#8B949E] mt-1 leading-normal px-1 line-clamp-2 max-w-full">
-                      {link.description}
-                    </span>
+                    {/* Sleek Tooltip popout towards left side */}
+                    <AnimatePresence>
+                      {activeTooltipId === link.id && (
+                        <motion.div
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: -6 }}
+                          exit={{ opacity: 0, x: -10 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute right-full top-1/2 -translate-y-1/2 bg-brand-bg border border-[#30363D] text-white shadow-xl rounded-xl py-2 px-3 mr-2 w-48 text-left uppercase tracking-wider select-none pointer-events-none "
+                        >
+                          <p className="font-bold text-xs text-[#58A6FF] leading-snug">{link.shortTitle}</p>
+                          <p className="text-[10px] text-[#8B949E] lowercase mt-0.5 font-sans leading-relaxed tracking-normal">{link.description}</p>
+                          {/* Triangle Arrow */}
+                          <div className="absolute left-full top-1/2 -translate-y-1/2 -ml-px w-0 h-0 border-t-4 border-t-transparent border-b-4 border-b-transparent border-l-4 border-l-brand-bg" />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </a>
                 ))}
               </div>
 
-              {/* Drawer compact status footer */}
-              <div className="flex items-center justify-between text-[9px] text-[#58A6FF]/70 mt-3 pt-2 border-t border-border-subtle/30 font-mono tracking-wider">
-                <span>Happy Job Portals</span>
-                <span>v2.6.4</span>
+              {/* Status Indicator pulse on bottom */}
+              <div className="pt-2 border-t border-border-subtle/40 flex items-center justify-center w-full">
+                <span className="flex h-2 w-2 rounded-full bg-brand-green relative">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-brand-green opacity-75 animate-ping" />
+                </span>
               </div>
             </motion.div>
           )}
