@@ -19,7 +19,7 @@ export default function NotificationsDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { token } = useAuth();
+  const { token, settings } = useAuth();
   const navigate = useNavigate();
 
   const fetchNotifications = async () => {
@@ -140,7 +140,12 @@ export default function NotificationsDropdown() {
                   </div>
                   <p className="text-xs text-[#8B949E] line-clamp-2">{notif.message}</p>
                   <div className="text-[10px] text-[#8B949E]/70 mt-2">
-                    {new Date(notif.created_at).toLocaleString()}
+                    {new Intl.DateTimeFormat(undefined, { 
+                      timeZone: settings?.timezone || 'Australia/Perth',
+                      year: 'numeric', month: 'numeric', day: 'numeric',
+                      hour: 'numeric', minute: 'numeric', second: 'numeric',
+                      hour12: true
+                    }).format(new Date(notif.created_at))}
                   </div>
                 </div>
               ))
