@@ -781,8 +781,8 @@ async function startServer() {
       zeroRespiteInvoices.forEach(inv => {
         try {
           const data = getInvoiceDataForRespiteBooking(inv.respite_booking_id);
-          if (data && data.subtotal !== undefined) {
-            db.prepare('UPDATE invoices SET amount = ? WHERE id = ?').run(data.subtotal, inv.id);
+          if (data && data.totalAmount !== undefined) {
+            db.prepare('UPDATE invoices SET amount = ? WHERE id = ?').run(data.totalAmount, inv.id);
           }
         } catch (err) {
           console.error(`Failed to update respite invoice ${inv.id}:`, err);
@@ -4127,6 +4127,24 @@ async function startServer() {
     `;
     const invoices = db.prepare(query).all() as any[];
     
+    // Auto-sync stale amounts from past generated invoices
+    for (const inv of invoices) {
+       let currentCalculatedAmount = inv.amount;
+       if (inv.shift_id) {
+          const data = getInvoiceDataForShift(inv.shift_id);
+          if (data && data.totalAmount !== undefined) currentCalculatedAmount = data.totalAmount;
+       } else if (inv.respite_booking_id) {
+          const data = getInvoiceDataForRespiteBooking(inv.respite_booking_id);
+          if (data && data.totalAmount !== undefined) currentCalculatedAmount = data.totalAmount;
+       }
+       if (currentCalculatedAmount !== inv.amount) {
+          try {
+              db.prepare('UPDATE invoices SET amount = ? WHERE id = ?').run(currentCalculatedAmount, inv.id);
+              inv.amount = currentCalculatedAmount;
+          } catch(e) { }
+       }
+    }
+
     // For respite bookings, staff_first_name and staff_last_name are null because there's no s.staff_id.
     // Fetch unique staff members from child shifts.
     for (const inv of invoices) {
