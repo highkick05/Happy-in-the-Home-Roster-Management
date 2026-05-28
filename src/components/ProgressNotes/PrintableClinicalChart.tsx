@@ -114,8 +114,8 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                 backgroundPosition: 'top left'
               }}
             >
-               {/* Vertical Separator line at 120px */}
-               <div className="absolute top-0 bottom-0 left-[120px] w-[1px] bg-black z-0"></div>
+               {/* Vertical Separator line at 119px to align with header's right border */}
+               <div className="absolute top-0 bottom-0 left-[119px] w-[1px] bg-black z-0"></div>
                
                {/* Entries mapping */}
                <div className="relative z-10 w-full h-full flex flex-col items-start justify-start pt-0 pb-0">
