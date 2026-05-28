@@ -8,8 +8,7 @@ import {
   Sparkles, 
   Terminal, 
   PenTool, 
-  Server,
-  ExternalLink
+  Server
 } from 'lucide-react';
 
 interface QuickLink {
@@ -247,11 +246,6 @@ export default function QuickLinksDrawer() {
                       alt={link.title}
                     />
 
-                    {/* Small External Link corner badge */}
-                    <div className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                      <ExternalLink className="w-2 h-2 text-[#58A6FF]/70" />
-                    </div>
-
                     {/* Sleek Tooltip popout towards left side */}
                     <AnimatePresence>
                       {activeTooltipId === link.id && (
@@ -271,13 +265,6 @@ export default function QuickLinksDrawer() {
                     </AnimatePresence>
                   </a>
                 ))}
-              </div>
-
-              {/* Status Indicator pulse on bottom */}
-              <div className="pt-2 border-t border-border-subtle/40 flex items-center justify-center w-full">
-                <span className="flex h-1.5 w-1.5 rounded-full bg-brand-green relative">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-brand-green opacity-75 animate-ping" />
-                </span>
               </div>
             </motion.div>
           )}
