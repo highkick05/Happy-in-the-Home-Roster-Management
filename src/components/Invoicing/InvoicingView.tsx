@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { FileText, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
 import { RefreshCw, Search } from 'lucide-react';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | null, onGenerated: () => void, onClose: () => void }) {
   const [formData, setFormData] = useState({
@@ -382,14 +383,14 @@ import CustomTimePicker from '../ui/CustomTimePicker';
 
 export default function InvoicingView() {
   const { token, user } = useAuth();
-  const [tab, setTab] = useState<'invoices' | 'quotes'>('invoices');
-  const [subTab, setSubTab] = useState<'active' | 'sent' | 'paid'>('active');
+  const [tab, setTab] = useLocalStorage<'invoices' | 'quotes'>('invoicing_tab', 'invoices');
+  const [subTab, setSubTab] = useLocalStorage<'active' | 'sent' | 'paid'>('invoicing_sub_tab', 'active');
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewShiftId, setPreviewShiftId] = useState<number | null>(null);
 
-  const [filterClient, setFilterClient] = useState('');
-  const [filterStaff, setFilterStaff] = useState('');
+  const [filterClient, setFilterClient] = useLocalStorage('invoicing_filter_client', '');
+  const [filterStaff, setFilterStaff] = useLocalStorage('invoicing_filter_staff', '');
   const [showManualModal, setShowManualModal] = useState(false);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<number[]>([]);
   const [isMerging, setIsMerging] = useState(false);
@@ -398,6 +399,9 @@ export default function InvoicingView() {
     fetchInvoices();
   }, []);
 
+  const clientsList = Array.from(new Set(invoices.map(i => `${i.client_first_name} ${i.client_last_name}`.trim()))).filter(Boolean).sort();
+  const staffList = Array.from(new Set(invoices.map(i => `${i.staff_first_name || ''} ${i.staff_last_name || ''}`.trim()))).filter(Boolean).sort();
+
   const getFallbackInvoiceNumber = (i: any) => {
     if (i.invoice_number) return i.invoice_number;
     const date = new Date(i.start_time || i.created_at);
@@ -405,8 +409,16 @@ export default function InvoicingView() {
     return `INV-${yyyymmdd}-${String(i.shift_id || i.id).padStart(4, '0')}`;
   };
 
-  const clientsList = Array.from(new Set(invoices.map(i => `${i.client_first_name} ${i.client_last_name}`.trim()))).filter(Boolean).sort();
-  const staffList = Array.from(new Set(invoices.map(i => `${i.staff_first_name || ''} ${i.staff_last_name || ''}`.trim()))).filter(Boolean).sort();
+  useEffect(() => {
+    if (!loading && invoices.length > 0) {
+      if (filterClient && !clientsList.includes(filterClient)) {
+        setFilterClient('');
+      }
+      if (filterStaff && !staffList.includes(filterStaff)) {
+        setFilterStaff('');
+      }
+    }
+  }, [invoices, loading, filterClient, filterStaff, clientsList, staffList, setFilterClient, setFilterStaff]);
 
   const currentTabInvoices = invoices.filter(i => {
     if (subTab === 'paid') return i.status === 'PAID';

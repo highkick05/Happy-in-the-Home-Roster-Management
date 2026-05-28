@@ -3,10 +3,11 @@ import { useAuth } from '../../context/AuthContext';
 import { Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink } from 'lucide-react';
 import DatabaseSettings from './DatabaseSettings';
 import TestingChecklist from './TestingChecklist';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 export default function SettingsView() {
   const { token, user, updateSettings } = useAuth();
-  const [activeTab, setActiveTab] = useState<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'DATABASE' | 'TESTING'>('GENERAL');
+  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'DATABASE' | 'TESTING'>('settings_active_tab', 'GENERAL');
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [generalLoading, setGeneralLoading] = useState(false);

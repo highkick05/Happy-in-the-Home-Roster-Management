@@ -6,6 +6,7 @@ import StaffModal from './StaffModal';
 import ClientModal from './ClientModal';
 import ClientRosterModal from './ClientRosterModal';
 import ProviderModal from './ProviderModal';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 'CLIENTS' | 'PROVIDERS' }) {
   const { token, user } = useAuth();
@@ -20,8 +21,8 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [clients, setClients] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [clientTab, setClientTab] = useState<'NDIS' | 'HOME_CARE'>('NDIS');
-  const [staffTab, setStaffTab] = useState<'STAFF' | 'ADMIN'>('STAFF');
+  const [clientTab, setClientTab] = useLocalStorage<'NDIS' | 'HOME_CARE'>('directory_client_tab', 'NDIS');
+  const [staffTab, setStaffTab] = useLocalStorage<'STAFF' | 'ADMIN'>('directory_staff_tab', 'STAFF');
 
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Printer, Calendar, User, Search, RefreshCw, FileText } from 'lucide-react';
 import PrintableClinicalChart from './PrintableClinicalChart';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 export default function ProgressNotesView() {
   const { token, user } = useAuth();
@@ -12,13 +13,22 @@ export default function ProgressNotesView() {
   const defaultStartDate = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   const [clients, setClients] = useState<any[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string>(searchParams.get('client') || '');
+  const [selectedClientId, setSelectedClientId] = useLocalStorage<string>('progress_notes_client_id', searchParams.get('client') || '');
   const [startDate, setStartDate] = useState<string>(defaultStartDate);
   const [endDate, setEndDate] = useState<string>(defaultEndDate);
   
   const [notes, setNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedClientData, setSelectedClientData] = useState<any>(null);
+
+  useEffect(() => {
+    if (!loading && clients.length > 0 && selectedClientId) {
+      const recordExists = clients.some(client => client.id.toString() === selectedClientId);
+      if (!recordExists) {
+        setSelectedClientId(clients[0]?.id?.toString() || ''); // Failsafe trigger
+      }
+    }
+  }, [clients, loading, selectedClientId, setSelectedClientId]);
 
   useEffect(() => {
     fetchClients(selectedClientId);

@@ -13,6 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
 import AddRespiteBookingModal from './AddRespiteBookingModal';
 import ShiftDetailsModal from './ShiftDetailsModal';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
 import ActiveShiftModal from './ActiveShiftModal';
 
 const locales = {
@@ -79,9 +80,7 @@ export default function RosterCalendar() {
   }, [settings?.invoicingStartDay]);
 
   const [events, setEvents] = useState<ShiftEvent[]>([]);
-  const [view, setView] = useState<View>(() => {
-    return Views.WEEK;
-  });
+  const [view, setView] = useLocalStorage<View>('roster_view', Views.WEEK);
 
   const [isMobileOrTablet, setIsMobileOrTablet] = useState(
     typeof window !== 'undefined' ? window.innerWidth < 1024 : false
@@ -135,14 +134,32 @@ export default function RosterCalendar() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   // Filters and Grouping
-  const [clientFilter, setClientFilter] = useState<string>('');
-  const [staffFilter, setStaffFilter] = useState<string>('');
-  const [groupBy, setGroupBy] = useState<'STAFF' | 'CLIENT'>('STAFF');
+  const [clientFilter, setClientFilter] = useLocalStorage<string>('roster_client_filter', '');
+  const [staffFilter, setStaffFilter] = useLocalStorage<string>('roster_staff_filter', '');
+  const [groupBy, setGroupBy] = useLocalStorage<'STAFF' | 'CLIENT'>('roster_group_by', 'STAFF');
   const [isFullScreen, setIsFullScreen] = useState(false);
 
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string | number>>(new Set());
   const longPressHandledRef = React.useRef(0);
+
+  useEffect(() => {
+    if (clientList.length > 0 && clientFilter) {
+      const recordExists = clientList.some((c: any) => c.id.toString() === clientFilter);
+      if (!recordExists) {
+        setClientFilter('');
+      }
+    }
+  }, [clientList, clientFilter, setClientFilter]);
+
+  useEffect(() => {
+    if (staffList.length > 0 && staffFilter) {
+      const recordExists = staffList.some((s: any) => s.id.toString() === staffFilter);
+      if (!recordExists) {
+        setStaffFilter('');
+      }
+    }
+  }, [staffList, staffFilter, setStaffFilter]);
 
   const [holidays, setHolidays] = useState<any[]>([]);
 
