@@ -357,7 +357,7 @@ async function startServer() {
   const getInvoiceDataForShift = (shiftId: number) => {
       const shift = db.prepare(`
         SELECT s.*, 
-               c.first_name as c_fn, c.last_name as c_ln, c.ndis_number, c.address as c_address, c.provider_id,
+               c.first_name as c_fn, c.last_name as c_ln, c.ndis_number, c.my_aged_care_id, c.address as c_address, c.provider_id,
                c.funding_type as client_funding_type,
                srv.rate, srv.name as service_name, srv.code as service_code, srv.type as service_type, srv.unit as service_unit,
                u.first_name as s_fn, u.last_name as s_ln,
@@ -558,7 +558,7 @@ async function startServer() {
 
   const getInvoiceDataForRespiteBooking = (respiteBookingId: number) => {
       const rb = db.prepare(`
-        SELECT rb.*, c.first_name as c_fn, c.last_name as c_ln, c.ndis_number, c.address as c_address, c.provider_id, c.funding_type,
+        SELECT rb.*, c.first_name as c_fn, c.last_name as c_ln, c.ndis_number, c.my_aged_care_id, c.address as c_address, c.provider_id, c.funding_type,
                p.company_name as plan_manager_name, p.email as plan_manager_email, p.address as plan_manager_address
         FROM respite_bookings rb
         LEFT JOIN clients c ON rb.client_id = c.id
@@ -1366,6 +1366,15 @@ async function startServer() {
       res.json(dailyQuote);
     } catch (err) {
       res.json({ quote: 'Innovation distinguishes between a leader and a follower.', author: 'Steve Jobs' });
+    }
+  });
+
+  app.get('/api/test-clients', (req, res) => {
+    try {
+      const clients = db.prepare('SELECT id, first_name, last_name, ndis_number, my_aged_care_id, funding_type FROM clients').all();
+      res.json(clients);
+    } catch(e: any) {
+      res.status(500).json({error: e.message});
     }
   });
 
@@ -4524,7 +4533,8 @@ async function startServer() {
     doc.fontSize(10).font('Helvetica-Bold').fillColor('black').text('BILL TO', 300, topY);
     doc.fontSize(12).text(`${shift.c_fn} ${shift.c_ln}`, 300, topY + 15);
     const ndisLabel = isHomeCare ? 'Home Care ID:' : 'NDIS No:';
-    doc.fontSize(10).font('Helvetica').text(`${ndisLabel} ${shift.ndis_number || 'N/A'}`, 300, topY + 30);
+    const ndisVal = shift.my_aged_care_id || shift.ndis_number;
+    doc.fontSize(10).font('Helvetica').text(`${ndisLabel} ${ndisVal || 'N/A'}`, 300, topY + 30);
     
     doc.moveDown(1);
     const pmY = doc.y;

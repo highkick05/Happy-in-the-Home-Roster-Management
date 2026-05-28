@@ -61,6 +61,7 @@ export default function InvoicePreviewModal({ shiftId, onClose }: Props) {
   const billToName = shift.plan_manager_name || `${shift.c_fn} ${shift.c_ln}`;
   
   const ndisLabel = isHomeCare ? 'Home Care ID:' : 'NDIS No:';
+  const ndisVal = shift.my_aged_care_id || shift.ndis_number;
   
   let bankName = 'National Australia Bank';
   let bankAccName = 'Happy in the Home';
@@ -122,7 +123,7 @@ export default function InvoicePreviewModal({ shiftId, onClose }: Props) {
              <div className="flex flex-col text-sm border-t-2 border-brand-teal pt-4 relative">
                 <div className="font-bold text-xs uppercase tracking-widest text-brand-teal mb-2">Bill To</div>
                 <div className="font-semibold text-lg leading-tight mb-1">{shift.c_fn} {shift.c_ln}</div>
-                <div className="text-zinc-600 mt-1">{ndisLabel} {shift.ndis_number || 'N/A'}</div>
+                <div className="text-zinc-600 mt-1">{ndisLabel} {ndisVal || 'N/A'}</div>
                 
                 <div className="mt-4 pt-3 border-t border-zinc-200/60">
                    <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">{billToLabel}</div>

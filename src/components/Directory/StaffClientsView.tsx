@@ -281,7 +281,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                     <td className="px-4 py-2 sm:py-2.5">
                       <div className="text-[#E6EDF3] font-mono text-xs">
                         {c.funding_type === 'HOME_CARE' ? (
-                          <>Home Care ID: {c.my_aged_care_id || 'N/A'}</>
+                          <>Home Care ID: {c.my_aged_care_id || c.ndis_number || 'N/A'}</>
                         ) : (
                           <>NDIS Number: {c.ndis_number || 'N/A'}</>
                         )}

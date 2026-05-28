@@ -146,7 +146,7 @@ export default function ClientDashboardView() {
                 <div>
                   <h3 className="text-lg font-medium text-[#E6EDF3]">{client.first_name} {client.last_name}</h3>
                   <div className="text-sm font-mono text-brand-teal mt-1">
-                    {client.funding_type === 'HOME_CARE' ? `ID: ${client.my_aged_care_id || 'N/A'}` : `NDIS: ${client.ndis_number || 'N/A'}`}
+                    {client.funding_type === 'HOME_CARE' ? `ID: ${client.my_aged_care_id || client.ndis_number || 'N/A'}` : `NDIS: ${client.ndis_number || 'N/A'}`}
                   </div>
                 </div>
               </div>
