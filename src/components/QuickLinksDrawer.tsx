@@ -11,7 +11,13 @@ import {
   BookmarkCheck, 
   BookOpen, 
   ShieldAlert,
-  FolderOpen
+  FolderOpen,
+  DollarSign,
+  Receipt,
+  Sparkles,
+  Terminal,
+  PenTool,
+  Server
 } from 'lucide-react';
 
 interface QuickLink {
@@ -24,46 +30,46 @@ interface QuickLink {
 
 const PRESET_LINKS: QuickLink[] = [
   {
-    id: 'ndis-portal',
-    title: 'NDIS myplace Portal',
-    url: 'https://www.ndis.gov.au/providers/working-ndis/myplace-provider-portal',
+    id: 'xero',
+    title: 'Xero Accounting',
+    url: 'https://go.xero.com/app/!S5BQ2/homepage',
     category: 'Portals',
-    description: 'Access provider portal for claims, service bookings, and client matches.'
+    description: 'Corporate ledger accounting, client invoicing, and bank feed management.'
   },
   {
-    id: 'proda-login',
-    title: 'PRODA / HPOS Login',
-    url: 'https://www.servicesaustralia.gov.au/proda-provider-digital-access',
+    id: 'hubdoc',
+    title: 'Hubdoc Login',
+    url: 'https://app.hubdoc.com/login',
     category: 'Portals',
-    description: 'Provider Digital Access verification login and Medicare HPOS access.'
+    description: 'Extract data and key fields off invoices and operational receipts automatically.'
   },
   {
-    id: 'trilogy-care',
-    title: 'Trilogy Care Login',
-    url: 'https://trilogycare.com.au/',
-    category: 'Portals',
-    description: 'Self-managed Home Care Package administration portal.'
-  },
-  {
-    id: 'ndis-pricing',
-    title: 'NDIS Pricing Guide & Limits',
-    url: 'https://www.ndis.gov.au/providers/pricing-arrangements',
+    id: 'gemini',
+    title: 'Google Gemini AI',
+    url: 'https://gemini.google.com/app/5626c960cbeb3707',
     category: 'Resources',
-    description: 'Check latest NDIS Support Catalogue and billing rules.'
+    description: 'Advanced dialogue model assistant for copywriting, research, and coding helper.'
   },
   {
-    id: 'aged-care-quality',
-    title: 'Aged Care Quality Standards',
-    url: 'https://www.agedcarequality.gov.au/',
+    id: 'aistudio',
+    title: 'Google AI Studio',
+    url: 'https://aistudio.google.com/apps/87e3cdb9-264a-49c1-97bb-8bab763826d7?showAssistant=true&showCode=true',
     category: 'Resources',
-    description: 'Aged Care Quality and Safety Commission national guidelines.'
+    description: 'Prototyping environment, model API playground, and persistent agent workspace.'
   },
   {
-    id: 'ndis-quality-safeguards',
-    title: 'NDIS Commission',
-    url: 'https://www.ndiscommission.gov.au/',
+    id: 'docuseal',
+    title: 'DocuSeal Service',
+    url: 'https://sign.happyinthehome.org/',
     category: 'Industry',
-    description: 'National quality and safeguard requirements and behavior support updates.'
+    description: 'Direct portal for workflow document templates, contracts, and digital signatures.'
+  },
+  {
+    id: 'nginx-proxy',
+    title: 'Nginx Proxy Manager',
+    url: 'https://nginx.happyinthehome.org/',
+    category: 'Industry',
+    description: 'Ingress controller, secure SSL certificate issuance, and custom sub-domain mappings.'
   }
 ];
 
@@ -130,7 +136,26 @@ export default function QuickLinksDrawer({ isOpen, onClose }: QuickLinksDrawerPr
     }
   };
 
-  const getCategoryIcon = (category: string) => {
+  const getCategoryIcon = (category: string, id?: string) => {
+    if (id === 'xero') {
+      return <DollarSign className="w-4 h-4 text-brand-green" />;
+    }
+    if (id === 'hubdoc') {
+      return <Receipt className="w-4 h-4 text-orange-400" />;
+    }
+    if (id === 'gemini') {
+      return <Sparkles className="w-4 h-4 text-[#7A5AF8]" />;
+    }
+    if (id === 'aistudio') {
+      return <Terminal className="w-4 h-4 text-brand-teal" />;
+    }
+    if (id === 'docuseal') {
+      return <PenTool className="w-4 h-4 text-blue-400" />;
+    }
+    if (id === 'nginx-proxy') {
+      return <Server className="w-4 h-4 text-purple-400" />;
+    }
+
     switch (category) {
       case 'Portals':
         return <FolderOpen className="w-4 h-4 text-brand-green" />;
@@ -332,7 +357,7 @@ export default function QuickLinksDrawer({ isOpen, onClose }: QuickLinksDrawerPr
                       <div className="flex items-start justify-between space-x-2">
                         <div className="flex items-center space-x-2.5">
                           <div className="p-1.5 bg-brand-navy/60 rounded-lg group-hover:bg-brand-teal/10 transition-colors">
-                            {getCategoryIcon(link.category)}
+                            {getCategoryIcon(link.category, link.id)}
                           </div>
                           <div>
                             <h3 className="font-medium text-xs text-[#E6EDF3] group-hover:text-white transition-colors flex items-center">
