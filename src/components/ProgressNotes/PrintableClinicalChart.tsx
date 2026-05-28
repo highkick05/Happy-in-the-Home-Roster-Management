@@ -19,11 +19,18 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
       <style>{`
         @media print {
           @page {
-            margin: 15mm 15mm 15mm 15mm;
+            size: A4 portrait;
+            /* 11.45mm top/bottom margin ensures EXACTLY 1036px printable height. 
+               1036 = 140px header + 896px body (32 rows exactly 28px each) */
+            margin: 11.45mm 15mm;
           }
           body {
             background-color: white !important;
             color: black !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            margin: 0 !important;
+            padding: 0 !important;
           }
         }
         .tiptap-content p {
@@ -36,8 +43,8 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
         }
         .repeat-footer {
           position: fixed !important;
-          bottom: 15px !important;
-          right: 20px !important;
+          bottom: -10px !important;
+          right: 0px !important;
           display: block !important;
           font-size: 9px !important;
           color: rgba(0, 0, 0, 0.7) !important;
@@ -48,69 +55,70 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
       `}</style>
 
       {/* The Master Chart Container */}
-      <div className="w-full max-w-[210mm] bg-white shadow-xl print:shadow-none box-border p-[15mm] print:p-0 flex flex-col justify-start relative">
+      <div className="w-full max-w-[210mm] print:max-w-full bg-white shadow-xl print:shadow-none box-border p-[15mm] print:p-0 flex flex-col justify-start relative print:w-full mx-auto print:mx-0">
          
-         <div className="w-full text-black font-sans text-sm flex-1 flex flex-col border-[1.5px] border-black">
+         <div className="w-full text-black font-sans text-sm flex-1 flex flex-col border-[1px] border-black box-border min-h-[1036px] print:min-h-0">
             
             {/* Top Header block - Classic CR040 rendered once */}
-            <div className="flex border-b-[1.5px] border-black shrink-0">
+            <div className="flex border-b-[1px] border-black shrink-0 h-[111px] box-border">
                {/* Left box */}
-               <div className="w-[55%] flex items-center justify-center p-4 border-r-[1.5px] border-black shrink-0">
+               <div className="w-[55%] flex items-center justify-center p-4 border-r-[1px] border-black shrink-0 box-border">
                   <h1 className="text-[32px] font-bold uppercase tracking-wider leading-none whitespace-nowrap text-center text-black">
                     PROGRESS NOTES
                   </h1>
                </div>
                
                {/* Right box (5-row client details grid) */}
-               <div className="w-[45%] flex flex-col justify-between shrink-0">
-                  <div className="flex items-end px-3 py-[4px] border-b-[1.5px] border-black">
-                    <span className="shrink-0 w-[95px] text-xs font-bold uppercase whitespace-nowrap">Last Name</span>
-                    <span className="flex-1 text-xs font-serif pl-1 border-b border-black/30 w-full mb-0.5 leading-tight break-words">{clientData?.last_name || ''}</span>
+               <div className="w-[45%] flex flex-col shrink-0 h-full box-border">
+                  <div className="flex-1 flex items-end px-3 pb-[3px] border-b-[1px] border-black box-border overflow-hidden">
+                    <span className="shrink-0 w-[95px] text-[10px] font-bold uppercase whitespace-nowrap">Last Name</span>
+                    <span className="flex-1 text-[11px] font-serif pl-1 border-b-[1px] border-black/30 w-full leading-none break-words line-clamp-1">{clientData?.last_name || ''}</span>
                   </div>
-                  <div className="flex items-end px-3 py-[4px] border-b-[1.5px] border-black">
-                    <span className="shrink-0 w-[95px] text-xs font-bold uppercase whitespace-nowrap">Given Names</span>
-                    <span className="flex-1 text-xs font-serif pl-1 border-[#0000004d] w-full mb-0.5 leading-tight break-words">{clientData?.first_name || ''}</span>
+                  <div className="flex-1 flex items-end px-3 pb-[3px] border-b-[1px] border-black box-border overflow-hidden">
+                    <span className="shrink-0 w-[95px] text-[10px] font-bold uppercase whitespace-nowrap">Given Names</span>
+                    <span className="flex-1 text-[11px] font-serif pl-1 border-b-[1px] border-[#0000004d] w-full leading-none break-words line-clamp-1">{clientData?.first_name || ''}</span>
                   </div>
-                  <div className="flex items-end px-3 py-[4px] border-b-[1.5px] border-black">
-                    <span className="shrink-0 w-[95px] text-xs font-bold uppercase whitespace-nowrap">D.O.B</span>
-                    <span className="flex-1 text-[11px] font-mono pl-1 border-[#0000004d] w-full mb-0.5 leading-tight break-words">
+                  <div className="flex-1 flex items-end px-3 pb-[3px] border-b-[1px] border-black box-border overflow-hidden">
+                    <span className="shrink-0 w-[95px] text-[10px] font-bold uppercase whitespace-nowrap">D.O.B</span>
+                    <span className="flex-1 text-[11px] font-mono pl-1 border-b-[1px] border-[#0000004d] w-full leading-none break-words line-clamp-1">
                        {clientData?.dob ? new Date(clientData.dob).toLocaleDateString('en-GB') : ''}
                     </span>
                   </div>
-                  <div className="flex items-end px-3 py-[4px] border-b-[1.5px] border-black">
-                    <span className="shrink-0 w-[95px] text-xs font-bold uppercase whitespace-nowrap">Address</span>
-                    <span className="flex-1 text-[10px] font-serif pl-1 border-[#0000004d] w-full mb-0.5 leading-tight break-words">{clientData?.address || ''}</span>
+                  <div className="flex-1 flex items-end px-3 pb-[3px] border-b-[1px] border-black box-border overflow-hidden">
+                    <span className="shrink-0 w-[95px] text-[10px] font-bold uppercase whitespace-nowrap">Address</span>
+                    <span className="flex-1 text-[10px] font-serif pl-1 border-b-[1px] border-[#0000004d] w-full leading-none break-words truncate">{clientData?.address || ''}</span>
                   </div>
-                  <div className="flex items-end px-3 py-[4px]">
-                    <span className="shrink-0 w-[95px] text-xs font-bold uppercase whitespace-nowrap">ID No.</span>
-                    <span className="flex-1 text-[11px] font-mono pl-1 border-[#0000004d] w-full mb-0.5 leading-tight break-words">{safeRefNumber}</span>
+                  <div className="flex-1 flex items-end px-3 pb-[3px] box-border overflow-hidden">
+                    <span className="shrink-0 w-[95px] text-[10px] font-bold uppercase whitespace-nowrap">ID No.</span>
+                    <span className="flex-1 text-[11px] font-mono pl-1 border-b-[1px] border-[#0000004d] w-full leading-none break-words line-clamp-1">{safeRefNumber}</span>
                   </div>
                </div>
             </div>
 
             {/* Sub-Header Row */}
-            <div className="flex border-b-[1.5px] border-black font-bold bg-white shrink-0">
-               <div className="w-[120px] py-2 flex items-center justify-center text-center text-xs leading-tight shrink-0 border-r-[1.5px] border-black">
+            <div className="flex border-b-[1px] border-black font-bold bg-white shrink-0 h-[28px] box-border">
+               <div className="w-[120px] flex items-center justify-center text-center text-[11px] shrink-0 border-r-[1px] border-black box-border h-full">
                   Date/Time
                </div>
-               <div className="flex-1 py-2 px-3 text-[11px] leading-relaxed flex items-center">
+               <div className="flex-1 px-3 text-[10px] flex items-center h-full box-border">
                   <span>Write entry in Black pen. <span className="font-normal italic">Sign each entry, print name and designation after signature.</span></span>
                </div>
             </div>
 
             {/* Body Area with background lines exactly 28px height */}
             <div 
-              className="flex-1 relative w-full bg-white min-h-[500px]"
+              className="flex-1 relative w-full bg-white box-border"
               style={{ 
-                backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent 27px, black 27px, black 28px)`,
-                backgroundSize: '100% 28px'
+                backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent 27px, #000 27px, #000 28px)`,
+                backgroundSize: '100% 28px',
+                backgroundPosition: 'top left'
               }}
             >
                {/* Vertical Separator line at 120px */}
-               <div className="absolute top-0 bottom-0 left-[120px] w-[1.5px] bg-black z-0"></div>
+               <div className="absolute top-0 bottom-0 left-[120px] w-[1px] bg-black z-0"></div>
                
                {/* Entries mapping */}
-               <div className="relative z-10 w-full h-full flex flex-col">
+               <div className="relative z-10 w-full h-full flex flex-col items-start justify-start pt-0 pb-0">
                   {notes.map((note) => {
                      const noteDate = new Date(note.start_time || note.actual_finish_time || note.end_time);
                      const dateStr = noteDate.toLocaleDateString('en-GB');
@@ -122,18 +130,17 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                      return (
                         <div 
                           key={note.id} 
-                          className="flex w-full print:break-inside-avoid"
-                          style={{ minHeight: '56px' }}
+                          className="flex w-full print:break-inside-avoid bg-transparent box-border"
                         >
                            {/* Left Column (120px width) */}
-                           <div className="w-[120px] shrink-0 font-bold px-2 pt-[6px] text-center select-text">
-                              <div className="text-[11px] whitespace-nowrap leading-[28px]">{dateStr}</div>
-                              <div className="text-[11px] text-zinc-500 font-medium whitespace-nowrap leading-[28px]">{timeStr}</div>
+                           <div className="w-[120px] shrink-0 font-bold px-2 text-center select-text pt-[2px] box-border">
+                              <div className="text-[11px] whitespace-nowrap leading-[12px]">{dateStr}</div>
+                              <div className="text-[11px] text-[#333] font-medium whitespace-nowrap leading-[12px]">{timeStr}</div>
                            </div>
                            
                            {/* Right Column (flexible width) */}
-                           <div className="flex-1 px-3 pt-[6px] pb-[6px] selection:bg-brand-blue/20">
-                              <div className="text-[13px] font-sans break-words w-full tiptap-content select-text" style={{ lineHeight: '28px' }}>
+                           <div className="flex-1 px-3 selection:bg-brand-blue/20 box-border">
+                              <div className="text-[12px] font-sans break-words w-full tiptap-content select-text" style={{ lineHeight: '28px', minHeight: '28px' }}>
                                  <div 
                                    className="inline" 
                                    dangerouslySetInnerHTML={{ __html: note.notes || '' }} 
