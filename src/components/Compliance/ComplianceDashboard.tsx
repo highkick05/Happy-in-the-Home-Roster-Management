@@ -25,7 +25,52 @@ const ONBOARDING_STEP_LABELS: Record<string, string> = {
 };
 
 export default function ComplianceDashboard() {
-  const { token, user } = useAuth();
+  const { token, user, settings } = useAuth();
+
+  const getLocalizedDateString = (isoString?: string) => {
+    if (!isoString) return 'N/A';
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return 'N/A';
+      
+      const tz = settings?.timezone || 'Australia/Perth';
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      const parts = formatter.formatToParts(d);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      return `${year}-${month}-${day}`;
+    } catch (e) {
+      return isoString.split('T')[0] || 'N/A';
+    }
+  };
+
+  const getLocalizedTimeString = (isoString?: string) => {
+    if (!isoString) return 'N/A';
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return 'N/A';
+      const tz = settings?.timezone || 'Australia/Perth';
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      });
+      const parts = formatter.formatToParts(d);
+      const hour = parts.find(p => p.type === 'hour')?.value || '00';
+      const minute = parts.find(p => p.type === 'minute')?.value || '00';
+      return `${hour}:${minute}`;
+    } catch (e) {
+      return isoString.split('T')[1]?.substring(0, 5) || 'N/A';
+    }
+  };
+
   const [activeTab, setActiveTab] = useLocalStorage<'evidence' | 'staff' | 'mandatory_documents'>('compliance_active_tab', 'evidence');
   
   // States for Evidence Pack (Clients)
@@ -416,8 +461,8 @@ export default function ComplianceDashboard() {
                        </tr>
                      ) : (
                        evidenceMatrix.map((row, idx) => {
-                         const startString = (row.actual_start_time || row.start_time || '').split('T')[1]?.substring(0, 5) || 'N/A';
-                         const endString = (row.actual_finish_time || row.end_time || '').split('T')[1]?.substring(0, 5) || 'N/A';
+                         const startString = row.actual_start_time ? getLocalizedTimeString(row.actual_start_time) : (row.start_time ? getLocalizedTimeString(row.start_time) : 'N/A');
+                         const endString = row.actual_finish_time ? getLocalizedTimeString(row.actual_finish_time) : (row.end_time ? getLocalizedTimeString(row.end_time) : 'N/A');
                          
                          let hrs = 0;
                          let qtyOverride = null;
@@ -465,7 +510,7 @@ export default function ComplianceDashboard() {
                          return (
                            <tr key={row.id} className={idx % 2 === 0 ? 'bg-[#0E0E10]/40 hover:bg-brand-bg' : 'bg-brand-navy hover:bg-brand-bg transition-colors'}>
                              <td className="px-4 py-2 border-r border-border-subtle/30 font-medium whitespace-nowrap">{row.client_first} {row.client_last}</td>
-                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap text-[#8B949E]">{row.start_time ? row.start_time.split('T')[0] : 'N/A'}</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap text-[#8B949E]">{row.start_time ? getLocalizedDateString(row.start_time) : 'N/A'}</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{startString} - {endString}</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap">
                                <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border ${row.funding_type === 'HOME_CARE' ? 'bg-purple-900/10 border-purple-900/20 text-purple-400' : 'bg-blue-900/10 border-blue-900/20 text-blue-400'}`}>
@@ -587,8 +632,8 @@ export default function ComplianceDashboard() {
                        </tr>
                      ) : (
                        staffMatrix.map((row, idx) => {
-                         const startString = (row.actual_start_time || row.start_time || '').split('T')[1]?.substring(0, 5) || 'N/A';
-                         const endString = (row.actual_finish_time || row.end_time || '').split('T')[1]?.substring(0, 5) || 'N/A';
+                         const startString = row.actual_start_time ? getLocalizedTimeString(row.actual_start_time) : (row.start_time ? getLocalizedTimeString(row.start_time) : 'N/A');
+                         const endString = row.actual_finish_time ? getLocalizedTimeString(row.actual_finish_time) : (row.end_time ? getLocalizedTimeString(row.end_time) : 'N/A');
                          
                          let hrs = 0;
                          let qtyOverride = null;
@@ -635,7 +680,7 @@ export default function ComplianceDashboard() {
                          return (
                            <tr key={row.id} className={idx % 2 === 0 ? 'bg-[#0E0E10]/40 hover:bg-brand-bg' : 'bg-brand-navy hover:bg-brand-bg transition-colors'}>
                              <td className="px-4 py-2 border-r border-border-subtle/30 font-medium whitespace-nowrap">{row.staff_first} {row.staff_last}</td>
-                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap text-[#8B949E]">{row.start_time ? row.start_time.split('T')[0] : 'N/A'}</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap text-[#8B949E]">{row.start_time ? getLocalizedDateString(row.start_time) : 'N/A'}</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{startString} - {endString}</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap">{row.client_first} {row.client_last}</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{Math.max(0, hrs).toFixed(2)}h</td>

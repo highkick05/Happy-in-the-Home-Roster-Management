@@ -215,7 +215,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 z-40 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-20' : 'w-72 md:w-64'} bg-brand-navy border-r border-border-subtle flex flex-col transition-all duration-300 ease-in-out shrink-0 group print:hidden`}>
+      <div className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 z-40 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-20' : 'w-56 md:w-52'} bg-brand-navy border-r border-border-subtle flex flex-col transition-all duration-300 ease-in-out shrink-0 group print:hidden`}>
         
         {/* Collapse Toggle */}
         <button 
@@ -225,15 +225,15 @@ function Layout({ children }: { children: React.ReactNode }) {
           {isDesktopSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
 
-        <div className={`p-6 pb-2 flex flex-col items-center justify-center text-center ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'px-2' : ''}`}>
+        <div className={`p-4 pb-2 flex flex-col items-center justify-center text-center ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'px-2' : ''}`}>
           {settings?.websiteLogo ? (
             <img 
               src={settings.websiteLogo} 
               alt={settings?.businessName || "Company Logo"} 
-              className={`max-h-20 w-full object-contain object-center drop-shadow-lg transition-all ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'max-h-10 opacity-80' : ''}`} 
+              className={`max-h-16 w-full object-contain object-center drop-shadow-lg transition-all ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'max-h-10 opacity-80' : ''}`} 
             />
           ) : (
-            <h1 className={`font-sans uppercase text-[#E6EDF3] tracking-widest leading-tight transition-all ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'text-xs break-words' : 'text-2xl'}`}>
+            <h1 className={`font-sans uppercase text-[#E6EDF3] tracking-widest leading-tight transition-all ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'text-xs break-words' : 'text-xl'}`}>
               {isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'HJ' : (settings?.businessName || "Happy in the Home")}
             </h1>
           )}
