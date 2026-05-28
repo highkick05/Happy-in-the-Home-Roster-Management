@@ -13,8 +13,8 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
     endTime: '10:00'
   });
   
-  const [selectedServices, setSelectedServices] = useState<{ serviceId: string, qtyOverride: string }[]>([
-    { serviceId: '', qtyOverride: '' }
+  const [selectedServices, setSelectedServices] = useState<{ serviceId: string, qtyOverride: string, rateOverride: string }[]>([
+    { serviceId: '', qtyOverride: '', rateOverride: '' }
   ]);
   
   const [options, setOptions] = useState<{ clients: any[], staff: any[], services: any[] }>({ clients: [], staff: [], services: [] });
@@ -51,7 +51,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
   };
 
   const addService = () => {
-    setSelectedServices([...selectedServices, { serviceId: '', qtyOverride: '' }]);
+    setSelectedServices([...selectedServices, { serviceId: '', qtyOverride: '', rateOverride: '' }]);
   };
 
   const getServiceDetails = (serviceId: string) => {
@@ -100,7 +100,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
     setSelectedServices(selectedServices.filter((_, i) => i !== index));
   };
 
-  const updateService = (index: number, field: 'serviceId' | 'qtyOverride', value: string) => {
+  const updateService = (index: number, field: 'serviceId' | 'qtyOverride' | 'rateOverride', value: string) => {
     const fresh = [...selectedServices];
     fresh[index][field] = value;
     setSelectedServices(fresh);
@@ -157,7 +157,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
             value={formData.clientId}
             onChange={e => {
               setFormData({ ...formData, clientId: e.target.value });
-              setSelectedServices([{ serviceId: '', qtyOverride: '' }]);
+              setSelectedServices([{ serviceId: '', qtyOverride: '', rateOverride: '' }]);
             }}
           >
             <option value="">Select Client</option>
@@ -233,7 +233,10 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
         
         <div className="space-y-2 pb-2">
           {selectedServices.map((row, idx) => {
-            const { rate, unit, name } = getServiceDetails(row.serviceId);
+            let { rate, unit, name } = getServiceDetails(row.serviceId);
+            if (row.rateOverride !== undefined && row.rateOverride !== null && row.rateOverride !== '') {
+               rate = Number(row.rateOverride);
+            }
             
             const isProviderTravel = name?.toLowerCase().includes('provider travel') || false;
             const isABT = name?.toLowerCase().includes('activity based transport') || false;
@@ -281,9 +284,17 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
                         <span className="text-zinc-500 font-medium mr-1.5">Unit</span>
                         <span className="text-zinc-300">{unit}</span>
                       </div>
-                      <div>
-                        <span className="text-zinc-500 font-medium mr-1.5">Rate</span>
-                        <span className="text-zinc-300">${rate.toFixed(2)}</span>
+                      <div className="flex items-center">
+                        <span className="text-zinc-500 font-medium mr-1.5">Rate $</span>
+                        <input 
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={row.rateOverride || ''}
+                          onChange={(e) => updateService(idx, 'rateOverride', e.target.value)}
+                          placeholder={rate.toFixed(2)}
+                          className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
+                        />
                       </div>
                       <div className="flex items-center">
                         <span className="text-zinc-500 font-medium mr-1.5">Qty</span>
@@ -318,7 +329,10 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
       <div className="pt-4 border-t border-white/[0.08] flex justify-between items-center space-x-3 mt-4">
         <div className="text-white text-sm font-medium">
           Total: <span className="text-brand-teal">${selectedServices.reduce((acc, s) => {
-             const { rate, unit, name } = getServiceDetails(s.serviceId);
+             let { rate, unit, name } = getServiceDetails(s.serviceId);
+             if (s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== '') {
+                rate = Number(s.rateOverride);
+             }
              const isProviderTravel = name?.toLowerCase().includes('provider travel') || false;
              const isABT = name?.toLowerCase().includes('activity based transport') || false;
              const isTravelOrTransport = isProviderTravel || isABT;

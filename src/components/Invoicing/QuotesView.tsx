@@ -11,8 +11,8 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
     importantNotes: ''
   });
   
-  const [selectedServices, setSelectedServices] = useState<{serviceId: string, qtyOverride: string}[]>([
-    { serviceId: '', qtyOverride: '' }
+  const [selectedServices, setSelectedServices] = useState<{serviceId: string, qtyOverride: string, rateOverride: string}[]>([
+    { serviceId: '', qtyOverride: '', rateOverride: '' }
   ]);
   
   const [options, setOptions] = useState<any>({ clients: [], services: [] });
@@ -57,12 +57,12 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
     return s ? { rate: Number(s.rate), unit: s.unit, name: s.name } : { rate: 0, unit: '', name: '' };
   };
 
-  const addService = () => setSelectedServices([...selectedServices, { serviceId: '', qtyOverride: '' }]);
+  const addService = () => setSelectedServices([...selectedServices, { serviceId: '', qtyOverride: '', rateOverride: '' }]);
   const removeService = (index: number) => {
     if (selectedServices.length === 1) return;
     setSelectedServices(selectedServices.filter((_, i) => i !== index));
   };
-  const updateService = (index: number, field: 'serviceId' | 'qtyOverride', value: string) => {
+  const updateService = (index: number, field: 'serviceId' | 'qtyOverride' | 'rateOverride', value: string) => {
     const fresh = [...selectedServices];
     fresh[index][field] = value;
     setSelectedServices(fresh);
@@ -112,7 +112,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
             value={formData.clientId}
             onChange={e => {
               setFormData({ ...formData, clientId: e.target.value });
-              setSelectedServices([{ serviceId: '', qtyOverride: '' }]);
+              setSelectedServices([{ serviceId: '', qtyOverride: '', rateOverride: '' }]);
             }}
           >
             <option value="">Select Client</option>
@@ -159,7 +159,10 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
         
         <div className="space-y-2 pb-2">
           {selectedServices.map((row, idx) => {
-            const { rate, unit } = getServiceDetails(row.serviceId);
+            let { rate, unit } = getServiceDetails(row.serviceId);
+            if (row.rateOverride !== undefined && row.rateOverride !== null && row.rateOverride !== '') {
+               rate = Number(row.rateOverride);
+            }
             const qty = Number(row.qtyOverride) || 0;
             const subtotal = qty * rate;
 
@@ -195,9 +198,17 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
                         <span className="text-zinc-500 font-medium mr-1.5">Unit</span>
                         <span className="text-zinc-300">{unit}</span>
                       </div>
-                      <div>
-                        <span className="text-zinc-500 font-medium mr-1.5">Rate</span>
-                        <span className="text-zinc-300">${rate.toFixed(2)}</span>
+                      <div className="flex items-center">
+                        <span className="text-zinc-500 font-medium mr-1.5">Rate $</span>
+                        <input 
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={row.rateOverride || ''}
+                          onChange={(e) => updateService(idx, 'rateOverride', e.target.value)}
+                          placeholder={rate.toFixed(2)}
+                          className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-sm text-zinc-300 focus:border-brand-teal outline-none"
+                        />
                       </div>
                       <div className="flex items-center">
                         <span className="text-zinc-500 font-medium mr-1.5">Qty</span>

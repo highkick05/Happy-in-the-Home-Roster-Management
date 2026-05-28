@@ -4801,6 +4801,11 @@ async function startServer() {
                    if (rates[region] !== undefined) finalRate = Number(rates[region]);
                 } catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
              }
+
+             if (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== '') {
+                 finalRate = Number(sd.rateOverride);
+             }
+
              calculatedAmount += qty * finalRate;
           }
         });
