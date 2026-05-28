@@ -1378,7 +1378,8 @@ async function startServer() {
       const clients = db.prepare('SELECT id, first_name, last_name, ndis_number, my_aged_care_id, funding_type FROM clients').all();
       res.json(clients);
     } catch(e: any) {
-      res.status(500).json({error: e.message});
+      logger.error('Error in /api/test-clients route', { error: e.message, stack: e.stack });
+      res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 
@@ -6311,10 +6312,8 @@ async function startServer() {
     }
 
     // Production-Grade Stability: Mask 500-level stack traces from the frontend
-    const isDev = process.env.NODE_ENV === 'development';
     res.status(500).json({ 
-      error: 'Internal Server Error. Please contact support.',
-      ...(isDev ? { detail: err.message, stack: err.stack } : {}) 
+      error: 'Internal Server Error. Please contact support.'
     });
   });
 
