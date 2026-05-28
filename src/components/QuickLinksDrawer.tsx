@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Bookmark, 
+  Wrench, 
   ChevronLeft,
   DollarSign, 
   Receipt, 
@@ -187,14 +187,14 @@ export default function QuickLinksDrawer() {
               transition={{ duration: 0.15 }}
               onClick={handleToggle}
               className="flex flex-col items-center justify-center bg-brand-navy border border-r-0 border-border-subtle hover:border-brand-teal rounded-l-xl py-4 px-1.5 shadow-2xl select-none w-7 cursor-pointer hover:w-8 transition-all group"
-              title="Quick links (Hover to open)"
+              title="Quick tools (Hover to open)"
             >
-              <Bookmark className="w-4 h-4 text-brand-teal group-hover:scale-110 transition-transform" />
+              <Wrench className="w-3.5 h-3.5 text-brand-teal group-hover:scale-110 group-hover:rotate-45 transition-transform" />
               <div 
                 className="text-[9px] font-bold text-[#8B949E] group-hover:text-white tracking-[0.16em] mt-2 select-none uppercase" 
                 style={{ writingMode: 'vertical-lr' }}
               >
-                Portals
+                Tools
               </div>
               <span className="mt-2.5 flex h-1.5 w-1.5 shrink-0 rounded-full bg-brand-green group-hover:bg-brand-teal transition-colors" />
             </motion.div>
