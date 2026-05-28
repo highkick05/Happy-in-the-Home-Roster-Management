@@ -54,10 +54,13 @@ export default function InvoicePreviewModal({ shiftId, onClose }: Props) {
     );
   }
 
-  const { shift, settingsMap, invoiceNum, invoiceDate, lineItems, subtotal } = data;
+  const { shift, settingsMap, invoiceNum, invoiceDate, lineItems, subtotal, totalAmount, gstAmount } = data;
 
-  const billToLabel = (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care') ? 'PROVIDER' : 'PLAN MANAGER';
+  const isHomeCare = shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE';
+  const billToLabel = isHomeCare ? 'PROVIDER' : 'PLAN MANAGER';
   const billToName = shift.plan_manager_name || `${shift.c_fn} ${shift.c_ln}`;
+  
+  const ndisLabel = isHomeCare ? 'Home Care ID:' : 'NDIS No:';
   
   let bankName = 'National Australia Bank';
   let bankAccName = 'Happy in the Home';
@@ -119,7 +122,7 @@ export default function InvoicePreviewModal({ shiftId, onClose }: Props) {
              <div className="flex flex-col text-sm border-t-2 border-brand-teal pt-4 relative">
                 <div className="font-bold text-xs uppercase tracking-widest text-brand-teal mb-2">Bill To</div>
                 <div className="font-semibold text-lg leading-tight mb-1">{shift.c_fn} {shift.c_ln}</div>
-                <div className="text-zinc-600 mt-1">NDIS No: {shift.ndis_number || 'N/A'}</div>
+                <div className="text-zinc-600 mt-1">{ndisLabel} {shift.ndis_number || 'N/A'}</div>
                 
                 <div className="mt-4 pt-3 border-t border-zinc-200/60">
                    <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">{billToLabel}</div>
@@ -190,13 +193,20 @@ export default function InvoicePreviewModal({ shiftId, onClose }: Props) {
                    <span>Subtotal:</span>
                    <span className="font-medium text-zinc-900">${Number(subtotal).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between py-2 text-zinc-600 border-b border-zinc-200">
-                   <span>GST (GST-Free):</span>
-                   <span className="font-medium text-zinc-900">$0.00</span>
-                </div>
+                {isHomeCare ? (
+                  <div className="flex justify-between py-2 text-zinc-600 border-b border-zinc-200">
+                     <span>GST (10%):</span>
+                     <span className="font-medium text-zinc-900">${Number(gstAmount).toFixed(2)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between py-2 text-zinc-600 border-b border-zinc-200">
+                     <span>GST (GST-Free):</span>
+                     <span className="font-medium text-zinc-900">$0.00</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-4 text-xl font-bold text-indigo-900 bg-indigo-50 px-3 -mx-3 mt-2 rounded">
                    <span className="text-indigo-950">TOTAL AMOUNT:</span>
-                   <span className="text-indigo-600 tracking-tight">${Number(subtotal).toFixed(2)}</span>
+                   <span className="text-indigo-600 tracking-tight">${Number(totalAmount).toFixed(2)}</span>
                 </div>
              </div>
           </div>

@@ -533,6 +533,10 @@ async function startServer() {
       });
 
       let finalInvoiceDateStr = invoiceDateFormatter.format(start).replace(/\//g, '-');
+      
+      const isHomeCare = (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE');
+      const gstAmount = isHomeCare ? subtotal * 0.1 : 0;
+      const totalAmount = subtotal + gstAmount;
 
       return {
         shift,
@@ -540,7 +544,9 @@ async function startServer() {
         invoiceNum,
         invoiceDate: finalInvoiceDateStr,
         lineItems,
-        subtotal
+        subtotal,
+        gstAmount,
+        totalAmount
       };
   };
 
@@ -696,13 +702,19 @@ async function startServer() {
       
       let finalInvoiceDateStr = invoiceDateFormatter.format(new Date(rb.start_time)).replace(/\//g, '-');
 
+      const isHomeCare = (rb.funding_type === 'HCP' || rb.funding_type === 'Home Care' || rb.funding_type === 'HOME_CARE');
+      const gstAmount = isHomeCare ? subtotal * 0.1 : 0;
+      const totalAmount = subtotal + gstAmount;
+
       return {
         shift: rb,
         settingsMap,
         invoiceNum,
         invoiceDate: finalInvoiceDateStr,
         lineItems: allLineItems,
-        subtotal
+        subtotal,
+        gstAmount,
+        totalAmount
       };
   };
 
@@ -712,20 +724,20 @@ async function startServer() {
       if (!data) return;
       if (data.lineItems.length === 0) return;
 
-      const { shift, settingsMap, invoiceNum, invoiceDate, lineItems, subtotal } = data;
+      const { shift, settingsMap, invoiceNum, invoiceDate, lineItems, subtotal, totalAmount } = data;
       const fileName = `${invoiceNum}.pdf`;
 
       const existing = db.prepare('SELECT id FROM invoices WHERE respite_booking_id = ?').get(respiteBookingId);
       if (existing) {
         db.prepare('UPDATE invoices SET invoice_number=?, amount=?, file_path=?, status=? WHERE respite_booking_id=?').run(
-           invoiceNum, subtotal, fileName, 'GENERATED', respiteBookingId
+           invoiceNum, totalAmount, fileName, 'GENERATED', respiteBookingId
         );
       } else {
         db.prepare('INSERT INTO invoices (invoice_number, respite_booking_id, client_id, amount, file_path, status) VALUES (?, ?, ?, ?, ?, ?)').run(
           invoiceNum,
           respiteBookingId,
           shift.client_id,
-          subtotal,
+          totalAmount,
           fileName,
           'GENERATED'
         );
@@ -777,21 +789,21 @@ async function startServer() {
       if (!data) return;
       if (data.lineItems.length === 0) return;
 
-      const { shift, settingsMap, invoiceNum, invoiceDate, lineItems, subtotal } = data;
+      const { shift, settingsMap, invoiceNum, invoiceDate, lineItems, subtotal, totalAmount } = data;
       const fileName = `${invoiceNum}.pdf`;
 
       // Just update DB record, no need to write to fs since it's on-the-fly now.
       const existing = db.prepare('SELECT id FROM invoices WHERE shift_id = ?').get(shiftId);
       if (existing) {
         db.prepare('UPDATE invoices SET invoice_number=?, amount=?, file_path=?, status=? WHERE shift_id=?').run(
-           invoiceNum, subtotal, fileName, 'GENERATED', shiftId
+           invoiceNum, totalAmount, fileName, 'GENERATED', shiftId
         );
       } else {
         db.prepare('INSERT INTO invoices (invoice_number, shift_id, client_id, amount, file_path, status) VALUES (?, ?, ?, ?, ?, ?)').run(
           invoiceNum,
           shiftId,
           shift.client_id,
-          subtotal,
+          totalAmount,
           fileName,
           'GENERATED'
         );
@@ -4438,6 +4450,9 @@ async function startServer() {
 
   const buildInvoicePdf = (doc: any, data: any) => {
     const { shift, settingsMap, invoiceNum, invoiceDate, lineItems, subtotal } = data;
+    const isHomeCare = (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE');
+    const gstAmount = data.gstAmount !== undefined ? data.gstAmount : (isHomeCare ? subtotal * 0.1 : 0);
+    const totalAmount = data.totalAmount !== undefined ? data.totalAmount : (subtotal + gstAmount);
 
     if (settingsMap.letterheadLogo) {
       try {
@@ -4491,14 +4506,15 @@ async function startServer() {
     const bizEmail = settingsMap.businessEmail || '';
     if (bizEmail) doc.text(bizEmail, 50, topY + 60);
 
-    const billToLabel = ((shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE')) ? 'PROVIDER' : 'PLAN MANAGER';
+    const billToLabel = isHomeCare ? 'PROVIDER' : 'PLAN MANAGER';
     let billToName = shift.plan_manager_name || `${shift.c_fn} ${shift.c_ln}`;
     let billToEmail = shift.plan_manager_email || '';
     let billToAddress = shift.plan_manager_address || '';
 
     doc.fontSize(10).font('Helvetica-Bold').fillColor('black').text('BILL TO', 300, topY);
     doc.fontSize(12).text(`${shift.c_fn} ${shift.c_ln}`, 300, topY + 15);
-    doc.fontSize(10).font('Helvetica').text(`NDIS No: ${shift.ndis_number || 'N/A'}`, 300, topY + 30);
+    const ndisLabel = isHomeCare ? 'Home Care ID:' : 'NDIS No:';
+    doc.fontSize(10).font('Helvetica').text(`${ndisLabel} ${shift.ndis_number || 'N/A'}`, 300, topY + 30);
     
     doc.moveDown(1);
     const pmY = doc.y;
@@ -4587,14 +4603,19 @@ async function startServer() {
     doc.text('Subtotal:', 380, totalsY + 15, { width: 100, align: 'right' });
     doc.text(`$${subtotal.toFixed(2)}`, 480, totalsY + 15, { width: 70, align: 'right' });
     
-    doc.text('GST (GST-Free):', 380, totalsY + 30, { width: 100, align: 'right' });
-    doc.text('$0.00', 480, totalsY + 30, { width: 70, align: 'right' });
+    if (isHomeCare) {
+        doc.text('GST (10%):', 380, totalsY + 30, { width: 100, align: 'right' });
+        doc.text(`$${gstAmount.toFixed(2)}`, 480, totalsY + 30, { width: 70, align: 'right' });
+    } else {
+        doc.text('GST (GST-Free):', 380, totalsY + 30, { width: 100, align: 'right' });
+        doc.text('$0.00', 480, totalsY + 30, { width: 70, align: 'right' });
+    }
 
     doc.moveTo(380, totalsY + 45).lineTo(550, totalsY + 45).stroke();
     
     doc.font('Helvetica-Bold').fontSize(12);
     doc.text('TOTAL AMOUNT:', 350, totalsY + 55, { width: 130, align: 'right' });
-    doc.text(`$${subtotal.toFixed(2)}`, 480, totalsY + 55, { width: 70, align: 'right' });
+    doc.text(`$${totalAmount.toFixed(2)}`, 480, totalsY + 55, { width: 70, align: 'right' });
 
     doc.moveDown(4);
     let paymentDueDays = settingsMap.paymentDueDays || 14;
