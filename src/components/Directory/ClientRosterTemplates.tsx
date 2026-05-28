@@ -13,6 +13,7 @@ interface ClientRosterTemplatesProps {
 interface ServiceFormEntry {
   serviceId: string;
   qtyOverride?: number | string;
+  rateOverride?: number | string;
 }
 
 const DAYS_OF_WEEK = [
@@ -233,7 +234,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         t.servicesData.forEach((sd: any) => {
           const { rate, unit } = getServiceDetails(String(sd.serviceId), t.day_of_week);
           const effectiveQty = (sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== '') ? Number(sd.qtyOverride) : (unit === 'Hour' ? tShiftHours : 1);
-          total += rate * effectiveQty;
+          const effectiveRate = (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== '') ? Number(sd.rateOverride) : rate;
+          total += effectiveRate * effectiveQty;
         });
       } else if (t.service_id) {
          // Legacy templates handling
@@ -518,8 +520,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                const tShiftHours = Math.max(0, (tEnd.getTime() - tStart.getTime()) / (1000 * 60 * 60));
                                
                                const effectiveQty = (sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== '') ? Number(sd.qtyOverride) : (unit === 'Hour' ? tShiftHours : 1);
+                               const effectiveRate = (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== '') ? Number(sd.rateOverride) : rate;
                                const qtyText = (sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== '') ? Number(sd.qtyOverride) : (unit === 'Hour' ? `Auto Hrs (${tShiftHours.toFixed(2)})` : 1);
-                               const totalAmount = rate * effectiveQty;
+                               const totalAmount = effectiveRate * effectiveQty;
        
                                return (
                                   <div key={idx} className="bg-[#121214] border border-white/[0.08] rounded-md p-2">
@@ -538,7 +541,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                       </div>
                                       <div>
                                         <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Rate</span>
-                                        <span className="text-xs font-medium text-zinc-300">${rate.toFixed(2)}</span>
+                                        <span className="text-xs font-medium text-zinc-300">${effectiveRate.toFixed(2)}</span>
                                       </div>
                                       <div>
                                         <span className="block text-[9px] uppercase tracking-wider text-zinc-500 mb-0.5">Total</span>
@@ -657,7 +660,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     {servicesData.map((s, index) => {
                       const { rate, unit } = getServiceDetails(s.serviceId, daysOfWeek[0] ?? 1);
                       const effectiveQty = (s.qtyOverride !== undefined && s.qtyOverride !== null && s.qtyOverride !== '') ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1);
-                      const totalAmount = rate * effectiveQty;
+                      const effectiveRate = (s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== '') ? Number(s.rateOverride) : rate;
+                      const totalAmount = effectiveRate * effectiveQty;
                       
                       return (
                         <div key={index} className="bg-[#121214] border border-white/[0.08] rounded-md p-3">
@@ -675,7 +679,17 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                           
                           {s.serviceId && (
                             <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/[0.08]">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Rate</span>
+                                  <input 
+                                    type="number" min="0.00" step="0.01"
+                                    value={s.rateOverride || ''}
+                                    onChange={(e) => updateServiceEntry(index, 'rateOverride', e.target.value)}
+                                    placeholder={`$${rate.toFixed(2)}`}
+                                    className="w-16 bg-[#09090b] border border-white/[0.08] rounded px-1.5 py-1 text-sm text-zinc-200 focus:border-brand-teal outline-none"
+                                  />
+                                </div>
                                 {unit !== 'Hour' && (
                                   <div className="flex items-center gap-1.5">
                                     <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Qty</span>

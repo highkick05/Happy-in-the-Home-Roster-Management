@@ -453,6 +453,10 @@ async function startServer() {
                     if (rates[region] !== undefined) finalRate = Number(rates[region]);
                  } catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
               }
+              
+              if (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== '') {
+                  finalRate = Number(sd.rateOverride);
+              }
 
               const amt = qty * finalRate;
               subtotal += amt;
@@ -4149,7 +4153,7 @@ async function startServer() {
   app.get('/api/invoices/form-data', authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
       const clients = db.prepare('SELECT id, first_name, last_name FROM clients ORDER BY first_name ASC').all();
-      const staff = db.prepare("SELECT id, first_name, last_name FROM users WHERE role IN ('STAFF', 'ADMIN') AND status = 'ACTIVE' ORDER BY first_name ASC").all();
+      const staff = db.prepare("SELECT id, first_name, last_name FROM users WHERE role = 'STAFF' AND status = 'ACTIVE' ORDER BY first_name ASC").all();
       const services = db.prepare('SELECT id, name, rate, unit, code, type FROM services ORDER BY name ASC').all();
       
       const clientServices = db.prepare('SELECT * FROM client_services').all();

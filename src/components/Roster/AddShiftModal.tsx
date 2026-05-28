@@ -19,6 +19,7 @@ interface ServiceFormEntry {
   id?: number; // only if editing existing
   serviceId: string;
   qtyOverride?: number | string;
+  rateOverride?: number | string;
 }
 
 export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clientList, servicesList, initialData, holidays = [] }: AddShiftModalProps) {
@@ -468,7 +469,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                   const isTravelOrTransport = isProviderTravel || isABT;
                   
                   const effectiveQty = isTravelOrTransport ? 0 : (s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1));
-                  const subtotal = effectiveQty * rate;
+                  const effectiveRate = (s.rateOverride !== undefined && s.rateOverride !== '') ? Number(s.rateOverride) : rate;
+                  const subtotal = effectiveQty * effectiveRate;
                   
                   return (
                     <div key={index} className="bg-[#09090b] p-4 rounded-md border border-white/[0.08] relative flex flex-col pr-12">
@@ -508,7 +510,15 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                             </div>
                             <div>
                               <span className="text-zinc-500 text-xs block">Rate</span>
-                              <span className="text-zinc-300">${rate.toFixed(2)}</span>
+                              <input 
+                                type="number"
+                                min="0.00"
+                                step="0.01"
+                                value={s.rateOverride || ''}
+                                onChange={(e) => updateServiceEntry(index, 'rateOverride', e.target.value)}
+                                placeholder={`$${rate.toFixed(2)}`}
+                                className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
+                              />
                             </div>
                             <div>
                               <span className="text-zinc-500 text-xs block">Qty</span>
@@ -562,7 +572,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                 const isABT = name.toLowerCase().includes('activity based transport');
                 if (isProviderTravel || isABT) return acc;
                 const effectiveQty = s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1);
-                return acc + (effectiveQty * rate);
+                const effectiveRate = s.rateOverride !== undefined && s.rateOverride !== '' ? Number(s.rateOverride) : rate;
+                return acc + (effectiveQty * effectiveRate);
               }, 0).toFixed(2)}</span>
             </div>
             <div className="flex space-x-2">
