@@ -235,6 +235,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
       if (res.ok) {
         onSave();
         onClose();
+        window.dispatchEvent(new CustomEvent('refresh-notifications'));
         if (status === 'COMPLETED') {
           // just close smoothly
         }
@@ -298,6 +299,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
       if (res.ok) {
         onSave();
         onClose();
+        window.dispatchEvent(new CustomEvent('refresh-notifications'));
       } else {
         const err = await res.json();
         alert(`Failed to cancel shift: ${err.error || 'Unknown error'}`);

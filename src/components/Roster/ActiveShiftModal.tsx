@@ -283,6 +283,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
       if (res.ok) {
         onSave();
         onClose();
+        window.dispatchEvent(new CustomEvent('refresh-notifications'));
       } else {
         alert('Failed to cancel shift');
       }

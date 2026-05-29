@@ -41,7 +41,17 @@ export default function NotificationsDropdown() {
   useEffect(() => {
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 60000); // Poll every minute
-    return () => clearInterval(interval);
+
+    const handleRefresh = () => {
+      fetchNotifications();
+    };
+
+    window.addEventListener('refresh-notifications', handleRefresh);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('refresh-notifications', handleRefresh);
+    };
   }, [token]);
 
   useEffect(() => {
