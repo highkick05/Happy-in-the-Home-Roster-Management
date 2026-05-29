@@ -14,6 +14,18 @@ interface ShiftDetailsModalProps {
 
 export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEdit, servicesList = [] }: ShiftDetailsModalProps) {
   const { token, user, settings } = useAuth();
+  const [showCancelPrompt, setShowCancelPrompt] = React.useState(false);
+  const [cancelReason, setCancelReason] = React.useState('');
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      setShowCancelPrompt(false);
+      setCancelReason('');
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen || !shift) return null;
 
   const formatLocationString = (str: string) => {
@@ -260,6 +272,44 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
     }
   };
 
+  const handleCancelShift = async () => {
+    if (!cancelReason.trim()) {
+      alert("Please provide a reason for cancellation.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const isRespite = shift.isRespiteWrapper;
+      const endpoint = isRespite 
+        ? `/api/respite-bookings/${shift.respiteData?.id}/status` 
+        : `/api/shifts/${shift.id}/cancel`;
+
+      const method = isRespite ? 'PUT' : 'POST';
+      const body = isRespite ? { status: 'CANCELLED' } : { reason: cancelReason };
+
+      const res = await fetch(endpoint, {
+        method,
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        onSave();
+        onClose();
+      } else {
+        const err = await res.json();
+        alert(`Failed to cancel shift: ${err.error || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error cancelling shift');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const isAdmin = user?.role === 'ADMIN';
   const isAssignedStaff = user?.id === shift.staffId;
   const canEdit = isAdmin; // Staff cannot edit shifts anymore
@@ -283,7 +333,33 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
         </div>
 
         <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 sm:pr-2 pb-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-6">
+          {showCancelPrompt ? (
+            <div className="space-y-6 outline-none animate-in opacity-100">
+              <div className="flex flex-col md:grid md:grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <h3 className="text-xl font-semibold border-b border-red-500/30 text-red-100 pb-3 mb-4">Cancel Shift</h3>
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-sm text-red-200 leading-relaxed shadow-sm">
+                    You are cancelling this shift as an administrator. This action will cancel the shift and save the cancellation reason into the progress notes using the assigned staff member's name and designation.
+                  </div>
+                </div>
+                
+                <div className="space-y-4 flex flex-col">
+                  <div>
+                    <label className="block text-sm md:text-base font-semibold text-zinc-300 mb-2">Reason for Cancellation</label>
+                    <textarea 
+                      rows={4} 
+                      className="w-full bg-[#09090b] border border-white/[0.08] rounded-xl p-4 text-sm md:text-base text-white focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 shadow-inner resize-none"
+                      placeholder="E.g., Client sick, Support worker unavailable"
+                      value={cancelReason}
+                      onChange={e => setCancelReason(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5 mb-6">
             <div className="bg-zinc-800/30 p-3 sm:p-4 rounded-xl border border-white/[0.08]/80">
               <p className="text-xs md:text-sm text-zinc-500 font-medium mb-1 uppercase tracking-wide">Client</p>
               <p className="font-bold text-zinc-200">{shift.clientName}</p>
@@ -581,70 +657,92 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
               </div>
             </div>
           )}
+          </>
+        )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-6 pt-5 border-t border-white/[0.08]/80 shrink-0">
-          {canEdit && shift.status !== 'COMPLETED' && shift.status !== 'CANCELLED' && (
-            <button 
-              onClick={() => handleUpdateStatus('COMPLETED')}
-              className="w-full flex items-center justify-center px-4 py-3 bg-brand-green/80 hover:bg-brand-green text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-md active:scale-95"
-            >
-              <CheckCircle className="w-5 h-5 mr-2" />
-              Mark Completed
-            </button>
-          )}
+          {showCancelPrompt ? (
+            <>
+              <button 
+                onClick={() => setShowCancelPrompt(false)}
+                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium text-sm md:text-base transition-colors border border-white/[0.12] shadow-sm animate-in fade-in"
+              >
+                Back
+              </button>
+              <button 
+                onClick={handleCancelShift}
+                disabled={isSubmitting || !cancelReason.trim()}
+                className="w-full sm:col-span-2 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold text-sm md:text-base flex justify-center items-center transition-colors shadow-md disabled:opacity-50 animate-in fade-in"
+              >
+                {isSubmitting ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : "Confirm Cancel"}
+              </button>
+            </>
+          ) : (
+            <>
+              {canEdit && shift.status !== 'COMPLETED' && shift.status !== 'CANCELLED' && (
+                <button 
+                  onClick={() => handleUpdateStatus('COMPLETED')}
+                  className="w-full flex items-center justify-center px-4 py-3 bg-brand-green/80 hover:bg-brand-green text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-md active:scale-95"
+                >
+                  <CheckCircle className="w-5 h-5 mr-2" />
+                  Mark Completed
+                </button>
+              )}
 
-          {isAdmin && (
-            <button 
-              onClick={() => {
-                 onClose();
-                 if (onEdit) onEdit(shift);
-              }}
-              className="w-full flex items-center justify-center px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-sm active:scale-95"
-            >
-              <Edit className="w-5 h-5 mr-2 text-zinc-400" />
-              {shift.isRespiteWrapper ? "Edit Booking" : "Edit Shift"}
-            </button>
-          )}
-          
-          {isAdmin && shift.status === 'DRAFT' && (
-            <button 
-              onClick={() => handleUpdateStatus('PUBLISHED')}
-              className="w-full flex items-center justify-center px-4 py-3 bg-brand-blue hover:bg-indigo-500 text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-md active:scale-95"
-            >
-              <Cast className="w-5 h-5 mr-2" />
-              {shift.isRespiteWrapper ? "Publish Booking" : "Publish Shift"}
-            </button>
-          )}
+              {isAdmin && (
+                <button 
+                  onClick={() => {
+                     onClose();
+                     if (onEdit) onEdit(shift);
+                  }}
+                  className="w-full flex items-center justify-center px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-sm active:scale-95"
+                >
+                  <Edit className="w-5 h-5 mr-2 text-zinc-400" />
+                  {shift.isRespiteWrapper ? "Edit Booking" : "Edit Shift"}
+                </button>
+              )}
+              
+              {isAdmin && shift.status === 'DRAFT' && (
+                <button 
+                  onClick={() => handleUpdateStatus('PUBLISHED')}
+                  className="w-full flex items-center justify-center px-4 py-3 bg-brand-blue hover:bg-indigo-500 text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-md active:scale-95"
+                >
+                  <Cast className="w-5 h-5 mr-2" />
+                  {shift.isRespiteWrapper ? "Publish Booking" : "Publish Shift"}
+                </button>
+              )}
 
-          {isAdmin && shift.status === 'PUBLISHED' && (
-            <button 
-              onClick={() => handleUpdateStatus('DRAFT')}
-              className="w-full flex items-center justify-center px-4 py-3 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 text-amber-500 rounded-xl text-sm md:text-base font-bold transition-all active:scale-95"
-            >
-              <Undo2 className="w-5 h-5 mr-2 shrink-0" />
-              {shift.isRespiteWrapper ? "Unpublish Booking" : "Unpublish Shift"}
-            </button>
-          )}
+              {isAdmin && shift.status === 'PUBLISHED' && (
+                <button 
+                  onClick={() => handleUpdateStatus('DRAFT')}
+                  className="w-full flex items-center justify-center px-4 py-3 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 text-amber-500 rounded-xl text-sm md:text-base font-bold transition-all active:scale-95"
+                >
+                  <Undo2 className="w-5 h-5 mr-2 shrink-0" />
+                  {shift.isRespiteWrapper ? "Unpublish Booking" : "Unpublish Shift"}
+                </button>
+              )}
 
-          {canEdit && shift.status !== 'CANCELLED' && shift.status !== 'COMPLETED' && (
-            <button 
-              onClick={() => handleUpdateStatus('CANCELLED')}
-              className="w-full flex items-center justify-center px-4 py-3 border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-xl text-sm md:text-base font-bold transition-all active:scale-95"
-            >
-              <X className="w-5 h-5 mr-2" />
-              Cancel
-            </button>
-          )}
+              {canEdit && shift.status !== 'CANCELLED' && shift.status !== 'COMPLETED' && (
+                <button 
+                  onClick={() => setShowCancelPrompt(true)}
+                  className="w-full flex items-center justify-center px-4 py-3 border border-red-500/30 text-red-100 hover:bg-red-500/10 rounded-xl text-sm md:text-base font-bold transition-all active:scale-95"
+                >
+                  <X className="w-5 h-5 mr-2" />
+                  Cancel
+                </button>
+              )}
 
-          {isAdmin && (
-            <button 
-              onClick={handleDelete}
-              className="w-full sm:col-span-2 md:col-span-1 flex items-center justify-center px-4 py-3 border border-red-600/50 hover:bg-red-600 text-red-500 hover:text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-sm active:scale-95"
-            >
-              <Trash2 className="w-5 h-5 mr-2" />
-              {shift.isRespiteWrapper ? "Delete Booking" : "Delete"}
-            </button>
+              {isAdmin && (
+                <button 
+                  onClick={handleDelete}
+                  className="w-full sm:col-span-2 md:col-span-1 flex items-center justify-center px-4 py-3 border border-red-600/50 hover:bg-red-600 text-red-500 hover:text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-sm active:scale-95"
+                >
+                  <Trash2 className="w-5 h-5 mr-2" />
+                  {shift.isRespiteWrapper ? "Delete Booking" : "Delete"}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
