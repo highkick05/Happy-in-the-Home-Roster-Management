@@ -3412,19 +3412,17 @@ async function startServer() {
             '/roster'
           );
 
-          // Also notify other admins
+          // Also notify all admins
           const adminMsg = `Shift with ${clientName} (Staff: ${staffName}) has been cancelled by Admin. Reason: ${notifReason}`;
           const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN'").all() as any[];
           for (const admin of admins) {
-            if (admin.id !== req.user.id) {
-              insertNotif.run(
-                admin.id,
-                'SHIFT_CANCELLED',
-                'Shift Cancelled',
-                adminMsg,
-                '/roster'
-              );
-            }
+            insertNotif.run(
+              admin.id,
+              'SHIFT_CANCELLED',
+              'Shift Cancelled',
+              adminMsg,
+              '/roster'
+            );
           }
         } else {
           // Staff cancelled their own shift, notify all admins
