@@ -2145,7 +2145,7 @@ async function startServer() {
           SELECT DISTINCT c.id, c.first_name, c.last_name
           FROM clients c
           JOIN shifts s ON s.client_id = c.id
-          WHERE s.staff_id = ? AND s.status IN ('COMPLETED', 'PUBLISHED') AND s.notes IS NOT NULL AND s.notes != ''
+          WHERE s.staff_id = ? AND s.status IN ('COMPLETED', 'PUBLISHED', 'CANCELLED') AND s.notes IS NOT NULL AND s.notes != ''
         `).all(req.user.id);
         return res.json(clients);
       }
@@ -2196,7 +2196,7 @@ async function startServer() {
       }
 
       // Base query for shifts (progress notes)
-      const params: any[] = [clientId, 'COMPLETED'];
+      const params: any[] = [clientId];
       let dateFilter = '';
       if (startDate && startDate !== 'undefined') {
         dateFilter += ` AND s.start_time >= ?`;
@@ -2209,13 +2209,13 @@ async function startServer() {
 
       const notes = db.prepare(`
         SELECT 
-          s.id, s.start_time, s.end_time, s.actual_finish_time, s.notes,
+          s.id, s.start_time, s.end_time, s.actual_finish_time, s.notes, s.status,
           u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
           srv.name as service_name
         FROM shifts s
         LEFT JOIN users u ON s.staff_id = u.id
         LEFT JOIN services srv ON s.service_id = srv.id
-        WHERE s.client_id = ? AND s.status = ? ${dateFilter}
+        WHERE s.client_id = ? AND s.status IN ('COMPLETED', 'PUBLISHED', 'CANCELLED') ${dateFilter}
         AND s.notes IS NOT NULL AND TRIM(s.notes) != ''
         ORDER BY s.start_time ASC
       `).all(...params) as any[];
@@ -2348,7 +2348,8 @@ async function startServer() {
             const gap = Math.max(0, rowH - fontHeight);
 
             const sigText = `   ${staffName} (${staffRole})`;
-            const fullNoteString = `${note.notes || ''}${sigText}`;
+            const cancelPrefix = note.status === 'CANCELLED' ? '[SHIFT CANCELLED] ' : '';
+            const fullNoteString = `${cancelPrefix}${note.notes || ''}${sigText}`;
 
             // Calculate height using EXACT SAME math as frontend so pages match:
             const explicitLinesCount = fullNoteString.split('\n');
@@ -2412,7 +2413,7 @@ async function startServer() {
       const { clientId } = req.params;
       const { startDate, endDate } = req.query;
       let query = `
-        SELECT s.id, s.start_time, s.end_time, s.actual_finish_time, s.notes, s.service_id,
+        SELECT s.id, s.start_time, s.end_time, s.actual_finish_time, s.notes, s.status, s.service_id,
                c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
                u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
                srv.name as service_name, srv.type as service_type
@@ -2420,7 +2421,7 @@ async function startServer() {
         LEFT JOIN clients c ON s.client_id = c.id
         LEFT JOIN users u ON s.staff_id = u.id
         LEFT JOIN services srv ON s.service_id = srv.id
-        WHERE s.client_id = ? AND s.status IN ('COMPLETED', 'PUBLISHED') AND s.notes IS NOT NULL AND s.notes != ''
+        WHERE s.client_id = ? AND s.status IN ('COMPLETED', 'PUBLISHED', 'CANCELLED') AND s.notes IS NOT NULL AND s.notes != ''
       `;
       const params: any[] = [clientId];
       
@@ -3386,6 +3387,34 @@ async function startServer() {
       if (req.user.role !== 'ADMIN' && shift.staff_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
 
       db.prepare('UPDATE shifts SET status = ?, notes = ? WHERE id = ?').run('CANCELLED', reason ? `Cancelled: ${reason}` : 'Cancelled by staff', id);
+
+      // Better communication: Notify all admin users about the cancellation
+      try {
+        const staff = db.prepare('SELECT first_name, last_name FROM users WHERE id = ?').get(shift.staff_id) as any;
+        const staffName = staff ? `${staff.first_name} ${staff.last_name}` : 'A staff member';
+        
+        const client = db.prepare('SELECT first_name, last_name FROM clients WHERE id = ?').get(shift.client_id) as any;
+        const clientName = client ? `${client.first_name} ${client.last_name}` : 'a client';
+
+        const notifReason = reason ? reason : 'No reason provided';
+        const notifMsg = `${staffName} cancelled their shift with ${clientName}. Reason: ${notifReason}`;
+        
+        const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN'").all() as any[];
+        const insertNotif = db.prepare('INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)');
+        
+        for (const admin of admins) {
+          insertNotif.run(
+            admin.id,
+            'SHIFT_CANCELLED',
+            'Shift Cancelled',
+            notifMsg,
+            '/roster'
+          );
+        }
+      } catch (err) {
+        logger.error(`Failed to create notifications for cancelled shift ${id}: ${err}`);
+      }
+
       res.json({ success: true });
     } catch(e: any) {
       

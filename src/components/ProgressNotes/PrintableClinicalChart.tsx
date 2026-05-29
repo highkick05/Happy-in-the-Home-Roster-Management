@@ -143,7 +143,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                               <div className="text-[12px] font-sans break-words w-full tiptap-content select-text" style={{ lineHeight: '28px', minHeight: '28px' }}>
                                  <div 
                                    className="inline" 
-                                   dangerouslySetInnerHTML={{ __html: note.notes || '' }} 
+                                   dangerouslySetInnerHTML={{ __html: note.status === 'CANCELLED' ? `<strong style="color:#dc2626;font-weight:800;margin-right:4px;">[CANCELLED]</strong><span style="color:#dc2626;">${note.notes || ''}</span>` : (note.notes || '') }} 
                                  />
                                  <span className="font-sans font-semibold text-[11px] ml-2 tracking-normal whitespace-nowrap italic text-black">
                                     {" "}({staffName || 'Staff'}{roleStr ? `, ${roleStr}` : ''})
