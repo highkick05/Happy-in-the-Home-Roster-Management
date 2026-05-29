@@ -3388,7 +3388,7 @@ async function startServer() {
 
       db.prepare('UPDATE shifts SET status = ?, notes = ? WHERE id = ?').run('CANCELLED', reason ? `Cancelled: ${reason}` : 'Cancelled by staff', id);
 
-      // Better communication: Notify all admin users about the cancellation
+      // Better communication: Send notifications about the cancellation
       try {
         const staff = db.prepare('SELECT first_name, last_name FROM users WHERE id = ?').get(shift.staff_id) as any;
         const staffName = staff ? `${staff.first_name} ${staff.last_name}` : 'A staff member';
@@ -3397,19 +3397,48 @@ async function startServer() {
         const clientName = client ? `${client.first_name} ${client.last_name}` : 'a client';
 
         const notifReason = reason ? reason : 'No reason provided';
-        const notifMsg = `${staffName} cancelled their shift with ${clientName}. Reason: ${notifReason}`;
-        
-        const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN'").all() as any[];
+        const isCancelledByAdmin = req.user.role === 'ADMIN' && req.user.id !== shift.staff_id;
+
         const insertNotif = db.prepare('INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)');
-        
-        for (const admin of admins) {
+
+        if (isCancelledByAdmin) {
+          // If admin cancelled, send notification to the assigned staff member
+          const staffMsg = `Your shift with ${clientName} on ${new Date(shift.start_time).toLocaleDateString()} has been cancelled by an administrator. Reason: ${notifReason}`;
           insertNotif.run(
-            admin.id,
+            shift.staff_id,
             'SHIFT_CANCELLED',
             'Shift Cancelled',
-            notifMsg,
+            staffMsg,
             '/roster'
           );
+
+          // Also notify other admins
+          const adminMsg = `Shift with ${clientName} (Staff: ${staffName}) has been cancelled by Admin. Reason: ${notifReason}`;
+          const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN'").all() as any[];
+          for (const admin of admins) {
+            if (admin.id !== req.user.id) {
+              insertNotif.run(
+                admin.id,
+                'SHIFT_CANCELLED',
+                'Shift Cancelled',
+                adminMsg,
+                '/roster'
+              );
+            }
+          }
+        } else {
+          // Staff cancelled their own shift, notify all admins
+          const adminMsg = `${staffName} cancelled their shift with ${clientName}. Reason: ${notifReason}`;
+          const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN'").all() as any[];
+          for (const admin of admins) {
+            insertNotif.run(
+              admin.id,
+              'SHIFT_CANCELLED',
+              'Shift Cancelled',
+              adminMsg,
+              '/roster'
+            );
+          }
         }
       } catch (err) {
         logger.error(`Failed to create notifications for cancelled shift ${id}: ${err}`);
