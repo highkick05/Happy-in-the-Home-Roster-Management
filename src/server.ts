@@ -4021,15 +4021,15 @@ async function startServer() {
         let dayCategory = 'Weekday';
         if (isPubHol && isPubHol.some((h: any) => h.type === 'public')) {
           dayCategory = 'Public Holiday';
-          totals.publicHolidayHours += hours;
+          totals.publicHolidayHours += Math.max(0, scheduledHrs);
         } else if (weekdayStr === 'Saturday') {
           dayCategory = 'Saturday';
-          totals.saturdayHours += hours;
+          totals.saturdayHours += Math.max(0, scheduledHrs);
         } else if (weekdayStr === 'Sunday') {
           dayCategory = 'Sunday';
-          totals.sundayHours += hours;
+          totals.sundayHours += Math.max(0, scheduledHrs);
         } else {
-          totals.weekdayHours += hours;
+          totals.weekdayHours += Math.max(0, scheduledHrs);
         }
         
         let serviceProvided = shift.service_name || '';
