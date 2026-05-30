@@ -4049,18 +4049,17 @@ async function startServer() {
         const hc_travel_km = shift.respite_booking_id ? 0 : (shift.provider_travel_km || shift.home_care_travel_km || 0);
         const hc_travel_hrs = shift.respite_booking_id ? 0 : ((shift.provider_travel_minutes || 0) / 60);
         const hc_travel_total = shift.respite_booking_id ? 0 : (shift.home_care_travel_total || 0);
-        
-        const prov_km = shift.respite_booking_id ? 0 : (shift.provider_travel_km || 0);
-        const prov_cost = shift.respite_booking_id ? 0 : (shift.provider_travel_cost || 0);
+                const prov_km = shift.respite_booking_id ? 0 : (shift.provider_travel_km || 0);
         const abt_km = shift.respite_booking_id ? 0 : (shift.abt_km || 0);
-        const abt_cost = shift.respite_booking_id ? 0 : (shift.abt_cost || 0);
         
         totals.travelKm += isHomeCare ? hc_travel_km : (prov_km + abt_km);
         totals.travelHrs += isHomeCare ? hc_travel_hrs : 0;
         totals.providerTravelKm = (totals.providerTravelKm || 0) + (isHomeCare ? 0 : prov_km);
         totals.abtKm = (totals.abtKm || 0) + (isHomeCare ? 0 : abt_km);
         
-        const shiftTravelPay = isHomeCare ? 0 : (prov_cost + abt_cost);
+        const rowProvReimbursement = parseFloat((prov_km * 0.99).toFixed(2));
+        const rowAbtReimbursement = parseFloat((abt_km * 0.99).toFixed(2));
+        const shiftTravelPay = isHomeCare ? 0 : (rowProvReimbursement + rowAbtReimbursement);
         totals.travelPayTotal = (totals.travelPayTotal || 0) + shiftTravelPay;
 
         const dayOnly = parts.find((p: any) => p.type === 'day')?.value || '';
@@ -4100,7 +4099,7 @@ async function startServer() {
             dayCategory: dayCategory,
             travelKm: parseFloat(prov_km.toFixed(2)),
             travelHours: undefined,
-            travelReimbursement: parseFloat(prov_cost.toFixed(2)),
+            travelReimbursement: rowProvReimbursement,
             providerTravelKm: parseFloat(prov_km.toFixed(2)),
             abtKm: 0,
             staffName: `${shift.staff_first_name} ${shift.staff_last_name}`,
@@ -4119,7 +4118,7 @@ async function startServer() {
             dayCategory: dayCategory,
             travelKm: parseFloat(abt_km.toFixed(2)),
             travelHours: undefined,
-            travelReimbursement: parseFloat(abt_cost.toFixed(2)),
+            travelReimbursement: rowAbtReimbursement,
             providerTravelKm: 0,
             abtKm: parseFloat(abt_km.toFixed(2)),
             staffName: `${shift.staff_first_name} ${shift.staff_last_name}`,
