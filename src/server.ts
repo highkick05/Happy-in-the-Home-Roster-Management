@@ -4078,6 +4078,7 @@ async function startServer() {
           timeString: timeStr,
           serviceProvided: serviceProvided,
           hoursWorked: parseFloat(hours.toFixed(2)),
+          shiftDuration: parseFloat(scheduledHrs.toFixed(2)),
           dayCategory: dayCategory,
           travelKm: isHomeCare ? parseFloat(hc_travel_km.toFixed(2)) : 0,
           travelHours: isHomeCare ? parseFloat(hc_travel_hrs.toFixed(2)) : undefined,
@@ -4095,6 +4096,7 @@ async function startServer() {
             timeString: '-', // Secondary travel item
             serviceProvided: 'Provider Travel',
             hoursWorked: 0,
+            shiftDuration: 0,
             dayCategory: dayCategory,
             travelKm: parseFloat(prov_km.toFixed(2)),
             travelHours: undefined,
@@ -4113,6 +4115,7 @@ async function startServer() {
             timeString: '-', // Secondary transport item
             serviceProvided: 'Activity Based Transport',
             hoursWorked: 0,
+            shiftDuration: 0,
             dayCategory: dayCategory,
             travelKm: parseFloat(abt_km.toFixed(2)),
             travelHours: undefined,
