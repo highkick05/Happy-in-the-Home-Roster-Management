@@ -332,18 +332,18 @@ export default function StaffActivityReport() {
                 <div className="text-xl font-bold text-brand-teal tabular-nums">{reportData.totals.travelKm} <span className="text-sm font-normal text-brand-teal/70">km</span></div>
               </div>
               <div className="bg-gradient-to-br from-brand-teal/10 to-brand-green/10 rounded-lg p-3 border border-brand-teal/20">
-                <div className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wide flex flex-col items-start gap-1">
-                  <span className="bg-brand-teal/20 text-brand-teal text-[9px] font-bold px-1.5 py-0.5 rounded border border-brand-teal/30">Home Care</span>
-                  <span>Total Travel Hrs</span>
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="text-[#8B949E] text-xs font-semibold uppercase tracking-wide">Total Travel Hrs</span>
+                  <span className="bg-brand-teal/20 text-brand-teal text-[9px] font-bold px-1.5 py-0.5 rounded border border-brand-teal/30 shrink-0">Home Care</span>
                 </div>
-                <div className="text-xl font-bold text-brand-teal tabular-nums mt-1">{reportData.totals.travelHrs !== undefined ? reportData.totals.travelHrs : 0} <span className="text-sm font-normal text-brand-teal/70">hrs</span></div>
+                <div className="text-xl font-bold text-brand-teal tabular-nums">{reportData.totals.travelHrs !== undefined ? reportData.totals.travelHrs : 0} <span className="text-sm font-normal text-brand-teal/70">hrs</span></div>
               </div>
               <div className="bg-gradient-to-br from-indigo-500/10 to-blue-500/10 rounded-lg p-3 border border-indigo-500/20">
-                <div className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wide flex flex-col items-start gap-1">
-                  <span className="bg-indigo-500/20 text-indigo-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-indigo-500/30">NDIS</span>
-                  <span>Total Travel Pay</span>
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="text-[#8B949E] text-xs font-semibold uppercase tracking-wide">Total Travel Pay</span>
+                  <span className="bg-indigo-500/20 text-indigo-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-indigo-500/30 shrink-0">NDIS</span>
                 </div>
-                <div className="text-xl font-bold text-indigo-400 tabular-nums mt-1">${reportData.totals.travelPayTotal?.toFixed(2) || '0.00'}</div>
+                <div className="text-xl font-bold text-indigo-400 tabular-nums">${reportData.totals.travelPayTotal?.toFixed(2) || '0.00'}</div>
               </div>
             </div>
           </div>
