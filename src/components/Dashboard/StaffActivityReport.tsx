@@ -332,12 +332,14 @@ export default function StaffActivityReport() {
                 <div className="text-xl font-bold text-brand-teal tabular-nums">{reportData.totals.travelKm} <span className="text-sm font-normal text-brand-teal/70">km</span></div>
               </div>
               <div className="bg-gradient-to-br from-brand-teal/10 to-brand-green/10 rounded-lg p-3 border border-brand-teal/20">
-                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Travel Hrs</div>
+                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Travel Hrs - Home Care</div>
                 <div className="text-xl font-bold text-brand-teal tabular-nums">{reportData.totals.travelHrs !== undefined ? reportData.totals.travelHrs : 0} <span className="text-sm font-normal text-brand-teal/70">hrs</span></div>
+                <div className="text-[10px] text-[#8B949E] uppercase font-semibold tracking-wider mt-1 opacity-80">Base Rate x Total Hrs</div>
               </div>
               <div className="bg-gradient-to-br from-indigo-500/10 to-blue-500/10 rounded-lg p-3 border border-indigo-500/20">
-                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Travel Pay</div>
+                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Travel Pay - NDIS</div>
                 <div className="text-xl font-bold text-indigo-400 tabular-nums">${reportData.totals.travelPayTotal?.toFixed(2) || '0.00'}</div>
+                <div className="text-[10px] text-[#8B949E] uppercase font-semibold tracking-wider mt-1 opacity-80">$0.99 per km</div>
               </div>
             </div>
           </div>
