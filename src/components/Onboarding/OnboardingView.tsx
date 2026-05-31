@@ -524,13 +524,27 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
 
               {step.id === 'tfn_super' && (
                 <div className="mb-6 space-y-6">
-                  <div className="p-4 border border-amber-500/20 rounded-lg bg-amber-500/10 text-amber-200 text-sm space-y-1.5 shadow-[0_0_15px_rgba(245,158,11,0.05)]">
+                  <div className="p-4 border border-amber-500/20 rounded-lg bg-amber-500/10 text-amber-200 text-sm space-y-2.5 shadow-[0_0_15px_rgba(245,158,11,0.05)]">
                     <p className="font-semibold flex items-center gap-1.5 text-amber-400">
                       <Info className="w-4 h-4 text-amber-400" /> IMPORTANT INSTRUCTIONS:
                     </p>
                     <p className="text-zinc-300">
                       On completion of the forms, please make sure to click on your receipt, screenshot it, or save it as a PDF, and upload the file using the upload section below.
                     </p>
+                    <div className="pt-2 border-t border-amber-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <span className="text-xs text-amber-300 font-semibold uppercase tracking-wider">
+                        ★ MOST IMPORTANT STEP BEFORE STARTING WORK
+                      </span>
+                      <a 
+                        href="https://my.gov.au/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-zinc-950 text-xs font-bold rounded-md transition-colors w-fit shadow-md select-none"
+                      >
+                        <LinkIcon className="w-3.5 h-3.5" />
+                        Go to myGov Login
+                      </a>
+                    </div>
                   </div>
 
                   <div>
