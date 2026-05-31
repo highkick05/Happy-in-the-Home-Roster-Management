@@ -4,6 +4,7 @@ import { Download, Search, Trash2, Eye } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 
 function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | null, onGenerated: () => void, onClose: () => void }) {
+  const { settings } = useAuth();
   const [formData, setFormData] = useState({
     clientId: '',
     activityName: '',
@@ -78,32 +79,32 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
     if (s.rates_json) {
       try {
         const rates = JSON.parse(s.rates_json || '{}');
-        if (dayOfWeek === 0 && rates['Sunday']) {
-          baseRate = Number(rates['Sunday']);
-        } else if (dayOfWeek === 6 && rates['Saturday']) {
-          baseRate = Number(rates['Saturday']);
-        } else if (rates['Weekday']) {
-          baseRate = Number(rates['Weekday']);
-        } else if (rates['Hourly Rate']) {
-          baseRate = Number(rates['Hourly Rate']);
-        } else if (rates['Standard']) {
-          baseRate = Number(rates['Standard']);
+        if (s.type === 'HOME_CARE') {
+          if (dayOfWeek === 0 && rates['Sunday']) {
+            baseRate = Number(rates['Sunday']);
+          } else if (dayOfWeek === 6 && rates['Saturday']) {
+            baseRate = Number(rates['Saturday']);
+          } else if (rates['Weekday']) {
+            baseRate = Number(rates['Weekday']);
+          } else if (rates['Hourly Rate']) {
+            baseRate = Number(rates['Hourly Rate']);
+          } else if (rates['Standard']) {
+            baseRate = Number(rates['Standard']);
+          }
+        } else if (s.type === 'NDIS') {
+          const region = settings?.ndisRegion || 'NSW';
+          if (rates[region] !== undefined) {
+            baseRate = Number(rates[region]);
+          } else if (rates['Standard']) {
+            baseRate = Number(rates['Standard']);
+          }
+        } else {
+          if (dayOfWeek === 0 && rates['Sunday']) baseRate = Number(rates['Sunday']);
+          else if (dayOfWeek === 6 && rates['Saturday']) baseRate = Number(rates['Saturday']);
+          else baseRate = Number(rates['Weekday'] || rates['Hourly Rate'] || rates['Standard'] || s.rate || 0);
         }
       } catch (e) {
         // Fall back to baseRate
-      }
-    } else if (s.type === 'HOME_CARE' && s.rate) {
-      try {
-        const rates = JSON.parse(s.rate || '{}');
-        if (dayOfWeek === 0 && rates['Sunday']) {
-          baseRate = Number(rates['Sunday']);
-        } else if (dayOfWeek === 6 && rates['Saturday']) {
-          baseRate = Number(rates['Saturday']);
-        } else {
-          baseRate = Number(rates['Weekday'] || rates['Hourly Rate'] || rates['Standard'] || 0);
-        }
-      } catch (e) {
-         // keep baseRate if parsing fails
       }
     }
     

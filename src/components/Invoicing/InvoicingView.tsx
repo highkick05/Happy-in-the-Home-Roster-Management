@@ -6,15 +6,25 @@ import { RefreshCw, Search } from 'lucide-react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | null, onGenerated: () => void, onClose: () => void }) {
+  const { settings } = useAuth();
   const [formData, setFormData] = useState({
     clientId: '',
     staffId: '',
+    customStaffName: '',
     date: new Date().toISOString().split('T')[0],
     startTime: '09:00',
     endTime: '10:00'
   });
   
-  const [selectedServices, setSelectedServices] = useState<{ serviceId: string, qtyOverride: string, rateOverride: string }[]>([
+  const [selectedServices, setSelectedServices] = useState<{ 
+    serviceId: string; 
+    qtyOverride: string; 
+    rateOverride: string;
+    isCustom?: boolean;
+    customName?: string;
+    customUnit?: string;
+    customRate?: string;
+  }[]>([
     { serviceId: '', qtyOverride: '', rateOverride: '' }
   ]);
   
@@ -55,7 +65,33 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
     setSelectedServices([...selectedServices, { serviceId: '', qtyOverride: '', rateOverride: '' }]);
   };
 
+  const addCustomService = () => {
+    const customId = `custom-${Date.now()}`;
+    setSelectedServices([
+      ...selectedServices,
+      {
+        serviceId: customId,
+        qtyOverride: '1',
+        rateOverride: '0.00',
+        isCustom: true,
+        customName: '',
+        customUnit: 'Hour',
+        customRate: '0.00'
+      }
+    ]);
+  };
+
   const getServiceDetails = (serviceId: string) => {
+    if (serviceId && String(serviceId).startsWith('custom-')) {
+      const match = selectedServices.find(s => s.serviceId === serviceId);
+      if (match) {
+        return {
+          rate: Number(match.customRate || 0),
+          unit: match.customUnit || 'Hour',
+          name: match.customName || 'Custom Service'
+        };
+      }
+    }
     const service = options.services.find(x => String(x.id) === serviceId);
     if (!service) return { rate: 0, unit: 'Hour', name: '' };
     
@@ -128,9 +164,9 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
     setSelectedServices(selectedServices.filter((_, i) => i !== index));
   };
 
-  const updateService = (index: number, field: 'serviceId' | 'qtyOverride' | 'rateOverride', value: string) => {
+  const updateService = (index: number, field: string, value: string) => {
     const fresh = [...selectedServices];
-    fresh[index][field] = value;
+    (fresh[index] as any)[field] = value;
     setSelectedServices(fresh);
   };
 
@@ -139,7 +175,18 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
     
     const validServices = selectedServices.filter(s => s.serviceId);
     if (validServices.length === 0) {
-      alert("Please select at least one service.");
+      alert("Please select or create at least one service item.");
+      return;
+    }
+
+    const invalidCustom = validServices.find(s => s.isCustom && !s.customName?.trim());
+    if (invalidCustom) {
+      alert("Please specify a service name for each custom service item.");
+      return;
+    }
+
+    if (formData.staffId === 'custom' && !formData.customStaffName.trim()) {
+      alert("Please enter a custom staff member name.");
       return;
     }
 
@@ -204,10 +251,21 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
             onChange={e => setFormData({ ...formData, staffId: e.target.value })}
           >
             <option value="">Select Staff</option>
+            <option value="custom">-- Custom Staff Member Name --</option>
             {options.staff.map(s => (
               <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
             ))}
           </select>
+          {formData.staffId === 'custom' && (
+            <input
+              type="text"
+              required
+              placeholder="Enter Custom Staff Name (e.g. John Doe)"
+              className="mt-1.5 w-full bg-[#121214] border border-white/[0.08] rounded-md py-1.5 px-3 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none"
+              value={formData.customStaffName}
+              onChange={e => setFormData({ ...formData, customStaffName: e.target.value })}
+            />
+          )}
         </div>
       </div>
 
@@ -243,20 +301,29 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
       </div>
 
       <div className="space-y-2">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center flex-row">
           <div className="flex items-center space-x-2">
             <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Services / Items</label>
             {formData.clientId && options.clients.find(c => c.id === Number(formData.clientId))?.service_ids?.length === 0 && (
               <span className="text-[10px] text-amber-500/80 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">All services shown (no personalised ones set)</span>
             )}
           </div>
-          <button 
-            type="button" 
-            onClick={addService}
-            className="text-[10px] text-brand-teal hover:text-brand-teal font-bold uppercase tracking-widest flex items-center"
-          >
-            <span className="text-base mr-1">+</span> Add Service item
-          </button>
+          <div className="flex space-x-2">
+            <button 
+              type="button" 
+              onClick={addService}
+              className="text-[10px] text-brand-teal hover:text-brand-teal font-bold uppercase tracking-widest flex items-center bg-brand-teal/5 hover:bg-brand-teal/10 px-2 py-1 rounded border border-brand-teal/10 transition-all"
+            >
+              <span className="text-base mr-1">+</span> Add Service item
+            </button>
+            <button 
+              type="button" 
+              onClick={addCustomService}
+              className="text-[10px] text-brand-teal hover:text-brand-teal font-bold uppercase tracking-widest flex items-center bg-brand-teal/5 hover:bg-brand-teal/10 px-2 py-1 rounded border border-brand-teal/10 transition-all"
+            >
+              <span className="text-base mr-1">+</span> Create Service item
+            </button>
+          </div>
         </div>
         
         <div className="space-y-2 pb-2">
@@ -278,74 +345,156 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
             }
             const subtotal = effectiveQty * rate;
 
+            const isCustom = row.isCustom;
             return (
-              <div key={idx} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
-                <div className="flex items-center space-x-2 mb-1.5 pr-8">
-                  <div className="flex-1 min-w-0">
-                    <select
-                      required
-                      className="w-full bg-[#09090b] border border-white/[0.08] rounded py-1 px-2 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none truncate"
-                      value={row.serviceId}
-                      onChange={e => updateService(idx, 'serviceId', e.target.value)}
-                    >
-                      <option value="">Select Service</option>
-                      {clientPersonalisedServices.map(s => (
-                        <option key={s.id} value={s.id}>{s.name} ({s.code || 'No Code'})</option>
-                      ))}
-                    </select>
-                  </div>
+              <div key={idx} className="relative w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold text-brand-teal uppercase tracking-widest">
+                    {isCustom ? "🔧 Custom (One-Off) Service item" : "📋 Catalog Service selection"}
+                  </span>
+                  <button 
+                    type="button"
+                    onClick={() => removeService(idx)}
+                    className="p-1 px-2.5 rounded bg-red-950/20 hover:bg-red-900/40 text-red-400 border border-red-500/10 hover:border-red-500/30 text-[11px] font-medium transition-colors"
+                    title="Remove Item"
+                  >
+                    Remove
+                  </button>
                 </div>
-                
-                <button 
-                  type="button"
-                  onClick={() => removeService(idx)}
-                  className="absolute right-1 top-1 p-1 text-zinc-600 hover:text-red-400 transition-colors"
-                  title="Remove Item"
-                >
-                  <div className="w-5 h-5 flex items-center justify-center text-lg leading-none">&times;</div>
-                </button>
 
-                {row.serviceId && (
-                  <div className="flex md:items-center justify-between text-[11px] bg-[#09090b]/50 p-1.5 rounded border border-white/[0.08]/50 mt-1">
-                    <div className="flex items-center space-x-4">
-                      <div>
-                        <span className="text-zinc-500 font-medium mr-1.5">Unit</span>
-                        <span className="text-zinc-300">{unit}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="text-zinc-500 font-medium mr-1.5">Rate $</span>
-                        <input 
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={row.rateOverride || ''}
-                          onChange={(e) => updateService(idx, 'rateOverride', e.target.value)}
-                          placeholder={rate.toFixed(2)}
-                          className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
+                {isCustom ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <span className="text-[11px] text-zinc-500 font-medium">Service Name</span>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Occupational Therapy sessions"
+                          value={row.customName || ''}
+                          onChange={e => updateService(idx, 'customName', e.target.value)}
+                          className="w-full bg-[#09090b] border border-white/[0.08] rounded py-1 px-2 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none"
                         />
                       </div>
-                      <div className="flex items-center">
-                        <span className="text-zinc-500 font-medium mr-1.5">Qty</span>
-                        {unit === 'Hour' && !isTravelOrTransport ? (
-                          <span className="text-zinc-300">{effectiveQty.toFixed(2)}</span>
-                        ) : (
-                          <input 
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-zinc-500 font-medium font-sans">Unit</span>
+                          <select
+                            required
+                            value={row.customUnit || 'Hour'}
+                            onChange={e => {
+                              updateService(idx, 'customUnit', e.target.value);
+                            }}
+                            className="w-full bg-[#09090b] border border-white/[0.08] rounded py-1 px-2 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none"
+                          >
+                            <option value="Hour">Hour</option>
+                            <option value="Kilometre">Kilometre</option>
+                            <option value="Standard">Standard</option>
+                            <option value="Each">Each</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-zinc-500 font-medium">Rate $</span>
+                          <input
                             type="number"
                             min="0"
                             step="0.01"
-                            value={row.qtyOverride}
-                            onChange={(e) => updateService(idx, 'qtyOverride', e.target.value)}
-                            placeholder={String(effectiveQty)}
-                            className="w-14 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
+                            required
+                            placeholder="0.00"
+                            value={row.customRate || ''}
+                            onChange={e => {
+                              updateService(idx, 'customRate', e.target.value);
+                              updateService(idx, 'rateOverride', e.target.value);
+                            }}
+                            className="w-full bg-[#09090b] border border-white/[0.08] rounded py-1 px-2 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none font-mono"
                           />
-                        )}
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-zinc-500 font-medium">Qty</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            required
+                            placeholder="1"
+                            value={row.qtyOverride || ''}
+                            onChange={e => updateService(idx, 'qtyOverride', e.target.value)}
+                            className="w-full bg-[#09090b] border border-white/[0.08] rounded py-1 px-2 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none font-mono"
+                          />
+                        </div>
                       </div>
                     </div>
                     
-                    <div className="text-right flex items-center bg-indigo-500/10 px-2 py-0.5 rounded border border-brand-teal/20">
-                      <span className="text-zinc-400 font-medium mr-2">SUBTOTAL</span>
-                      <span className="text-brand-teal font-bold">${subtotal.toFixed(2)}</span>
+                    <div className="flex justify-end pt-1">
+                      <div className="text-right flex items-center bg-brand-teal/5 px-2 py-1 rounded border border-brand-teal/20 text-xs text-zinc-300">
+                        <span className="text-zinc-500 text-[10px] font-medium mr-2">SUBTOTAL</span>
+                        <span className="text-brand-teal font-bold font-mono">
+                          ${(Number(row.customRate || 0) * Number(row.qtyOverride || 1)).toFixed(2)}
+                        </span>
+                      </div>
                     </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center space-x-2 mb-1.5">
+                      <div className="flex-1 min-w-0">
+                        <select
+                          required
+                          className="w-full bg-[#09090b] border border-white/[0.08] rounded py-1 px-2 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none truncate"
+                          value={row.serviceId}
+                          onChange={e => updateService(idx, 'serviceId', e.target.value)}
+                        >
+                          <option value="">Select Service</option>
+                          {clientPersonalisedServices.map(s => (
+                            <option key={s.id} value={s.id}>{s.name} ({s.code || 'No Code'})</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {row.serviceId && (
+                      <div className="flex md:items-center justify-between text-[11px] bg-[#09090b]/50 p-1.5 rounded border border-white/[0.08]/50 mt-1">
+                        <div className="flex items-center space-x-4">
+                          <div>
+                            <span className="text-zinc-500 font-medium mr-1.5">Unit</span>
+                            <span className="text-zinc-300">{unit}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-zinc-500 font-medium mr-1.5">Rate $</span>
+                            <input 
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row.rateOverride || ''}
+                              onChange={(e) => updateService(idx, 'rateOverride', e.target.value)}
+                              placeholder={rate.toFixed(2)}
+                              className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
+                            />
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-zinc-500 font-medium mr-1.5">Qty</span>
+                            {unit === 'Hour' && !isTravelOrTransport ? (
+                              <span className="text-zinc-300">{effectiveQty.toFixed(2)}</span>
+                            ) : (
+                              <input 
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={row.qtyOverride}
+                                onChange={(e) => updateService(idx, 'qtyOverride', e.target.value)}
+                                placeholder={String(effectiveQty)}
+                                className="w-14 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
+                              />
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="text-right flex items-center bg-indigo-500/10 px-2 py-0.5 rounded border border-brand-teal/20">
+                          <span className="text-zinc-400 font-medium mr-2">SUBTOTAL</span>
+                          <span className="text-brand-teal font-bold">${subtotal.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -356,7 +505,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
 
       <div className="pt-4 border-t border-white/[0.08] flex justify-between items-center space-x-3 mt-4">
         <div className="text-white text-sm font-medium">
-          Total: <span className="text-brand-teal">${selectedServices.reduce((acc, s) => {
+          Total: <span className="text-brand-teal font-mono">${selectedServices.reduce((acc, s) => {
              let { rate, unit, name } = getServiceDetails(s.serviceId);
              if (s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== '') {
                 rate = Number(s.rateOverride);
@@ -764,7 +913,7 @@ export default function InvoicingView() {
             onClick={() => setShowManualModal(true)}
             className="flex items-center px-4 py-2 bg-brand-navy hover:hover-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto"
           >
-            Manual Generate
+            Generate Invoice
           </button>
           <div className="hidden md:flex text-[10px] border border-border-subtle bg-brand-navy text-[#8B949E] px-2 py-1 rounded items-center uppercase tracking-wider">
             <CheckCircle className="w-3 h-3 mr-1.5 text-brand-teal" />

@@ -118,6 +118,16 @@ function getTzDayOfWeek(date: Date, tz: string): number {
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Run database migrations/column additions
+  try {
+    db.exec("ALTER TABLE shifts ADD COLUMN custom_staff_name TEXT");
+    console.log('[DEBUG] Completed custom_staff_name column check.');
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
   
   // Data consistency sync for old templates
   try {
@@ -360,7 +370,8 @@ async function startServer() {
                c.first_name as c_fn, c.last_name as c_ln, c.ndis_number, c.my_aged_care_id, c.address as c_address, c.provider_id,
                c.funding_type as client_funding_type,
                srv.rate, srv.name as service_name, srv.code as service_code, srv.type as service_type, srv.unit as service_unit,
-               u.first_name as s_fn, u.last_name as s_ln,
+               COALESCE(s.custom_staff_name, u.first_name) as s_fn, 
+               COALESCE(CASE WHEN s.custom_staff_name IS NOT NULL THEN '' ELSE u.last_name END, '') as s_ln,
                p.company_name as plan_manager_name, p.email as plan_manager_email, p.address as plan_manager_address
         FROM shifts s
         LEFT JOIN clients c ON s.client_id = c.id
@@ -426,7 +437,19 @@ async function startServer() {
 
       if (servicesData.length > 0) {
         servicesData.forEach(sd => {
-          const srv = db.prepare('SELECT * FROM services WHERE id = ?').get(sd.serviceId) as any;
+          let srv = null;
+          if (sd.isCustom || (sd.serviceId && String(sd.serviceId).startsWith('custom-'))) {
+            srv = {
+              id: sd.serviceId,
+              name: sd.customName || 'Custom Service',
+              rate: Number(sd.customRate || 0),
+              unit: sd.customUnit || 'Hour',
+              code: sd.customCode || 'CUSTOM',
+              type: 'CUSTOM'
+            };
+          } else {
+            srv = db.prepare('SELECT * FROM services WHERE id = ?').get(sd.serviceId) as any;
+          }
           if (srv) {
             let qty = (sd.qtyOverride !== undefined && sd.qtyOverride !== '') ? Number(sd.qtyOverride) : (srv.unit === 'Hour' ? hours : 1);
             if (qty > 0) {
@@ -4155,7 +4178,8 @@ async function startServer() {
              COALESCE(s.end_time, rb.end_time) as end_time, 
              COALESCE(s.notes, rb.notes) as shift_notes,
              c.first_name as client_first_name, c.last_name as client_last_name,
-             u.first_name as staff_first_name, u.last_name as staff_last_name,
+             COALESCE(s.custom_staff_name, u.first_name) as staff_first_name, 
+             COALESCE(CASE WHEN s.custom_staff_name IS NOT NULL THEN '' ELSE u.last_name END, '') as staff_last_name,
              (SELECT COUNT(*) FROM invoices sub WHERE sub.merged_into_shift_id = s.id) > 0 as is_merged
       FROM invoices i
       LEFT JOIN shifts s ON i.shift_id = s.id
@@ -4235,7 +4259,7 @@ async function startServer() {
   });
 
   app.post('/api/invoices/manual', authenticateToken, requireAdmin, (req: any, res: any) => {
-    const { clientId, staffId, services, date, startTime, endTime } = req.body;
+    const { clientId, staffId, services, date, startTime, endTime, customStaffName } = req.body;
     
     if (!clientId || !staffId || !services || !Array.isArray(services) || services.length === 0 || !date || !startTime || !endTime) {
       return res.status(400).json({ error: 'Missing required fields or services array' });
@@ -4246,13 +4270,17 @@ async function startServer() {
       const endDateTime = `${date}T${endTime}:00`;
 
       // 1. Create a completed shift
-      const mainServiceId = services[0].serviceId;
+      const isCustomStaff = staffId === 'custom' || !staffId;
+      const finalStaffId = isCustomStaff ? req.user.id : staffId;
+      const finalCustomStaffName = isCustomStaff ? (customStaffName || 'Generic Staff') : null;
+
+      const mainServiceId = services[0].isCustom ? null : services[0].serviceId;
       const servicesJson = JSON.stringify(services);
 
       const shiftResult = db.prepare(`
-        INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, actual_finish_time, status, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?)
-      `).run(clientId, staffId, mainServiceId, servicesJson, startDateTime, endDateTime, endDateTime, 'Manually generated invoice');
+        INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, actual_finish_time, status, notes, custom_staff_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?)
+      `).run(clientId, finalStaffId, mainServiceId, servicesJson, startDateTime, endDateTime, endDateTime, 'Manually generated invoice', finalCustomStaffName);
 
       const shiftId = shiftResult.lastInsertRowid as number;
 
@@ -4311,7 +4339,7 @@ async function startServer() {
 
       for (const inv of invoices) {
          if (!inv.shift_id) continue;
-         const shift = db.prepare(`SELECT s.*, u.first_name as s_fn, u.last_name as s_ln FROM shifts s LEFT JOIN users u ON s.staff_id = u.id WHERE s.id = ?`).get(inv.shift_id) as any;
+         const shift = db.prepare(`SELECT s.*, COALESCE(s.custom_staff_name, u.first_name) as s_fn, COALESCE(CASE WHEN s.custom_staff_name IS NOT NULL THEN '' ELSE u.last_name END, '') as s_ln FROM shifts s LEFT JOIN users u ON s.staff_id = u.id WHERE s.id = ?`).get(inv.shift_id) as any;
          if (!shift) continue;
 
          if (!mainStaffId) mainStaffId = shift.staff_id;
