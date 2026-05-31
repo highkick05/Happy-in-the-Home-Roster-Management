@@ -39,17 +39,16 @@ export default function InvoicePreviewModal({ shiftId, invoiceId, onClose }: Pro
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center bg-black/75 backdrop-blur-sm p-4 md:p-6 overflow-hidden">
-        <div className="w-full max-w-5xl flex justify-between items-center bg-[#121214] border border-zinc-800/80 rounded-xl p-4 px-6 shadow-2xl relative z-20 backdrop-blur-md mb-4 print:hidden">
-          <div className="flex items-center gap-3">
-             <FileText className="w-5 h-5 text-indigo-400" />
-             <span className="text-sm font-semibold text-white">Invoice Preview</span>
-          </div>
-          <button onClick={onClose} className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-xs font-bold tracking-wider uppercase transition-colors shadow-md border border-zinc-700">
-             <X className="w-4 h-4" /> Close
-          </button>
-        </div>
-        <div className="bg-white text-zinc-900 rounded-xl shadow-2xl w-full flex-1 flex items-center justify-center">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 md:p-6">
+        <div className="absolute inset-0" onClick={onClose} />
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col items-center justify-center relative z-10">
+           <button
+             onClick={onClose}
+             className="absolute top-4 right-4 md:top-6 md:right-6 p-2.5 rounded-full text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100 transition-colors cursor-pointer"
+             title="Close Preview"
+           >
+             <X className="w-5 h-5" />
+           </button>
            <span className="text-zinc-500 font-medium animate-pulse text-sm">Loading invoice preview...</span>
         </div>
       </div>
@@ -58,17 +57,16 @@ export default function InvoicePreviewModal({ shiftId, invoiceId, onClose }: Pro
 
   if (!data) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center bg-black/75 backdrop-blur-sm p-4 md:p-6 overflow-hidden">
-        <div className="w-full max-w-5xl flex justify-between items-center bg-[#121214] border border-zinc-800/80 rounded-xl p-4 px-6 shadow-2xl relative z-20 backdrop-blur-md mb-4 print:hidden">
-          <div className="flex items-center gap-3">
-             <FileText className="w-5 h-5 text-indigo-400" />
-             <span className="text-sm font-semibold text-white">Invoice Preview</span>
-          </div>
-          <button onClick={onClose} className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-xs font-bold tracking-wider uppercase transition-colors shadow-md border border-zinc-700">
-             <X className="w-4 h-4" /> Close
-          </button>
-        </div>
-        <div className="bg-white text-zinc-900 rounded-xl p-8 text-center flex flex-col items-center justify-center gap-4 w-full flex-1">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 md:p-6">
+        <div className="absolute inset-0" onClick={onClose} />
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl p-12 text-center flex flex-col items-center justify-center gap-4 relative z-10 font-sans">
+           <button
+             onClick={onClose}
+             className="absolute top-4 right-4 md:top-6 md:right-6 p-2.5 rounded-full text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100 transition-colors cursor-pointer"
+             title="Close Preview"
+           >
+             <X className="w-5 h-5" />
+           </button>
           <p className="text-zinc-700 font-semibold text-base">Failed to load invoice preview.</p>
           <button onClick={onClose} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-lg transition-colors shadow-md">
              Close Preview
@@ -101,31 +99,8 @@ export default function InvoicePreviewModal({ shiftId, invoiceId, onClose }: Pro
       {/* Background Overlay */}
       <div className="absolute inset-0 bg-transparent" onClick={onClose} />
       
-      {/* Top action/control bar - below the top viewport header bar */}
-      <div className="w-full max-w-5xl flex justify-between items-center bg-[#121214] border border-zinc-800/80 rounded-xl p-4 px-6 shadow-2xl relative z-20 backdrop-blur-md mb-4 print:hidden">
-         <div className="flex items-center gap-3">
-            <FileText className="w-5 h-5 text-indigo-400" />
-            <span className="text-sm font-semibold text-white">Invoice Preview</span>
-            {invoiceNum && (
-              <span className="text-xs bg-indigo-500/20 text-indigo-300 font-mono px-2.5 py-1 rounded-md border border-indigo-500/30 font-semibold">
-                {invoiceNum}
-              </span>
-            )}
-         </div>
-         <div className="flex items-center gap-3">
-            <button
-               onClick={onClose}
-               id="invoice-preview-top-close"
-               className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-900 text-white rounded-lg text-xs font-bold tracking-wider uppercase transition-colors shadow-md border border-zinc-700 cursor-pointer"
-            >
-               <X className="w-4 h-4 text-zinc-300" />
-               Close Preview
-            </button>
-         </div>
-      </div>
-      
       {/* Invoice Container - scrollable */}
-      <div className="w-full max-w-5xl relative z-10 overflow-y-auto flex-1 hide-scrollbar flex justify-center pb-8">
+      <div className="w-full max-w-5xl relative z-10 overflow-y-auto flex-1 hide-scrollbar flex justify-center pb-8 pt-4">
         <div className="bg-white text-zinc-900 rounded-xl shadow-2xl w-full flex-shrink-0 flex flex-col relative h-max">
           
           {/* Invoice Page Wrapper */}
