@@ -43,6 +43,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   const [uploadError, setUploadError] = useState<Record<string, string>>({});
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isDraggingStep, setIsDraggingStep] = useState<Record<string, boolean>>({});
+  const [sessionUploadedFiles, setSessionUploadedFiles] = useState<Record<string, boolean>>({});
 
   const handleCopy = (text: string, fieldId: string) => {
     navigator.clipboard.writeText(text);
@@ -72,6 +73,22 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
       if (res.ok) {
         const data = await res.json();
         setProgressData(data || {});
+        
+        // Pre-populate formDates with existing dates and id numbers
+        const initialFormDates: Record<string, { issued: string, expires: string, idNumber?: string }> = {};
+        if (data) {
+          Object.entries(data).forEach(([stepId, stepVal]: [string, any]) => {
+            if (stepVal.files && stepVal.files.length > 0) {
+              const file = stepVal.files[0];
+              initialFormDates[stepId] = {
+                issued: file.date_issued || '',
+                expires: file.date_expires || '',
+                idNumber: file.id_number || ''
+              };
+            }
+          });
+          setFormDates(prev => ({ ...initialFormDates, ...prev }));
+        }
       }
     } catch (err) {
       console.error('Failed to load onboarding progress', err);
@@ -156,14 +173,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     }
     
     if (stepId === 'wwcc') {
-      if (!issued && !expires) {
-        setUploadError(prev => ({ ...prev, [stepId]: 'Issue or Expiry date is required.' }));
+      if (!expires) {
+        setUploadError(prev => ({ ...prev, [stepId]: 'Expiry date is required.' }));
         return;
-      }
-      if (issued && !expires) {
-        const issueDate = new Date(issued);
-        issueDate.setFullYear(issueDate.getFullYear() + 3);
-        expires = issueDate.toISOString().split('T')[0];
       }
     }
 
@@ -230,6 +242,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
       const data = await res.json();
       if (res.ok && data.id) {
         await updateProgress(stepId, 'completed', { type: 'add', file: { id: data.id, name: file.name } });
+        setSessionUploadedFiles(prev => ({ ...prev, [stepId]: true }));
       } else {
         setUploadError(prev => ({ ...prev, [stepId]: 'Upload failed: ' + (data.error || 'Unknown error') }));
       }
@@ -279,8 +292,29 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   const handleDateUpdate = async (stepId: string, fileId: number) => {
     let issued = formDates[stepId]?.issued || '';
     let expires = formDates[stepId]?.expires || '';
-    // Skip some hard validations on manual override but keep basic structure
     
+    if (stepId === 'wwcc' && !expires) {
+      alert('Expiry date is required for Working with Children Check (WWCC).');
+      return;
+    }
+
+    // Check if user is staff (not admin) and trying to change dates without newly uploading
+    const isUserAdmin = user?.role === 'ADMIN';
+    const originalFile = progressData[stepId]?.files?.[0];
+    
+    if (!isUserAdmin && originalFile) {
+      const datesChanged = 
+        issued !== (originalFile.date_issued || '') || 
+        expires !== (originalFile.date_expires || '');
+      
+      if (datesChanged && !sessionUploadedFiles[stepId]) {
+        const errorMsg = 'To update your document dates, you must upload the new document/certificate first. Please drag & drop or browse a new file in the upload section.';
+        setUploadError(prev => ({ ...prev, [stepId]: errorMsg }));
+        alert(errorMsg);
+        return;
+      }
+    }
+
     // We get the existing ID number placeholder logic here
     const idNumber = formDates[stepId]?.idNumber; // even though we don't save it directly to the file record yet
 
@@ -573,7 +607,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                                 <p className="text-[10px] text-zinc-500 mt-1">Saved identifiers are automatically masked as [ID Number Redacted] for privacy.</p>
                               </div>
                             )}
-                            {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && (
+                            {['ndis_screening', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && (
                               <div className="mb-2">
                                 <div className="flex items-center justify-between mb-1">
                                   <label className="block text-xs text-zinc-400">Issue Date</label>
@@ -594,7 +628,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                               <div className="mb-2">
                                 <div className="flex items-center justify-between mb-1">
                                   <label className="block text-xs text-zinc-400">Expiry Date</label>
-                                  {!['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && progressData[step.id]?.files?.[0]?.date_expires && (
+                                  {!['ndis_screening', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && progressData[step.id]?.files?.[0]?.date_expires && (
                                     <span className="text-xs text-brand-teal font-medium">
                                       Current expires: {progressData[step.id].files![0].date_expires}
                                     </span>
@@ -639,9 +673,10 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                             {progressData[step.id]?.files && progressData[step.id].files!.length > 0 && (
                               <button
                                 onClick={() => handleDateUpdate(step.id, progressData[step.id].files![0].id)}
-                                className="px-4 py-2 bg-brand-navy border border-brand-teal/50 text-brand-teal rounded-lg hover:bg-brand-teal/10 transition-colors text-[14px] font-medium w-full"
+                                className="px-4 py-2.5 bg-brand-teal hover:bg-[#119e8e] hover:scale-[1.005] active:scale-[0.995] text-zinc-950 font-bold rounded-lg shadow-[0_4px_12px_rgba(20,184,166,0.25)] transition-all text-[14px] w-full flex items-center justify-center gap-2 border-0 cursor-pointer"
                               >
-                                Save Date Overwrites
+                                <CheckCircle2 className="w-4 h-4 text-zinc-950 shrink-0" />
+                                Update Issue/Expiry Dates
                               </button>
                             )}
                           </div>
