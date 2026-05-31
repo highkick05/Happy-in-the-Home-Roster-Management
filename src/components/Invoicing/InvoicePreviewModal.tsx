@@ -3,23 +3,27 @@ import { X, FileText, Download } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface Props {
-  shiftId: number;
+  shiftId?: number | null;
+  invoiceId?: number | null;
   onClose: () => void;
 }
 
-export default function InvoicePreviewModal({ shiftId, onClose }: Props) {
+export default function InvoicePreviewModal({ shiftId, invoiceId, onClose }: Props) {
   const { token, settings } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchData();
-  }, [shiftId]);
+  }, [shiftId, invoiceId]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/shifts/${shiftId}/invoice-preview`, {
+      const url = invoiceId 
+        ? `/api/invoices/${invoiceId}/invoice-preview`
+        : `/api/shifts/${shiftId}/invoice-preview`;
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {

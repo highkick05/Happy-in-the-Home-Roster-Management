@@ -564,6 +564,7 @@ export default function InvoicingView() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewShiftId, setPreviewShiftId] = useState<number | null>(null);
+  const [previewInvoiceId, setPreviewInvoiceId] = useState<number | null>(null);
 
   const [filterClient, setFilterClient] = useLocalStorage('invoicing_filter_client', '');
   const [filterStaff, setFilterStaff] = useLocalStorage('invoicing_filter_staff', '');
@@ -1056,10 +1057,10 @@ export default function InvoicingView() {
                            <Undo className="w-4 h-4" />
                          </button>
                        )}
-                       {i.shift_id && (
+                       {(i.shift_id || i.services_json || i.is_merged) && (
                          <button
                            title="Preview Invoice"
-                           onClick={() => setPreviewShiftId(i.shift_id)}
+                           onClick={() => { if (i.shift_id) { setPreviewShiftId(i.shift_id); } else { setPreviewInvoiceId(i.id); } }}
                            className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-md transition-colors"
                          >
                            <Eye className="w-4 h-4" />
@@ -1142,10 +1143,10 @@ export default function InvoicingView() {
         </div>
       </div>
       
-      {previewShiftId && (
+      {(previewShiftId || previewInvoiceId) && (
         <InvoicePreviewModal
-          shiftId={previewShiftId}
-          onClose={() => setPreviewShiftId(null)}
+          shiftId={previewShiftId} invoiceId={previewInvoiceId}
+          onClose={() => { setPreviewShiftId(null); setPreviewInvoiceId(null); }}
         />
       )}
       </div>

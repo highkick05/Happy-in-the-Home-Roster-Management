@@ -128,6 +128,24 @@ async function startServer() {
       console.warn('Migration warning:', e.message);
     }
   }
+
+  try {
+    db.exec("ALTER TABLE invoices ADD COLUMN services_json TEXT");
+    console.log('[DEBUG] Completed invoices.services_json column check.');
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec("ALTER TABLE invoices ADD COLUMN merged_into_invoice_id INTEGER");
+    console.log('[DEBUG] Completed invoices.merged_into_invoice_id column check.');
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
   
   // Data consistency sync for old templates
   try {
@@ -362,6 +380,113 @@ async function startServer() {
     } catch (e) {
       console.error('[DEBUG Recalculate] Error recalculating staff travel:', e);
     }
+  };
+
+  const getInvoiceDataForMergedInvoice = (invoiceRow: any) => {
+      const client = db.prepare(`
+        SELECT c.*,
+               p.company_name as plan_manager_name, p.email as plan_manager_email, p.address as plan_manager_address
+        FROM clients c
+        LEFT JOIN providers p ON c.provider_id = p.id
+        WHERE c.id = ?
+      `).get(invoiceRow.client_id) as any;
+
+      const shift = {
+         client_id: invoiceRow.client_id,
+         funding_type: client?.funding_type || 'NDIS',
+         c_fn: client?.first_name || '',
+         c_ln: client?.last_name || '',
+         ndis_number: client?.ndis_number || '',
+         my_aged_care_id: client?.my_aged_care_id || '',
+         plan_manager_name: client?.plan_manager_name || '',
+         plan_manager_email: client?.plan_manager_email || '',
+         plan_manager_address: client?.plan_manager_address || ''
+      };
+
+      const settingsRows = db.prepare('SELECT key, value FROM settings').all() as any[];
+      const settingsMap: Record<string, any> = {};
+      settingsRows.forEach(r => {
+        try { settingsMap[r.key] = JSON.parse(r.value); } catch { settingsMap[r.key] = r.value; }
+      });
+
+      let rawTz = settingsMap.timezone || 'Australia/Perth';
+      const timezone = typeof rawTz === 'string' ? rawTz.replace(/['"]+/g, '') : rawTz;
+
+      const invoiceDateFormatter = getSafeDateTimeFormat('en-GB', {
+        timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric'
+      });
+      const createdAtDate = new Date(invoiceRow.created_at || Date.now());
+      const finalInvoiceDateStr = invoiceDateFormatter.format(createdAtDate).replace(/\//g, '-');
+
+      let services: any[] = [];
+      try {
+         if (invoiceRow.services_json) {
+            services = JSON.parse(invoiceRow.services_json);
+         }
+      } catch (e) {
+         console.error('Failed to parse merged invoice services_json:', e);
+      }
+
+      const lineItems: any[] = [];
+      let subtotal = 0;
+
+      services.forEach(sd => {
+         // Resolve service
+         let srv = null;
+         if (sd.isCustom || (sd.serviceId && String(sd.serviceId).startsWith('custom-'))) {
+            srv = {
+               id: sd.serviceId,
+               name: sd.customName || 'Custom Service',
+               rate: Number(sd.customRate || 0),
+               unit: sd.customUnit || 'Hour',
+               code: sd.customCode || 'CUSTOM',
+               type: 'CUSTOM'
+            };
+         } else {
+            srv = db.prepare('SELECT * FROM services WHERE id = ?').get(sd.serviceId) as any;
+         }
+
+         if (srv) {
+            let qty = (sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== '') ? Number(sd.qtyOverride) : 1;
+            let finalRate = (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== '') ? Number(sd.rateOverride) : Number(srv.rate || 0);
+            
+            const amt = qty * finalRate;
+            subtotal += amt;
+
+            let mappedUnit = srv.unit || 'H';
+            if (mappedUnit === 'Hour') mappedUnit = 'H';
+            if (srv.name && (srv.name.toLowerCase().includes('activity based transport') || srv.name.toLowerCase().includes('provider travel'))) {
+               mappedUnit = 'Kilometre';
+            }
+
+            lineItems.push({
+               date: sd.date || '',
+               time: sd.time || '',
+               serviceName: srv.name,
+               code: srv.code || srv.id,
+               metadata: sd.staffName ? `Provided by ${sd.staffName}` : '',
+               qty: parseFloat(qty.toFixed(2)),
+               unit: mappedUnit,
+               rate: parseFloat(finalRate.toFixed(2)),
+               amount: parseFloat(amt.toFixed(2))
+            });
+         }
+      });
+
+      const isHomeCare = (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE');
+      const gstAmount = isHomeCare ? subtotal * 0.1 : 0;
+      const totalAmount = subtotal + gstAmount;
+
+      return {
+         shift,
+         settingsMap,
+         invoiceNum: invoiceRow.invoice_number,
+         invoiceDate: finalInvoiceDateStr,
+         lineItems,
+         subtotal,
+         gstAmount,
+         totalAmount
+      };
   };
 
   const getInvoiceDataForShift = (shiftId: number) => {
@@ -3114,6 +3239,28 @@ async function startServer() {
 
   // --- Shifts APIs ---
 
+  app.get('/api/invoices/:id/invoice-preview', authenticateToken, (req: any, res: any) => {
+    try {
+      const invoiceRow = db.prepare('SELECT * FROM invoices WHERE id = ?').get(req.params.id) as any;
+      if (!invoiceRow) return res.status(404).json({ error: 'Invoice not found' });
+
+      let data: any = null;
+      if (invoiceRow.services_json) {
+         data = getInvoiceDataForMergedInvoice(invoiceRow);
+      } else if (invoiceRow.respite_booking_id) {
+         data = getInvoiceDataForRespiteBooking(invoiceRow.respite_booking_id);
+      } else if (invoiceRow.shift_id) {
+         data = getInvoiceDataForShift(invoiceRow.shift_id);
+      }
+
+      if (!data) return res.status(404).json({ error: 'Invoice data not found' });
+      res.json({ success: true, data });
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   app.get('/api/shifts/:id/invoice-preview', authenticateToken, (req: any, res: any) => {
     try {
       const data = getInvoiceDataForShift(Number(req.params.id));
@@ -4180,13 +4327,13 @@ async function startServer() {
              c.first_name as client_first_name, c.last_name as client_last_name,
              COALESCE(s.custom_staff_name, u.first_name) as staff_first_name, 
              COALESCE(CASE WHEN s.custom_staff_name IS NOT NULL THEN '' ELSE u.last_name END, '') as staff_last_name,
-             (SELECT COUNT(*) FROM invoices sub WHERE sub.merged_into_shift_id = s.id) > 0 as is_merged
+             (((SELECT COUNT(*) FROM invoices sub WHERE sub.merged_into_shift_id = s.id OR sub.merged_into_invoice_id = i.id) > 0) OR i.services_json IS NOT NULL) as is_merged
       FROM invoices i
       LEFT JOIN shifts s ON i.shift_id = s.id
       LEFT JOIN respite_bookings rb ON i.respite_booking_id = rb.id
       LEFT JOIN clients c ON i.client_id = c.id
       LEFT JOIN users u ON s.staff_id = u.id
-      WHERE i.merged_into_shift_id IS NULL AND i.status != 'VOID'
+      WHERE i.merged_into_shift_id IS NULL AND i.merged_into_invoice_id IS NULL AND i.status != 'VOID'
       ORDER BY i.created_at DESC
     `;
     const invoices = db.prepare(query).all() as any[];
@@ -4196,6 +4343,9 @@ async function startServer() {
        let currentCalculatedAmount = inv.amount;
        if (inv.shift_id) {
           const data = getInvoiceDataForShift(inv.shift_id);
+          if (data && data.totalAmount !== undefined) currentCalculatedAmount = data.totalAmount;
+       } else if (inv.services_json) {
+          const data = getInvoiceDataForMergedInvoice(inv);
           if (data && data.totalAmount !== undefined) currentCalculatedAmount = data.totalAmount;
        } else if (inv.respite_booking_id) {
           const data = getInvoiceDataForRespiteBooking(inv.respite_booking_id);
@@ -4345,65 +4495,63 @@ async function startServer() {
       });
 
       const allMergedServices: any[] = [];
-      let latestStartTime = '1970-01-01T00:00:00';
-      let latestEndTime = '1970-01-01T00:00:00';
-      let mainStaffId = null;
 
       for (const inv of invoices) {
-         if (!inv.shift_id) continue;
-         const shift = db.prepare(`SELECT s.*, COALESCE(s.custom_staff_name, u.first_name) as s_fn, COALESCE(CASE WHEN s.custom_staff_name IS NOT NULL THEN '' ELSE u.last_name END, '') as s_ln FROM shifts s LEFT JOIN users u ON s.staff_id = u.id WHERE s.id = ?`).get(inv.shift_id) as any;
-         if (!shift) continue;
+         if (inv.services_json) {
+            try {
+               const servicesData = JSON.parse(inv.services_json);
+               allMergedServices.push(...servicesData);
+            } catch (e) {
+               console.error('[Merge] Failed to parse services_json on invoice ID:', inv.id, e);
+            }
+         } else if (inv.shift_id) {
+            const shift = db.prepare(`SELECT s.*, COALESCE(s.custom_staff_name, u.first_name) as s_fn, COALESCE(CASE WHEN s.custom_staff_name IS NOT NULL THEN '' ELSE u.last_name END, '') as s_ln FROM shifts s LEFT JOIN users u ON s.staff_id = u.id WHERE s.id = ?`).get(inv.shift_id) as any;
+            if (!shift) continue;
 
-         if (!mainStaffId) mainStaffId = shift.staff_id;
-         if (shift.start_time > latestStartTime) {
-             latestStartTime = shift.start_time;
-             latestEndTime = shift.end_time;
-         }
+            const start = new Date(shift.start_time);
+            const end = new Date(shift.end_time);
+            const hours = Math.abs(end.getTime() - start.getTime()) / 36e5;
+            const shiftDateStr = shiftDateFormatter.format(start).replace(/\//g, '-');
+            const timeStr = `${timeFormatter.format(start)} - ${timeFormatter.format(end)}`;
+            const staffName = `${shift.s_fn || ''} ${shift.s_ln || ''}`.trim();
 
-         const start = new Date(shift.start_time);
-         const end = new Date(shift.end_time);
-         const hours = Math.abs(end.getTime() - start.getTime()) / 36e5;
-         const shiftDateStr = shiftDateFormatter.format(start).replace(/\//g, '-');
-         const timeStr = `${timeFormatter.format(start)} - ${timeFormatter.format(end)}`;
-         const staffName = `${shift.s_fn || ''} ${shift.s_ln || ''}`.trim();
-
-         let servicesData = [];
-         if (shift.services_json) {
-            try { servicesData = JSON.parse(shift.services_json); } catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
-         }
-         
-         if (servicesData.length > 0) {
-            for (const sd of servicesData) {
-               let finalQty = sd.qtyOverride;
-               if (finalQty === undefined || finalQty === null || finalQty === '') {
-                  let srv = null;
-                  if (sd.isCustom || (sd.serviceId && String(sd.serviceId).startsWith('custom-'))) {
-                     const unit = sd.customUnit || 'Hour';
-                     srv = { unit };
-                  } else if (sd.serviceId) {
-                     srv = db.prepare('SELECT * FROM services WHERE id = ?').get(sd.serviceId) as any;
+            let servicesData = [];
+            if (shift.services_json) {
+               try { servicesData = JSON.parse(shift.services_json); } catch(e) {}
+            }
+            
+            if (servicesData.length > 0) {
+               for (const sd of servicesData) {
+                  let finalQty = sd.qtyOverride;
+                  if (finalQty === undefined || finalQty === null || finalQty === '') {
+                     let srv = null;
+                     if (sd.isCustom || (sd.serviceId && String(sd.serviceId).startsWith('custom-'))) {
+                        const unit = sd.customUnit || 'Hour';
+                        srv = { unit };
+                     } else if (sd.serviceId) {
+                        srv = db.prepare('SELECT * FROM services WHERE id = ?').get(sd.serviceId) as any;
+                     }
+                     const unit = srv?.unit || 'Hour';
+                     finalQty = unit === 'Hour' ? hours.toFixed(2) : '1';
                   }
-                  const unit = srv?.unit || 'Hour';
-                  finalQty = unit === 'Hour' ? hours.toFixed(2) : '1';
-               }
 
+                  allMergedServices.push({
+                     ...sd,
+                     qtyOverride: finalQty,
+                     date: sd.date || shiftDateStr,
+                     time: sd.time || timeStr,
+                     staffName: sd.staffName || staffName
+                  });
+               }
+            } else if (shift.service_id) {
                allMergedServices.push({
-                  ...sd,
-                  qtyOverride: finalQty,
-                  date: sd.date || shiftDateStr,
-                  time: sd.time || timeStr,
-                  staffName: sd.staffName || staffName
+                  serviceId: shift.service_id,
+                  qtyOverride: hours.toFixed(2),
+                  date: shiftDateStr,
+                  time: timeStr,
+                  staffName: staffName
                });
             }
-         } else if (shift.service_id) {
-            allMergedServices.push({
-               serviceId: shift.service_id,
-               qtyOverride: hours.toFixed(2),
-               date: shiftDateStr,
-               time: timeStr,
-               staffName: staffName
-            });
-            // We'd also need provider travel / abt fallback handling here, but services_json is default now.
          }
       }
 
@@ -4411,28 +4559,52 @@ async function startServer() {
          return res.status(400).json({ error: 'No billable services found in the selected invoices' });
       }
 
-      // Services are already in descending order because invoices are fetched `ORDER BY created_at DESC`
-      // and we append their individual services sequentially.
+      let subtotal = 0;
+      for (const sd of allMergedServices) {
+         let srv = null;
+         if (sd.isCustom || (sd.serviceId && String(sd.serviceId).startsWith('custom-'))) {
+            srv = {
+               rate: Number(sd.customRate || 0),
+            };
+         } else if (sd.serviceId) {
+            srv = db.prepare('SELECT * FROM services WHERE id = ?').get(sd.serviceId) as any;
+         }
+         let finalRate = (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== '') ? Number(sd.rateOverride) : Number(srv?.rate || 0);
+         let qty = (sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== '') ? Number(sd.qtyOverride) : 1;
+         subtotal += qty * finalRate;
+      }
+
+      // Fetch client funding type
+      const clientRow = db.prepare('SELECT funding_type FROM clients WHERE id = ?').get(clientId) as any;
+      const clientFundingType = clientRow?.funding_type || 'NDIS';
+      const isHomeCare = (clientFundingType === 'HCP' || clientFundingType === 'Home Care' || clientFundingType === 'HOME_CARE');
+      const gstAmount = isHomeCare ? subtotal * 0.1 : 0;
+      const totalAmount = subtotal + gstAmount;
 
       db.transaction(() => {
-        // Fetch client funding type
-        const clientRow = db.prepare('SELECT funding_type FROM clients WHERE id = ?').get(clientId) as any;
-        const clientFundingType = clientRow?.funding_type || 'NDIS';
+         const insertResult = db.prepare(`
+           INSERT INTO invoices (invoice_number, client_id, amount, status, services_json)
+           VALUES (?, ?, ?, 'GENERATED', ?)
+         `).run(`TEMP-MERGE-${Date.now()}`, clientId, totalAmount, JSON.stringify(allMergedServices));
+         
+         const newInvoiceId = insertResult.lastInsertRowid as number;
 
-        // Create new shift representing the merged invoice
-        const mainServiceId = allMergedServices[0].serviceId;
-        const shiftResult = db.prepare(`
-          INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, status, notes, funding_type)
-          VALUES (?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?)
-        `).run(clientId, mainStaffId, mainServiceId, JSON.stringify(allMergedServices), latestStartTime, latestEndTime, 'Merged Invoice Summary', clientFundingType);
-        
-        const newShiftId = shiftResult.lastInsertRowid as number;
-        
-        // Update old invoices to be VOID and link to new shift
-        db.prepare(`UPDATE invoices SET status = 'VOID', merged_into_shift_id = ? WHERE id IN (${placeholders})`).run(newShiftId, ...invoiceIds);
+         // Generate final distinct invoice number
+         let invoicePrefix = isHomeCare ? settingsMap.hcInvoicePrefix : settingsMap.ndisInvoicePrefix;
+         if (!invoicePrefix) {
+           invoicePrefix = isHomeCare ? 'HC-' : 'INV-';
+         }
+         const today = new Date();
+         const dateFormatter = getSafeDateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+         const yyyymmdd = dateFormatter.format(today).replace(/-/g, '');
+         const invoiceNum = `${invoicePrefix}${yyyymmdd}-M${String(newInvoiceId).padStart(3, '0')}`;
+         const fileName = `${invoiceNum}.pdf`;
 
-        // Generate new invoice
-        generateInvoiceForShift(newShiftId);
+         // Update the invoice row with invoice_number and file_path
+         db.prepare('UPDATE invoices SET invoice_number = ?, file_path = ? WHERE id = ?').run(invoiceNum, fileName, newInvoiceId);
+
+         // Update old invoices to be VOID and link to the new invoice via merged_into_invoice_id
+         db.prepare(`UPDATE invoices SET status = 'VOID', merged_into_invoice_id = ? WHERE id IN (${placeholders})`).run(newInvoiceId, ...invoiceIds);
       })();
 
       res.json({ success: true });
@@ -4456,11 +4628,17 @@ async function startServer() {
         const mergedShiftId = invoice.shift_id;
 
         // Restore old invoices
-        db.prepare(`UPDATE invoices SET status = 'GENERATED', merged_into_shift_id = NULL WHERE merged_into_shift_id = ?`).run(mergedShiftId);
+        if (invoice.services_json) {
+           db.prepare(`UPDATE invoices SET status = 'GENERATED', merged_into_invoice_id = NULL WHERE merged_into_invoice_id = ?`).run(invoice.id);
+        } else if (mergedShiftId) {
+           db.prepare(`UPDATE invoices SET status = 'GENERATED', merged_into_shift_id = NULL WHERE merged_into_shift_id = ?`).run(mergedShiftId);
+        }
 
         // Delete the merged invoice and shift
         db.prepare('DELETE FROM invoices WHERE id = ?').run(mergedInvoiceId);
-        db.prepare('DELETE FROM shifts WHERE id = ?').run(mergedShiftId);
+        if (mergedShiftId) {
+          db.prepare('DELETE FROM shifts WHERE id = ?').run(mergedShiftId);
+        }
       })();
       res.json({ success: true });
     } catch (e: any) {
@@ -4769,11 +4947,13 @@ async function startServer() {
     if (!invoiceId) return res.status(400).json({ error: 'Invalid invoiceId' });
     
     try {
-      const invoiceRow = db.prepare('SELECT shift_id, respite_booking_id FROM invoices WHERE id = ?').get(invoiceId) as any;
+      const invoiceRow = db.prepare('SELECT * FROM invoices WHERE id = ?').get(invoiceId) as any;
       if (!invoiceRow) return res.status(404).json({ error: 'Invoice not found' });
       
       let data: any = null;
-      if (invoiceRow.respite_booking_id) {
+      if (invoiceRow.services_json) {
+         data = getInvoiceDataForMergedInvoice(invoiceRow);
+      } else if (invoiceRow.respite_booking_id) {
          data = getInvoiceDataForRespiteBooking(invoiceRow.respite_booking_id);
       } else if (invoiceRow.shift_id) {
          data = getInvoiceDataForShift(invoiceRow.shift_id);
