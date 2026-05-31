@@ -4376,6 +4376,24 @@ async function startServer() {
              inv.staff_first_name = names;
              inv.staff_last_name = '';
           }
+       } else if (inv.services_json && !inv.staff_first_name) {
+          try {
+             const services = JSON.parse(inv.services_json);
+             if (Array.isArray(services)) {
+                const uniqueStaffs = Array.from(new Set(
+                   services
+                      .map((s: any) => s.staffName)
+                      .filter((name: any) => typeof name === 'string' && name.trim().length > 0)
+                      .map((name: any) => name.trim())
+                ));
+                if (uniqueStaffs.length > 0) {
+                   inv.staff_first_name = uniqueStaffs.join(', ');
+                   inv.staff_last_name = '';
+                }
+             }
+          } catch (e) {
+             console.error('Failed to parse inv.services_json for staff names:', e);
+          }
        }
     }
 
