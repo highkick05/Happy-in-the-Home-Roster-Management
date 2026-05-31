@@ -4785,6 +4785,24 @@ async function startServer() {
     }
   });
 
+  app.post('/api/invoices/respite/:respiteBookingId/generate', authenticateToken, requireAdmin, (req: any, res: any) => {
+    const respiteBookingId = parseInt(req.params.respiteBookingId);
+    if (!respiteBookingId) return res.status(400).json({ error: 'Invalid respiteBookingId' });
+    try {
+      generateInvoiceForRespiteBooking(respiteBookingId);
+      const invoice = db.prepare('SELECT * FROM invoices WHERE respite_booking_id = ?').get(respiteBookingId);
+      if (invoice) {
+        res.json({ success: true, invoice });
+      } else {
+        res.status(400).json({ error: 'Failed to generate invoice. Respite booking might not have cost-bearing items.' });
+      }
+    } catch (e: any) {
+      
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   const buildInvoicePdf = (doc: any, data: any) => {
     const { shift, settingsMap, invoiceNum, invoiceDate, lineItems, subtotal } = data;
     const isHomeCare = (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE');

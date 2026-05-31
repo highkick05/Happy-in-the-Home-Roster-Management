@@ -252,7 +252,12 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
   const handleGenerateInvoice = async () => {
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/invoices/${shift.id}/generate`, {
+      const isRespite = shift.isRespiteWrapper;
+      const endpoint = isRespite 
+        ? `/api/invoices/respite/${shift.respiteData?.id}/generate` 
+        : `/api/invoices/${shift.id}/generate`;
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -719,7 +724,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                 </button>
               )}
 
-              {isAdmin && shift.status === 'CANCELLED' && (
+              {isAdmin && (shift.status === 'COMPLETED' || shift.status === 'CANCELLED') && (
                 <button 
                   onClick={handleGenerateInvoice}
                   disabled={isSubmitting}
