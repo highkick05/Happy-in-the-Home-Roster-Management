@@ -1111,32 +1111,34 @@ export default function InvoicingView() {
 
         {/* Statistics Footer */}
         <div className="border-t border-[#30363D] bg-brand-navy px-6 py-4 rounded-b-xl flex flex-col sm:flex-row justify-between items-center gap-4 text-xs sm:text-sm">
-          <div className="flex flex-wrap items-center gap-6">
-            <div className="flex flex-col">
-              <span className="text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-widest">Total Invoices</span>
-              <span className="text-base sm:text-lg font-semibold text-[#E6EDF3] mt-0.5">{filteredInvoices.length}</span>
-            </div>
-            <div className="h-8 w-[1px] bg-[#30363D] hidden sm:block" />
-            <div className="flex flex-col">
-              <span className="text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-widest font-sans">Grand Total</span>
-              <span className="text-base sm:text-lg font-bold text-brand-green mt-0.5">${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-            <div className="h-8 w-[1px] bg-[#30363D] hidden sm:block" />
-            <div className="flex flex-col">
-              <span className="text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-widest">Average Value</span>
-              <span className="text-base sm:text-lg font-semibold text-[#E6EDF3] mt-0.5">${averageAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-          </div>
-
-          {selectedCount > 0 && (
-            <div className="bg-brand-teal/10 border border-brand-teal/30 px-4 py-2 rounded-lg flex items-center space-x-3 text-brand-teal">
+          {selectedCount > 0 ? (
+            <div className="bg-brand-teal/10 border border-brand-teal/30 px-4 py-2 rounded-lg flex items-center space-x-3 text-brand-teal self-start sm:self-center">
               <div className="w-2 h-2 rounded-full bg-brand-teal animate-pulse" />
               <div className="flex flex-col text-xs sm:text-sm">
                 <span className="font-semibold">{selectedCount} Selected</span>
                 <span className="text-zinc-400 text-xs mt-0.5">Total Value: ${selectedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
+          ) : (
+            <div className="hidden sm:block" />
           )}
+
+          <div className="flex flex-wrap items-center justify-end gap-6 w-full sm:w-auto">
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-widest">Total Invoices</span>
+              <span className="text-base sm:text-lg font-semibold text-[#E6EDF3] mt-0.5">{filteredInvoices.length}</span>
+            </div>
+            <div className="h-8 w-[1px] bg-[#30363D] hidden sm:block" />
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-widest font-sans">Grand Total</span>
+              <span className="text-base sm:text-lg font-bold text-brand-green mt-0.5">${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="h-8 w-[1px] bg-[#30363D] hidden sm:block" />
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] sm:text-[11px] font-medium text-zinc-500 uppercase tracking-widest">Average Value</span>
+              <span className="text-base sm:text-lg font-semibold text-[#E6EDF3] mt-0.5">${averageAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          </div>
         </div>
       </div>
       
