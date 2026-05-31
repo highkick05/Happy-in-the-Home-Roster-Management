@@ -572,12 +572,42 @@ export default function InvoicingView() {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<number[]>([]);
   const [isMerging, setIsMerging] = useState(false);
 
+  const [allDbClients, setAllDbClients] = useState<any[]>([]);
+  const [allDbStaff, setAllDbStaff] = useState<any[]>([]);
+
   useEffect(() => {
     fetchInvoices();
   }, []);
 
-  const clientsList = Array.from(new Set(invoices.map(i => `${i.client_first_name} ${i.client_last_name}`.trim()))).filter(Boolean).sort();
-  const staffList = Array.from(new Set(invoices.map(i => `${i.staff_first_name || ''} ${i.staff_last_name || ''}`.trim()))).filter(Boolean).sort();
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const res = await fetch('/api/invoices/form-data', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAllDbClients(data.clients || []);
+          setAllDbStaff(data.staff || []);
+        }
+      } catch (e) {
+        console.error('Failed to fetch dropdown options:', e);
+      }
+    };
+    if (token) {
+      fetchOptions();
+    }
+  }, [token]);
+
+  const clientsList = Array.from(new Set([
+    ...allDbClients.map(c => `${c.first_name || ''} ${c.last_name || ''}`.trim()),
+    ...invoices.map(i => `${i.client_first_name || ''} ${i.client_last_name || ''}`.trim())
+  ])).filter(Boolean).sort();
+
+  const staffList = Array.from(new Set([
+    ...allDbStaff.map(s => `${s.first_name || ''} ${s.last_name || ''}`.trim()),
+    ...invoices.map(i => `${i.staff_first_name || ''} ${i.staff_last_name || ''}`.trim())
+  ])).filter(Boolean).sort();
 
   const getFallbackInvoiceNumber = (i: any) => {
     if (i.invoice_number) return i.invoice_number;
@@ -587,7 +617,7 @@ export default function InvoicingView() {
   };
 
   useEffect(() => {
-    if (!loading && invoices.length > 0) {
+    if (!loading && allDbClients.length > 0) {
       if (filterClient && !clientsList.includes(filterClient)) {
         setFilterClient('');
       }
@@ -595,7 +625,7 @@ export default function InvoicingView() {
         setFilterStaff('');
       }
     }
-  }, [invoices, loading, filterClient, filterStaff, clientsList, staffList, setFilterClient, setFilterStaff]);
+  }, [loading, allDbClients, allDbStaff, filterClient, filterStaff, clientsList, staffList, setFilterClient, setFilterStaff]);
 
   const currentTabInvoices = invoices.filter(i => {
     if (subTab === 'paid') return i.status === 'PAID';
