@@ -4374,8 +4374,22 @@ async function startServer() {
          
          if (servicesData.length > 0) {
             for (const sd of servicesData) {
+               let finalQty = sd.qtyOverride;
+               if (finalQty === undefined || finalQty === null || finalQty === '') {
+                  let srv = null;
+                  if (sd.isCustom || (sd.serviceId && String(sd.serviceId).startsWith('custom-'))) {
+                     const unit = sd.customUnit || 'Hour';
+                     srv = { unit };
+                  } else if (sd.serviceId) {
+                     srv = db.prepare('SELECT * FROM services WHERE id = ?').get(sd.serviceId) as any;
+                  }
+                  const unit = srv?.unit || 'Hour';
+                  finalQty = unit === 'Hour' ? hours.toFixed(2) : '1';
+               }
+
                allMergedServices.push({
                   ...sd,
+                  qtyOverride: finalQty,
                   date: sd.date || shiftDateStr,
                   time: sd.time || timeStr,
                   staffName: sd.staffName || staffName
