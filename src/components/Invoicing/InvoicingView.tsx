@@ -59,13 +59,40 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
     const service = options.services.find(x => String(x.id) === serviceId);
     if (!service) return { rate: 0, unit: 'Hour', name: '' };
     
-    let baseRate = Number(service.rate);
+    // 1. Check custom rate for this client first
+    if (selectedClient && selectedClient.custom_rates && selectedClient.custom_rates[service.id] !== undefined) {
+      return {
+        rate: Number(selectedClient.custom_rates[service.id]),
+        unit: service.unit,
+        name: service.name
+      };
+    }
+
+    let baseRate = Number(service.rate || 0);
     let dayOfWeek = -1;
     if (formData.date) {
       dayOfWeek = new Date(formData.date).getDay();
     }
 
-    if (service.type === 'HOME_CARE') {
+    // 2. Resolve Weekend / Weekday rates from rates_json
+    if (service.rates_json) {
+      try {
+        const rates = JSON.parse(service.rates_json || '{}');
+        if (dayOfWeek === 0 && rates['Sunday']) {
+          baseRate = Number(rates['Sunday']);
+        } else if (dayOfWeek === 6 && rates['Saturday']) {
+          baseRate = Number(rates['Saturday']);
+        } else if (rates['Weekday']) {
+          baseRate = Number(rates['Weekday']);
+        } else if (rates['Hourly Rate']) {
+          baseRate = Number(rates['Hourly Rate']);
+        } else if (rates['Standard']) {
+          baseRate = Number(rates['Standard']);
+        }
+      } catch (e) {
+        // Fall back to baseRate
+      }
+    } else if (service.type === 'HOME_CARE' && service.rate) {
       try {
         const rates = JSON.parse(service.rate || '{}');
         if (dayOfWeek === 0 && rates['Sunday']) {

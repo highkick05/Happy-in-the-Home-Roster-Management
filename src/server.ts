@@ -4210,14 +4210,20 @@ async function startServer() {
 
   app.get('/api/invoices/form-data', authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const clients = db.prepare('SELECT id, first_name, last_name FROM clients ORDER BY first_name ASC').all();
+      const clients = db.prepare('SELECT id, first_name, last_name, funding_type FROM clients ORDER BY first_name ASC').all();
       const staff = db.prepare("SELECT id, first_name, last_name FROM users WHERE role = 'STAFF' AND status = 'ACTIVE' ORDER BY first_name ASC").all();
-      const services = db.prepare('SELECT id, name, rate, unit, code, type FROM services ORDER BY name ASC').all();
+      const services = db.prepare('SELECT id, name, rate, unit, code, type, rates_json FROM services ORDER BY name ASC').all();
       
       const clientServices = db.prepare('SELECT * FROM client_services').all();
       const clientsWithServices = (clients as any[]).map(c => ({
         ...c,
-        service_ids: clientServices.filter((cs: any) => cs.client_id === c.id).map((cs: any) => cs.service_id)
+        service_ids: clientServices.filter((cs: any) => cs.client_id === c.id).map((cs: any) => cs.service_id),
+        custom_rates: clientServices.filter((cs: any) => cs.client_id === c.id).reduce((acc: any, cs: any) => {
+          if (cs.custom_rate !== null && cs.custom_rate !== undefined) {
+             acc[cs.service_id] = cs.custom_rate;
+          }
+          return acc;
+        }, {})
       }));
       
       res.json({ clients: clientsWithServices, staff, services });

@@ -41,20 +41,77 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
     }
   };
 
+  const selectedClient = React.useMemo(() => {
+    return (options.clients || []).find((c: any) => String(c.id) === String(formData.clientId));
+  }, [formData.clientId, options.clients]);
+
   const clientPersonalisedServices = React.useMemo(() => {
-    if (!formData.clientId) return options.services || [];
-    const clientRecord = options.clients.find((c: any) => String(c.id) === String(formData.clientId));
-    if (!clientRecord || !clientRecord.service_ids || clientRecord.service_ids.length === 0) {
+    if (!selectedClient) return options.services || [];
+    if (!selectedClient.service_ids || selectedClient.service_ids.length === 0) {
       return options.services || [];
     }
     const selectedServiceIds = selectedServices.map(s => Number(s.serviceId)).filter(id => !isNaN(id));
-    return (options.services || []).filter((s: any) => clientRecord.service_ids.includes(s.id) || selectedServiceIds.includes(s.id));
-  }, [formData.clientId, options.clients, options.services, selectedServices]);
+    return (options.services || []).filter((s: any) => selectedClient.service_ids.includes(s.id) || selectedServiceIds.includes(s.id));
+  }, [selectedClient, options.services, selectedServices]);
 
   const getServiceDetails = (serviceId: string) => {
     if (!serviceId) return { rate: 0, unit: '', name: '' };
     const s = options.services.find((x: any) => x.id === Number(serviceId));
-    return s ? { rate: Number(s.rate), unit: s.unit, name: s.name } : { rate: 0, unit: '', name: '' };
+    if (!s) return { rate: 0, unit: '', name: '' };
+
+    // 1. Check custom rate for this client first
+    if (selectedClient && selectedClient.custom_rates && selectedClient.custom_rates[s.id] !== undefined) {
+      return {
+        rate: Number(selectedClient.custom_rates[s.id]),
+        unit: s.unit,
+        name: s.name
+      };
+    }
+
+    let baseRate = Number(s.rate || 0);
+    let dayOfWeek = -1;
+    if (formData.date) {
+      dayOfWeek = new Date(formData.date).getDay();
+    }
+
+    // 2. Resolve Weekend / Weekday rates from rates_json
+    if (s.rates_json) {
+      try {
+        const rates = JSON.parse(s.rates_json || '{}');
+        if (dayOfWeek === 0 && rates['Sunday']) {
+          baseRate = Number(rates['Sunday']);
+        } else if (dayOfWeek === 6 && rates['Saturday']) {
+          baseRate = Number(rates['Saturday']);
+        } else if (rates['Weekday']) {
+          baseRate = Number(rates['Weekday']);
+        } else if (rates['Hourly Rate']) {
+          baseRate = Number(rates['Hourly Rate']);
+        } else if (rates['Standard']) {
+          baseRate = Number(rates['Standard']);
+        }
+      } catch (e) {
+        // Fall back to baseRate
+      }
+    } else if (s.type === 'HOME_CARE' && s.rate) {
+      try {
+        const rates = JSON.parse(s.rate || '{}');
+        if (dayOfWeek === 0 && rates['Sunday']) {
+          baseRate = Number(rates['Sunday']);
+        } else if (dayOfWeek === 6 && rates['Saturday']) {
+          baseRate = Number(rates['Saturday']);
+        } else {
+          baseRate = Number(rates['Weekday'] || rates['Hourly Rate'] || rates['Standard'] || 0);
+        }
+      } catch (e) {
+         // keep baseRate if parsing fails
+      }
+    }
+    
+    return {
+      rate: baseRate,
+      unit: s.unit,
+      name: s.name
+    };
   };
 
   const addService = () => setSelectedServices([...selectedServices, { serviceId: '', qtyOverride: '', rateOverride: '' }]);
