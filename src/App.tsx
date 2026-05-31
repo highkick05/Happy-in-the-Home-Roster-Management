@@ -321,7 +321,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Quick Links Floating Hover Tab */}
-      <QuickLinksDrawer />
+      {user?.role === 'ADMIN' && <QuickLinksDrawer />}
     </div>
   );
 }

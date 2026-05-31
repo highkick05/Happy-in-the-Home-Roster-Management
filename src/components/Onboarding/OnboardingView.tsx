@@ -42,6 +42,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   const [formDates, setFormDates] = useState<Record<string, { issued: string, expires: string, idNumber?: string }>>({});
   const [uploadError, setUploadError] = useState<Record<string, string>>({});
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [isDraggingStep, setIsDraggingStep] = useState<Record<string, boolean>>({});
 
   const handleCopy = (text: string, fieldId: string) => {
     navigator.clipboard.writeText(text);
@@ -132,10 +133,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, stepId: string) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const uploadFileAndSave = async (file: File, stepId: string) => {
     // Reset error
     setUploadError(prev => ({ ...prev, [stepId]: '' }));
 
@@ -238,9 +236,43 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     } catch (err) {
       setUploadError(prev => ({ ...prev, [stepId]: 'Upload failed due to network error' }));
     }
-    
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, stepId: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadFileAndSave(file, stepId);
     if (e.target) {
       e.target.value = '';
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, stepId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e: React.DragEvent, stepId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingStep(prev => ({ ...prev, [stepId]: true }));
+    setExpandedStep(stepId);
+  };
+
+  const handleDragLeave = (e: React.DragEvent, stepId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingStep(prev => ({ ...prev, [stepId]: false }));
+  };
+
+  const handleDrop = async (e: React.DragEvent, stepId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingStep(prev => ({ ...prev, [stepId]: false }));
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      await uploadFileAndSave(files[0], stepId);
     }
   };
 
@@ -355,10 +387,30 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
             return (
               <div 
                 key={step.id} 
-                className={`border rounded-lg transition-colors ${
-                  isExpanded ? 'border-brand-teal/50 bg-[#121214]/50 relative z-50' : 'border-white/[0.08] bg-[#121214]/30 relative z-0'
+                className={`border rounded-lg relative overflow-hidden transition-all duration-200 ${
+                  isDraggingStep[step.id]
+                    ? 'border-brand-teal bg-[#132224] scale-[1.01] shadow-[0_0_20px_rgba(20,184,166,0.2)] z-50'
+                    : isExpanded 
+                      ? 'border-brand-teal/50 bg-[#121214]/50 z-50' 
+                      : 'border-white/[0.08] bg-[#121214]/30 z-0 hover:border-white/15'
                 }`}
+                onDragOver={(e) => step.type === 'upload' && handleDragOver(e, step.id)}
+                onDragEnter={(e) => step.type === 'upload' && handleDragEnter(e, step.id)}
+                onDragLeave={(e) => step.type === 'upload' && handleDragLeave(e, step.id)}
+                onDrop={(e) => step.type === 'upload' && handleDrop(e, step.id)}
               >
+                {/* Drag and Drop visual shield overlay */}
+                {isDraggingStep[step.id] && (
+                  <div className="absolute inset-0 bg-brand-teal/10 backdrop-blur-[2px] z-[100] flex flex-col items-center justify-center gap-3 transition-all duration-200 pointer-events-none">
+                    <div className="p-4 bg-zinc-900 border-2 border-brand-teal rounded-full shadow-[0_0_15px_rgba(20,184,166,0.3)] text-brand-teal animate-bounce">
+                      <Upload className="w-8 h-8" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-white font-semibold text-lg">Drop to upload to this section</p>
+                      <p className="text-brand-teal/80 text-xs font-mono">{step.title.replace(/^\d+\.\s*/, '')}</p>
+                    </div>
+                  </div>
+                )}
                 <div 
                   className="p-5 flex items-center justify-between cursor-pointer select-none"
                   onClick={() => setExpandedStep(isExpanded ? null : step.id)}
@@ -560,20 +612,34 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                             )}
                           </div>
 
-                          <div className="flex items-center gap-3">
-                            <label className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors text-[14px] font-medium text-white cursor-pointer w-fit border border-white/[0.1]">
-                              <Upload className="w-4 h-4" />
-                              Upload
+                          <div className="space-y-3">
+                            <label 
+                              className={`flex flex-col items-center justify-center gap-3 p-6 border-2 border-dashed rounded-lg transition-all text-center cursor-pointer ${
+                                isDraggingStep[step.id]
+                                  ? 'border-brand-teal bg-brand-teal/5 text-white'
+                                  : 'border-white/[0.12] bg-[#1A1A1C] hover:border-brand-teal/50 hover:bg-zinc-800/80 text-zinc-400 hover:text-zinc-200'
+                              }`}
+                            >
+                              <div className="p-3 bg-zinc-800/80 rounded-full border border-white/[0.08] text-brand-teal flex items-center justify-center animate-pulse" style={{ animationDuration: '3s' }}>
+                                <Upload className="w-5 h-5 font-bold" />
+                              </div>
+                              <div className="space-y-1">
+                                <p className="font-semibold text-sm text-zinc-200">
+                                  Drag & drop document here, or <span className="text-brand-teal font-semibold hover:underline">browse files</span>
+                                </p>
+                                <p className="text-[11px] text-[#8B949E]">Supports standard document & image formats</p>
+                              </div>
                               <input 
                                 type="file" 
                                 className="hidden" 
                                 onChange={(e) => handleFileUpload(e, step.id)}
                               />
                             </label>
+                            
                             {progressData[step.id]?.files && progressData[step.id].files!.length > 0 && (
                               <button
                                 onClick={() => handleDateUpdate(step.id, progressData[step.id].files![0].id)}
-                                className="px-4 py-2 bg-brand-navy border border-brand-teal/50 text-brand-teal rounded-lg hover:bg-brand-teal/10 transition-colors text-[14px] font-medium w-fit"
+                                className="px-4 py-2 bg-brand-navy border border-brand-teal/50 text-brand-teal rounded-lg hover:bg-brand-teal/10 transition-colors text-[14px] font-medium w-full"
                               >
                                 Save Date Overwrites
                               </button>
