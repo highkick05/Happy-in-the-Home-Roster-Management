@@ -887,7 +887,7 @@ async function startServer() {
 
       const existing = db.prepare('SELECT id FROM invoices WHERE respite_booking_id = ?').get(respiteBookingId);
       if (existing) {
-        db.prepare('UPDATE invoices SET invoice_number=?, amount=?, file_path=?, status=? WHERE respite_booking_id=?').run(
+        db.prepare('UPDATE invoices SET invoice_number=?, amount=?, file_path=?, status=?, merged_into_shift_id=NULL, merged_into_invoice_id=NULL WHERE respite_booking_id=?').run(
            invoiceNum, totalAmount, fileName, 'GENERATED', respiteBookingId
         );
       } else {
@@ -907,6 +907,27 @@ async function startServer() {
 
   // Backfill existing invoices
   try {
+    // Clear orphaned merged invoices references and restore them dynamically
+    const orphanInvoiceRes = db.prepare(`
+      UPDATE invoices 
+      SET status = 'GENERATED', merged_into_invoice_id = NULL 
+      WHERE merged_into_invoice_id IS NOT NULL 
+        AND merged_into_invoice_id NOT IN (SELECT id FROM invoices)
+    `).run();
+    if (orphanInvoiceRes.changes > 0) {
+      console.log(`[DEBUG] Restored ${orphanInvoiceRes.changes} orphaned merged invoices whose target invoice was deleted.`);
+    }
+
+    const orphanShiftRes = db.prepare(`
+      UPDATE invoices 
+      SET status = 'GENERATED', merged_into_shift_id = NULL 
+      WHERE merged_into_shift_id IS NOT NULL 
+        AND merged_into_shift_id NOT IN (SELECT id FROM shifts)
+    `).run();
+    if (orphanShiftRes.changes > 0) {
+      console.log(`[DEBUG] Restored ${orphanShiftRes.changes} orphaned merged invoices whose target shift was deleted.`);
+    }
+
     const existingInvoices = db.prepare('SELECT id, shift_id FROM invoices WHERE invoice_number IS NULL').all() as any[];
     if (existingInvoices.length > 0) {
       console.log(`Backfilling ${existingInvoices.length} invoices...`);
@@ -953,7 +974,7 @@ async function startServer() {
       // Just update DB record, no need to write to fs since it's on-the-fly now.
       const existing = db.prepare('SELECT id FROM invoices WHERE shift_id = ?').get(shiftId);
       if (existing) {
-        db.prepare('UPDATE invoices SET invoice_number=?, amount=?, file_path=?, status=? WHERE shift_id=?').run(
+        db.prepare('UPDATE invoices SET invoice_number=?, amount=?, file_path=?, status=?, merged_into_shift_id=NULL, merged_into_invoice_id=NULL WHERE shift_id=?').run(
            invoiceNum, totalAmount, fileName, 'GENERATED', shiftId
         );
       } else {
@@ -3848,6 +3869,9 @@ async function startServer() {
         });
         db.prepare('DELETE FROM invoices WHERE shift_id = ?').run(id);
         db.prepare('DELETE FROM shifts WHERE id = ?').run(id);
+        
+        // Restore any invoices that were merged into this shift which is now being deleted
+        db.prepare(`UPDATE invoices SET status = 'GENERATED', merged_into_shift_id = NULL WHERE merged_into_shift_id = ?`).run(id);
       })();
 
       if (shiftToUpdate) {
@@ -4716,7 +4740,11 @@ async function startServer() {
 
   app.delete('/api/invoices/:id', authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      db.prepare('DELETE FROM invoices WHERE id = ?').run(req.params.id);
+      db.transaction(() => {
+        // Restore any child invoices that were merged into this invoice which is now being deleted
+        db.prepare(`UPDATE invoices SET status = 'GENERATED', merged_into_invoice_id = NULL WHERE merged_into_invoice_id = ?`).run(req.params.id);
+        db.prepare('DELETE FROM invoices WHERE id = ?').run(req.params.id);
+      })();
       res.json({ success: true });
     } catch (e: any) {
       
@@ -4736,7 +4764,13 @@ async function startServer() {
 
     try {
       const placeholders = invoiceIds.map(() => '?').join(',');
-      db.prepare(`DELETE FROM invoices WHERE id IN (${placeholders})`).run(...invoiceIds);
+      db.transaction(() => {
+        // Restore any child invoices that were merged into these invoices which are now being deleted
+        for (const id of invoiceIds) {
+          db.prepare(`UPDATE invoices SET status = 'GENERATED', merged_into_invoice_id = NULL WHERE merged_into_invoice_id = ?`).run(id);
+        }
+        db.prepare(`DELETE FROM invoices WHERE id IN (${placeholders})`).run(...invoiceIds);
+      })();
       res.json({ success: true });
     } catch (e: any) {
       
