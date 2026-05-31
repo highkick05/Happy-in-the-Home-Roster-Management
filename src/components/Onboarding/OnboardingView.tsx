@@ -11,6 +11,7 @@ interface Step {
   description: string;
   type: StepType;
   links: { text: string; url: string }[];
+  optional?: boolean;
 }
 
 export const ONBOARDING_STEPS: Step[] = [
@@ -18,8 +19,8 @@ export const ONBOARDING_STEPS: Step[] = [
   { id: 'driver_license', title: 'Valid Driver\'s License', description: 'Annual check to visually inspect physical validity and current license status.', type: 'upload', links: [] },
   { id: 'car_insurance', title: 'Comprehensive Car Insurance (with Business Use)', description: 'Annual renewal. Must verify explicit inclusion of "Business Use" or "Commuting/Work Travel".', type: 'upload', links: [] },
   { id: 'wwcc', title: 'Working with Children Check (WWCC)', description: '3 years validity. Mandatory if supporting clients under the age of 18.', type: 'upload', links: [{ text: 'WWCC Information', url: 'https://www.aifs.gov.au/resources/resource-sheets/pre-employment-screening-working-children-checks-and-police-checks' }] },
-  { id: 'vevo', title: 'Right to Work / VEVO Check', description: 'Non-negotiable structural onboarding check. Monitored for visa holders; marked as static for citizens/PR.', type: 'upload', links: [] },
-  { id: 'ahpra', title: 'AHPRA Registration', description: 'Annual renewal (May 31st). Strictly mandatory for clinical nursing personnel.', type: 'upload', links: [{ text: 'AHPRA Registration', url: 'https://www.ahpra.gov.au/Registration.aspx' }] },
+  { id: 'vevo', title: 'Right to Work / VEVO Check', description: 'Non-negotiable structural onboarding check. Monitored for visa holders; marked as static for citizens/PR.', type: 'upload', links: [], optional: true },
+  { id: 'ahpra', title: 'AHPRA Registration', description: 'Annual renewal (May 31st). Strictly mandatory for clinical nursing personnel.', type: 'upload', links: [{ text: 'AHPRA Registration', url: 'https://www.ahpra.gov.au/Registration.aspx' }], optional: true },
   { id: 'cpr', title: 'HLTAID009 Provide CPR', description: 'Strictly annual renewal (every 12 months).', type: 'upload', links: [] },
   { id: 'first_aid', title: 'HLTAID011 Provide First Aid', description: '3 years validity (every 36 months).', type: 'upload', links: [] },
   { id: 'manual_handling', title: 'Manual Handling Competency', description: 'Strictly annual renewal (every 12 months).', type: 'upload', links: [] },
@@ -154,10 +155,6 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
       
       const generalSteps = ONBOARDING_STEPS.filter(s => {
         if (s.id === 'ndis_screening' || s.id === 'ndis_orientation') return false;
-        if (s.id === 'ahpra') {
-          const isClinical = user?.email?.includes('nurse') || user?.email?.includes('clinical');
-          return isClinical;
-        }
         return true;
       });
       const ndisSteps = ONBOARDING_STEPS.filter(s => {
@@ -396,10 +393,6 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
 
   const generalSteps = ONBOARDING_STEPS.filter(s => {
     if (s.id === 'ndis_screening' || s.id === 'ndis_orientation') return false;
-    if (s.id === 'ahpra') {
-       const isClinical = user?.email?.includes('nurse') || user?.email?.includes('clinical');
-       return isClinical;
-    }
     return true;
   });
 
@@ -409,8 +402,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
 
   const visibleSteps = ndisRelated ? [...generalSteps, ...ndisSteps] : generalSteps;
 
-  const completedVisibleCount = visibleSteps.filter(s => progressData[s.id]?.status === 'completed').length;
-  const progressPercent = visibleSteps.length > 0 ? Math.round((completedVisibleCount / visibleSteps.length) * 100) : 0;
+  const mandatoryVisibleSteps = visibleSteps.filter(s => !s.optional);
+  const completedVisibleCount = mandatoryVisibleSteps.filter(s => progressData[s.id]?.status === 'completed').length;
+  const progressPercent = mandatoryVisibleSteps.length > 0 ? Math.round((completedVisibleCount / mandatoryVisibleSteps.length) * 100) : 0;
 
   const renderStepCard = (step: Step, stepNum: number) => {
     const isExpanded = expandedStep === step.id;
@@ -458,8 +452,13 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
               {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <Upload className="w-5 h-5" />}
             </div>
             <div>
-              <h3 className={`font-medium ${isCompleted ? 'text-zinc-300' : 'text-white'}`}>
-                {stepNum}. {step.title}
+              <h3 className={`font-medium flex items-center gap-2 ${isCompleted ? 'text-zinc-300' : 'text-white'}`}>
+                <span>{stepNum}. {step.title}</span>
+                {step.optional && (
+                  <span className="px-2 py-0.5 border border-white/[0.08] bg-white/[0.03] text-zinc-400 text-[10px] font-bold rounded uppercase tracking-wider select-none shrink-0">
+                    Optional
+                  </span>
+                )}
               </h3>
               {!isExpanded && (
                 <p className="text-sm text-zinc-500">{step.description}</p>
@@ -586,6 +585,33 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                         className="w-full aspect-video"
                         controlsList="nodownload"
                       />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step.id === 'ahpra' && (
+                <div className="mb-6 space-y-4">
+                  <div className="p-4 border border-brand-teal/20 rounded-lg bg-brand-teal/5 text-zinc-300 text-sm space-y-2.5 shadow-[0_0_15px_rgba(20,184,166,0.03)]">
+                    <p className="font-semibold flex items-center gap-1.5 text-brand-teal">
+                      <Info className="w-4 h-4 text-brand-teal" /> AHPRA PORTAL REQUIREMENTS:
+                    </p>
+                    <p className="text-zinc-300 text-xs leading-relaxed">
+                      For clinical nursing personnel, please log in to the AHPRA portal, renew your annual registration, and upload your physical or digital certificate/receipt here. Ensure the expiry date corresponds to your next renewal.
+                    </p>
+                    <div className="pt-2 border-t border-brand-teal/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <span className="text-xs text-brand-teal/80 font-semibold uppercase tracking-wider">
+                        ⚕ Required for nursing & clinical staff only
+                      </span>
+                      <a 
+                        href="https://www.ahpra.gov.au/Registration/Online-Services.aspx"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-teal hover:bg-[#119e8e] text-zinc-950 text-xs font-bold rounded-md transition-colors w-fit shadow-md select-none font-sans"
+                      >
+                        <LinkIcon className="w-3.5 h-3.5" />
+                        Go to AHPRA Login Portal
+                      </a>
                     </div>
                   </div>
                 </div>
