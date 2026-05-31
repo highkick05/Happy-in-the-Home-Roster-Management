@@ -14,7 +14,7 @@ interface Step {
 }
 
 export const ONBOARDING_STEPS: Step[] = [
-  { id: 'tfn_super', title: 'Tax File Number Declaration & Superannuation Choice', description: 'IMPORTANT: Completed TFN and Super forms. On completion of the forms, please make sure to click on your receipt, screenshot it, or save it as a PDF, and upload it here.', type: 'upload', links: [] },
+  { id: 'tfn_super', title: 'Tax File Number Declaration & Superannuation Choice', description: 'Completed TFN and Super forms.', type: 'upload', links: [] },
   { id: 'driver_license', title: 'Valid Driver\'s License', description: 'Annual check to visually inspect physical validity and current license status.', type: 'upload', links: [] },
   { id: 'car_insurance', title: 'Comprehensive Car Insurance (with Business Use)', description: 'Annual renewal. Must verify explicit inclusion of "Business Use" or "Commuting/Work Travel".', type: 'upload', links: [] },
   { id: 'wwcc', title: 'Working with Children Check (WWCC)', description: '3 years validity. Mandatory if supporting clients under the age of 18.', type: 'upload', links: [{ text: 'WWCC Information', url: 'https://www.aifs.gov.au/resources/resource-sheets/pre-employment-screening-working-children-checks-and-police-checks' }] },
