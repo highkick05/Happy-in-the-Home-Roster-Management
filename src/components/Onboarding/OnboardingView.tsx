@@ -14,6 +14,7 @@ interface Step {
 }
 
 export const ONBOARDING_STEPS: Step[] = [
+  { id: 'tfn_super', title: 'Tax File Number Declaration & Superannuation Choice', description: 'IMPORTANT: Completed TFN and Super forms. On completion of the forms, please make sure to click on your receipt, screenshot it, or save it as a PDF, and upload it here.', type: 'upload', links: [] },
   { id: 'driver_license', title: 'Valid Driver\'s License', description: 'Annual check to visually inspect physical validity and current license status.', type: 'upload', links: [] },
   { id: 'car_insurance', title: 'Comprehensive Car Insurance (with Business Use)', description: 'Annual renewal. Must verify explicit inclusion of "Business Use" or "Commuting/Work Travel".', type: 'upload', links: [] },
   { id: 'wwcc', title: 'Working with Children Check (WWCC)', description: '3 years validity. Mandatory if supporting clients under the age of 18.', type: 'upload', links: [{ text: 'WWCC Information', url: 'https://www.aifs.gov.au/resources/resource-sheets/pre-employment-screening-working-children-checks-and-police-checks' }] },
@@ -25,7 +26,6 @@ export const ONBOARDING_STEPS: Step[] = [
   { id: 'flu_shot', title: 'Annual Influenza Vaccination', description: 'Annual renewal (must be updated before winter peak).', type: 'upload', links: [] },
   { id: 'immunisation', title: 'Immunisation History', description: 'One-time onboarding baseline healthcare worker vaccines.', type: 'upload', links: [] },
   { id: 'covid_vaccine', title: 'COVID Immunisation Evidence', description: 'Verified record at onboarding or inline with directives.', type: 'upload', links: [] },
-  { id: 'tfn_super', title: 'Tax File Number Declaration & Superannuation Choice', description: 'Completed TFN and Super forms.', type: 'upload', links: [] },
   { id: 'ndis_screening', title: 'NDIS Worker Screening Check (NWSC) Clearance', description: '5 years validity. Satisfies baseline Aged Care/Home Care worker screening without requiring a separate National Police Check.', type: 'upload', links: [{ text: 'NDIS Worker Screening', url: 'https://www.ndiscommission.gov.au/workers/worker-screening' }] },
   { id: 'ndis_orientation', title: 'NDIS Worker Orientation Module Certificate', description: 'One-time mandatory onboarding check ("Quality, Safety and You").', type: 'upload', links: [{ text: 'Worker Orientation Module', url: 'https://www.ndiscommission.gov.au/workers/worker-training-modules-and-resources/worker-orientation-module' }] }
 ];
@@ -36,7 +36,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   // Choose the context user
   const contextUserId = targetUserId || user?.id;
   
-  const [expandedStep, setExpandedStep] = useState<string | null>('resume');
+  const [expandedStep, setExpandedStep] = useState<string | null>('tfn_super');
   const [progressData, setProgressData] = useState<Record<string, { status: 'completed' | 'pending'; fileId?: number | null; files?: { id: number; name: string, date_expires?: string, date_issued?: string }[] }>>({});
   const [loading, setLoading] = useState(true);
   const [formDates, setFormDates] = useState<Record<string, { issued: string, expires: string, idNumber?: string }>>({});
@@ -524,6 +524,15 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
 
               {step.id === 'tfn_super' && (
                 <div className="mb-6 space-y-6">
+                  <div className="p-4 border border-amber-500/20 rounded-lg bg-amber-500/10 text-amber-200 text-sm space-y-1.5 shadow-[0_0_15px_rgba(245,158,11,0.05)]">
+                    <p className="font-semibold flex items-center gap-1.5 text-amber-400">
+                      <Info className="w-4 h-4 text-amber-400" /> IMPORTANT INSTRUCTIONS:
+                    </p>
+                    <p className="text-zinc-300">
+                      On completion of the forms, please make sure to click on your receipt, screenshot it, or save it as a PDF, and upload the file using the upload section below.
+                    </p>
+                  </div>
+
                   <div>
                     <h4 className="flex items-center gap-2 text-brand-teal font-medium mb-3 text-sm">
                       <Info className="w-4 h-4" />
