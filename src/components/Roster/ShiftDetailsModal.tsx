@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Trash2, CheckCircle, Edit, Cast, Undo2, ArrowDown } from 'lucide-react';
+import { X, Trash2, CheckCircle, Edit, Cast, Undo2, ArrowDown, FileText } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ShiftEvent } from './RosterCalendar';
 
@@ -246,6 +246,33 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
     } catch (e) {
       console.error(e);
       alert(`Error updating status: ${e}`);
+    }
+  };
+
+  const handleGenerateInvoice = async () => {
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/invoices/${shift.id}/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        alert('Invoice generated successfully!');
+        onSave();
+        onClose();
+        window.dispatchEvent(new CustomEvent('refresh-notifications'));
+      } else {
+        const err = await res.json();
+        alert(`Failed to generate invoice: ${err.error || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert(`Error generating invoice: ${e}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -689,6 +716,21 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                 >
                   <CheckCircle className="w-5 h-5 mr-2" />
                   Mark Completed
+                </button>
+              )}
+
+              {isAdmin && shift.status === 'CANCELLED' && (
+                <button 
+                  onClick={handleGenerateInvoice}
+                  disabled={isSubmitting}
+                  className="w-full flex items-center justify-center px-4 py-3 bg-brand-teal/90 hover:bg-brand-teal text-zinc-950 rounded-xl text-sm md:text-base font-bold transition-all shadow-md active:scale-95 disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <span className="w-5 h-5 border-2 border-zinc-950/30 border-t-zinc-950 rounded-full animate-spin mr-2" />
+                  ) : (
+                    <FileText className="w-5 h-5 mr-2 text-zinc-950" />
+                  )}
+                  Create Invoice
                 </button>
               )}
 
