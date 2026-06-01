@@ -1134,6 +1134,7 @@ export default function RosterCalendar() {
         onSave={fetchData}
         shift={selectedShift}
         servicesList={servicesList}
+        holidays={holidays}
         onEdit={(shift) => {
           if (shift.isRespiteWrapper) {
             setInitialRespiteData(shift.respiteData);

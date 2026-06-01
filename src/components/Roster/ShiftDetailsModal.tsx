@@ -10,13 +10,15 @@ interface ShiftDetailsModalProps {
   shift: ShiftEvent | null;
   onEdit?: (shift: ShiftEvent) => void;
   servicesList?: any[];
+  holidays?: any[];
 }
 
-export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEdit, servicesList = [] }: ShiftDetailsModalProps) {
+export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEdit, servicesList = [], holidays }: ShiftDetailsModalProps) {
   const { token, user, settings } = useAuth();
   const [showCancelPrompt, setShowCancelPrompt] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [internalHolidays, setInternalHolidays] = React.useState<any[]>([]);
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -25,6 +27,26 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
       setIsSubmitting(false);
     }
   }, [isOpen]);
+
+  React.useEffect(() => {
+    if (holidays && holidays.length > 0) {
+      setInternalHolidays(holidays);
+    } else if (isOpen && shift && shift.start) {
+      const year = new Date(shift.start).getFullYear();
+      fetch(`/api/holidays?year=${year}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+        .then(res => res.json())
+        .then(data => {
+          setInternalHolidays(data.holidays || []);
+        })
+        .catch(err => {
+          console.error("Failed to fetch holidays in ShiftDetailsModal:", err);
+        });
+    }
+  }, [isOpen, shift, holidays, token]);
 
   if (!isOpen || !shift) return null;
 
@@ -616,10 +638,18 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                       let dayOfWeek = new Date(shift.start).getDay();
                       let finalRate = baseRate;
                       
+                      const startDateObj = new Date(shift.start);
+                      const yyyy = startDateObj.getFullYear();
+                      const mm = String(startDateObj.getMonth() + 1).padStart(2, '0');
+                      const dd = String(startDateObj.getDate()).padStart(2, '0');
+                      const dateStr = `${yyyy}-${mm}-${dd}`;
+                      const isPublicHoliday = internalHolidays.some((h: any) => h.date && h.date.startsWith(dateStr));
+                      
                       if (serviceType === 'HOME_CARE' && ratesJson) {
                          try {
                             const rates = JSON.parse(ratesJson);
-                            if (dayOfWeek === 0 && rates['Sunday']) finalRate = Number(rates['Sunday']);
+                            if (isPublicHoliday && rates['Public Holiday']) finalRate = Number(rates['Public Holiday']);
+                            else if (dayOfWeek === 0 && rates['Sunday']) finalRate = Number(rates['Sunday']);
                             else if (dayOfWeek === 6 && rates['Saturday']) finalRate = Number(rates['Saturday']);
                             else if (rates['Weekday']) finalRate = Number(rates['Weekday']);
                          } catch(e) {}

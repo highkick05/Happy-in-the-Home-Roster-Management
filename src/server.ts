@@ -2877,6 +2877,11 @@ async function startServer() {
       let rawTz3 = settingsMap.timezone || 'Australia/Perth';
       const timezone = typeof rawTz3 === 'string' ? rawTz3.replace(/['"]+/g, '') : rawTz3;
 
+      const dateFormatterAPI = getSafeDateTimeFormat('en-CA', {
+        timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit'
+      });
+      const hd = new Holidays('AU', settingsMap.state || 'WA');
+
       let generatedBatchId: string | null = null;
       if (!dryRun) {
         const crypto = require('crypto');
@@ -2966,23 +2971,46 @@ async function startServer() {
             let servicesData = [];
             let isAbtApproved = false;
             
+            const localDateStr = dateFormatterAPI.format(startDateTime);
+            const isPublicHoliday = hd.getHolidays(startDateTime.getFullYear()).some((h: any) => h.type === 'public' && h.date.startsWith(localDateStr));
+
             if (tmpl.services_json) {
               try {
                 servicesData = JSON.parse(tmpl.services_json);
                 for (const sData of servicesData) {
-                  const srv = db.prepare('SELECT name FROM services WHERE id = ?').get(sData.serviceId) as any;
-                  if (srv && srv.name.toLowerCase().includes('activity based transport')) {
-                    isAbtApproved = true;
-                    sData.qtyOverride = 0;
+                  const srv = db.prepare('SELECT type, rates_json, name FROM services WHERE id = ?').get(sData.serviceId) as any;
+                  if (srv) {
+                    if (srv.name.toLowerCase().includes('activity based transport')) {
+                      isAbtApproved = true;
+                      sData.qtyOverride = 0;
+                    }
+                    if (isPublicHoliday && srv.type === 'HOME_CARE' && srv.rates_json) {
+                      try {
+                        const rates = JSON.parse(srv.rates_json);
+                        if (rates['Public Holiday']) {
+                          sData.rateOverride = Number(rates['Public Holiday']);
+                        }
+                      } catch (e) {}
+                    }
                   }
                 }
               } catch(e: any) { logger.warn('JSON Parse Error:', e.message); }
             } else if (tmpl.service_id) {
               servicesData = [{ serviceId: tmpl.service_id }];
-              const srv = db.prepare('SELECT name FROM services WHERE id = ?').get(tmpl.service_id) as any;
-              if (srv && srv.name.toLowerCase().includes('activity based transport')) {
-                isAbtApproved = true;
-                servicesData[0].qtyOverride = 0;
+              const srv = db.prepare('SELECT type, rates_json, name FROM services WHERE id = ?').get(tmpl.service_id) as any;
+              if (srv) {
+                if (srv.name.toLowerCase().includes('activity based transport')) {
+                  isAbtApproved = true;
+                  servicesData[0].qtyOverride = 0;
+                }
+                if (isPublicHoliday && srv.type === 'HOME_CARE' && srv.rates_json) {
+                  try {
+                    const rates = JSON.parse(srv.rates_json);
+                    if (rates['Public Holiday']) {
+                      servicesData[0].rateOverride = Number(rates['Public Holiday']);
+                    }
+                  } catch (e) {}
+                }
               }
             }
             
@@ -3120,6 +3148,11 @@ async function startServer() {
       let rawTz4 = settingsMap.timezone || 'Australia/Perth';
       const timezone = typeof rawTz4 === 'string' ? rawTz4.replace(/['"]+/g, '') : rawTz4;
 
+      const dateFormatterAPI = getSafeDateTimeFormat('en-CA', {
+        timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit'
+      });
+      const hd = new Holidays('AU', settingsMap.state || 'WA');
+
       const clientRow = db.prepare('SELECT funding_type FROM clients WHERE id = ?').get(clientId) as any;
       const fundingType = clientRow?.funding_type || 'NDIS';
 
@@ -3201,23 +3234,46 @@ async function startServer() {
           let servicesData = [];
           let isAbtApproved = false;
           
+          const localDateStr = dateFormatterAPI.format(startDateTime);
+          const isPublicHoliday = hd.getHolidays(startDateTime.getFullYear()).some((h: any) => h.type === 'public' && h.date.startsWith(localDateStr));
+
           if (tmpl.services_json) {
             try {
               servicesData = JSON.parse(tmpl.services_json);
               for (const sData of servicesData) {
-                const srv = db.prepare('SELECT name FROM services WHERE id = ?').get(sData.serviceId) as any;
-                if (srv && srv.name.toLowerCase().includes('activity based transport')) {
-                  isAbtApproved = true;
-                  sData.qtyOverride = 0;
+                const srv = db.prepare('SELECT type, rates_json, name FROM services WHERE id = ?').get(sData.serviceId) as any;
+                if (srv) {
+                  if (srv.name.toLowerCase().includes('activity based transport')) {
+                    isAbtApproved = true;
+                    sData.qtyOverride = 0;
+                  }
+                  if (isPublicHoliday && srv.type === 'HOME_CARE' && srv.rates_json) {
+                    try {
+                      const rates = JSON.parse(srv.rates_json);
+                      if (rates['Public Holiday']) {
+                        sData.rateOverride = Number(rates['Public Holiday']);
+                      }
+                    } catch (e) {}
+                  }
                 }
               }
             } catch(e: any) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
           } else if (tmpl.service_id) {
             servicesData = [{ serviceId: tmpl.service_id }];
-            const srv = db.prepare('SELECT name FROM services WHERE id = ?').get(tmpl.service_id) as any;
-            if (srv && srv.name.toLowerCase().includes('activity based transport')) {
-              isAbtApproved = true;
-              servicesData[0].qtyOverride = 0;
+            const srv = db.prepare('SELECT type, rates_json, name FROM services WHERE id = ?').get(tmpl.service_id) as any;
+            if (srv) {
+              if (srv.name.toLowerCase().includes('activity based transport')) {
+                isAbtApproved = true;
+                servicesData[0].qtyOverride = 0;
+              }
+              if (isPublicHoliday && srv.type === 'HOME_CARE' && srv.rates_json) {
+                try {
+                  const rates = JSON.parse(srv.rates_json);
+                  if (rates['Public Holiday']) {
+                    servicesData[0].rateOverride = Number(rates['Public Holiday']);
+                  }
+                } catch (e) {}
+              }
             }
           }
           
