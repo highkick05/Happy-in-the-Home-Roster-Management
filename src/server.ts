@@ -2984,11 +2984,24 @@ async function startServer() {
                       isAbtApproved = true;
                       sData.qtyOverride = 0;
                     }
-                    if (isPublicHoliday && srv.type === 'HOME_CARE' && srv.rates_json) {
+                    if (srv.rates_json) {
                       try {
                         const rates = JSON.parse(srv.rates_json);
-                        if (rates['Public Holiday']) {
-                          sData.rateOverride = Number(rates['Public Holiday']);
+                        if (srv.type === 'HOME_CARE') {
+                          if (isPublicHoliday && rates['Public Holiday']) {
+                            sData.rateOverride = Number(rates['Public Holiday']);
+                          } else if (dayOfWeek === 0 && rates['Sunday']) {
+                            sData.rateOverride = Number(rates['Sunday']);
+                          } else if (dayOfWeek === 6 && rates['Saturday']) {
+                            sData.rateOverride = Number(rates['Saturday']);
+                          } else if (rates['Weekday']) {
+                            sData.rateOverride = Number(rates['Weekday']);
+                          }
+                        } else if (srv.type === 'NDIS') {
+                          const region = settingsMap.ndisRegion || 'NSW';
+                          if (rates[region] !== undefined) {
+                            sData.rateOverride = Number(rates[region]);
+                          }
                         }
                       } catch (e) {}
                     }
@@ -3003,11 +3016,24 @@ async function startServer() {
                   isAbtApproved = true;
                   servicesData[0].qtyOverride = 0;
                 }
-                if (isPublicHoliday && srv.type === 'HOME_CARE' && srv.rates_json) {
+                if (srv.rates_json) {
                   try {
                     const rates = JSON.parse(srv.rates_json);
-                    if (rates['Public Holiday']) {
-                      servicesData[0].rateOverride = Number(rates['Public Holiday']);
+                    if (srv.type === 'HOME_CARE') {
+                      if (isPublicHoliday && rates['Public Holiday']) {
+                        servicesData[0].rateOverride = Number(rates['Public Holiday']);
+                      } else if (dayOfWeek === 0 && rates['Sunday']) {
+                        servicesData[0].rateOverride = Number(rates['Sunday']);
+                      } else if (dayOfWeek === 6 && rates['Saturday']) {
+                        servicesData[0].rateOverride = Number(rates['Saturday']);
+                      } else if (rates['Weekday']) {
+                        servicesData[0].rateOverride = Number(rates['Weekday']);
+                      }
+                    } else if (srv.type === 'NDIS') {
+                      const region = settingsMap.ndisRegion || 'NSW';
+                      if (rates[region] !== undefined) {
+                        servicesData[0].rateOverride = Number(rates[region]);
+                      }
                     }
                   } catch (e) {}
                 }
@@ -3231,6 +3257,9 @@ async function startServer() {
           
           if (!assignedStaffId) continue; // Skip creating shift if there is a conflict and no staff
 
+          const localNoon = new Date(`${shiftDateStr}T12:00:00Z`);
+          const dayOfWeek = localNoon.getUTCDay(); // 0 is Sunday, 6 is Saturday
+
           let servicesData = [];
           let isAbtApproved = false;
           
@@ -3247,11 +3276,24 @@ async function startServer() {
                     isAbtApproved = true;
                     sData.qtyOverride = 0;
                   }
-                  if (isPublicHoliday && srv.type === 'HOME_CARE' && srv.rates_json) {
+                  if (srv.rates_json) {
                     try {
                       const rates = JSON.parse(srv.rates_json);
-                      if (rates['Public Holiday']) {
-                        sData.rateOverride = Number(rates['Public Holiday']);
+                      if (srv.type === 'HOME_CARE') {
+                        if (isPublicHoliday && rates['Public Holiday']) {
+                          sData.rateOverride = Number(rates['Public Holiday']);
+                        } else if (dayOfWeek === 0 && rates['Sunday']) {
+                          sData.rateOverride = Number(rates['Sunday']);
+                        } else if (dayOfWeek === 6 && rates['Saturday']) {
+                          sData.rateOverride = Number(rates['Saturday']);
+                        } else if (rates['Weekday']) {
+                          sData.rateOverride = Number(rates['Weekday']);
+                        }
+                      } else if (srv.type === 'NDIS') {
+                        const region = settingsMap.ndisRegion || 'NSW';
+                        if (rates[region] !== undefined) {
+                          sData.rateOverride = Number(rates[region]);
+                        }
                       }
                     } catch (e) {}
                   }
@@ -3266,11 +3308,24 @@ async function startServer() {
                 isAbtApproved = true;
                 servicesData[0].qtyOverride = 0;
               }
-              if (isPublicHoliday && srv.type === 'HOME_CARE' && srv.rates_json) {
+              if (srv.rates_json) {
                 try {
                   const rates = JSON.parse(srv.rates_json);
-                  if (rates['Public Holiday']) {
-                    servicesData[0].rateOverride = Number(rates['Public Holiday']);
+                  if (srv.type === 'HOME_CARE') {
+                    if (isPublicHoliday && rates['Public Holiday']) {
+                      servicesData[0].rateOverride = Number(rates['Public Holiday']);
+                    } else if (dayOfWeek === 0 && rates['Sunday']) {
+                      servicesData[0].rateOverride = Number(rates['Sunday']);
+                    } else if (dayOfWeek === 6 && rates['Saturday']) {
+                      servicesData[0].rateOverride = Number(rates['Saturday']);
+                    } else if (rates['Weekday']) {
+                      servicesData[0].rateOverride = Number(rates['Weekday']);
+                    }
+                  } else if (srv.type === 'NDIS') {
+                    const region = settingsMap.ndisRegion || 'NSW';
+                    if (rates[region] !== undefined) {
+                      servicesData[0].rateOverride = Number(rates[region]);
+                    }
                   }
                 } catch (e) {}
               }
