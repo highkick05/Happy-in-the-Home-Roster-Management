@@ -850,10 +850,13 @@ export default function InvoicingView() {
             Quotes
           </button>
         </div>
-        <div className="flex items-center space-x-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg select-none mb-3">
+        <div className="flex flex-wrap items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg select-none mb-3">
           <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
           <span className="text-[10px] md:text-xs font-bold text-amber-500 tracking-wide uppercase">
-            * ANY EDITS TO INVOICES MUST BE DONE THROUGH "ROSTER &gt; SHIFT DETAILS &gt; EDIT SHIFT" POPUP. THANK YOU.
+            ANY EDITS TO INVOICES MUST BE DONE THROUGH
+          </span>
+          <span className="inline-flex items-center bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 px-2 py-0.5 rounded text-[10px] md:text-[11px] font-bold tracking-wider uppercase">
+            ROSTER &gt; SHIFT DETAILS &gt; EDIT SHIFT
           </span>
         </div>
       </div>
