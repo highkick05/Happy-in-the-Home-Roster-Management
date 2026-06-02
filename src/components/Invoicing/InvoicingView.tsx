@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { FileText, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign } from 'lucide-react';
+import { FileText, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
 import { RefreshCw, Search } from 'lucide-react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -850,9 +850,12 @@ export default function InvoicingView() {
             Quotes
           </button>
         </div>
-        <span className="text-xs text-amber-500 font-medium pb-3 select-none tracking-wide">
-          * Any edits to Invoices must be done through "Roster &gt; Shift Details &gt; Edit Shift" popup. Thank you.
-        </span>
+        <div className="flex items-center space-x-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg select-none mb-3">
+          <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          <span className="text-[10px] md:text-xs font-bold text-amber-500 tracking-wide uppercase">
+            * ANY EDITS TO INVOICES MUST BE DONE THROUGH "ROSTER &gt; SHIFT DETAILS &gt; EDIT SHIFT" POPUP. THANK YOU.
+          </span>
+        </div>
       </div>
 
       {tab === 'quotes' ? (
