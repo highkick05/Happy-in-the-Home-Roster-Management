@@ -835,19 +835,24 @@ export default function InvoicingView() {
 
   return (
     <div className="h-full flex flex-col space-y-6">
-      <div className="flex border-b border-white/[0.08] space-x-6">
-        <button 
-          onClick={() => setTab('invoices')} 
-          className={`pb-3 border-b-2 font-medium text-sm transition-colors ${tab === 'invoices' ? 'border-brand-teal text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
-        >
-          Invoices
-        </button>
-        <button 
-          onClick={() => setTab('quotes')} 
-          className={`pb-3 border-b-2 font-medium text-sm transition-colors ${tab === 'quotes' ? 'border-brand-teal text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
-        >
-          Quotes
-        </button>
+      <div className="flex border-b border-white/[0.08] justify-between items-center">
+        <div className="flex space-x-6">
+          <button 
+            onClick={() => setTab('invoices')} 
+            className={`pb-3 border-b-2 font-medium text-sm transition-colors ${tab === 'invoices' ? 'border-brand-teal text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+          >
+            Invoices
+          </button>
+          <button 
+            onClick={() => setTab('quotes')} 
+            className={`pb-3 border-b-2 font-medium text-sm transition-colors ${tab === 'quotes' ? 'border-brand-teal text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+          >
+            Quotes
+          </button>
+        </div>
+        <span className="text-xs text-amber-500 font-medium pb-3 select-none tracking-wide">
+          * Any edits to Invoices must be done through "Roster &gt; Shift Details &gt; Edit Shift" popup. Thank you.
+        </span>
       </div>
 
       {tab === 'quotes' ? (
