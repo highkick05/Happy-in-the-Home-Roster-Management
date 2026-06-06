@@ -8,6 +8,7 @@ interface ActiveShiftModalProps {
   onClose: () => void;
   onSave: () => void;
   shift: ShiftEvent | null;
+  servicesList?: any[];
 }
 
 if (typeof window !== 'undefined') {
@@ -46,7 +47,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: ActiveShiftModalProps) {
+export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servicesList = [] }: ActiveShiftModalProps) {
   const { token, settings } = useAuth();
   const maxEarlyMins = settings?.max_early_clockin_minutes !== undefined ? parseInt(settings.max_early_clockin_minutes as any) : 180;
   
@@ -409,11 +410,15 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                  <span className="text-[10px] sm:text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">Assigned Tasks</span>
                  {shift.servicesData && shift.servicesData.length > 0 ? (
                     <div className="flex flex-col gap-1 items-end">
-                       {shift.servicesData.map((s: any, idx: number) => (
-                          <span key={idx} className="block text-sm sm:text-base font-medium text-brand-teal text-right leading-tight break-words max-w-[200px] sm:max-w-xs">
-                              {s.serviceName || s.serviceCode || shift.serviceName}
-                          </span>
-                       ))}
+                       {shift.servicesData.map((s: any, idx: number) => {
+                          const srv = servicesList.find((srv: any) => String(srv.id) === String(s.serviceId));
+                          const srvName = srv ? srv.name : (s.serviceName || s.serviceCode || shift.serviceName);
+                          return (
+                             <span key={idx} className="block text-sm sm:text-base font-medium text-brand-teal text-right leading-tight break-words max-w-[200px] sm:max-w-xs">
+                                 {srvName}
+                             </span>
+                          );
+                       })}
                     </div>
                  ) : shift.serviceName ? (
                     <span className="block text-sm sm:text-base font-medium text-brand-teal text-right leading-tight break-words max-w-[200px] sm:max-w-xs">

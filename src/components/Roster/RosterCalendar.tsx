@@ -1164,6 +1164,7 @@ export default function RosterCalendar() {
           onClose={() => setIsDetailsModalOpen(false)}
           onSave={fetchData}
           shift={selectedShift}
+          servicesList={servicesList}
         />
       )}
     </div>
