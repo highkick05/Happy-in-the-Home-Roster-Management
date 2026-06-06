@@ -407,10 +407,12 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                        href={`https://maps.google.com/?q=${encodeURIComponent(clientAddress)}`}
                        target="_blank"
                        rel="noopener noreferrer"
-                       className="p-1 rounded-md text-brand-blue hover:text-brand-blue/80 hover:bg-brand-blue/10 transition-colors"
+                       className="flex items-center gap-1.5 px-2.5 py-1 ml-1 rounded text-xs font-semibold uppercase tracking-wider bg-brand-blue/10 text-brand-blue hover:bg-brand-blue/20 transition-colors"
                        title="View Client Address on Google Maps"
                      >
-                       <MapPin className="w-5 h-5 sm:w-6 sm:h-6" />
+                       <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                       <span className="hidden sm:inline">Directions</span>
+                       <span className="sm:hidden">Map</span>
                      </a>
                    )}
                  </div>
