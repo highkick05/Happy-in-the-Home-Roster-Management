@@ -1,9 +1,10 @@
 import React from 'react';
-import { format, addDays, subDays } from 'date-fns';
+import { format, addDays, subDays, startOfDay } from 'date-fns';
 
 export default function CustomAgenda({ events, date, length, localizer, components, onSelectEvent }: any) {
-  const end = addDays(date, length || 30);
-  const inRange = events.filter((e: any) => e.start >= date && e.start < end);
+  const startOfDayDate = startOfDay(date);
+  const end = addDays(startOfDayDate, length || 30);
+  const inRange = events.filter((e: any) => e.start >= startOfDayDate && e.start < end);
   
   const groups: Record<string, any[]> = {};
   inRange.sort((a: any, b: any) => a.start.getTime() - b.start.getTime()).forEach((e: any) => {
