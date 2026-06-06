@@ -380,9 +380,6 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
   };
 
   const handleBackgroundClick = (e: React.MouseEvent) => {
-    if (isLocked) {
-      return; // Do not close but let event bubble
-    }
     if (e.target === e.currentTarget) {
       onClose();
     }
@@ -438,11 +435,9 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                </span>
             )}
           </div>
-          {!isLocked && (
-            <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04] shrink-0 -mt-1 -mr-1">
-              <X className="w-5 h-5 md:w-6 md:h-6" />
-            </button>
-          )}
+          <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04] shrink-0 -mt-1 -mr-1">
+            <X className="w-5 h-5 md:w-6 md:h-6" />
+          </button>
         </div>
 
         {/* Scrollable Content */}
