@@ -155,7 +155,7 @@ export default function NotificationsDropdown() {
                       year: 'numeric', month: 'numeric', day: 'numeric',
                       hour: 'numeric', minute: 'numeric', second: 'numeric',
                       hour12: true
-                    }).format(new Date(notif.created_at))}
+                    }).format(new Date(notif.created_at.includes('T') ? notif.created_at : notif.created_at.replace(' ', 'T') + 'Z'))}
                   </div>
                 </div>
               ))
