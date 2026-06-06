@@ -393,38 +393,49 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
         className="bg-[#121214] border border-white/[0.08] rounded-2xl p-5 sm:p-4 w-full sm:max-w-lg md:max-w-2xl lg:max-w-3xl text-zinc-100 flex flex-col max-h-[90vh] overflow-hidden shadow-2xl transition-all" 
       >
         {/* Header */}
-        <div className="flex justify-between items-center mb-5 md:mb-6 shrink-0">
-          <div>
-            <h2 className="text-xl font-semibold text-white tracking-tight mb-4">
-              {shift.clientName}
-            </h2>
-            <p className="text-sm md:text-base text-zinc-400 mt-1 font-medium">
-               {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-            </p>
-            {shift.servicesData && shift.servicesData.length > 0 ? (
-               <div className="mt-3 flex flex-wrap gap-2">
-                  {shift.servicesData.map((s: any, idx: number) => (
-                     <span key={idx} className="inline-block px-3 py-1 bg-zinc-800/60 border border-white/[0.08] text-brand-teal text-xs font-semibold rounded-full tracking-wide">
-                         {s.serviceName || s.serviceCode}
-                     </span>
-                  ))}
+        <div className="flex justify-between items-start mb-5 md:mb-6 shrink-0 gap-4">
+          <div className="flex-1">
+            <div className="flex justify-between items-start gap-4">
+               <div>
+                 <h2 className="text-xl font-semibold text-white tracking-tight mb-1">
+                   {shift.clientName}
+                 </h2>
+                 <p className="text-sm md:text-base text-zinc-400 font-medium whitespace-nowrap">
+                    {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                 </p>
                </div>
-            ) : shift.serviceName ? (
-               <div className="mt-3">
-                  <span className="inline-block px-3 py-1 bg-zinc-800/60 border border-white/[0.08] text-brand-teal text-xs font-semibold rounded-full tracking-wide">
-                      {shift.serviceName}
-                  </span>
+               
+               <div className="text-right flex flex-col items-end">
+                 <span className="text-[10px] sm:text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">Assigned Tasks</span>
+                 {shift.servicesData && shift.servicesData.length > 0 ? (
+                    <div className="flex flex-col gap-1 items-end">
+                       {shift.servicesData.map((s: any, idx: number) => (
+                          <span key={idx} className="block text-sm sm:text-base font-medium text-brand-teal text-right leading-tight">
+                              {s.serviceName || s.serviceCode}
+                          </span>
+                       ))}
+                    </div>
+                 ) : shift.serviceName ? (
+                    <span className="block text-sm sm:text-base font-medium text-brand-teal text-right leading-tight">
+                        {shift.serviceName}
+                    </span>
+                 ) : (
+                    <span className="block text-sm font-medium text-zinc-500 italic">
+                        Not specified
+                    </span>
+                 )}
                </div>
-            ) : null}
+            </div>
+            
             {isEarlyStart && !isLocked && (
-               <span className="inline-block mt-2 px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded-full border border-amber-500/30">
+               <span className="inline-block mt-4 px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded-full border border-amber-500/30">
                   {Math.floor(startDiffMs / 60000)} minutes until shift
                </span>
             )}
           </div>
           {!isLocked && (
-            <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04]">
-              <X className="w-5 h-5 md:w-6 md:h-6 text-zinc-300" />
+            <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04] shrink-0 -mt-1 -mr-1">
+              <X className="w-5 h-5 md:w-6 md:h-6" />
             </button>
           )}
         </div>
