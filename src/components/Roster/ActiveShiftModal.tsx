@@ -414,14 +414,14 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                           const srv = servicesList.find((srv: any) => String(srv.id) === String(s.serviceId));
                           const srvName = srv ? srv.name : (s.serviceName || s.serviceCode || shift.serviceName);
                           return (
-                             <span key={idx} className="block text-xs sm:text-sm font-medium text-brand-teal text-right leading-tight max-w-[280px] sm:max-w-md md:max-w-lg truncate" title={srvName}>
+                             <span key={idx} className="block text-xs sm:text-sm font-medium text-brand-teal text-right leading-tight max-w-[280px] sm:max-w-md md:max-w-lg break-words" title={srvName}>
                                  {srvName}
                              </span>
                           );
                        })}
                     </div>
                  ) : shift.serviceName ? (
-                    <span className="block text-xs sm:text-sm font-medium text-brand-teal text-right leading-tight max-w-[280px] sm:max-w-md md:max-w-lg truncate" title={shift.serviceName}>
+                    <span className="block text-xs sm:text-sm font-medium text-brand-teal text-right leading-tight max-w-[280px] sm:max-w-md md:max-w-lg break-words" title={shift.serviceName}>
                         {shift.serviceName}
                     </span>
                  ) : (
