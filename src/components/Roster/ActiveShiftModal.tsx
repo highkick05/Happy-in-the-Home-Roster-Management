@@ -53,6 +53,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
   
   const [completeMode, setCompleteMode] = useState(false);
   const [notes, setNotes] = useState('');
+  const [earlyFinishReason, setEarlyFinishReason] = useState('');
   const [checklist, setChecklist] = useState<any[]>([]);
   const [startTimeStr, setStartTimeStr] = useState('');
   const [finishTime, setFinishTime] = useState('');
@@ -324,16 +325,28 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
     const [hf, mf] = finishTime.split(':');
     baseDate.setHours(parseInt(hf, 10), parseInt(mf, 10), 0, 0);
 
+    // Calculate if it's an early finish
+    const isFinishingEarly = baseDate.getTime() < shift.end.getTime();
+    if (isFinishingEarly && !earlyFinishReason.trim()) {
+       setLoading(false);
+       alert("Please provide a reason for finishing the shift early.");
+       return;
+    }
+
     const startDate = new Date(shift.start);
     if (startTimeStr) {
       const [hs, ms] = startTimeStr.split(':');
       startDate.setHours(parseInt(hs, 10), parseInt(ms, 10), 0, 0);
     }
     
+    const finalNotes = (isFinishingEarly && earlyFinishReason.trim()) 
+      ? `(EARLY FINISH REASON: ${earlyFinishReason.trim()})\n\n${notes}`
+      : notes;
+
     const payload = {
       actual_start_time: startDate.toISOString(),
       actual_finish_time: baseDate.toISOString(),
-      notes,
+      notes: finalNotes,
       abtCoordinates: resolvedWaypoints,
       odometer_end_reading: odometerReading,
       odometer_end_photo: odometerPhoto,
@@ -511,7 +524,17 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                     </div>
                     <div>
                       <span className="text-zinc-500 font-medium block mb-2 text-sm md:text-base">Shift Notes</span>
-                      <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-3 rounded-lg border border-white/[0.08]/50">{shift.notes || "No notes provided."}</p>
+                      {shift.status === 'IN_PROGRESS' ? (
+                        <textarea 
+                          rows={3} 
+                          className="w-full bg-[#09090b] border border-white/[0.12]/50 rounded-xl p-3 text-sm md:text-base text-zinc-100 focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal shadow-inner resize-y transition-colors"
+                          placeholder="Log any incidents, tasks completed, client mood, etc."
+                          value={notes}
+                          onChange={e => handleNotesChange(e.target.value)}
+                        />
+                      ) : (
+                        <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-3 rounded-lg border border-white/[0.08]/50">{shift.notes || "No notes provided."}</p>
+                      )}
                     </div>
                   </div>
 
@@ -817,6 +840,27 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                   />
                 </div>
 
+                {/* Early Finish Reason */}
+                {(() => {
+                  if (!finishTime || !shift) return false;
+                  const baseDate = new Date(shift.start);
+                  const [hf, mf] = finishTime.split(':');
+                  baseDate.setHours(parseInt(hf, 10), parseInt(mf, 10), 0, 0);
+                  return baseDate.getTime() < shift.end.getTime();
+                })() && (
+                  <div className="bg-amber-500/10 p-5 rounded-2xl border border-amber-500/20 flex flex-col">
+                    <label className="block text-sm md:text-base font-medium text-amber-500 mb-2 whitespace-pre-wrap">Early Finish Reason <span className="text-red-400">*</span></label>
+                    <textarea 
+                      rows={3} 
+                      className="w-full bg-[#09090b] border border-amber-500/30 rounded-xl p-4 text-sm md:text-base text-zinc-100 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-inner resize-y transition-colors placeholder-amber-500/30"
+                      placeholder="Please provide a reason for finishing the shift early..."
+                      value={earlyFinishReason}
+                      onChange={e => setEarlyFinishReason(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+
                 {/* 4. Home Care Checklist */}
                 {!isNDIS && checklist.length > 0 && (
                    <div className="bg-zinc-800/30 p-5 rounded-2xl border border-white/[0.08]">
@@ -920,7 +964,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                   </button>
                   <button 
                     onClick={() => setCompleteMode(true)}
-                    disabled={!canComplete}
+                    disabled={loading}
                     className="w-full py-5 bg-brand-green/80 hover:bg-brand-green text-white rounded-2xl font-bold text-lg md:text-xl flex items-center justify-center transition-all active:scale-95 shadow-md disabled:opacity-50 disabled:active:scale-100"
                   >
                     <StopCircle className="w-6 h-6 mr-2 shrink-0" /> Complete Shift
