@@ -1,0 +1,5 @@
+1643:        return res.status(500).json({ error: 'Failed to compute route distances' });
+1650:      res.status(500).json({ error: 'Failed to compute route distances' });
+5737:      res.status(500).json({ error: 'Failed to fetch matrix' });
+5966:      if(!res.headersSent) res.status(500).json({ error: 'Failed to export Excel' });
+6775:    res.status(500).json({ 
