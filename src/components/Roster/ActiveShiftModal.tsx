@@ -9,6 +9,7 @@ interface ActiveShiftModalProps {
   onSave: () => void;
   shift: ShiftEvent | null;
   servicesList?: any[];
+  clientList?: any[];
 }
 
 if (typeof window !== 'undefined') {
@@ -47,7 +48,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servicesList = [] }: ActiveShiftModalProps) {
+export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servicesList = [], clientList = [] }: ActiveShiftModalProps) {
   const { token, settings } = useAuth();
   const maxEarlyMins = settings?.max_early_clockin_minutes !== undefined ? parseInt(settings.max_early_clockin_minutes as any) : 180;
   
@@ -359,6 +360,8 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
   };
 
   const isNDIS = shift.fundingType === 'NDIS' || !shift.fundingType;
+  const clientData = clientList.find((c: any) => String(c.id) === String(shift.clientId));
+  const clientAddress = clientData?.address;
 
   const startDiffMs = shift.start.getTime() - nowDate.getTime();
   const endDiffMs = shift.end.getTime() - nowDate.getTime();
@@ -395,9 +398,22 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
           <div className="flex-1">
             <div className="flex justify-between items-start gap-4">
                <div>
-                 <h2 className="text-xl font-semibold text-white tracking-tight mb-1">
-                   {shift.clientName}
-                 </h2>
+                 <div className="flex items-center gap-2 mb-1">
+                   <h2 className="text-xl font-semibold text-white tracking-tight">
+                     {shift.clientName}
+                   </h2>
+                   {clientAddress && (
+                     <a
+                       href={`https://maps.google.com/?q=${encodeURIComponent(clientAddress)}`}
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       className="p-1 rounded-md text-brand-blue hover:text-brand-blue/80 hover:bg-brand-blue/10 transition-colors"
+                       title="View Client Address on Google Maps"
+                     >
+                       <MapPin className="w-5 h-5 sm:w-6 sm:h-6" />
+                     </a>
+                   )}
+                 </div>
                  <p className="text-sm md:text-base text-zinc-400 font-medium whitespace-nowrap">
                     {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                  </p>

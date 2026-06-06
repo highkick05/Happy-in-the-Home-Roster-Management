@@ -1165,6 +1165,7 @@ export default function RosterCalendar() {
           onSave={fetchData}
           shift={selectedShift}
           servicesList={servicesList}
+          clientList={clientList}
         />
       )}
     </div>

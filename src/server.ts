@@ -1923,7 +1923,7 @@ async function startServer() {
   // --- Clients APIs ---
   app.get('/api/clients', authenticateToken, (req: any, res: any) => {
     if (req.user.role !== 'ADMIN') {
-      const clients = db.prepare('SELECT id, first_name, last_name FROM clients').all();
+      const clients = db.prepare('SELECT id, first_name, last_name, address FROM clients').all();
       return res.json(clients);
     }
 
