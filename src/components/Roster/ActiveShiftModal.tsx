@@ -410,13 +410,13 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift }: Act
                  {shift.servicesData && shift.servicesData.length > 0 ? (
                     <div className="flex flex-col gap-1 items-end">
                        {shift.servicesData.map((s: any, idx: number) => (
-                          <span key={idx} className="block text-sm sm:text-base font-medium text-brand-teal text-right leading-tight">
-                              {s.serviceName || s.serviceCode}
+                          <span key={idx} className="block text-sm sm:text-base font-medium text-brand-teal text-right leading-tight break-words max-w-[200px] sm:max-w-xs">
+                              {s.serviceName || s.serviceCode || shift.serviceName}
                           </span>
                        ))}
                     </div>
                  ) : shift.serviceName ? (
-                    <span className="block text-sm sm:text-base font-medium text-brand-teal text-right leading-tight">
+                    <span className="block text-sm sm:text-base font-medium text-brand-teal text-right leading-tight break-words max-w-[200px] sm:max-w-xs">
                         {shift.serviceName}
                     </span>
                  ) : (
