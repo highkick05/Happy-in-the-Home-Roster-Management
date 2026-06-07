@@ -218,7 +218,7 @@ export default function InvoicePreviewModal({ shiftId, invoiceId, onClose }: Pro
                    <span>Subtotal:</span>
                    <span className="font-medium text-zinc-900">${Number(subtotal).toFixed(2)}</span>
                 </div>
-                {isHomeCare ? (
+                {gstAmount > 0 ? (
                   <div className="flex justify-between py-2 text-zinc-600 border-b border-zinc-200">
                      <span>GST (10%):</span>
                      <span className="font-medium text-zinc-900">${Number(gstAmount).toFixed(2)}</span>
