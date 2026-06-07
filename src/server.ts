@@ -692,8 +692,25 @@ async function startServer() {
 
       let finalInvoiceDateStr = invoiceDateFormatter.format(start).replace(/\//g, '-');
       
+      let manualGstType: string | null = null;
+      if (shift.services_json) {
+         try {
+           const parsed = JSON.parse(shift.services_json);
+           if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].gstType !== undefined) {
+              manualGstType = parsed[0].gstType;
+           }
+         } catch(e) {}
+      }
+
       const isHomeCare = (shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE');
-      const gstAmount = isHomeCare ? subtotal * 0.1 : 0;
+      
+      let gstAmount = 0;
+      if (manualGstType) {
+         gstAmount = manualGstType === '10%' ? subtotal * 0.1 : 0;
+      } else {
+         gstAmount = isHomeCare ? subtotal * 0.1 : 0;
+      }
+      
       const totalAmount = subtotal + gstAmount;
 
       return {
@@ -4590,6 +4607,9 @@ async function startServer() {
       const finalCustomStaffName = isCustomStaff ? (customStaffName || 'Generic Staff') : null;
 
       const mainServiceId = services[0].isCustom ? null : services[0].serviceId;
+      if (req.body.gstType && services.length > 0) {
+        services[0].gstType = req.body.gstType;
+      }
       const servicesJson = JSON.stringify(services);
 
       const shiftResult = db.prepare(`
@@ -4819,13 +4839,16 @@ async function startServer() {
 
       if (oldInvoice.status === 'PAID' && status !== 'PAID') {
          const oldOriginalName = `${oldInvoice.invoice_number}.pdf`;
-         const fileRecords = db.prepare('SELECT id, system_name FROM files WHERE original_name = ?').all(oldOriginalName) as any[];
+         const fileRecords = db.prepare('SELECT id, system_name, folder_path FROM files WHERE original_name = ?').all(oldOriginalName) as any[];
          for (const fileRecord of fileRecords) {
              const sysFilePath = path.join(process.cwd(), 'uploads', fileRecord.system_name);
              if (fs.existsSync(sysFilePath)) {
                  fs.unlinkSync(sysFilePath);
              }
              db.prepare('DELETE FROM files WHERE id = ?').run(fileRecord.id);
+             
+             // Check if folder is now empty and delete if possible to clean up
+             /* if needed, but not strictly required */
          }
       }
       
@@ -5068,7 +5091,8 @@ async function startServer() {
     doc.font('Helvetica').fontSize(10);
     
     lineItems.forEach((item: any) => {
-      let textHeight = doc.heightOfString(item.serviceName, { width: 180 }) || 15;
+      let safeServiceName = item.serviceName || 'Unknown Service';
+      let textHeight = doc.heightOfString(safeServiceName, { width: 180 }) || 15;
       let blockHeight = textHeight + 20 + (item.metadata ? 12 : 0);
 
       // Automatically add page if the required height for this line item exceeds the margin
@@ -5094,7 +5118,7 @@ async function startServer() {
       doc.fontSize(10);
       
       // Calculate dynamic height for description block
-      doc.text(item.serviceName, 110, currentY, { width: 180, align: 'left' });
+      doc.text(safeServiceName, 110, currentY, { width: 180, align: 'left' });
       
       let descY = currentY + textHeight + 2;
       const codePrefix = ((shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE')) ? 'Serv. ID:' : 'Code:';
@@ -5145,7 +5169,7 @@ async function startServer() {
     doc.text('Subtotal:', 380, totalsY + 15, { width: 100, align: 'right' });
     doc.text(`$${subtotal.toFixed(2)}`, 480, totalsY + 15, { width: 70, align: 'right' });
     
-    if (isHomeCare) {
+    if (gstAmount > 0) {
         doc.text('GST (10%):', 380, totalsY + 30, { width: 100, align: 'right' });
         doc.text(`$${gstAmount.toFixed(2)}`, 480, totalsY + 30, { width: 70, align: 'right' });
     } else {
@@ -5284,6 +5308,10 @@ async function startServer() {
       const dayOfWeek = getTzDayOfWeek(parsedDate, timezone);
 
       if (services && Array.isArray(services)) {
+        if (req.body.gstType && services.length > 0) {
+           services[0].gstType = req.body.gstType;
+        }
+
         services.forEach(sd => {
           const srv = db.prepare('SELECT * FROM services WHERE id = ?').get(sd.serviceId) as any;
           if (srv) {
@@ -5311,6 +5339,10 @@ async function startServer() {
              calculatedAmount += qty * finalRate;
           }
         });
+      }
+
+      if (req.body.gstType === '10%') {
+          calculatedAmount = calculatedAmount * 1.1; // Add GST
       }
 
       const stmt = db.prepare(`
@@ -5396,7 +5428,12 @@ async function startServer() {
       let subtotal = 0;
       let lineItems: any[] = [];
 
+      let gstTypeFromMeta: string | null = null;
       if (servicesData.length > 0) {
+        if (servicesData[0].gstType) {
+           gstTypeFromMeta = servicesData[0].gstType;
+        }
+
         servicesData.forEach(sd => {
           const srv = db.prepare('SELECT * FROM services WHERE id = ?').get(sd.serviceId) as any;
           if (srv) {
@@ -5416,6 +5453,9 @@ async function startServer() {
                    if (rates[region] !== undefined) finalRate = Number(rates[region]);
                 } catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
              }
+             if (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== '') {
+                 finalRate = Number(sd.rateOverride);
+             }
              const amt = qty * finalRate;
              subtotal += amt;
              let mappedUnit = srv.unit || 'H';
@@ -5433,6 +5473,12 @@ async function startServer() {
           }
         });
       }
+
+      let gstAmount = 0;
+      if (gstTypeFromMeta === '10%') {
+          gstAmount = subtotal * 0.1;
+      }
+      const totalAmount = subtotal + gstAmount;
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${quote.quote_number}.pdf"`);
@@ -5538,12 +5584,20 @@ async function startServer() {
       }
       
       // Total Box
-      doc.rect(50, currentY, 500, 40).fill('#f4f4f5');
-      doc.fillColor('black').font('Helvetica-Bold').fontSize(12);
-      doc.text('TOTAL QUOTE AMOUNT:', 250, currentY + 14, { width: 150, align: 'right' });
-      doc.fontSize(14).text(`$${subtotal.toFixed(2)}`, 410, currentY + 13, { width: 120, align: 'right' });
+      doc.rect(50, currentY, 500, 60).fill('#f4f4f5');
+      
+      doc.fillColor('#71717a').font('Helvetica').fontSize(10);
+      doc.text('Subtotal:', 250, currentY + 10, { width: 150, align: 'right' });
+      doc.text(`$${subtotal.toFixed(2)}`, 410, currentY + 10, { width: 120, align: 'right' });
+      
+      doc.text(`GST:`, 250, currentY + 25, { width: 150, align: 'right' });
+      doc.text(`$${gstAmount.toFixed(2)}`, 410, currentY + 25, { width: 120, align: 'right' });
 
-      currentY += 70;
+      doc.fillColor('black').font('Helvetica-Bold').fontSize(12);
+      doc.text('TOTAL QUOTE AMOUNT:', 200, currentY + 42, { width: 200, align: 'right' });
+      doc.fontSize(14).text(`$${totalAmount.toFixed(2)}`, 410, currentY + 41, { width: 120, align: 'right' });
+
+      currentY += 90;
 
       // Important Notes
       doc.font('Helvetica-Bold').fontSize(12).fillColor('black').text('Important Notes', 50, currentY);

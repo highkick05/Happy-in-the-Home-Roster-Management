@@ -9,7 +9,8 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
     clientId: '',
     activityName: '',
     date: new Date().toISOString().split('T')[0],
-    importantNotes: ''
+    importantNotes: '',
+    gstType: 'GST Free'
   });
   
   const [selectedServices, setSelectedServices] = useState<{serviceId: string, qtyOverride: string, rateOverride: string}[]>([
@@ -161,7 +162,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
 
   return (
     <form onSubmit={handleSubmit} className="p-5 space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Client</label>
           <select
@@ -188,6 +189,17 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
             value={formData.date}
             onChange={e => setFormData({ ...formData, date: e.target.value })}
           />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">GST Configuration</label>
+          <select
+            className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none font-mono text-sm"
+            value={formData.gstType}
+            onChange={e => setFormData({ ...formData, gstType: e.target.value })}
+          >
+            <option value="GST Free">GST Free</option>
+            <option value="10%">GST (10%)</option>
+          </select>
         </div>
       </div>
 
@@ -304,7 +316,37 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
         />
       </div>
 
-      <div className="pt-2 border-t border-white/[0.08] flex justify-end">
+      <div className="pt-2 border-t border-white/[0.08] flex justify-between items-center space-x-3 mt-4">
+        {(() => {
+          const computedSubtotal = selectedServices.reduce((acc, s) => {
+             let { rate } = getServiceDetails(s.serviceId);
+             if (s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== '') {
+                rate = Number(s.rateOverride);
+             }
+             const qty = Number(s.qtyOverride) || 0;
+             return acc + (qty * rate);
+          }, 0);
+          
+          const computedGst = formData.gstType === '10%' ? computedSubtotal * 0.1 : 0;
+          const computedTotal = computedSubtotal + computedGst;
+
+          return (
+            <div className="flex flex-col text-white text-sm font-medium">
+              <div className="flex items-center justify-between text-xs text-zinc-400 mb-1 w-48">
+                <span>Subtotal:</span>
+                <span className="font-mono">${computedSubtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-zinc-400 mb-1 w-48">
+                <span>GST:</span>
+                <span className="font-mono">${computedGst.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between w-48 pt-1 border-t border-white/[0.08]">
+                <span>Total:</span>
+                <span className="text-brand-teal font-mono">${computedTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          );
+        })()}
         <button
           type="submit"
           disabled={submitting}
