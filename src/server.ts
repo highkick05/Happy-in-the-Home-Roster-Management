@@ -5068,20 +5068,32 @@ async function startServer() {
     doc.font('Helvetica').fontSize(10);
     
     lineItems.forEach((item: any) => {
-      // Automatically add page if we get too close to the bottom
-      if (currentY > 700) {
+      let textHeight = doc.heightOfString(item.serviceName, { width: 180 }) || 15;
+      let blockHeight = textHeight + 20 + (item.metadata ? 12 : 0);
+
+      // Automatically add page if the required height for this line item exceeds the margin
+      if (currentY + blockHeight > 700) {
          doc.addPage();
-         currentY = 50;
+         // Print Header again for the new page
+         doc.font('Helvetica-Bold').fontSize(10);
+         doc.text('DATE', 50, 50, { width: 60, align: 'left' });
+         doc.text('DESCRIPTION', 110, 50, { width: 180, align: 'left' });
+         doc.text('TIME', 290, 50, { width: 90, align: 'left' });
+         doc.text('QTY', 385, 50, { width: 35, align: 'right' });
+         doc.text('UNIT', 425, 50, { width: 55, align: 'left' });
+         doc.text('RATE', 485, 50, { width: 45, align: 'right' });
+         doc.text('AMOUNT', 535, 50, { width: 45, align: 'right' });
+         doc.moveTo(50, 65).lineTo(580, 65).stroke();
+         currentY = 75;
       }
 
-      doc.fontSize(10);
+      doc.font('Helvetica').fontSize(10);
       doc.text(item.date, 50, currentY, { width: 60, align: 'left' });
       
       doc.fontSize(9).text(item.time, 290, currentY, { width: 90, align: 'left' });
       doc.fontSize(10);
       
       // Calculate dynamic height for description block
-      let textHeight = doc.heightOfString(item.serviceName, { width: 180 }) || 15;
       doc.text(item.serviceName, 110, currentY, { width: 180, align: 'left' });
       
       let descY = currentY + textHeight + 2;
@@ -5104,7 +5116,12 @@ async function startServer() {
       currentY = descY + 20;
     });
 
-    const totalsY = currentY + 40;
+    let totalsY = currentY + 30;
+    
+    if (totalsY + 100 > 700) {
+        doc.addPage();
+        totalsY = 50;
+    }
 
     let bankName = 'National Australia Bank';
     let bankAccName = 'Happy in the Home';
@@ -5488,7 +5505,10 @@ async function startServer() {
       doc.font('Helvetica').fontSize(9);
       
       lineItems.forEach((item: any) => {
-        if (currentY > 700) {
+        let textHeight = doc.heightOfString(item.desc || 'Unknown', { width: 180 }) || 15;
+        let blockHeight = Math.max(textHeight, 15) + 20;
+
+        if (currentY + blockHeight > 700) {
            doc.addPage();
            currentY = 50;
         }
@@ -5505,12 +5525,17 @@ async function startServer() {
         doc.text(`$${item.rate.toFixed(2)}`, 410, currentY, { width: 50, align: 'right' });
         doc.text(`$${item.amount.toFixed(2)}`, 480, currentY, { width: 60, align: 'right' });
         
-        currentY += 25;
+        currentY += textHeight + 10;
         doc.moveTo(50, currentY).lineTo(550, currentY).strokeColor('#e4e4e7').stroke();
         currentY += 10;
       });
 
-      currentY += 10;
+      if (currentY + 70 > 700) {
+          doc.addPage();
+          currentY = 50;
+      } else {
+          currentY += 10;
+      }
       
       // Total Box
       doc.rect(50, currentY, 500, 40).fill('#f4f4f5');
