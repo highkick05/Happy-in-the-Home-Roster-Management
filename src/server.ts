@@ -4810,7 +4810,24 @@ async function startServer() {
     }
     
     try {
+      const oldInvoice = db.prepare('SELECT status, invoice_number FROM invoices WHERE id = ?').get(id) as any;
+      if (!oldInvoice) {
+        return res.status(404).json({ error: 'Invoice not found' });
+      }
+
       db.prepare('UPDATE invoices SET status = ? WHERE id = ?').run(status, id);
+
+      if (oldInvoice.status === 'PAID' && status !== 'PAID') {
+         const oldOriginalName = `${oldInvoice.invoice_number}.pdf`;
+         const fileRecords = db.prepare('SELECT id, system_name FROM files WHERE original_name = ?').all(oldOriginalName) as any[];
+         for (const fileRecord of fileRecords) {
+             const sysFilePath = path.join(process.cwd(), 'uploads', fileRecord.system_name);
+             if (fs.existsSync(sysFilePath)) {
+                 fs.unlinkSync(sysFilePath);
+             }
+             db.prepare('DELETE FROM files WHERE id = ?').run(fileRecord.id);
+         }
+      }
       
       if (status === 'PAID') {
         const invoiceRow = db.prepare('SELECT * FROM invoices WHERE id = ?').get(id) as any;
