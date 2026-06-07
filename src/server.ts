@@ -4813,11 +4813,18 @@ async function startServer() {
       db.prepare('UPDATE invoices SET status = ? WHERE id = ?').run(status, id);
       
       if (status === 'PAID') {
-        const invoiceRow = db.prepare('SELECT shift_id, invoice_number FROM invoices WHERE id = ?').get(id) as any;
-        if (invoiceRow && invoiceRow.shift_id) {
-          const shiftId = invoiceRow.shift_id;
-          const data = getInvoiceDataForShift(shiftId);
-          if (data && data.lineItems.length > 0) {
+        const invoiceRow = db.prepare('SELECT * FROM invoices WHERE id = ?').get(id) as any;
+        if (invoiceRow) {
+          let data: any = null;
+          if (invoiceRow.services_json) {
+             data = getInvoiceDataForMergedInvoice(invoiceRow);
+          } else if (invoiceRow.respite_booking_id) {
+             data = getInvoiceDataForRespiteBooking(invoiceRow.respite_booking_id);
+          } else if (invoiceRow.shift_id) {
+             data = getInvoiceDataForShift(invoiceRow.shift_id);
+          }
+
+          if (data && data.lineItems && data.lineItems.length > 0) {
              const systemName = `invoice_${data.invoiceNum}_${Date.now()}.pdf`;
              const filePath = path.join(process.cwd(), 'uploads', systemName);
              
