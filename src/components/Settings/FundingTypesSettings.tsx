@@ -10,17 +10,18 @@ export default function FundingTypesSettings() {
   const [successMsg, setSuccessMsg] = useState('');
 
   const [hcpLevels, setHcpLevels] = useState([
-    { level: 'Level 1', title: 'Basic care needs', amount: 10588.65, billingCycle: 'annual' },
-    { level: 'Level 2', title: 'Low care needs', amount: 18622.75, billingCycle: 'annual' },
-    { level: 'Level 3', title: 'Intermediate care needs', amount: 40529.60, billingCycle: 'annual' },
-    { level: 'Level 4', title: 'High care needs', amount: 61440.45, billingCycle: 'annual' },
+    { level: 'Level 1', title: 'Basic care needs', amountAnnual: 10588.65, amountQuarterly: 2647.16, billingCycle: 'annual' },
+    { level: 'Level 2', title: 'Low care needs', amountAnnual: 18622.75, amountQuarterly: 4655.68, billingCycle: 'annual' },
+    { level: 'Level 3', title: 'Intermediate care needs', amountAnnual: 40529.60, amountQuarterly: 10132.40, billingCycle: 'annual' },
+    { level: 'Level 4', title: 'High care needs', amountAnnual: 61440.45, amountQuarterly: 15360.11, billingCycle: 'annual' },
   ]);
 
   const [sahLevels, setSahLevels] = useState(
     Array.from({ length: 8 }).map((_, i) => ({
       level: `Class ${i + 1}`,
       title: 'Support at Home Class',
-      amount: 0,
+      amountAnnual: 0,
+      amountQuarterly: 0,
       billingCycle: 'quarterly',
     }))
   );
@@ -38,21 +39,29 @@ export default function FundingTypesSettings() {
       if (res.ok) {
         const data = await res.json();
         if (data.hcpFundingLevels) {
-          setHcpLevels(data.hcpFundingLevels);
+          setHcpLevels(data.hcpFundingLevels.map((lvl: any) => ({
+             ...lvl,
+             amountAnnual: lvl.amountAnnual !== undefined ? lvl.amountAnnual : (lvl.amount || 0),
+             amountQuarterly: lvl.amountQuarterly !== undefined ? lvl.amountQuarterly : ((lvl.amount || 0) / 4)
+          })));
         }
         if (data.sahFundingLevels) {
-          setSahLevels(data.sahFundingLevels);
+          setSahLevels(data.sahFundingLevels.map((lvl: any) => ({
+             ...lvl,
+             amountQuarterly: lvl.amountQuarterly !== undefined ? lvl.amountQuarterly : (lvl.amount || 0),
+             amountAnnual: lvl.amountAnnual !== undefined ? lvl.amountAnnual : ((lvl.amount || 0) * 4)
+          })));
         } else {
            // Default SaH values for 2026 (placeholder estimates)
            const defaultSah = [
-             { level: 'Class 1', title: 'Quarterly budget', amount: 1200, billingCycle: 'quarterly' },
-             { level: 'Class 2', title: 'Quarterly budget', amount: 2500, billingCycle: 'quarterly' },
-             { level: 'Class 3', title: 'Quarterly budget', amount: 4000, billingCycle: 'quarterly' },
-             { level: 'Class 4', title: 'Quarterly budget', amount: 6500, billingCycle: 'quarterly' },
-             { level: 'Class 5', title: 'Quarterly budget', amount: 9000, billingCycle: 'quarterly' },
-             { level: 'Class 6', title: 'Quarterly budget', amount: 12000, billingCycle: 'quarterly' },
-             { level: 'Class 7', title: 'Quarterly budget', amount: 16000, billingCycle: 'quarterly' },
-             { level: 'Class 8', title: 'Quarterly budget', amount: 19500, billingCycle: 'quarterly' },
+             { level: 'Class 1', title: 'Quarterly budget', amountQuarterly: 1200, amountAnnual: 4800, billingCycle: 'quarterly' },
+             { level: 'Class 2', title: 'Quarterly budget', amountQuarterly: 2500, amountAnnual: 10000, billingCycle: 'quarterly' },
+             { level: 'Class 3', title: 'Quarterly budget', amountQuarterly: 4000, amountAnnual: 16000, billingCycle: 'quarterly' },
+             { level: 'Class 4', title: 'Quarterly budget', amountQuarterly: 6500, amountAnnual: 26000, billingCycle: 'quarterly' },
+             { level: 'Class 5', title: 'Quarterly budget', amountQuarterly: 9000, amountAnnual: 36000, billingCycle: 'quarterly' },
+             { level: 'Class 6', title: 'Quarterly budget', amountQuarterly: 12000, amountAnnual: 48000, billingCycle: 'quarterly' },
+             { level: 'Class 7', title: 'Quarterly budget', amountQuarterly: 16000, amountAnnual: 64000, billingCycle: 'quarterly' },
+             { level: 'Class 8', title: 'Quarterly budget', amountQuarterly: 19500, amountAnnual: 78000, billingCycle: 'quarterly' },
            ];
            setSahLevels(defaultSah);
         }
@@ -149,8 +158,9 @@ export default function FundingTypesSettings() {
               <div className="space-y-4">
                 <div className="grid grid-cols-12 gap-4 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
                   <div className="col-span-3">Level</div>
-                  <div className="col-span-5">Description</div>
-                  <div className="col-span-4">Annual Amount ($)</div>
+                  <div className="col-span-3">Description</div>
+                  <div className="col-span-3">Annual Amount ($)</div>
+                  <div className="col-span-3">Quarterly Amount ($)</div>
                 </div>
                 {hcpLevels.map((lvl, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-4 items-center">
@@ -163,7 +173,7 @@ export default function FundingTypesSettings() {
                         placeholder="e.g. Level 1"
                       />
                     </div>
-                    <div className="col-span-5">
+                    <div className="col-span-3">
                       <input
                         type="text"
                         className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors"
@@ -172,13 +182,29 @@ export default function FundingTypesSettings() {
                         placeholder="Description"
                       />
                     </div>
-                    <div className="col-span-4 relative">
+                    <div className="col-span-3 relative">
                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
                       <input
                         type="number"
                         className="w-full bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors font-mono"
-                        value={lvl.amount}
-                        onChange={(e) => updateHcp(idx, 'amount', Number(e.target.value))}
+                        value={lvl.amountAnnual}
+                        onChange={(e) => {
+                          updateHcp(idx, 'amountAnnual', Number(e.target.value));
+                          updateHcp(idx, 'amountQuarterly', Number((Number(e.target.value) / 4).toFixed(2)));
+                        }}
+                        step="0.01"
+                      />
+                    </div>
+                    <div className="col-span-3 relative">
+                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
+                      <input
+                        type="number"
+                        className="w-full bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors font-mono"
+                        value={lvl.amountQuarterly}
+                        onChange={(e) => {
+                          updateHcp(idx, 'amountQuarterly', Number(e.target.value));
+                          updateHcp(idx, 'amountAnnual', Number((Number(e.target.value) * 4).toFixed(2)));
+                        }}
                         step="0.01"
                       />
                     </div>
@@ -194,8 +220,9 @@ export default function FundingTypesSettings() {
               <div className="space-y-4">
                 <div className="grid grid-cols-12 gap-4 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
                   <div className="col-span-3">Class Level</div>
-                  <div className="col-span-5">Description</div>
-                  <div className="col-span-4">Quarterly Budget ($)</div>
+                  <div className="col-span-3">Description</div>
+                  <div className="col-span-3">Annual Budget ($)</div>
+                  <div className="col-span-3">Quarterly Budget ($)</div>
                 </div>
                 {sahLevels.map((lvl, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-4 items-center">
@@ -208,7 +235,7 @@ export default function FundingTypesSettings() {
                         placeholder="e.g. Class 1"
                       />
                     </div>
-                    <div className="col-span-5">
+                    <div className="col-span-3">
                       <input
                         type="text"
                         className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors"
@@ -217,13 +244,29 @@ export default function FundingTypesSettings() {
                         placeholder="Description"
                       />
                     </div>
-                    <div className="col-span-4 relative">
+                    <div className="col-span-3 relative">
                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
                       <input
                         type="number"
                         className="w-full bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors font-mono"
-                        value={lvl.amount}
-                        onChange={(e) => updateSah(idx, 'amount', Number(e.target.value))}
+                        value={lvl.amountAnnual}
+                        onChange={(e) => {
+                          updateSah(idx, 'amountAnnual', Number(e.target.value));
+                          updateSah(idx, 'amountQuarterly', Number((Number(e.target.value) / 4).toFixed(2)));
+                        }}
+                        step="0.01"
+                      />
+                    </div>
+                    <div className="col-span-3 relative">
+                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
+                      <input
+                        type="number"
+                        className="w-full bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors font-mono"
+                        value={lvl.amountQuarterly}
+                        onChange={(e) => {
+                          updateSah(idx, 'amountQuarterly', Number(e.target.value));
+                          updateSah(idx, 'amountAnnual', Number((Number(e.target.value) * 4).toFixed(2)));
+                        }}
                         step="0.01"
                       />
                     </div>
