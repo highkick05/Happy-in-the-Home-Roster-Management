@@ -10,10 +10,10 @@ export default function FundingTypesSettings() {
   const [successMsg, setSuccessMsg] = useState('');
 
   const [hcpLevels, setHcpLevels] = useState([
-    { level: 'Level 1', title: 'Basic care needs', amountAnnual: 10588.65, amountQuarterly: 2647.16, billingCycle: 'annual' },
-    { level: 'Level 2', title: 'Low care needs', amountAnnual: 18622.75, amountQuarterly: 4655.68, billingCycle: 'annual' },
-    { level: 'Level 3', title: 'Intermediate care needs', amountAnnual: 40529.60, amountQuarterly: 10132.40, billingCycle: 'annual' },
-    { level: 'Level 4', title: 'High care needs', amountAnnual: 61440.45, amountQuarterly: 15360.11, billingCycle: 'annual' },
+    { level: 'Level 1', title: 'Basic care needs', amountAnnual: 10986.50, amountQuarterly: 2746.63, billingCycle: 'annual' },
+    { level: 'Level 2', title: 'Low care needs', amountAnnual: 19319.45, amountQuarterly: 4829.86, billingCycle: 'annual' },
+    { level: 'Level 3', title: 'Intermediate care needs', amountAnnual: 42055.30, amountQuarterly: 10513.83, billingCycle: 'annual' },
+    { level: 'Level 4', title: 'High care needs', amountAnnual: 63758.20, amountQuarterly: 15939.55, billingCycle: 'annual' },
   ]);
 
   const [sahLevels, setSahLevels] = useState(
@@ -54,14 +54,14 @@ export default function FundingTypesSettings() {
         } else {
            // Default SaH values for 2026 (placeholder estimates)
            const defaultSah = [
-             { level: 'Class 1', title: 'Quarterly budget', amountQuarterly: 1200, amountAnnual: 4800, billingCycle: 'quarterly' },
-             { level: 'Class 2', title: 'Quarterly budget', amountQuarterly: 2500, amountAnnual: 10000, billingCycle: 'quarterly' },
-             { level: 'Class 3', title: 'Quarterly budget', amountQuarterly: 4000, amountAnnual: 16000, billingCycle: 'quarterly' },
-             { level: 'Class 4', title: 'Quarterly budget', amountQuarterly: 6500, amountAnnual: 26000, billingCycle: 'quarterly' },
-             { level: 'Class 5', title: 'Quarterly budget', amountQuarterly: 9000, amountAnnual: 36000, billingCycle: 'quarterly' },
-             { level: 'Class 6', title: 'Quarterly budget', amountQuarterly: 12000, amountAnnual: 48000, billingCycle: 'quarterly' },
-             { level: 'Class 7', title: 'Quarterly budget', amountQuarterly: 16000, amountAnnual: 64000, billingCycle: 'quarterly' },
-             { level: 'Class 8', title: 'Quarterly budget', amountQuarterly: 19500, amountAnnual: 78000, billingCycle: 'quarterly' },
+             { level: 'Class 1', title: 'Quarterly budget', amountQuarterly: 2682.75, amountAnnual: 10731.00, billingCycle: 'quarterly' },
+             { level: 'Class 2', title: 'Quarterly budget', amountQuarterly: 4008.61, amountAnnual: 16034.45, billingCycle: 'quarterly' },
+             { level: 'Class 3', title: 'Quarterly budget', amountQuarterly: 5491.43, amountAnnual: 21965.70, billingCycle: 'quarterly' },
+             { level: 'Class 4', title: 'Quarterly budget', amountQuarterly: 7424.10, amountAnnual: 29696.40, billingCycle: 'quarterly' },
+             { level: 'Class 5', title: 'Quarterly budget', amountQuarterly: 9924.35, amountAnnual: 39697.40, billingCycle: 'quarterly' },
+             { level: 'Class 6', title: 'Quarterly budget', amountQuarterly: 12028.58, amountAnnual: 48114.30, billingCycle: 'quarterly' },
+             { level: 'Class 7', title: 'Quarterly budget', amountQuarterly: 14537.04, amountAnnual: 58148.15, billingCycle: 'quarterly' },
+             { level: 'Class 8', title: 'Quarterly budget', amountQuarterly: 19526.59, amountAnnual: 78106.35, billingCycle: 'quarterly' },
            ];
            setSahLevels(defaultSah);
         }
