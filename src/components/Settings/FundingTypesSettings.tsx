@@ -154,18 +154,18 @@ export default function FundingTypesSettings() {
             Loading funding settings...
           </div>
         ) : (
-          <form id="fundingTypesForm" onSubmit={handleSave} className="space-y-6 max-w-4xl">
+          <form id="fundingTypesForm" onSubmit={handleSave} className="space-y-6 max-w-6xl">
             {activeTab === 'HCP' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-12 gap-4 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
-                  <div className="col-span-3">Level</div>
-                  <div className="col-span-3">Description</div>
-                  <div className="col-span-3">Annual Amount ($)</div>
-                  <div className="col-span-3">Quarterly Amount ($)</div>
+                  <div className="col-span-2">Level</div>
+                  <div className="col-span-6">Description</div>
+                  <div className="col-span-2">Annual Amount ($)</div>
+                  <div className="col-span-2">Quarterly Amount ($)</div>
                 </div>
                 {hcpLevels.map((lvl, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-4 items-center">
-                    <div className="col-span-3">
+                    <div className="col-span-2">
                       <input
                         type="text"
                         className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors"
@@ -174,7 +174,7 @@ export default function FundingTypesSettings() {
                         placeholder="e.g. Level 1"
                       />
                     </div>
-                    <div className="col-span-3">
+                    <div className="col-span-6">
                       <input
                         type="text"
                         className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors"
@@ -183,7 +183,7 @@ export default function FundingTypesSettings() {
                         placeholder="Description"
                       />
                     </div>
-                    <div className="col-span-3 relative">
+                    <div className="col-span-2 relative">
                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
                       <input
                         type="number"
@@ -196,7 +196,7 @@ export default function FundingTypesSettings() {
                         step="0.01"
                       />
                     </div>
-                    <div className="col-span-3 relative">
+                    <div className="col-span-2 relative">
                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
                       <input
                         type="number"
@@ -220,14 +220,14 @@ export default function FundingTypesSettings() {
             {activeTab === 'SAH' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-12 gap-4 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
-                  <div className="col-span-3">Class Level</div>
-                  <div className="col-span-3">Description</div>
-                  <div className="col-span-3">Annual Budget ($)</div>
-                  <div className="col-span-3">Quarterly Budget ($)</div>
+                  <div className="col-span-2">Class Level</div>
+                  <div className="col-span-6">Description</div>
+                  <div className="col-span-2">Annual Budget ($)</div>
+                  <div className="col-span-2">Quarterly Budget ($)</div>
                 </div>
                 {sahLevels.map((lvl, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-4 items-center">
-                    <div className="col-span-3">
+                    <div className="col-span-2">
                       <input
                         type="text"
                         className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors"
@@ -236,7 +236,7 @@ export default function FundingTypesSettings() {
                         placeholder="e.g. Class 1"
                       />
                     </div>
-                    <div className="col-span-3">
+                    <div className="col-span-6">
                       <input
                         type="text"
                         className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors"
@@ -245,7 +245,7 @@ export default function FundingTypesSettings() {
                         placeholder="Description"
                       />
                     </div>
-                    <div className="col-span-3 relative">
+                    <div className="col-span-2 relative">
                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
                       <input
                         type="number"
@@ -258,7 +258,7 @@ export default function FundingTypesSettings() {
                         step="0.01"
                       />
                     </div>
-                    <div className="col-span-3 relative">
+                    <div className="col-span-2 relative">
                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
                       <input
                         type="number"
