@@ -10,21 +10,22 @@ export default function FundingTypesSettings() {
   const [successMsg, setSuccessMsg] = useState('');
 
   const [hcpLevels, setHcpLevels] = useState([
-    { level: 'Level 1', title: 'Basic care needs', amountAnnual: 10986.50, amountQuarterly: 2746.63, billingCycle: 'annual' },
-    { level: 'Level 2', title: 'Low care needs', amountAnnual: 19319.45, amountQuarterly: 4829.86, billingCycle: 'annual' },
-    { level: 'Level 3', title: 'Intermediate care needs', amountAnnual: 42055.30, amountQuarterly: 10513.83, billingCycle: 'annual' },
-    { level: 'Level 4', title: 'High care needs', amountAnnual: 63758.20, amountQuarterly: 15939.55, billingCycle: 'annual' },
+    { level: 'Level 1', title: 'Basic care needs for safety and independence', amountAnnual: 10986.50, amountQuarterly: 2746.63, billingCycle: 'annual' },
+    { level: 'Level 2', title: 'Low-level care needs for basic assistance', amountAnnual: 19319.45, amountQuarterly: 4829.86, billingCycle: 'annual' },
+    { level: 'Level 3', title: 'Intermediate care needs for daily support', amountAnnual: 42055.30, amountQuarterly: 10513.83, billingCycle: 'annual' },
+    { level: 'Level 4', title: 'High-level care needs with complex requirements', amountAnnual: 63758.20, amountQuarterly: 15939.55, billingCycle: 'annual' },
   ]);
 
-  const [sahLevels, setSahLevels] = useState(
-    Array.from({ length: 8 }).map((_, i) => ({
-      level: `Class ${i + 1}`,
-      title: 'Support at Home Class',
-      amountAnnual: 0,
-      amountQuarterly: 0,
-      billingCycle: 'quarterly',
-    }))
-  );
+  const [sahLevels, setSahLevels] = useState([
+    { level: 'Class 1', title: 'Entry-level support for basic independence', amountQuarterly: 2682.75, amountAnnual: 10731.00, billingCycle: 'quarterly' },
+    { level: 'Class 2', title: 'Low-level support for varied needs', amountQuarterly: 4008.61, amountAnnual: 16034.45, billingCycle: 'quarterly' },
+    { level: 'Class 3', title: 'Moderate support for maintaining independence', amountQuarterly: 5491.43, amountAnnual: 21965.70, billingCycle: 'quarterly' },
+    { level: 'Class 4', title: 'Moderate to intermediate care requirements', amountQuarterly: 7424.10, amountAnnual: 29696.40, billingCycle: 'quarterly' },
+    { level: 'Class 5', title: 'Intermediate care for progressing support', amountQuarterly: 9924.35, amountAnnual: 39697.40, billingCycle: 'quarterly' },
+    { level: 'Class 6', title: 'High support needs including complex care', amountQuarterly: 12028.58, amountAnnual: 48114.30, billingCycle: 'quarterly' },
+    { level: 'Class 7', title: 'Very high support requiring comprehensive assistance', amountQuarterly: 14537.04, amountAnnual: 58148.15, billingCycle: 'quarterly' },
+    { level: 'Class 8', title: 'Maximum support for complex, continuous needs', amountQuarterly: 19526.59, amountAnnual: 78106.35, billingCycle: 'quarterly' },
+  ]);
 
   useEffect(() => {
     fetchSettings();
@@ -54,14 +55,14 @@ export default function FundingTypesSettings() {
         } else {
            // Default SaH values for 2026 (placeholder estimates)
            const defaultSah = [
-             { level: 'Class 1', title: 'Quarterly budget', amountQuarterly: 2682.75, amountAnnual: 10731.00, billingCycle: 'quarterly' },
-             { level: 'Class 2', title: 'Quarterly budget', amountQuarterly: 4008.61, amountAnnual: 16034.45, billingCycle: 'quarterly' },
-             { level: 'Class 3', title: 'Quarterly budget', amountQuarterly: 5491.43, amountAnnual: 21965.70, billingCycle: 'quarterly' },
-             { level: 'Class 4', title: 'Quarterly budget', amountQuarterly: 7424.10, amountAnnual: 29696.40, billingCycle: 'quarterly' },
-             { level: 'Class 5', title: 'Quarterly budget', amountQuarterly: 9924.35, amountAnnual: 39697.40, billingCycle: 'quarterly' },
-             { level: 'Class 6', title: 'Quarterly budget', amountQuarterly: 12028.58, amountAnnual: 48114.30, billingCycle: 'quarterly' },
-             { level: 'Class 7', title: 'Quarterly budget', amountQuarterly: 14537.04, amountAnnual: 58148.15, billingCycle: 'quarterly' },
-             { level: 'Class 8', title: 'Quarterly budget', amountQuarterly: 19526.59, amountAnnual: 78106.35, billingCycle: 'quarterly' },
+             { level: 'Class 1', title: 'Entry-level support for basic independence', amountQuarterly: 2682.75, amountAnnual: 10731.00, billingCycle: 'quarterly' },
+             { level: 'Class 2', title: 'Low-level support for varied needs', amountQuarterly: 4008.61, amountAnnual: 16034.45, billingCycle: 'quarterly' },
+             { level: 'Class 3', title: 'Moderate support for maintaining independence', amountQuarterly: 5491.43, amountAnnual: 21965.70, billingCycle: 'quarterly' },
+             { level: 'Class 4', title: 'Moderate to intermediate care requirements', amountQuarterly: 7424.10, amountAnnual: 29696.40, billingCycle: 'quarterly' },
+             { level: 'Class 5', title: 'Intermediate care for progressing support', amountQuarterly: 9924.35, amountAnnual: 39697.40, billingCycle: 'quarterly' },
+             { level: 'Class 6', title: 'High support needs including complex care', amountQuarterly: 12028.58, amountAnnual: 48114.30, billingCycle: 'quarterly' },
+             { level: 'Class 7', title: 'Very high support requiring comprehensive assistance', amountQuarterly: 14537.04, amountAnnual: 58148.15, billingCycle: 'quarterly' },
+             { level: 'Class 8', title: 'Maximum support for complex, continuous needs', amountQuarterly: 19526.59, amountAnnual: 78106.35, billingCycle: 'quarterly' },
            ];
            setSahLevels(defaultSah);
         }
