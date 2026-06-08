@@ -3,11 +3,12 @@ import { useAuth } from '../../context/AuthContext';
 import { Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink } from 'lucide-react';
 import DatabaseSettings from './DatabaseSettings';
 import TestingChecklist from './TestingChecklist';
+import FundingTypesSettings from './FundingTypesSettings';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 export default function SettingsView() {
   const { token, user, updateSettings } = useAuth();
-  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'DATABASE' | 'TESTING'>('settings_active_tab', 'GENERAL');
+  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'FUNDING_TYPES' | 'DATABASE' | 'TESTING'>('settings_active_tab', 'GENERAL');
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [generalLoading, setGeneralLoading] = useState(false);
@@ -241,6 +242,12 @@ export default function SettingsView() {
           Home Care Pricing
         </button>
         <button
+          onClick={() => setActiveTab('FUNDING_TYPES')}
+          className={`px-4 py-2 text-[13px] rounded-md transition-colors ${activeTab === 'FUNDING_TYPES' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+        >
+          Funding Types
+        </button>
+        <button
           onClick={() => setActiveTab('BRANDING')}
           className={`px-4 py-2 text-[13px] rounded-md transition-colors ${activeTab === 'BRANDING' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
@@ -269,6 +276,7 @@ export default function SettingsView() {
       <div className="flex-1 bg-brand-navy border border-border-subtle rounded-xl overflow-x-auto flex flex-col shadow-sm">
         {activeTab === 'DATABASE' && <DatabaseSettings />}
         {activeTab === 'TESTING' && <TestingChecklist />}
+        {activeTab === 'FUNDING_TYPES' && <FundingTypesSettings />}
         {activeTab === 'GENERAL' && (
           <div className="p-8 max-w-4xl">
             <div className="mb-8">
