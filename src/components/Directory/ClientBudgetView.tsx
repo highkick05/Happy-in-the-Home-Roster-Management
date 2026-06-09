@@ -16,7 +16,6 @@ export default function ClientBudgetView() {
   const [saving, setSaving] = useState(false);
 
   // Form states
-  const [otherProvidersSpent, setOtherProvidersSpent] = useState<number>(0);
   const [historicalInternal, setHistoricalInternal] = useState<number>(0);
   const [spendAsOfDate, setSpendAsOfDate] = useState<string>('');
 
@@ -35,7 +34,6 @@ export default function ClientBudgetView() {
       if (clientRes.ok) {
         const clientData = await clientRes.json();
         setClient(clientData);
-        setOtherProvidersSpent(clientData.other_providers_spent || 0);
         setHistoricalInternal(clientData.historical_internal_consumptions || 0);
         setSpendAsOfDate(clientData.spend_as_of_date || '');
       }
@@ -65,7 +63,7 @@ export default function ClientBudgetView() {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          other_providers_spent: otherProvidersSpent,
+          other_providers_spent: 0,
           historical_internal_consumptions: historicalInternal,
           spend_as_of_date: spendAsOfDate,
           cycle_start_date: activeCycle.startStr,
@@ -163,7 +161,7 @@ export default function ClientBudgetView() {
   const totalAllocation = totalDays * dailyRate;
   const liveSystemConsumptions = ledger.total;
   const totalInternal = historicalInternal + liveSystemConsumptions;
-  const totalCombinedSpent = otherProvidersSpent + totalInternal;
+  const totalCombinedSpent = totalInternal;
   const remainingBalance = totalAllocation - totalCombinedSpent;
 
   const formatCurrency = (val: number) => {
@@ -211,7 +209,6 @@ export default function ClientBudgetView() {
             <div className="text-[#8B949E] text-sm font-medium mb-1">Total Combined Spent</div>
             <div className="text-3xl font-bold text-[#E6EDF3]">{formatCurrency(totalCombinedSpent)}</div>
             <div className="text-[11px] text-[#8B949E] mt-2 space-y-1">
-              <div>Other Providers: <span className="text-white">{formatCurrency(otherProvidersSpent)}</span></div>
               <div>Historical Internal: <span className="text-white">{formatCurrency(historicalInternal)}</span></div>
               <div>Live Internal: <span className="text-white">{formatCurrency(liveSystemConsumptions)}</span></div>
             </div>
@@ -257,25 +254,6 @@ export default function ClientBudgetView() {
                  </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-[#E6EDF3] mb-1.5">
-                  Other Providers Used ($)
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-[#8B949E]">$</span>
-                  </div>
-                  <input 
-                    type="number"
-                    step="0.01"
-                    value={otherProvidersSpent}
-                    onChange={(e) => setOtherProvidersSpent(parseFloat(e.target.value) || 0)}
-                    disabled={user?.role !== 'ADMIN'}
-                    className="w-full bg-black/40 border border-white/[0.08] rounded-md pl-8 pr-3 py-2.5 text-[15px] text-white outline-none focus:border-brand-blue transition-colors disabled:opacity-50" 
-                  />
-                </div>
-              </div>
-              
               <div>
                 <label className="block text-sm font-medium text-[#E6EDF3] mb-1.5">
                   Historical Internal Consumptions ($)
