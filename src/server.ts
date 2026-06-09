@@ -1513,6 +1513,17 @@ async function startServer() {
     }
   });
 
+  app.get('/api/funding-rates', authenticateToken, (req, res) => {
+    try {
+      const rows = db.prepare('SELECT key, value FROM settings WHERE key IN ("hcpFundingLevels", "sahFundingLevels")').all() as any[];
+      const settings = rows.reduce((acc, row) => ({ ...acc, [row.key]: JSON.parse(row.value) }), {} as any);
+      res.json(settings);
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   app.put('/api/settings', authenticateToken, requireAdmin, (req, res) => {
     try {
       const settings = req.body;

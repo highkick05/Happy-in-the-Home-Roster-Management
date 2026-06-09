@@ -14,6 +14,7 @@ export default function ClientDashboardView() {
   const [providers, setProviders] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [recentNotes, setRecentNotes] = useState<any[]>([]);
+  const [fundingRates, setFundingRates] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -26,11 +27,12 @@ export default function ClientDashboardView() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [clientRes, providersRes, servicesRes, notesRes] = await Promise.all([
+      const [clientRes, providersRes, servicesRes, notesRes, ratesRes] = await Promise.all([
         fetch(`/api/clients/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/providers', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/services', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`/api/progress-notes/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+        fetch(`/api/progress-notes/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/funding-rates', { headers: { Authorization: `Bearer ${token}` } })
       ]);
       
       if (clientRes.ok) {
@@ -44,6 +46,9 @@ export default function ClientDashboardView() {
         // The endpoint returns ordered by start_time ASC. So getting the last 3 means the 3 most recent in time.
         // We'll reverse it so the absolute most recent is first.
         setRecentNotes(_notes.slice(-3).reverse());
+      }
+      if (ratesRes.ok) {
+        setFundingRates(await ratesRes.json());
       }
     } catch (e) {
       console.error(e);
@@ -73,6 +78,42 @@ export default function ClientDashboardView() {
   const provider = providers.find(p => p.id === client.provider_id);
   const clientServices = services.filter(s => (client.service_ids || []).includes(s.id));
   const initials = `${(client.first_name || '').charAt(0)}${(client.last_name || '').charAt(0)}`.toUpperCase();
+
+  const getClientDailyRate = () => {
+    if (!client || client.funding_type !== 'HOME_CARE') return null;
+    
+    const subType = client.home_care_sub_type || 'HCP';
+    const levelOrClass = client.home_care_level_or_class || 'Level 1';
+    
+    if (subType === 'SAH') {
+      const levels = fundingRates?.sahFundingLevels || [
+        { level: 'Class 1', amountDaily: 29.40 },
+        { level: 'Class 2', amountDaily: 43.93 },
+        { level: 'Class 3', amountDaily: 60.18 },
+        { level: 'Class 4', amountDaily: 81.36 },
+        { level: 'Class 5', amountDaily: 108.76 },
+        { level: 'Class 6', amountDaily: 131.82 },
+        { level: 'Class 7', amountDaily: 159.31 },
+        { level: 'Class 8', amountDaily: 213.99 },
+      ];
+      const match = levels.find((l: any) => l.level === levelOrClass);
+      return match ? match.amountDaily : 29.40;
+    } else {
+      const levels = fundingRates?.hcpFundingLevels || [
+        { level: 'Level 1', amountDaily: 30.10 },
+        { level: 'Level 2', amountDaily: 52.93 },
+        { level: 'Level 3', amountDaily: 115.22 },
+        { level: 'Level 4', amountDaily: 174.68 },
+      ];
+      const match = levels.find((l: any) => l.level === levelOrClass);
+      return match ? match.amountDaily : 30.10;
+    }
+  };
+
+  const formatRate = (rate: number | null) => {
+    if (rate === null) return '-';
+    return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(rate);
+  };
 
   return (
     <div className="w-full flex flex-col h-full space-y-6">
@@ -204,7 +245,7 @@ export default function ClientDashboardView() {
                  <FileText className="w-5 h-5" />
                  <h3 className="text-base font-semibold text-[#E6EDF3]">Care Plan & Details</h3>
                </div>
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 pb-6 border-b border-border-subtle">
+               <div className={`grid grid-cols-1 ${client.funding_type === 'HOME_CARE' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-6 mb-6 pb-6 border-b border-border-subtle`}>
                  <div>
                    <div className="text-xs text-[#8B949E] mb-1">Funding Type</div>
                    <div className="text-sm font-medium text-[#E6EDF3]">
@@ -214,15 +255,23 @@ export default function ClientDashboardView() {
                    </div>
                  </div>
                  {client.funding_type === 'HOME_CARE' && (
-                   <div>
-                     <div className="text-xs text-[#8B949E] mb-1">
+                     <>
+                     <div>
+                       <div className="text-xs text-[#8B949E] mb-1">
                        {client.home_care_sub_type === 'SAH' ? 'SaH Class Level' : 'HCP Subsidy Level'}
                      </div>
-                     <div className="text-sm font-medium text-[#E6EDF3]">
+                   <div className="text-sm font-medium text-[#E6EDF3]">
                        {client.home_care_level_or_class || 'Level 1'}
                      </div>
-                   </div>
-                 )}
+                     </div>
+                     <div>
+                 <div className="text-xs text-[#8B949E] mb-1">Daily Funding Rate</div>
+                   <div className="text-sm font-medium text-brand-green">
+                 {formatRate(getClientDailyRate())} <span className="text-[11px] text-[#8B949E] font-normal">/ day</span>
+                     </div>
+                     </div>
+                     </>
+                   )}
                  <div>
                    <div className="text-xs text-[#8B949E] mb-1">Provider</div>
                    <div className="text-sm font-medium text-[#E6EDF3] flex items-center">
