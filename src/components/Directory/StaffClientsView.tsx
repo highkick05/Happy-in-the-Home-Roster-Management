@@ -268,7 +268,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                             )}
                           </div>
                           <div className="text-[#8B949E] text-xs mt-0.5">
-                            Joined {new Date(c.created_at).toLocaleDateString()} {c.dob ? `• DOB: ${new Date(c.dob).toLocaleDateString()}` : ''}
+                            Joined {new Date(c.joined_date || c.created_at).toLocaleDateString()} {c.dob ? `• DOB: ${new Date(c.dob).toLocaleDateString()}` : ''}
                           </div>
                         </div>
                       </div>

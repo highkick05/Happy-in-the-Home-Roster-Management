@@ -135,7 +135,7 @@ export default function ClientDashboardView() {
               )}
             </h2>
             <div className="text-[#8B949E] text-sm mt-1">
-              Joined {new Date(client.created_at).toLocaleDateString()}
+              Joined {new Date(client.joined_date || client.created_at).toLocaleDateString()}
             </div>
           </div>
         </div>

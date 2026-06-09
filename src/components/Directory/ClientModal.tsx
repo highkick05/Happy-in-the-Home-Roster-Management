@@ -24,6 +24,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
     contactPhone: '',
     providerId: '',
     dob: '',
+    joinedDate: '',
     fundingType: 'NDIS',
     myAgedCareId: '',
     homeCareSubType: 'HCP',
@@ -80,6 +81,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         contactPhone: client.contact_phone || '',
         providerId: client.provider_id || '',
         dob: client.dob || '',
+        joinedDate: client.joined_date ? client.joined_date.split('T')[0] : (client.created_at ? new Date(client.created_at).toISOString().split('T')[0] : ''),
         fundingType: client.funding_type || 'NDIS',
         myAgedCareId: client.my_aged_care_id || '',
         homeCareSubType: client.home_care_sub_type || 'HCP',
@@ -100,6 +102,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         contactPhone: '',
         providerId: '',
         dob: '',
+        joinedDate: '',
         fundingType: 'NDIS',
         myAgedCareId: '',
         homeCareSubType: 'HCP',
@@ -216,10 +219,26 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                   <CustomDatePicker position="bottom" name="dob" value={formData.dob} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
                 </div>
                 <div>
+                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Joined Date</label>
+                  <CustomDatePicker position="bottom" name="joinedDate" value={formData.joinedDate} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
                   <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Funding Type</label>
                   <select name="fundingType" value={formData.fundingType} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
                     <option value="NDIS">NDIS</option>
                     <option value="HOME_CARE">Home Care</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Provider</label>
+                  <select name="providerId" value={formData.providerId} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+                    <option value="">No Provider</option>
+                    {providers.map(p => (
+                      <option key={p.id} value={p.id}>{p.company_name}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -237,15 +256,6 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                     <input name="myAgedCareId" value={formData.myAgedCareId} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
                   </div>
                 )}
-                <div>
-                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Provider</label>
-                  <select name="providerId" value={formData.providerId} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
-                    <option value="">No Provider</option>
-                    {providers.map(p => (
-                      <option key={p.id} value={p.id}>{p.company_name}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               {formData.fundingType === 'HOME_CARE' && (

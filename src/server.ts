@@ -164,6 +164,15 @@ async function startServer() {
       console.warn('Migration warning:', e.message);
     }
   }
+
+  try {
+    db.exec("ALTER TABLE clients ADD COLUMN joined_date TEXT");
+    console.log('[DEBUG] Completed clients.joined_date column check.');
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
   
   // Data consistency sync for old templates
   try {
@@ -2014,7 +2023,8 @@ async function startServer() {
           my_aged_care_id: client.my_aged_care_id,
           funding_type: client.funding_type,
           home_care_sub_type: client.home_care_sub_type || null,
-          home_care_level_or_class: client.home_care_level_or_class || null
+          home_care_level_or_class: client.home_care_level_or_class || null,
+          joined_date: client.joined_date || null
         });
       }
 
@@ -2036,11 +2046,11 @@ async function startServer() {
         const { 
           firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId,
           dob, fundingType, myAgedCareId, address, representativeName, representativePhone, representativeEmail,
-          serviceIds, homeCareSubType, homeCareLevelOrClass
+          serviceIds, homeCareSubType, homeCareLevelOrClass, joinedDate
         } = reqBody;
 
-        const stmt = db.prepare('INSERT INTO clients (first_name, last_name, ndis_number, care_plan_details, contact_email, contact_phone, provider_id, dob, funding_type, my_aged_care_id, address, representative_name, representative_phone, representative_email, home_care_sub_type, home_care_level_or_class) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        const info = stmt.run(firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId || null, dob || null, fundingType || null, myAgedCareId || null, address || null, representativeName || null, representativePhone || null, representativeEmail || null, homeCareSubType || null, homeCareLevelOrClass || null);
+        const stmt = db.prepare('INSERT INTO clients (first_name, last_name, ndis_number, care_plan_details, contact_email, contact_phone, provider_id, dob, funding_type, my_aged_care_id, address, representative_name, representative_phone, representative_email, home_care_sub_type, home_care_level_or_class, joined_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        const info = stmt.run(firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId || null, dob || null, fundingType || null, myAgedCareId || null, address || null, representativeName || null, representativePhone || null, representativeEmail || null, homeCareSubType || null, homeCareLevelOrClass || null, joinedDate || null);
         
         const clientId = info.lastInsertRowid;
         
@@ -2068,11 +2078,11 @@ async function startServer() {
         const { 
           firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId,
           dob, fundingType, myAgedCareId, address, representativeName, representativePhone, representativeEmail,
-          serviceIds, homeCareSubType, homeCareLevelOrClass
+          serviceIds, homeCareSubType, homeCareLevelOrClass, joinedDate
         } = reqBody;
 
-        const stmt = db.prepare('UPDATE clients SET first_name = ?, last_name = ?, ndis_number = ?, care_plan_details = ?, contact_email = ?, contact_phone = ?, provider_id = ?, dob = ?, funding_type = ?, my_aged_care_id = ?, address = ?, representative_name = ?, representative_phone = ?, representative_email = ?, home_care_sub_type = ?, home_care_level_or_class = ? WHERE id = ?');
-        stmt.run(firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId || null, dob || null, fundingType || null, myAgedCareId || null, address || null, representativeName || null, representativePhone || null, representativeEmail || null, homeCareSubType || null, homeCareLevelOrClass || null, paramId);
+        const stmt = db.prepare('UPDATE clients SET first_name = ?, last_name = ?, ndis_number = ?, care_plan_details = ?, contact_email = ?, contact_phone = ?, provider_id = ?, dob = ?, funding_type = ?, my_aged_care_id = ?, address = ?, representative_name = ?, representative_phone = ?, representative_email = ?, home_care_sub_type = ?, home_care_level_or_class = ?, joined_date = ? WHERE id = ?');
+        stmt.run(firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId || null, dob || null, fundingType || null, myAgedCareId || null, address || null, representativeName || null, representativePhone || null, representativeEmail || null, homeCareSubType || null, homeCareLevelOrClass || null, joinedDate || null, paramId);
         
         if (Array.isArray(serviceIds)) {
           db.prepare('DELETE FROM client_services WHERE client_id = ?').run(paramId);
