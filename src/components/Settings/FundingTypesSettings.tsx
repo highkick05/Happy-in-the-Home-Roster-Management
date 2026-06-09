@@ -10,21 +10,21 @@ export default function FundingTypesSettings() {
   const [successMsg, setSuccessMsg] = useState('');
 
   const [hcpLevels, setHcpLevels] = useState([
-    { level: 'Level 1', title: 'Basic care needs for safety and independence', amountAnnual: 10986.50, amountQuarterly: 2746.63, billingCycle: 'annual' },
-    { level: 'Level 2', title: 'Low-level care needs for basic assistance', amountAnnual: 19319.45, amountQuarterly: 4829.86, billingCycle: 'annual' },
-    { level: 'Level 3', title: 'Intermediate care needs for daily support', amountAnnual: 42055.30, amountQuarterly: 10513.83, billingCycle: 'annual' },
-    { level: 'Level 4', title: 'High-level care needs with complex requirements', amountAnnual: 63758.20, amountQuarterly: 15939.55, billingCycle: 'annual' },
+    { level: 'Level 1', title: 'Basic care needs for safety and independence', amountAnnual: 10986.50, amountQuarterly: 2746.63, amountDaily: 30.10, billingCycle: 'annual' },
+    { level: 'Level 2', title: 'Low-level care needs for basic assistance', amountAnnual: 19319.45, amountQuarterly: 4829.86, amountDaily: 52.93, billingCycle: 'annual' },
+    { level: 'Level 3', title: 'Intermediate care needs for daily support', amountAnnual: 42055.30, amountQuarterly: 10513.83, amountDaily: 115.22, billingCycle: 'annual' },
+    { level: 'Level 4', title: 'High-level care needs with complex requirements', amountAnnual: 63758.20, amountQuarterly: 15939.55, amountDaily: 174.68, billingCycle: 'annual' },
   ]);
 
   const [sahLevels, setSahLevels] = useState([
-    { level: 'Class 1', title: 'Entry-level support for basic independence', amountQuarterly: 2682.75, amountAnnual: 10731.00, billingCycle: 'quarterly' },
-    { level: 'Class 2', title: 'Low-level support for varied needs', amountQuarterly: 4008.61, amountAnnual: 16034.45, billingCycle: 'quarterly' },
-    { level: 'Class 3', title: 'Moderate support for maintaining independence', amountQuarterly: 5491.43, amountAnnual: 21965.70, billingCycle: 'quarterly' },
-    { level: 'Class 4', title: 'Moderate to intermediate care requirements', amountQuarterly: 7424.10, amountAnnual: 29696.40, billingCycle: 'quarterly' },
-    { level: 'Class 5', title: 'Intermediate care for progressing support', amountQuarterly: 9924.35, amountAnnual: 39697.40, billingCycle: 'quarterly' },
-    { level: 'Class 6', title: 'High support needs including complex care', amountQuarterly: 12028.58, amountAnnual: 48114.30, billingCycle: 'quarterly' },
-    { level: 'Class 7', title: 'Very high support requiring comprehensive assistance', amountQuarterly: 14537.04, amountAnnual: 58148.15, billingCycle: 'quarterly' },
-    { level: 'Class 8', title: 'Maximum support for complex, continuous needs', amountQuarterly: 19526.59, amountAnnual: 78106.35, billingCycle: 'quarterly' },
+    { level: 'Class 1', title: 'Entry-level support for basic independence', amountQuarterly: 2682.75, amountAnnual: 10731.00, amountDaily: 29.40, billingCycle: 'quarterly' },
+    { level: 'Class 2', title: 'Low-level support for varied needs', amountQuarterly: 4008.61, amountAnnual: 16034.45, amountDaily: 43.93, billingCycle: 'quarterly' },
+    { level: 'Class 3', title: 'Moderate support for maintaining independence', amountQuarterly: 5491.43, amountAnnual: 21965.70, amountDaily: 60.18, billingCycle: 'quarterly' },
+    { level: 'Class 4', title: 'Moderate to intermediate care requirements', amountQuarterly: 7424.10, amountAnnual: 29696.40, amountDaily: 81.36, billingCycle: 'quarterly' },
+    { level: 'Class 5', title: 'Intermediate care for progressing support', amountQuarterly: 9924.35, amountAnnual: 39697.40, amountDaily: 108.76, billingCycle: 'quarterly' },
+    { level: 'Class 6', title: 'High support needs including complex care', amountQuarterly: 12028.58, amountAnnual: 48114.30, amountDaily: 131.82, billingCycle: 'quarterly' },
+    { level: 'Class 7', title: 'Very high support requiring comprehensive assistance', amountQuarterly: 14537.04, amountAnnual: 58148.15, amountDaily: 159.31, billingCycle: 'quarterly' },
+    { level: 'Class 8', title: 'Maximum support for complex, continuous needs', amountQuarterly: 19526.59, amountAnnual: 78106.35, amountDaily: 213.99, billingCycle: 'quarterly' },
   ]);
 
   useEffect(() => {
@@ -40,29 +40,41 @@ export default function FundingTypesSettings() {
       if (res.ok) {
         const data = await res.json();
         if (data.hcpFundingLevels) {
-          setHcpLevels(data.hcpFundingLevels.map((lvl: any) => ({
-             ...lvl,
-             amountAnnual: lvl.amountAnnual !== undefined ? lvl.amountAnnual : (lvl.amount || 0),
-             amountQuarterly: lvl.amountQuarterly !== undefined ? lvl.amountQuarterly : ((lvl.amount || 0) / 4)
-          })));
+          setHcpLevels(data.hcpFundingLevels.map((lvl: any) => {
+             const amountAnnual = lvl.amountAnnual !== undefined ? lvl.amountAnnual : (lvl.amount || 0);
+             const amountQuarterly = lvl.amountQuarterly !== undefined ? lvl.amountQuarterly : (amountAnnual / 4);
+             const amountDaily = lvl.amountDaily !== undefined ? lvl.amountDaily : Number((amountAnnual / 365).toFixed(2));
+             return {
+                ...lvl,
+                amountAnnual,
+                amountQuarterly,
+                amountDaily
+             };
+          }));
         }
         if (data.sahFundingLevels) {
-          setSahLevels(data.sahFundingLevels.map((lvl: any) => ({
-             ...lvl,
-             amountQuarterly: lvl.amountQuarterly !== undefined ? lvl.amountQuarterly : (lvl.amount || 0),
-             amountAnnual: lvl.amountAnnual !== undefined ? lvl.amountAnnual : ((lvl.amount || 0) * 4)
-          })));
+          setSahLevels(data.sahFundingLevels.map((lvl: any) => {
+             const amountQuarterly = lvl.amountQuarterly !== undefined ? lvl.amountQuarterly : (lvl.amount || 0);
+             const amountAnnual = lvl.amountAnnual !== undefined ? lvl.amountAnnual : (amountQuarterly * 4);
+             const amountDaily = lvl.amountDaily !== undefined ? lvl.amountDaily : Number((amountAnnual / 365).toFixed(2));
+             return {
+                ...lvl,
+                amountAnnual,
+                amountQuarterly,
+                amountDaily
+             };
+          }));
         } else {
-           // Default SaH values for 2026 (placeholder estimates)
+           // Default SaH values for 2026
            const defaultSah = [
-             { level: 'Class 1', title: 'Entry-level support for basic independence', amountQuarterly: 2682.75, amountAnnual: 10731.00, billingCycle: 'quarterly' },
-             { level: 'Class 2', title: 'Low-level support for varied needs', amountQuarterly: 4008.61, amountAnnual: 16034.45, billingCycle: 'quarterly' },
-             { level: 'Class 3', title: 'Moderate support for maintaining independence', amountQuarterly: 5491.43, amountAnnual: 21965.70, billingCycle: 'quarterly' },
-             { level: 'Class 4', title: 'Moderate to intermediate care requirements', amountQuarterly: 7424.10, amountAnnual: 29696.40, billingCycle: 'quarterly' },
-             { level: 'Class 5', title: 'Intermediate care for progressing support', amountQuarterly: 9924.35, amountAnnual: 39697.40, billingCycle: 'quarterly' },
-             { level: 'Class 6', title: 'High support needs including complex care', amountQuarterly: 12028.58, amountAnnual: 48114.30, billingCycle: 'quarterly' },
-             { level: 'Class 7', title: 'Very high support requiring comprehensive assistance', amountQuarterly: 14537.04, amountAnnual: 58148.15, billingCycle: 'quarterly' },
-             { level: 'Class 8', title: 'Maximum support for complex, continuous needs', amountQuarterly: 19526.59, amountAnnual: 78106.35, billingCycle: 'quarterly' },
+             { level: 'Class 1', title: 'Entry-level support for basic independence', amountQuarterly: 2682.75, amountAnnual: 10731.00, amountDaily: 29.40, billingCycle: 'quarterly' },
+             { level: 'Class 2', title: 'Low-level support for varied needs', amountQuarterly: 4008.61, amountAnnual: 16034.45, amountDaily: 43.93, billingCycle: 'quarterly' },
+             { level: 'Class 3', title: 'Moderate support for maintaining independence', amountQuarterly: 5491.43, amountAnnual: 21965.70, amountDaily: 60.18, billingCycle: 'quarterly' },
+             { level: 'Class 4', title: 'Moderate to intermediate care requirements', amountQuarterly: 7424.10, amountAnnual: 29696.40, amountDaily: 81.36, billingCycle: 'quarterly' },
+             { level: 'Class 5', title: 'Intermediate care for progressing support', amountQuarterly: 9924.35, amountAnnual: 39697.40, amountDaily: 108.76, billingCycle: 'quarterly' },
+             { level: 'Class 6', title: 'High support needs including complex care', amountQuarterly: 12028.58, amountAnnual: 48114.30, amountDaily: 131.82, billingCycle: 'quarterly' },
+             { level: 'Class 7', title: 'Very high support requiring comprehensive assistance', amountQuarterly: 14537.04, amountAnnual: 58148.15, amountDaily: 159.31, billingCycle: 'quarterly' },
+             { level: 'Class 8', title: 'Maximum support for complex, continuous needs', amountQuarterly: 19526.59, amountAnnual: 78106.35, amountDaily: 213.99, billingCycle: 'quarterly' },
            ];
            setSahLevels(defaultSah);
         }
@@ -113,6 +125,30 @@ export default function FundingTypesSettings() {
     setSahLevels(newLevels);
   };
 
+  const handleHcpDailyChange = (index: number, valueStr: string) => {
+    const val = Number(valueStr) || 0;
+    const newLevels = [...hcpLevels];
+    newLevels[index] = {
+      ...newLevels[index],
+      amountDaily: val,
+      amountAnnual: Number((val * 365).toFixed(2)),
+      amountQuarterly: Number(((val * 365) / 4).toFixed(2))
+    };
+    setHcpLevels(newLevels);
+  };
+
+  const handleSahDailyChange = (index: number, valueStr: string) => {
+    const val = Number(valueStr) || 0;
+    const newLevels = [...sahLevels];
+    newLevels[index] = {
+      ...newLevels[index],
+      amountDaily: val,
+      amountAnnual: Number((val * 365).toFixed(2)),
+      amountQuarterly: Number(((val * 365) / 4).toFixed(2))
+    };
+    setSahLevels(newLevels);
+  };
+
   return (
     <div className="flex flex-col h-full bg-brand-navy overflow-hidden">
       <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg">
@@ -154,65 +190,48 @@ export default function FundingTypesSettings() {
             Loading funding settings...
           </div>
         ) : (
-          <form id="fundingTypesForm" onSubmit={handleSave} className="space-y-6 max-w-6xl">
+          <form id="fundingTypesForm" onSubmit={handleSave} className="space-y-6 max-w-6xl font-sans">
             {activeTab === 'HCP' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-12 gap-4 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
                   <div className="col-span-2">Level</div>
-                  <div className="col-span-6">Description</div>
-                  <div className="col-span-2">Annual Amount ($)</div>
-                  <div className="col-span-2">Quarterly Amount ($)</div>
+                  <div className="col-span-7">Description</div>
+                  <div className="col-span-3 text-right">Daily Funding Rate ($)</div>
                 </div>
                 {hcpLevels.map((lvl, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-4 items-center">
                     <div className="col-span-2">
                       <input
                         type="text"
-                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors"
+                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] font-semibold focus:outline-none focus:border-brand-teal transition-colors"
                         value={lvl.level}
                         onChange={(e) => updateHcp(idx, 'level', e.target.value)}
                         placeholder="e.g. Level 1"
                       />
                     </div>
-                    <div className="col-span-6">
+                    <div className="col-span-7">
                       <input
                         type="text"
-                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors"
+                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors"
                         value={lvl.title}
                         onChange={(e) => updateHcp(idx, 'title', e.target.value)}
                         placeholder="Description"
                       />
                     </div>
-                    <div className="col-span-2 relative">
-                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
+                    <div className="col-span-3 relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-sm">$</span>
                       <input
                         type="number"
-                        className="w-full bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors font-mono"
-                        value={lvl.amountAnnual}
-                        onChange={(e) => {
-                          updateHcp(idx, 'amountAnnual', Number(e.target.value));
-                          updateHcp(idx, 'amountQuarterly', Number((Number(e.target.value) / 4).toFixed(2)));
-                        }}
-                        step="0.01"
-                      />
-                    </div>
-                    <div className="col-span-2 relative">
-                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
-                      <input
-                        type="number"
-                        className="w-full bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors font-mono"
-                        value={lvl.amountQuarterly}
-                        onChange={(e) => {
-                          updateHcp(idx, 'amountQuarterly', Number(e.target.value));
-                          updateHcp(idx, 'amountAnnual', Number((Number(e.target.value) * 4).toFixed(2)));
-                        }}
+                        className="w-full text-right bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-2 text-sm text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors font-mono"
+                        value={lvl.amountDaily !== undefined ? lvl.amountDaily : Number((lvl.amountAnnual / 365).toFixed(2))}
+                        onChange={(e) => handleHcpDailyChange(idx, e.target.value)}
                         step="0.01"
                       />
                     </div>
                   </div>
                 ))}
-                <div className="text-xs text-[#8B949E] mt-4">
-                   These default properties indicate typical annual Government subsidy levels as of 2026. Custom amounts can still be overridden on individual client profiles.
+                <div className="text-xs text-[#8B949E] mt-4 font-sans leading-relaxed">
+                   These default properties indicate typical daily Government subsidy levels as of 2026. Custom amounts can still be overridden on individual client profiles.
                 </div>
               </div>
             )}
@@ -221,60 +240,43 @@ export default function FundingTypesSettings() {
               <div className="space-y-4">
                 <div className="grid grid-cols-12 gap-4 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
                   <div className="col-span-2">Class Level</div>
-                  <div className="col-span-6">Description</div>
-                  <div className="col-span-2">Annual Budget ($)</div>
-                  <div className="col-span-2">Quarterly Budget ($)</div>
+                  <div className="col-span-7">Description</div>
+                  <div className="col-span-3 text-right">Daily Funding Rate ($)</div>
                 </div>
                 {sahLevels.map((lvl, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-4 items-center">
                     <div className="col-span-2">
                       <input
                         type="text"
-                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors"
+                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] font-semibold focus:outline-none focus:border-brand-teal transition-colors"
                         value={lvl.level}
                         onChange={(e) => updateSah(idx, 'level', e.target.value)}
                         placeholder="e.g. Class 1"
                       />
                     </div>
-                    <div className="col-span-6">
+                    <div className="col-span-7">
                       <input
                         type="text"
-                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors"
+                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors"
                         value={lvl.title}
                         onChange={(e) => updateSah(idx, 'title', e.target.value)}
                         placeholder="Description"
                       />
                     </div>
-                    <div className="col-span-2 relative">
-                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
+                    <div className="col-span-3 relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-sm">$</span>
                       <input
                         type="number"
-                        className="w-full bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors font-mono"
-                        value={lvl.amountAnnual}
-                        onChange={(e) => {
-                          updateSah(idx, 'amountAnnual', Number(e.target.value));
-                          updateSah(idx, 'amountQuarterly', Number((Number(e.target.value) / 4).toFixed(2)));
-                        }}
-                        step="0.01"
-                      />
-                    </div>
-                    <div className="col-span-2 relative">
-                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
-                      <input
-                        type="number"
-                        className="w-full bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-brand-teal transition-colors font-mono"
-                        value={lvl.amountQuarterly}
-                        onChange={(e) => {
-                          updateSah(idx, 'amountQuarterly', Number(e.target.value));
-                          updateSah(idx, 'amountAnnual', Number((Number(e.target.value) * 4).toFixed(2)));
-                        }}
+                        className="w-full text-right bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-2 text-sm text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors font-mono"
+                        value={lvl.amountDaily !== undefined ? lvl.amountDaily : Number((lvl.amountAnnual / 365).toFixed(2))}
+                        onChange={(e) => handleSahDailyChange(idx, e.target.value)}
                         step="0.01"
                       />
                     </div>
                   </div>
                 ))}
-                <div className="text-xs text-[#8B949E] mt-4">
-                   These properties define default budget expectations for the new Support at Home (SaH) model starting July 2025/2026.
+                <div className="text-xs text-[#8B949E] mt-4 font-sans leading-relaxed">
+                   These properties define default daily budget expectations for the new Support at Home (SaH) model starting July 2025/2026.
                 </div>
               </div>
             )}
