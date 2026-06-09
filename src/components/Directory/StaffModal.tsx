@@ -161,7 +161,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
               </div>
               <div>
                 <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Date of Birth</label>
-                <CustomDatePicker position="bottom" name="dob" value={formData.dob} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                <CustomDatePicker align="right" position="bottom" name="dob" value={formData.dob} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
               </div>
             </div>
 

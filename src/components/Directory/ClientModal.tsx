@@ -220,7 +220,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                 </div>
                 <div>
                   <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Joined Date</label>
-                  <CustomDatePicker position="bottom" name="joinedDate" value={formData.joinedDate} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                  <CustomDatePicker align="right" position="bottom" name="joinedDate" value={formData.joinedDate} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
                 </div>
               </div>
 

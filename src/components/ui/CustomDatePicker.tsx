@@ -15,6 +15,7 @@ export interface CustomDatePickerProps {
   id?: string;
   required?: boolean;
   position?: 'top' | 'bottom';
+  align?: 'left' | 'right';
 }
 
 export function CustomDatePicker({ 
@@ -30,6 +31,7 @@ export function CustomDatePicker({
   id,
   required,
   position = 'top',
+  align = 'left',
   ...props 
 }: CustomDatePickerProps) {
   
@@ -129,7 +131,9 @@ export function CustomDatePicker({
       prev: () => <ChevronLeft className="w-5 h-5 text-white" />,
       next: () => <ChevronRight className="w-5 h-5 text-white" />,
     },
-    datepickerClassNames: `left-0 z-[9999] shadow-2xl custom-datepicker-popup min-w-[280px] ${
+    datepickerClassNames: `z-[9999] shadow-2xl custom-datepicker-popup min-w-[280px] ${
+      align === 'right' ? 'right-0' : 'left-0'
+    } ${
       position === 'bottom' ? 'top-full bottom-auto mt-2' : 'bottom-full top-auto mb-2'
     }`,
     defaultDate: dateValue,
