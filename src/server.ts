@@ -174,6 +174,56 @@ async function startServer() {
     }
   }
   
+  try {
+    db.exec(`
+      ALTER TABLE clients ADD COLUMN other_providers_spent REAL DEFAULT 0;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE clients ADD COLUMN historical_internal_consumptions REAL DEFAULT 0;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE clients ADD COLUMN spend_as_of_date TEXT;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE clients ADD COLUMN cycle_start_date TEXT;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE clients ADD COLUMN cycle_end_date TEXT;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+  
   // Data consistency sync for old templates
   try {
     db.prepare(`
@@ -2098,6 +2148,48 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.put('/api/clients/:id/budget', authenticateToken, requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const { other_providers_spent, historical_internal_consumptions, spend_as_of_date, cycle_start_date, cycle_end_date } = req.body;
+    try {
+      db.prepare(`
+        UPDATE clients 
+        SET other_providers_spent = ?, 
+            historical_internal_consumptions = ?, 
+            spend_as_of_date = ?, 
+            cycle_start_date = ?, 
+            cycle_end_date = ? 
+        WHERE id = ?
+      `).run(
+        other_providers_spent || 0,
+        historical_internal_consumptions || 0,
+        spend_as_of_date || null,
+        cycle_start_date || null,
+        cycle_end_date || null,
+        id
+      );
+      res.json({ success: true });
+    } catch (e: any) {
+      logger.error(`API Error updating client budget: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.get('/api/clients/:id/budget-ledger', authenticateToken, (req, res) => {
+    const { id } = req.params;
+    const { startDate, endDate } = req.query;
+    try {
+      // Future enhancement: query actual shifts or invoices in date range.
+      res.json({
+        total: 0,
+        items: []
+      });
+    } catch (e: any) {
+      logger.error(`API Error fetching budget ledger: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });

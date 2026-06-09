@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowLeft, Phone, Mail, FileText, Calendar, Building, Home, CheckCircle2, Edit2, ClipboardEdit } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, FileText, Calendar, Building, Home, CheckCircle2, Edit2, ClipboardEdit, Calculator } from 'lucide-react';
 import ClientModal from './ClientModal';
 import ClientRosterModal from './ClientRosterModal';
 
@@ -142,6 +142,16 @@ export default function ClientDashboardView() {
 
         {/* Top Right Action Shortcuts */}
         <div className="flex items-center space-x-3">
+          <button 
+            type="button"
+            onClick={() => navigate(`/clients/${id}/budget`)}
+            className="px-3 py-1.5 min-h-[36px] bg-brand-navy border border-border-subtle hover:border-brand-teal text-[#8B949E] hover:text-[#E6EDF3] rounded-lg text-xs font-semibold flex items-center space-x-2 transition-colors duration-155 shadow-sm"
+            title="Budget"
+          >
+            <Calculator className="w-4 h-4 text-brand-teal" />
+            <span>Budget</span>
+          </button>
+
           <button 
             type="button"
             onClick={() => setIsEditModalOpen(true)}
