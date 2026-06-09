@@ -26,6 +26,8 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
     dob: '',
     fundingType: 'NDIS',
     myAgedCareId: '',
+    homeCareSubType: 'HCP',
+    homeCareLevelOrClass: 'Level 1',
     address: '',
     representativeName: '',
     representativePhone: '',
@@ -80,6 +82,8 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         dob: client.dob || '',
         fundingType: client.funding_type || 'NDIS',
         myAgedCareId: client.my_aged_care_id || '',
+        homeCareSubType: client.home_care_sub_type || 'HCP',
+        homeCareLevelOrClass: client.home_care_level_or_class || 'Level 1',
         address: client.address || '',
         representativeName: client.representative_name || '',
         representativePhone: client.representative_phone || '',
@@ -98,6 +102,8 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         dob: '',
         fundingType: 'NDIS',
         myAgedCareId: '',
+        homeCareSubType: 'HCP',
+        homeCareLevelOrClass: 'Level 1',
         address: '',
         representativeName: '',
         representativePhone: '',
@@ -108,7 +114,17 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
   }, [client, isOpen]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setFormData(prev => {
+      const updated = { ...prev, [name]: value };
+      if (name === 'homeCareSubType') {
+        updated.homeCareLevelOrClass = value === 'SAH' ? 'Class 1' : 'Level 1';
+      } else if (name === 'fundingType' && value === 'HOME_CARE') {
+        if (!updated.homeCareSubType) updated.homeCareSubType = 'HCP';
+        if (!updated.homeCareLevelOrClass) updated.homeCareLevelOrClass = 'Level 1';
+      }
+      return updated;
+    });
   };
 
   const toggleService = (serviceId: number) => {
@@ -231,6 +247,44 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                   </select>
                 </div>
               </div>
+
+              {formData.fundingType === 'HOME_CARE' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Funding Model</label>
+                    <select name="homeCareSubType" value={formData.homeCareSubType} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+                      <option value="HCP">Home Care Package (HCP)</option>
+                      <option value="SAH">Support at Home (SaH)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">
+                      {formData.homeCareSubType === 'SAH' ? 'SaH Class Level' : 'HCP Subsidy Level'}
+                    </label>
+                    <select name="homeCareLevelOrClass" value={formData.homeCareLevelOrClass} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+                      {formData.homeCareSubType === 'SAH' ? (
+                        <>
+                          <option value="Class 1">Class 1</option>
+                          <option value="Class 2">Class 2</option>
+                          <option value="Class 3">Class 3</option>
+                          <option value="Class 4">Class 4</option>
+                          <option value="Class 5">Class 5</option>
+                          <option value="Class 6">Class 6</option>
+                          <option value="Class 7">Class 7</option>
+                          <option value="Class 8">Class 8</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="Level 1">Level 1</option>
+                          <option value="Level 2">Level 2</option>
+                          <option value="Level 3">Level 3</option>
+                          <option value="Level 4">Level 4</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

@@ -204,13 +204,25 @@ export default function ClientDashboardView() {
                  <FileText className="w-5 h-5" />
                  <h3 className="text-base font-semibold text-[#E6EDF3]">Care Plan & Details</h3>
                </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 pb-6 border-b border-border-subtle">
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 pb-6 border-b border-border-subtle">
                  <div>
                    <div className="text-xs text-[#8B949E] mb-1">Funding Type</div>
                    <div className="text-sm font-medium text-[#E6EDF3]">
-                     {client.funding_type === 'HOME_CARE' ? 'Home Care Package' : 'NDIS'}
+                     {client.funding_type === 'HOME_CARE' 
+                       ? `Home Care (${client.home_care_sub_type === 'SAH' ? 'SaH' : 'HCP'})` 
+                       : 'NDIS'}
                    </div>
                  </div>
+                 {client.funding_type === 'HOME_CARE' && (
+                   <div>
+                     <div className="text-xs text-[#8B949E] mb-1">
+                       {client.home_care_sub_type === 'SAH' ? 'SaH Class Level' : 'HCP Subsidy Level'}
+                     </div>
+                     <div className="text-sm font-medium text-[#E6EDF3]">
+                       {client.home_care_level_or_class || 'Level 1'}
+                     </div>
+                   </div>
+                 )}
                  <div>
                    <div className="text-xs text-[#8B949E] mb-1">Provider</div>
                    <div className="text-sm font-medium text-[#E6EDF3] flex items-center">
