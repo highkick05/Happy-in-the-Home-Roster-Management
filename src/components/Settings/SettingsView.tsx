@@ -47,6 +47,7 @@ export default function SettingsView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [region, setRegion] = useState('NSW');
+  const [homeCareSubTab, setHomeCareSubTab] = useState<'FUNDING' | 'PRICING'>('FUNDING');
   const authSettings = useAuth().settings;
   
   useEffect(() => {
@@ -239,13 +240,7 @@ export default function SettingsView() {
           onClick={() => setActiveTab('HOME_CARE')}
           className={`px-4 py-2 text-[13px] rounded-md transition-colors ${activeTab === 'HOME_CARE' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
-          Home Care Pricing
-        </button>
-        <button
-          onClick={() => setActiveTab('FUNDING_TYPES')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors ${activeTab === 'FUNDING_TYPES' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
-        >
-          Funding Types
+          Home Care
         </button>
         <button
           onClick={() => setActiveTab('BRANDING')}
@@ -276,7 +271,6 @@ export default function SettingsView() {
       <div className="flex-1 bg-brand-navy border border-border-subtle rounded-xl overflow-x-auto flex flex-col shadow-sm">
         {activeTab === 'DATABASE' && <DatabaseSettings />}
         {activeTab === 'TESTING' && <TestingChecklist />}
-        {activeTab === 'FUNDING_TYPES' && <FundingTypesSettings />}
         {activeTab === 'GENERAL' && (
           <div className="p-8 max-w-4xl">
             <div className="mb-8">
@@ -648,23 +642,21 @@ export default function SettingsView() {
           </div>
         )}
 
-        {(activeTab === 'NDIS' || activeTab === 'HOME_CARE') && (
-          <div className="flex flex-col h-full">
-            <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg relative">
+        {activeTab === 'NDIS' && (
+          <div className="flex flex-col h-full bg-brand-navy">
+            <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg relative shrink-0">
               <div>
-                <h3 className="text-lg font-medium text-[#E6EDF3] mb-1">{activeTab === 'NDIS' ? 'NDIS' : 'Home Care'} Line Items</h3>
-                <p className="text-sm text-[#8B949E]">Import {activeTab === 'NDIS' ? 'NDIS' : 'Home Care'} rates from an Excel (.xlsx) file.</p>
+                <h3 className="text-lg font-medium text-[#E6EDF3] mb-1 font-sans">NDIS Line Items</h3>
+                <p className="text-sm text-[#8B949E]">Import NDIS rates from an Excel (.xlsx) file.</p>
               </div>
               <div className="flex space-x-2 items-center">
-                {activeTab === 'NDIS' && (
-                  <select
-                    value={region}
-                    onChange={(e) => handleRegionChange(e.target.value)}
-                    className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors"
-                  >
-                    {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                )}
+                <select
+                  value={region}
+                  onChange={(e) => handleRegionChange(e.target.value)}
+                  className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors"
+                >
+                  {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
                 <input 
                   type="file" 
                   accept=".xlsx, .xls, .csv" 
@@ -674,7 +666,7 @@ export default function SettingsView() {
                 />
                 <button 
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
+                  className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0 animate-fade-in"
                   disabled={loading || user?.role !== 'ADMIN'}
                 >
                   <Upload className="w-4 h-4 mr-2" />
@@ -690,26 +682,12 @@ export default function SettingsView() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-brand-bg border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] sticky top-0 z-10">
-                      <th className="px-4 py-4 font-semibold">{activeTab === 'NDIS' ? 'NDIS Code' : 'Serv. ID'}</th>
+                      <th className="px-4 py-4 font-semibold">NDIS Code</th>
                       <th className="px-4 py-4 font-semibold">Service Name</th>
-                      {activeTab === 'NDIS' && (
-                        <>
-                          <th className="px-4 py-4 font-semibold">Reg. Grp Num</th>
-                          <th className="px-4 py-4 font-semibold">Reg. Grp Name</th>
-                          <th className="px-4 py-4 font-semibold">Unit</th>
-                        </>
-                      )}
-                      {activeTab === 'HOME_CARE' && (
-                        <>
-                          <th className="px-4 py-4 font-semibold">Unit</th>
-                          <th className="px-4 py-4 font-semibold text-right">Weekday</th>
-                          <th className="px-4 py-4 font-semibold text-right">Non-Standard</th>
-                          <th className="px-4 py-4 font-semibold text-right">Saturday</th>
-                          <th className="px-4 py-4 font-semibold text-right">Sunday</th>
-                          <th className="px-4 py-4 font-semibold text-right">Pub. Holiday</th>
-                        </>
-                      )}
-                      <th className="px-4 py-4 font-semibold text-right">{activeTab === 'NDIS' ? 'Rate ($)' : ''}</th>
+                      <th className="px-4 py-4 font-semibold">Reg. Grp Num</th>
+                      <th className="px-4 py-4 font-semibold">Reg. Grp Name</th>
+                      <th className="px-4 py-4 font-semibold">Unit</th>
+                      <th className="px-4 py-4 font-semibold text-right">Rate ($)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle text-sm">
@@ -720,71 +698,19 @@ export default function SettingsView() {
                           <div>{s.name}</div>
                           {s.description && <div className="text-xs text-[#8B949E] mt-1">{s.description}</div>}
                         </td>
-                        {activeTab === 'NDIS' && (
-                          <>
-                            <td className="px-4 py-4 text-[#8B949E]">{s.reg_group_number || '-'}</td>
-                            <td className="px-4 py-4 text-[#8B949E]">{s.reg_group_name || '-'}</td>
-                            <td className="px-4 py-4 text-[#8B949E]">{s.unit || '-'}</td>
-                          </>
-                        )}
-                        {activeTab === 'HOME_CARE' && (
-                          <>
-                            <td className="px-4 py-4 text-[#8B949E]">{s.unit || '-'}</td>
-                            <td className="px-4 py-4 text-right text-[#E6EDF3]">
-                              {(() => {
-                                try {
-                                  const rates = JSON.parse(s.rates_json);
-                                  return rates['Weekday'] !== undefined ? `$${Number(rates['Weekday']).toFixed(2)}` : '-';
-                                } catch(e) { return '-'; }
-                              })()}
-                            </td>
-                            <td className="px-4 py-4 text-right text-[#E6EDF3]">
-                              {(() => {
-                                try {
-                                  const rates = JSON.parse(s.rates_json);
-                                  return rates['Weekday (Non-Standard)'] !== undefined ? `$${Number(rates['Weekday (Non-Standard)']).toFixed(2)}` : '-';
-                                } catch(e) { return '-'; }
-                              })()}
-                            </td>
-                            <td className="px-4 py-4 text-right text-[#E6EDF3]">
-                              {(() => {
-                                try {
-                                  const rates = JSON.parse(s.rates_json);
-                                  return rates['Saturday'] !== undefined ? `$${Number(rates['Saturday']).toFixed(2)}` : '-';
-                                } catch(e) { return '-'; }
-                              })()}
-                            </td>
-                            <td className="px-4 py-4 text-right text-[#E6EDF3]">
-                              {(() => {
-                                try {
-                                  const rates = JSON.parse(s.rates_json);
-                                  return rates['Sunday'] !== undefined ? `$${Number(rates['Sunday']).toFixed(2)}` : '-';
-                                } catch(e) { return '-'; }
-                              })()}
-                            </td>
-                            <td className="px-4 py-4 text-right text-[#E6EDF3]">
-                              {(() => {
-                                try {
-                                  const rates = JSON.parse(s.rates_json);
-                                  return rates['Public Holiday'] !== undefined ? `$${Number(rates['Public Holiday']).toFixed(2)}` : '-';
-                                } catch(e) { return '-'; }
-                              })()}
-                            </td>
-                          </>
-                        )}
-                        <td className={`px-4 py-4 text-right font-medium text-[#E6EDF3] ${activeTab === 'HOME_CARE' ? 'hidden' : ''}`}>
+                        <td className="px-4 py-4 text-[#8B949E]">{s.reg_group_number || '-'}</td>
+                        <td className="px-4 py-4 text-[#8B949E]">{s.reg_group_name || '-'}</td>
+                        <td className="px-4 py-4 text-[#8B949E]">{s.unit || '-'}</td>
+                        <td className="px-4 py-4 text-right font-medium text-[#E6EDF3]">
                           {(() => {
                             let displayRate = Number(s.rate);
-                            if (activeTab === 'NDIS' && s.rates_json) {
+                            if (s.rates_json) {
                               try {
                                 const rates = JSON.parse(s.rates_json);
                                 if (rates[region] !== undefined) {
                                   displayRate = Number(rates[region]);
                                 }
                               } catch(e) {}
-                              return `$${displayRate.toFixed(2)}`;
-                            } else if (activeTab === 'HOME_CARE') {
-                              return s.rates_json ? 'JSON Stored' : 'No Addtl Rates';
                             }
                             return `$${displayRate.toFixed(2)}`;
                           })()}
@@ -793,7 +719,7 @@ export default function SettingsView() {
                     ))}
                     {services.length === 0 && (
                       <tr>
-                        <td colSpan={activeTab === 'NDIS' ? 5 : (activeTab === 'HOME_CARE' ? 8 : 3)} className="px-4 py-12 text-center">
+                        <td colSpan={6} className="px-4 py-12 text-center">
                           <div className="flex flex-col items-center justify-center space-y-3">
                             <div className="p-3 bg-brand-bg rounded-full border border-border-subtle">
                               <FileDown className="w-6 h-6 text-[#8B949E]" />
@@ -806,6 +732,156 @@ export default function SettingsView() {
                     )}
                   </tbody>
                 </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'HOME_CARE' && (
+          <div className="flex flex-col h-full bg-brand-navy">
+            {/* Sub-tab selection */}
+            <div className="flex border-b border-border-subtle bg-brand-bg px-4 sticky top-0 z-20 shrink-0">
+              <button
+                className={`px-6 py-3.5 text-sm font-medium transition-all duration-200 border-b-2 -mb-[1px] ${
+                  homeCareSubTab === 'FUNDING' 
+                    ? 'border-brand-teal text-[#E6EDF3] font-semibold' 
+                    : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
+                }`}
+                onClick={() => setHomeCareSubTab('FUNDING')}
+              >
+                Home Care Funding
+              </button>
+              <button
+                className={`px-6 py-3.5 text-sm font-medium transition-all duration-200 border-b-2 -mb-[1px] ${
+                  homeCareSubTab === 'PRICING' 
+                    ? 'border-brand-teal text-[#E6EDF3] font-semibold' 
+                    : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
+                }`}
+                onClick={() => setHomeCareSubTab('PRICING')}
+              >
+                Home Care Pricing
+              </button>
+            </div>
+
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              {homeCareSubTab === 'FUNDING' && (
+                <div className="flex-1 overflow-auto min-h-0">
+                  <FundingTypesSettings />
+                </div>
+              )}
+
+              {homeCareSubTab === 'PRICING' && (
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                  <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg relative shrink-0">
+                    <div>
+                      <h3 className="text-lg font-medium text-[#E6EDF3] mb-1 font-sans">Home Care Line Items</h3>
+                      <p className="text-sm text-[#8B949E]">Import Home Care rates from an Excel (.xlsx) file.</p>
+                    </div>
+                    <div className="flex space-x-2 items-center">
+                      <input 
+                        type="file" 
+                        accept=".xlsx, .xls, .csv" 
+                        className="hidden" 
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                      />
+                      <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
+                        disabled={loading || user?.role !== 'ADMIN'}
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Import Pricing
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 overflow-auto">
+                    {loading ? (
+                      <div className="p-8 text-center text-[#8B949E]">Loading services...</div>
+                    ) : (
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-brand-bg border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] sticky top-0 z-10">
+                            <th className="px-4 py-4 font-semibold">Serv. ID</th>
+                            <th className="px-4 py-4 font-semibold">Service Name</th>
+                            <th className="px-4 py-4 font-semibold">Unit</th>
+                            <th className="px-4 py-4 font-semibold text-right">Weekday</th>
+                            <th className="px-4 py-4 font-semibold text-right">Non-Standard</th>
+                            <th className="px-4 py-4 font-semibold text-right">Saturday</th>
+                            <th className="px-4 py-4 font-semibold text-right">Sunday</th>
+                            <th className="px-4 py-4 font-semibold text-right">Pub. Holiday</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border-subtle text-sm">
+                          {services.map(s => (
+                            <tr key={s.id} className="hover:bg-brand-bg/50 transition-colors">
+                              <td className="px-4 py-4 font-mono text-xs text-[#E6EDF3]">{s.code}</td>
+                              <td className="px-4 py-4 text-[#E6EDF3]">
+                                <div>{s.name}</div>
+                                {s.description && <div className="text-xs text-[#8B949E] mt-1">{s.description}</div>}
+                              </td>
+                              <td className="px-4 py-4 text-[#8B949E]">{s.unit || '-'}</td>
+                              <td className="px-4 py-4 text-right text-[#E6EDF3]">
+                                {(() => {
+                                  try {
+                                    const rates = JSON.parse(s.rates_json);
+                                    return rates['Weekday'] !== undefined ? `$${Number(rates['Weekday']).toFixed(2)}` : '-';
+                                  } catch(e) { return '-'; }
+                                })()}
+                              </td>
+                              <td className="px-4 py-4 text-right text-[#E6EDF3]">
+                                {(() => {
+                                  try {
+                                    const rates = JSON.parse(s.rates_json);
+                                    return rates['Weekday (Non-Standard)'] !== undefined ? `$${Number(rates['Weekday (Non-Standard)']).toFixed(2)}` : '-';
+                                  } catch(e) { return '-'; }
+                                })()}
+                              </td>
+                              <td className="px-4 py-4 text-right text-[#E6EDF3]">
+                                {(() => {
+                                  try {
+                                    const rates = JSON.parse(s.rates_json);
+                                    return rates['Saturday'] !== undefined ? `$${Number(rates['Saturday']).toFixed(2)}` : '-';
+                                  } catch(e) { return '-'; }
+                                })()}
+                              </td>
+                              <td className="px-4 py-4 text-right text-[#E6EDF3]">
+                                {(() => {
+                                  try {
+                                    const rates = JSON.parse(s.rates_json);
+                                    return rates['Sunday'] !== undefined ? `$${Number(rates['Sunday']).toFixed(2)}` : '-';
+                                  } catch(e) { return '-'; }
+                                })()}
+                              </td>
+                              <td className="px-4 py-4 text-right text-[#E6EDF3]">
+                                {(() => {
+                                  try {
+                                    const rates = JSON.parse(s.rates_json);
+                                    return rates['Public Holiday'] !== undefined ? `$${Number(rates['Public Holiday']).toFixed(2)}` : '-';
+                                  } catch(e) { return '-'; }
+                                })()}
+                              </td>
+                            </tr>
+                          ))}
+                          {services.length === 0 && (
+                            <tr>
+                              <td colSpan={8} className="px-4 py-12 text-center">
+                                <div className="flex flex-col items-center justify-center space-y-3">
+                                  <div className="p-3 bg-brand-bg rounded-full border border-border-subtle">
+                                    <FileDown className="w-6 h-6 text-[#8B949E]" />
+                                  </div>
+                                  <div className="text-[#8B949E]">No services found</div>
+                                  <div className="text-xs text-zinc-500">Import an XLSX file containing 'code', 'name', and 'rate' columns.</div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>

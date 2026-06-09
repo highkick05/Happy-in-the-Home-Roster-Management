@@ -114,7 +114,7 @@ export default function FundingTypesSettings() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-brand-navy border border-border-subtle rounded-xl overflow-hidden shadow-sm">
+    <div className="flex flex-col h-full bg-brand-navy overflow-hidden">
       <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg">
         <div>
           <h3 className="text-lg font-medium text-[#E6EDF3] mb-1">Funding Types & Levels</h3>
