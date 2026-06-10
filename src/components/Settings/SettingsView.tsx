@@ -352,39 +352,39 @@ export default function SettingsView() {
   };
 
   return (
-    <div className="h-full flex flex-col space-y-6">
+    <div className="h-full flex flex-col space-y-3">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight mb-6 md:mb-0">System Settings</h2>
+        <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight mb-2 md:mb-0">System Settings</h2>
       </div>
 
       <div className="flex space-x-1 bg-brand-navy border border-border-subtle p-1 rounded-lg w-fit max-w-full overflow-x-auto overflow-y-hidden shadow-sm hidden-scrollbar">
         <button
           onClick={() => setActiveTab('GENERAL')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors ${activeTab === 'GENERAL' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1.5 text-[13px] rounded-md transition-colors ${activeTab === 'GENERAL' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
           General
         </button>
         <button
           onClick={() => setActiveTab('BILLING')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors ${activeTab === 'BILLING' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1.5 text-[13px] rounded-md transition-colors ${activeTab === 'BILLING' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
           Billing & Finance
         </button>
         <button
           onClick={() => setActiveTab('NDIS')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors ${activeTab === 'NDIS' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1.5 text-[13px] rounded-md transition-colors ${activeTab === 'NDIS' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
           NDIS Pricing
         </button>
         <button
           onClick={() => setActiveTab('HOME_CARE')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors ${activeTab === 'HOME_CARE' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1.5 text-[13px] rounded-md transition-colors ${activeTab === 'HOME_CARE' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
           Home Care
         </button>
         <button
           onClick={() => setActiveTab('BRANDING')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors ${activeTab === 'BRANDING' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1.5 text-[13px] rounded-md transition-colors ${activeTab === 'BRANDING' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
           Branding
         </button>
@@ -392,14 +392,14 @@ export default function SettingsView() {
           <>
             <button
               onClick={() => setActiveTab('TESTING')}
-              className={`px-4 py-2 text-[13px] rounded-md transition-colors flex items-center gap-2 ${activeTab === 'TESTING' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
+              className={`px-3 py-1.5 text-[13px] rounded-md transition-colors flex items-center gap-2 ${activeTab === 'TESTING' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
             >
               <CheckSquare className="w-3.5 h-3.5" />
               Testing Checklist
             </button>
             <button
               onClick={() => setActiveTab('DATABASE')}
-              className={`px-4 py-2 text-[13px] rounded-md transition-colors flex items-center gap-2 ${activeTab === 'DATABASE' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
+              className={`px-3 py-1.5 text-[13px] rounded-md transition-colors flex items-center gap-2 ${activeTab === 'DATABASE' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
             >
               <Database className="w-3.5 h-3.5" />
               Database
@@ -412,35 +412,35 @@ export default function SettingsView() {
         {activeTab === 'DATABASE' && <DatabaseSettings />}
         {activeTab === 'TESTING' && <TestingChecklist />}
         {activeTab === 'GENERAL' && (
-          <div className="p-8 max-w-4xl">
-            <div className="mb-8">
+          <div className="p-4 max-w-4xl">
+            <div className="mb-4">
               <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">General Settings</h3>
               <p className="text-sm text-[#8B949E] mt-1">Configure business details, global preferences, and timezone.</p>
             </div>
             
-            <form onSubmit={handleSaveSettings} className="space-y-6">
+            <form onSubmit={handleSaveSettings} className="space-y-3">
               {successMsg && <div className="p-3 bg-brand-green/20 text-brand-green border border-brand-green/50 rounded-md text-sm">{successMsg}</div>}
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Business Name</label>
-                  <input type="text" value={settings.businessName} onChange={e => setSettings({...settings, businessName: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Business Name</label>
+                  <input type="text" value={settings.businessName} onChange={e => setSettings({...settings, businessName: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">ABN</label>
-                  <input type="text" value={settings.abn} onChange={e => setSettings({...settings, abn: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">ABN</label>
+                  <input type="text" value={settings.abn} onChange={e => setSettings({...settings, abn: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Business Address</label>
-                  <input type="text" value={settings.businessAddress} onChange={e => setSettings({...settings, businessAddress: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Business Address</label>
+                  <input type="text" value={settings.businessAddress} onChange={e => setSettings({...settings, businessAddress: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Contact Email</label>
-                  <input type="email" value={settings.contactEmail} onChange={e => setSettings({...settings, contactEmail: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Contact Email</label>
+                  <input type="email" value={settings.contactEmail} onChange={e => setSettings({...settings, contactEmail: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Contact Phone</label>
-                  <input type="text" value={settings.contactPhone} onChange={e => setSettings({...settings, contactPhone: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Contact Phone</label>
+                  <input type="text" value={settings.contactPhone} onChange={e => setSettings({...settings, contactPhone: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
                 </div>
                 
                 <div className="col-span-2 border-t border-border-subtle pt-6 mt-2">
@@ -448,8 +448,8 @@ export default function SettingsView() {
                 </div>
                 
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Timezone</label>
-                  <select value={settings.timezone} onChange={e => setSettings({...settings, timezone: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Timezone</label>
+                  <select value={settings.timezone} onChange={e => setSettings({...settings, timezone: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]">
                     <optgroup label="Australia">
                       <option value="Australia/Perth">Australia/Perth (AWST)</option>
                       <option value="Australia/Adelaide">Australia/Adelaide (ACST)</option>
@@ -463,8 +463,8 @@ export default function SettingsView() {
                 </div>
                 
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-1.5">State / Territory</label>
-                  <select value={settings.state} onChange={e => setSettings({...settings, state: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-1.5">State / Territory</label>
+                  <select value={settings.state} onChange={e => setSettings({...settings, state: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]">
                     {STATES.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                   <p className="text-[10px] text-[#8B949E] italic mt-1">Powered by date-holidays library for Australian compliance.</p>
@@ -478,10 +478,10 @@ export default function SettingsView() {
                     
                     <div className="space-y-4">
                       <div className="flex flex-col gap-2">
-                        <label className="text-[12px] font-medium text-[#8B949E]">Auto-Detect (Recommended)</label>
+                        <label className="text-xs font-medium text-[#8B949E]">Auto-Detect (Recommended)</label>
                         <div className="flex items-center gap-3">
-                           <input readOnly value={`${window.location.origin}/kiosk/wallboard`} className="flex-1 bg-brand-bg border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none" />
-                           <button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/kiosk/wallboard`)} className="px-4 py-2 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors text-[13px]">Copy Link</button>
+                           <input readOnly value={`${window.location.origin}/kiosk/wallboard`} className="flex-1 bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none" />
+                           <button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/kiosk/wallboard`)} className="px-3 py-1.5 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors text-[13px]">Copy Link</button>
                            <a href="/kiosk/wallboard" target="_blank" rel="noopener noreferrer" className="p-2 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors">
                               <ExternalLink className="w-4 h-4" />
                            </a>
@@ -490,17 +490,17 @@ export default function SettingsView() {
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="flex flex-col gap-2">
-                          <label className="text-[12px] font-medium text-[#8B949E]">Force Landscape</label>
+                          <label className="text-xs font-medium text-[#8B949E]">Force Landscape</label>
                           <div className="flex items-center gap-3">
-                             <input readOnly value={`${window.location.origin}/kiosk/wallboard?mode=landscape`} className="flex-1 bg-brand-bg border border-border-subtle rounded-md px-3 py-2 text-[12px] text-[#E6EDF3] outline-none" />
-                             <button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/kiosk/wallboard?mode=landscape`)} className="px-3 py-2 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors text-[12px]">Copy</button>
+                             <input readOnly value={`${window.location.origin}/kiosk/wallboard?mode=landscape`} className="flex-1 bg-brand-bg border border-border-subtle rounded-md px-2 py-1.5 text-[12px] text-[#E6EDF3] outline-none" />
+                             <button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/kiosk/wallboard?mode=landscape`)} className="px-2 py-1.5 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors text-[12px]">Copy</button>
                           </div>
                         </div>
                         <div className="flex flex-col gap-2">
-                          <label className="text-[12px] font-medium text-[#8B949E]">Force Portrait</label>
+                          <label className="text-xs font-medium text-[#8B949E]">Force Portrait</label>
                           <div className="flex items-center gap-3">
-                             <input readOnly value={`${window.location.origin}/kiosk/wallboard?mode=portrait`} className="flex-1 bg-brand-bg border border-border-subtle rounded-md px-3 py-2 text-[12px] text-[#E6EDF3] outline-none" />
-                             <button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/kiosk/wallboard?mode=portrait`)} className="px-3 py-2 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors text-[12px]">Copy</button>
+                             <input readOnly value={`${window.location.origin}/kiosk/wallboard?mode=portrait`} className="flex-1 bg-brand-bg border border-border-subtle rounded-md px-2 py-1.5 text-[12px] text-[#E6EDF3] outline-none" />
+                             <button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/kiosk/wallboard?mode=portrait`)} className="px-2 py-1.5 bg-[#2D333B] border border-border-subtle text-[#E6EDF3] rounded-md hover:bg-white/[0.04] transition-colors text-[12px]">Copy</button>
                           </div>
                         </div>
                       </div>
@@ -535,13 +535,13 @@ export default function SettingsView() {
         )}
 
         {activeTab === 'BILLING' && (
-          <div className="p-8 max-w-4xl">
-            <div className="mb-8">
+          <div className="p-4 max-w-4xl">
+            <div className="mb-4">
               <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">Billing & Finance</h3>
               <p className="text-sm text-[#8B949E] mt-1">Configure business bank details and invoicing cycles.</p>
             </div>
             
-            <form onSubmit={handleSaveSettings} className="space-y-6">
+            <form onSubmit={handleSaveSettings} className="space-y-3">
               {successMsg && <div className="p-3 bg-brand-green/20 text-brand-green border border-brand-green/50 rounded-md text-sm">{successMsg}</div>}
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -550,20 +550,20 @@ export default function SettingsView() {
                 </div>
                 
                 <div className="col-span-2">
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Bank Name</label>
-                  <input type="text" value={settings.bankName} onChange={e => setSettings({...settings, bankName: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Bank Name</label>
+                  <input type="text" value={settings.bankName} onChange={e => setSettings({...settings, bankName: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Account Name</label>
-                  <input type="text" value={settings.bankAccountName} onChange={e => setSettings({...settings, bankAccountName: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Account Name</label>
+                  <input type="text" value={settings.bankAccountName} onChange={e => setSettings({...settings, bankAccountName: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">BSB</label>
-                  <input type="text" value={settings.bankBsb} onChange={e => setSettings({...settings, bankBsb: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">BSB</label>
+                  <input type="text" value={settings.bankBsb} onChange={e => setSettings({...settings, bankBsb: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Account Number</label>
-                  <input type="text" value={settings.bankAcc} onChange={e => setSettings({...settings, bankAcc: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Account Number</label>
+                  <input type="text" value={settings.bankAcc} onChange={e => setSettings({...settings, bankAcc: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
                 </div>
                 
                 <div className="col-span-2 border-b border-border-subtle pb-4 mt-6 mb-2">
@@ -571,12 +571,12 @@ export default function SettingsView() {
                 </div>
                 
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">NDIS Invoice Prefix</label>
-                  <input type="text" value={settings.ndisInvoicePrefix} onChange={e => setSettings({...settings, ndisInvoicePrefix: e.target.value})} placeholder="e.g. INV-" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">NDIS Invoice Prefix</label>
+                  <input type="text" value={settings.ndisInvoicePrefix} onChange={e => setSettings({...settings, ndisInvoicePrefix: e.target.value})} placeholder="e.g. INV-" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Home Care Invoice Prefix</label>
-                  <input type="text" value={settings.hcInvoicePrefix} onChange={e => setSettings({...settings, hcInvoicePrefix: e.target.value})} placeholder="e.g. HC-" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Home Care Invoice Prefix</label>
+                  <input type="text" value={settings.hcInvoicePrefix} onChange={e => setSettings({...settings, hcInvoicePrefix: e.target.value})} placeholder="e.g. HC-" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
                 </div>
 
                 <div className="col-span-2 border-b border-border-subtle pb-4 mt-6 mb-2">
@@ -584,16 +584,16 @@ export default function SettingsView() {
                 </div>
                 
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Invoicing Cycle Frequency</label>
-                  <select value={settings.invoicingFrequency} onChange={e => setSettings({...settings, invoicingFrequency: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Invoicing Cycle Frequency</label>
+                  <select value={settings.invoicingFrequency} onChange={e => setSettings({...settings, invoicingFrequency: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]">
                     <option value="Weekly">Weekly</option>
                     <option value="Fortnightly">Fortnightly</option>
                     <option value="Monthly">Monthly</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Invoicing Cycle Start Weekday</label>
-                  <select value={settings.invoicingStartDay} onChange={e => setSettings({...settings, invoicingStartDay: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Invoicing Cycle Start Weekday</label>
+                  <select value={settings.invoicingStartDay} onChange={e => setSettings({...settings, invoicingStartDay: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]">
                     <option value="Monday">Monday</option>
                     <option value="Tuesday">Tuesday</option>
                     <option value="Wednesday">Wednesday</option>
@@ -605,16 +605,16 @@ export default function SettingsView() {
                 </div>
                 
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Payrun Cycle Frequency</label>
-                  <select value={settings.payrunFrequency} onChange={e => setSettings({...settings, payrunFrequency: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Payrun Cycle Frequency</label>
+                  <select value={settings.payrunFrequency} onChange={e => setSettings({...settings, payrunFrequency: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]">
                     <option value="Weekly">Weekly</option>
                     <option value="Fortnightly">Fortnightly</option>
                     <option value="Monthly">Monthly</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Payrun Cycle Start Weekday</label>
-                  <select value={settings.payrunStartDay} onChange={e => setSettings({...settings, payrunStartDay: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Payrun Cycle Start Weekday</label>
+                  <select value={settings.payrunStartDay} onChange={e => setSettings({...settings, payrunStartDay: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]">
                     <option value="Monday">Monday</option>
                     <option value="Tuesday">Tuesday</option>
                     <option value="Wednesday">Wednesday</option>
@@ -626,8 +626,8 @@ export default function SettingsView() {
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-[12px] font-medium text-[#8B949E] mb-2">Payment Due By (Days)</label>
-                  <input type="number" min="0" value={settings.paymentDueDays} onChange={e => setSettings({...settings, paymentDueDays: parseInt(e.target.value) || 0})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Payment Due By (Days)</label>
+                  <input type="number" min="0" value={settings.paymentDueDays} onChange={e => setSettings({...settings, paymentDueDays: parseInt(e.target.value) || 0})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
                 </div>
               </div>
 
@@ -642,18 +642,18 @@ export default function SettingsView() {
         )}
 
         {activeTab === 'BRANDING' && (
-          <div className="p-8 max-w-4xl">
-            <div className="mb-8">
+          <div className="p-4 max-w-4xl">
+            <div className="mb-4">
               <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">Branding</h3>
               <p className="text-sm text-[#8B949E] mt-1">Upload your logos for the application interface and generated invoices.</p>
             </div>
             
-            <form onSubmit={handleSaveSettings} className="space-y-8">
+            <form onSubmit={handleSaveSettings} className="space-y-4">
               {successMsg && <div className="p-3 bg-brand-green/20 text-brand-green border border-brand-green/50 rounded-md text-sm">{successMsg}</div>}
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Website Logo */}
-                <div className="bg-brand-navy border-t border-border-subtle rounded-xl p-6 shadow-sm relative overflow-hidden ring-1 ring-border-subtle/50">
+                <div className="bg-brand-navy border-t border-border-subtle rounded-xl p-4 shadow-sm relative overflow-hidden ring-1 ring-border-subtle/50">
                   <div className="mb-4">
                     <h4 className="text-md font-medium text-[#E6EDF3]">Website Logo</h4>
                     <p className="text-xs text-[#8B949E] mt-1">Used in the sidebar navigation and login screen. (Recommended size: 200px x 60px)</p>
@@ -683,7 +683,7 @@ export default function SettingsView() {
                 </div>
 
                 {/* Letterhead Logo */}
-                <div className="bg-brand-navy border-t border-border-subtle rounded-xl p-6 shadow-sm relative overflow-hidden ring-1 ring-border-subtle/50">
+                <div className="bg-brand-navy border-t border-border-subtle rounded-xl p-4 shadow-sm relative overflow-hidden ring-1 ring-border-subtle/50">
                   <div className="mb-4">
                     <h4 className="text-md font-medium text-[#E6EDF3]">Invoice Letterhead</h4>
                     <p className="text-xs text-[#8B949E] mt-1">Used at the top of PDF invoices. (Recommended size: 600px x 150px)</p>
@@ -712,7 +712,7 @@ export default function SettingsView() {
                   </div>
                 </div>
                 {/* PWA Icon 192 */}
-                <div className="bg-brand-navy border-t border-border-subtle rounded-xl p-6 shadow-sm relative overflow-hidden ring-1 ring-border-subtle/50">
+                <div className="bg-brand-navy border-t border-border-subtle rounded-xl p-4 shadow-sm relative overflow-hidden ring-1 ring-border-subtle/50">
                   <div className="mb-4">
                     <h4 className="text-md font-medium text-[#E6EDF3]">App Icon (192x192)</h4>
                     <p className="text-xs text-[#8B949E] mt-1">Used for iPhone / Android home screen icons. (Must be square, ideally 192x192 PNG)</p>
@@ -742,7 +742,7 @@ export default function SettingsView() {
                 </div>
 
                 {/* PWA Icon 512 */}
-                <div className="bg-brand-navy border-t border-border-subtle rounded-xl p-6 shadow-sm relative overflow-hidden ring-1 ring-border-subtle/50">
+                <div className="bg-brand-navy border-t border-border-subtle rounded-xl p-4 shadow-sm relative overflow-hidden ring-1 ring-border-subtle/50">
                   <div className="mb-4">
                     <h4 className="text-md font-medium text-[#E6EDF3]">App Icon (High-Res 512x512)</h4>
                     <p className="text-xs text-[#8B949E] mt-1">Used for high resolution screens and splash screens. (Must be square, ideally 512x512 PNG)</p>
@@ -793,7 +793,7 @@ export default function SettingsView() {
                 <select
                   value={region}
                   onChange={(e) => handleRegionChange(e.target.value)}
-                  className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors"
+                  className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors"
                 >
                   {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
@@ -806,7 +806,7 @@ export default function SettingsView() {
                 />
                 <button 
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0 animate-fade-in"
+                  className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0 animate-fade-in"
                   disabled={loading || user?.role !== 'ADMIN'}
                 >
                   <Upload className="w-4 h-4 mr-2" />
@@ -817,31 +817,31 @@ export default function SettingsView() {
             
             <div className="flex-1 overflow-auto">
               {loading ? (
-                <div className="p-8 text-center text-[#8B949E]">Loading services...</div>
+                <div className="p-4 text-center text-[#8B949E]">Loading services...</div>
               ) : (
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-brand-bg border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] sticky top-0 z-10">
-                      <th className="px-4 py-4 font-semibold">NDIS Code</th>
-                      <th className="px-4 py-4 font-semibold">Service Name</th>
-                      <th className="px-4 py-4 font-semibold">Reg. Grp Num</th>
-                      <th className="px-4 py-4 font-semibold">Reg. Grp Name</th>
-                      <th className="px-4 py-4 font-semibold">Unit</th>
-                      <th className="px-4 py-4 font-semibold text-right">Rate ($)</th>
+                      <th className="px-2 py-1.5 font-semibold text-xs uppercase">NDIS Code</th>
+                      <th className="px-2 py-1.5 font-semibold text-xs uppercase">Service Name</th>
+                      <th className="px-2 py-1.5 font-semibold text-xs uppercase">Reg. Grp Num</th>
+                      <th className="px-2 py-1.5 font-semibold text-xs uppercase">Reg. Grp Name</th>
+                      <th className="px-2 py-1.5 font-semibold text-xs uppercase">Unit</th>
+                      <th className="px-2 py-1.5 font-semibold text-right">Rate ($)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle text-sm">
                     {services.map(s => (
                       <tr key={s.id} className="hover:bg-brand-bg/50 transition-colors">
-                        <td className="px-4 py-4 font-mono text-xs text-[#E6EDF3]">{s.code}</td>
-                        <td className="px-4 py-4 text-[#E6EDF3]">
+                        <td className="px-2 py-1.5 font-mono text-xs text-[#E6EDF3]">{s.code}</td>
+                        <td className="px-2 py-1.5 text-[#E6EDF3]">
                           <div>{s.name}</div>
                           {s.description && <div className="text-xs text-[#8B949E] mt-1">{s.description}</div>}
                         </td>
-                        <td className="px-4 py-4 text-[#8B949E]">{s.reg_group_number || '-'}</td>
-                        <td className="px-4 py-4 text-[#8B949E]">{s.reg_group_name || '-'}</td>
-                        <td className="px-4 py-4 text-[#8B949E]">{s.unit || '-'}</td>
-                        <td className="px-4 py-4 text-right font-medium text-[#E6EDF3]">
+                        <td className="px-2 py-1.5 text-[#8B949E]">{s.reg_group_number || '-'}</td>
+                        <td className="px-2 py-1.5 text-[#8B949E]">{s.reg_group_name || '-'}</td>
+                        <td className="px-2 py-1.5 text-[#8B949E]">{s.unit || '-'}</td>
+                        <td className="px-2 py-1.5 text-right font-medium text-[#E6EDF3]">
                           {(() => {
                             let displayRate = Number(s.rate);
                             if (s.rates_json) {
@@ -882,7 +882,7 @@ export default function SettingsView() {
             {/* Sub-tab selection */}
             <div className="flex border-b border-border-subtle bg-brand-bg px-4 sticky top-0 z-20 shrink-0">
               <button
-                className={`px-6 py-3.5 text-sm font-medium transition-all duration-200 border-b-2 -mb-[1px] ${
+                className={`px-4 py-2 text-sm font-medium transition-all duration-200 border-b-2 -mb-[1px] ${
                   homeCareSubTab === 'FUNDING' 
                     ? 'border-brand-teal text-[#E6EDF3] font-semibold' 
                     : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
@@ -892,7 +892,7 @@ export default function SettingsView() {
                 Home Care Funding
               </button>
               <button
-                className={`px-6 py-3.5 text-sm font-medium transition-all duration-200 border-b-2 -mb-[1px] ${
+                className={`px-4 py-2 text-sm font-medium transition-all duration-200 border-b-2 -mb-[1px] ${
                   homeCareSubTab === 'PRICING' 
                     ? 'border-brand-teal text-[#E6EDF3] font-semibold' 
                     : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
@@ -927,7 +927,7 @@ export default function SettingsView() {
                       />
                       <button 
                         onClick={() => setShowAddServiceModal(true)}
-                        className="flex items-center px-4 py-2 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
+                        className="flex items-center px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
                         disabled={loading || user?.role !== 'ADMIN'}
                       >
                         <Plus className="w-4 h-4 mr-1.5" />
@@ -935,7 +935,7 @@ export default function SettingsView() {
                       </button>
                       <button
                         onClick={handleExportPricing}
-                        className="flex items-center px-4 py-2 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-200 text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
+                        className="flex items-center px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-200 text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
                         disabled={loading || user?.role !== 'ADMIN'}
                       >
                         <Download className="w-4 h-4 mr-1.5" />
@@ -943,7 +943,7 @@ export default function SettingsView() {
                       </button>
                       <button 
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
+                        className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
                         disabled={loading || user?.role !== 'ADMIN'}
                       >
                         <Upload className="w-4 h-4 mr-2" />
@@ -954,35 +954,35 @@ export default function SettingsView() {
                   
                   <div className="flex-1 overflow-auto">
                     {loading ? (
-                      <div className="p-8 text-center text-[#8B949E]">Loading services...</div>
+                      <div className="p-4 text-center text-[#8B949E]">Loading services...</div>
                     ) : (
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-brand-bg border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] sticky top-0 z-10">
-                            <th className="px-4 py-4 font-semibold">Serv. ID</th>
-                            <th className="px-4 py-4 font-semibold">Service Name</th>
-                            <th className="px-4 py-4 font-semibold w-48">Category</th>
-                            <th className="px-4 py-4 font-semibold">Unit</th>
-                            <th className="px-4 py-4 font-semibold text-right">Weekday</th>
-                            <th className="px-4 py-4 font-semibold text-right">Non-Standard</th>
-                            <th className="px-4 py-4 font-semibold text-right">Saturday</th>
-                            <th className="px-4 py-4 font-semibold text-right">Sunday</th>
-                            <th className="px-4 py-4 font-semibold text-right">Pub. Holiday</th>
+                            <th className="px-2 py-1.5 font-semibold text-xs uppercase">Serv. ID</th>
+                            <th className="px-2 py-1.5 font-semibold text-xs uppercase">Service Name</th>
+                            <th className="px-2 py-1.5 font-semibold w-48">Category</th>
+                            <th className="px-2 py-1.5 font-semibold text-xs uppercase">Unit</th>
+                            <th className="px-2 py-1.5 font-semibold text-right">Weekday</th>
+                            <th className="px-2 py-1.5 font-semibold text-right">Non-Standard</th>
+                            <th className="px-2 py-1.5 font-semibold text-right">Saturday</th>
+                            <th className="px-2 py-1.5 font-semibold text-right">Sunday</th>
+                            <th className="px-2 py-1.5 font-semibold text-right">Pub. Holiday</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle text-sm">
                           {services.map(s => (
                             <tr key={s.id} className={`hover:bg-brand-bg/50 transition-colors ${savedCategoryIds.has(s.id) ? 'bg-brand-green/5' : ''}`}>
-                              <td className={`px-4 py-4 font-mono text-xs text-[#E6EDF3] border-l-2 ${savedCategoryIds.has(s.id) ? 'border-brand-green' : 'border-transparent'} transition-colors duration-300`}>{s.code}</td>
-                              <td className="px-4 py-4 text-[#E6EDF3]">
+                              <td className={`px-2 py-1.5 font-mono text-xs text-[#E6EDF3] border-l-2 ${savedCategoryIds.has(s.id) ? 'border-brand-green' : 'border-transparent'} transition-colors duration-300`}>{s.code}</td>
+                              <td className="px-2 py-1.5 text-[#E6EDF3]">
                                 <div>{s.name}</div>
                                 {s.description && <div className="text-xs text-[#8B949E] mt-1">{s.description}</div>}
                               </td>
-                              <td className="px-4 py-4">
+                              <td className="px-2 py-1.5">
                                 <select
                                   value={s.service_category || ''}
                                   onChange={(e) => handleCategoryChange(s.id, e.target.value)}
-                                  className="w-full bg-brand-navy text-[#E6EDF3] border border-border-subtle rounded text-xs px-2 py-1.5 focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                                  className="w-full bg-brand-navy text-[#E6EDF3] border border-border-subtle rounded px-2 py-1 flex items-center h-8 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
                                   disabled={savingCategoryIds.has(s.id)}
                                 >
                                   <option value="">Select Category</option>
@@ -991,8 +991,8 @@ export default function SettingsView() {
                                   <option value="Everyday Living">Everyday Living</option>
                                 </select>
                               </td>
-                              <td className="px-4 py-4 text-[#8B949E]">{s.unit || '-'}</td>
-                              <td className="px-4 py-4 text-right text-[#E6EDF3]">
+                              <td className="px-2 py-1.5 text-[#8B949E]">{s.unit || '-'}</td>
+                              <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
                                 {(() => {
                                   try {
                                     const rates = JSON.parse(s.rates_json);
@@ -1000,7 +1000,7 @@ export default function SettingsView() {
                                   } catch(e) { return '-'; }
                                 })()}
                               </td>
-                              <td className="px-4 py-4 text-right text-[#E6EDF3]">
+                              <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
                                 {(() => {
                                   try {
                                     const rates = JSON.parse(s.rates_json);
@@ -1008,7 +1008,7 @@ export default function SettingsView() {
                                   } catch(e) { return '-'; }
                                 })()}
                               </td>
-                              <td className="px-4 py-4 text-right text-[#E6EDF3]">
+                              <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
                                 {(() => {
                                   try {
                                     const rates = JSON.parse(s.rates_json);
@@ -1016,7 +1016,7 @@ export default function SettingsView() {
                                   } catch(e) { return '-'; }
                                 })()}
                               </td>
-                              <td className="px-4 py-4 text-right text-[#E6EDF3]">
+                              <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
                                 {(() => {
                                   try {
                                     const rates = JSON.parse(s.rates_json);
@@ -1024,7 +1024,7 @@ export default function SettingsView() {
                                   } catch(e) { return '-'; }
                                 })()}
                               </td>
-                              <td className="px-4 py-4 text-right text-[#E6EDF3]">
+                              <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
                                 {(() => {
                                   try {
                                     const rates = JSON.parse(s.rates_json);
@@ -1061,7 +1061,7 @@ export default function SettingsView() {
       {showAddServiceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center p-6 border-b border-border-subtle">
+            <div className="flex justify-between items-center p-4 border-b border-border-subtle">
               <h2 className="text-xl font-semibold text-[#E6EDF3]">Add Custom Service</h2>
               <button 
                 onClick={() => setShowAddServiceModal(false)}
@@ -1072,27 +1072,27 @@ export default function SettingsView() {
             </div>
             
             <form onSubmit={handleAddCustomService} className="flex flex-col flex-1 overflow-hidden">
-              <div className="p-6 overflow-y-auto space-y-5">
+              <div className="p-4 overflow-y-auto space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-[#8B949E] mb-1.5">Service Name *</label>
+                  <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Service Name *</label>
                   <input
                     type="text"
                     required
                     value={newServiceForm.name}
                     onChange={(e) => setNewServiceForm(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-2 text-sm focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                    className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
                     placeholder="e.g. Specialized Nursing Care"
                   />
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-[#8B949E] mb-1.5">Category *</label>
+                    <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Category *</label>
                     <select
                       required
                       value={newServiceForm.service_category}
                       onChange={(e) => setNewServiceForm(prev => ({ ...prev, service_category: e.target.value }))}
-                      className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-2 text-sm focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                      className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
                     >
                       <option value="">Select Category</option>
                       <option value="Clinical">Clinical</option>
@@ -1101,12 +1101,12 @@ export default function SettingsView() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#8B949E] mb-1.5">Unit</label>
+                    <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Unit</label>
                     <input
                       type="text"
                       value={newServiceForm.unit}
                       onChange={(e) => setNewServiceForm(prev => ({ ...prev, unit: e.target.value }))}
-                      className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-2 text-sm focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                      className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
                       placeholder="e.g. Hour"
                     />
                   </div>
@@ -1141,18 +1141,18 @@ export default function SettingsView() {
                 </div>
               </div>
               
-              <div className="p-6 border-t border-border-subtle flex justify-end gap-3 bg-brand-navy">
+              <div className="p-4 border-t border-border-subtle flex justify-end gap-3 bg-brand-navy">
                 <button
                   type="button"
                   onClick={() => setShowAddServiceModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-[#8B949E] hover:text-[#E6EDF3] transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium text-[#8B949E] hover:text-[#E6EDF3] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={creatingService}
-                  className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-white text-sm font-medium rounded-md transition-colors flex items-center min-w-[100px] justify-center"
+                  className="px-3 py-1.5 bg-brand-teal hover:bg-brand-teal/90 text-white text-sm font-medium rounded-md transition-colors flex items-center min-w-[100px] justify-center"
                 >
                   {creatingService ? (
                     <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />

@@ -177,7 +177,7 @@ export default function FundingTypesSettings() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4">
         {successMsg && (
           <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-md text-sm">
             {successMsg}
@@ -185,12 +185,12 @@ export default function FundingTypesSettings() {
         )}
         
         {loading ? (
-          <div className="flex items-center justify-center p-8 text-[#8B949E]">
+          <div className="flex items-center justify-center p-4 text-[#8B949E]">
             <RefreshCw className="w-5 h-5 animate-spin mr-2" />
             Loading funding settings...
           </div>
         ) : (
-          <form id="fundingTypesForm" onSubmit={handleSave} className="space-y-6 max-w-6xl font-sans">
+          <form id="fundingTypesForm" onSubmit={handleSave} className="space-y-3 max-w-6xl font-sans">
             {activeTab === 'HCP' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-12 gap-4 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
@@ -203,7 +203,7 @@ export default function FundingTypesSettings() {
                     <div className="col-span-2">
                       <input
                         type="text"
-                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] font-semibold focus:outline-none focus:border-brand-teal transition-colors"
+                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] font-semibold focus:outline-none focus:border-brand-teal transition-colors"
                         value={lvl.level}
                         onChange={(e) => updateHcp(idx, 'level', e.target.value)}
                         placeholder="e.g. Level 1"
@@ -212,7 +212,7 @@ export default function FundingTypesSettings() {
                     <div className="col-span-7">
                       <input
                         type="text"
-                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors"
+                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors"
                         value={lvl.title}
                         onChange={(e) => updateHcp(idx, 'title', e.target.value)}
                         placeholder="Description"
@@ -222,7 +222,7 @@ export default function FundingTypesSettings() {
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-sm">$</span>
                       <input
                         type="number"
-                        className="w-full text-right bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-2 text-sm text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors font-mono"
+                        className="w-full text-right bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-1.5 text-xs text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors font-mono"
                         value={lvl.amountDaily !== undefined ? lvl.amountDaily : Number((lvl.amountAnnual / 365).toFixed(2))}
                         onChange={(e) => handleHcpDailyChange(idx, e.target.value)}
                         step="0.01"
@@ -248,7 +248,7 @@ export default function FundingTypesSettings() {
                     <div className="col-span-2">
                       <input
                         type="text"
-                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] font-semibold focus:outline-none focus:border-brand-teal transition-colors"
+                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] font-semibold focus:outline-none focus:border-brand-teal transition-colors"
                         value={lvl.level}
                         onChange={(e) => updateSah(idx, 'level', e.target.value)}
                         placeholder="e.g. Class 1"
@@ -257,7 +257,7 @@ export default function FundingTypesSettings() {
                     <div className="col-span-7">
                       <input
                         type="text"
-                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors"
+                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors"
                         value={lvl.title}
                         onChange={(e) => updateSah(idx, 'title', e.target.value)}
                         placeholder="Description"
@@ -267,7 +267,7 @@ export default function FundingTypesSettings() {
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-sm">$</span>
                       <input
                         type="number"
-                        className="w-full text-right bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-2 text-sm text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors font-mono"
+                        className="w-full text-right bg-brand-navy border border-border-subtle rounded-md pl-6 pr-3 py-1.5 text-xs text-[#E6EDF3] focus:outline-none focus:border-brand-teal transition-colors font-mono"
                         value={lvl.amountDaily !== undefined ? lvl.amountDaily : Number((lvl.amountAnnual / 365).toFixed(2))}
                         onChange={(e) => handleSahDailyChange(idx, e.target.value)}
                         step="0.01"
@@ -289,7 +289,7 @@ export default function FundingTypesSettings() {
           type="submit"
           form="fundingTypesForm"
           disabled={saving || loading}
-          className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green text-white text-sm font-medium rounded-md transition-all shadow-sm disabled:opacity-50"
+          className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-sm font-medium rounded-md transition-all shadow-sm disabled:opacity-50"
         >
           {saving ? (
              <>

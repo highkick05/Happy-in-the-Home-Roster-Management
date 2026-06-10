@@ -60,12 +60,12 @@ export default function DatabaseSettings() {
   const totalSize = backups.reduce((acc, curr) => acc + curr.size, 0);
 
   if (user?.role !== 'ADMIN') {
-    return <div className="p-8 text-white">Access denied. Admins only.</div>;
+    return <div className="p-4 text-white">Access denied. Admins only.</div>;
   }
 
   return (
-    <div className="p-8 max-w-5xl">
-      <div className="mb-8 p-6 bg-brand-bg border border-border-subtle rounded-xl flex items-center justify-between">
+    <div className="p-4 max-w-5xl">
+      <div className="mb-8 p-4 bg-brand-bg border border-border-subtle rounded-xl flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
             <Database className="w-5 h-5 text-brand-teal" />
@@ -84,7 +84,7 @@ export default function DatabaseSettings() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div className="p-5 bg-brand-bg border border-border-subtle rounded-xl flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-brand-teal/10 flex items-center justify-center">
             <HardDrive className="w-6 h-6 text-brand-teal" />
@@ -114,9 +114,9 @@ export default function DatabaseSettings() {
         </div>
         
         {loading ? (
-          <div className="p-8 text-center text-[#8B949E]">Loading...</div>
+          <div className="p-4 text-center text-[#8B949E]">Loading...</div>
         ) : backups.length === 0 ? (
-          <div className="p-8 text-center text-[#8B949E]">No automated backups found. Note: Backup system runs at 2:00 AM daily.</div>
+          <div className="p-4 text-center text-[#8B949E]">No automated backups found. Note: Backup system runs at 2:00 AM daily.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">

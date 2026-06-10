@@ -110,8 +110,8 @@ export default function TestingChecklist() {
   const percent = Math.round((completedCount / totalCount) * 100);
 
   return (
-    <div className="p-8 max-w-4xl">
-      <div className="flex justify-between items-end mb-8">
+    <div className="p-4 max-w-4xl">
+      <div className="flex justify-between items-end mb-4">
         <div>
           <h3 className="text-lg font-medium text-[#E6EDF3] mb-2">Pre-Launch Testing Checklist</h3>
           <p className="text-sm text-[#8B949E]">
@@ -128,7 +128,7 @@ export default function TestingChecklist() {
         <div className="bg-gradient-to-r from-brand-teal to-brand-green h-2 transition-all duration-500 ease-out" style={{ width: `${percent}%` }}></div>
       </div>
       
-      <div className="space-y-8">
+      <div className="space-y-4">
         {Object.entries(grouped).map(([category, items]) => (
           <div key={category} className="bg-brand-navy border border-border-subtle rounded-xl overflow-hidden shadow-sm">
             <div className="bg-brand-bg px-6 py-4 border-b border-border-subtle">
