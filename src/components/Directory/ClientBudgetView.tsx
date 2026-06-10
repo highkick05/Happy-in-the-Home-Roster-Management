@@ -542,7 +542,7 @@ export default function ClientBudgetView() {
                 className="bg-zinc-800 border border-zinc-700 text-xs font-medium px-3 h-8 rounded hover:bg-zinc-700 text-zinc-200 transition-colors flex items-center gap-1.5"
               >
                 <Plus className="w-3.5 h-3.5 text-zinc-400" />
-                <span>+ Log External Expense</span>
+                <span>Log External Expense</span>
               </button>
             </div>
             
