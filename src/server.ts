@@ -4527,6 +4527,90 @@ async function startServer() {
     }
   });
 
+  app.get('/api/settings/services/export', authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const services = db.prepare("SELECT * FROM services WHERE type = 'HOME_CARE' ORDER BY code ASC").all() as any[];
+      
+      const exportData = services.map(s => {
+        let rates: any = {};
+        if (s.rates_json) {
+          try { rates = JSON.parse(s.rates_json); } catch(e) {}
+        }
+        
+        return {
+          'SERV. ID': s.code,
+          'SERVICE NAME': s.name,
+          'CATEGORY': s.service_category || '',
+          'UNIT': s.unit || 'Hour',
+          'WEEKDAY': rates['Weekday'] !== undefined ? parseFloat(rates['Weekday']) : (parseFloat(s.rate) || 0),
+          'NON-STANDARD': rates['Weekday (Non-Standard)'] !== undefined ? parseFloat(rates['Weekday (Non-Standard)']) : 0,
+          'SATURDAY': rates['Saturday'] !== undefined ? parseFloat(rates['Saturday']) : 0,
+          'SUNDAY': rates['Sunday'] !== undefined ? parseFloat(rates['Sunday']) : 0,
+          'PUB. HOLIDAY': rates['Public Holiday'] !== undefined ? parseFloat(rates['Public Holiday']) : 0,
+        };
+      });
+
+      const worksheet = xlsx.utils.json_to_sheet(exportData);
+      const workbook = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'Home Care Pricing');
+
+      const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=home_care_pricing_export.xlsx');
+      res.send(buffer);
+    } catch (e: any) {
+      logger.error(`Export error: ${e.message}`);
+      res.status(500).json({ error: 'Failed to export pricing' });
+    }
+  });
+
+  app.post('/api/settings/services', authenticateToken, requireAdmin, (req, res) => {
+    const { name, service_category, unit, rates_json, type } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Service name is required' });
+    }
+
+    try {
+      // Find highest SERV-XXXX
+      const lastService = db.prepare("SELECT code FROM services WHERE code LIKE 'SERV-%' ORDER BY CAST(SUBSTR(code, 6) AS INTEGER) DESC LIMIT 1").get() as any;
+      let nextNum = 1;
+      if (lastService && lastService.code) {
+         const match = lastService.code.match(/SERV-(\d+)/);
+         if (match) {
+           nextNum = parseInt(match[1], 10) + 1;
+         }
+      }
+      const nextCode = `SERV-${nextNum.toString().padStart(4, '0')}`;
+
+      // We will set the 'rate' column to the 'Weekday' value from rates_json, or 0 if missing.
+      const rateStr = rates_json && rates_json['Weekday'] !== undefined ? rates_json['Weekday'] : '0';
+      const parsedRatesJson = rates_json ? JSON.stringify(rates_json) : '{}';
+      
+      const stmt = db.prepare(`
+        INSERT INTO services (code, name, service_category, unit, rate, rates_json, type)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const info = stmt.run(
+        nextCode, 
+        name, 
+        service_category || null, 
+        unit || 'Hour', 
+        rateStr, 
+        parsedRatesJson, 
+        type || 'HOME_CARE'
+      );
+      
+      const newService = db.prepare(`SELECT * FROM services WHERE id = ?`).get(info.lastInsertRowid);
+      res.status(201).json(newService);
+    } catch(e: any) {
+      logger.error(`Failed to create custom service: ${e}`);
+      res.status(500).json({ error: 'Failed to create service' });
+    }
+  });
+
   app.post('/api/services/import', authenticateToken, requireAdmin, upload.single('file'), (req: any, res: any) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });

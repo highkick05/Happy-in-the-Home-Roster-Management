@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink } from 'lucide-react';
+import { Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download } from 'lucide-react';
 import DatabaseSettings from './DatabaseSettings';
 import TestingChecklist from './TestingChecklist';
 import FundingTypesSettings from './FundingTypesSettings';
@@ -52,6 +52,21 @@ export default function SettingsView() {
   const [homeCareSubTab, setHomeCareSubTab] = useState<'FUNDING' | 'PRICING'>('FUNDING');
   const authSettings = useAuth().settings;
   
+  const [showAddServiceModal, setShowAddServiceModal] = useState(false);
+  const [creatingService, setCreatingService] = useState(false);
+  const [newServiceForm, setNewServiceForm] = useState({
+    name: '',
+    service_category: '',
+    unit: 'Hour',
+    rates_json: {
+      'Weekday': 0,
+      'Weekday (Non-Standard)': 0,
+      'Saturday': 0,
+      'Sunday': 0,
+      'Public Holiday': 0
+    }
+  });
+
   useEffect(() => {
     if (authSettings?.ndisRegion && authSettings.ndisRegion !== region) {
       setRegion(authSettings.ndisRegion);
@@ -188,6 +203,79 @@ export default function SettingsView() {
         return next;
       });
       fetchServices(activeTab === 'NDIS' ? 'NDIS' : 'HOME_CARE');
+    }
+  };
+
+  const handleAddCustomService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newServiceForm.name.trim()) return;
+
+    setCreatingService(true);
+    try {
+      const res = await fetch('/api/settings/services', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: newServiceForm.name,
+          service_category: newServiceForm.service_category,
+          unit: newServiceForm.unit,
+          rates_json: newServiceForm.rates_json,
+          type: activeTab === 'NDIS' ? 'NDIS' : 'HOME_CARE'
+        })
+      });
+
+      if (res.ok) {
+        const newService = await res.json();
+        setServices(prev => [newService, ...prev]);
+        setShowAddServiceModal(false);
+        setNewServiceForm({
+          name: '',
+          service_category: '',
+          unit: 'Hour',
+          rates_json: {
+            'Weekday': 0,
+            'Weekday (Non-Standard)': 0,
+            'Saturday': 0,
+            'Sunday': 0,
+            'Public Holiday': 0
+          }
+        });
+        setSuccessMsg('Custom service created successfully!');
+        setTimeout(() => setSuccessMsg(''), 3000);
+      } else {
+        console.error('Failed to create service');
+      }
+    } catch (error) {
+      console.error('Error creating custom service:', error);
+    } finally {
+      setCreatingService(false);
+    }
+  };
+
+  const handleExportPricing = async () => {
+    try {
+      const res = await fetch('/api/settings/services/export', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error('Export failed');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'home_care_pricing_export.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export pricing. Please try again.');
     }
   };
 
@@ -838,6 +926,22 @@ export default function SettingsView() {
                         onChange={handleFileUpload}
                       />
                       <button 
+                        onClick={() => setShowAddServiceModal(true)}
+                        className="flex items-center px-4 py-2 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
+                        disabled={loading || user?.role !== 'ADMIN'}
+                      >
+                        <Plus className="w-4 h-4 mr-1.5" />
+                        Add Custom Service
+                      </button>
+                      <button
+                        onClick={handleExportPricing}
+                        className="flex items-center px-4 py-2 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-200 text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
+                        disabled={loading || user?.role !== 'ADMIN'}
+                      >
+                        <Download className="w-4 h-4 mr-1.5" />
+                        Export Pricing
+                      </button>
+                      <button 
                         onClick={() => fileInputRef.current?.click()}
                         className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0"
                         disabled={loading || user?.role !== 'ADMIN'}
@@ -953,6 +1057,114 @@ export default function SettingsView() {
           </div>
         )}
       </div>
+
+      {showAddServiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-6 border-b border-border-subtle">
+              <h2 className="text-xl font-semibold text-[#E6EDF3]">Add Custom Service</h2>
+              <button 
+                onClick={() => setShowAddServiceModal(false)}
+                className="text-[#8B949E] hover:text-[#E6EDF3] transition-colors p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleAddCustomService} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-6 overflow-y-auto space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-[#8B949E] mb-1.5">Service Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newServiceForm.name}
+                    onChange={(e) => setNewServiceForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-2 text-sm focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                    placeholder="e.g. Specialized Nursing Care"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B949E] mb-1.5">Category *</label>
+                    <select
+                      required
+                      value={newServiceForm.service_category}
+                      onChange={(e) => setNewServiceForm(prev => ({ ...prev, service_category: e.target.value }))}
+                      className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-2 text-sm focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                    >
+                      <option value="">Select Category</option>
+                      <option value="Clinical">Clinical</option>
+                      <option value="Independence">Independence</option>
+                      <option value="Everyday Living">Everyday Living</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B949E] mb-1.5">Unit</label>
+                    <input
+                      type="text"
+                      value={newServiceForm.unit}
+                      onChange={(e) => setNewServiceForm(prev => ({ ...prev, unit: e.target.value }))}
+                      className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-2 text-sm focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                      placeholder="e.g. Hour"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <h4 className="text-sm font-medium text-[#E6EDF3] mb-3 border-b border-border-subtle pb-2">Rates</h4>
+                  <div className="space-y-3">
+                    {['Weekday', 'Weekday (Non-Standard)', 'Saturday', 'Sunday', 'Public Holiday'].map(rateKey => (
+                      <div key={rateKey} className="flex items-center justify-between">
+                        <label className="text-sm text-[#8B949E]">{rateKey}</label>
+                        <div className="relative w-32">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <span className="text-[#8B949E] text-sm">$</span>
+                          </div>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            required
+                            value={newServiceForm.rates_json[rateKey as keyof typeof newServiceForm.rates_json]}
+                            onChange={(e) => setNewServiceForm(prev => ({
+                              ...prev,
+                              rates_json: { ...prev.rates_json, [rateKey]: parseFloat(e.target.value) || 0 }
+                            }))}
+                            className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md pl-7 pr-3 py-1.5 text-sm focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors text-right"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6 border-t border-border-subtle flex justify-end gap-3 bg-brand-navy">
+                <button
+                  type="button"
+                  onClick={() => setShowAddServiceModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-[#8B949E] hover:text-[#E6EDF3] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingService}
+                  className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-white text-sm font-medium rounded-md transition-colors flex items-center min-w-[100px] justify-center"
+                >
+                  {creatingService ? (
+                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    'Save Service'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
