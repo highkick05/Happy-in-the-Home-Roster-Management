@@ -326,6 +326,50 @@ export default function ClientBudgetView() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedLedgerItems = processedLedgerItems.slice(startIndex, startIndex + itemsPerPage);
 
+  // Participant Contribution calculations
+  const totalClientShare = processedLedgerItems.reduce((acc: number, item: any) => acc + (item.client_share || 0), 0);
+  const independenceShare = processedLedgerItems
+    .filter((item: any) => {
+      const cat = item.service_category || '';
+      return cat.toLowerCase() === 'independence' || cat.toLowerCase() === 'independence supports';
+    })
+    .reduce((acc: number, item: any) => acc + (item.client_share || 0), 0);
+  const everydayLivingShare = processedLedgerItems
+    .filter((item: any) => {
+      const cat = item.service_category || '';
+      return cat.toLowerCase() === 'everyday living' || cat.toLowerCase() === 'everyday';
+    })
+    .reduce((acc: number, item: any) => acc + (item.client_share || 0), 0);
+
+  const billingTier = client.billing_tier || 'Support at Home (New)';
+  const monthlyCap = client.historical_monthly_cap || 0;
+  const progressPercent = monthlyCap > 0 ? Math.min((totalClientShare / monthlyCap) * 100, 100) : 0;
+  const isCapExhausted = totalClientShare >= monthlyCap;
+
+  const getTierBadge = (t: string) => {
+    const isHybrid = t === 'Hybrid';
+    const isGrandfathered = t === 'Grandfathered';
+    if (isGrandfathered) {
+      return (
+        <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+          Grandfathered
+        </span>
+      );
+    } else if (isHybrid) {
+      return (
+        <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 whitespace-nowrap">
+          Hybrid
+        </span>
+      );
+    } else {
+      return (
+        <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 whitespace-nowrap">
+          Support at Home
+        </span>
+      );
+    }
+  };
+
   return (
     <div className="w-full flex flex-col h-full space-y-6">
       <div className="flex items-center space-x-4 mb-2 shrink-0">
@@ -351,7 +395,7 @@ export default function ClientBudgetView() {
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-6 space-y-6">
         {/* Kanban / Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
           <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-center">
             <div className="text-[#8B949E] text-sm font-medium mb-1">Total Cycle Allocation</div>
             <div className="text-3xl font-bold text-[#E6EDF3]">{formatCurrency(totalAllocation)}</div>
@@ -414,6 +458,59 @@ export default function ClientBudgetView() {
             <div className={`relative z-10 text-xs mt-2 ${remainingBalance >= 0 ? 'text-[#8B949E]' : 'text-red-200/80'}`}>
               For active cycle
             </div>
+          </div>
+
+          {/* Participant Contribution Card */}
+          <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-center">
+            <div className="flex items-center justify-between mb-3 gap-2">
+              <span className="text-[#8B949E] text-sm font-medium">Participant Contribution</span>
+              {getTierBadge(billingTier)}
+            </div>
+            
+            <div className="text-3xl font-bold text-[#E6EDF3] mb-3">
+              {formatCurrency(totalClientShare)}
+            </div>
+            
+            <div className="space-y-2 mt-1">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-[#8B949E]">Clinical Care</span>
+                <span className="text-zinc-500 font-mono">[0% Co-pay] $0.00</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-[#8B949E]">Independence Supports</span>
+                <span className="text-[#E6EDF3] font-mono">{formatCurrency(independenceShare)}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-[#8B949E]">Everyday Living</span>
+                <span className="text-[#E6EDF3] font-mono">{formatCurrency(everydayLivingShare)}</span>
+              </div>
+            </div>
+
+            {billingTier === 'Hybrid' && (
+              <div className="mt-4 pt-3 border-t border-white/[0.04]">
+                <div className="flex justify-between items-center text-[10px] text-[#8B949E] mb-1 font-sans">
+                  <span>Cap Progress</span>
+                  <span className="font-semibold text-white">{progressPercent.toFixed(0)}%</span>
+                </div>
+                <div className="w-full bg-white/[0.05] h-1.5 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      isCapExhausted && monthlyCap > 0 ? 'bg-orange-500' : 'bg-brand-blue'
+                    }`}
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <div className="text-[10px] text-[#8B949E] mt-1.5 leading-tight">
+                  {formatCurrency(totalClientShare)} / {formatCurrency(monthlyCap)} Cap Safety Net Active
+                </div>
+              </div>
+            )}
+
+            {billingTier === 'Grandfathered' && (
+              <div className="mt-4 pt-3 border-t border-white/[0.04] text-[10px] text-emerald-400 font-sans italic">
+                Grandfathered Relief Active: 100% Package Funded
+              </div>
+            )}
           </div>
 
           {/* Unspent Funds Pool Card */}

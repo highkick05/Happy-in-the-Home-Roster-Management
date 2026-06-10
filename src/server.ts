@@ -2355,7 +2355,11 @@ async function startServer() {
           funding_type: client.funding_type,
           home_care_sub_type: client.home_care_sub_type || null,
           home_care_level_or_class: client.home_care_level_or_class || null,
-          joined_date: client.joined_date || null
+          joined_date: client.joined_date || null,
+          billing_tier: client.billing_tier || 'Support at Home (New)',
+          historical_monthly_cap: client.historical_monthly_cap || 0,
+          assessed_independence_pct: client.assessed_independence_pct || 0,
+          assessed_everyday_living_pct: client.assessed_everyday_living_pct || 0
         });
       }
 

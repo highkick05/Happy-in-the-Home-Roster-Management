@@ -35,6 +35,10 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
     representativeEmail: '',
     serviceIds: [] as number[],
     careCoordinationFee: 20,
+    billingTier: 'Support at Home (New)',
+    historicalMonthlyCap: 0,
+    assessedIndependencePct: 0,
+    assessedEverydayLivingPct: 0,
   });
 
   useEffect(() => {
@@ -93,6 +97,10 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         representativeEmail: client.representative_email || '',
         serviceIds: client.service_ids || [],
         careCoordinationFee: client.care_coordination_fee !== undefined && client.care_coordination_fee !== null ? client.care_coordination_fee : 20,
+        billingTier: client.billing_tier || 'Support at Home (New)',
+        historicalMonthlyCap: client.historical_monthly_cap !== undefined && client.historical_monthly_cap !== null ? client.historical_monthly_cap : 0,
+        assessedIndependencePct: client.assessed_independence_pct !== undefined && client.assessed_independence_pct !== null ? client.assessed_independence_pct : 0,
+        assessedEverydayLivingPct: client.assessed_everyday_living_pct !== undefined && client.assessed_everyday_living_pct !== null ? client.assessed_everyday_living_pct : 0,
       });
     } else {
       setFormData({
@@ -115,6 +123,10 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         representativeEmail: '',
         serviceIds: [],
         careCoordinationFee: 20,
+        billingTier: 'Support at Home (New)',
+        historicalMonthlyCap: 0,
+        assessedIndependencePct: 0,
+        assessedEverydayLivingPct: 0,
       });
     }
   }, [client, isOpen]);
@@ -302,6 +314,38 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                   </div>
                 </div>
               )}
+
+              <div className="border-t border-white/[0.08] pt-4">
+                <h3 className="text-[14px] font-medium text-white mb-4">Billing & Participant Contribution</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Billing / Contribution Tier</label>
+                    <select name="billingTier" value={formData.billingTier} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+                      <option value="Grandfathered">Grandfathered</option>
+                      <option value="Hybrid">Hybrid (Transitioned Co-Payer)</option>
+                      <option value="Support at Home (New)">Support at Home (New)</option>
+                    </select>
+                  </div>
+
+                  {formData.billingTier === 'Hybrid' && (
+                    <div>
+                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Historical Monthly Cap ($)</label>
+                      <input type="number" step="0.01" name="historicalMonthlyCap" value={formData.historicalMonthlyCap} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Assessed Independence Co-pay (%)</label>
+                    <input type="number" step="0.01" min="0" max="100" name="assessedIndependencePct" value={formData.assessedIndependencePct} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Assessed Everyday Living Co-pay (%)</label>
+                    <input type="number" step="0.01" min="0" max="100" name="assessedEverydayLivingPct" value={formData.assessedEverydayLivingPct} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                  </div>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
