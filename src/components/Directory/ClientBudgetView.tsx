@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Flame } from 'lucide-react';
+import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Flame, Plus, X } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import { motion } from 'motion/react';
 
@@ -24,6 +24,30 @@ export default function ClientBudgetView() {
   const [spendAsOfDate, setSpendAsOfDate] = useState<string>('');
   const [startingRolloverBalance, setStartingRolloverBalance] = useState<number>(0);
   const [rolloverSpentSoFar, setRolloverSpentSoFar] = useState<number>(0);
+
+  // States for Manual External Expense logging
+  const [isExternalModalOpen, setIsExternalModalOpen] = useState(false);
+  const [externalDate, setExternalDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [externalService, setExternalService] = useState<string>('');
+  const [externalVendor, setExternalVendor] = useState<string>('');
+  const [externalBaseAmount, setExternalBaseAmount] = useState<string>('');
+  const [externalLoadings, setExternalLoadings] = useState<boolean>(true);
+  const [masterServices, setMasterServices] = useState<any[]>([]);
+  const [submittingExternal, setSubmittingExternal] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (token) {
+      fetch('/api/services?type=HOME_CARE', { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => {
+          if (res.ok) return res.json();
+          return fetch('/api/services', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
+        })
+        .then(data => {
+          setMasterServices(Array.isArray(data) ? data : []);
+        })
+        .catch(err => console.error('Error fetching master services:', err));
+    }
+  }, [token]);
 
   useEffect(() => {
     fetchData();
@@ -110,6 +134,54 @@ export default function ClientBudgetView() {
       console.error(e);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAddExternalExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!externalDate || !externalService || !externalBaseAmount) {
+      alert('Please fill out all required fields.');
+      return;
+    }
+
+    setSubmittingExternal(true);
+    try {
+      const res = await fetch(`/api/clients/${id}/ledger/external`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          date: externalDate,
+          serviceName: externalService,
+          vendorName: externalVendor,
+          baseAmount: parseFloat(externalBaseAmount) || 0,
+          applyLoadings: externalLoadings
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setLedger(prev => ({
+          total: prev.total + data.item.amount,
+          items: [data.item, ...prev.items]
+        }));
+
+        setExternalService('');
+        setExternalVendor('');
+        setExternalBaseAmount('');
+        setExternalLoadings(true);
+        setIsExternalModalOpen(false);
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Failed to submit external expense.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('An error occurred during submission.');
+    } finally {
+      setSubmittingExternal(false);
     }
   };
 
@@ -215,6 +287,16 @@ export default function ClientBudgetView() {
   };
 
   const processedLedgerItems = ledger.items.map((item: any) => {
+    if (item.source_type === 'external') {
+      return {
+        ...item,
+        baseAmount: item.base_amount ?? item.amount,
+        coordinationFee: item.care_coord_fee ?? 0,
+        subtotal: (item.base_amount ?? item.amount) + (item.care_coord_fee ?? 0),
+        managementFee: item.management_fee ?? 0,
+        amount: item.grand_total ?? item.amount
+      };
+    }
     const fees = calculateServiceConsumptionWithFees(item.amount, careCoordPercent, managementFeePercent);
     return {
       ...item,
@@ -447,9 +529,21 @@ export default function ClientBudgetView() {
         {/* Full Width Ledger Column */}
         <div className="w-full">
           <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm flex flex-col min-h-[500px]">
-            <div className="p-6 border-b border-border-subtle flex items-center space-x-2 text-[#E6EDF3] shrink-0">
-              <Calculator className="w-5 h-5 text-brand-blue" />
-              <h3 className="font-semibold text-lg">System Ledger Preview</h3>
+            <div className="p-6 border-b border-border-subtle flex items-center justify-between text-[#E6EDF3] shrink-0">
+              <div className="flex items-center space-x-2">
+                <Calculator className="w-5 h-5 text-brand-blue" />
+                <h3 className="font-semibold text-lg">System Ledger Preview</h3>
+              </div>
+              <button 
+                onClick={() => {
+                  setExternalDate(new Date().toISOString().split('T')[0]);
+                  setIsExternalModalOpen(true);
+                }}
+                className="bg-zinc-800 border border-zinc-700 text-xs font-medium px-3 h-8 rounded hover:bg-zinc-700 text-zinc-200 transition-colors flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5 text-zinc-400" />
+                <span>+ Log External Expense</span>
+              </button>
             </div>
             
             <div className="flex-1 overflow-y-auto p-0">
@@ -477,7 +571,16 @@ export default function ClientBudgetView() {
                     paginatedLedgerItems.map((item, i) => (
                       <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02] text-[#E6EDF3]">
                         <td className="px-4 py-3 whitespace-nowrap">{item.date}</td>
-                        <td className="px-4 py-3 min-w-[200px] text-[12px]">{item.service}</td>
+                        <td className="px-4 py-3 min-w-[200px] text-[12px]">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{item.service}</span>
+                            {item.source_type === 'external' && (
+                              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700/80 font-medium">
+                                [Ext - {item.vendor_name || 'Generic'}]
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-right">{formatCurrency(item.baseAmount)}</td>
                         {isHomeCare && <td className="px-4 py-3 text-right text-[#8B949E]">{formatCurrency(item.coordinationFee)}</td>}
                         {isHomeCare && <td className="px-4 py-3 text-right text-[#8B949E]">{formatCurrency(item.subtotal)}</td>}
@@ -520,6 +623,114 @@ export default function ClientBudgetView() {
           </div>
         </div>
       </div>
+
+      {/* Log External Expense Modal */}
+      {isExternalModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[#18181b] border border-zinc-800 rounded-xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-[#E6EDF3]">Log External/Brokerage Expense</h4>
+              <button 
+                onClick={() => setIsExternalModalOpen(false)}
+                className="text-[#8B949E] hover:text-[#E6EDF3] p-1 rounded-sm hover:bg-white/5 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleAddExternalExpense} className="p-4 space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Date of Expense *</label>
+                <input
+                  type="date"
+                  required
+                  value={externalDate}
+                  onChange={(e) => setExternalDate(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Service Selection *</label>
+                <select
+                  required
+                  value={externalService}
+                  onChange={(e) => setExternalService(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
+                >
+                  <option value="">Select Service Item</option>
+                  {masterServices.map(srv => (
+                    <option key={srv.id} value={srv.name}>{srv.name} {srv.code ? `(${srv.code})` : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">External Vendor Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Cabcharge, Lite n' Easy"
+                  value={externalVendor}
+                  onChange={(e) => setExternalVendor(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Total Invoice Base Amount ($) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  min="0.00"
+                  placeholder="0.00"
+                  value={externalBaseAmount}
+                  onChange={(e) => setExternalBaseAmount(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
+                />
+              </div>
+
+              {isHomeCare && (
+                <div className="pt-1.5 pb-0.5">
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      id="apply-loadings-toggle"
+                      checked={externalLoadings}
+                      onChange={(e) => setExternalLoadings(e.target.checked)}
+                      className="mt-0.5 text-indigo-500 bg-zinc-950 border-zinc-800 rounded focus:ring-0 cursor-pointer"
+                    />
+                    <div className="leading-none">
+                      <label htmlFor="apply-loadings-toggle" className="text-xs font-medium text-zinc-300 cursor-pointer select-none">
+                        Apply Platform Loadings
+                      </label>
+                      <p className="text-[10px] text-zinc-500 mt-1 leading-normal">
+                        Apply Care Coordination ({careCoordPercent}%) and Management ({managementFeePercent}%) fees to this invoice amount.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-zinc-800 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsExternalModalOpen(false)}
+                  className="px-3 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingExternal}
+                  className="px-3 py-1.5 rounded text-xs bg-emerald-700 hover:bg-emerald-600 font-medium text-white transition-colors disabled:opacity-50"
+                >
+                  {submittingExternal ? 'Logging...' : 'Log Expense'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

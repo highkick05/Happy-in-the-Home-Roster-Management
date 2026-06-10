@@ -291,6 +291,29 @@ async function startServer() {
 
   try {
     db.exec(`
+      CREATE TABLE IF NOT EXISTS client_ledger_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        service_name TEXT NOT NULL,
+        vendor_name TEXT,
+        base_amount REAL NOT NULL,
+        care_coord_fee REAL DEFAULT 0,
+        management_fee REAL DEFAULT 0,
+        grand_total REAL DEFAULT 0,
+        source_type TEXT DEFAULT 'external',
+        apply_loadings INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients(id)
+      );
+    `);
+    console.log('[DEBUG] Completed client_ledger_entries table setup.');
+  } catch(e: any) {
+    console.error('Migration error for client_ledger_entries:', e);
+  }
+
+  try {
+    db.exec(`
       ALTER TABLE clients ADD COLUMN starting_rollover_balance REAL DEFAULT 0;
     `);
   } catch(e: any) {
@@ -2499,6 +2522,35 @@ async function startServer() {
          }
       }
 
+      // Fetch external ledger entries for this cycle/range
+      const external = db.prepare(`
+        SELECT * FROM client_ledger_entries 
+        WHERE client_id = ? 
+          AND date >= ? 
+          AND date <= ?
+      `).all(id, startDate, endDate) as any[];
+
+      for (const entry of external) {
+        let dateFormatted = entry.date;
+        const parts = entry.date.split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+          dateFormatted = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        total += entry.grand_total;
+        items.push({
+          id: entry.id,
+          date: dateFormatted,
+          service: entry.service_name,
+          amount: entry.grand_total,
+          base_amount: entry.base_amount,
+          care_coord_fee: entry.care_coord_fee,
+          management_fee: entry.management_fee,
+          grand_total: entry.grand_total,
+          source_type: 'external',
+          vendor_name: entry.vendor_name
+        });
+      }
+
       items.sort((a, b) => {
         const parseStr = (s: string) => {
           const p = s.split('-');
@@ -2514,6 +2566,68 @@ async function startServer() {
       });
     } catch (e: any) {
       logger.error(`API Error fetching budget ledger: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.post('/api/clients/:id/ledger/external', authenticateToken, (req, res) => {
+    const { id } = req.params;
+    const { date, serviceName, vendorName, baseAmount, applyLoadings } = req.body;
+
+    try {
+      if (!date || !serviceName || baseAmount === undefined) {
+        return res.status(400).json({ error: 'Missing required fields: date, serviceName, baseAmount' });
+      }
+
+      const client = db.prepare(`
+        SELECT care_coordination_fee FROM clients WHERE id = ?
+      `).get(id) as any;
+
+      if (!client) {
+        return res.status(404).json({ error: 'Client not found' });
+      }
+
+      const rawBase = parseFloat(baseAmount) || 0;
+      let careCoordFee = 0;
+      let managementFee = 0;
+      let grandTotal = rawBase;
+
+      if (applyLoadings) {
+        const clientCareCoordRate = parseFloat(client.care_coordination_fee ?? 20);
+        careCoordFee = parseFloat((rawBase * (clientCareCoordRate / 100)).toFixed(2));
+        const subtotal = rawBase + careCoordFee;
+        managementFee = parseFloat((subtotal * 0.10).toFixed(2));
+        grandTotal = parseFloat((subtotal + managementFee).toFixed(2));
+      }
+
+      const info = db.prepare(`
+        INSERT INTO client_ledger_entries (client_id, date, service_name, vendor_name, base_amount, care_coord_fee, management_fee, grand_total, source_type, apply_loadings)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'external', ?)
+      `).run(id, date, serviceName, vendorName || '', rawBase, careCoordFee, managementFee, grandTotal, applyLoadings ? 1 : 0);
+
+      const parts = date.split('-');
+      let dateFormatted = date;
+      if (parts.length === 3 && parts[0].length === 4) {
+        dateFormatted = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+
+      const newEntry = {
+        id: info.lastInsertRowid,
+        date: dateFormatted,
+        service: serviceName,
+        amount: grandTotal,
+        base_amount: rawBase,
+        care_coord_fee: careCoordFee,
+        management_fee: managementFee,
+        grand_total: grandTotal,
+        source_type: 'external',
+        vendor_name: vendorName || '',
+        apply_loadings: applyLoadings ? 1 : 0
+      };
+
+      res.status(201).json({ success: true, item: newEntry });
+    } catch (e: any) {
+      logger.error(`API Error adding external ledger entry: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
