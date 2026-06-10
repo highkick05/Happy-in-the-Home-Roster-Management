@@ -31,8 +31,9 @@ export default function ClientBudgetView() {
         fetch('/api/funding-rates', { headers: { Authorization: `Bearer ${token}` } })
       ]);
       
+      let clientData: any;
       if (clientRes.ok) {
-        const clientData = await clientRes.json();
+        clientData = await clientRes.json();
         setClient(clientData);
         setHistoricalInternal(clientData.historical_internal_consumptions || 0);
         setSpendAsOfDate(clientData.spend_as_of_date || '');
@@ -42,9 +43,31 @@ export default function ClientBudgetView() {
         setFundingRates(await ratesRes.json());
       }
 
-      const ledgerRes = await fetch(`/api/clients/${id}/budget-ledger`, { headers: { Authorization: `Bearer ${token}` } });
-      if (ledgerRes.ok) {
-        setLedger(await ledgerRes.json());
+      // Calculate Quarter and Pro-rata logic to pass to ledger API
+      if (clientData) {
+         const now = new Date();
+         const currentYear = now.getFullYear();
+         const quarters = [
+           { start: new Date(currentYear, 0, 1), end: new Date(currentYear, 2, 31) },
+           { start: new Date(currentYear, 3, 1), end: new Date(currentYear, 5, 30) },
+           { start: new Date(currentYear, 6, 1), end: new Date(currentYear, 8, 30) },
+           { start: new Date(currentYear, 9, 1), end: new Date(currentYear, 11, 31) }
+         ];
+         const activeQuarter = quarters.find(q => now >= q.start && now <= q.end) || quarters[0];
+         let cycleStart = activeQuarter.start;
+         if (clientData.joined_date) {
+           const joined = new Date(clientData.joined_date);
+           if (!isNaN(joined.getTime()) && joined >= activeQuarter.start && joined <= activeQuarter.end) {
+             cycleStart = joined;
+           }
+         }
+         const sDate = cycleStart.toISOString().split('T')[0];
+         const eDate = activeQuarter.end.toISOString().split('T')[0];
+
+         const ledgerRes = await fetch(`/api/clients/${id}/budget-ledger?startDate=${sDate}&endDate=${eDate}`, { headers: { Authorization: `Bearer ${token}` } });
+         if (ledgerRes.ok) {
+           setLedger(await ledgerRes.json());
+         }
       }
     } catch (e) {
       console.error(e);

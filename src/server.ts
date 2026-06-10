@@ -2183,10 +2183,71 @@ async function startServer() {
     const { id } = req.params;
     const { startDate, endDate } = req.query;
     try {
-      // Future enhancement: query actual shifts or invoices in date range.
+      if (!startDate || !endDate) return res.json({ total: 0, items: [] });
+      
+      const startFilter = `${startDate}T00:00:00`;
+      const endFilter = `${endDate}T23:59:59`;
+
+      const shifts = db.prepare(`
+        SELECT id FROM shifts 
+        WHERE client_id = ? 
+          AND start_time >= ? 
+          AND start_time <= ?
+          AND status NOT IN ('DRAFT', 'CANCELLED')
+      `).all(id, startFilter, endFilter) as any[];
+
+      const respiteBookings = db.prepare(`
+        SELECT id FROM respite_bookings 
+        WHERE client_id = ? 
+          AND start_time >= ? 
+          AND start_time <= ?
+          AND status NOT IN ('DRAFT', 'CANCELLED')
+      `).all(id, startFilter, endFilter) as any[];
+
+      let total = 0;
+      let items: any[] = [];
+      
+      for (const shiftRow of shifts) {
+         try {
+           const data = getInvoiceDataForShift(shiftRow.id);
+           if (data && data.lineItems) {
+              data.lineItems.forEach((li: any) => {
+                 total += li.amount; // subtotal amounts exclusively exclude GST
+                 items.push({
+                    date: li.date,
+                    service: li.serviceName,
+                    amount: li.amount
+                 });
+              });
+           }
+         } catch(e) {
+           console.error(`Failed to process shift ${shiftRow.id} for budget:`, e);
+         }
+      }
+
+      for (const respiteRow of respiteBookings) {
+         try {
+           const data = getInvoiceDataForRespiteBooking(respiteRow.id);
+           if (data && data.lineItems) {
+              data.lineItems.forEach((li: any) => {
+                 total += li.amount; // subtotal amounts exclusively exclude GST
+                 items.push({
+                    date: li.date,
+                    service: li.serviceName,
+                    amount: li.amount
+                 });
+              });
+           }
+         } catch(e) {
+           console.error(`Failed to process respite ${respiteRow.id} for budget:`, e);
+         }
+      }
+
+      items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
       res.json({
-        total: 0,
-        items: []
+        total,
+        items
       });
     } catch (e: any) {
       logger.error(`API Error fetching budget ledger: ${e}`, { error: "Internal Server Error" });
