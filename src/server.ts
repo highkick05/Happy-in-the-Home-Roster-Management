@@ -331,6 +331,76 @@ async function startServer() {
       console.warn('Migration warning:', e.message);
     }
   }
+
+  try {
+    db.exec(`
+      ALTER TABLE clients ADD COLUMN billing_tier TEXT DEFAULT 'Support at Home (New)';
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE clients ADD COLUMN historical_monthly_cap REAL DEFAULT 0;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE clients ADD COLUMN assessed_independence_pct REAL DEFAULT 0;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE clients ADD COLUMN assessed_everyday_living_pct REAL DEFAULT 0;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE client_ledger_entries ADD COLUMN client_share REAL DEFAULT 0;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE client_ledger_entries ADD COLUMN package_drawdown REAL DEFAULT 0;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE client_ledger_entries ADD COLUMN service_category TEXT;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
   
   try {
     db.exec(`
@@ -919,6 +989,98 @@ async function startServer() {
         gstAmount,
         totalAmount
       };
+  };
+
+  const calculateBillingSplits = (clientId: number, dateStr: string, loadedCost: number, category: string) => {
+    try {
+      const client = db.prepare(`
+        SELECT billing_tier, historical_monthly_cap, 
+               coalesce(assessed_independence_pct, 0) as assessed_independence_pct,
+               coalesce(assessed_everyday_living_pct, 0) as assessed_everyday_living_pct
+        FROM clients WHERE id = ?
+      `).get(clientId) as any;
+
+      if (!client) {
+        return { clientShare: 0, packageDrawdown: loadedCost };
+      }
+
+      const tier = client.billing_tier || 'Support at Home (New)';
+      const isGrandfathered = tier === 'Grandfathered' || tier === 'grandfathered';
+      const isHybrid = tier === 'Hybrid' || tier === 'Hybrid (Transitioned Co-Payer)' || tier === 'hybrid';
+
+      if (isGrandfathered) {
+        return { clientShare: 0, packageDrawdown: loadedCost };
+      }
+
+      // Determine category percentage
+      let categoryPct = 0;
+      const normCategory = (category || '').trim().toLowerCase();
+      
+      if (normCategory === 'clinical') {
+        categoryPct = 0;
+      } else if (normCategory === 'independence') {
+        categoryPct = (client.assessed_independence_pct ?? 0) / 100;
+      } else if (normCategory === 'everyday living' || normCategory === 'everyday_living') {
+        categoryPct = (client.assessed_everyday_living_pct ?? 0) / 100;
+      } else {
+        // Default fallback if no category is matched.
+        categoryPct = (client.assessed_independence_pct ?? 0) / 100;
+      }
+
+      let calculatedClientShare = parseFloat((loadedCost * categoryPct).toFixed(2));
+      let calculatedPackageDrawdown = parseFloat((loadedCost - calculatedClientShare).toFixed(2));
+
+      if (isHybrid) {
+        // Cap at historical_monthly_cap
+        const cap = Number(client.historical_monthly_cap || 0);
+        
+        // Parse dates to find billing month
+        let year = '';
+        let month = '';
+        if (dateStr) {
+          const parts = dateStr.split('-');
+          if (parts.length === 3) {
+            if (parts[0].length === 4) { // YYYY-MM-DD
+              year = parts[0];
+              month = parts[1];
+            } else if (parts[2].length === 4) { // DD-MM-YYYY
+              year = parts[2];
+              month = parts[1];
+            }
+          }
+        }
+        if (!year || !month) {
+          const d = new Date();
+          year = String(d.getFullYear());
+          month = String(d.getMonth() + 1).padStart(2, '0');
+        }
+
+        const likePattern1 = `${year}-${month}-%`;
+        const likePattern2 = `%-${month}-${year}`;
+
+        const sumRow = db.prepare(`
+          SELECT SUM(client_share) as total 
+          FROM client_ledger_entries 
+          WHERE client_id = ? 
+            AND (date LIKE ? OR date LIKE ?)
+        `).get(clientId, likePattern1, likePattern2) as any;
+        const existingMonthlyTotal = sumRow?.total || 0;
+
+        if (existingMonthlyTotal + calculatedClientShare > cap) {
+          const remainingCap = Math.max(0, cap - existingMonthlyTotal);
+          calculatedClientShare = parseFloat(remainingCap.toFixed(2));
+          calculatedPackageDrawdown = parseFloat((loadedCost - calculatedClientShare).toFixed(2));
+        }
+      }
+
+      return {
+        clientShare: calculatedClientShare,
+        packageDrawdown: calculatedPackageDrawdown
+      };
+    } catch (e) {
+      console.error('Error calculating billing splits:', e);
+      return { clientShare: 0, packageDrawdown: loadedCost };
+    }
   };
 
   const getInvoiceDataForRespiteBooking = (respiteBookingId: number) => {
@@ -2225,11 +2387,19 @@ async function startServer() {
         const { 
           firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId,
           dob, fundingType, myAgedCareId, address, representativeName, representativePhone, representativeEmail,
-          serviceIds, homeCareSubType, homeCareLevelOrClass, joinedDate, careCoordinationFee
+          serviceIds, homeCareSubType, homeCareLevelOrClass, joinedDate, careCoordinationFee,
+          billingTier, historicalMonthlyCap, assessedIndependencePct, assessedEverydayLivingPct
         } = reqBody;
 
-        const stmt = db.prepare('INSERT INTO clients (first_name, last_name, ndis_number, care_plan_details, contact_email, contact_phone, provider_id, dob, funding_type, my_aged_care_id, address, representative_name, representative_phone, representative_email, home_care_sub_type, home_care_level_or_class, joined_date, care_coordination_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        const info = stmt.run(firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId || null, dob || null, fundingType || null, myAgedCareId || null, address || null, representativeName || null, representativePhone || null, representativeEmail || null, homeCareSubType || null, homeCareLevelOrClass || null, joinedDate || null, careCoordinationFee !== undefined ? careCoordinationFee : 20.00);
+        const stmt = db.prepare('INSERT INTO clients (first_name, last_name, ndis_number, care_plan_details, contact_email, contact_phone, provider_id, dob, funding_type, my_aged_care_id, address, representative_name, representative_phone, representative_email, home_care_sub_type, home_care_level_or_class, joined_date, care_coordination_fee, billing_tier, historical_monthly_cap, assessed_independence_pct, assessed_everyday_living_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        const info = stmt.run(
+          firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId || null, dob || null, fundingType || null, myAgedCareId || null, address || null, representativeName || null, representativePhone || null, representativeEmail || null, homeCareSubType || null, homeCareLevelOrClass || null, joinedDate || null, 
+          careCoordinationFee !== undefined ? careCoordinationFee : 20.00,
+          billingTier || 'Support at Home (New)',
+          historicalMonthlyCap !== undefined ? parseFloat(historicalMonthlyCap) : 0.00,
+          assessedIndependencePct !== undefined ? parseFloat(assessedIndependencePct) : 0.00,
+          assessedEverydayLivingPct !== undefined ? parseFloat(assessedEverydayLivingPct) : 0.00
+        );
         
         const clientId = info.lastInsertRowid;
         
@@ -2257,11 +2427,20 @@ async function startServer() {
         const { 
           firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId,
           dob, fundingType, myAgedCareId, address, representativeName, representativePhone, representativeEmail,
-          serviceIds, homeCareSubType, homeCareLevelOrClass, joinedDate, careCoordinationFee
+          serviceIds, homeCareSubType, homeCareLevelOrClass, joinedDate, careCoordinationFee,
+          billingTier, historicalMonthlyCap, assessedIndependencePct, assessedEverydayLivingPct
         } = reqBody;
 
-        const stmt = db.prepare('UPDATE clients SET first_name = ?, last_name = ?, ndis_number = ?, care_plan_details = ?, contact_email = ?, contact_phone = ?, provider_id = ?, dob = ?, funding_type = ?, my_aged_care_id = ?, address = ?, representative_name = ?, representative_phone = ?, representative_email = ?, home_care_sub_type = ?, home_care_level_or_class = ?, joined_date = ?, care_coordination_fee = ? WHERE id = ?');
-        stmt.run(firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId || null, dob || null, fundingType || null, myAgedCareId || null, address || null, representativeName || null, representativePhone || null, representativeEmail || null, homeCareSubType || null, homeCareLevelOrClass || null, joinedDate || null, careCoordinationFee !== undefined ? careCoordinationFee : 20.00, paramId);
+        const stmt = db.prepare('UPDATE clients SET first_name = ?, last_name = ?, ndis_number = ?, care_plan_details = ?, contact_email = ?, contact_phone = ?, provider_id = ?, dob = ?, funding_type = ?, my_aged_care_id = ?, address = ?, representative_name = ?, representative_phone = ?, representative_email = ?, home_care_sub_type = ?, home_care_level_or_class = ?, joined_date = ?, care_coordination_fee = ?, billing_tier = ?, historical_monthly_cap = ?, assessed_independence_pct = ?, assessed_everyday_living_pct = ? WHERE id = ?');
+        stmt.run(
+          firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId || null, dob || null, fundingType || null, myAgedCareId || null, address || null, representativeName || null, representativePhone || null, representativeEmail || null, homeCareSubType || null, homeCareLevelOrClass || null, joinedDate || null, 
+          careCoordinationFee !== undefined ? careCoordinationFee : 20.00,
+          billingTier || 'Support at Home (New)',
+          historicalMonthlyCap !== undefined ? parseFloat(historicalMonthlyCap) : 0.00,
+          assessedIndependencePct !== undefined ? parseFloat(assessedIndependencePct) : 0.00,
+          assessedEverydayLivingPct !== undefined ? parseFloat(assessedEverydayLivingPct) : 0.00,
+          paramId
+        );
         
         if (Array.isArray(serviceIds)) {
           db.prepare('DELETE FROM client_services WHERE client_id = ?').run(paramId);
@@ -2464,6 +2643,10 @@ async function startServer() {
     try {
       if (!startDate || !endDate) return res.json({ total: 0, items: [] });
       
+      const client = db.prepare(`SELECT billing_tier, historical_monthly_cap FROM clients WHERE id = ?`).get(id) as any;
+      const billingTier = client?.billing_tier || 'Support at Home (New)';
+      const historicalMonthlyCap = client?.historical_monthly_cap || 0;
+      
       const startFilter = `${startDate}T00:00:00`;
       const endFilter = `${endDate}T23:59:59`;
 
@@ -2485,19 +2668,36 @@ async function startServer() {
 
       let total = 0;
       let items: any[] = [];
+
+      const getCategoryOfService = (srvName: string, srvCode: string) => {
+        let cat = 'Independence';
+        if (srvCode) {
+          const lookup = db.prepare('SELECT service_category FROM services WHERE code = ? OR id = ? LIMIT 1').get(srvCode, srvCode) as any;
+          if (lookup?.service_category) cat = lookup.service_category;
+        } else if (srvName) {
+          const lookup = db.prepare('SELECT service_category FROM services WHERE name = ? LIMIT 1').get(srvName) as any;
+          if (lookup?.service_category) cat = lookup.service_category;
+        }
+        return cat;
+      };
       
       for (const shiftRow of shifts) {
          try {
            const data = getInvoiceDataForShift(shiftRow.id);
            if (data && data.lineItems) {
               data.lineItems.forEach((li: any) => {
-                 total += li.amount; // subtotal amounts exclusively exclude GST
-                 items.push({
-                    date: li.date,
-                    service: li.serviceName,
-                    amount: li.amount
-                 });
-              });
+                  const sCat = getCategoryOfService(li.serviceName, li.code);
+                  const splits = calculateBillingSplits(Number(id), li.date, li.amount, sCat);
+                  total += li.amount; // subtotal amounts exclusively exclude GST
+                  items.push({
+                     date: li.date,
+                     service: li.serviceName,
+                     amount: li.amount,
+                     client_share: splits.clientShare,
+                     package_drawdown: splits.packageDrawdown,
+                     service_category: sCat
+                  });
+               });
            }
          } catch(e) {
            console.error(`Failed to process shift ${shiftRow.id} for budget:`, e);
@@ -2509,13 +2709,18 @@ async function startServer() {
            const data = getInvoiceDataForRespiteBooking(respiteRow.id);
            if (data && data.lineItems) {
               data.lineItems.forEach((li: any) => {
-                 total += li.amount; // subtotal amounts exclusively exclude GST
-                 items.push({
-                    date: li.date,
-                    service: li.serviceName,
-                    amount: li.amount
-                 });
-              });
+                  const sCat = getCategoryOfService(li.serviceName, li.code);
+                  const splits = calculateBillingSplits(Number(id), li.date, li.amount, sCat);
+                  total += li.amount; // subtotal amounts exclusively exclude GST
+                  items.push({
+                     date: li.date,
+                     service: li.serviceName,
+                     amount: li.amount,
+                     client_share: splits.clientShare,
+                     package_drawdown: splits.packageDrawdown,
+                     service_category: sCat
+                  });
+               });
            }
          } catch(e) {
            console.error(`Failed to process respite ${respiteRow.id} for budget:`, e);
@@ -2536,6 +2741,20 @@ async function startServer() {
         if (parts.length === 3 && parts[0].length === 4) {
           dateFormatted = `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
+
+        let serviceCat = entry.service_category;
+        if (!serviceCat) {
+          serviceCat = getCategoryOfService(entry.service_name, '');
+        }
+
+        let cShare = entry.client_share;
+        let pDrawdown = entry.package_drawdown;
+        if (cShare === undefined || cShare === null || (entry.client_share === 0 && entry.grand_total > 0 && billingTier !== 'Grandfathered')) {
+          const splits = calculateBillingSplits(Number(id), entry.date, entry.grand_total, serviceCat);
+          cShare = splits.clientShare;
+          pDrawdown = splits.packageDrawdown;
+        }
+
         total += entry.grand_total;
         items.push({
           id: entry.id,
@@ -2547,7 +2766,10 @@ async function startServer() {
           management_fee: entry.management_fee,
           grand_total: entry.grand_total,
           source_type: 'external',
-          vendor_name: entry.vendor_name
+          vendor_name: entry.vendor_name,
+          client_share: cShare,
+          package_drawdown: pDrawdown,
+          service_category: serviceCat
         });
       }
 
@@ -2562,7 +2784,9 @@ async function startServer() {
 
       res.json({
         total,
-        items
+        items,
+        billingTier,
+        historicalMonthlyCap
       });
     } catch (e: any) {
       logger.error(`API Error fetching budget ledger: ${e}`, { error: "Internal Server Error" });
@@ -2580,7 +2804,9 @@ async function startServer() {
       }
 
       const client = db.prepare(`
-        SELECT care_coordination_fee FROM clients WHERE id = ?
+        SELECT care_coordination_fee, billing_tier, historical_monthly_cap, 
+               assessed_independence_pct, assessed_everyday_living_pct 
+        FROM clients WHERE id = ?
       `).get(id) as any;
 
       if (!client) {
@@ -2600,10 +2826,20 @@ async function startServer() {
         grandTotal = parseFloat((subtotal + managementFee).toFixed(2));
       }
 
+      const service = db.prepare(`
+        SELECT service_category FROM services WHERE name = ? LIMIT 1
+      `).get(serviceName) as any;
+      const category = service?.service_category || 'Independence';
+
+      const splits = calculateBillingSplits(Number(id), date, grandTotal, category);
+
       const info = db.prepare(`
-        INSERT INTO client_ledger_entries (client_id, date, service_name, vendor_name, base_amount, care_coord_fee, management_fee, grand_total, source_type, apply_loadings)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'external', ?)
-      `).run(id, date, serviceName, vendorName || '', rawBase, careCoordFee, managementFee, grandTotal, applyLoadings ? 1 : 0);
+        INSERT INTO client_ledger_entries (client_id, date, service_name, vendor_name, base_amount, care_coord_fee, management_fee, grand_total, source_type, apply_loadings, client_share, package_drawdown, service_category)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'external', ?, ?, ?, ?)
+      `).run(
+        id, date, serviceName, vendorName || '', rawBase, careCoordFee, managementFee, grandTotal, applyLoadings ? 1 : 0,
+        splits.clientShare, splits.packageDrawdown, category
+      );
 
       const parts = date.split('-');
       let dateFormatted = date;
@@ -2622,7 +2858,10 @@ async function startServer() {
         grand_total: grandTotal,
         source_type: 'external',
         vendor_name: vendorName || '',
-        apply_loadings: applyLoadings ? 1 : 0
+        apply_loadings: applyLoadings ? 1 : 0,
+        client_share: splits.clientShare,
+        package_drawdown: splits.packageDrawdown,
+        service_category: category
       };
 
       res.status(201).json({ success: true, item: newEntry });
