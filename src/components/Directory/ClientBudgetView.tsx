@@ -187,11 +187,36 @@ export default function ClientBudgetView() {
   
   const isHomeCare = client?.funding_type === 'Home Care' || client?.funding_type === 'HOME_CARE';
   const managementFeePercent = isHomeCare ? (client?.management_fee ?? 0) : 0;
-  const managementFeeAmount = grossAllocation * (managementFeePercent / 100);
+  const careCoordPercent = isHomeCare ? (client?.care_coordination_fee ?? 20) : 0;
   
-  const totalAllocation = grossAllocation - managementFeeAmount;
+  const totalAllocation = grossAllocation; // Full amount, no cuts
 
-  const liveSystemConsumptions = ledger.total;
+  const calculateServiceConsumptionWithFees = (baseAmount: number, ccPercent: number, mfPercent: number) => {
+    if (!isHomeCare) return { baseAmount, coordinationFee: 0, managementFee: 0, total: baseAmount };
+    const coordinationFee = baseAmount * (ccPercent / 100);
+    const subtotal = baseAmount + coordinationFee;
+    const managementFee = subtotal * (mfPercent / 100);
+    
+    return {
+      baseAmount,
+      coordinationFee,
+      managementFee,
+      total: baseAmount + coordinationFee + managementFee
+    };
+  };
+
+  const processedLedgerItems = ledger.items.map((item: any) => {
+    const fees = calculateServiceConsumptionWithFees(item.amount, careCoordPercent, managementFeePercent);
+    return {
+      ...item,
+      baseAmount: fees.baseAmount,
+      coordinationFee: fees.coordinationFee,
+      managementFee: fees.managementFee,
+      amount: fees.total // Update amount to the total consumed
+    };
+  });
+
+  const liveSystemConsumptions = processedLedgerItems.reduce((acc: number, item: any) => acc + item.amount, 0);
   const totalInternal = historicalInternal + liveSystemConsumptions;
   const totalCombinedSpent = totalInternal;
   const remainingBalance = totalAllocation - totalCombinedSpent;
@@ -205,9 +230,9 @@ export default function ClientBudgetView() {
   };
 
   // Pagination logic
-  const totalPages = Math.max(1, Math.ceil(ledger.items.length / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(processedLedgerItems.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedLedgerItems = ledger.items.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedLedgerItems = processedLedgerItems.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className="w-full flex flex-col h-full space-y-6">
@@ -242,11 +267,6 @@ export default function ClientBudgetView() {
               <div className="text-xs text-[#8B949E] bg-white/5 rounded-md px-2 py-1 inline-block w-max">
                 Based on {totalDays} Days ({formatDate(cycleStart)} - {formatDate(cycleEnd)})
               </div>
-              {isHomeCare && managementFeePercent > 0 && (
-                <div className="text-[11px] text-brand-blue bg-brand-blue/10 rounded-md px-2 py-1 inline-block w-max">
-                  After {managementFeePercent}% Management Fee deduction ({formatCurrency(managementFeeAmount)})
-                </div>
-              )}
             </div>
           </div>
           <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-center">
@@ -362,17 +382,20 @@ export default function ClientBudgetView() {
             
             <div className="flex-1 overflow-y-auto p-0">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-[#121214] text-xs font-medium text-[#8B949E] sticky top-0 z-10">
+                <thead className="bg-[#121214] text-[11px] font-medium text-[#8B949E] sticky top-0 z-10 uppercase tracking-wider">
                   <tr>
-                    <th className="px-6 py-3 border-b border-border-subtle w-1/3">Date</th>
-                    <th className="px-6 py-3 border-b border-border-subtle">Service Item</th>
-                    <th className="px-6 py-3 border-b border-border-subtle text-right w-1/4">Amount</th>
+                    <th className="px-4 py-3 border-b border-border-subtle w-[15%]">Date</th>
+                    <th className="px-4 py-3 border-b border-border-subtle w-[35%]">Service Item</th>
+                    <th className="px-4 py-3 border-b border-border-subtle text-right">Service Amt</th>
+                    {isHomeCare && <th className="px-4 py-3 border-b border-border-subtle text-right w-max">Mgmt ({managementFeePercent}%)</th>}
+                    {isHomeCare && <th className="px-4 py-3 border-b border-border-subtle text-right w-max">Care Coord ({careCoordPercent}%)</th>}
+                    <th className="px-4 py-3 border-b border-border-subtle text-right w-max">Total Amount</th>
                   </tr>
                 </thead>
-                <tbody className="text-sm">
-                  {ledger.items.length === 0 ? (
+                <tbody className="text-[13px]">
+                  {processedLedgerItems.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-6 py-12 text-center text-[#8B949E]">
+                      <td colSpan={isHomeCare ? 6 : 4} className="px-6 py-12 text-center text-[#8B949E]">
                         <p className="mb-2 italic">No live consumptions for this cycle yet.</p>
                         <p className="text-xs">Once shift-tracking goes live, items will automatically populate here.</p>
                       </td>
@@ -380,9 +403,12 @@ export default function ClientBudgetView() {
                   ) : (
                     paginatedLedgerItems.map((item, i) => (
                       <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02] text-[#E6EDF3]">
-                        <td className="px-6 py-3">{item.date}</td>
-                        <td className="px-6 py-3">{item.service}</td>
-                        <td className="px-6 py-3 text-right">{formatCurrency(item.amount)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">{item.date}</td>
+                        <td className="px-4 py-3 min-w-[200px] text-[12px]">{item.service}</td>
+                        <td className="px-4 py-3 text-right">{formatCurrency(item.baseAmount)}</td>
+                        {isHomeCare && <td className="px-4 py-3 text-right text-[#8B949E]">{formatCurrency(item.managementFee)}</td>}
+                        {isHomeCare && <td className="px-4 py-3 text-right text-[#8B949E]">{formatCurrency(item.coordinationFee)}</td>}
+                        <td className="px-4 py-3 text-right font-medium text-brand-blue">{formatCurrency(item.amount)}</td>
                       </tr>
                     ))
                   )}
@@ -391,10 +417,10 @@ export default function ClientBudgetView() {
             </div>
 
             {/* Pagination Controls */}
-            {ledger.items.length > itemsPerPage && (
+            {processedLedgerItems.length > itemsPerPage && (
               <div className="p-4 border-t border-border-subtle bg-black/20 flex items-center justify-between shrink-0">
                 <div className="text-xs text-[#8B949E]">
-                  Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, ledger.items.length)} of {ledger.items.length} entries
+                  Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, processedLedgerItems.length)} of {processedLedgerItems.length} entries
                 </div>
                 <div className="flex items-center space-x-2">
                   <button

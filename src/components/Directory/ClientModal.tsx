@@ -34,6 +34,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
     representativePhone: '',
     representativeEmail: '',
     serviceIds: [] as number[],
+    careCoordinationFee: 20,
   });
 
   useEffect(() => {
@@ -91,6 +92,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         representativePhone: client.representative_phone || '',
         representativeEmail: client.representative_email || '',
         serviceIds: client.service_ids || [],
+        careCoordinationFee: client.care_coordination_fee !== undefined && client.care_coordination_fee !== null ? client.care_coordination_fee : 20,
       });
     } else {
       setFormData({
@@ -112,6 +114,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         representativePhone: '',
         representativeEmail: '',
         serviceIds: [],
+        careCoordinationFee: 20,
       });
     }
   }, [client, isOpen]);
@@ -259,7 +262,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
               </div>
 
               {formData.fundingType === 'HOME_CARE' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Funding Model</label>
                     <select name="homeCareSubType" value={formData.homeCareSubType} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
@@ -292,6 +295,10 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                         </>
                       )}
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Care Coordination (%)</label>
+                    <input type="number" step="0.01" name="careCoordinationFee" value={formData.careCoordinationFee} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
                   </div>
                 </div>
               )}
