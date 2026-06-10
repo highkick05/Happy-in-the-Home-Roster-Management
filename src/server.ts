@@ -253,6 +253,44 @@ async function startServer() {
 
   try {
     db.exec(`
+      CREATE TABLE IF NOT EXISTS client_budgets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL,
+        cycle_start_date TEXT,
+        cycle_end_date TEXT,
+        historical_internal_consumptions REAL DEFAULT 0,
+        spend_as_of_date TEXT,
+        starting_rollover_balance REAL DEFAULT 0,
+        rollover_spent_so_far REAL DEFAULT 0,
+        status TEXT DEFAULT 'ACTIVE',
+        base_cycle_allocation REAL,
+        closing_balance REAL,
+        rollover_amount_forwarded REAL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients(id)
+      );
+    `);
+    
+    const runMigration = db.prepare('SELECT count(*) as count FROM client_budgets').get() as any;
+    if (runMigration.count === 0) {
+      db.exec(`
+        INSERT INTO client_budgets (
+          client_id, cycle_start_date, cycle_end_date, historical_internal_consumptions, 
+          spend_as_of_date, starting_rollover_balance, rollover_spent_so_far, status
+        )
+        SELECT 
+          id, cycle_start_date, cycle_end_date, coalesce(historical_internal_consumptions, 0), 
+          spend_as_of_date, coalesce(starting_rollover_balance, 0), coalesce(rollover_spent_so_far, 0), 'ACTIVE'
+        FROM clients;
+      `);
+      console.log('Migrated budget columns to client_budgets table');
+    }
+  } catch(e: any) {
+    console.error('Migration error for client_budgets:', e);
+  }
+
+  try {
+    db.exec(`
       ALTER TABLE clients ADD COLUMN starting_rollover_balance REAL DEFAULT 0;
     `);
   } catch(e: any) {
@@ -2125,6 +2163,16 @@ async function startServer() {
         });
       }
 
+      const activeBudget = db.prepare(`SELECT * FROM client_budgets WHERE client_id = ? AND status = 'ACTIVE' LIMIT 1`).get(client.id) as any;
+      if (activeBudget) {
+        client.historical_internal_consumptions = activeBudget.historical_internal_consumptions;
+        client.spend_as_of_date = activeBudget.spend_as_of_date;
+        client.starting_rollover_balance = activeBudget.starting_rollover_balance;
+        client.rollover_spent_so_far = activeBudget.rollover_spent_so_far;
+        client.cycle_start_date = activeBudget.cycle_start_date;
+        client.cycle_end_date = activeBudget.cycle_end_date;
+      }
+
       const clientServices = db.prepare('SELECT service_id FROM client_services WHERE client_id = ?').all(req.params.id);
       
       res.json({
@@ -2199,30 +2247,176 @@ async function startServer() {
     }
   });
 
+  app.post('/api/admin/rollover-budgets', authenticateToken, requireAdmin, (req, res) => {
+    try {
+      const now = new Date();
+      let count = 0;
+      
+      const activeBudgets = db.prepare(`SELECT * FROM client_budgets WHERE status = 'ACTIVE'`).all() as any[];
+      const fundingRates = db.prepare(`SELECT * FROM funding_rates`).all() as any[];
+
+      for (const budget of activeBudgets) {
+        if (!budget.cycle_end_date || !budget.cycle_start_date) continue;
+        
+        const client = db.prepare(`SELECT * FROM clients WHERE id = ?`).get(budget.client_id) as any;
+        if (!client) continue;
+
+        const cycleEndStr = budget.cycle_end_date;
+        const cycleEnd = new Date(cycleEndStr);
+        cycleEnd.setHours(23, 59, 59, 999);
+        
+        // Check if system date transitioned past the end date
+        if (now.getTime() > cycleEnd.getTime()) {
+           // Calculate daily rate
+           let dailyRate = 0;
+           if (client.funding_type === 'HOME_CARE' || client.funding_type === 'Home Care') {
+              const subType = client.home_care_sub_type || 'HCP';
+              const levelOrClass = client.home_care_level_or_class || 'Level 1';
+              const rateObj = fundingRates.find((r: any) => r.type === subType && r.level_or_class === levelOrClass);
+              dailyRate = rateObj ? (rateObj.daily_rate_cents / 100) : 0;
+           }
+
+           const msPerDay = 1000 * 60 * 60 * 24;
+           const cycleStart = new Date(budget.cycle_start_date);
+           const totalDays = Math.floor((new Date(budget.cycle_end_date).getTime() - cycleStart.getTime()) / msPerDay) + 1;
+           const baseCycleAllocation = totalDays * dailyRate;
+
+           // Fetch Live Consumptions for this period
+           const startFilter = `${budget.cycle_start_date}T00:00:00`;
+           const endFilter = `${budget.cycle_end_date}T23:59:59`;
+           const shifts = db.prepare(`SELECT id FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time <= ? AND status NOT IN ('DRAFT', 'CANCELLED')`).all(client.id, startFilter, endFilter) as any[];
+           const respiteBookings = db.prepare(`SELECT id FROM respite_bookings WHERE client_id = ? AND start_time >= ? AND start_time <= ? AND status NOT IN ('DRAFT', 'CANCELLED')`).all(client.id, startFilter, endFilter) as any[];
+           
+           let liveConsumptions = 0;
+           const careCoordPercent = (client.funding_type === 'HOME_CARE' || client.funding_type === 'Home Care') ? (client.care_coordination_fee ?? 20) : 0;
+           const managementFeePercent = (client.funding_type === 'HOME_CARE' || client.funding_type === 'Home Care') ? (client.management_fee ?? 0) : 0;
+
+           const processLedgerItem = (amount: number) => {
+              if (client.funding_type !== 'HOME_CARE' && client.funding_type !== 'Home Care') return amount;
+              const coordinationFee = amount * (careCoordPercent / 100);
+              const subtotal = amount + coordinationFee;
+              const managementFee = subtotal * (managementFeePercent / 100);
+              return amount + coordinationFee + managementFee;
+           };
+
+           for (const shiftRow of shifts) {
+             try {
+               const data = getInvoiceDataForShift(shiftRow.id);
+               if (data && data.lineItems) {
+                  data.lineItems.forEach((li: any) => { liveConsumptions += processLedgerItem(li.amount); });
+               }
+             } catch(e) {}
+           }
+           for (const respiteRow of respiteBookings) {
+             try {
+               const data = getInvoiceDataForRespiteBooking(respiteRow.id);
+               if (data && data.lineItems) {
+                  data.lineItems.forEach((li: any) => { liveConsumptions += processLedgerItem(li.amount); });
+               }
+             } catch(e) {}
+           }
+
+           const historicalInternal = budget.historical_internal_consumptions || 0;
+           const totalCombinedSpent = historicalInternal + liveConsumptions;
+           
+           const remainingBalance = baseCycleAllocation - totalCombinedSpent;
+           
+           // EVALUATE ROLLOVER ELIGIBILITY (10% OR $1,000 REGULATORY RULE)
+           const capThreshold = Math.max(1000, 0.10 * baseCycleAllocation);
+           
+           let newRolloverAmountForwarded = 0;
+           if (remainingBalance > 0) {
+              if (remainingBalance <= capThreshold) {
+                  newRolloverAmountForwarded = remainingBalance;
+              } else {
+                  newRolloverAmountForwarded = capThreshold;
+              }
+           }
+           
+           const currentStartingRollover = budget.starting_rollover_balance || 0;
+           const currentRolloverSpent = budget.rollover_spent_so_far || 0;
+           const actualUnspentInPool = currentStartingRollover - currentRolloverSpent;
+
+           let nextQuarterStartingRollover = Math.max(0, actualUnspentInPool) + newRolloverAmountForwarded;
+           
+           // 3. RESET AND INITIALIZE THE NEW QUARTER
+           const currentYear = now.getFullYear();
+           const quarters = [
+             { start: new Date(currentYear, 0, 1), end: new Date(currentYear, 2, 31) },
+             { start: new Date(currentYear, 3, 1), end: new Date(currentYear, 5, 30) },
+             { start: new Date(currentYear, 6, 1), end: new Date(currentYear, 8, 30) },
+             { start: new Date(currentYear, 9, 1), end: new Date(currentYear, 11, 31) }
+           ];
+           const nextQuarter = quarters.find(q => now >= q.start && now <= q.end) || quarters[0];
+           
+           // Database Archiving Protocol
+           const updateStatus = db.prepare(`UPDATE client_budgets SET status = 'ARCHIVED', base_cycle_allocation = ?, closing_balance = ?, rollover_amount_forwarded = ? WHERE id = ?`);
+           const insertNew = db.prepare(`
+              INSERT INTO client_budgets (
+                client_id, cycle_start_date, cycle_end_date, historical_internal_consumptions, 
+                spend_as_of_date, starting_rollover_balance, rollover_spent_so_far, status
+              ) VALUES (?, ?, ?, 0, ?, ?, 0, 'ACTIVE')
+           `);
+           
+           const tx = db.transaction(() => {
+              updateStatus.run(baseCycleAllocation, remainingBalance, newRolloverAmountForwarded, budget.id);
+              insertNew.run(
+                 client.id, 
+                 nextQuarter.start.toISOString().split('T')[0], 
+                 nextQuarter.end.toISOString().split('T')[0],
+                 null, // spend_as_of_date
+                 nextQuarterStartingRollover
+              );
+           });
+           
+           tx();
+           count++;
+        }
+      }
+      res.json({ success: true, message: `Rolled over ${count} budgets` });
+    } catch (e: any) {
+      logger.error(`API Error rolling over budgets: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   app.put('/api/clients/:id/budget', authenticateToken, requireAdmin, (req, res) => {
     const { id } = req.params;
     const { other_providers_spent, historical_internal_consumptions, spend_as_of_date, cycle_start_date, cycle_end_date, starting_rollover_balance, rollover_spent_so_far } = req.body;
     try {
-      db.prepare(`
-        UPDATE clients 
-        SET other_providers_spent = ?, 
-            historical_internal_consumptions = ?, 
-            spend_as_of_date = ?, 
-            cycle_start_date = ?, 
-            cycle_end_date = ?,
-            starting_rollover_balance = ?,
-            rollover_spent_so_far = ?
-        WHERE id = ?
-      `).run(
-        other_providers_spent || 0,
-        historical_internal_consumptions || 0,
-        spend_as_of_date || null,
-        cycle_start_date || null,
-        cycle_end_date || null,
-        starting_rollover_balance || 0,
-        rollover_spent_so_far || 0,
-        id
-      );
+      const activeBudget = db.prepare(`SELECT id FROM client_budgets WHERE client_id = ? AND status = 'ACTIVE' LIMIT 1`).get(id) as any;
+      if (activeBudget) {
+        db.prepare(`
+          UPDATE client_budgets 
+          SET historical_internal_consumptions = coalesce(?, historical_internal_consumptions), 
+              spend_as_of_date = coalesce(?, spend_as_of_date), 
+              cycle_start_date = coalesce(?, cycle_start_date), 
+              cycle_end_date = coalesce(?, cycle_end_date),
+              starting_rollover_balance = coalesce(?, starting_rollover_balance),
+              rollover_spent_so_far = coalesce(?, rollover_spent_so_far)
+          WHERE client_id = ? AND status = 'ACTIVE'
+        `).run(
+          historical_internal_consumptions, spend_as_of_date, cycle_start_date, cycle_end_date, starting_rollover_balance, rollover_spent_so_far, id
+        );
+      } else {
+        db.prepare(`
+          INSERT INTO client_budgets (
+            client_id, historical_internal_consumptions, spend_as_of_date, cycle_start_date, cycle_end_date, starting_rollover_balance, rollover_spent_so_far, status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+        `).run(
+          id,
+          historical_internal_consumptions || 0,
+          spend_as_of_date || null,
+          cycle_start_date || null,
+          cycle_end_date || null,
+          starting_rollover_balance || 0,
+          rollover_spent_so_far || 0
+        );
+      }
+
+      // Also update other_providers_spent on clients just to not break existing fields if they are strictly required
+      db.prepare(`UPDATE clients SET other_providers_spent = ? WHERE id = ?`).run(other_providers_spent || 0, id);
+
       res.json({ success: true });
     } catch (e: any) {
       logger.error(`API Error updating client budget: ${e}`, { error: "Internal Server Error" });
