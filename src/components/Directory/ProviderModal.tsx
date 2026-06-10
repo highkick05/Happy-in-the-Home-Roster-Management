@@ -16,6 +16,8 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
     email: '',
     phone: '',
     address: '',
+    providerType: 'NDIS',
+    managementFee: 10.00
   });
 
   useEffect(() => {
@@ -26,6 +28,8 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
         email: provider.email || '',
         phone: provider.phone || '',
         address: provider.address || '',
+        providerType: provider.provider_type || 'NDIS',
+        managementFee: provider.management_fee !== undefined && provider.management_fee !== null ? provider.management_fee : 10.00,
       });
     } else {
       setFormData({
@@ -34,12 +38,14 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
         email: '',
         phone: '',
         address: '',
+        providerType: 'NDIS',
+        managementFee: 10.00,
       });
     }
   }, [provider, isOpen]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -94,6 +100,22 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
                 <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Contact Name</label>
                 <input name="contactName" value={formData.contactName} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Provider Type</label>
+                <select name="providerType" value={formData.providerType} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+                  <option value="NDIS">NDIS</option>
+                  <option value="Home Care">Home Care</option>
+                </select>
+              </div>
+              {formData.providerType === 'Home Care' && (
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Management Fee (%)</label>
+                  <input type="number" step="0.01" name="managementFee" value={formData.managementFee} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

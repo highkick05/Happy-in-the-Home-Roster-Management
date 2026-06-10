@@ -183,7 +183,14 @@ export default function ClientBudgetView() {
   };
 
   const dailyRate = getClientDailyRate();
-  const totalAllocation = totalDays * dailyRate;
+  const grossAllocation = totalDays * dailyRate;
+  
+  const isHomeCare = client?.funding_type === 'Home Care';
+  const managementFeePercent = isHomeCare ? (client?.management_fee ?? 0) : 0;
+  const managementFeeAmount = grossAllocation * (managementFeePercent / 100);
+  
+  const totalAllocation = grossAllocation - managementFeeAmount;
+
   const liveSystemConsumptions = ledger.total;
   const totalInternal = historicalInternal + liveSystemConsumptions;
   const totalCombinedSpent = totalInternal;
@@ -231,8 +238,15 @@ export default function ClientBudgetView() {
           <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-center">
             <div className="text-[#8B949E] text-sm font-medium mb-1">Total Cycle Allocation</div>
             <div className="text-3xl font-bold text-[#E6EDF3]">{formatCurrency(totalAllocation)}</div>
-            <div className="text-xs text-[#8B949E] mt-2 bg-white/5 rounded-md px-2 py-1 inline-block w-max">
-              Based on {totalDays} Days ({formatDate(cycleStart)} - {formatDate(cycleEnd)})
+            <div className="flex flex-col items-start gap-1 mt-2">
+              <div className="text-xs text-[#8B949E] bg-white/5 rounded-md px-2 py-1 inline-block w-max">
+                Based on {totalDays} Days ({formatDate(cycleStart)} - {formatDate(cycleEnd)})
+              </div>
+              {isHomeCare && managementFeePercent > 0 && (
+                <div className="text-[11px] text-brand-blue bg-brand-blue/10 rounded-md px-2 py-1 inline-block w-max">
+                  After {managementFeePercent}% Management Fee deduction ({formatCurrency(managementFeeAmount)})
+                </div>
+              )}
             </div>
           </div>
           <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-center">

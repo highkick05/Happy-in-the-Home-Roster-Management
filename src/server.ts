@@ -121,6 +121,24 @@ async function startServer() {
 
   // Run database migrations/column additions
   try {
+    db.exec("ALTER TABLE providers ADD COLUMN provider_type TEXT DEFAULT 'NDIS'");
+    console.log('[DEBUG] Completed provider_type column check.');
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec("ALTER TABLE providers ADD COLUMN management_fee REAL DEFAULT 10.00");
+    console.log('[DEBUG] Completed management_fee column check.');
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
     db.exec("ALTER TABLE shifts ADD COLUMN custom_staff_name TEXT");
     console.log('[DEBUG] Completed custom_staff_name column check.');
   } catch(e: any) {
@@ -2051,7 +2069,7 @@ async function startServer() {
   app.get('/api/clients/:id', authenticateToken, (req: any, res: any) => {
     try {
       const client = db.prepare(`
-        SELECT clients.*, providers.company_name as provider_name 
+        SELECT clients.*, providers.company_name as provider_name, providers.management_fee, providers.provider_type
         FROM clients 
         LEFT JOIN providers ON clients.provider_id = providers.id
         WHERE clients.id = ?
@@ -2294,11 +2312,11 @@ async function startServer() {
   });
 
   app.post('/api/providers', authenticateToken, requireAdmin, (req, res) => {
-    const { companyName, contactName, email, phone, address } = req.body;
+    const { companyName, contactName, email, phone, address, providerType, managementFee } = req.body;
     try {
-      const stmt = db.prepare('INSERT INTO providers (company_name, contact_name, email, phone, address) VALUES (?, ?, ?, ?, ?)');
-      const info = stmt.run(companyName, contactName, email, phone, address);
-      res.json({ id: info.lastInsertRowid, companyName, contactName, email, phone, address });
+      const stmt = db.prepare('INSERT INTO providers (company_name, contact_name, email, phone, address, provider_type, management_fee) VALUES (?, ?, ?, ?, ?, ?, ?)');
+      const info = stmt.run(companyName, contactName, email, phone, address, providerType || 'NDIS', managementFee === undefined ? 10.00 : managementFee);
+      res.json({ id: info.lastInsertRowid, companyName, contactName, email, phone, address, providerType, managementFee });
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -2307,12 +2325,12 @@ async function startServer() {
   });
 
   app.put('/api/providers/:id', authenticateToken, requireAdmin, (req, res) => {
-    const { companyName, contactName, email, phone, address } = req.body;
+    const { companyName, contactName, email, phone, address, providerType, managementFee } = req.body;
     const { id } = req.params;
     try {
-      const stmt = db.prepare('UPDATE providers SET company_name = ?, contact_name = ?, email = ?, phone = ?, address = ? WHERE id = ?');
-      stmt.run(companyName, contactName, email, phone, address, id);
-      res.json({ id, companyName, contactName, email, phone, address });
+      const stmt = db.prepare('UPDATE providers SET company_name = ?, contact_name = ?, email = ?, phone = ?, address = ?, provider_type = ?, management_fee = ? WHERE id = ?');
+      stmt.run(companyName, contactName, email, phone, address, providerType || 'NDIS', managementFee === undefined ? 10.00 : managementFee, id);
+      res.json({ id, companyName, contactName, email, phone, address, providerType, managementFee });
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
