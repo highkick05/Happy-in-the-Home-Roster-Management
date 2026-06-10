@@ -185,7 +185,7 @@ export default function ClientBudgetView() {
   const dailyRate = getClientDailyRate();
   const grossAllocation = totalDays * dailyRate;
   
-  const isHomeCare = client?.funding_type === 'Home Care';
+  const isHomeCare = client?.funding_type === 'Home Care' || client?.funding_type === 'HOME_CARE';
   const managementFeePercent = isHomeCare ? (client?.management_fee ?? 0) : 0;
   const managementFeeAmount = grossAllocation * (managementFeePercent / 100);
   
