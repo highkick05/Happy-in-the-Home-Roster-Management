@@ -400,8 +400,9 @@ export default function ClientBudgetView() {
             <div className="text-[#8B949E] text-sm font-medium mb-1">Total Cycle Allocation</div>
             <div className="text-3xl font-bold text-[#E6EDF3]">{formatCurrency(totalAllocation)}</div>
             <div className="flex flex-col items-start gap-1 mt-2">
-              <div className="text-xs text-[#8B949E] bg-white/5 rounded-md px-2 py-1 inline-block w-max">
-                Based on {totalDays} Days ({formatDate(cycleStart)} - {formatDate(cycleEnd)})
+              <div className="text-xs text-[#8B949E] bg-white/5 rounded-md px-2.5 py-1 w-full leading-normal">
+                Based on <span className="text-white font-medium">{totalDays} Days</span>
+                <span className="block text-[10px] text-zinc-400 mt-0.5 font-mono">({formatDate(cycleStart)} - {formatDate(cycleEnd)})</span>
               </div>
             </div>
           </div>
