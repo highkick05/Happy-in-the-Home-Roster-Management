@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Flame } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import { motion } from 'motion/react';
 
 export default function ClientBudgetView() {
   // Minor update to force GitHub Sync mechanism
@@ -286,17 +287,49 @@ export default function ClientBudgetView() {
               <div>Live Internal: <span className="text-white">{formatCurrency(liveSystemConsumptions)}</span></div>
             </div>
           </div>
-          <div className={`bg-brand-navy border ${remainingBalance >= 0 ? 'border-brand-green/30' : 'border-red-500/30'} rounded-xl p-6 shadow-sm flex flex-col justify-center relative overflow-hidden`}>
+          <div className={`bg-brand-navy border ${remainingBalance >= 0 ? 'border-brand-green/30' : 'border-red-500/30 text-red-100'} rounded-xl p-6 shadow-sm flex flex-col justify-center relative overflow-hidden group`}>
             {remainingBalance < 0 && (
-              <div className="absolute top-0 right-0 w-16 h-16 bg-red-500/10 rounded-bl-full flex items-start justify-end p-2 border-b border-l border-red-500/20">
-                <AlertCircle className="w-5 h-5 text-red-500" />
-              </div>
+              <>
+                <div className="absolute inset-0 z-0 pointer-events-none opacity-30 transition-opacity duration-1000 group-hover:opacity-50">
+                  <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-red-600/50 via-orange-500/20 to-transparent blur-xl"></div>
+                  {[...Array(8)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ y: 20, opacity: 0, scale: 0.8 }}
+                      animate={{ 
+                        y: [0, -60 - Math.random() * 40], 
+                        opacity: [0, 0.7, 0],
+                        scale: [0.8, 1.5, 0.5],
+                        x: [0, (Math.random() - 0.5) * 30]
+                      }}
+                      transition={{ 
+                        duration: 1.5 + Math.random() * 2, 
+                        repeat: Infinity, 
+                        ease: "easeIn",
+                        delay: Math.random() * 2
+                      }}
+                      className="absolute -bottom-4 text-orange-500/80 mix-blend-screen"
+                      style={{ left: `${5 + Math.random() * 85}%` }}
+                    >
+                      <Flame className="w-10 h-10" fill="currentColor" />
+                    </motion.div>
+                  ))}
+                  <motion.div
+                      animate={{ opacity: [0.1, 0.3, 0.1] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                      className="absolute inset-0 bg-red-900/20 mix-blend-overlay"
+                  />
+                </div>
+                <div className="absolute z-10 top-0 right-0 w-16 h-16 bg-red-500/10 rounded-bl-full flex items-start justify-end p-2 border-b border-l border-red-500/30">
+                  <AlertCircle className="w-5 h-5 text-red-500" />
+                </div>
+              </>
             )}
-            <div className="text-[#8B949E] text-sm font-medium mb-1">Remaining Balance</div>
-            <div className={`text-3xl font-bold ${remainingBalance >= 0 ? 'text-brand-green' : 'text-red-500'}`}>
+            <div className="relative z-10 text-[#8B949E] text-sm font-medium mb-1">Remaining Balance</div>
+            <div className={`relative z-10 text-3xl font-bold ${remainingBalance >= 0 ? 'text-brand-green' : 'text-red-500 drop-shadow-[0_0_12px_rgba(239,68,68,0.8)]'}`}>
               {formatCurrency(remainingBalance)}
             </div>
-            <div className="text-xs text-[#8B949E] mt-2">
+            <div className={`relative z-10 text-xs mt-2 ${remainingBalance >= 0 ? 'text-[#8B949E]' : 'text-red-200/80'}`}>
               For active cycle
             </div>
           </div>
