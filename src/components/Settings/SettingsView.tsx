@@ -10,6 +10,8 @@ export default function SettingsView() {
   const { token, user, updateSettings } = useAuth();
   const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'FUNDING_TYPES' | 'DATABASE' | 'TESTING'>('settings_active_tab', 'GENERAL');
   const [services, setServices] = useState<any[]>([]);
+  const [savingCategoryIds, setSavingCategoryIds] = useState<Set<string>>(new Set());
+  const [savedCategoryIds, setSavedCategoryIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [generalLoading, setGeneralLoading] = useState(false);
   const [settings, setSettings] = useState({
@@ -136,6 +138,56 @@ export default function SettingsView() {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCategoryChange = async (id: string, category: string) => {
+    // Optimistic UI update
+    setServices(prev => prev.map(s => s.id === id ? { ...s, service_category: category } : s));
+    setSavingCategoryIds(prev => new Set([...prev, id]));
+    
+    try {
+      const res = await fetch(`/api/settings/services/${id}/category`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ service_category: category })
+      });
+
+      if (res.ok) {
+        setSavingCategoryIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        setSavedCategoryIds(prev => new Set([...prev, id]));
+        setTimeout(() => {
+          setSavedCategoryIds(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        }, 2000);
+      } else {
+        // Revert on error - assuming we want to re-fetch if it fails, or just let them try again.
+        console.error('Failed to update category');
+        fetchServices(activeTab === 'NDIS' ? 'NDIS' : 'HOME_CARE');
+        setSavingCategoryIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      setSavingCategoryIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      fetchServices(activeTab === 'NDIS' ? 'NDIS' : 'HOME_CARE');
     }
   };
 
@@ -805,6 +857,7 @@ export default function SettingsView() {
                           <tr className="bg-brand-bg border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] sticky top-0 z-10">
                             <th className="px-4 py-4 font-semibold">Serv. ID</th>
                             <th className="px-4 py-4 font-semibold">Service Name</th>
+                            <th className="px-4 py-4 font-semibold w-48">Category</th>
                             <th className="px-4 py-4 font-semibold">Unit</th>
                             <th className="px-4 py-4 font-semibold text-right">Weekday</th>
                             <th className="px-4 py-4 font-semibold text-right">Non-Standard</th>
@@ -815,11 +868,24 @@ export default function SettingsView() {
                         </thead>
                         <tbody className="divide-y divide-border-subtle text-sm">
                           {services.map(s => (
-                            <tr key={s.id} className="hover:bg-brand-bg/50 transition-colors">
-                              <td className="px-4 py-4 font-mono text-xs text-[#E6EDF3]">{s.code}</td>
+                            <tr key={s.id} className={`hover:bg-brand-bg/50 transition-colors ${savedCategoryIds.has(s.id) ? 'bg-brand-green/5' : ''}`}>
+                              <td className={`px-4 py-4 font-mono text-xs text-[#E6EDF3] border-l-2 ${savedCategoryIds.has(s.id) ? 'border-brand-green' : 'border-transparent'} transition-colors duration-300`}>{s.code}</td>
                               <td className="px-4 py-4 text-[#E6EDF3]">
                                 <div>{s.name}</div>
                                 {s.description && <div className="text-xs text-[#8B949E] mt-1">{s.description}</div>}
+                              </td>
+                              <td className="px-4 py-4">
+                                <select
+                                  value={s.service_category || ''}
+                                  onChange={(e) => handleCategoryChange(s.id, e.target.value)}
+                                  className="w-full bg-brand-navy text-[#E6EDF3] border border-border-subtle rounded text-xs px-2 py-1.5 focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                                  disabled={savingCategoryIds.has(s.id)}
+                                >
+                                  <option value="">Select Category</option>
+                                  <option value="Clinical">Clinical</option>
+                                  <option value="Independence">Independence</option>
+                                  <option value="Everyday Living">Everyday Living</option>
+                                </select>
                               </td>
                               <td className="px-4 py-4 text-[#8B949E]">{s.unit || '-'}</td>
                               <td className="px-4 py-4 text-right text-[#E6EDF3]">
@@ -866,7 +932,7 @@ export default function SettingsView() {
                           ))}
                           {services.length === 0 && (
                             <tr>
-                              <td colSpan={8} className="px-4 py-12 text-center">
+                              <td colSpan={9} className="px-4 py-12 text-center">
                                 <div className="flex flex-col items-center justify-center space-y-3">
                                   <div className="p-3 bg-brand-bg rounded-full border border-border-subtle">
                                     <FileDown className="w-6 h-6 text-[#8B949E]" />

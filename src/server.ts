@@ -309,6 +309,17 @@ async function startServer() {
     }
   }
   
+  try {
+    db.exec(`
+      ALTER TABLE services ADD COLUMN service_category TEXT CHECK(service_category IN ('Clinical', 'Independence', 'Everyday Living') OR service_category IS NULL);
+    `);
+    console.log('[DEBUG] Completed services.service_category column check');
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+  
   // Data consistency sync for old templates
   try {
     db.prepare(`
@@ -4467,7 +4478,7 @@ async function startServer() {
     // For staff, omit rate and rates_json completely
     const isStaff = req.user.role !== 'ADMIN';
     const selectCols = isStaff 
-      ? 'id, code, name, description, type, unit, reg_group_number, reg_group_name'
+      ? 'id, code, name, description, type, unit, service_category, reg_group_number, reg_group_name'
       : '*';
 
     let query = `SELECT ${selectCols} FROM services`;
@@ -4494,6 +4505,24 @@ async function startServer() {
     } catch (e: any) {
       
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.patch('/api/settings/services/:id/category', authenticateToken, requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const { service_category } = req.body;
+    
+    if (service_category && !['Clinical', 'Independence', 'Everyday Living'].includes(service_category)) {
+      return res.status(400).json({ error: 'Invalid service category' });
+    }
+
+    try {
+      const stmt = db.prepare('UPDATE services SET service_category = ? WHERE id = ?');
+      stmt.run(service_category || null, id);
+      res.json({ success: true, service_category });
+    } catch (e: any) {
+      logger.error(`API Error updating service category: ${e}`);
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
