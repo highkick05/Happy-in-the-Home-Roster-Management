@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowLeft, Calculator, Save, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 
 export default function ClientBudgetView() {
@@ -14,6 +14,8 @@ export default function ClientBudgetView() {
   const [ledger, setLedger] = useState<{ total: number, items: any[] }>({ total: 0, items: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   // Form states
   const [historicalInternal, setHistoricalInternal] = useState<number>(0);
@@ -195,6 +197,11 @@ export default function ClientBudgetView() {
     return date.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
+  // Pagination logic
+  const totalPages = Math.max(1, Math.ceil(ledger.items.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedLedgerItems = ledger.items.slice(startIndex, startIndex + itemsPerPage);
+
   return (
     <div className="w-full flex flex-col h-full space-y-6">
       <div className="flex items-center space-x-4 mb-2 shrink-0">
@@ -357,8 +364,8 @@ export default function ClientBudgetView() {
                       </td>
                     </tr>
                   ) : (
-                    ledger.items.map((item, i) => (
-                      <tr key={i} className="border-b border-white/[0.02] hover:bg-white/[0.01]">
+                    paginatedLedgerItems.map((item, i) => (
+                      <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02] text-[#E6EDF3]">
                         <td className="px-6 py-3">{item.date}</td>
                         <td className="px-6 py-3">{item.service}</td>
                         <td className="px-6 py-3 text-right">{formatCurrency(item.amount)}</td>
@@ -368,6 +375,34 @@ export default function ClientBudgetView() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {ledger.items.length > itemsPerPage && (
+              <div className="p-4 border-t border-border-subtle bg-black/20 flex items-center justify-between shrink-0">
+                <div className="text-xs text-[#8B949E]">
+                  Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, ledger.items.length)} of {ledger.items.length} entries
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="p-1 rounded bg-brand-navy border border-border-subtle hover:border-brand-teal text-[#8B949E] hover:text-[#E6EDF3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-sm text-[#E6EDF3]">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="p-1 rounded bg-brand-navy border border-border-subtle hover:border-brand-teal text-[#8B949E] hover:text-[#E6EDF3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -2243,7 +2243,14 @@ async function startServer() {
          }
       }
 
-      items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      items.sort((a, b) => {
+        const parseStr = (s: string) => {
+          const p = s.split('-');
+          if (p.length === 3) return new Date(`${p[2]}-${p[1]}-${p[0]}T00:00:00`).getTime();
+          return new Date(s).getTime();
+        };
+        return parseStr(b.date) - parseStr(a.date);
+      });
 
       res.json({
         total,
