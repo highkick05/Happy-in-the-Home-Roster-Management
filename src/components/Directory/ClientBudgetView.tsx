@@ -5,6 +5,7 @@ import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight } f
 import CustomDatePicker from '../ui/CustomDatePicker';
 
 export default function ClientBudgetView() {
+  // Minor update to force GitHub Sync mechanism
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { token, user } = useAuth();
