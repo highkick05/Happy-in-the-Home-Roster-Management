@@ -971,69 +971,97 @@ export default function SettingsView() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle text-sm">
-                          {services.map(s => (
-                            <tr key={s.id} className={`hover:bg-brand-bg/50 transition-colors ${savedCategoryIds.has(s.id) ? 'bg-brand-green/5' : ''}`}>
-                              <td className={`px-2 py-1.5 font-mono text-xs text-[#E6EDF3] border-l-2 ${savedCategoryIds.has(s.id) ? 'border-brand-green' : 'border-transparent'} transition-colors duration-300`}>{s.code}</td>
-                              <td className="px-2 py-1.5 text-[#E6EDF3]">
-                                <div>{s.name}</div>
-                                {s.description && <div className="text-xs text-[#8B949E] mt-1">{s.description}</div>}
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <select
-                                  value={s.service_category || ''}
-                                  onChange={(e) => handleCategoryChange(s.id, e.target.value)}
-                                  className="w-full bg-brand-navy text-[#E6EDF3] border border-border-subtle rounded px-2 py-1 flex items-center h-8 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
-                                  disabled={savingCategoryIds.has(s.id)}
-                                >
-                                  <option value="">Select Category</option>
-                                  <option value="Clinical">Clinical</option>
-                                  <option value="Independence">Independence</option>
-                                  <option value="Everyday Living">Everyday Living</option>
-                                </select>
-                              </td>
-                              <td className="px-2 py-1.5 text-[#8B949E]">{s.unit || '-'}</td>
-                              <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
-                                {(() => {
-                                  try {
-                                    const rates = JSON.parse(s.rates_json);
-                                    return rates['Weekday'] !== undefined ? `$${Number(rates['Weekday']).toFixed(2)}` : '-';
-                                  } catch(e) { return '-'; }
-                                })()}
-                              </td>
-                              <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
-                                {(() => {
-                                  try {
-                                    const rates = JSON.parse(s.rates_json);
-                                    return rates['Weekday (Non-Standard)'] !== undefined ? `$${Number(rates['Weekday (Non-Standard)']).toFixed(2)}` : '-';
-                                  } catch(e) { return '-'; }
-                                })()}
-                              </td>
-                              <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
-                                {(() => {
-                                  try {
-                                    const rates = JSON.parse(s.rates_json);
-                                    return rates['Saturday'] !== undefined ? `$${Number(rates['Saturday']).toFixed(2)}` : '-';
-                                  } catch(e) { return '-'; }
-                                })()}
-                              </td>
-                              <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
-                                {(() => {
-                                  try {
-                                    const rates = JSON.parse(s.rates_json);
-                                    return rates['Sunday'] !== undefined ? `$${Number(rates['Sunday']).toFixed(2)}` : '-';
-                                  } catch(e) { return '-'; }
-                                })()}
-                              </td>
-                              <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
-                                {(() => {
-                                  try {
-                                    const rates = JSON.parse(s.rates_json);
-                                    return rates['Public Holiday'] !== undefined ? `$${Number(rates['Public Holiday']).toFixed(2)}` : '-';
-                                  } catch(e) { return '-'; }
-                                })()}
-                              </td>
-                            </tr>
-                          ))}
+                          {services.map(s => {
+                            let isVariable = false;
+                            try {
+                              if (s.rates_json) {
+                                const rates = JSON.parse(s.rates_json);
+                                const wk = rates['Weekday'] !== undefined ? parseFloat(rates['Weekday']) : 0;
+                                const wkn = rates['Weekday (Non-Standard)'] !== undefined ? parseFloat(rates['Weekday (Non-Standard)']) : 0;
+                                const sat = rates['Saturday'] !== undefined ? parseFloat(rates['Saturday']) : 0;
+                                const sun = rates['Sunday'] !== undefined ? parseFloat(rates['Sunday']) : 0;
+                                const pub = rates['Public Holiday'] !== undefined ? parseFloat(rates['Public Holiday']) : 0;
+                                isVariable = (wk === 0 && wkn === 0 && sat === 0 && sun === 0 && pub === 0);
+                              } else if (!s.rate || parseFloat(s.rate) === 0) {
+                                isVariable = true;
+                              }
+                            } catch (e) {
+                              isVariable = false;
+                            }
+                            return (
+                              <tr key={s.id} className={`hover:bg-brand-bg/50 transition-colors ${savedCategoryIds.has(s.id) ? 'bg-brand-green/5' : ''}`}>
+                                <td className={`px-2 py-1.5 font-mono text-xs text-[#E6EDF3] border-l-2 ${savedCategoryIds.has(s.id) ? 'border-brand-green' : 'border-transparent'} transition-colors duration-300`}>{s.code}</td>
+                                <td className="px-2 py-1.5 text-[#E6EDF3]">
+                                  <div>{s.name}</div>
+                                  {s.description && <div className="text-xs text-[#8B949E] mt-1">{s.description}</div>}
+                                </td>
+                                <td className="px-2 py-1.5">
+                                  <select
+                                    value={s.service_category || ''}
+                                    onChange={(e) => handleCategoryChange(s.id, e.target.value)}
+                                    className="w-full bg-brand-navy text-[#E6EDF3] border border-border-subtle rounded px-2 py-1 flex items-center h-8 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                                    disabled={savingCategoryIds.has(s.id)}
+                                  >
+                                    <option value="">Select Category</option>
+                                    <option value="Clinical">Clinical</option>
+                                    <option value="Independence">Independence</option>
+                                    <option value="Everyday Living">Everyday Living</option>
+                                  </select>
+                                </td>
+                                <td className="px-2 py-1.5 text-[#8B949E]">{s.unit || '-'}</td>
+                                {isVariable ? (
+                                  <td colSpan={5} className="px-2 py-1.5 text-center">
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-[#1e293b] text-[#94a3b8] border border-slate-700">
+                                      Variable Rate (Entered on Invoice Entry)
+                                    </span>
+                                  </td>
+                                ) : (
+                                  <>
+                                    <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
+                                      {(() => {
+                                        try {
+                                          const rates = JSON.parse(s.rates_json);
+                                          return rates['Weekday'] !== undefined ? `$${Number(rates['Weekday']).toFixed(2)}` : '-';
+                                        } catch(e) { return '-'; }
+                                      })()}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
+                                      {(() => {
+                                        try {
+                                          const rates = JSON.parse(s.rates_json);
+                                          return rates['Weekday (Non-Standard)'] !== undefined ? `$${Number(rates['Weekday (Non-Standard)']).toFixed(2)}` : '-';
+                                        } catch(e) { return '-'; }
+                                      })()}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
+                                      {(() => {
+                                        try {
+                                          const rates = JSON.parse(s.rates_json);
+                                          return rates['Saturday'] !== undefined ? `$${Number(rates['Saturday']).toFixed(2)}` : '-';
+                                        } catch(e) { return '-'; }
+                                      })()}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
+                                      {(() => {
+                                        try {
+                                          const rates = JSON.parse(s.rates_json);
+                                          return rates['Sunday'] !== undefined ? `$${Number(rates['Sunday']).toFixed(2)}` : '-';
+                                        } catch(e) { return '-'; }
+                                      })()}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right text-[#E6EDF3]">
+                                      {(() => {
+                                        try {
+                                          const rates = JSON.parse(s.rates_json);
+                                          return rates['Public Holiday'] !== undefined ? `$${Number(rates['Public Holiday']).toFixed(2)}` : '-';
+                                        } catch(e) { return '-'; }
+                                      })()}
+                                    </td>
+                                  </>
+                                )}
+                              </tr>
+                            );
+                          })}
                           {services.length === 0 && (
                             <tr>
                               <td colSpan={9} className="px-4 py-12 text-center">
@@ -1138,6 +1166,9 @@ export default function SettingsView() {
                       </div>
                     ))}
                   </div>
+                  <p className="text-[11px] text-[#8B949E] mt-3 leading-relaxed bg-[#1b212c] p-2.5 rounded border border-border-subtle/40">
+                    For variable third-party brokerage items (e.g., Taxi accounts, flexible meal delivery), enter 0.00 across all fields. This flags the item as an open invoice item, allowing staff to input the exact custom dollar amount manually when logging the expense onto a client's budget ledger.
+                  </p>
                 </div>
               </div>
               
