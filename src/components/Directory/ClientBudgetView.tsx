@@ -192,7 +192,7 @@ export default function ClientBudgetView() {
   const totalAllocation = grossAllocation; // Full amount, no cuts
 
   const calculateServiceConsumptionWithFees = (baseAmount: number, ccPercent: number, mfPercent: number) => {
-    if (!isHomeCare) return { baseAmount, coordinationFee: 0, managementFee: 0, total: baseAmount };
+    if (!isHomeCare) return { baseAmount, coordinationFee: 0, subtotal: baseAmount, managementFee: 0, total: baseAmount };
     const coordinationFee = baseAmount * (ccPercent / 100);
     const subtotal = baseAmount + coordinationFee;
     const managementFee = subtotal * (mfPercent / 100);
@@ -200,6 +200,7 @@ export default function ClientBudgetView() {
     return {
       baseAmount,
       coordinationFee,
+      subtotal,
       managementFee,
       total: baseAmount + coordinationFee + managementFee
     };
@@ -211,6 +212,7 @@ export default function ClientBudgetView() {
       ...item,
       baseAmount: fees.baseAmount,
       coordinationFee: fees.coordinationFee,
+      subtotal: fees.subtotal,
       managementFee: fees.managementFee,
       amount: fees.total // Update amount to the total consumed
     };
@@ -259,7 +261,7 @@ export default function ClientBudgetView() {
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-6 space-y-6">
         {/* Kanban / Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-center">
             <div className="text-[#8B949E] text-sm font-medium mb-1">Total Cycle Allocation</div>
             <div className="text-3xl font-bold text-[#E6EDF3]">{formatCurrency(totalAllocation)}</div>
@@ -291,43 +293,19 @@ export default function ClientBudgetView() {
               For active cycle
             </div>
           </div>
-        </div>
 
-        {/* Two Column Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column - Form */}
-          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm flex flex-col">
-            <div className="p-6 border-b border-border-subtle flex items-center space-x-2 text-[#E6EDF3]">
-              <Calculator className="w-5 h-5 text-purple-400" />
-              <h3 className="font-semibold text-lg">Historical Adjustments</h3>
+          {/* Historical Adjustments Card */}
+          <div className="bg-brand-navy border border-border-subtle rounded-xl p-5 shadow-sm flex flex-col relative justify-center">
+            <div className="text-[#8B949E] text-sm font-medium mb-3 flex items-center gap-1.5">
+               <Calculator className="w-4 h-4 text-purple-400" />
+               Historical Adjustments
             </div>
-            
-            <div className="p-6 space-y-6 flex-1">
-              <div className="grid grid-cols-2 gap-4 pb-6 border-b border-white/[0.04]">
-                 <div>
-                    <label className="block text-xs font-medium text-[#8B949E] mb-1">Cycle Start Date</label>
-                    <div className="w-full bg-black/20 border border-white/[0.04] rounded-md px-3 py-2 text-sm text-[#E6EDF3]">
-                      {formatDate(cycleStart)}
-                    </div>
-                 </div>
-                 <div>
-                    <label className="block text-xs font-medium text-[#8B949E] mb-1">Cycle End Date</label>
-                    <div className="w-full bg-black/20 border border-white/[0.04] rounded-md px-3 py-2 text-sm text-[#E6EDF3]">
-                      {formatDate(cycleEnd)}
-                    </div>
-                 </div>
-              </div>
-
+            <div className="flex-1 space-y-3">
               <div>
-                <label className="block text-sm font-medium text-[#E6EDF3] mb-1.5">
-                  Historical Internal Consumptions ($)
-                </label>
-                <p className="text-xs text-[#8B949E] mb-2 leading-relaxed">
-                  Enter any previous internal shifts/invoices processed in legacy software.
-                </p>
+                <label className="block text-[11px] font-medium text-[#8B949E] mb-1">Pre-System Spend ($)</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-[#8B949E]">$</span>
+                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                    <span className="text-[#8B949E] text-[12px]">$</span>
                   </div>
                   <input 
                     type="number"
@@ -335,46 +313,42 @@ export default function ClientBudgetView() {
                     value={historicalInternal}
                     onChange={(e) => setHistoricalInternal(parseFloat(e.target.value) || 0)}
                     disabled={user?.role !== 'ADMIN'}
-                    className="w-full bg-black/40 border border-white/[0.08] rounded-md pl-8 pr-3 py-2.5 text-[15px] text-white outline-none focus:border-brand-blue transition-colors disabled:opacity-50" 
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-md pl-6 pr-2 py-1.5 text-[13px] text-white outline-none focus:border-brand-blue transition-colors disabled:opacity-50" 
                   />
                 </div>
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-[#E6EDF3] mb-1.5">
-                  Spend As Of Date
-                </label>
+                <label className="block text-[11px] font-medium text-[#8B949E] mb-1">Spend As Of Date</label>
                 {user?.role === 'ADMIN' ? (
                   <CustomDatePicker
                     position="bottom"
                     value={spendAsOfDate}
                     onChange={(e) => setSpendAsOfDate(e.target.value)}
-                    className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2.5 text-[15px] text-white outline-none focus:border-brand-blue transition-colors"
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2 py-1.5 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
                   />
                 ) : (
-                  <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2.5 text-[15px] text-white opacity-50">
+                  <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2 py-1.5 text-[13px] text-[#E6EDF3] opacity-50">
                     {spendAsOfDate || 'N/A'}
                   </div>
                 )}
               </div>
             </div>
-
             {user?.role === 'ADMIN' && (
-              <div className="p-6 bg-black/20 border-t border-border-subtle flex justify-end shrink-0">
-                <button
-                  onClick={handleSaveSettings}
-                  disabled={saving}
-                  className="px-4 py-2 bg-brand-blue text-white rounded-md text-sm font-medium hover:bg-opacity-90 transition-colors flex items-center space-x-2 disabled:opacity-50"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>{saving ? 'Saving...' : 'Save Budget Settings'}</span>
-                </button>
-              </div>
+              <button
+                onClick={handleSaveSettings}
+                disabled={saving}
+                className="mt-3 w-full py-1.5 bg-brand-blue/20 hover:bg-brand-blue/30 text-brand-blue-300 border border-brand-blue/30 rounded-md text-[11px] font-medium transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{saving ? 'Saving...' : 'Save Adjustments'}</span>
+              </button>
             )}
           </div>
+        </div>
 
-          {/* Right Column - Ledger */}
-          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm flex flex-col h-[500px] lg:h-auto overflow-hidden">
+        {/* Full Width Ledger Column */}
+        <div className="w-full">
+          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm flex flex-col min-h-[500px]">
             <div className="p-6 border-b border-border-subtle flex items-center space-x-2 text-[#E6EDF3] shrink-0">
               <Calculator className="w-5 h-5 text-brand-blue" />
               <h3 className="font-semibold text-lg">System Ledger Preview</h3>
@@ -384,18 +358,19 @@ export default function ClientBudgetView() {
               <table className="w-full text-left border-collapse">
                 <thead className="bg-[#121214] text-[11px] font-medium text-[#8B949E] sticky top-0 z-10 uppercase tracking-wider">
                   <tr>
-                    <th className="px-4 py-3 border-b border-border-subtle w-[15%]">Date</th>
-                    <th className="px-4 py-3 border-b border-border-subtle w-[35%]">Service Item</th>
+                    <th className="px-4 py-3 border-b border-border-subtle w-[10%]">Date</th>
+                    <th className="px-4 py-3 border-b border-border-subtle w-[30%]">Service Item</th>
                     <th className="px-4 py-3 border-b border-border-subtle text-right">Service Amt</th>
-                    {isHomeCare && <th className="px-4 py-3 border-b border-border-subtle text-right w-max">Mgmt ({managementFeePercent}%)</th>}
                     {isHomeCare && <th className="px-4 py-3 border-b border-border-subtle text-right w-max">Care Coord ({careCoordPercent}%)</th>}
-                    <th className="px-4 py-3 border-b border-border-subtle text-right w-max">Total Amount</th>
+                    {isHomeCare && <th className="px-4 py-3 border-b border-border-subtle text-right w-max">Total w/ Care Coord ({careCoordPercent}%)</th>}
+                    {isHomeCare && <th className="px-4 py-3 border-b border-border-subtle text-right w-max">Mgmt ({managementFeePercent}%)</th>}
+                    <th className="px-4 py-3 border-b border-border-subtle text-right w-max">{isHomeCare ? 'Grand Total Amount' : 'Total Amount'}</th>
                   </tr>
                 </thead>
                 <tbody className="text-[13px]">
                   {processedLedgerItems.length === 0 ? (
                     <tr>
-                      <td colSpan={isHomeCare ? 6 : 4} className="px-6 py-12 text-center text-[#8B949E]">
+                      <td colSpan={isHomeCare ? 7 : 4} className="px-6 py-12 text-center text-[#8B949E]">
                         <p className="mb-2 italic">No live consumptions for this cycle yet.</p>
                         <p className="text-xs">Once shift-tracking goes live, items will automatically populate here.</p>
                       </td>
@@ -406,8 +381,9 @@ export default function ClientBudgetView() {
                         <td className="px-4 py-3 whitespace-nowrap">{item.date}</td>
                         <td className="px-4 py-3 min-w-[200px] text-[12px]">{item.service}</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(item.baseAmount)}</td>
-                        {isHomeCare && <td className="px-4 py-3 text-right text-[#8B949E]">{formatCurrency(item.managementFee)}</td>}
                         {isHomeCare && <td className="px-4 py-3 text-right text-[#8B949E]">{formatCurrency(item.coordinationFee)}</td>}
+                        {isHomeCare && <td className="px-4 py-3 text-right text-[#8B949E]">{formatCurrency(item.subtotal)}</td>}
+                        {isHomeCare && <td className="px-4 py-3 text-right text-[#8B949E]">{formatCurrency(item.managementFee)}</td>}
                         <td className="px-4 py-3 text-right font-medium text-brand-blue">{formatCurrency(item.amount)}</td>
                       </tr>
                     ))
