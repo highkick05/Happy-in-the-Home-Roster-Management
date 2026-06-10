@@ -20,6 +20,8 @@ export default function ClientBudgetView() {
   // Form states
   const [historicalInternal, setHistoricalInternal] = useState<number>(0);
   const [spendAsOfDate, setSpendAsOfDate] = useState<string>('');
+  const [startingRolloverBalance, setStartingRolloverBalance] = useState<number>(0);
+  const [rolloverSpentSoFar, setRolloverSpentSoFar] = useState<number>(0);
 
   useEffect(() => {
     fetchData();
@@ -39,6 +41,8 @@ export default function ClientBudgetView() {
         setClient(clientData);
         setHistoricalInternal(clientData.historical_internal_consumptions || 0);
         setSpendAsOfDate(clientData.spend_as_of_date || '');
+        setStartingRolloverBalance(clientData.starting_rollover_balance || 0);
+        setRolloverSpentSoFar(clientData.rollover_spent_so_far || 0);
       }
 
       if (ratesRes.ok) {
@@ -92,7 +96,9 @@ export default function ClientBudgetView() {
           historical_internal_consumptions: historicalInternal,
           spend_as_of_date: spendAsOfDate,
           cycle_start_date: activeCycle.startStr,
-          cycle_end_date: activeCycle.endStr
+          cycle_end_date: activeCycle.endStr,
+          starting_rollover_balance: startingRolloverBalance,
+          rollover_spent_so_far: rolloverSpentSoFar
         })
       });
       if (res.ok) {
@@ -261,7 +267,7 @@ export default function ClientBudgetView() {
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-6 space-y-6">
         {/* Kanban / Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-6">
           <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-center">
             <div className="text-[#8B949E] text-sm font-medium mb-1">Total Cycle Allocation</div>
             <div className="text-3xl font-bold text-[#E6EDF3]">{formatCurrency(totalAllocation)}</div>
@@ -292,6 +298,64 @@ export default function ClientBudgetView() {
             <div className="text-xs text-[#8B949E] mt-2">
               For active cycle
             </div>
+          </div>
+
+          {/* Unspent Funds Pool Card */}
+          <div className="bg-brand-navy border border-border-subtle rounded-xl p-5 shadow-sm flex flex-col relative justify-center">
+            <div className="text-[#8B949E] text-sm font-medium mb-3 flex items-center gap-1.5">
+               <Calculator className="w-4 h-4 text-emerald-400" />
+               Unspent Funds Pool
+            </div>
+            <div className="flex-1 space-y-3">
+              <div>
+                <label className="block text-[11px] font-medium text-[#8B949E] mb-1">Starting Rollover Balance ($)</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                    <span className="text-[#8B949E] text-[12px]">$</span>
+                  </div>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    value={startingRolloverBalance}
+                    onChange={(e) => setStartingRolloverBalance(parseFloat(e.target.value) || 0)}
+                    disabled={user?.role !== 'ADMIN'}
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-md pl-6 pr-2 py-1.5 text-[13px] text-white outline-none focus:border-brand-blue transition-colors disabled:opacity-50" 
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-[#8B949E] mb-1">Spent From Pool So Far ($)</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                    <span className="text-[#8B949E] text-[12px]">$</span>
+                  </div>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    value={rolloverSpentSoFar}
+                    onChange={(e) => setRolloverSpentSoFar(parseFloat(e.target.value) || 0)}
+                    disabled={user?.role !== 'ADMIN'}
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-md pl-6 pr-2 py-1.5 text-[13px] text-white outline-none focus:border-brand-blue transition-colors disabled:opacity-50" 
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-white/[0.04]">
+              <div className="text-[11px] text-[#8B949E] mb-1">Actual Unspent Amount Remaining</div>
+              <div className="text-lg font-bold text-emerald-400">
+                {formatCurrency(startingRolloverBalance - rolloverSpentSoFar)}
+              </div>
+            </div>
+            {user?.role === 'ADMIN' && (
+              <button
+                onClick={handleSaveSettings}
+                disabled={saving}
+                className="mt-3 w-full py-1.5 bg-brand-blue/20 hover:bg-brand-blue/30 text-brand-blue-300 border border-brand-blue/30 rounded-md text-[11px] font-medium transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{saving ? 'Saving...' : 'Save Pool'}</span>
+              </button>
+            )}
           </div>
 
           {/* Historical Adjustments Card */}

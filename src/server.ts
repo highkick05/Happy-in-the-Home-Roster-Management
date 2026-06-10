@@ -250,6 +250,26 @@ async function startServer() {
       console.warn('Migration warning:', e.message);
     }
   }
+
+  try {
+    db.exec(`
+      ALTER TABLE clients ADD COLUMN starting_rollover_balance REAL DEFAULT 0;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE clients ADD COLUMN rollover_spent_so_far REAL DEFAULT 0;
+    `);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) {
+      console.warn('Migration warning:', e.message);
+    }
+  }
   
   // Data consistency sync for old templates
   try {
@@ -2181,7 +2201,7 @@ async function startServer() {
 
   app.put('/api/clients/:id/budget', authenticateToken, requireAdmin, (req, res) => {
     const { id } = req.params;
-    const { other_providers_spent, historical_internal_consumptions, spend_as_of_date, cycle_start_date, cycle_end_date } = req.body;
+    const { other_providers_spent, historical_internal_consumptions, spend_as_of_date, cycle_start_date, cycle_end_date, starting_rollover_balance, rollover_spent_so_far } = req.body;
     try {
       db.prepare(`
         UPDATE clients 
@@ -2189,7 +2209,9 @@ async function startServer() {
             historical_internal_consumptions = ?, 
             spend_as_of_date = ?, 
             cycle_start_date = ?, 
-            cycle_end_date = ? 
+            cycle_end_date = ?,
+            starting_rollover_balance = ?,
+            rollover_spent_so_far = ?
         WHERE id = ?
       `).run(
         other_providers_spent || 0,
@@ -2197,6 +2219,8 @@ async function startServer() {
         spend_as_of_date || null,
         cycle_start_date || null,
         cycle_end_date || null,
+        starting_rollover_balance || 0,
+        rollover_spent_so_far || 0,
         id
       );
       res.json({ success: true });
