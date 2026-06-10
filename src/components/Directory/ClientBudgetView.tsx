@@ -269,24 +269,24 @@ export default function ClientBudgetView() {
       <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-6 space-y-6">
         {/* Kanban / Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-6">
-          <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-start">
+          <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-center">
             <div className="text-[#8B949E] text-sm font-medium mb-1">Total Cycle Allocation</div>
             <div className="text-3xl font-bold text-[#E6EDF3]">{formatCurrency(totalAllocation)}</div>
-            <div className="flex flex-col items-start gap-1 mt-auto pt-4">
+            <div className="flex flex-col items-start gap-1 mt-2">
               <div className="text-xs text-[#8B949E] bg-white/5 rounded-md px-2 py-1 inline-block w-max">
                 Based on {totalDays} Days ({formatDate(cycleStart)} - {formatDate(cycleEnd)})
               </div>
             </div>
           </div>
-          <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-start">
+          <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-center">
             <div className="text-[#8B949E] text-sm font-medium mb-1">Total Combined Spent</div>
             <div className="text-3xl font-bold text-[#E6EDF3]">{formatCurrency(totalCombinedSpent)}</div>
-            <div className="text-[11px] text-[#8B949E] mt-auto pt-4 space-y-1">
+            <div className="text-[11px] text-[#8B949E] mt-2 space-y-1">
               <div>Historical Internal: <span className="text-white">{formatCurrency(historicalInternal)}</span></div>
               <div>Live Internal: <span className="text-white">{formatCurrency(liveSystemConsumptions)}</span></div>
             </div>
           </div>
-          <div className={`bg-brand-navy border ${remainingBalance >= 0 ? 'border-brand-green/30' : 'border-red-500/30'} rounded-xl p-6 shadow-sm flex flex-col justify-start relative overflow-hidden`}>
+          <div className={`bg-brand-navy border ${remainingBalance >= 0 ? 'border-brand-green/30' : 'border-red-500/30'} rounded-xl p-6 shadow-sm flex flex-col justify-center relative overflow-hidden`}>
             {remainingBalance < 0 && (
               <div className="absolute top-0 right-0 w-16 h-16 bg-red-500/10 rounded-bl-full flex items-start justify-end p-2 border-b border-l border-red-500/20">
                 <AlertCircle className="w-5 h-5 text-red-500" />
@@ -296,7 +296,7 @@ export default function ClientBudgetView() {
             <div className={`text-3xl font-bold ${remainingBalance >= 0 ? 'text-brand-green' : 'text-red-500'}`}>
               {formatCurrency(remainingBalance)}
             </div>
-            <div className="text-xs text-[#8B949E] mt-auto pt-4">
+            <div className="text-xs text-[#8B949E] mt-2">
               For active cycle
             </div>
           </div>
