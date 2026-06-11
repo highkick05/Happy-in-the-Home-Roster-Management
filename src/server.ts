@@ -253,6 +253,34 @@ async function startServer() {
 
   try {
     db.exec(`
+      CREATE TABLE IF NOT EXISTS ndis_service_agreements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        start_date TEXT,
+        end_date TEXT,
+        total_budget REAL DEFAULT 0,
+        status TEXT DEFAULT 'ACTIVE',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients(id)
+      );
+      
+      CREATE TABLE IF NOT EXISTS ndis_service_agreement_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agreement_id INTEGER NOT NULL,
+        service_id INTEGER NOT NULL,
+        allocated_budget REAL DEFAULT 0,
+        allocated_hours REAL DEFAULT 0,
+        FOREIGN KEY (agreement_id) REFERENCES ndis_service_agreements(id),
+        FOREIGN KEY (service_id) REFERENCES services(id)
+      );
+    `);
+  } catch(e: any) {
+    console.error('Migration error for ndis_service_agreements:', e);
+  }
+
+  try {
+    db.exec(`
       CREATE TABLE IF NOT EXISTS client_budgets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
@@ -2823,76 +2851,99 @@ async function startServer() {
     }
   });
 
-  app.get('/api/clients/:id/ndis-budget', authenticateToken, (req, res) => {
+  app.get('/api/clients/:id/ndis-agreements', authenticateToken, (req, res) => {
     const { id } = req.params;
     try {
-      const client = db.prepare(`SELECT ndis_agreement_budget FROM clients WHERE id = ?`).get(id) as any;
-      const agreementBudget = client?.ndis_agreement_budget || 0;
+      const agreementsQuery = db.prepare(`SELECT * FROM ndis_service_agreements WHERE client_id = ? ORDER BY start_date DESC`);
+      const agreementsResult = agreementsQuery.all(id) as any[];
+      
+      const results = agreementsResult.map(agr => {
+         const items = db.prepare(`
+           SELECT nai.*, s.code as supportItemCode, s.name as supportItemName 
+           FROM ndis_service_agreement_items nai
+           LEFT JOIN services s ON nai.service_id = s.id
+           WHERE nai.agreement_id = ?
+         `).all(agr.id) as any[];
 
-      // 1. Fetch all assigned services for this client
-      const assignedServices = db.prepare(`
-        SELECT s.id as service_id, s.code as supportItemCode, s.name as supportItemName, s.rate
-        FROM client_services cs
-        JOIN services s ON cs.service_id = s.id
-        WHERE cs.client_id = ?
-      `).all(id) as any[];
+         const shifts = db.prepare(`
+           SELECT id FROM shifts 
+           WHERE client_id = ? 
+             AND start_time >= ? 
+             AND start_time <= ?
+             AND status IN ('COMPLETED', 'PUBLISHED', 'IN_PROGRESS')
+         `).all(id, `${agr.start_date}T00:00:00`, `${agr.end_date}T23:59:59`) as any[];
 
-      // 2. Map for quick aggregation
-      const itemsMap = new Map();
-      let totalAmountSpent = 0;
+         const itemsMap = new Map();
+         for (const item of items) {
+           itemsMap.set(String(item.service_id), {
+             service_id: item.service_id,
+             supportItemCode: item.supportItemCode || String(item.service_id),
+             supportItemName: item.supportItemName || 'Unknown Service',
+             allocatedHours: item.allocated_hours || 0,
+             allocatedBudget: item.allocated_budget || 0,
+             amountSpent: 0,
+             deliveredHours: 0
+           });
+         }
 
-      for (const srv of assignedServices) {
-        itemsMap.set(srv.supportItemCode || String(srv.service_id), {
-          supportItemCode: srv.supportItemCode,
-          supportItemName: srv.supportItemName,
-          allocatedHours: 0,
-          deliveredHours: 0,
-          allocatedBudget: 0,
-          amountSpent: 0,
-          remainingBalance: 0
-        });
-      }
+         let totalAmountSpent = 0;
+         for (const shiftRow of shifts) {
+            try {
+              const data = getInvoiceDataForShift(shiftRow.id);
+              if (data && data.lineItems) {
+                 data.lineItems.forEach((li: any) => {
+                    const sId = String(li.serviceId);
+                    if (itemsMap.has(sId)) {
+                      const item = itemsMap.get(sId);
+                      item.amountSpent += (li.amount || 0);
+                      if (li.unit === 'H' || li.unit === 'Hour') {
+                        item.deliveredHours += (li.qty || 0);
+                      }
+                      totalAmountSpent += (li.amount || 0);
+                    }
+                 });
+              }
+            } catch(e) {}
+         }
 
-      // 3. Fetch shifts
-      const shifts = db.prepare(`
-        SELECT id FROM shifts 
-        WHERE client_id = ? 
-          AND status IN ('COMPLETED', 'PUBLISHED', 'IN_PROGRESS')
-      `).all(id) as any[];
-
-      // 4. Process all shift line items and bucket them
-      for (const shiftRow of shifts) {
-         try {
-           const data = getInvoiceDataForShift(shiftRow.id);
-           if (data && data.lineItems) {
-              data.lineItems.forEach((li: any) => {
-                 let code = li.code || li.serviceId;
-                 if (itemsMap.has(code)) {
-                   let item = itemsMap.get(code);
-                   item.amountSpent += li.amount || 0;
-                   if (li.unit === 'H' || li.unit === 'Hour') {
-                     item.deliveredHours += li.qty || 0;
-                   }
-                   totalAmountSpent += li.amount || 0;
-                 }
-              });
-           }
-         } catch(e) {}
-      }
-
-      const items = Array.from(itemsMap.values()).map(it => {
-         it.remainingBalance = it.allocatedBudget - it.amountSpent;
-         return it;
+         return {
+           id: agr.id,
+           name: agr.name,
+           totalAgreementValue: agr.total_budget,
+           startDate: agr.start_date,
+           endDate: agr.end_date,
+           status: agr.status,
+           totalClaimed: totalAmountSpent,
+           totalRemainingBalance: agr.total_budget - totalAmountSpent,
+           items: Array.from(itemsMap.values()).map(it => ({
+              ...it,
+              remainingBalance: it.allocatedBudget - it.amountSpent
+           }))
+         };
       });
-
-      res.json({
-        totalAgreementValue: agreementBudget,
-        totalClaimed: totalAmountSpent,
-        totalRemainingBalance: agreementBudget - totalAmountSpent,
-        items
-      });
+      res.json(results);
     } catch (e: any) {
-      logger.error(`API Error fetching NDIS budget: ${e}`, { error: "Internal Server Error" });
+      logger.error(`API Error fetching NDIS agreements: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.post('/api/clients/:id/ndis-agreements', authenticateToken, (req, res) => {
+    const { id } = req.params;
+    const { name, startDate, endDate, items } = req.body;
+    try {
+      const totalBudget = items.reduce((sum: number, it: any) => sum + (Number(it.allocatedBudget) || 0), 0);
+      const result = db.prepare(`INSERT INTO ndis_service_agreements (client_id, name, start_date, end_date, total_budget) VALUES (?, ?, ?, ?, ?)`).run(id, name, startDate, endDate, totalBudget);
+      const agrId = result.lastInsertRowid;
+      
+      const insertItem = db.prepare(`INSERT INTO ndis_service_agreement_items (agreement_id, service_id, allocated_budget) VALUES (?, ?, ?)`);
+      items.forEach((it: any) => {
+        insertItem.run(agrId, it.service_id, it.allocatedBudget || 0);
+      });
+      
+      res.json({ success: true, agreementId: agrId });
+    } catch (e: any) {
+      logger.error(`API Error saving NDIS agreement: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });

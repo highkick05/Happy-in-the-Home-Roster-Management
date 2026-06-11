@@ -371,44 +371,6 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                 </div>
               )}
 
-              {formData.fundingType === 'NDIS' && (
-                <div className="border-t border-white/[0.08] pt-4">
-                  <h3 className="text-[14px] font-medium text-white mb-4">NDIS Service Agreement Details</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Start Date</label>
-                      <div className="relative">
-                        <input
-                          type="date"
-                          name="ndisAgreementStartDate"
-                          value={formData.ndisAgreementStartDate}
-                          onChange={handleChange}
-                          className="w-full bg-black/40 border border-white/[0.08] rounded-md pl-3 pr-10 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-10 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer z-10"
-                        />
-                        <Calendar className="w-4 h-4 text-zinc-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">End Date</label>
-                      <div className="relative">
-                        <input
-                          type="date"
-                          name="ndisAgreementEndDate"
-                          value={formData.ndisAgreementEndDate}
-                          onChange={handleChange}
-                          className="w-full bg-black/40 border border-white/[0.08] rounded-md pl-3 pr-10 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-10 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer z-10"
-                        />
-                        <Calendar className="w-4 h-4 text-zinc-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Total Agreement Funds ($)</label>
-                    <input type="number" step="0.01" name="ndisAgreementBudget" value={formData.ndisAgreementBudget} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
-                  </div>
-                </div>
-              )}
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Contact Email</label>
