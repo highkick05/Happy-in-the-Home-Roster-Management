@@ -35,7 +35,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
     representativeEmail: '',
     serviceIds: [] as number[],
     careCoordinationFee: 20,
-    billingTier: 'Support at Home (New)',
+    billingTier: 'SAH_Full_Pensioner',
     historicalMonthlyCap: 0,
     assessedIndependencePct: 0,
     assessedEverydayLivingPct: 0,
@@ -97,7 +97,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         representativeEmail: client.representative_email || '',
         serviceIds: client.service_ids || [],
         careCoordinationFee: client.care_coordination_fee !== undefined && client.care_coordination_fee !== null ? client.care_coordination_fee : 20,
-        billingTier: client.billing_tier || 'Support at Home (New)',
+        billingTier: client.billing_tier || 'SAH_Full_Pensioner',
         historicalMonthlyCap: client.historical_monthly_cap !== undefined && client.historical_monthly_cap !== null ? client.historical_monthly_cap : 0,
         assessedIndependencePct: client.assessed_independence_pct !== undefined && client.assessed_independence_pct !== null ? client.assessed_independence_pct : 0,
         assessedEverydayLivingPct: client.assessed_everyday_living_pct !== undefined && client.assessed_everyday_living_pct !== null ? client.assessed_everyday_living_pct : 0,
@@ -123,7 +123,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         representativeEmail: '',
         serviceIds: [],
         careCoordinationFee: 20,
-        billingTier: 'Support at Home (New)',
+        billingTier: 'SAH_Full_Pensioner',
         historicalMonthlyCap: 0,
         assessedIndependencePct: 0,
         assessedEverydayLivingPct: 0,
@@ -140,6 +140,20 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
       } else if (name === 'fundingType' && value === 'HOME_CARE') {
         if (!updated.homeCareSubType) updated.homeCareSubType = 'HCP';
         if (!updated.homeCareLevelOrClass) updated.homeCareLevelOrClass = 'Level 1';
+      } else if (name === 'billingTier') {
+        if (value === 'Grandfathered') {
+          updated.assessedIndependencePct = 0;
+          updated.assessedEverydayLivingPct = 0;
+        } else if (value === 'SAH_Full_Pensioner') {
+          updated.assessedIndependencePct = 5;
+          updated.assessedEverydayLivingPct = 17.5;
+        } else if (value === 'SAH_Self_Funded') {
+          updated.assessedIndependencePct = 50;
+          updated.assessedEverydayLivingPct = 80;
+        } else if (value === 'SAH_Part_Pensioner' || value === 'Hybrid') {
+          updated.assessedIndependencePct = 0;
+          updated.assessedEverydayLivingPct = 0;
+        }
       }
       return updated;
     });
@@ -321,9 +335,11 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                   <div>
                     <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Billing / Contribution Tier</label>
                     <select name="billingTier" value={formData.billingTier} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
-                      <option value="Grandfathered">Grandfathered</option>
-                      <option value="Hybrid">Hybrid (Transitioned Co-Payer)</option>
-                      <option value="Support at Home (New)">Support at Home (New)</option>
+                      <option value="Grandfathered">Transitional: Grandfathered</option>
+                      <option value="Hybrid">Transitional: Hybrid</option>
+                      <option value="SAH_Full_Pensioner">Support at Home: Full Pensioner</option>
+                      <option value="SAH_Part_Pensioner">Support at Home: Part Pensioner / CSHC</option>
+                      <option value="SAH_Self_Funded">Support at Home: Self-Funded</option>
                     </select>
                   </div>
 
@@ -338,11 +354,11 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <div>
                     <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Assessed Independence Co-pay (%)</label>
-                    <input type="number" step="0.01" min="0" max="100" name="assessedIndependencePct" value={formData.assessedIndependencePct} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                    <input type="number" step="0.01" min="0" max="100" name="assessedIndependencePct" value={formData.assessedIndependencePct} onChange={handleChange} disabled={['Grandfathered', 'SAH_Full_Pensioner', 'SAH_Self_Funded'].includes(formData.billingTier)} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed" />
                   </div>
                   <div>
                     <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Assessed Everyday Living Co-pay (%)</label>
-                    <input type="number" step="0.01" min="0" max="100" name="assessedEverydayLivingPct" value={formData.assessedEverydayLivingPct} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                    <input type="number" step="0.01" min="0" max="100" name="assessedEverydayLivingPct" value={formData.assessedEverydayLivingPct} onChange={handleChange} disabled={['Grandfathered', 'SAH_Full_Pensioner', 'SAH_Self_Funded'].includes(formData.billingTier)} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed" />
                   </div>
                 </div>
               </div>

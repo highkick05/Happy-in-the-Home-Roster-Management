@@ -334,7 +334,7 @@ async function startServer() {
 
   try {
     db.exec(`
-      ALTER TABLE clients ADD COLUMN billing_tier TEXT DEFAULT 'Support at Home (New)';
+      ALTER TABLE clients ADD COLUMN billing_tier TEXT DEFAULT 'SAH_Full_Pensioner';
     `);
   } catch(e: any) {
     if (e.message && !e.message.includes('duplicate column')) {
@@ -1004,7 +1004,7 @@ async function startServer() {
         return { clientShare: 0, packageDrawdown: loadedCost };
       }
 
-      const tier = client.billing_tier || 'Support at Home (New)';
+      const tier = client.billing_tier || 'SAH_Full_Pensioner';
       const isGrandfathered = tier === 'Grandfathered' || tier === 'grandfathered';
       const isHybrid = tier === 'Hybrid' || tier === 'Hybrid (Transitioned Co-Payer)' || tier === 'hybrid';
 
@@ -2356,7 +2356,7 @@ async function startServer() {
           home_care_sub_type: client.home_care_sub_type || null,
           home_care_level_or_class: client.home_care_level_or_class || null,
           joined_date: client.joined_date || null,
-          billing_tier: client.billing_tier || 'Support at Home (New)',
+          billing_tier: client.billing_tier || 'SAH_Full_Pensioner',
           historical_monthly_cap: client.historical_monthly_cap || 0,
           assessed_independence_pct: client.assessed_independence_pct || 0,
           assessed_everyday_living_pct: client.assessed_everyday_living_pct || 0
@@ -2399,7 +2399,7 @@ async function startServer() {
         const info = stmt.run(
           firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId || null, dob || null, fundingType || null, myAgedCareId || null, address || null, representativeName || null, representativePhone || null, representativeEmail || null, homeCareSubType || null, homeCareLevelOrClass || null, joinedDate || null, 
           careCoordinationFee !== undefined ? careCoordinationFee : 20.00,
-          billingTier || 'Support at Home (New)',
+          billingTier || 'SAH_Full_Pensioner',
           historicalMonthlyCap !== undefined ? parseFloat(historicalMonthlyCap) : 0.00,
           assessedIndependencePct !== undefined ? parseFloat(assessedIndependencePct) : 0.00,
           assessedEverydayLivingPct !== undefined ? parseFloat(assessedEverydayLivingPct) : 0.00
@@ -2439,7 +2439,7 @@ async function startServer() {
         stmt.run(
           firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId || null, dob || null, fundingType || null, myAgedCareId || null, address || null, representativeName || null, representativePhone || null, representativeEmail || null, homeCareSubType || null, homeCareLevelOrClass || null, joinedDate || null, 
           careCoordinationFee !== undefined ? careCoordinationFee : 20.00,
-          billingTier || 'Support at Home (New)',
+          billingTier || 'SAH_Full_Pensioner',
           historicalMonthlyCap !== undefined ? parseFloat(historicalMonthlyCap) : 0.00,
           assessedIndependencePct !== undefined ? parseFloat(assessedIndependencePct) : 0.00,
           assessedEverydayLivingPct !== undefined ? parseFloat(assessedEverydayLivingPct) : 0.00,
@@ -2648,7 +2648,7 @@ async function startServer() {
       if (!startDate || !endDate) return res.json({ total: 0, items: [] });
       
       const client = db.prepare(`SELECT billing_tier, historical_monthly_cap FROM clients WHERE id = ?`).get(id) as any;
-      const billingTier = client?.billing_tier || 'Support at Home (New)';
+      const billingTier = client?.billing_tier || 'SAH_Full_Pensioner';
       const historicalMonthlyCap = client?.historical_monthly_cap || 0;
       
       const startFilter = `${startDate}T00:00:00`;

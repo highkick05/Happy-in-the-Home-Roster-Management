@@ -341,7 +341,7 @@ export default function ClientBudgetView() {
     })
     .reduce((acc: number, item: any) => acc + (item.client_share || 0), 0);
 
-  const billingTier = client.billing_tier || 'Support at Home (New)';
+  const billingTier = client.billing_tier || 'SAH_Full_Pensioner';
   const monthlyCap = client.historical_monthly_cap || 0;
   const progressPercent = monthlyCap > 0 ? Math.min((totalClientShare / monthlyCap) * 100, 100) : 0;
   const isCapExhausted = totalClientShare >= monthlyCap;
@@ -362,9 +362,13 @@ export default function ClientBudgetView() {
         </span>
       );
     } else {
+      let label = "Support at Home";
+      if (t === 'SAH_Full_Pensioner') label = "SaH: Full Pensioner";
+      else if (t === 'SAH_Part_Pensioner') label = "SaH: Part Pensioner";
+      else if (t === 'SAH_Self_Funded') label = "SaH: Self-Funded";
       return (
         <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 whitespace-nowrap">
-          Support at Home
+          {label}
         </span>
       );
     }
