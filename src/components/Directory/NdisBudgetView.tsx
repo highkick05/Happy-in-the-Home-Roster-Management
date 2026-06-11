@@ -40,11 +40,12 @@ export default function NdisBudgetView() {
          const clientData = await clientRes.json();
          setClient(clientData);
          
-         const d = clientData.joined_date ? new Date(clientData.joined_date) : new Date();
-         setStartDate(d.toISOString().split('T')[0]);
-         const nextYear = new Date(d);
-         nextYear.setFullYear(d.getFullYear() + 1);
-         setEndDate(nextYear.toISOString().split('T')[0]);
+         const defaultStart = clientData.joined_date ? new Date(clientData.joined_date) : new Date();
+         const defaultEnd = new Date(defaultStart);
+         defaultEnd.setFullYear(defaultStart.getFullYear() + 1);
+
+         setStartDate(clientData.ndis_agreement_start_date || defaultStart.toISOString().split('T')[0]);
+         setEndDate(clientData.ndis_agreement_end_date || defaultEnd.toISOString().split('T')[0]);
       }
       const budgetRes = await fetch(`/api/clients/${id}/ndis-budget`, {
         headers: { Authorization: `Bearer ${token}` }

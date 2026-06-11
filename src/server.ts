@@ -373,6 +373,22 @@ async function startServer() {
   }
 
   try {
+    db.exec(`ALTER TABLE clients ADD COLUMN ndis_agreement_start_date TEXT;`);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) console.warn('Migration warning:', e.message);
+  }
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN ndis_agreement_end_date TEXT;`);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) console.warn('Migration warning:', e.message);
+  }
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN ndis_agreement_budget REAL DEFAULT 0;`);
+  } catch(e: any) {
+    if (e.message && !e.message.includes('duplicate column')) console.warn('Migration warning:', e.message);
+  }
+
+  try {
     db.exec(`
       ALTER TABLE client_ledger_entries ADD COLUMN client_share REAL DEFAULT 0;
     `);
@@ -2359,7 +2375,10 @@ async function startServer() {
           billing_tier: client.billing_tier || 'SAH_Full_Pensioner',
           historical_monthly_cap: client.historical_monthly_cap || 0,
           assessed_independence_pct: client.assessed_independence_pct || 0,
-          assessed_everyday_living_pct: client.assessed_everyday_living_pct || 0
+          assessed_everyday_living_pct: client.assessed_everyday_living_pct || 0,
+          ndis_agreement_start_date: client.ndis_agreement_start_date || null,
+          ndis_agreement_end_date: client.ndis_agreement_end_date || null,
+          ndis_agreement_budget: client.ndis_agreement_budget || 0
         });
       }
 
@@ -2392,17 +2411,20 @@ async function startServer() {
           firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId,
           dob, fundingType, myAgedCareId, address, representativeName, representativePhone, representativeEmail,
           serviceIds, homeCareSubType, homeCareLevelOrClass, joinedDate, careCoordinationFee,
-          billingTier, historicalMonthlyCap, assessedIndependencePct, assessedEverydayLivingPct
+          billingTier, historicalMonthlyCap, assessedIndependencePct, assessedEverydayLivingPct, ndisAgreementStartDate, ndisAgreementEndDate, ndisAgreementBudget
         } = reqBody;
 
-        const stmt = db.prepare('INSERT INTO clients (first_name, last_name, ndis_number, care_plan_details, contact_email, contact_phone, provider_id, dob, funding_type, my_aged_care_id, address, representative_name, representative_phone, representative_email, home_care_sub_type, home_care_level_or_class, joined_date, care_coordination_fee, billing_tier, historical_monthly_cap, assessed_independence_pct, assessed_everyday_living_pct) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        const stmt = db.prepare('INSERT INTO clients (first_name, last_name, ndis_number, care_plan_details, contact_email, contact_phone, provider_id, dob, funding_type, my_aged_care_id, address, representative_name, representative_phone, representative_email, home_care_sub_type, home_care_level_or_class, joined_date, care_coordination_fee, billing_tier, historical_monthly_cap, assessed_independence_pct, assessed_everyday_living_pct, ndis_agreement_start_date, ndis_agreement_end_date, ndis_agreement_budget) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         const info = stmt.run(
           firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId || null, dob || null, fundingType || null, myAgedCareId || null, address || null, representativeName || null, representativePhone || null, representativeEmail || null, homeCareSubType || null, homeCareLevelOrClass || null, joinedDate || null, 
           careCoordinationFee !== undefined ? careCoordinationFee : 20.00,
           billingTier || 'SAH_Full_Pensioner',
           historicalMonthlyCap !== undefined ? parseFloat(historicalMonthlyCap) : 0.00,
           assessedIndependencePct !== undefined ? parseFloat(assessedIndependencePct) : 0.00,
-          assessedEverydayLivingPct !== undefined ? parseFloat(assessedEverydayLivingPct) : 0.00
+          assessedEverydayLivingPct !== undefined ? parseFloat(assessedEverydayLivingPct) : 0.00,
+          ndisAgreementStartDate || null,
+          ndisAgreementEndDate || null,
+          ndisAgreementBudget !== undefined ? parseFloat(ndisAgreementBudget) : 0.00
         );
         
         const clientId = info.lastInsertRowid;
@@ -2427,15 +2449,15 @@ async function startServer() {
 
   app.put('/api/clients/:id', authenticateToken, requireAdmin, (req, res) => {
     try {
-      const updateTransaction = db.transaction((reqBody, paramId) => {
+        const updateTransaction = db.transaction((reqBody, paramId) => {
         const { 
           firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId,
           dob, fundingType, myAgedCareId, address, representativeName, representativePhone, representativeEmail,
           serviceIds, homeCareSubType, homeCareLevelOrClass, joinedDate, careCoordinationFee,
-          billingTier, historicalMonthlyCap, assessedIndependencePct, assessedEverydayLivingPct
+          billingTier, historicalMonthlyCap, assessedIndependencePct, assessedEverydayLivingPct, ndisAgreementStartDate, ndisAgreementEndDate, ndisAgreementBudget
         } = reqBody;
 
-        const stmt = db.prepare('UPDATE clients SET first_name = ?, last_name = ?, ndis_number = ?, care_plan_details = ?, contact_email = ?, contact_phone = ?, provider_id = ?, dob = ?, funding_type = ?, my_aged_care_id = ?, address = ?, representative_name = ?, representative_phone = ?, representative_email = ?, home_care_sub_type = ?, home_care_level_or_class = ?, joined_date = ?, care_coordination_fee = ?, billing_tier = ?, historical_monthly_cap = ?, assessed_independence_pct = ?, assessed_everyday_living_pct = ? WHERE id = ?');
+        const stmt = db.prepare('UPDATE clients SET first_name = ?, last_name = ?, ndis_number = ?, care_plan_details = ?, contact_email = ?, contact_phone = ?, provider_id = ?, dob = ?, funding_type = ?, my_aged_care_id = ?, address = ?, representative_name = ?, representative_phone = ?, representative_email = ?, home_care_sub_type = ?, home_care_level_or_class = ?, joined_date = ?, care_coordination_fee = ?, billing_tier = ?, historical_monthly_cap = ?, assessed_independence_pct = ?, assessed_everyday_living_pct = ?, ndis_agreement_start_date = ?, ndis_agreement_end_date = ?, ndis_agreement_budget = ? WHERE id = ?');
         stmt.run(
           firstName, lastName, ndisNumber, carePlanDetails, contactEmail, contactPhone, providerId || null, dob || null, fundingType || null, myAgedCareId || null, address || null, representativeName || null, representativePhone || null, representativeEmail || null, homeCareSubType || null, homeCareLevelOrClass || null, joinedDate || null, 
           careCoordinationFee !== undefined ? careCoordinationFee : 20.00,
@@ -2443,6 +2465,9 @@ async function startServer() {
           historicalMonthlyCap !== undefined ? parseFloat(historicalMonthlyCap) : 0.00,
           assessedIndependencePct !== undefined ? parseFloat(assessedIndependencePct) : 0.00,
           assessedEverydayLivingPct !== undefined ? parseFloat(assessedEverydayLivingPct) : 0.00,
+          ndisAgreementStartDate || null,
+          ndisAgreementEndDate || null,
+          ndisAgreementBudget !== undefined ? parseFloat(ndisAgreementBudget) : 0.00,
           paramId
         );
         
@@ -2801,6 +2826,9 @@ async function startServer() {
   app.get('/api/clients/:id/ndis-budget', authenticateToken, (req, res) => {
     const { id } = req.params;
     try {
+      const client = db.prepare(`SELECT ndis_agreement_budget FROM clients WHERE id = ?`).get(id) as any;
+      const agreementBudget = client?.ndis_agreement_budget || 0;
+
       // 1. Fetch all assigned services for this client
       const assignedServices = db.prepare(`
         SELECT s.id as service_id, s.code as supportItemCode, s.name as supportItemName, s.rate
@@ -2811,7 +2839,6 @@ async function startServer() {
 
       // 2. Map for quick aggregation
       const itemsMap = new Map();
-      let totalAgreementValue = 0; // Defaulting to 0 since no explicit SA budget column exists
       let totalAmountSpent = 0;
 
       for (const srv of assignedServices) {
@@ -2859,9 +2886,9 @@ async function startServer() {
       });
 
       res.json({
-        totalAgreementValue,
+        totalAgreementValue: agreementBudget,
         totalClaimed: totalAmountSpent,
-        totalRemainingBalance: totalAgreementValue - totalAmountSpent,
+        totalRemainingBalance: agreementBudget - totalAmountSpent,
         items
       });
     } catch (e: any) {
