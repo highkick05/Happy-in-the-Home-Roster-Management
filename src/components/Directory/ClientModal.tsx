@@ -329,39 +329,41 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                 </div>
               )}
 
-              <div className="border-t border-white/[0.08] pt-4">
-                <h3 className="text-[14px] font-medium text-white mb-4">Billing & Participant Contribution</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Billing / Contribution Tier</label>
-                    <select name="billingTier" value={formData.billingTier} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
-                      <option value="Grandfathered">Transitional: Grandfathered</option>
-                      <option value="Hybrid">Transitional: Hybrid</option>
-                      <option value="SAH_Full_Pensioner">Support at Home: Full Pensioner</option>
-                      <option value="SAH_Part_Pensioner">Support at Home: Part Pensioner / CSHC</option>
-                      <option value="SAH_Self_Funded">Support at Home: Self-Funded</option>
-                    </select>
-                  </div>
-
-                  {formData.billingTier === 'Hybrid' && (
+              {formData.fundingType === 'HOME_CARE' && (
+                <div className="border-t border-white/[0.08] pt-4">
+                  <h3 className="text-[14px] font-medium text-white mb-4">Billing & Participant Contribution</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Historical Monthly Cap ($)</label>
-                      <input type="number" step="0.01" name="historicalMonthlyCap" value={formData.historicalMonthlyCap} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Billing / Contribution Tier</label>
+                      <select name="billingTier" value={formData.billingTier} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+                        <option value="Grandfathered">Transitional: Grandfathered</option>
+                        <option value="Hybrid">Transitional: Hybrid</option>
+                        <option value="SAH_Full_Pensioner">Support at Home: Full Pensioner</option>
+                        <option value="SAH_Part_Pensioner">Support at Home: Part Pensioner / CSHC</option>
+                        <option value="SAH_Self_Funded">Support at Home: Self-Funded</option>
+                      </select>
                     </div>
-                  )}
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Assessed Independence Co-pay (%)</label>
-                    <input type="number" step="0.01" min="0" max="100" name="assessedIndependencePct" value={formData.assessedIndependencePct} onChange={handleChange} disabled={['Grandfathered', 'SAH_Full_Pensioner', 'SAH_Self_Funded'].includes(formData.billingTier)} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed" />
+                    {formData.billingTier === 'Hybrid' && (
+                      <div>
+                        <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Historical Monthly Cap ($)</label>
+                        <input type="number" step="0.01" name="historicalMonthlyCap" value={formData.historicalMonthlyCap} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Assessed Everyday Living Co-pay (%)</label>
-                    <input type="number" step="0.01" min="0" max="100" name="assessedEverydayLivingPct" value={formData.assessedEverydayLivingPct} onChange={handleChange} disabled={['Grandfathered', 'SAH_Full_Pensioner', 'SAH_Self_Funded'].includes(formData.billingTier)} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed" />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Assessed Independence Co-pay (%)</label>
+                      <input type="number" step="0.01" min="0" max="100" name="assessedIndependencePct" value={formData.assessedIndependencePct} onChange={handleChange} disabled={['Grandfathered', 'SAH_Full_Pensioner', 'SAH_Self_Funded'].includes(formData.billingTier)} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed" />
+                    </div>
+                    <div>
+                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Assessed Everyday Living Co-pay (%)</label>
+                      <input type="number" step="0.01" min="0" max="100" name="assessedEverydayLivingPct" value={formData.assessedEverydayLivingPct} onChange={handleChange} disabled={['Grandfathered', 'SAH_Full_Pensioner', 'SAH_Self_Funded'].includes(formData.billingTier)} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed" />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
