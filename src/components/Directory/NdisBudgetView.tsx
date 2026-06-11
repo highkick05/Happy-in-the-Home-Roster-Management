@@ -62,20 +62,12 @@ export default function NdisBudgetView() {
   };
 
   const handleOpenAddModal = () => {
-    // Determine the client's assigned services from allServices
-    const activeAssignedServices = allServices.filter(s => client?.service_ids?.includes(s.id));
-    
     setEditMode(false);
     setNewAgr({
       name: `Agreement ${new Date().getFullYear()}`,
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
-      items: activeAssignedServices.map(s => ({
-        service_id: s.id,
-        supportItemCode: s.code,
-        supportItemName: s.name,
-        allocatedBudget: 0
-      }))
+      items: []
     });
     setShowAddModal(true);
   };
@@ -456,9 +448,45 @@ export default function NdisBudgetView() {
                     </div>
                   </div>
 
+                  <div className="flex items-center gap-2 mb-4">
+                    <select
+                      onChange={(e) => {
+                        const selectedServiceId = parseInt(e.target.value);
+                        if (!selectedServiceId) return;
+                        
+                        const activeAssignedServices = allServices.filter(s => client?.service_ids?.includes(s.id));
+                        const service = activeAssignedServices.find(s => s.id === selectedServiceId);
+                        
+                        if (service) {
+                          setNewAgr(prev => ({
+                            ...prev,
+                            items: [...prev.items, {
+                               service_id: service.id,
+                               supportItemCode: service.code,
+                               supportItemName: service.name,
+                               allocatedBudget: 0
+                            }]
+                          }));
+                        }
+                        e.target.value = '';
+                      }}
+                      className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-zinc-300 outline-none focus:border-brand-blue transition-colors cursor-pointer"
+                    >
+                      <option value="">+ Select a service to add...</option>
+                      {allServices
+                        .filter(s => client?.service_ids?.includes(s.id))
+                        .filter(s => !newAgr.items.find((i: any) => i.service_id === s.id))
+                        .map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.code} - {s.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
                   {newAgr.items.length === 0 ? (
                     <div className="p-4 bg-black/20 border border-dashed border-white/10 rounded-lg text-center text-zinc-500 text-sm">
-                      No matching Personalised Services found for this client. Assign services first from the Client Profile.
+                      No services added to this agreement. Select from the dropdown above.
                     </div>
                   ) : (
                     <div className="space-y-3 bg-black/20 border border-white/[0.08] p-3 rounded-lg max-h-64 overflow-y-auto">
@@ -468,19 +496,32 @@ export default function NdisBudgetView() {
                             <div className="text-xs text-zinc-400 font-mono mb-1 truncate">{item.supportItemCode}</div>
                             <div className="text-sm text-white font-medium truncate">{item.supportItemName}</div>
                           </div>
-                          <div className="w-32 shrink-0">
-                            <label className="block text-[10px] text-zinc-500 mb-1">Allocated Budget ($)</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={item.allocatedBudget || ''}
-                              onChange={(e) => {
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="w-32">
+                              <label className="block text-[10px] text-zinc-500 mb-1">Allocated Budget ($)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={item.allocatedBudget || ''}
+                                onChange={(e) => {
+                                  const newItems = [...newAgr.items];
+                                  newItems[index].allocatedBudget = parseFloat(e.target.value) || 0;
+                                  setNewAgr({ ...newAgr, items: newItems });
+                                }}
+                                className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors text-right"
+                              />
+                            </div>
+                            <button
+                              onClick={() => {
                                 const newItems = [...newAgr.items];
-                                newItems[index].allocatedBudget = parseFloat(e.target.value) || 0;
+                                newItems.splice(index, 1);
                                 setNewAgr({ ...newAgr, items: newItems });
                               }}
-                              className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors text-right"
-                            />
+                              className="p-1.5 mt-4 text-zinc-500 hover:text-red-400 hover:bg-white/5 rounded-md transition-colors"
+                              title="Remove Service"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
                       ))}
