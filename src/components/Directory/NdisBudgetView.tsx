@@ -18,6 +18,7 @@ export default function NdisBudgetView() {
   
   // Modal state
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const [newAgr, setNewAgr] = useState({
     name: '',
     startDate: '',
@@ -64,6 +65,7 @@ export default function NdisBudgetView() {
     // Determine the client's assigned services from allServices
     const activeAssignedServices = allServices.filter(s => client?.service_ids?.includes(s.id));
     
+    setEditMode(false);
     setNewAgr({
       name: `Agreement ${new Date().getFullYear()}`,
       startDate: new Date().toISOString().split('T')[0],
@@ -78,10 +80,34 @@ export default function NdisBudgetView() {
     setShowAddModal(true);
   };
 
+  const handleEditModal = () => {
+    const selectedData = getSelectedData();
+    if (!selectedData) return;
+    
+    setEditMode(true);
+    setNewAgr({
+      name: selectedData.name,
+      startDate: selectedData.startDate.split('T')[0],
+      endDate: selectedData.endDate.split('T')[0],
+      items: selectedData.items.map((it: any) => ({
+        service_id: it.service_id,
+        supportItemCode: it.supportItemCode,
+        supportItemName: it.supportItemName,
+        allocatedBudget: it.allocatedBudget
+      }))
+    });
+    setShowAddModal(true);
+  };
+
   const handleSaveModal = async () => {
     try {
-      const res = await fetch(`/api/clients/${id}/ndis-agreements`, {
-        method: 'POST',
+      const url = editMode 
+        ? `/api/clients/${id}/ndis-agreements/${selectedAgrId}`
+        : `/api/clients/${id}/ndis-agreements`;
+      const method = editMode ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -91,7 +117,9 @@ export default function NdisBudgetView() {
       if (res.ok) {
         setShowAddModal(false);
         const data = await res.json();
-        setSelectedAgrId(data.agreementId);
+        if (data.agreementId) {
+          setSelectedAgrId(data.agreementId);
+        }
         await fetchData();
       } else {
         console.error("Failed to save agreement");
@@ -224,7 +252,14 @@ export default function NdisBudgetView() {
         ) : (
           <>
             {/* Agreement Actions Header */}
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={handleEditModal}
+                className="flex items-center space-x-2 bg-white/[0.05] hover:bg-white/10 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors font-medium text-sm"
+              >
+                <Pencil className="w-4 h-4" />
+                <span>Edit Agreement</span>
+              </button>
               <div className="flex items-center space-x-6 bg-black/40 border border-white/[0.08] px-4 py-2 rounded-lg">
                 <div className="flex flex-col">
                   <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider">Start Date</span>
@@ -370,7 +405,7 @@ export default function NdisBudgetView() {
               className="relative w-full max-w-3xl bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
               <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-zinc-900/50">
-                <h3 className="text-lg font-semibold text-white">Add Service Agreement</h3>
+                <h3 className="text-lg font-semibold text-white">{editMode ? 'Edit Service Agreement' : 'Add Service Agreement'}</h3>
                 <button
                   onClick={() => setShowAddModal(false)}
                   className="p-2 text-zinc-400 hover:text-white rounded-md hover:bg-white/10 transition-colors"
