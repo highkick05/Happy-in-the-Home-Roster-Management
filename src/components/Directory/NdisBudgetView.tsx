@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowLeft, RefreshCw, X, FileText, CheckCircle2, Calendar, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, RefreshCw, X, FileText, CheckCircle2, Calendar, Pencil, Plus, Trash2, Archive } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function NdisBudgetView() {
@@ -121,6 +121,43 @@ export default function NdisBudgetView() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!selectedAgrId) return;
+    try {
+      const res = await fetch(`/api/clients/${id}/ndis-agreements/${selectedAgrId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setSelectedAgrId(null);
+        await fetchData();
+      }
+    } catch (e) {
+      console.error("Error deleting agreement", e);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!selectedAgrId) return;
+    try {
+      const selectedData = getSelectedData();
+      const newStatus = selectedData.status === 'ARCHIVED' ? 'ACTIVE' : 'ARCHIVED';
+      const res = await fetch(`/api/clients/${id}/ndis-agreements/${selectedAgrId}/status`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) {
+        await fetchData();
+      }
+    } catch (e) {
+      console.error("Error archiving agreement", e);
+    }
+  };
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(val || 0);
   };
@@ -215,13 +252,14 @@ export default function NdisBudgetView() {
             <button
               key={agr.id}
               onClick={() => setSelectedAgrId(agr.id)}
-              className={`flex items-center px-4 py-2 rounded-t-lg transition-colors whitespace-nowrap text-sm font-medium ${
+              className={`flex items-center space-x-1.5 px-4 py-2 rounded-t-lg transition-colors whitespace-nowrap text-sm font-medium ${
                 selectedAgrId === agr.id
                   ? 'bg-zinc-800 text-white border-b-2 border-brand-blue'
                   : 'text-[#8B949E] hover:text-white hover:bg-white/5'
-              }`}
+              } ${agr.status === 'ARCHIVED' ? 'opacity-60' : ''}`}
             >
-              {agr.name}
+              <span>{agr.name}</span>
+              {agr.status === 'ARCHIVED' && <Archive className="w-3.5 h-3.5 ml-1.5 opacity-70" />}
             </button>
           ))}
         </div>
@@ -245,13 +283,34 @@ export default function NdisBudgetView() {
           <>
             {/* Agreement Actions Header */}
             <div className="flex items-center justify-between mb-4">
-              <button
-                onClick={handleEditModal}
-                className="flex items-center space-x-2 bg-white/[0.05] hover:bg-white/10 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors font-medium text-sm"
-              >
-                <Pencil className="w-4 h-4" />
-                <span>Edit Agreement</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleEditModal}
+                  className="flex items-center space-x-2 bg-white/[0.05] hover:bg-white/10 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors font-medium text-sm"
+                >
+                  <Pencil className="w-4 h-4" />
+                  <span>Edit Agreement</span>
+                </button>
+                <button
+                  onClick={handleArchive}
+                  className="flex items-center space-x-2 bg-white/[0.05] hover:bg-white/10 text-white px-4 py-2 rounded-lg border border-white/10 transition-colors font-medium text-sm"
+                  title={selectedData.status === 'ARCHIVED' ? 'Unarchive' : 'Archive'}
+                >
+                  <Archive className="w-4 h-4" />
+                  <span>{selectedData.status === 'ARCHIVED' ? 'Unarchive' : 'Archive'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                     if (window.confirm('Are you sure you want to delete this service agreement?')) {
+                        handleDelete();
+                     }
+                  }}
+                  className="flex items-center space-x-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-4 py-2 rounded-lg border border-red-500/20 transition-colors font-medium text-sm"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete</span>
+                </button>
+              </div>
               <div className="flex items-center space-x-6 bg-black/40 border border-white/[0.08] px-4 py-2 rounded-lg">
                 <div className="flex flex-col">
                   <span className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider">Start Date</span>

@@ -2952,6 +2952,30 @@ async function startServer() {
     }
   });
 
+  app.put('/api/clients/:id/ndis-agreements/:agrId/status', authenticateToken, (req, res) => {
+    const { id, agrId } = req.params;
+    const { status } = req.body;
+    try {
+      db.prepare(`UPDATE ndis_service_agreements SET status = ? WHERE id = ? AND client_id = ?`).run(status, agrId, id);
+      res.json({ success: true });
+    } catch (e: any) {
+      logger.error(`API Error updating NDIS agreement status: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.delete('/api/clients/:id/ndis-agreements/:agrId', authenticateToken, (req, res) => {
+    const { id, agrId } = req.params;
+    try {
+      db.prepare(`DELETE FROM ndis_service_agreement_items WHERE agreement_id = ?`).run(agrId);
+      db.prepare(`DELETE FROM ndis_service_agreements WHERE id = ? AND client_id = ?`).run(agrId, id);
+      res.json({ success: true });
+    } catch (e: any) {
+      logger.error(`API Error deleting NDIS agreement: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   app.post('/api/clients/:id/ndis-agreements', authenticateToken, (req, res) => {
     const { id } = req.params;
     const { name, startDate, endDate, items } = req.body;
