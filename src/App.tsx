@@ -16,7 +16,7 @@ import ResetPasswordView from './components/Auth/ResetPasswordView';
 
 import StaffClientsView from './components/Directory/StaffClientsView';
 import ClientDashboardView from './components/Directory/ClientDashboardView';
-import ClientBudgetView from './components/Directory/ClientBudgetView';
+import ClientBudgetSwitchboard from './components/Directory/ClientBudgetSwitchboard';
 import ProgressNotesView from './components/ProgressNotes/ProgressNotesView';
 import SettingsView from './components/Settings/SettingsView';
 import InvoicingView from './components/Invoicing/InvoicingView';
@@ -387,7 +387,7 @@ export default function App() {
             <Route path="/staff" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="STAFF" /></Layout></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="CLIENTS" /></Layout></ProtectedRoute>} />
             <Route path="/clients/:id" element={<ProtectedRoute adminOnly><Layout><ClientDashboardView /></Layout></ProtectedRoute>} />
-            <Route path="/clients/:id/budget" element={<ProtectedRoute adminOnly><Layout><ClientBudgetView /></Layout></ProtectedRoute>} />
+            <Route path="/clients/:id/budget" element={<ProtectedRoute adminOnly><Layout><ClientBudgetSwitchboard /></Layout></ProtectedRoute>} />
             <Route path="/providers" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="PROVIDERS" /></Layout></ProtectedRoute>} />
             <Route path="/invoices" element={<ProtectedRoute adminOnly><Layout><InvoicingView /></Layout></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute adminOnly><Layout><StaffActivityReport /></Layout></ProtectedRoute>} />

@@ -5,7 +5,7 @@ import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Fl
 import CustomDatePicker from '../ui/CustomDatePicker';
 import { motion } from 'motion/react';
 
-export default function ClientBudgetView() {
+export default function HomeCareBudgetView() {
   // Minor update to force GitHub Sync mechanism
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();

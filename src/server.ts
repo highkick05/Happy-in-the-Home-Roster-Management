@@ -2798,6 +2798,78 @@ async function startServer() {
     }
   });
 
+  app.get('/api/clients/:id/ndis-budget', authenticateToken, (req, res) => {
+    const { id } = req.params;
+    try {
+      // 1. Fetch all assigned services for this client
+      const assignedServices = db.prepare(`
+        SELECT s.id as service_id, s.code as supportItemCode, s.name as supportItemName, s.rate
+        FROM client_services cs
+        JOIN services s ON cs.service_id = s.id
+        WHERE cs.client_id = ?
+      `).all(id) as any[];
+
+      // 2. Map for quick aggregation
+      const itemsMap = new Map();
+      let totalAgreementValue = 0; // Defaulting to 0 since no explicit SA budget column exists
+      let totalAmountSpent = 0;
+
+      for (const srv of assignedServices) {
+        itemsMap.set(srv.supportItemCode || String(srv.service_id), {
+          supportItemCode: srv.supportItemCode,
+          supportItemName: srv.supportItemName,
+          allocatedHours: 0,
+          deliveredHours: 0,
+          allocatedBudget: 0,
+          amountSpent: 0,
+          remainingBalance: 0
+        });
+      }
+
+      // 3. Fetch shifts
+      const shifts = db.prepare(`
+        SELECT id FROM shifts 
+        WHERE client_id = ? 
+          AND status IN ('COMPLETED', 'PUBLISHED', 'IN_PROGRESS')
+      `).all(id) as any[];
+
+      // 4. Process all shift line items and bucket them
+      for (const shiftRow of shifts) {
+         try {
+           const data = getInvoiceDataForShift(shiftRow.id);
+           if (data && data.lineItems) {
+              data.lineItems.forEach((li: any) => {
+                 let code = li.code || li.serviceId;
+                 if (itemsMap.has(code)) {
+                   let item = itemsMap.get(code);
+                   item.amountSpent += li.amount || 0;
+                   if (li.unit === 'H' || li.unit === 'Hour') {
+                     item.deliveredHours += li.qty || 0;
+                   }
+                   totalAmountSpent += li.amount || 0;
+                 }
+              });
+           }
+         } catch(e) {}
+      }
+
+      const items = Array.from(itemsMap.values()).map(it => {
+         it.remainingBalance = it.allocatedBudget - it.amountSpent;
+         return it;
+      });
+
+      res.json({
+        totalAgreementValue,
+        totalClaimed: totalAmountSpent,
+        totalRemainingBalance: totalAgreementValue - totalAmountSpent,
+        items
+      });
+    } catch (e: any) {
+      logger.error(`API Error fetching NDIS budget: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
   app.post('/api/clients/:id/ledger/external', authenticateToken, (req, res) => {
     const { id } = req.params;
     const { date, serviceName, vendorName, baseAmount, applyLoadings } = req.body;
