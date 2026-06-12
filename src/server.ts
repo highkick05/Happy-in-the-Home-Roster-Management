@@ -8019,22 +8019,33 @@ async function startServer() {
       
       doc.pipe(res);
 
-      let totalPages = 0;
-      doc.on('pageAdded', () => {
-        totalPages++;
-      });
-      totalPages = 1; // Initial page
+      // Logo Support
+      const settingsTable = db.prepare('SELECT setting_value FROM settings WHERE setting_key = ?').get('letterheadLogo');
+      const logoUrl = settingsTable?.setting_value;
+      const addLogo = () => {
+        if (logoUrl) {
+          try {
+            const logoFilename = logoUrl.split('/').pop();
+            const logoPath = require('path').join(assetsDir, logoFilename);
+            if (require('fs').existsSync(logoPath)) {
+              doc.image(logoPath, 40, 40, { width: 150 });
+              doc.moveDown(4);
+            }
+          } catch (err) {}
+        }
+      };
 
       // Colors & Fonts
       const primaryColor = '#000000';
       const secondaryColor = '#4a4a4a';
 
       // --- PAGE 1: LETTER OF OFFER ---
+      addLogo();
       // Header
-      doc.font('Helvetica-Bold').fontSize(12).fillColor(primaryColor).text('Letter of offer', { align: 'right' });
+      doc.font('Helvetica-Bold').fontSize(18).fillColor(primaryColor).text('Letter of Offer', { align: 'right' });
       doc.moveDown(1);
       
-      doc.font('Helvetica-Bold').fontSize(10);
+      doc.font('Helvetica-Bold').fontSize(11);
       doc.text('HAPPY IN THE HOME');
       doc.text('24 Pollett Street, Spalding WA 6530');
       doc.text('ABN: 69695033115');
@@ -8083,7 +8094,7 @@ async function startServer() {
       doc.addPage();
       doc.font('Helvetica-Bold').fontSize(16).text('Acceptance of offer');
       doc.moveDown(1);
-      doc.font('Helvetica').fontSize(10);
+      doc.font('Helvetica').fontSize(11);
       doc.text(`I ${staffName}:`);
       doc.moveDown(0.5);
       doc.text('• have read and understand the terms and conditions in the attached employment contract', { indent: 20 });
@@ -8101,10 +8112,11 @@ async function startServer() {
 
       // --- PAGE 3: EMPLOYMENT CONTRACT START ---
       doc.addPage();
-      doc.font('Helvetica-Bold').fontSize(18).text('Employment contract');
+      addLogo();
+      doc.font('Helvetica-Bold').fontSize(22).text('Employment Contract');
       doc.moveDown(1.5);
       
-      doc.font('Helvetica').fontSize(10);
+      doc.font('Helvetica').fontSize(11);
       doc.text(`This is an employment contract dated ${todayDate}.`);
       doc.moveDown(1.5);
       
@@ -8121,13 +8133,20 @@ async function startServer() {
       doc.moveDown(2);
 
       // Section: Position
-      doc.font('Helvetica-Bold').fontSize(14).text('Position');
+      doc.font('Helvetica-Bold').fontSize(15).text('Position');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10);
+      doc.font('Helvetica').fontSize(11);
       doc.text(`You are being employed in the position of ${positionTitle}.`);
       doc.moveDown(0.5);
       doc.text(`You are being employed on a ${employmentType.toLowerCase()} basis, as required.`);
       doc.moveDown(1);
+      
+      if (positionDescription) {
+        doc.font('Helvetica-Bold').fontSize(13).text('Position Description');
+        doc.moveDown(0.5);
+        doc.font('Helvetica').fontSize(11).text(positionDescription);
+        doc.moveDown(1);
+      }
       
       if (employmentType === 'Casual') {
         doc.text("Because you are a casual employee, we do not guarantee the days or hours you'll work, or how long you'll be employed for. We do not commit to providing you with work that will be continuing or indefinite.");
@@ -8139,22 +8158,22 @@ async function startServer() {
       doc.moveDown(1);
 
       // Section: Employment dates
-      doc.font('Helvetica-Bold').fontSize(12).text('Employment dates');
+      doc.font('Helvetica-Bold').fontSize(13).text('Employment dates');
       doc.moveDown(0.5);
-      doc.font('Helvetica-Bold').fontSize(10).text(`Your start date will be ${new Date(commencementDate).toLocaleDateString('en-AU')}.`);
+      doc.font('Helvetica-Bold').fontSize(11).text(`Your start date will be ${new Date(commencementDate).toLocaleDateString('en-AU')}.`);
       doc.moveDown(1.5);
 
       if (probationPeriod !== 'None') {
-        doc.font('Helvetica-Bold').fontSize(12).text('Probation');
+        doc.font('Helvetica-Bold').fontSize(13).text('Probation');
         doc.moveDown(0.5);
-        doc.font('Helvetica').fontSize(10).text(`Your employment is subject to a probation period of ${probationPeriod}.`);
+        doc.font('Helvetica').fontSize(11).text(`Your employment is subject to a probation period of ${probationPeriod}.`);
         doc.moveDown(1.5);
       }
 
       // Section: Workplace
-      doc.font('Helvetica-Bold').fontSize(12).text('Workplace');
+      doc.font('Helvetica-Bold').fontSize(13).text('Workplace');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('You will be required to work at the following location/s:');
+      doc.font('Helvetica').fontSize(11).text('You will be required to work at the following location/s:');
       doc.moveDown(0.5);
       doc.text('24, Pollett Street, Spalding, Western Australia, 6530');
       doc.moveDown(0.5);
@@ -8162,37 +8181,37 @@ async function startServer() {
       doc.moveDown(1.5);
 
       // Section: Duties
-      doc.font('Helvetica-Bold').fontSize(12).text('Duties');
+      doc.font('Helvetica-Bold').fontSize(13).text('Duties');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('You will perform the duties described in the attached position description as required.');
+      doc.font('Helvetica').fontSize(11).text('You will perform the duties described in the attached position description as required.');
       doc.moveDown(0.5);
       doc.text('We may also assign you other duties, where reasonable for your position, qualifications, training and experience.');
       doc.moveDown(1.5);
 
       // Section: Employment terms and conditions
-      doc.font('Helvetica-Bold').fontSize(12).text('Employment terms and conditions');
+      doc.font('Helvetica-Bold').fontSize(13).text('Employment terms and conditions');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10);
+      doc.font('Helvetica').fontSize(11);
       doc.text(`Your employment terms and conditions are those set out in this contract, the ${industrialInstrument} and applicable legislation. This includes, the National Employment Standards in the Fair Work Act 2009.`);
       doc.moveDown(0.5);
       doc.text("You can check the minimum award entitlements for your classification level with the Fair Work Ombudsman's Pay and Conditions Tool.");
       doc.moveDown(1.5);
       
       // Section: Hours of work
-      doc.font('Helvetica-Bold').fontSize(14).text('Hours of work');
+      doc.font('Helvetica-Bold').fontSize(15).text('Hours of work');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10);
+      doc.font('Helvetica').fontSize(11);
       doc.text(`As a ${employmentType.toLowerCase()} employee, your hours may vary depending on business needs.`);
       doc.moveDown(1);
       
-      doc.font('Helvetica-Bold').fontSize(12).text('Shift work hours');
+      doc.font('Helvetica-Bold').fontSize(13).text('Shift work hours');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('At the start of your employment, you will be rostered to work day, afternoon and night shifts in accordance with the award. The shifts you work may be changed later in accordance with award rules about changing hours of work, rosters and consultation.');
+      doc.font('Helvetica').fontSize(11).text('At the start of your employment, you will be rostered to work day, afternoon and night shifts in accordance with the award. The shifts you work may be changed later in accordance with award rules about changing hours of work, rosters and consultation.');
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Rosters');
+      doc.font('Helvetica-Bold').fontSize(13).text('Rosters');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10);
+      doc.font('Helvetica').fontSize(11);
       doc.text('We will provide you with your days and hours of work in a roster at least 7 days before the start of the roster.');
       doc.moveDown(0.5);
       doc.text("If we need to change your roster, we will give you 7 days' notice or ask for your agreement to the change.");
@@ -8200,9 +8219,9 @@ async function startServer() {
       doc.text("If you wish to ask for a change to your roster, we require 7 days' notice. You will need our agreement to the change.");
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Breaks');
+      doc.font('Helvetica-Bold').fontSize(13).text('Breaks');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10);
+      doc.font('Helvetica').fontSize(11);
       doc.text('Depending on the number of hours you work in a shift, you may be entitled to meal breaks. The award sets out:');
       doc.text('• the length of the breaks', { indent: 20 });
       doc.text('• when they need to be taken', { indent: 20 });
@@ -8212,25 +8231,25 @@ async function startServer() {
       doc.moveDown(1.5);
 
       // Section: Pay and allowances
-      doc.font('Helvetica-Bold').fontSize(14).text('Pay and allowances');
+      doc.font('Helvetica-Bold').fontSize(15).text('Pay and allowances');
       doc.moveDown(1);
       
-      doc.font('Helvetica-Bold').fontSize(12).text('Pay rate');
+      doc.font('Helvetica-Bold').fontSize(13).text('Pay rate');
       doc.moveDown(0.5);
-      doc.font('Helvetica-Bold').fontSize(10).text(`You will be paid $${parseFloat(baseHourlyRate || 0).toFixed(2)} per hour (${schadsLevel} ${schadsPayPoint}). `, { continued: true });
+      doc.font('Helvetica-Bold').fontSize(11).text(`You will be paid $${parseFloat(baseHourlyRate || 0).toFixed(2)} per hour (${schadsLevel} ${schadsPayPoint}). `, { continued: true });
       doc.font('Helvetica').text(`This pay rate includes casual loading at the percentage set out in your award. This loading is paid instead of entitlements that apply to permanent employees like paid personal leave and annual leave.`);
       doc.moveDown(0.5);
       doc.text("This pay rate does not include superannuation, we'll pay this separately.");
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Payment method');
+      doc.font('Helvetica-Bold').fontSize(13).text('Payment method');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('We will pay you fortnightly into your nominated bank account.');
+      doc.font('Helvetica').fontSize(11).text('We will pay you fortnightly into your nominated bank account.');
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Penalty rates and overtime');
+      doc.font('Helvetica-Bold').fontSize(13).text('Penalty rates and overtime');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('You may be entitled to overtime rates under your award if you work:');
+      doc.font('Helvetica').fontSize(11).text('You may be entitled to overtime rates under your award if you work:');
       doc.text('• more than your ordinary hours of work', { indent: 20 });
       doc.text('• outside the spread of ordinary hours.', { indent: 20 });
       doc.moveDown(0.5);
@@ -8240,9 +8259,9 @@ async function startServer() {
       doc.text('• late night or early morning shifts.', { indent: 20 });
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Superannuation');
+      doc.font('Helvetica-Bold').fontSize(13).text('Superannuation');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10);
+      doc.font('Helvetica').fontSize(11);
       doc.text('If you are eligible for the super guarantee (SG), we will pay the contributions on your behalf in accordance with legislation and your award. We will pay contributions into a super fund of your choice.');
       doc.moveDown(0.5);
       doc.text("If you do not tell us your choice of fund, we may need to contact the ATO to find out if you have a 'stapled' super fund to make your SG contributions into.");
@@ -8250,9 +8269,9 @@ async function startServer() {
       doc.text("If you do not tell us your choice of fund and the ATO confirms you don't have a stapled super fund, we will pay your SG contributions to our default fund or another fund that meets the choice of fund rules.");
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Annual pay review');
+      doc.font('Helvetica-Bold').fontSize(13).text('Annual pay review');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10);
+      doc.font('Helvetica').fontSize(11);
       doc.text('We will review your pay annually to determine whether you are eligible for an increase, taking into consideration:');
       doc.text('• your performance', { indent: 20 });
       doc.text("• the business's financial position.", { indent: 20 });
@@ -8261,29 +8280,29 @@ async function startServer() {
       doc.moveDown(1.5);
 
       // Section: Leave
-      doc.font('Helvetica-Bold').fontSize(14).text('Leave');
+      doc.font('Helvetica-Bold').fontSize(15).text('Leave');
       doc.moveDown(1);
       
-      doc.font('Helvetica-Bold').fontSize(12).text("Carer's leave");
+      doc.font('Helvetica-Bold').fontSize(13).text("Carer's leave");
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text("You are entitled to 2 days of unpaid carer's leave (in accordance with the National Employment Standards). This is available each time a member of your immediate family or household needs your care or support because of:");
+      doc.font('Helvetica').fontSize(11).text("You are entitled to 2 days of unpaid carer's leave (in accordance with the National Employment Standards). This is available each time a member of your immediate family or household needs your care or support because of:");
       doc.text('• personal injury', { indent: 20 });
       doc.text('• personal illness', { indent: 20 });
       doc.text('• an unexpected emergency.', { indent: 20 });
       doc.text("• You must give us notice as soon as possible to take carer's leave. We may also require evidence (such as a medical certificate).", { indent: 20 });
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Compassionate leave');
+      doc.font('Helvetica-Bold').fontSize(13).text('Compassionate leave');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('You are entitled to 2 days unpaid compassionate leave (in accordance with the National Employment Standards) each time:');
+      doc.font('Helvetica').fontSize(11).text('You are entitled to 2 days unpaid compassionate leave (in accordance with the National Employment Standards) each time:');
       doc.text('• a member of your immediate family or household dies, or contracts or develops a life-threatening illness or injury', { indent: 20 });
       doc.text('• a child is stillborn, that would have been a member of your immediate family or household if born alive', { indent: 20 });
       doc.text('• you or your current spouse or de facto partner has a miscarriage.', { indent: 20 });
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Community service leave');
+      doc.font('Helvetica-Bold').fontSize(13).text('Community service leave');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('You may be entitled to community service leave (in accordance with the National Employment Standards) for certain activities such as:');
+      doc.font('Helvetica').fontSize(11).text('You may be entitled to community service leave (in accordance with the National Employment Standards) for certain activities such as:');
       doc.text('• voluntary emergency management activities', { indent: 20 });
       doc.text('• jury duty and jury selection.', { indent: 20 });
       doc.moveDown(0.5);
@@ -8294,19 +8313,19 @@ async function startServer() {
       doc.text('We may ask you to provide evidence that you require community service leave.');
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Family and domestic violence leave');
+      doc.font('Helvetica-Bold').fontSize(13).text('Family and domestic violence leave');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('You may be entitled to 10 days of paid family and domestic violence leave (in accordance with the National Employment Standards) each 12-month period.');
+      doc.font('Helvetica').fontSize(11).text('You may be entitled to 10 days of paid family and domestic violence leave (in accordance with the National Employment Standards) each 12-month period.');
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Long service leave');
+      doc.font('Helvetica-Bold').fontSize(13).text('Long service leave');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('You may be entitled to long service leave after working with us for a specific period of time in accordance with relevant state or territory legislation or the Fair Work Act.');
+      doc.font('Helvetica').fontSize(11).text('You may be entitled to long service leave after working with us for a specific period of time in accordance with relevant state or territory legislation or the Fair Work Act.');
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Parental leave');
+      doc.font('Helvetica-Bold').fontSize(13).text('Parental leave');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('You may be entitled to 12 months of unpaid parental leave if you:');
+      doc.font('Helvetica').fontSize(11).text('You may be entitled to 12 months of unpaid parental leave if you:');
       doc.text('• have worked for us on a regular and systematic basis for 12 months or more', { indent: 20 });
       doc.text('• had a reasonable expectation of continuing your employment on a regular and systematic basis had it not been for the birth or adoption of a child.', { indent: 20 });
       doc.moveDown(0.5);
@@ -8315,9 +8334,9 @@ async function startServer() {
       doc.text('• be entitled to Parental Leave Pay from the Australian Government, administered by Services Australia.', { indent: 20 });
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Public holidays');
+      doc.font('Helvetica-Bold').fontSize(13).text('Public holidays');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('You have a right to be absent from work on a public holiday.');
+      doc.font('Helvetica').fontSize(11).text('You have a right to be absent from work on a public holiday.');
       doc.moveDown(0.5);
       doc.text('We may ask you to work on a public holiday, but as you are a casual employee you may refuse our offer of work.');
       doc.moveDown(0.5);
@@ -8325,26 +8344,26 @@ async function startServer() {
       doc.moveDown(1.5);
 
       // Section: Obligations
-      doc.font('Helvetica-Bold').fontSize(14).text('Obligations');
+      doc.font('Helvetica-Bold').fontSize(15).text('Obligations');
       doc.moveDown(1);
       
-      doc.font('Helvetica-Bold').fontSize(12).text('Employee obligations');
+      doc.font('Helvetica-Bold').fontSize(13).text('Employee obligations');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('As an employee of our business, we expect you to:');
+      doc.font('Helvetica').fontSize(11).text('As an employee of our business, we expect you to:');
       doc.text('• carry out your duties to the best of your ability', { indent: 20 });
       doc.text('• act honestly and in the best interests of the business', { indent: 20 });
       doc.text('• comply with our business policies and procedures which we will make available to you (but do not form part of this contract)', { indent: 20 });
       doc.text('• comply with any other lawful and reasonable directions we provide.', { indent: 20 });
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Conflict of interest');
+      doc.font('Helvetica-Bold').fontSize(13).text('Conflict of interest');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('While employed with us, you must get our written agreement before working for other employers or doing activities that may conflict with the interests of our business.');
+      doc.font('Helvetica').fontSize(11).text('While employed with us, you must get our written agreement before working for other employers or doing activities that may conflict with the interests of our business.');
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Confidentiality');
+      doc.font('Helvetica-Bold').fontSize(13).text('Confidentiality');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('You agree not to use or disclose confidential information relating to the business. This includes while you are employed by us and after your employment ends.');
+      doc.font('Helvetica').fontSize(11).text('You agree not to use or disclose confidential information relating to the business. This includes while you are employed by us and after your employment ends.');
       doc.moveDown(0.5);
       doc.text('Confidential information – including trade secrets, pricing structures, documents you create while employed with us, and information on our clients and suppliers – is our property.');
       doc.moveDown(0.5);
@@ -8355,9 +8374,9 @@ async function startServer() {
       doc.text('• the information is required by law.', { indent: 20 });
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Intellectual property');
+      doc.font('Helvetica-Bold').fontSize(13).text('Intellectual property');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('Anything you invent, develop or create in the course of your work with us, remains our intellectual property. You must tell us about these works immediately.');
+      doc.font('Helvetica').fontSize(11).text('Anything you invent, develop or create in the course of your work with us, remains our intellectual property. You must tell us about these works immediately.');
       doc.moveDown(0.5);
       doc.text('This includes:');
       doc.text('• designs', { indent: 20 });
@@ -8370,16 +8389,16 @@ async function startServer() {
       doc.text('You must not use or reproduce any intellectual property owned by us without our consent. This includes after your employment ends with us.');
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Consultation for workplace changes');
+      doc.font('Helvetica-Bold').fontSize(13).text('Consultation for workplace changes');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('If we intend to make significant changes in the workplace, we will consult with you and your representatives in accordance with the award. This includes major changes to:');
+      doc.font('Helvetica').fontSize(11).text('If we intend to make significant changes in the workplace, we will consult with you and your representatives in accordance with the award. This includes major changes to:');
       doc.text('• our business operations, structure or technology that are likely to significantly affect you', { indent: 20 });
       doc.text('• your regular roster or ordinary hours of work – if you work regular hours.', { indent: 20 });
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Disputes');
+      doc.font('Helvetica-Bold').fontSize(13).text('Disputes');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('If you have any concerns about your employment, talk to us first so we can try to solve the issues together. Your award has a dispute resolution term that sets out this process.');
+      doc.font('Helvetica').fontSize(11).text('If you have any concerns about your employment, talk to us first so we can try to solve the issues together. Your award has a dispute resolution term that sets out this process.');
       doc.moveDown(0.5);
       doc.text('If the dispute remains unresolved, you or we may refer it to the Fair Work Commission. If this happens, you can be represented by another person or organisation.');
       doc.moveDown(0.5);
@@ -8387,19 +8406,19 @@ async function startServer() {
       doc.moveDown(1.5);
 
       // Section: Ending employment
-      doc.font('Helvetica-Bold').fontSize(14).text('Ending employment');
+      doc.font('Helvetica-Bold').fontSize(15).text('Ending employment');
       doc.moveDown(1);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Notice');
+      doc.font('Helvetica-Bold').fontSize(13).text('Notice');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('As a casual employee, if:');
+      doc.font('Helvetica').fontSize(11).text('As a casual employee, if:');
       doc.text('• we end your employment, we do not have to give you notice', { indent: 20 });
       doc.text('• you resign, you do not have to give us notice.', { indent: 20 });
       doc.moveDown(1.5);
 
-      doc.font('Helvetica-Bold').fontSize(12).text('Misconduct');
+      doc.font('Helvetica-Bold').fontSize(13).text('Misconduct');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('We may terminate your employment without notice, or payment in lieu of notice, if you engage in serious misconduct.');
+      doc.font('Helvetica').fontSize(11).text('We may terminate your employment without notice, or payment in lieu of notice, if you engage in serious misconduct.');
       doc.moveDown(0.5);
       doc.text('Serious misconduct is when an employee:');
       doc.text('• causes serious and imminent risk to the health and safety of another person or to the reputation, viability or profits of their employer\'s business, or', { indent: 20 });
@@ -8415,20 +8434,16 @@ async function startServer() {
       doc.text('• refusing to carry out work duties.', { indent: 20 });
       doc.moveDown(1.5);
 
-      // Appendix: Position Description
-      doc.addPage();
-      doc.font('Helvetica-Bold').fontSize(16).text('Position Description');
-      doc.moveDown(1);
-      doc.font('Helvetica').fontSize(10).text(positionDescription);
+
 
       // --- PAGE: SIGNED ---
       doc.addPage();
       doc.font('Helvetica-Bold').fontSize(16).text('SIGNED');
       doc.moveDown(1);
       
-      doc.font('Helvetica-Bold').fontSize(12).text('Employer – company with more than one director');
+      doc.font('Helvetica-Bold').fontSize(13).text('Employer – company with more than one director');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('EXECUTED by [Happy in the Home and 69695033115] in accordance with section 127 of the Corporations Act 2001 (Cth).');
+      doc.font('Helvetica').fontSize(11).text('EXECUTED by [Happy in the Home and 69695033115] in accordance with section 127 of the Corporations Act 2001 (Cth).');
       doc.moveDown(4);
 
       // Employer signature fields
@@ -8460,9 +8475,9 @@ async function startServer() {
       // Employee
       // Reset X coordinate
       doc.x = 40;
-      doc.font('Helvetica-Bold').fontSize(12).text('Employee');
+      doc.font('Helvetica-Bold').fontSize(13).text('Employee');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('I understand and agree to the terms and conditions of employment set out in this contract.');
+      doc.font('Helvetica').fontSize(11).text('I understand and agree to the terms and conditions of employment set out in this contract.');
       doc.moveDown(3);
       
       doc.text(staffName);
@@ -8487,8 +8502,12 @@ async function startServer() {
       const range = doc.bufferedPageRange();
       for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
-        doc.font('Helvetica').fontSize(8).fillColor('#888888');
-        doc.text(`Page ${i + 1} of ${range.count}`, 0, doc.page.height - 30, { align: 'center' });
+        // Temporarily disable bottom margin to avoid unwanted new pages
+        const oldBottom = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0;
+        doc.font('Helvetica').fontSize(9).fillColor('#888888');
+        doc.text(`Page ${i + 1} of ${range.count}`, 0, doc.page.height - 30, { align: 'center', lineBreak: false });
+        doc.page.margins.bottom = oldBottom;
       }
 
       doc.end();
