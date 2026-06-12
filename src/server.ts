@@ -8020,8 +8020,8 @@ async function startServer() {
       doc.pipe(res);
 
       // Logo Support
-      const settingsTable = db.prepare('SELECT setting_value FROM settings WHERE setting_key = ?').get('letterheadLogo');
-      const logoUrl = settingsTable?.setting_value;
+      const settingsTable = db.prepare('SELECT value FROM settings WHERE key = ?').get('letterheadLogo') as any;
+      const logoUrl = settingsTable?.value ? JSON.parse(settingsTable.value) : undefined;
       const addLogo = () => {
         if (logoUrl) {
           try {
