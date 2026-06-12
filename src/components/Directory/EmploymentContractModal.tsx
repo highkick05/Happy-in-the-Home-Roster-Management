@@ -107,7 +107,7 @@ export default function EmploymentContractModal({ staffMember, onClose }: Props)
         body: JSON.stringify({ 
           ...formData, 
           staffName: `${staffMember.first_name} ${staffMember.last_name}`, 
-          address: `${staffMember.residential_address || ''} ${staffMember.suburb || ''} ${staffMember.postcode || ''}`.trim() 
+          address: staffMember.address || ''
         })
       });
 
@@ -134,7 +134,7 @@ export default function EmploymentContractModal({ staffMember, onClose }: Props)
   };
 
   const staffFullName = `${staffMember.first_name || ''} ${staffMember.last_name || ''}`.trim();
-  const staffAddress = [staffMember.residential_address, staffMember.suburb, staffMember.state, staffMember.postcode].filter(Boolean).join(' ') || 'Address not provided';
+  const staffAddress = staffMember.address || 'Address not provided';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
