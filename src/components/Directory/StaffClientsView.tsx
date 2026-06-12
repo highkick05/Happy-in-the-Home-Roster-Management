@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Edit2, Ban, CheckCircle, UsersIcon, UserPlus, Calendar } from 'lucide-react';
+import { Plus, Edit2, Ban, CheckCircle, UsersIcon, UserPlus, Calendar, FileText } from 'lucide-react';
 import StaffModal from './StaffModal';
 import ClientModal from './ClientModal';
 import ClientRosterModal from './ClientRosterModal';
 import ProviderModal from './ProviderModal';
+import EmploymentContractModal from './EmploymentContractModal';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 'CLIENTS' | 'PROVIDERS' }) {
@@ -26,6 +27,9 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
 
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
+
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [contractStaffMember, setContractStaffMember] = useState<any>(null);
 
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<any>(null);
@@ -234,6 +238,13 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                       </span>
                     </td>
                     <td className="px-4 py-2 sm:py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        onClick={() => { setContractStaffMember(s); setIsContractModalOpen(true); }}
+                        className="p-1.5 text-[#8B949E] hover:text-emerald-400 transition-colors rounded-md hover:bg-white/[0.04]"
+                        title="Generate Employment Contract"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
                       <button onClick={() => handleEditStaff(s)} className="p-1.5 text-[#8B949E] hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]">
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -422,6 +433,16 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
         token={token!}
         provider={selectedProvider}
       />
+
+      {isContractModalOpen && contractStaffMember && (
+        <EmploymentContractModal
+          staffMember={contractStaffMember}
+          onClose={() => {
+            setIsContractModalOpen(false);
+            setContractStaffMember(null);
+          }}
+        />
+      )}
     </div>
   );
 }
