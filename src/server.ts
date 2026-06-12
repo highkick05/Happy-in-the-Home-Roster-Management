@@ -282,6 +282,29 @@ async function startServer() {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Seed default position templates
+    const defaultTemplates = [
+      { title: 'Support Worker', desc: 'Providing personal care, domestic assistance, and community access support to clients in accordance with their individual care plans. Responsibilities include assisting with activities of daily living, medication prompting, transport, and documenting progress notes accurately.' },
+      { title: 'Registered Nurse', desc: 'Delivering clinical nursing care to clients, including comprehensive assessments, care planning, wound care, medication administration, and monitoring health outcomes. Supervising care staff and ensuring compliance with healthcare standards.' },
+      { title: 'Enrolled Nurse', desc: 'Providing nursing care under the supervision of a Registered Nurse, including administering medications, monitoring patient vital signs, wound care, and updating patient records. Supporting the implementation of care plans.' },
+      { title: 'Clinical Coordinator', desc: 'Overseeing and managing clinical care services, ensuring quality and compliance with relevant standards. Coordinating care teams, developing complex care plans, liaising with stakeholders, and providing clinical leadership.' },
+      { title: 'Administrator', desc: 'Managing office operations, scheduling, fielding client inquiries, maintaining accurate records, supporting payroll processes, and providing general administrative support to the management team.' },
+      { title: 'Gardener', desc: 'Performing general gardening and minor outdoor maintenance tasks for clients, including lawn mowing, pruning, weeding, and ensuring outdoor areas are safe and accessible.' },
+      { title: 'Home Maintenance Worker', desc: 'Conducting minor home maintenance and repair tasks to ensure client homes remain safe and functional. Duties include minor carpentry, changing lightbulbs, fixing fixtures, and safety checks.' }
+    ];
+
+    const insertTemplate = db.prepare(`
+      INSERT INTO position_templates (position_title, description_text) 
+      VALUES (?, ?) 
+      ON CONFLICT(position_title) DO NOTHING
+    `);
+
+    db.transaction(() => {
+      for (const t of defaultTemplates) {
+        insertTemplate.run(t.title, t.desc);
+      }
+    })();
   } catch(e: any) {
     console.error('Migration error for ndis_service_agreements:', e);
   }

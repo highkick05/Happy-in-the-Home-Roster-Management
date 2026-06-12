@@ -50,10 +50,13 @@ export default function EmploymentContractModal({ staffMember, onClose }: Props)
         setTemplates(data);
         
         // Auto-fill initial description if match exists
-        const match = data.find((t: any) => t.position_title === formData.positionTitle);
-        if (match) {
-          setFormData(prev => ({ ...prev, positionDescription: match.description_text }));
-        }
+        setFormData(prev => {
+          const match = data.find((t: any) => t.position_title === prev.positionTitle);
+          if (match && !prev.positionDescription) {
+            return { ...prev, positionDescription: match.description_text };
+          }
+          return prev;
+        });
       }
     } catch (e) {
       console.error(e);
