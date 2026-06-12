@@ -8028,8 +8028,8 @@ async function startServer() {
             const logoFilename = logoUrl.split('/').pop();
             const logoPath = require('path').join(assetsDir, logoFilename);
             if (require('fs').existsSync(logoPath)) {
-              doc.image(logoPath, 40, 40, { width: 150 });
-              doc.moveDown(4);
+              doc.image(logoPath, doc.page.width - 40 - 120, 40, { width: 120 });
+              // We do NOT modify doc.y, so standard text on the left stays at the top.
             }
           } catch (err) {}
         }
@@ -8041,8 +8041,10 @@ async function startServer() {
 
       // --- PAGE 1: LETTER OF OFFER ---
       addLogo();
+      // Reset Y to top for left column
+      doc.y = 40;
       // Header
-      doc.font('Helvetica-Bold').fontSize(18).fillColor(primaryColor).text('Letter of Offer', { align: 'right' });
+      doc.font('Helvetica-Bold').fontSize(22).fillColor(primaryColor).text('Letter of Offer');
       doc.moveDown(1);
       
       doc.font('Helvetica-Bold').fontSize(11);
@@ -8113,6 +8115,7 @@ async function startServer() {
       // --- PAGE 3: EMPLOYMENT CONTRACT START ---
       doc.addPage();
       addLogo();
+      doc.y = 40;
       doc.font('Helvetica-Bold').fontSize(22).text('Employment Contract');
       doc.moveDown(1.5);
       
@@ -8506,7 +8509,7 @@ async function startServer() {
         const oldBottom = doc.page.margins.bottom;
         doc.page.margins.bottom = 0;
         doc.font('Helvetica').fontSize(9).fillColor('#888888');
-        doc.text(`Page ${i + 1} of ${range.count}`, 0, doc.page.height - 30, { align: 'center', lineBreak: false });
+        doc.text(`Page ${i + 1} of ${range.count}`, 0, doc.page.height - 30, { align: 'center', width: doc.page.width, lineBreak: false });
         doc.page.margins.bottom = oldBottom;
       }
 
