@@ -617,6 +617,7 @@ export default function HomeCareBudgetView() {
                 {user?.role === 'ADMIN' ? (
                   <CustomDatePicker
                     position="bottom"
+                    align="right"
                     value={spendAsOfDate}
                     onChange={(e) => setSpendAsOfDate(e.target.value)}
                     className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2 py-1.5 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
