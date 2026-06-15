@@ -308,7 +308,20 @@ export default function HomeCareBudgetView() {
     };
   });
 
-  const liveSystemConsumptions = processedLedgerItems.reduce((acc: number, item: any) => acc + item.amount, 0);
+  const liveSystemConsumptions = processedLedgerItems.reduce((acc: number, item: any) => {
+    let itemDateYMD = '';
+    if (item.date && item.date.length === 10 && item.date[2] === '-') {
+      const [d, m, y] = item.date.split('-');
+      itemDateYMD = `${y}-${m}-${d}`;
+    } else if (item.date) {
+      itemDateYMD = item.date;
+    }
+
+    if (spendAsOfDate && itemDateYMD && itemDateYMD <= spendAsOfDate) {
+      return acc;
+    }
+    return acc + item.amount;
+  }, 0);
   const totalInternal = historicalInternal + liveSystemConsumptions;
   const totalCombinedSpent = totalInternal;
   const remainingBalance = totalAllocation - totalCombinedSpent;
