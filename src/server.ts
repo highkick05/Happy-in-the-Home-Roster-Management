@@ -8444,65 +8444,58 @@ async function startServer() {
       // --- PAGE: SIGNED ---
       doc.addPage();
       doc.font('Helvetica-Bold').fontSize(16).text('SIGNED');
-      doc.moveDown(1);
+      doc.moveDown(1.5);
       
-      doc.font('Helvetica-Bold').fontSize(13).text('Employer – company with more than one director');
+      doc.font('Helvetica-Bold').fontSize(13).text('Employer');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(11).text('EXECUTED by [Happy in the Home and 69695033115] in accordance with section 127 of the Corporations Act 2001 (Cth).');
-      doc.moveDown(4);
-
-      // Employer signature fields
-      const startX = doc.x;
-      const signatureWidth = 200;
-      doc.moveTo(startX, doc.y).lineTo(startX + signatureWidth, doc.y).stroke();
-      doc.moveTo(startX + signatureWidth + 40, doc.y).lineTo(startX + signatureWidth * 2 + 40, doc.y).stroke();
-      doc.moveDown(0.5);
-      doc.text('Name of Director (print)', startX, doc.y, { width: signatureWidth });
-      const currentY = doc.y;
-      doc.text('Name of Director / Company Secretary (print)\n(delete as applicable)', startX + signatureWidth + 40, currentY - 12, { width: signatureWidth });
-      doc.moveDown(3);
-      
-      doc.moveTo(startX, doc.y).lineTo(startX + signatureWidth, doc.y).stroke();
-      doc.moveTo(startX + signatureWidth + 40, doc.y).lineTo(startX + signatureWidth * 2 + 40, doc.y).stroke();
-      doc.moveDown(0.5);
-      doc.text('Signature of Director', startX, doc.y, { width: signatureWidth });
-      const currentY2 = doc.y;
-      doc.text('Signature of Director / Company Secretary\n(delete as applicable)', startX + signatureWidth + 40, currentY2 - 12, { width: signatureWidth });
+      doc.font('Helvetica').fontSize(11).text('Signed for and on behalf of Happy in the Home by its authorized representative.');
       doc.moveDown(3);
 
-      doc.moveTo(startX, doc.y).lineTo(startX + signatureWidth, doc.y).stroke();
-      doc.moveTo(startX + signatureWidth + 40, doc.y).lineTo(startX + signatureWidth * 2 + 40, doc.y).stroke();
+      const sigWidth = 250;
+      doc.moveTo(doc.x, doc.y).lineTo(doc.x + sigWidth, doc.y).stroke();
       doc.moveDown(0.5);
-      doc.text('Date', startX, doc.y, { width: signatureWidth });
-      doc.text('Date', startX + signatureWidth + 40, doc.y, { width: signatureWidth });
+      doc.text('Signature');
+      doc.moveDown(2);
+
+      doc.moveTo(doc.x, doc.y).lineTo(doc.x + sigWidth, doc.y).stroke();
+      doc.moveDown(0.5);
+      doc.text('Name (print)');
+      doc.moveDown(2);
+
+      doc.moveTo(doc.x, doc.y).lineTo(doc.x + sigWidth, doc.y).stroke();
+      doc.moveDown(0.5);
+      doc.text('Position');
+      doc.moveDown(2);
+      
+      doc.moveTo(doc.x, doc.y).lineTo(doc.x + sigWidth, doc.y).stroke();
+      doc.moveDown(0.5);
+      doc.text('Date');
       doc.moveDown(4);
 
       // Employee
-      // Reset X coordinate
-      doc.x = 40;
       doc.font('Helvetica-Bold').fontSize(13).text('Employee');
       doc.moveDown(0.5);
       doc.font('Helvetica').fontSize(11).text('I understand and agree to the terms and conditions of employment set out in this contract.');
       doc.moveDown(3);
-      
+
       doc.text(staffName);
       doc.moveDown(0.2);
-      doc.moveTo(doc.x, doc.y).lineTo(doc.x + 250, doc.y).stroke();
+      doc.moveTo(doc.x, doc.y).lineTo(doc.x + sigWidth, doc.y).stroke();
       doc.moveDown(0.5);
       doc.text('Name (print)');
       doc.moveDown(3);
-      
-      doc.moveTo(doc.x, doc.y).lineTo(doc.x + 250, doc.y).stroke();
+
+      doc.moveTo(doc.x, doc.y).lineTo(doc.x + sigWidth, doc.y).stroke();
       doc.moveDown(0.5);
       doc.text('Signature');
       doc.moveDown(3);
-      
+
       doc.text(todayDate);
       doc.moveDown(0.2);
-      doc.moveTo(doc.x, doc.y).lineTo(doc.x + 250, doc.y).stroke();
+      doc.moveTo(doc.x, doc.y).lineTo(doc.x + sigWidth, doc.y).stroke();
       doc.moveDown(0.5);
       doc.text('Date');
-
+      
       // Add page numbers
       const range = doc.bufferedPageRange();
       for (let i = range.start; i < range.start + range.count; i++) {
