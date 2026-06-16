@@ -397,13 +397,16 @@ export default function FilesView() {
                 </React.Fragment>
               ))}
             </div>
-            <div className="text-xs text-zinc-500 italic hidden sm:flex items-center">
-               <UploadCloud className="w-3.5 h-3.5 mr-1.5 opacity-60" />
-               Drag and drop files here to upload
+          </div>
+          
+          <div className="absolute inset-y-12 inset-x-0 pointer-events-none flex items-center justify-center z-0 opacity-[0.03] select-none mix-blend-screen overflow-hidden">
+            <div className="flex flex-col items-center">
+              <UploadCloud className="w-32 h-32 mb-6" strokeWidth={1} />
+              <span className="text-4xl font-extrabold tracking-widest uppercase">Drag & Drop Files Here</span>
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto relative z-10">
             {loading ? (
               <div className="text-center text-zinc-500 py-12">Loading files...</div>
             ) : (subfolders.length === 0 && currentFolderFiles.length === 0) ? (
