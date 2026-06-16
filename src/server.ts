@@ -6915,6 +6915,7 @@ async function startServer() {
 
   app.get('/api/files/download/:id', authenticateToken, (req: any, res: any) => {
     const { id } = req.params;
+    const preview = req.query.preview === 'true';
     try {
       const file = db.prepare('SELECT * FROM files WHERE id = ?').get(id) as any;
       if (!file) return res.status(404).json({ error: 'File not found' });
@@ -6926,7 +6927,11 @@ async function startServer() {
 
       const filePath = path.join(process.cwd(), 'uploads', file.system_name);
       if (fs.existsSync(filePath)) {
-        res.download(filePath, file.original_name);
+        if (preview) {
+           res.sendFile(filePath, { headers: { 'Content-Type': file.mime_type } });
+        } else {
+           res.download(filePath, file.original_name);
+        }
       } else {
         res.status(404).json({ error: 'File on disk not found' });
       }
