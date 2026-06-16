@@ -464,7 +464,7 @@ export default function FilesView() {
 
                   {/* Files */}
                   {currentFolderFiles.map(f => (
-                    <tr key={f.id} onClick={() => setSelectedFileId(f.id)} className="hover:bg-zinc-800/30 cursor-pointer transition-all group">
+                    <tr key={f.id} onClick={() => { setSelectedFileId(f.id); setViewMode('column'); }} className="hover:bg-zinc-800/30 cursor-pointer transition-all group">
                       <td className="px-6 py-4 flex items-center space-x-4">
                         <FileThumbnail file={f} size="sm" />
                         <span className="font-medium text-zinc-300 group-hover:text-white transition-colors">{f.original_name}</span>
@@ -506,7 +506,7 @@ export default function FilesView() {
                   </div>
                 ))}
                 {currentFolderFiles.map(f => (
-                  <div key={f.id} onClick={() => setSelectedFileId(f.id)} className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 hover:bg-zinc-800 hover:border-zinc-500/50 cursor-pointer transition-all flex flex-col items-center justify-center p-4 group aspect-square text-center relative">
+                  <div key={f.id} onClick={() => { setSelectedFileId(f.id); setViewMode('column'); }} className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 hover:bg-zinc-800 hover:border-zinc-500/50 cursor-pointer transition-all flex flex-col items-center justify-center p-4 group aspect-square text-center relative">
                     <FileThumbnail file={f} size="lg" />
                     <span className="mt-3 font-medium text-zinc-300 group-hover:text-white transition-colors max-w-full truncate px-1 text-[13px]">{f.original_name}</span>
                     <span className="mt-1 text-[11px] text-zinc-500">{(f.size / 1024).toFixed(1)} KB</span>
