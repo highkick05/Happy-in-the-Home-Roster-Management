@@ -297,11 +297,11 @@ function Layout({ children }: { children: React.ReactNode }) {
           {!isDesktopSidebarCollapsed || isMobileMenuOpen ? (
             <div className="mb-2 px-3 text-xs text-brand-teal font-medium tracking-wide truncate">Logged in as {user?.firstName}</div>
           ) : null}
-          <div className="flex items-center space-x-2">
-            <NavLink to="/profile" className={(props: {isActive: boolean}) => `${getNavClasses(props)} flex-1`} title="Profile">
+          <div className={isDesktopSidebarCollapsed && !isMobileMenuOpen ? "flex flex-col space-y-2" : "flex items-center space-x-2"}>
+            <NavLink to="/profile" className={(props: {isActive: boolean}) => `${getNavClasses(props)} ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-full' : 'flex-1'}`} title="Profile">
               <User className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Profile' : ''}
             </NavLink>
-            <button onClick={handleHardReset} title="Sync / Reset App Cache" className={`flex-shrink-0 flex items-center justify-center h-[38px] w-[38px] bg-brand-navy hover:bg-brand-bg text-[#8B949E] hover:text-[#E6EDF3] border border-transparent hover:border-border-subtle rounded-lg transition-colors`}>
+            <button onClick={handleHardReset} title="Sync / Reset App Cache" className={`flex-shrink-0 flex items-center justify-center ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'h-[38px] w-full' : 'h-[38px] w-[38px]'} bg-brand-navy hover:bg-brand-bg text-[#8B949E] hover:text-[#E6EDF3] border border-transparent hover:border-border-subtle rounded-lg transition-colors`}>
               <RefreshCw className="w-5 h-5" />
             </button>
           </div>
