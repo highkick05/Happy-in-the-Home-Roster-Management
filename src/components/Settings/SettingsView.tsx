@@ -297,7 +297,7 @@ export default function SettingsView() {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/services/import', {
+      const res = await fetch('/api/services/import?folderPath=/Settings/Pricing', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData

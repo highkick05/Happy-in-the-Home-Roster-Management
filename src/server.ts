@@ -65,7 +65,20 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, UPLOADS_DIR);
+    let subfolder = (req.query.folderPath as string) || '/';
+    subfolder = path.normalize(subfolder).replace(/^(\.\.[\/\\])+/, ''); // Prevent directory traversal
+    if (subfolder.startsWith('/')) {
+        subfolder = subfolder.substring(1);
+    }
+    const targetDir = path.join(UPLOADS_DIR, subfolder);
+    if (!fs.existsSync(targetDir)) {
+      try {
+        fs.mkdirSync(targetDir, { recursive: true });
+      } catch (e) {
+        return cb(e as Error, UPLOADS_DIR);
+      }
+    }
+    cb(null, targetDir);
   },
   filename: (req, file, cb) => {
     // Keep original file name, but make it unique to avoid overwriting
@@ -5243,9 +5256,18 @@ async function startServer() {
         if (req.file) {
           try {
             db.exec("ALTER TABLE files ADD COLUMN region TEXT");
-          } catch(e) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
-          db.prepare('INSERT INTO files (original_name, system_name, size, uploaded_by, region) VALUES (?, ?, ?, ?, ?)').run(
-            req.file.originalname, req.file.filename, req.file.size, req.user.id, region || null
+          } catch(e: any) { if (e.message && !e.message.includes('duplicate column') && !e.message.includes('no such column')) logger.warn('Migration/Query warning:', e.message); }
+          
+          let folderPath = req.query.folderPath || '/';
+          let subfolder = (folderPath as string).trim();
+          subfolder = path.normalize(subfolder).replace(/^(\.\.[\/\\])+/, '');
+          if (subfolder.startsWith('/')) {
+              subfolder = subfolder.substring(1);
+          }
+          const systemName = subfolder && subfolder !== '.' ? path.posix.join(subfolder, req.file.filename) : req.file.filename;
+
+          db.prepare('INSERT INTO files (original_name, system_name, size, uploaded_by, region, folder_path) VALUES (?, ?, ?, ?, ?, ?)').run(
+            req.file.originalname, systemName, req.file.size, req.user.id, region || null, folderPath
           );
         }
 
@@ -6009,8 +6031,23 @@ async function startServer() {
           }
 
           if (data && data.lineItems && data.lineItems.length > 0) {
-             const systemName = `invoice_${data.invoiceNum}_${Date.now()}.pdf`;
-             const filePath = path.join(process.cwd(), 'uploads', systemName);
+             const clientNameSafe = `${data.shift.c_fn} ${data.shift.c_ln}`.trim().replace(/[\/\\]/g, '');
+             const folderPath = `/Clients/${clientNameSafe}/Invoices`;
+             
+             let subfolder = folderPath;
+             subfolder = path.normalize(subfolder).replace(/^(\.\.[\/\\])+/, '');
+             if (subfolder.startsWith('/')) {
+                 subfolder = subfolder.substring(1);
+             }
+             
+             const rawSystemName = `invoice_${data.invoiceNum}_${Date.now()}.pdf`;
+             const systemName = path.posix.join(subfolder, rawSystemName);
+             
+             const targetDir = path.join(process.cwd(), 'uploads', subfolder);
+             if (!fs.existsSync(targetDir)) {
+                 fs.mkdirSync(targetDir, { recursive: true });
+             }
+             const filePath = path.join(targetDir, rawSystemName);
              
              const doc = new PDFDocument({ margin: 50 });
              const writeStream = fs.createWriteStream(filePath);
@@ -6019,8 +6056,6 @@ async function startServer() {
              doc.end();
 
              writeStream.on('finish', () => {
-                const clientNameSafe = `${data.shift.c_fn} ${data.shift.c_ln}`.trim();
-                const folderPath = `/Clients/${clientNameSafe}/Invoices`;
                 const stats = fs.statSync(filePath);
                 try {
                   const stmt = db.prepare('INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path) VALUES (?, ?, ?, ?, ?)');
@@ -6792,7 +6827,7 @@ async function startServer() {
 
   app.post('/api/files', authenticateToken, upload.single('file'), (req: any, res: any) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const folderPath = req.query.folderPath || '/';
+    let folderPath = req.query.folderPath || '/';
     const dateIssued = req.body.date_issued || null;
     const dateExpires = req.body.date_expires || null;
     
@@ -6801,16 +6836,55 @@ async function startServer() {
         targetUserId = req.body.targetUserId;
     }
 
+    if (req.body.context === 'STAFF_ONBOARDING') {
+       try {
+           const targetUser = db.prepare('SELECT first_name, last_name FROM users WHERE id = ?').get(targetUserId) as {first_name: string, last_name: string};
+           if (targetUser) {
+               const name = [targetUser.first_name, targetUser.last_name].filter(Boolean).join(' ').trim().replace(/[\/\\]/g, '');
+               folderPath = `/Staff/${name ? `${name}/` : ''}Onboarding`;
+           }
+       } catch (err: any) {
+           logger.error(`Failed to lookup targetUser for folder path: ${err.message}`);
+       }
+    }
+
+    let subfolder = (folderPath as string).trim();
+    subfolder = path.normalize(subfolder).replace(/^(\.\.[\/\\])+/, '');
+    if (subfolder.startsWith('/')) {
+        subfolder = subfolder.substring(1);
+    }
+    
+    const initialSubfolderRaw = (req.query.folderPath as string) || '/';
+    let initialSubfolder = initialSubfolderRaw.trim();
+    initialSubfolder = path.normalize(initialSubfolder).replace(/^(\.\.[\/\\])+/, '');
+    if (initialSubfolder.startsWith('/')) {
+        initialSubfolder = initialSubfolder.substring(1);
+    }
+    
+    const initialSystemName = initialSubfolder && initialSubfolder !== '.' ? path.posix.join(initialSubfolder, req.file.filename) : req.file.filename;
+    const actualSystemName = subfolder && subfolder !== '.' ? path.posix.join(subfolder, req.file.filename) : req.file.filename;
+
+    if (initialSystemName !== actualSystemName) {
+        const initialFilePath = path.join(process.cwd(), 'uploads', initialSystemName);
+        const actualDirPath = path.join(process.cwd(), 'uploads', subfolder);
+        const actualFilePath = path.join(actualDirPath, req.file.filename);
+        if (fs.existsSync(initialFilePath)) {
+            if (!fs.existsSync(actualDirPath)) fs.mkdirSync(actualDirPath, { recursive: true });
+            fs.renameSync(initialFilePath, actualFilePath);
+        }
+    }
+
+    const systemName = actualSystemName;
+
     try {
       const stmt = db.prepare('INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path, date_issued, date_expires) VALUES (?, ?, ?, ?, ?, ?, ?)');
-      const info = stmt.run(req.file.originalname, req.file.filename, req.file.size, targetUserId, folderPath, dateIssued, dateExpires);
-      
+      const info = stmt.run(req.file.originalname, systemName, req.file.size, targetUserId, folderPath, dateIssued, dateExpires);
+
       // Clear notifications immediately upon successful document renewal/upload
       db.prepare(`DELETE FROM notifications WHERE user_id = ? AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON')`).run(targetUserId);
       
       res.json({ success: true, id: info.lastInsertRowid, date_issued: dateIssued, date_expires: dateExpires });
     } catch (e: any) {
-      
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
     }
@@ -6864,6 +6938,51 @@ async function startServer() {
       
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  app.post('/api/admin/migrate-files', authenticateToken, (req: any, res: any) => {
+    if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Requires admin privileges' });
+
+    try {
+        const files = db.prepare('SELECT id, system_name, folder_path FROM files').all() as any[];
+        let migrated = 0;
+
+        for (const file of files) {
+            if (!file.folder_path || file.folder_path === '/' || file.folder_path.trim() === '') {
+                continue; 
+            }
+
+            let subfolder = file.folder_path.trim();
+            subfolder = path.normalize(subfolder).replace(/^(\.\.[\/\\])+/, '');
+            if (subfolder.startsWith('/')) {
+                subfolder = subfolder.substring(1);
+            }
+            
+            if (file.system_name.startsWith(subfolder + '/') || file.system_name.startsWith(subfolder + '\\')) {
+                continue; 
+            }
+
+            const currentFilePath = path.join(process.cwd(), 'uploads', file.system_name);
+            const targetDir = path.join(process.cwd(), 'uploads', subfolder);
+            const targetFilePath = path.join(targetDir, file.system_name);
+            
+            if (fs.existsSync(currentFilePath)) {
+                if (!fs.existsSync(targetDir)) {
+                    fs.mkdirSync(targetDir, { recursive: true });
+                }
+                
+                fs.renameSync(currentFilePath, targetFilePath);
+                
+                const newSystemName = path.posix.join(subfolder, file.system_name);
+                db.prepare('UPDATE files SET system_name = ? WHERE id = ?').run(newSystemName, file.id);
+                migrated++;
+            }
+        }
+        res.json({ success: true, message: `Migrated ${migrated} files successfully.`, count: migrated });
+    } catch (e: any) {
+        logger.error(`Migration API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: 'Internal Server Error' });
     }
   });
 

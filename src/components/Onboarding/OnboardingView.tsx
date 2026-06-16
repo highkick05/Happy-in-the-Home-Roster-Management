@@ -245,18 +245,15 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
       }
     }
 
-    const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
-    const uploadPath = `/Staff/${name ? `${name}/` : ''}Onboarding`;
-
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('folderPath', uploadPath);
+    formData.append('context', 'STAFF_ONBOARDING');
     if (issued) formData.append('date_issued', issued);
     if (expires) formData.append('date_expires', expires);
     if (contextUserId) formData.append('targetUserId', contextUserId.toString());
 
     try {
-      const res = await fetch(`/api/files?folderPath=${encodeURIComponent(uploadPath)}`, {
+      const res = await fetch(`/api/files`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData
