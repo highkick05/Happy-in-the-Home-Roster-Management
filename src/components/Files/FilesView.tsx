@@ -329,10 +329,10 @@ export default function FilesView() {
   };
 
   return (
-    <div className="h-full flex flex-col flex-1 pb-10">
-      <div className="flex justify-between items-start lg:items-center px-8 pt-8 pb-6 flex-col lg:flex-row gap-4">
+    <div className="h-full flex flex-col flex-1 pb-6">
+      <div className="flex justify-between items-start lg:items-center px-6 pt-4 pb-4 flex-col lg:flex-row gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">Files</h2>
+          <h2 className="text-2xl font-bold text-white tracking-tight">Files</h2>
           <p className="text-zinc-400 text-sm mt-1">Manage documents, uploads, and media.</p>
         </div>
         <div className="flex items-center gap-4">
@@ -366,10 +366,10 @@ export default function FilesView() {
         </div>
       </div>
 
-      <div {...getRootProps()} className="flex-1 px-8 flex flex-col min-h-0 relative">
+      <div {...getRootProps()} className="flex-1 px-6 flex flex-col min-h-0 relative">
         <input {...getInputProps()} />
         {isDragActive && (
-          <div className="absolute inset-x-8 inset-y-0 z-50 bg-brand-teal/10 rounded-xl mb-10 border-2 border-dashed border-brand-teal flex flex-col items-center justify-center backdrop-blur-sm pointer-events-none">
+          <div className="absolute inset-x-6 inset-y-0 z-50 bg-brand-teal/10 rounded-xl mb-6 border-2 border-dashed border-brand-teal flex flex-col items-center justify-center backdrop-blur-sm pointer-events-none">
              <div className="p-5 bg-brand-teal text-black rounded-full shadow-[0_0_20px_rgba(20,184,166,0.3)] animate-pulse mb-6">
                <UploadCloud className="w-10 h-10" />
              </div>
@@ -379,7 +379,7 @@ export default function FilesView() {
         )}
 
         <div className="flex-1 flex flex-col bg-[#111] border border-white/[0.08] rounded-xl shadow-lg ring-1 ring-white/[0.02] min-h-0 overflow-hidden">
-          <div className="px-6 py-4 border-b border-white/[0.08] flex items-center bg-[#151515]">
+          <div className="px-5 py-3 border-b border-white/[0.08] flex items-center justify-between bg-[#151515]">
             <div className="flex items-center text-sm font-medium text-zinc-400">
               <button onClick={() => setCurrentPath(staffRoot)} className="hover:text-brand-teal transition-colors flex items-center pr-2">
                 <Folder className="w-4 h-4 text-brand-teal mr-2 fill-brand-teal/20" />
@@ -396,6 +396,10 @@ export default function FilesView() {
                   </button>
                 </React.Fragment>
               ))}
+            </div>
+            <div className="text-xs text-zinc-500 italic hidden sm:flex items-center">
+               <UploadCloud className="w-3.5 h-3.5 mr-1.5 opacity-60" />
+               Drag and drop files here to upload
             </div>
           </div>
 
@@ -460,7 +464,7 @@ export default function FilesView() {
 
                   {/* Files */}
                   {currentFolderFiles.map(f => (
-                    <tr key={f.id} className="hover:bg-zinc-800/30 transition-all group">
+                    <tr key={f.id} onClick={() => setSelectedFileId(f.id)} className="hover:bg-zinc-800/30 cursor-pointer transition-all group">
                       <td className="px-6 py-4 flex items-center space-x-4">
                         <FileThumbnail file={f} size="sm" />
                         <span className="font-medium text-zinc-300 group-hover:text-white transition-colors">{f.original_name}</span>
@@ -502,7 +506,7 @@ export default function FilesView() {
                   </div>
                 ))}
                 {currentFolderFiles.map(f => (
-                  <div key={f.id} onClick={() => {}} className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 hover:bg-zinc-800 hover:border-zinc-500/50 transition-all flex flex-col items-center justify-center p-4 group aspect-square text-center relative">
+                  <div key={f.id} onClick={() => setSelectedFileId(f.id)} className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 hover:bg-zinc-800 hover:border-zinc-500/50 cursor-pointer transition-all flex flex-col items-center justify-center p-4 group aspect-square text-center relative">
                     <FileThumbnail file={f} size="lg" />
                     <span className="mt-3 font-medium text-zinc-300 group-hover:text-white transition-colors max-w-full truncate px-1 text-[13px]">{f.original_name}</span>
                     <span className="mt-1 text-[11px] text-zinc-500">{(f.size / 1024).toFixed(1)} KB</span>
