@@ -108,7 +108,11 @@ export default function FilesView() {
     if (isImage || isPdf || isText) {
       setIsPreviewLoading(true);
       fetch(`/api/files/download/${file.id}?preview=true`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(res => res.ok ? res.blob() : Promise.reject('Failed'))
+        .then(async res => {
+           if (!res.ok) throw new Error('Failed to fetch preview');
+           const blob = await res.blob();
+           return new Blob([blob], { type: file.mime_type || res.headers.get('content-type') || 'application/octet-stream' });
+        })
         .then(blob => {
            url = window.URL.createObjectURL(blob);
            setPreviewContent(url);

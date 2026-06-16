@@ -6928,7 +6928,10 @@ async function startServer() {
       const filePath = path.join(process.cwd(), 'uploads', file.system_name);
       if (fs.existsSync(filePath)) {
         if (preview) {
-           res.sendFile(filePath, { headers: { 'Content-Type': file.mime_type } });
+           if (file.mime_type) {
+             res.type(file.mime_type);
+           }
+           res.sendFile(filePath);
         } else {
            res.download(filePath, file.original_name);
         }
