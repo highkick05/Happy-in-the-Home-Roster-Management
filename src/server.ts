@@ -6040,7 +6040,7 @@ async function startServer() {
                  subfolder = subfolder.substring(1);
              }
              
-             const rawSystemName = `invoice_${data.invoiceNum}_${Date.now()}.pdf`;
+             const rawSystemName = `${data.invoiceNum}.pdf`;
              const systemName = path.posix.join(subfolder, rawSystemName);
              
              const targetDir = path.join(process.cwd(), 'uploads', subfolder);
