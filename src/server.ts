@@ -6929,7 +6929,7 @@ async function startServer() {
       if (fs.existsSync(filePath)) {
         if (preview) {
            if (file.mime_type) {
-             res.type(file.mime_type);
+              res.setHeader('Content-Type', file.mime_type);
            }
            res.sendFile(filePath);
         } else {

@@ -6,6 +6,8 @@ import {
   LayoutList, LayoutGrid, Columns, FileText, FileImage, FileBarChart2 
 } from 'lucide-react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
+import * as xlsx from 'xlsx';
+import mammoth from 'mammoth';
 
 // 2. SMART THUMBNAIL ENGINE
 const FileThumbnail = ({ file, size = 'sm', isFolder = false }: { file?: any, size?: 'sm' | 'lg' | 'xl', isFolder?: boolean }) => {
@@ -25,7 +27,7 @@ const FileThumbnail = ({ file, size = 'sm', isFolder = false }: { file?: any, si
   const mimeType = (file.mime_type || '').toLowerCase();
   const originalName = (file.original_name || '').toLowerCase();
   
-  const isImage = mimeType.startsWith('image/') || originalName.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+  const isImage = mimeType.startsWith('image/') || originalName.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|heic|heif|avif|tiff|tif)$/i);
   const isPdf = mimeType === 'application/pdf' || originalName.match(/\.pdf$/i);
   const isWord = mimeType.includes('wordprocessingml') || mimeType.includes('msword') || originalName.match(/\.(doc|docx)$/i);
   const isExcel = mimeType.includes('spreadsheetml') || mimeType.includes('excel') || originalName.match(/\.(xls|xlsx|csv)$/i);
@@ -101,11 +103,13 @@ export default function FilesView() {
     
     const mimeType = (file.mime_type || '').toLowerCase();
     const originalName = (file.original_name || '').toLowerCase();
-    const isImage = mimeType.startsWith('image/') || originalName.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+    const isImage = mimeType.startsWith('image/') || originalName.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|heic|heif|avif|tiff|tif)$/i);
     const isPdf = mimeType === 'application/pdf' || originalName.match(/\.pdf$/i);
     const isText = mimeType.startsWith('text/') || originalName.match(/\.(txt|md|csv|json)$/i);
+    const isWord = mimeType.includes('wordprocessingml') || mimeType.includes('msword') || originalName.match(/\.(doc|docx)$/i);
+    const isExcel = mimeType.includes('spreadsheetml') || mimeType.includes('excel') || originalName.match(/\.(xls|xlsx|csv)$/i);
     
-    if (isImage || isPdf || isText) {
+    if (isImage || isPdf || isText || isWord || isExcel) {
       setIsPreviewLoading(true);
       fetch(`/api/files/download/${file.id}?preview=true`, { headers: { Authorization: `Bearer ${token}` } })
         .then(async res => {
@@ -113,8 +117,34 @@ export default function FilesView() {
            const blob = await res.blob();
            return new Blob([blob], { type: file.mime_type || res.headers.get('content-type') || 'application/octet-stream' });
         })
-        .then(blob => {
-           url = window.URL.createObjectURL(blob);
+        .then(async blob => {
+           let finalBlob = blob;
+           
+           if (isExcel) {
+              try {
+                const arrayBuffer = await blob.arrayBuffer();
+                const workbook = xlsx.read(arrayBuffer, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const htmlString = xlsx.utils.sheet_to_html(workbook.Sheets[firstSheetName]);
+                finalBlob = new Blob([
+                  `<html><head><style>table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } tr:nth-child(even){background-color: #f2f2f2;} body { font-family: sans-serif; padding: 20px; }</style></head><body>${htmlString}</body></html>`
+                ], { type: 'text/html' });
+              } catch (e) {
+                console.error("Excel preview failed", e);
+              }
+           } else if (isWord) {
+              try {
+                const arrayBuffer = await blob.arrayBuffer();
+                const result = await mammoth.convertToHtml({ arrayBuffer });
+                finalBlob = new Blob([
+                  `<html><head><style>body { font-family: sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.6; } img { max-width: 100%; }</style></head><body>${result.value}</body></html>`
+                ], { type: 'text/html' });
+              } catch (e) {
+                console.error("Word preview failed", e);
+              }
+           }
+
+           url = window.URL.createObjectURL(finalBlob);
            setPreviewContent(url);
            setIsPreviewLoading(false);
         })
@@ -529,7 +559,7 @@ export default function FilesView() {
                       
                       const mimeType = (file.mime_type || '').toLowerCase();
                       const originalName = (file.original_name || '').toLowerCase();
-                      const isImage = mimeType.startsWith('image/') || originalName.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                      const isImage = mimeType.startsWith('image/') || originalName.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|heic|heif|avif|tiff|tif)$/i);
                       const isPdf = mimeType === 'application/pdf' || originalName.match(/\.pdf$/i);
                       const isText = mimeType.startsWith('text/') || originalName.match(/\.(txt|md|csv|json)$/i);
                       
