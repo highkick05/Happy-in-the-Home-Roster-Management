@@ -410,7 +410,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     return (
       <div 
         key={step.id} 
-        className={`border rounded-lg relative overflow-hidden transition-all duration-200 ${
+        className={`border rounded-lg relative overflow-visible transition-all duration-200 ${
           isDraggingStep[step.id]
             ? 'border-brand-teal bg-[#132224]/80 scale-[1.01] shadow-[0_0_20px_rgba(20,184,166,0.2)] z-50'
             : isExpanded 
