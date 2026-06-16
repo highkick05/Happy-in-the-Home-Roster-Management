@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useDropzone } from 'react-dropzone';
 import { 
@@ -55,6 +55,77 @@ export default function FilesView() {
   // 1. STATE MANAGEMENT & TOGGLES
   const [viewMode, setViewMode] = useLocalStorage<'list' | 'grid' | 'column'>('files_view_mode', 'list');
   const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
+
+  const [columnWidth, setColumnWidth] = useLocalStorage('file_manager_col_width', 250);
+  const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      setColumnWidth(prev => {
+        const newWidth = prev + e.movementX;
+        return Math.max(150, Math.min(newWidth, 800)); 
+      });
+    };
+    const handleMouseUp = () => setIsResizing(false);
+    
+    if (isResizing) {
+       document.addEventListener('mousemove', handleMouseMove);
+       document.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+       document.removeEventListener('mousemove', handleMouseMove);
+       document.removeEventListener('mouseup', handleMouseUp);
+    }
+  }, [isResizing, setColumnWidth]);
+
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+
+  useEffect(() => {
+    let url = '';
+    
+    if (!selectedFileId || viewMode !== 'column') {
+      setPreviewContent(null);
+      setIsPreviewLoading(false);
+      return;
+    }
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const file = files.find(f => f.id === selectedFileId);
+    if (!file) {
+      setPreviewContent(null);
+      setIsPreviewLoading(false);
+      return;
+    }
+    
+    const mimeType = (file.mime_type || '').toLowerCase();
+    const originalName = (file.original_name || '').toLowerCase();
+    const isImage = mimeType.startsWith('image/') || originalName.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+    const isPdf = mimeType === 'application/pdf' || originalName.match(/\.pdf$/i);
+    const isText = mimeType.startsWith('text/') || originalName.match(/\.(txt|md|csv|json)$/i);
+    
+    if (isImage || isPdf || isText) {
+      setIsPreviewLoading(true);
+      fetch(`/api/files/download/${file.id}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => res.ok ? res.blob() : Promise.reject('Failed'))
+        .then(blob => {
+           url = window.URL.createObjectURL(blob);
+           setPreviewContent(url);
+           setIsPreviewLoading(false);
+        })
+        .catch(err => {
+           console.error(err);
+           setIsPreviewLoading(false);
+        });
+    } else {
+       setPreviewContent(null);
+    }
+    
+    return () => {
+      if (url) window.URL.revokeObjectURL(url);
+    }
+  }, [selectedFileId, files, viewMode, token]);
 
   const staffRoot = useMemo(() => {
     if (user?.role === 'ADMIN') return '/';
@@ -225,10 +296,33 @@ export default function FilesView() {
 
   return (
     <div className="h-full flex flex-col flex-1 pb-10">
-      <div className="flex justify-between items-center px-8 pt-8 pb-6">
+      <div className="flex justify-between items-start lg:items-center px-8 pt-8 pb-6 flex-col lg:flex-row gap-4">
         <div>
           <h2 className="text-3xl font-bold text-white tracking-tight">Files</h2>
           <p className="text-zinc-400 text-sm mt-1">Manage documents, uploads, and media.</p>
+        </div>
+        <div className="flex items-center bg-black/40 border border-white/10 rounded-lg p-1">
+          <button 
+            onClick={() => setViewMode('list')}
+            className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
+            title="List View"
+          >
+            <LayoutList className="w-4 h-4" />
+          </button>
+          <button 
+            onClick={() => setViewMode('grid')}
+            className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
+            title="Grid View"
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+          <button 
+            onClick={() => setViewMode('column')}
+            className={`p-1.5 rounded-md transition-colors ${viewMode === 'column' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
+            title="Column View"
+          >
+            <Columns className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -265,27 +359,6 @@ export default function FilesView() {
                   </button>
                 </React.Fragment>
               ))}
-            </div>
-            
-            <div className="flex items-center bg-black/40 border border-white/10 rounded-lg p-1">
-              <button 
-                onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-              >
-                <LayoutList className="w-4 h-4" />
-              </button>
-              <button 
-                onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-              >
-                <LayoutGrid className="w-4 h-4" />
-              </button>
-              <button 
-                onClick={() => setViewMode('column')}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'column' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-              >
-                <Columns className="w-4 h-4" />
-              </button>
             </div>
           </div>
 
@@ -376,33 +449,33 @@ export default function FilesView() {
                 </tbody>
               </table>
             ) : viewMode === 'grid' ? (
-              <div className="p-6 grid gap-6 grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
+              <div className="p-4 grid gap-4 grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10">
                 {currentPath !== '/' && (
-                  <div onClick={navigateUp} className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 hover:bg-zinc-800 cursor-pointer transition-all flex flex-col items-center justify-center p-6 group aspect-square">
-                     <div className="p-3 bg-zinc-800/80 rounded-full group-hover:bg-brand-teal group-hover:text-white transition-colors duration-300 mb-3">
-                       <CornerLeftUp className="w-6 h-6 text-zinc-400 group-hover:text-white" />
+                  <div onClick={navigateUp} className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 hover:bg-zinc-800 hover:border-zinc-500/50 cursor-pointer transition-all flex flex-col items-center justify-center p-4 group aspect-square">
+                     <div className="p-2 bg-zinc-800/80 rounded-full group-hover:bg-brand-teal group-hover:text-white transition-colors duration-300 mb-2">
+                       <CornerLeftUp className="w-5 h-5 text-zinc-400 group-hover:text-white" />
                      </div>
-                     <span className="font-semibold text-zinc-400 group-hover:text-white transition-colors">..</span>
+                     <span className="font-semibold text-zinc-400 group-hover:text-white transition-colors text-sm">..</span>
                   </div>
                 )}
                 {subfolders.map(folder => (
-                  <div key={folder} onClick={() => navigateTo(folder)} className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 hover:bg-zinc-800 cursor-pointer transition-all flex flex-col items-center justify-center p-6 group aspect-square text-center">
+                  <div key={folder} onClick={() => navigateTo(folder)} className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 hover:bg-zinc-800 hover:border-zinc-500/50 cursor-pointer transition-all flex flex-col items-center justify-center p-4 group aspect-square text-center">
                      <FileThumbnail isFolder size="lg" />
-                     <span className="mt-4 font-semibold text-zinc-200 group-hover:text-white transition-colors max-w-full truncate px-2">{folder}</span>
+                     <span className="mt-3 font-semibold text-sm text-zinc-200 group-hover:text-white transition-colors max-w-full truncate px-1">{folder}</span>
                   </div>
                 ))}
                 {currentFolderFiles.map(f => (
-                  <div key={f.id} onClick={() => {}} className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 hover:bg-zinc-800 transition-all flex flex-col items-center justify-center p-6 group aspect-square text-center relative">
+                  <div key={f.id} onClick={() => {}} className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 hover:bg-zinc-800 hover:border-zinc-500/50 transition-all flex flex-col items-center justify-center p-4 group aspect-square text-center relative">
                     <FileThumbnail file={f} size="lg" />
-                    <span className="mt-4 font-medium text-zinc-300 group-hover:text-white transition-colors max-w-full truncate px-2 text-sm">{f.original_name}</span>
-                    <span className="mt-1 text-xs text-zinc-500">{(f.size / 1024).toFixed(1)} KB</span>
+                    <span className="mt-3 font-medium text-zinc-300 group-hover:text-white transition-colors max-w-full truncate px-1 text-[13px]">{f.original_name}</span>
+                    <span className="mt-1 text-[11px] text-zinc-500">{(f.size / 1024).toFixed(1)} KB</span>
                     
                     <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={(e) => { e.stopPropagation(); downloadFile(f.id, f.original_name); }} className="p-1.5 bg-black/40 text-zinc-300 hover:text-white hover:bg-brand-teal rounded-md transition-all" title="Download File">
+                      <button onClick={(e) => { e.stopPropagation(); downloadFile(f.id, f.original_name); }} className="p-1 bg-black/60 text-zinc-300 hover:text-white hover:bg-brand-teal rounded transition-colors backdrop-blur-sm shadow-sm" title="Download File">
                         <Download className="w-3.5 h-3.5" />
                       </button>
                       {(user?.role === 'ADMIN' || f.uploaded_by === user?.id) && (
-                        <button onClick={(e) => { e.stopPropagation(); deleteFile(f.id); }} className="p-1.5 bg-black/40 text-zinc-300 hover:text-white hover:bg-red-500 rounded-md transition-all" title="Delete File">
+                        <button onClick={(e) => { e.stopPropagation(); deleteFile(f.id); }} className="p-1 bg-black/60 text-zinc-300 hover:text-white hover:bg-red-500 rounded transition-colors backdrop-blur-sm shadow-sm" title="Delete File">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -411,8 +484,8 @@ export default function FilesView() {
                 ))}
               </div>
             ) : (
-             <div className="flex h-full min-h-0 overflow-x-auto divide-x divide-white/[0.05]">
-                <div className="min-w-[250px] max-w-[300px] flex flex-col border-r border-zinc-700">
+             <div className="flex h-full min-h-0 overflow-hidden divide-x divide-white/[0.05]">
+                <div style={{ width: columnWidth }} className="flex flex-col border-r border-zinc-700 relative shrink-0">
                   <ul className="flex-1 overflow-y-auto py-2">
                     {currentPath !== '/' && (
                       <li onClick={navigateUp} className="px-4 py-2 hover:bg-zinc-800/50 cursor-pointer flex items-center text-sm font-medium text-zinc-400 group">
@@ -434,39 +507,73 @@ export default function FilesView() {
                       </li>
                     ))}
                   </ul>
+                  {/* Resizer handle */}
+                  <div 
+                    className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-brand-teal/50 active:bg-brand-teal z-10 transition-colors"
+                    onMouseDown={() => setIsResizing(true)}
+                  />
                 </div>
                 
-                <div className="flex-1 bg-black/20 p-8 flex flex-col items-center justify-center min-w-[300px]">
+                <div className="flex-1 bg-black/20 p-6 sm:p-8 flex flex-col items-center justify-center min-w-[200px] overflow-auto">
                   {selectedFileId ? (
                     (() => {
                       const file = currentFolderFiles.find(f => f.id === selectedFileId);
                       if (!file) return null;
+                      
+                      const mimeType = (file.mime_type || '').toLowerCase();
+                      const originalName = (file.original_name || '').toLowerCase();
+                      const isImage = mimeType.startsWith('image/') || originalName.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                      const isPdf = mimeType === 'application/pdf' || originalName.match(/\.pdf$/i);
+                      const isText = mimeType.startsWith('text/') || originalName.match(/\.(txt|md|csv|json)$/i);
+                      const canPreview = isImage || isPdf || isText;
+                      
                       return (
-                        <div className="max-w-md w-full bg-zinc-900 border border-white/[0.08] rounded-xl p-8 flex flex-col items-center text-center shadow-xl">
-                          <div className="p-6 bg-[#111] rounded-full shadow-inner mb-6 flex items-center justify-center">
-                            <FileThumbnail file={file} size="xl" />
-                          </div>
-                          <h3 className="text-xl font-medium text-white mb-2 break-all">{file.original_name}</h3>
-                          <p className="text-zinc-400 text-sm mb-6">
-                            {new Date(file.created_at).toLocaleString()} <span className="opacity-50 mx-1">•</span> {(file.size / 1024).toFixed(1)} KB
-                          </p>
-                          <div className="flex w-full space-x-3">
-                            <button onClick={() => downloadFile(file.id, file.original_name)} className="flex-1 flex items-center justify-center px-4 py-2.5 bg-brand-teal hover:bg-teal-400 text-black font-semibold rounded-lg transition-colors">
-                              <Download className="w-4 h-4 mr-2" /> Download
-                            </button>
-                            {(user?.role === 'ADMIN' || file.uploaded_by === user?.id) && (
-                              <button onClick={() => deleteFile(file.id)} className="flex-1 flex items-center justify-center px-4 py-2.5 bg-zinc-800 hover:bg-red-500 hover:text-white text-zinc-300 font-semibold rounded-lg transition-colors">
-                                <Trash2 className="w-4 h-4 mr-2" /> Delete
-                              </button>
+                        <div className="w-full max-w-3xl h-full max-h-[800px] flex flex-col bg-zinc-900/80 border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden ring-1 ring-white/5">
+                          <div className="flex-1 relative flex items-center justify-center bg-black/40 min-h-0 p-4">
+                            {isPreviewLoading ? (
+                               <div className="text-zinc-500 flex flex-col items-center animate-pulse">
+                                  <File className="w-12 h-12 mb-3 opacity-30" strokeWidth={1} />
+                                  <p className="text-sm">Loading preview...</p>
+                               </div>
+                            ) : previewContent ? (
+                               isImage ? (
+                                 <img src={previewContent} alt={file.original_name} className="max-w-full max-h-full object-contain rounded drop-shadow-md" />
+                               ) : (
+                                 <iframe src={previewContent} title={file.original_name} className="w-full h-full bg-white rounded" />
+                               )
+                            ) : (
+                               <div className="p-10 flex flex-col items-center">
+                                 <div className="p-6 bg-zinc-800/80 rounded-full shadow-inner mb-6 flex items-center justify-center">
+                                   <FileThumbnail file={file} size="xl" />
+                                 </div>
+                                 <p className="text-zinc-500 text-sm">No preview available for this file type.</p>
+                               </div>
                             )}
+                          </div>
+                          
+                          <div className="bg-[#111] p-6 border-t border-white/[0.08] shrink-0">
+                            <h3 className="text-lg font-medium text-white mb-1 break-all">{file.original_name}</h3>
+                            <p className="text-zinc-500 text-xs mb-5">
+                              {new Date(file.created_at).toLocaleString()} <span className="opacity-40 mx-1">•</span> {(file.size / 1024).toFixed(1)} KB
+                            </p>
+                            <div className="flex items-center space-x-3">
+                              <button onClick={() => downloadFile(file.id, file.original_name)} className="px-5 flex items-center justify-center py-2 bg-brand-teal hover:bg-teal-400 text-black text-sm font-semibold rounded-lg transition-colors shadow-sm">
+                                <Download className="w-4 h-4 mr-2" /> Download
+                              </button>
+                              {(user?.role === 'ADMIN' || file.uploaded_by === user?.id) && (
+                                <button onClick={() => deleteFile(file.id)} className="px-5 flex items-center justify-center py-2 bg-zinc-800 hover:bg-red-500 hover:text-white text-zinc-300 text-sm font-semibold rounded-lg transition-colors">
+                                  <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
                     })()
                   ) : (
                     <div className="text-zinc-600 flex flex-col items-center">
-                      <File className="w-16 h-16 mb-4 opacity-50" strokeWidth={1} />
-                      <p>Select a file to preview</p>
+                      <File className="w-16 h-16 mb-4 opacity-30" strokeWidth={1} />
+                      <p className="text-sm">Select a file to preview</p>
                     </div>
                   )}
                 </div>
