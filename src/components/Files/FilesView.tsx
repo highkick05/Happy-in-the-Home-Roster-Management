@@ -399,7 +399,7 @@ export default function FilesView() {
             </div>
           </div>
           
-          <div className="absolute inset-y-12 inset-x-0 pointer-events-none flex items-center justify-center z-0 opacity-[0.03] select-none mix-blend-screen overflow-hidden">
+          <div className="absolute inset-y-12 inset-x-0 pointer-events-none flex items-center justify-center z-0 select-none overflow-hidden text-white/[0.07]">
             <div className="flex flex-col items-center">
               <UploadCloud className="w-32 h-32 mb-6" strokeWidth={1} />
               <span className="text-4xl font-extrabold tracking-widest uppercase">Drag & Drop Files Here</span>
