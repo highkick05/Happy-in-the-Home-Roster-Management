@@ -4475,7 +4475,9 @@ async function startServer() {
 
   app.get('/api/shifts', authenticateTokenOrWallboard, (req: any, res: any) => {
     let query = `
-      SELECT s.*, 
+      SELECT s.id, s.staff_id, s.client_id, s.service_id, s.start_time, s.end_time, s.status, s.notes,
+             s.actual_start_time, s.actual_finish_time, s.services_json, s.provider_travel_km, s.provider_travel_cost,
+             s.home_care_travel_km, s.home_care_travel_total, s.transport_route_log, s.abt_km, s.abt_cost,
              u.first_name as staff_first_name, u.last_name as staff_last_name,
              c.first_name as client_first_name, c.last_name as client_last_name,
              srv.name as service_name, srv.code as service_code, srv.rate as service_rate, srv.unit as service_unit, srv.rates_json as service_rates_json, srv.type as service_type,
