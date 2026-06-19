@@ -10433,7 +10433,7 @@ async function startServer() {
         if (!fs.existsSync(filePath)) {
           return res.status(404).json({ error: "Template not found" });
         }
-        res.download(filePath);
+        res.sendFile(filePath);
       } catch (e: any) {
         res.status(500).json({ error: e.message });
       }
@@ -10553,7 +10553,7 @@ async function startServer() {
         const filePath = path.join(docsDir, fileName);
 
         if (fs.existsSync(filePath)) {
-          res.download(filePath);
+          res.sendFile(filePath);
         } else {
           res.status(404).json({ error: "File not found" });
         }

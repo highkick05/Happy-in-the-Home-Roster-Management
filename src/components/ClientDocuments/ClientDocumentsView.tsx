@@ -35,7 +35,8 @@ export default function ClientDocumentsView() {
 
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const signedInputRef = useRef<HTMLInputElement>(null);
+  const specificFileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingForName, setUploadingForName] = useState<string | null>(null);
 
   const [editingFile, setEditingFile] = useState<{
     name: string;
@@ -151,7 +152,38 @@ export default function ClientDocumentsView() {
     // Wait, earlier we used `res.json(documents)` which didn't include URLs.
   };
 
+  const handleUploadSpecific = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    if (!e.target.files || e.target.files.length === 0 || !uploadingForName) return;
+    const file = e.target.files[0];
+
+    // Create a new file with the target name to ensure it overwrites
+    const newFile = new File([file], uploadingForName, { type: file.type });
+    const fd = new FormData();
+    fd.append("file", newFile);
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/clients/${id}/documents/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (res.ok) {
+        fetchClientDocuments();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setUploadingForName(null);
+      if (specificFileInputRef.current) specificFileInputRef.current.value = "";
+    }
+  };
+
   const handleUploadTemplate = async (
+
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -214,31 +246,6 @@ export default function ClientDocumentsView() {
       }
     } catch (e) {
       console.error(e);
-    }
-  };
-
-  const handleUploadSigned = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    const file = e.target.files[0];
-
-    const fd = new FormData();
-    fd.append("file", file);
-
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/clients/${id}/documents/upload`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      });
-      if (res.ok) {
-        fetchClientDocuments();
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-      if (signedInputRef.current) signedInputRef.current.value = "";
     }
   };
 
@@ -322,10 +329,9 @@ export default function ClientDocumentsView() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
-          {/* Global Templates */}
           <div>
             <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between">
-              <span>Default Templates</span>
+              <span>Required Documents</span>
             </h3>
             <div className="space-y-1">
               {templates.length === 0 && (
@@ -333,11 +339,16 @@ export default function ClientDocumentsView() {
                   No templates found for {clientFundingType}
                 </p>
               )}
-              {templates.map((tmpl) => (
+              {templates.map((tmpl) => {
+                const clientDoc = clientDocuments.find(d => d.name === tmpl.name);
+                const isCompleted = !!clientDoc;
+                const fileSource = isCompleted ? "document" : "template";
+                
+                return (
                 <div
                   key={tmpl.name}
-                  onClick={() => handleTemplateSelect(tmpl)}
-                  className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === tmpl.name && selectedFile?.source === "template" ? "bg-brand-teal/10 border-brand-teal text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
+                  onClick={() => isCompleted ? handleDocumentSelect(clientDoc) : handleTemplateSelect(tmpl)}
+                  className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === tmpl.name ? (isCompleted ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-teal/10 border-brand-teal text-white") : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
                 >
                   {editingFile?.name === tmpl.name &&
                   editingFile?.type === "template" ? (
@@ -370,19 +381,29 @@ export default function ClientDocumentsView() {
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between group">
                       <div className="flex items-center space-x-3 overflow-hidden">
                         <FileIcon
-                          className={`w-4 h-4 shrink-0 ${selectedFile?.name === tmpl.name && selectedFile?.source === "template" ? "text-brand-teal" : ""}`}
+                          className={`w-4 h-4 shrink-0 ${isCompleted ? "text-brand-purple" : "text-[#8B949E]"}`}
                         />
                         <span
-                          className="text-sm font-medium truncate"
+                          className={`text-sm font-medium truncate ${isCompleted ? "text-white" : ""}`}
                           title={tmpl.name}
                         >
                           {tmpl.name}
                         </span>
                       </div>
-                      <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity">
+                      <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUploadingForName(tmpl.name);
+                            specificFileInputRef.current?.click();
+                          }}
+                          className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/5 text-white hover:bg-white/10 rounded transition-colors"
+                        >
+                          {isCompleted ? "Replace" : "Upload"}
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -405,117 +426,101 @@ export default function ClientDocumentsView() {
                     </div>
                   )}
                 </div>
-              ))}
+              )})}
             </div>
           </div>
 
-          {/* Client Specific Documents */}
-          <div>
-            <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2">
-              Saved Client Documents
-            </h3>
-            <div className="space-y-1">
-              {clientDocuments.length === 0 && (
-                <p className="text-xs text-[#8B949E]/70">
-                  No saved documents yet.
-                </p>
-              )}
-              {clientDocuments.map((doc) => (
-                <div
-                  key={doc.name}
-                  onClick={() => handleDocumentSelect(doc)}
-                  className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-[#0D1117] border-border-subtle hover:border-brand-purple/50 text-[#8B949E]"}`}
-                >
-                  {editingFile?.name === doc.name &&
-                  editingFile?.type === "document" ? (
-                    <div className="flex items-center space-x-2">
-                      <input
-                        autoFocus
-                        value={editNameValue}
-                        onChange={(e) => setEditNameValue(e.target.value)}
-                        className="flex-1 bg-[#161B22] text-white text-sm px-2 py-1 rounded border border-brand-purple focus:outline-none"
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.key === "Enter" && saveRename()}
-                      />
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          saveRename();
-                        }}
-                        className="text-brand-green hover:text-white p-1"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingFile(null);
-                        }}
-                        className="text-red-400 hover:text-white p-1"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3 overflow-hidden">
-                        <FileText
-                          className={`w-4 h-4 shrink-0 ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "text-brand-purple" : ""}`}
+          {clientDocuments.filter(d => !templates.some(t => t.name === d.name)).length > 0 && (
+            <div>
+              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2">
+                Extra Documents
+              </h3>
+              <div className="space-y-1">
+                {clientDocuments.filter(d => !templates.some(t => t.name === d.name)).map((doc) => (
+                  <div
+                    key={doc.name}
+                    onClick={() => handleDocumentSelect(doc)}
+                    className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
+                  >
+                    {editingFile?.name === doc.name &&
+                    editingFile?.type === "document" ? (
+                      <div className="flex items-center space-x-2">
+                        <input
+                          autoFocus
+                          value={editNameValue}
+                          onChange={(e) => setEditNameValue(e.target.value)}
+                          className="flex-1 bg-[#161B22] text-white text-sm px-2 py-1 rounded border border-brand-purple focus:outline-none"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.key === "Enter" && saveRename()}
                         />
-                        <span
-                          className="text-sm font-medium truncate"
-                          title={doc.name}
-                        >
-                          {doc.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            startRename(doc.name, "document");
+                            saveRename();
                           }}
-                          className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                          className="text-brand-green hover:text-white p-1"
                         >
-                          <Edit2 className="w-3.5 h-3.5" />
+                          <Check className="w-4 h-4" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteDocument(doc.name);
+                            setEditingFile(null);
                           }}
-                          className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                          className="text-red-400 hover:text-white p-1"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    ) : (
+                      <div className="flex items-center justify-between group">
+                        <div className="flex items-center space-x-3 overflow-hidden">
+                          <FileText
+                            className={`w-4 h-4 shrink-0 text-brand-purple`}
+                          />
+                          <span
+                            className="text-sm font-medium truncate text-white"
+                            title={doc.name}
+                          >
+                            {doc.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startRename(doc.name, "document");
+                            }}
+                            className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteDocument(doc.name);
+                            }}
+                            className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
-
-        {/* Upload Signed Document Dropzone */}
-        <div className="p-3 border-t border-border-subtle bg-[#0D1117] shrink-0">
-          <div
-            onClick={() => signedInputRef.current?.click()}
-            className="border border-dashed border-border-subtle hover:border-brand-purple rounded p-3 flex flex-col items-center justify-center cursor-pointer transition-colors text-center bg-[#161B22]"
-          >
-            <UploadCloud className="w-4 h-4 text-[#8B949E] mb-1" />
-            <span className="text-[11px] font-medium text-[#8B949E]">
-              Upload Signed Document
-            </span>
-          </div>
-          <input
-            type="file"
-            ref={signedInputRef}
-            className="hidden"
-            accept=".pdf"
-            onChange={handleUploadSigned}
-          />
-        </div>
+        
+        <input
+           type="file"
+           ref={specificFileInputRef}
+           className="hidden"
+           accept=".pdf"
+           onChange={handleUploadSpecific}
+        />
 
         {/* Resize Handle */}
         <div
