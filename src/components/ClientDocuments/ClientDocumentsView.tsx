@@ -38,6 +38,8 @@ export default function ClientDocumentsView() {
   const specificFileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingForName, setUploadingForName] = useState<string | null>(null);
 
+  const [dragCategory, setDragCategory] = useState<string | null>(null);
+
   const [editingFile, setEditingFile] = useState<{
     name: string;
     type: "template" | "document";
@@ -155,7 +157,8 @@ export default function ClientDocumentsView() {
   const handleUploadSpecific = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    if (!e.target.files || e.target.files.length === 0 || !uploadingForName) return;
+    if (!e.target.files || e.target.files.length === 0 || !uploadingForName)
+      return;
     const file = e.target.files[0];
 
     // Create a new file with the target name to ensure it overwrites
@@ -183,7 +186,6 @@ export default function ClientDocumentsView() {
   };
 
   const handleUploadTemplate = async (
-
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -230,23 +232,86 @@ export default function ClientDocumentsView() {
     }
   };
 
-  const handleDeleteDocument = async (docName: string) => {
-    if (!window.confirm("Delete this document from the client's file?")) return;
+  const genericFileInputRef = useRef<HTMLInputElement>(null);
+  const [genericUploadCategory, setGenericUploadCategory] =
+    useState<string>("Main");
+
+  const handleUploadGeneric = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    uploadGenericFiles(e.target.files, genericUploadCategory);
+    if (genericFileInputRef.current) genericFileInputRef.current.value = "";
+  };
+
+  const uploadGenericFiles = async (files: FileList, category: string) => {
+    const file = files[0];
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("category", category);
+
+    setLoading(true);
     try {
-      await fetch(
-        `/api/clients/${id}/documents/${encodeURIComponent(docName)}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      fetchClientDocuments();
-      if (selectedFile?.name === docName) {
-        setSelectedFile(null);
+      const res = await fetch(`/api/clients/${id}/documents/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (res.ok) {
+        fetchClientDocuments();
       }
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleDropToSection = (e: React.DragEvent, category: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCategory(null);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      if (category === "Required") {
+        // Upload template
+        const file = e.dataTransfer.files[0];
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("fundingType", clientFundingType);
+        setLoading(true);
+        fetch("/api/templates/upload", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        })
+          .then((res) => {
+            if (res.ok) fetchTemplates(clientFundingType);
+          })
+          .finally(() => setLoading(false));
+      } else {
+        uploadGenericFiles(e.dataTransfer.files, category);
+      }
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent, category: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCategory(category);
+  };
+
+  const handleDragLeave = (e: React.DragEvent, category: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only reset if dragging leaves the section
+    if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget as Node))
+      return;
+    setDragCategory(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
   };
 
   const startRename = (name: string, type: "template" | "document") => {
@@ -262,6 +327,12 @@ export default function ClientDocumentsView() {
         ? "/api/templates/rename"
         : `/api/clients/${id}/documents/rename`;
 
+    let category = "Main";
+    if (editingFile.type === "document") {
+      const doc = clientDocuments.find((d) => d.name === editingFile.name);
+      if (doc) category = doc.category || "Main";
+    }
+
     try {
       const res = await fetch(endpoint, {
         method: "PUT",
@@ -273,6 +344,7 @@ export default function ClientDocumentsView() {
           fundingType: clientFundingType,
           oldName: editingFile.name,
           newName: editNameValue.trim(),
+          category,
         }),
       });
 
@@ -284,6 +356,27 @@ export default function ClientDocumentsView() {
       console.error(e);
     } finally {
       setEditingFile(null);
+    }
+  };
+
+  const handleDeleteDocument = async (docName: string) => {
+    if (!window.confirm("Delete this document from the client's file?")) return;
+    const doc = clientDocuments.find((d) => d.name === docName);
+    const category = doc?.category || "Main";
+    try {
+      await fetch(
+        `/api/clients/${id}/documents/${encodeURIComponent(docName)}?category=${category}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      fetchClientDocuments();
+      if (selectedFile?.name === docName) {
+        setSelectedFile(null);
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -329,114 +422,257 @@ export default function ClientDocumentsView() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
-          <div>
-            <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between">
+          <div
+            onDragEnter={(e) => handleDragEnter(e, "Required")}
+            onDragLeave={(e) => handleDragLeave(e, "Required")}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDropToSection(e, "Required")}
+            className={`transition-colors rounded-lg border-2 ${dragCategory === "Required" ? "border-brand-teal bg-brand-teal/5" : "border-transparent"}`}
+          >
+            <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-1 pt-1">
               <span>Required Documents</span>
             </h3>
-            <div className="space-y-1">
+            <div className="space-y-1 p-1">
               {templates.length === 0 && (
                 <p className="text-xs text-[#8B949E]/70">
                   No templates found for {clientFundingType}
                 </p>
               )}
               {templates.map((tmpl) => {
-                const clientDoc = clientDocuments.find(d => d.name === tmpl.name);
+                const clientDoc = clientDocuments.find(
+                  (d) => d.name === tmpl.name,
+                );
                 const isCompleted = !!clientDoc;
                 const fileSource = isCompleted ? "document" : "template";
-                
+
                 return (
-                <div
-                  key={tmpl.name}
-                  onClick={() => isCompleted ? handleDocumentSelect(clientDoc) : handleTemplateSelect(tmpl)}
-                  className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === tmpl.name ? (isCompleted ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-teal/10 border-brand-teal text-white") : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
-                >
-                  {editingFile?.name === tmpl.name &&
-                  editingFile?.type === "template" ? (
-                    <div className="flex items-center space-x-2">
-                      <input
-                        autoFocus
-                        value={editNameValue}
-                        onChange={(e) => setEditNameValue(e.target.value)}
-                        className="flex-1 bg-[#0D1117] text-white text-sm px-2 py-1 rounded border border-brand-teal focus:outline-none"
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.key === "Enter" && saveRename()}
-                      />
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          saveRename();
-                        }}
-                        className="text-brand-green hover:text-white p-1"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingFile(null);
-                        }}
-                        className="text-red-400 hover:text-white p-1"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between group">
-                      <div className="flex items-center space-x-3 overflow-hidden">
-                        <FileIcon
-                          className={`w-4 h-4 shrink-0 ${isCompleted ? "text-brand-purple" : "text-[#8B949E]"}`}
+                  <div
+                    key={tmpl.name}
+                    onClick={() =>
+                      isCompleted
+                        ? handleDocumentSelect(clientDoc)
+                        : handleTemplateSelect(tmpl)
+                    }
+                    className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === tmpl.name ? (isCompleted ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-teal/10 border-brand-teal text-white") : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
+                  >
+                    {editingFile?.name === tmpl.name &&
+                    editingFile?.type === "template" ? (
+                      <div className="flex items-center space-x-2">
+                        <input
+                          autoFocus
+                          value={editNameValue}
+                          onChange={(e) => setEditNameValue(e.target.value)}
+                          className="flex-1 bg-[#0D1117] text-white text-sm px-2 py-1 rounded border border-brand-teal focus:outline-none"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.key === "Enter" && saveRename()}
                         />
-                        <span
-                          className={`text-sm font-medium truncate ${isCompleted ? "text-white" : ""}`}
-                          title={tmpl.name}
-                        >
-                          {tmpl.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setUploadingForName(tmpl.name);
-                            specificFileInputRef.current?.click();
+                            saveRename();
                           }}
-                          className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/5 text-white hover:bg-white/10 rounded transition-colors"
+                          className="text-brand-green hover:text-white p-1"
                         >
-                          {isCompleted ? "Replace" : "Upload"}
+                          <Check className="w-4 h-4" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            startRename(tmpl.name, "template");
+                            setEditingFile(null);
                           }}
-                          className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                          className="text-red-400 hover:text-white p-1"
                         >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteTemplate(tmpl.name);
-                          }}
-                          className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )})}
+                    ) : (
+                      <div className="flex items-center justify-between group">
+                        <div className="flex items-center space-x-3 overflow-hidden">
+                          <FileIcon
+                            className={`w-4 h-4 shrink-0 ${isCompleted ? "text-brand-purple" : "text-[#8B949E]"}`}
+                          />
+                          <span
+                            className={`text-sm font-medium truncate ${isCompleted ? "text-white" : ""}`}
+                            title={tmpl.name}
+                          >
+                            {tmpl.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setUploadingForName(tmpl.name);
+                              specificFileInputRef.current?.click();
+                            }}
+                            className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/5 text-white hover:bg-white/10 rounded transition-colors"
+                          >
+                            {isCompleted ? "Replace" : "Upload"}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startRename(tmpl.name, "template");
+                            }}
+                            className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTemplate(tmpl.name);
+                            }}
+                            className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {clientDocuments.filter(d => !templates.some(t => t.name === d.name)).length > 0 && (
-            <div>
-              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2">
-                Extra Documents
-              </h3>
-              <div className="space-y-1">
-                {clientDocuments.filter(d => !templates.some(t => t.name === d.name)).map((doc) => (
+          {/* Saved Documents */}
+          <div
+            onDragEnter={(e) => handleDragEnter(e, "Saved")}
+            onDragLeave={(e) => handleDragLeave(e, "Saved")}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDropToSection(e, "Saved")}
+            className={`transition-colors rounded-lg border-2 ${dragCategory === "Saved" ? "border-amber-500 bg-amber-500/5" : "border-transparent"}`}
+          >
+            <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-1 pt-1">
+              <span>Saved Documents</span>
+              <button
+                onClick={() => {
+                  setGenericUploadCategory("Saved");
+                  genericFileInputRef.current?.click();
+                }}
+                className="hover:text-white transition-colors title='Upload Saved Document'"
+                title="Upload Saved Document"
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+              </button>
+            </h3>
+            <div className="space-y-1 p-1">
+              {clientDocuments.filter((d) => d.category === "Saved").length ===
+                0 && (
+                <p className="text-xs text-[#8B949E]/70">
+                  No saved documents yet
+                </p>
+              )}
+              {clientDocuments
+                .filter((d) => d.category === "Saved")
+                .map((doc) => (
+                  <div
+                    key={doc.name}
+                    onClick={() => handleDocumentSelect(doc)}
+                    className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-amber-500/10 border-amber-500 text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
+                  >
+                    {editingFile?.name === doc.name &&
+                    editingFile?.type === "document" ? (
+                      <div className="flex items-center space-x-2">
+                        <input
+                          autoFocus
+                          value={editNameValue}
+                          onChange={(e) => setEditNameValue(e.target.value)}
+                          className="flex-1 bg-[#161B22] text-white text-sm px-2 py-1 rounded border border-amber-500 focus:outline-none"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.key === "Enter" && saveRename()}
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            saveRename();
+                          }}
+                          className="text-brand-green hover:text-white p-1"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingFile(null);
+                          }}
+                          className="text-red-400 hover:text-white p-1"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between group">
+                        <div className="flex items-center space-x-3 overflow-hidden">
+                          <FileText
+                            className={`w-4 h-4 shrink-0 text-amber-500`}
+                          />
+                          <span
+                            className="text-sm font-medium truncate text-white"
+                            title={doc.name}
+                          >
+                            {doc.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startRename(doc.name, "document");
+                            }}
+                            className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteDocument(doc.name);
+                            }}
+                            className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Completed Documents */}
+          <div
+            onDragEnter={(e) => handleDragEnter(e, "Completed")}
+            onDragLeave={(e) => handleDragLeave(e, "Completed")}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDropToSection(e, "Completed")}
+            className={`transition-colors rounded-lg border-2 ${dragCategory === "Completed" ? "border-brand-purple bg-brand-purple/5" : "border-transparent"}`}
+          >
+            <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-1 pt-1">
+              <span>Completed Documents</span>
+              <button
+                onClick={() => {
+                  setGenericUploadCategory("Completed");
+                  genericFileInputRef.current?.click();
+                }}
+                className="hover:text-white transition-colors title='Upload Signed Document'"
+                title="Upload Signed Document"
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+              </button>
+            </h3>
+            <div className="space-y-1 p-1">
+              {clientDocuments.filter((d) => d.category === "Completed")
+                .length === 0 && (
+                <p className="text-xs text-[#8B949E]/70">
+                  No completed documents yet
+                </p>
+              )}
+              {clientDocuments
+                .filter((d) => d.category === "Completed")
+                .map((doc) => (
                   <div
                     key={doc.name}
                     onClick={() => handleDocumentSelect(doc)}
@@ -509,17 +745,116 @@ export default function ClientDocumentsView() {
                     )}
                   </div>
                 ))}
+            </div>
+          </div>
+          {/* Extra Documents (Fallback for any old unmapped files) */}
+          {clientDocuments.filter(
+            (d) =>
+              d.category === "Main" &&
+              !templates.some((t) => t.name === d.name),
+          ).length > 0 && (
+            <div>
+              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between">
+                <span>Extra Documents</span>
+              </h3>
+              <div className="space-y-1">
+                {clientDocuments
+                  .filter(
+                    (d) =>
+                      d.category === "Main" &&
+                      !templates.some((t) => t.name === d.name),
+                  )
+                  .map((doc) => (
+                    <div
+                      key={doc.name}
+                      onClick={() => handleDocumentSelect(doc)}
+                      className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-gray-500/10 border-gray-500 text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
+                    >
+                      {editingFile?.name === doc.name &&
+                      editingFile?.type === "document" ? (
+                        <div className="flex items-center space-x-2">
+                          <input
+                            autoFocus
+                            value={editNameValue}
+                            onChange={(e) => setEditNameValue(e.target.value)}
+                            className="flex-1 bg-[#161B22] text-white text-sm px-2 py-1 rounded border border-gray-500 focus:outline-none"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.key === "Enter" && saveRename()}
+                          />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              saveRename();
+                            }}
+                            className="text-brand-green hover:text-white p-1"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingFile(null);
+                            }}
+                            className="text-red-400 hover:text-white p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between group">
+                          <div className="flex items-center space-x-3 overflow-hidden">
+                            <FileText
+                              className={`w-4 h-4 shrink-0 text-gray-500`}
+                            />
+                            <span
+                              className="text-sm font-medium truncate text-white"
+                              title={doc.name}
+                            >
+                              {doc.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startRename(doc.name, "document");
+                              }}
+                              className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteDocument(doc.name);
+                              }}
+                              className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
               </div>
             </div>
           )}
         </div>
-        
+
         <input
-           type="file"
-           ref={specificFileInputRef}
-           className="hidden"
-           accept=".pdf"
-           onChange={handleUploadSpecific}
+          type="file"
+          ref={genericFileInputRef}
+          className="hidden"
+          accept=".pdf"
+          onChange={handleUploadGeneric}
+        />
+        <input
+          type="file"
+          ref={specificFileInputRef}
+          className="hidden"
+          accept=".pdf"
+          onChange={handleUploadSpecific}
         />
 
         {/* Resize Handle */}
@@ -549,8 +884,12 @@ export default function ClientDocumentsView() {
                   {selectedFile.name}
                 </h3>
               </div>
-              <p className="text-[10px] text-[#8B949E] truncate ml-4 max-w-sm" title="Fill the form in the preview below and click 'Download PDF' to save your copy. Then drag it to the upload dropzone on the left to save to client files.">
-                 <strong className="text-white">Save:</strong> Fill viewer, download, then upload file.
+              <p
+                className="text-[10px] text-[#8B949E] truncate ml-4 max-w-sm"
+                title="Fill the form in the preview below and click 'Download PDF' to save your copy. Then drag it to the upload dropzone on the left to save to client files."
+              >
+                <strong className="text-white">Save:</strong> Fill viewer,
+                download, then upload file.
               </p>
             </div>
 

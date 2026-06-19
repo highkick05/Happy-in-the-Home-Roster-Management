@@ -10535,22 +10535,27 @@ async function startServer() {
           `${client.first_name || ""} ${client.last_name || ""}`.trim();
         const docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
 
-        if (!fs.existsSync(docsDir)) {
-          return res.json([]);
-        }
+        const getDocsInDir = (dirPath: string, category: string) => {
+          if (!fs.existsSync(dirPath)) return [];
+          const files = fs.readdirSync(dirPath).filter((f) => f.endsWith(".pdf"));
+          return files.map((name) => {
+            const stats = fs.statSync(path.join(dirPath, name));
+            return {
+              id: name,
+              name,
+              size: stats.size,
+              createdAt: stats.mtime,
+              clientName: clientFolder,
+              category
+            };
+          });
+        };
 
-        const files = fs.readdirSync(docsDir).filter((f) => f.endsWith(".pdf"));
-        const documents = files.map((name) => {
-          const stats = fs.statSync(path.join(docsDir, name));
-          return {
-            id: name,
-            name,
-            size: stats.size,
-            createdAt: stats.mtime,
-            clientName: clientFolder,
-          };
-        });
-        res.json(documents);
+        const mainDocs = getDocsInDir(docsDir, "Main");
+        const savedDocs = getDocsInDir(path.join(docsDir, "Saved"), "Saved");
+        const completedDocs = getDocsInDir(path.join(docsDir, "Completed"), "Completed");
+
+        res.json([...mainDocs, ...savedDocs, ...completedDocs]);
       } catch (e: any) {
         res.status(500).json({ error: e.message });
       }
@@ -10575,7 +10580,13 @@ async function startServer() {
         if (!fileName || !fileName.endsWith(".pdf"))
           return res.status(400).json({ error: "Invalid document name" });
 
-        const filePath = path.join(docsDir, fileName);
+        let filePath = path.join(docsDir, fileName);
+        if (!fs.existsSync(filePath)) {
+          filePath = path.join(docsDir, "Saved", fileName);
+        }
+        if (!fs.existsSync(filePath)) {
+          filePath = path.join(docsDir, "Completed", fileName);
+        }
 
         if (fs.existsSync(filePath)) {
           try {
@@ -10626,7 +10637,13 @@ async function startServer() {
 
         const clientFolder =
           `${client.first_name || ""} ${client.last_name || ""}`.trim();
-        const docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+        let docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+        
+        if (req.body.category === "Saved") {
+          docsDir = path.join(docsDir, "Saved");
+        } else if (req.body.category === "Completed") {
+          docsDir = path.join(docsDir, "Completed");
+        }
 
         if (!fs.existsSync(docsDir)) {
           fs.mkdirSync(docsDir, { recursive: true });
@@ -10647,7 +10664,7 @@ async function startServer() {
     authenticateToken,
     (req: any, res: any) => {
       try {
-        const { oldName, newName } = req.body;
+        const { oldName, newName, category } = req.body;
         const client = db
           .prepare("SELECT id, first_name, last_name FROM clients WHERE id = ?")
           .get(req.params.id) as any;
@@ -10655,7 +10672,9 @@ async function startServer() {
 
         const clientFolder =
           `${client.first_name || ""} ${client.last_name || ""}`.trim();
-        const docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+        let docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+        if (category === "Saved") docsDir = path.join(docsDir, "Saved");
+        if (category === "Completed") docsDir = path.join(docsDir, "Completed");
 
         let targetName = newName;
         if (!targetName.endsWith(".pdf")) {
@@ -10669,6 +10688,19 @@ async function startServer() {
           fs.renameSync(oldPath, newPath);
           res.json({ success: true });
         } else {
+          // fallback search
+          const dirsToCheck = [
+             path.join(UPLOADS_DIR, clientFolder, "Documents"),
+             path.join(UPLOADS_DIR, clientFolder, "Documents", "Saved"),
+             path.join(UPLOADS_DIR, clientFolder, "Documents", "Completed")
+          ];
+          for (const d of dirsToCheck) {
+             const op = path.join(d, oldName);
+             if (fs.existsSync(op)) {
+                 fs.renameSync(op, path.join(d, targetName));
+                 return res.json({ success: true });
+             }
+          }
           res.status(404).json({ error: "File not found" });
         }
       } catch (e: any) {
@@ -10689,7 +10721,10 @@ async function startServer() {
 
         const clientFolder =
           `${client.first_name || ""} ${client.last_name || ""}`.trim();
-        const docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+        const category = req.query.category;
+        let docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+        if (category === "Saved") docsDir = path.join(docsDir, "Saved");
+        if (category === "Completed") docsDir = path.join(docsDir, "Completed");
 
         const fileName = req.params.name;
         if (!fileName || !fileName.endsWith(".pdf"))
@@ -10699,6 +10734,20 @@ async function startServer() {
 
         if (fs.existsSync(filePath)) {
           fs.unlinkSync(filePath);
+          return res.json({ success: true });
+        } else {
+          const dirsToCheck = [
+             path.join(UPLOADS_DIR, clientFolder, "Documents"),
+             path.join(UPLOADS_DIR, clientFolder, "Documents", "Saved"),
+             path.join(UPLOADS_DIR, clientFolder, "Documents", "Completed")
+          ];
+          for (const d of dirsToCheck) {
+             const fp = path.join(d, fileName);
+             if (fs.existsSync(fp)) {
+                 fs.unlinkSync(fp);
+                 return res.json({ success: true });
+             }
+          }
         }
         res.json({ success: true });
       } catch (e: any) {
