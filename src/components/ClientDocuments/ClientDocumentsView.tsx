@@ -59,8 +59,11 @@ export default function ClientDocumentsView() {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return;
-      const newWidth = e.clientX;
-      if (newWidth > 250 && newWidth < 600) {
+      let newWidth = e.clientX;
+      if (sidebarRef.current) {
+        newWidth = e.clientX - sidebarRef.current.getBoundingClientRect().left;
+      }
+      if (newWidth > 200 && newWidth < 800) {
         setSidebarWidth(newWidth);
       }
     };
@@ -510,16 +513,18 @@ export default function ClientDocumentsView() {
                             </span>
                           </div>
                           <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setUploadingForName(tmpl.name);
-                                specificFileInputRef.current?.click();
-                              }}
-                              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/5 text-white hover:bg-white/10 rounded transition-colors"
-                            >
-                              {isCompleted ? "Replace" : "Upload"}
-                            </button>
+                            {!isCompleted && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setUploadingForName(tmpl.name);
+                                  specificFileInputRef.current?.click();
+                                }}
+                                className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/5 text-white hover:bg-white/10 rounded transition-colors"
+                              >
+                                Upload
+                              </button>
+                            )}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -783,99 +788,6 @@ export default function ClientDocumentsView() {
               </div>
             </div>
           </div>
-          {/* Extra Documents (Fallback for any old unmapped files) */}
-          {clientDocuments.filter(
-            (d) =>
-              d.category === "Main" &&
-              !templates.some((t) => t.name === d.name),
-          ).length > 0 && (
-            <div>
-              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between">
-                <span>Extra Documents</span>
-              </h3>
-              <div className="space-y-1">
-                {clientDocuments
-                  .filter(
-                    (d) =>
-                      d.category === "Main" &&
-                      !templates.some((t) => t.name === d.name),
-                  )
-                  .map((doc) => (
-                    <div
-                      key={doc.name}
-                      onClick={() => handleDocumentSelect(doc)}
-                      className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-gray-500/10 border-gray-500 text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
-                    >
-                      {editingFile?.name === doc.name &&
-                      editingFile?.type === "document" ? (
-                        <div className="flex items-center space-x-2">
-                          <input
-                            autoFocus
-                            value={editNameValue}
-                            onChange={(e) => setEditNameValue(e.target.value)}
-                            className="flex-1 bg-[#161B22] text-white text-sm px-2 py-1 rounded border border-gray-500 focus:outline-none"
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => e.key === "Enter" && saveRename()}
-                          />
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              saveRename();
-                            }}
-                            className="text-brand-green hover:text-white p-1"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingFile(null);
-                            }}
-                            className="text-red-400 hover:text-white p-1"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between group">
-                          <div className="flex items-center space-x-3 overflow-hidden">
-                            <FileText
-                              className={`w-4 h-4 shrink-0 text-gray-500`}
-                            />
-                            <span
-                              className="text-sm font-medium truncate text-white"
-                              title={doc.name}
-                            >
-                              {doc.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startRename(doc.name, "document");
-                              }}
-                              className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteDocument(doc.name);
-                              }}
-                              className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
         </div>
 
         <input
@@ -895,8 +807,11 @@ export default function ClientDocumentsView() {
 
         {/* Resize Handle */}
         <div
-          onMouseDown={() => setIsResizing(true)}
-          className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-brand-teal/50 active:bg-brand-teal z-10 transition-colors"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsResizing(true);
+          }}
+          className="absolute right-[-4px] top-0 bottom-0 w-2 cursor-col-resize hover:bg-brand-teal/50 active:bg-brand-teal z-20 transition-colors"
         />
       </div>
 
