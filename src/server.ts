@@ -4388,11 +4388,9 @@ async function startServer() {
 
       try {
         if (!date || !serviceName || baseAmount === undefined) {
-          return res
-            .status(400)
-            .json({
-              error: "Missing required fields: date, serviceName, baseAmount",
-            });
+          return res.status(400).json({
+            error: "Missing required fields: date, serviceName, baseAmount",
+          });
         }
 
         const client = db
@@ -8543,11 +8541,9 @@ async function startServer() {
         // Ensure all invoices belong to the same client
         const clientId = invoices[0].client_id;
         if (!invoices.every((i) => i.client_id === clientId)) {
-          return res
-            .status(400)
-            .json({
-              error: "All merged invoices must belong to the same client",
-            });
+          return res.status(400).json({
+            error: "All merged invoices must belong to the same client",
+          });
         }
 
         const settingsRows = db
@@ -8660,11 +8656,9 @@ async function startServer() {
         }
 
         if (allMergedServices.length === 0) {
-          return res
-            .status(400)
-            .json({
-              error: "No billable services found in the selected invoices",
-            });
+          return res.status(400).json({
+            error: "No billable services found in the selected invoices",
+          });
         }
 
         let subtotal = 0;
@@ -9026,12 +9020,10 @@ async function startServer() {
         if (invoice) {
           res.json({ success: true, invoice });
         } else {
-          res
-            .status(400)
-            .json({
-              error:
-                "Failed to generate invoice. Shift might not have cost-bearing items.",
-            });
+          res.status(400).json({
+            error:
+              "Failed to generate invoice. Shift might not have cost-bearing items.",
+          });
         }
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -9056,12 +9048,10 @@ async function startServer() {
         if (invoice) {
           res.json({ success: true, invoice });
         } else {
-          res
-            .status(400)
-            .json({
-              error:
-                "Failed to generate invoice. Respite booking might not have cost-bearing items.",
-            });
+          res.status(400).json({
+            error:
+              "Failed to generate invoice. Respite booking might not have cost-bearing items.",
+          });
         }
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -9260,12 +9250,10 @@ async function startServer() {
         shift.funding_type === "HOME_CARE"
           ? "Serv. ID:"
           : "Code:";
-      doc
-        .fontSize(9)
-        .text(`${codePrefix} ${item.code || "N/A"}`, 110, descY, {
-          width: 180,
-          align: "left",
-        });
+      doc.fontSize(9).text(`${codePrefix} ${item.code || "N/A"}`, 110, descY, {
+        width: 180,
+        align: "left",
+      });
 
       if (item.metadata) {
         descY += 12;
@@ -10384,7 +10372,8 @@ async function startServer() {
     authenticateTokenOrWallboard,
     (req: any, res: any) => {
       try {
-        const templatesDir = path.join(UPLOADS_DIR, "Templates");
+        const fundingType = req.query.fundingType === "HCP" ? "HCP" : "NDIS";
+        const templatesDir = path.join(UPLOADS_DIR, "Templates", fundingType);
         if (!fs.existsSync(templatesDir)) {
           fs.mkdirSync(templatesDir, { recursive: true });
           return res.json([]);
@@ -10392,10 +10381,11 @@ async function startServer() {
         const files = fs
           .readdirSync(templatesDir)
           .filter((f) => f.endsWith(".pdf"));
-        const templates = files.map((name, index) => ({
-          id: index + 1,
+        const templates = files.map((name) => ({
+          id: encodeURIComponent(name),
           name,
-          url: `/uploads/Templates/${name}`,
+          url: `/uploads/Templates/${fundingType}/${name}`,
+          type: fundingType,
         }));
         res.json(templates);
       } catch (e: any) {
@@ -10412,12 +10402,13 @@ async function startServer() {
     (req: any, res: any) => {
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
       try {
-        const templatesDir = path.join(UPLOADS_DIR, "Templates");
+        const fundingType = req.body.fundingType === "HCP" ? "HCP" : "NDIS";
+        const templatesDir = path.join(UPLOADS_DIR, "Templates", fundingType);
         if (!fs.existsSync(templatesDir)) {
           fs.mkdirSync(templatesDir, { recursive: true });
         }
         const targetPath = path.join(templatesDir, req.file.originalname);
-        fs.renameSync(req.file.path, targetPath); // Move from temp location to Templates
+        fs.renameSync(req.file.path, targetPath);
         res.json({ success: true, name: req.file.originalname });
       } catch (e: any) {
         if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
@@ -10427,20 +10418,21 @@ async function startServer() {
   );
 
   app.get(
-    "/api/templates/:id/download",
+    "/api/templates/:name/download",
     authenticateTokenOrWallboard,
     (req: any, res: any) => {
       try {
-        const templatesDir = path.join(UPLOADS_DIR, "Templates");
-        const files = fs
-          .readdirSync(templatesDir)
-          .filter((f) => f.endsWith(".pdf"));
-        const templateName = files[parseInt(req.params.id) - 1]; // VERY basic mapping
+        const fundingType = req.query.fundingType === "HCP" ? "HCP" : "NDIS";
+        const templatesDir = path.join(UPLOADS_DIR, "Templates", fundingType);
+        const templateName = req.params.name;
 
-        if (!templateName)
-          return res.status(404).json({ error: "Template not found" });
+        if (!templateName || !templateName.endsWith(".pdf"))
+          return res.status(400).json({ error: "Invalid template name" });
+
         const filePath = path.join(templatesDir, templateName);
-
+        if (!fs.existsSync(filePath)) {
+          return res.status(404).json({ error: "Template not found" });
+        }
         res.download(filePath);
       } catch (e: any) {
         res.status(500).json({ error: e.message });
@@ -10449,25 +10441,54 @@ async function startServer() {
   );
 
   app.delete(
-    "/api/templates/:id",
+    "/api/templates/:name",
     authenticateToken,
     requireAdmin,
     (req: any, res: any) => {
       try {
-        const templatesDir = path.join(UPLOADS_DIR, "Templates");
-        const files = fs
-          .readdirSync(templatesDir)
-          .filter((f) => f.endsWith(".pdf"));
-        const templateName = files[parseInt(req.params.id) - 1];
+        const fundingType = req.query.fundingType === "HCP" ? "HCP" : "NDIS";
+        const templatesDir = path.join(UPLOADS_DIR, "Templates", fundingType);
+        const templateName = req.params.name;
 
-        if (!templateName)
-          return res.status(404).json({ error: "Template not found" });
+        if (!templateName || !templateName.endsWith(".pdf"))
+          return res.status(400).json({ error: "Invalid template name" });
+
         const filePath = path.join(templatesDir, templateName);
 
         if (fs.existsSync(filePath)) {
           fs.unlinkSync(filePath);
         }
         res.json({ success: true });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    },
+  );
+
+  app.put(
+    "/api/templates/rename",
+    authenticateToken,
+    requireAdmin,
+    (req: any, res: any) => {
+      try {
+        const { fundingType, oldName, newName } = req.body;
+        const typeDir = fundingType === "HCP" ? "HCP" : "NDIS";
+        const templatesDir = path.join(UPLOADS_DIR, "Templates", typeDir);
+
+        let targetName = newName;
+        if (!targetName.endsWith(".pdf")) {
+          targetName += ".pdf";
+        }
+
+        const oldPath = path.join(templatesDir, oldName);
+        const newPath = path.join(templatesDir, targetName);
+
+        if (fs.existsSync(oldPath)) {
+          fs.renameSync(oldPath, newPath);
+          res.json({ success: true });
+        } else {
+          res.status(404).json({ error: "File not found" });
+        }
       } catch (e: any) {
         res.status(500).json({ error: e.message });
       }
@@ -10501,9 +10522,41 @@ async function startServer() {
             name,
             size: stats.size,
             createdAt: stats.mtime,
+            clientName: clientFolder,
           };
         });
         res.json(documents);
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    },
+  );
+
+  app.get(
+    "/api/clients/:id/documents/:name/download",
+    authenticateTokenOrWallboard,
+    (req: any, res: any) => {
+      try {
+        const client = db
+          .prepare("SELECT id, first_name, last_name FROM clients WHERE id = ?")
+          .get(req.params.id) as any;
+        if (!client) return res.status(404).json({ error: "Client not found" });
+
+        const clientFolder =
+          `${client.first_name || ""} ${client.last_name || ""}`.trim();
+        const docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+
+        const fileName = req.params.name;
+        if (!fileName || !fileName.endsWith(".pdf"))
+          return res.status(400).json({ error: "Invalid document name" });
+
+        const filePath = path.join(docsDir, fileName);
+
+        if (fs.existsSync(filePath)) {
+          res.download(filePath);
+        } else {
+          res.status(404).json({ error: "File not found" });
+        }
       } catch (e: any) {
         res.status(500).json({ error: e.message });
       }
@@ -10535,6 +10588,71 @@ async function startServer() {
         res.json({ success: true, name: req.file.originalname });
       } catch (e: any) {
         if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        res.status(500).json({ error: e.message });
+      }
+    },
+  );
+
+  app.put(
+    "/api/clients/:id/documents/rename",
+    authenticateToken,
+    (req: any, res: any) => {
+      try {
+        const { oldName, newName } = req.body;
+        const client = db
+          .prepare("SELECT id, first_name, last_name FROM clients WHERE id = ?")
+          .get(req.params.id) as any;
+        if (!client) return res.status(404).json({ error: "Client not found" });
+
+        const clientFolder =
+          `${client.first_name || ""} ${client.last_name || ""}`.trim();
+        const docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+
+        let targetName = newName;
+        if (!targetName.endsWith(".pdf")) {
+          targetName += ".pdf";
+        }
+
+        const oldPath = path.join(docsDir, oldName);
+        const newPath = path.join(docsDir, targetName);
+
+        if (fs.existsSync(oldPath)) {
+          fs.renameSync(oldPath, newPath);
+          res.json({ success: true });
+        } else {
+          res.status(404).json({ error: "File not found" });
+        }
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    },
+  );
+
+  app.delete(
+    "/api/clients/:id/documents/:name",
+    authenticateToken,
+    (req: any, res: any) => {
+      try {
+        const client = db
+          .prepare("SELECT id, first_name, last_name FROM clients WHERE id = ?")
+          .get(req.params.id) as any;
+        if (!client) return res.status(404).json({ error: "Client not found" });
+
+        const clientFolder =
+          `${client.first_name || ""} ${client.last_name || ""}`.trim();
+        const docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+
+        const fileName = req.params.name;
+        if (!fileName || !fileName.endsWith(".pdf"))
+          return res.status(400).json({ error: "Invalid document name" });
+
+        const filePath = path.join(docsDir, fileName);
+
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+        res.json({ success: true });
+      } catch (e: any) {
         res.status(500).json({ error: e.message });
       }
     },
