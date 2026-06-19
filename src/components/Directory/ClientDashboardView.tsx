@@ -144,6 +144,16 @@ export default function ClientDashboardView() {
         <div className="flex items-center space-x-3">
           <button 
             type="button"
+            onClick={() => navigate(`/clients/${id}/documents`)}
+            className="px-3 py-1.5 min-h-[36px] bg-brand-navy border border-border-subtle hover:border-brand-teal text-[#8B949E] hover:text-[#E6EDF3] rounded-lg text-xs font-semibold flex items-center space-x-2 transition-colors duration-155 shadow-sm"
+            title="Documents"
+          >
+            <FileText className="w-4 h-4 text-brand-teal" />
+            <span>Documents</span>
+          </button>
+          
+          <button 
+            type="button"
             onClick={() => navigate(`/clients/${id}/budget`)}
             className="px-3 py-1.5 min-h-[36px] bg-brand-navy border border-border-subtle hover:border-brand-teal text-[#8B949E] hover:text-[#E6EDF3] rounded-lg text-xs font-semibold flex items-center space-x-2 transition-colors duration-155 shadow-sm"
             title="Budget"
