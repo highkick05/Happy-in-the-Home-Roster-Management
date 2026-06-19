@@ -28,8 +28,8 @@ export default function ClientDocumentsView() {
   const [clientFundingType, setClientFundingType] = useState<string>("NDIS");
 
   const [sidebarWidth, setSidebarWidth] = useLocalStorage(
-    "clientDocsSidebarWidth",
-    380,
+    "clientDocsSidebarWidth_v3",
+    480,
   );
   const [isResizing, setIsResizing] = useState(false);
 
@@ -427,15 +427,15 @@ export default function ClientDocumentsView() {
             onDragLeave={(e) => handleDragLeave(e, "Required")}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDropToSection(e, "Required")}
-            className={`transition-colors rounded-lg border-2 border-dashed relative min-h-[120px] flex flex-col ${dragCategory === "Required" ? "border-brand-teal bg-brand-teal/5" : "border-border-subtle/50"}`}
+            className={`transition-colors rounded-lg border-2 border-dashed relative min-h-[200px] flex flex-col ${dragCategory === "Required" ? "border-brand-teal bg-brand-teal/5" : "border-border-subtle/50"}`}
           >
             {/* Watermark */}
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-10">
-              <UploadCloud className="w-8 h-8 mb-1" />
-              <span className="text-[10px] uppercase font-bold tracking-widest text-center">
-                Drop
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-30 text-[#8B949E] group-hover:text-white transition-colors">
+              <UploadCloud className="w-10 h-10 mb-2" />
+              <span className="text-xs uppercase font-bold tracking-widest text-center">
+                Drag & Drop
                 <br />
-                Required Docs
+                Templates Here
               </span>
             </div>
 
@@ -554,13 +554,13 @@ export default function ClientDocumentsView() {
             onDragLeave={(e) => handleDragLeave(e, "Saved")}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDropToSection(e, "Saved")}
-            className={`transition-colors rounded-lg border-2 border-dashed relative min-h-[120px] flex flex-col ${dragCategory === "Saved" ? "border-amber-500 bg-amber-500/5" : "border-border-subtle/50"}`}
+            className={`transition-colors rounded-lg border-2 border-dashed relative min-h-[200px] flex flex-col ${dragCategory === "Saved" ? "border-amber-500 bg-amber-500/5" : "border-border-subtle/50"}`}
           >
             {/* Watermark */}
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-10">
-              <UploadCloud className="w-8 h-8 mb-1" />
-              <span className="text-[10px] uppercase font-bold tracking-widest text-center">
-                Drop
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-30 text-[#8B949E] group-hover:text-white transition-colors">
+              <UploadCloud className="w-10 h-10 mb-2" />
+              <span className="text-xs uppercase font-bold tracking-widest text-center">
+                Drag & Drop
                 <br />
                 Saved Docs
               </span>
@@ -672,13 +672,13 @@ export default function ClientDocumentsView() {
             onDragLeave={(e) => handleDragLeave(e, "Completed")}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDropToSection(e, "Completed")}
-            className={`transition-colors rounded-lg border-2 border-dashed relative min-h-[120px] flex flex-col ${dragCategory === "Completed" ? "border-brand-purple bg-brand-purple/5" : "border-border-subtle/50"}`}
+            className={`transition-colors rounded-lg border-2 border-dashed relative min-h-[200px] flex flex-col ${dragCategory === "Completed" ? "border-brand-purple bg-brand-purple/5" : "border-border-subtle/50"}`}
           >
             {/* Watermark */}
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-10">
-              <UploadCloud className="w-8 h-8 mb-1" />
-              <span className="text-[10px] uppercase font-bold tracking-widest text-center">
-                Drop
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-30 text-[#8B949E] group-hover:text-white transition-colors">
+              <UploadCloud className="w-10 h-10 mb-2" />
+              <span className="text-xs uppercase font-bold tracking-widest text-center">
+                Drag & Drop
                 <br />
                 Completed Docs
               </span>
