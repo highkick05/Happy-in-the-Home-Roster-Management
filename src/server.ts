@@ -10445,7 +10445,7 @@ async function startServer() {
             if (field.constructor.name.includes("TextField")) {
               try {
                 // @ts-ignore
-                field.setFontSize(10);
+                field.setFontSize(14);
               } catch (e) {
                 // Ignore failure on specific field
               }
@@ -10600,7 +10600,7 @@ async function startServer() {
               if (field.constructor.name.includes("TextField")) {
                 try {
                   // @ts-ignore
-                  field.setFontSize(10);
+                  field.setFontSize(14);
                 } catch (e) {
                   // ignore
                 }

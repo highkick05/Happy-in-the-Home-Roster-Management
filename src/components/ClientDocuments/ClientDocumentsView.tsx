@@ -29,7 +29,7 @@ export default function ClientDocumentsView() {
 
   const [sidebarWidth, setSidebarWidth] = useLocalStorage(
     "clientDocsSidebarWidth",
-    320,
+    380,
   );
   const [isResizing, setIsResizing] = useState(false);
 
@@ -427,112 +427,124 @@ export default function ClientDocumentsView() {
             onDragLeave={(e) => handleDragLeave(e, "Required")}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDropToSection(e, "Required")}
-            className={`transition-colors rounded-lg border-2 ${dragCategory === "Required" ? "border-brand-teal bg-brand-teal/5" : "border-transparent"}`}
+            className={`transition-colors rounded-lg border-2 border-dashed relative min-h-[120px] flex flex-col ${dragCategory === "Required" ? "border-brand-teal bg-brand-teal/5" : "border-border-subtle/50"}`}
           >
-            <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-1 pt-1">
-              <span>Required Documents</span>
-            </h3>
-            <div className="space-y-1 p-1">
-              {templates.length === 0 && (
-                <p className="text-xs text-[#8B949E]/70">
-                  No templates found for {clientFundingType}
-                </p>
-              )}
-              {templates.map((tmpl) => {
-                const clientDoc = clientDocuments.find(
-                  (d) => d.name === tmpl.name,
-                );
-                const isCompleted = !!clientDoc;
-                const fileSource = isCompleted ? "document" : "template";
+            {/* Watermark */}
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-10">
+              <UploadCloud className="w-8 h-8 mb-1" />
+              <span className="text-[10px] uppercase font-bold tracking-widest text-center">
+                Drop
+                <br />
+                Required Docs
+              </span>
+            </div>
 
-                return (
-                  <div
-                    key={tmpl.name}
-                    onClick={() =>
-                      isCompleted
-                        ? handleDocumentSelect(clientDoc)
-                        : handleTemplateSelect(tmpl)
-                    }
-                    className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === tmpl.name ? (isCompleted ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-teal/10 border-brand-teal text-white") : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
-                  >
-                    {editingFile?.name === tmpl.name &&
-                    editingFile?.type === "template" ? (
-                      <div className="flex items-center space-x-2">
-                        <input
-                          autoFocus
-                          value={editNameValue}
-                          onChange={(e) => setEditNameValue(e.target.value)}
-                          className="flex-1 bg-[#0D1117] text-white text-sm px-2 py-1 rounded border border-brand-teal focus:outline-none"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.key === "Enter" && saveRename()}
-                        />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            saveRename();
-                          }}
-                          className="text-brand-green hover:text-white p-1"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingFile(null);
-                          }}
-                          className="text-red-400 hover:text-white p-1"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between group">
-                        <div className="flex items-center space-x-3 overflow-hidden">
-                          <FileIcon
-                            className={`w-4 h-4 shrink-0 ${isCompleted ? "text-brand-purple" : "text-[#8B949E]"}`}
+            <div className="relative z-10 flex flex-col h-full">
+              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-2 pt-2">
+                <span>Required Documents</span>
+              </h3>
+              <div className="space-y-1 p-2 flex-1">
+                {templates.length === 0 && (
+                  <p className="text-xs text-[#8B949E]/70">
+                    No templates found for {clientFundingType}
+                  </p>
+                )}
+                {templates.map((tmpl) => {
+                  const clientDoc = clientDocuments.find(
+                    (d) => d.name === tmpl.name,
+                  );
+                  const isCompleted = !!clientDoc;
+                  const fileSource = isCompleted ? "document" : "template";
+
+                  return (
+                    <div
+                      key={tmpl.name}
+                      onClick={() =>
+                        isCompleted
+                          ? handleDocumentSelect(clientDoc)
+                          : handleTemplateSelect(tmpl)
+                      }
+                      className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === tmpl.name ? (isCompleted ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-teal/10 border-brand-teal text-white") : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
+                    >
+                      {editingFile?.name === tmpl.name &&
+                      editingFile?.type === "template" ? (
+                        <div className="flex items-center space-x-2">
+                          <input
+                            autoFocus
+                            value={editNameValue}
+                            onChange={(e) => setEditNameValue(e.target.value)}
+                            className="flex-1 bg-[#0D1117] text-white text-sm px-2 py-1 rounded border border-brand-teal focus:outline-none"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.key === "Enter" && saveRename()}
                           />
-                          <span
-                            className={`text-sm font-medium truncate ${isCompleted ? "text-white" : ""}`}
-                            title={tmpl.name}
-                          >
-                            {tmpl.name}
-                          </span>
-                        </div>
-                        <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setUploadingForName(tmpl.name);
-                              specificFileInputRef.current?.click();
+                              saveRename();
                             }}
-                            className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/5 text-white hover:bg-white/10 rounded transition-colors"
+                            className="text-brand-green hover:text-white p-1"
                           >
-                            {isCompleted ? "Replace" : "Upload"}
+                            <Check className="w-4 h-4" />
                           </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              startRename(tmpl.name, "template");
+                              setEditingFile(null);
                             }}
-                            className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                            className="text-red-400 hover:text-white p-1"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteTemplate(tmpl.name);
-                            }}
-                            className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                      ) : (
+                        <div className="flex items-center justify-between group">
+                          <div className="flex items-center space-x-3 overflow-hidden">
+                            <FileIcon
+                              className={`w-4 h-4 shrink-0 ${isCompleted ? "text-brand-purple" : "text-[#8B949E]"}`}
+                            />
+                            <span
+                              className={`text-sm font-medium truncate ${isCompleted ? "text-white" : ""}`}
+                              title={tmpl.name}
+                            >
+                              {tmpl.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setUploadingForName(tmpl.name);
+                                specificFileInputRef.current?.click();
+                              }}
+                              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/5 text-white hover:bg-white/10 rounded transition-colors"
+                            >
+                              {isCompleted ? "Replace" : "Upload"}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startRename(tmpl.name, "template");
+                              }}
+                              className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTemplate(tmpl.name);
+                              }}
+                              className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -542,103 +554,115 @@ export default function ClientDocumentsView() {
             onDragLeave={(e) => handleDragLeave(e, "Saved")}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDropToSection(e, "Saved")}
-            className={`transition-colors rounded-lg border-2 ${dragCategory === "Saved" ? "border-amber-500 bg-amber-500/5" : "border-transparent"}`}
+            className={`transition-colors rounded-lg border-2 border-dashed relative min-h-[120px] flex flex-col ${dragCategory === "Saved" ? "border-amber-500 bg-amber-500/5" : "border-border-subtle/50"}`}
           >
-            <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-1 pt-1">
-              <span>Saved Documents</span>
-              <button
-                onClick={() => {
-                  setGenericUploadCategory("Saved");
-                  genericFileInputRef.current?.click();
-                }}
-                className="hover:text-white transition-colors title='Upload Saved Document'"
-                title="Upload Saved Document"
-              >
-                <UploadCloud className="w-3.5 h-3.5" />
-              </button>
-            </h3>
-            <div className="space-y-1 p-1">
-              {clientDocuments.filter((d) => d.category === "Saved").length ===
-                0 && (
-                <p className="text-xs text-[#8B949E]/70">
-                  No saved documents yet
-                </p>
-              )}
-              {clientDocuments
-                .filter((d) => d.category === "Saved")
-                .map((doc) => (
-                  <div
-                    key={doc.name}
-                    onClick={() => handleDocumentSelect(doc)}
-                    className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-amber-500/10 border-amber-500 text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
-                  >
-                    {editingFile?.name === doc.name &&
-                    editingFile?.type === "document" ? (
-                      <div className="flex items-center space-x-2">
-                        <input
-                          autoFocus
-                          value={editNameValue}
-                          onChange={(e) => setEditNameValue(e.target.value)}
-                          className="flex-1 bg-[#161B22] text-white text-sm px-2 py-1 rounded border border-amber-500 focus:outline-none"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.key === "Enter" && saveRename()}
-                        />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            saveRename();
-                          }}
-                          className="text-brand-green hover:text-white p-1"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingFile(null);
-                          }}
-                          className="text-red-400 hover:text-white p-1"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between group">
-                        <div className="flex items-center space-x-3 overflow-hidden">
-                          <FileText
-                            className={`w-4 h-4 shrink-0 text-amber-500`}
+            {/* Watermark */}
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-10">
+              <UploadCloud className="w-8 h-8 mb-1" />
+              <span className="text-[10px] uppercase font-bold tracking-widest text-center">
+                Drop
+                <br />
+                Saved Docs
+              </span>
+            </div>
+
+            <div className="relative z-10 flex flex-col h-full">
+              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-2 pt-2">
+                <span>Saved Documents</span>
+                <button
+                  onClick={() => {
+                    setGenericUploadCategory("Saved");
+                    genericFileInputRef.current?.click();
+                  }}
+                  className="hover:text-white transition-colors title='Upload Saved Document'"
+                  title="Upload Saved Document"
+                >
+                  <UploadCloud className="w-3.5 h-3.5" />
+                </button>
+              </h3>
+              <div className="space-y-1 p-2 flex-1">
+                {clientDocuments.filter((d) => d.category === "Saved")
+                  .length === 0 && (
+                  <p className="text-xs text-[#8B949E]/70">
+                    No saved documents yet
+                  </p>
+                )}
+                {clientDocuments
+                  .filter((d) => d.category === "Saved")
+                  .map((doc) => (
+                    <div
+                      key={doc.name}
+                      onClick={() => handleDocumentSelect(doc)}
+                      className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-amber-500/10 border-amber-500 text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
+                    >
+                      {editingFile?.name === doc.name &&
+                      editingFile?.type === "document" ? (
+                        <div className="flex items-center space-x-2">
+                          <input
+                            autoFocus
+                            value={editNameValue}
+                            onChange={(e) => setEditNameValue(e.target.value)}
+                            className="flex-1 bg-[#161B22] text-white text-sm px-2 py-1 rounded border border-amber-500 focus:outline-none"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.key === "Enter" && saveRename()}
                           />
-                          <span
-                            className="text-sm font-medium truncate text-white"
-                            title={doc.name}
-                          >
-                            {doc.name}
-                          </span>
-                        </div>
-                        <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              startRename(doc.name, "document");
+                              saveRename();
                             }}
-                            className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                            className="text-brand-green hover:text-white p-1"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Check className="w-4 h-4" />
                           </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteDocument(doc.name);
+                              setEditingFile(null);
                             }}
-                            className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                            className="text-red-400 hover:text-white p-1"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      ) : (
+                        <div className="flex items-center justify-between group">
+                          <div className="flex items-center space-x-3 overflow-hidden">
+                            <FileText
+                              className={`w-4 h-4 shrink-0 text-amber-500`}
+                            />
+                            <span
+                              className="text-sm font-medium truncate text-white"
+                              title={doc.name}
+                            >
+                              {doc.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startRename(doc.name, "document");
+                              }}
+                              className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteDocument(doc.name);
+                              }}
+                              className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
             </div>
           </div>
 
@@ -648,103 +672,115 @@ export default function ClientDocumentsView() {
             onDragLeave={(e) => handleDragLeave(e, "Completed")}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDropToSection(e, "Completed")}
-            className={`transition-colors rounded-lg border-2 ${dragCategory === "Completed" ? "border-brand-purple bg-brand-purple/5" : "border-transparent"}`}
+            className={`transition-colors rounded-lg border-2 border-dashed relative min-h-[120px] flex flex-col ${dragCategory === "Completed" ? "border-brand-purple bg-brand-purple/5" : "border-border-subtle/50"}`}
           >
-            <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-1 pt-1">
-              <span>Completed Documents</span>
-              <button
-                onClick={() => {
-                  setGenericUploadCategory("Completed");
-                  genericFileInputRef.current?.click();
-                }}
-                className="hover:text-white transition-colors title='Upload Signed Document'"
-                title="Upload Signed Document"
-              >
-                <UploadCloud className="w-3.5 h-3.5" />
-              </button>
-            </h3>
-            <div className="space-y-1 p-1">
-              {clientDocuments.filter((d) => d.category === "Completed")
-                .length === 0 && (
-                <p className="text-xs text-[#8B949E]/70">
-                  No completed documents yet
-                </p>
-              )}
-              {clientDocuments
-                .filter((d) => d.category === "Completed")
-                .map((doc) => (
-                  <div
-                    key={doc.name}
-                    onClick={() => handleDocumentSelect(doc)}
-                    className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
-                  >
-                    {editingFile?.name === doc.name &&
-                    editingFile?.type === "document" ? (
-                      <div className="flex items-center space-x-2">
-                        <input
-                          autoFocus
-                          value={editNameValue}
-                          onChange={(e) => setEditNameValue(e.target.value)}
-                          className="flex-1 bg-[#161B22] text-white text-sm px-2 py-1 rounded border border-brand-purple focus:outline-none"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.key === "Enter" && saveRename()}
-                        />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            saveRename();
-                          }}
-                          className="text-brand-green hover:text-white p-1"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingFile(null);
-                          }}
-                          className="text-red-400 hover:text-white p-1"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between group">
-                        <div className="flex items-center space-x-3 overflow-hidden">
-                          <FileText
-                            className={`w-4 h-4 shrink-0 text-brand-purple`}
+            {/* Watermark */}
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-10">
+              <UploadCloud className="w-8 h-8 mb-1" />
+              <span className="text-[10px] uppercase font-bold tracking-widest text-center">
+                Drop
+                <br />
+                Completed Docs
+              </span>
+            </div>
+
+            <div className="relative z-10 flex flex-col h-full">
+              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-2 pt-2">
+                <span>Completed Documents</span>
+                <button
+                  onClick={() => {
+                    setGenericUploadCategory("Completed");
+                    genericFileInputRef.current?.click();
+                  }}
+                  className="hover:text-white transition-colors title='Upload Signed Document'"
+                  title="Upload Signed Document"
+                >
+                  <UploadCloud className="w-3.5 h-3.5" />
+                </button>
+              </h3>
+              <div className="space-y-1 p-2 flex-1">
+                {clientDocuments.filter((d) => d.category === "Completed")
+                  .length === 0 && (
+                  <p className="text-xs text-[#8B949E]/70">
+                    No completed documents yet
+                  </p>
+                )}
+                {clientDocuments
+                  .filter((d) => d.category === "Completed")
+                  .map((doc) => (
+                    <div
+                      key={doc.name}
+                      onClick={() => handleDocumentSelect(doc)}
+                      className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
+                    >
+                      {editingFile?.name === doc.name &&
+                      editingFile?.type === "document" ? (
+                        <div className="flex items-center space-x-2">
+                          <input
+                            autoFocus
+                            value={editNameValue}
+                            onChange={(e) => setEditNameValue(e.target.value)}
+                            className="flex-1 bg-[#161B22] text-white text-sm px-2 py-1 rounded border border-brand-purple focus:outline-none"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.key === "Enter" && saveRename()}
                           />
-                          <span
-                            className="text-sm font-medium truncate text-white"
-                            title={doc.name}
-                          >
-                            {doc.name}
-                          </span>
-                        </div>
-                        <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              startRename(doc.name, "document");
+                              saveRename();
                             }}
-                            className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                            className="text-brand-green hover:text-white p-1"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Check className="w-4 h-4" />
                           </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteDocument(doc.name);
+                              setEditingFile(null);
                             }}
-                            className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                            className="text-red-400 hover:text-white p-1"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      ) : (
+                        <div className="flex items-center justify-between group">
+                          <div className="flex items-center space-x-3 overflow-hidden">
+                            <FileText
+                              className={`w-4 h-4 shrink-0 text-brand-purple`}
+                            />
+                            <span
+                              className="text-sm font-medium truncate text-white"
+                              title={doc.name}
+                            >
+                              {doc.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startRename(doc.name, "document");
+                              }}
+                              className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteDocument(doc.name);
+                              }}
+                              className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
             </div>
           </div>
           {/* Extra Documents (Fallback for any old unmapped files) */}
