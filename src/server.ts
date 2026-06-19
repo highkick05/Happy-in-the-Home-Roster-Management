@@ -10420,7 +10420,7 @@ async function startServer() {
   app.get(
     "/api/templates/:name/download",
     authenticateTokenOrWallboard,
-    (req: any, res: any) => {
+    async (req: any, res: any) => {
       try {
         const fundingType = req.query.fundingType === "HCP" ? "HCP" : "NDIS";
         const templatesDir = path.join(UPLOADS_DIR, "Templates", fundingType);
@@ -10433,7 +10433,32 @@ async function startServer() {
         if (!fs.existsSync(filePath)) {
           return res.status(404).json({ error: "Template not found" });
         }
-        res.sendFile(filePath);
+        
+        try {
+          const fs = require('fs');
+          const pdfBytes = fs.readFileSync(filePath);
+          const { PDFDocument } = require('pdf-lib');
+          const pdfDoc = await PDFDocument.load(pdfBytes);
+          const form = pdfDoc.getForm();
+          const fields = form.getFields();
+          for (const field of fields) {
+            if (field.constructor.name.includes("TextField")) {
+              try {
+                // @ts-ignore
+                field.setFontSize(10);
+              } catch (e) {
+                // Ignore failure on specific field
+              }
+            }
+          }
+          const modifiedBytes = await pdfDoc.save();
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `inline; filename="${templateName}"`);
+          return res.send(Buffer.from(modifiedBytes));
+        } catch (pdfErr) {
+          console.error("PDF-lib Error on form adjustment: ", pdfErr);
+          return res.sendFile(filePath);
+        }
       } catch (e: any) {
         res.status(500).json({ error: e.message });
       }
@@ -10535,7 +10560,7 @@ async function startServer() {
   app.get(
     "/api/clients/:id/documents/:name/download",
     authenticateTokenOrWallboard,
-    (req: any, res: any) => {
+    async (req: any, res: any) => {
       try {
         const client = db
           .prepare("SELECT id, first_name, last_name FROM clients WHERE id = ?")
@@ -10545,7 +10570,7 @@ async function startServer() {
         const clientFolder =
           `${client.first_name || ""} ${client.last_name || ""}`.trim();
         const docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
-
+        
         const fileName = req.params.name;
         if (!fileName || !fileName.endsWith(".pdf"))
           return res.status(400).json({ error: "Invalid document name" });
@@ -10553,7 +10578,31 @@ async function startServer() {
         const filePath = path.join(docsDir, fileName);
 
         if (fs.existsSync(filePath)) {
-          res.sendFile(filePath);
+          try {
+            const fs = require('fs');
+            const pdfBytes = fs.readFileSync(filePath);
+            const { PDFDocument } = require('pdf-lib');
+            const pdfDoc = await PDFDocument.load(pdfBytes);
+            const form = pdfDoc.getForm();
+            const fields = form.getFields();
+            for (const field of fields) {
+              if (field.constructor.name.includes("TextField")) {
+                try {
+                  // @ts-ignore
+                  field.setFontSize(10);
+                } catch (e) {
+                  // ignore
+                }
+              }
+            }
+            const modifiedBytes = await pdfDoc.save();
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+            return res.send(Buffer.from(modifiedBytes));
+          } catch (pdfErr) {
+            console.error("PDF-lib Error on form adjustment: ", pdfErr);
+            return res.sendFile(filePath);
+          }
         } else {
           res.status(404).json({ error: "File not found" });
         }
