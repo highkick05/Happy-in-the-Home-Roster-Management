@@ -27,12 +27,6 @@ export default function ClientDocumentsView() {
 
   const [clientFundingType, setClientFundingType] = useState<string>("NDIS");
 
-  const [sidebarWidth, setSidebarWidth] = useLocalStorage(
-    "clientDocsSidebarWidth_v3",
-    480,
-  );
-  const [isResizing, setIsResizing] = useState(false);
-
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const specificFileInputRef = useRef<HTMLInputElement>(null);
@@ -46,40 +40,12 @@ export default function ClientDocumentsView() {
   } | null>(null);
   const [editNameValue, setEditNameValue] = useState("");
 
-  const sidebarRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     fetchClientDetails().then((fundingType) => {
       fetchTemplates(fundingType);
       fetchClientDocuments();
     });
   }, [id, token]);
-
-  // Handle document drag resizing
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-      let newWidth = e.clientX;
-      if (sidebarRef.current) {
-        newWidth = e.clientX - sidebarRef.current.getBoundingClientRect().left;
-      }
-      if (newWidth > 200 && newWidth < 800) {
-        setSidebarWidth(newWidth);
-      }
-    };
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    if (isResizing) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    }
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isResizing, setSidebarWidth]);
 
   const fetchClientDetails = async () => {
     try {
@@ -396,9 +362,7 @@ export default function ClientDocumentsView() {
     <div className="flex h-full h-[calc(100vh-64px)] overflow-hidden">
       {/* Sidebar */}
       <div
-        ref={sidebarRef}
-        style={{ width: `${sidebarWidth}px` }}
-        className="border-r border-border-subtle bg-brand-navy flex flex-col shrink-0 relative"
+        className="w-[380px] border-r border-border-subtle bg-brand-navy flex flex-col shrink-0 relative"
       >
         <div className="p-3 border-b border-border-subtle shrink-0">
           <div className="flex items-center justify-between mb-2">
@@ -424,13 +388,13 @@ export default function ClientDocumentsView() {
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        <div className="flex-1 p-3 space-y-4 flex flex-col min-h-0">
           <div
             onDragEnter={(e) => handleDragEnter(e, "Required")}
             onDragLeave={(e) => handleDragLeave(e, "Required")}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDropToSection(e, "Required")}
-            className={`transition-colors rounded-lg border-2 border-dashed relative min-h-[200px] flex flex-col ${dragCategory === "Required" ? "border-brand-teal bg-brand-teal/5" : "border-border-subtle/50"}`}
+            className={`transition-colors rounded-lg border-2 border-dashed relative flex-1 min-h-0 flex flex-col overflow-hidden ${dragCategory === "Required" ? "border-brand-teal bg-brand-teal/5" : "border-border-subtle/50"}`}
           >
             {/* Watermark */}
             <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-30 text-[#8B949E] group-hover:text-white transition-colors">
@@ -442,11 +406,11 @@ export default function ClientDocumentsView() {
               </span>
             </div>
 
-            <div className="relative z-10 flex flex-col h-full">
-              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-2 pt-2">
+            <div className="relative z-10 flex flex-col h-full overflow-hidden">
+              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-2 pt-2 shrink-0">
                 <span>Required Documents</span>
               </h3>
-              <div className="space-y-1 p-2 flex-1">
+              <div className="space-y-1 p-2 flex-1 overflow-y-auto min-h-0">
                 {templates.length === 0 && (
                   <p className="text-xs text-[#8B949E]/70">
                     No templates found for {clientFundingType}
@@ -553,123 +517,7 @@ export default function ClientDocumentsView() {
             </div>
           </div>
 
-          {/* Saved Documents */}
-          <div
-            onDragEnter={(e) => handleDragEnter(e, "Saved")}
-            onDragLeave={(e) => handleDragLeave(e, "Saved")}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDropToSection(e, "Saved")}
-            className={`transition-colors rounded-lg border-2 border-dashed relative min-h-[200px] flex flex-col ${dragCategory === "Saved" ? "border-amber-500 bg-amber-500/5" : "border-border-subtle/50"}`}
-          >
-            {/* Watermark */}
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-30 text-[#8B949E] group-hover:text-white transition-colors">
-              <UploadCloud className="w-10 h-10 mb-2" />
-              <span className="text-xs uppercase font-bold tracking-widest text-center">
-                Drag & Drop
-                <br />
-                Saved Docs
-              </span>
-            </div>
 
-            <div className="relative z-10 flex flex-col h-full">
-              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-2 pt-2">
-                <span>Saved Documents</span>
-                <button
-                  onClick={() => {
-                    setGenericUploadCategory("Saved");
-                    genericFileInputRef.current?.click();
-                  }}
-                  className="hover:text-white transition-colors title='Upload Saved Document'"
-                  title="Upload Saved Document"
-                >
-                  <UploadCloud className="w-3.5 h-3.5" />
-                </button>
-              </h3>
-              <div className="space-y-1 p-2 flex-1">
-                {clientDocuments.filter((d) => d.category === "Saved")
-                  .length === 0 && (
-                  <p className="text-xs text-[#8B949E]/70">
-                    No saved documents yet
-                  </p>
-                )}
-                {clientDocuments
-                  .filter((d) => d.category === "Saved")
-                  .map((doc) => (
-                    <div
-                      key={doc.name}
-                      onClick={() => handleDocumentSelect(doc)}
-                      className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-amber-500/10 border-amber-500 text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
-                    >
-                      {editingFile?.name === doc.name &&
-                      editingFile?.type === "document" ? (
-                        <div className="flex items-center space-x-2">
-                          <input
-                            autoFocus
-                            value={editNameValue}
-                            onChange={(e) => setEditNameValue(e.target.value)}
-                            className="flex-1 bg-[#161B22] text-white text-sm px-2 py-1 rounded border border-amber-500 focus:outline-none"
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => e.key === "Enter" && saveRename()}
-                          />
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              saveRename();
-                            }}
-                            className="text-brand-green hover:text-white p-1"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingFile(null);
-                            }}
-                            className="text-red-400 hover:text-white p-1"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between group">
-                          <div className="flex items-center space-x-3 overflow-hidden">
-                            <FileText
-                              className={`w-4 h-4 shrink-0 text-amber-500`}
-                            />
-                            <span
-                              className="text-sm font-medium truncate text-white"
-                              title={doc.name}
-                            >
-                              {doc.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startRename(doc.name, "document");
-                              }}
-                              className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteDocument(doc.name);
-                              }}
-                              className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </div>
 
           {/* Completed Documents */}
           <div
@@ -677,7 +525,7 @@ export default function ClientDocumentsView() {
             onDragLeave={(e) => handleDragLeave(e, "Completed")}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDropToSection(e, "Completed")}
-            className={`transition-colors rounded-lg border-2 border-dashed relative min-h-[200px] flex flex-col ${dragCategory === "Completed" ? "border-brand-purple bg-brand-purple/5" : "border-border-subtle/50"}`}
+            className={`transition-colors rounded-lg border-2 border-dashed relative flex-1 min-h-0 flex flex-col overflow-hidden ${dragCategory === "Completed" ? "border-brand-purple bg-brand-purple/5" : "border-border-subtle/50"}`}
           >
             {/* Watermark */}
             <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-30 text-[#8B949E] group-hover:text-white transition-colors">
@@ -689,8 +537,8 @@ export default function ClientDocumentsView() {
               </span>
             </div>
 
-            <div className="relative z-10 flex flex-col h-full">
-              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-2 pt-2">
+            <div className="relative z-10 flex flex-col h-full overflow-hidden">
+              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-2 pt-2 shrink-0">
                 <span>Completed Documents</span>
                 <button
                   onClick={() => {
@@ -703,7 +551,7 @@ export default function ClientDocumentsView() {
                   <UploadCloud className="w-3.5 h-3.5" />
                 </button>
               </h3>
-              <div className="space-y-1 p-2 flex-1">
+              <div className="space-y-1 p-2 flex-1 overflow-y-auto min-h-0">
                 {clientDocuments.filter((d) => d.category === "Completed")
                   .length === 0 && (
                   <p className="text-xs text-[#8B949E]/70">
@@ -803,15 +651,6 @@ export default function ClientDocumentsView() {
           className="hidden"
           accept=".pdf"
           onChange={handleUploadSpecific}
-        />
-
-        {/* Resize Handle */}
-        <div
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setIsResizing(true);
-          }}
-          className="absolute right-[-4px] top-0 bottom-0 w-2 cursor-col-resize hover:bg-brand-teal/50 active:bg-brand-teal z-20 transition-colors"
         />
       </div>
 
