@@ -395,63 +395,65 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
       >
         {/* Header */}
         <div className="flex justify-between items-start mb-3 shrink-0 gap-3">
-          <div className="flex-1">
-            <div className="flex justify-between items-start gap-4">
-               <div>
-                 <div className="flex items-center gap-2 mb-1">
-                   <h2 className="text-xl font-semibold text-white tracking-tight">
-                     {shift.clientName}
-                   </h2>
-                   {clientAddress && (
-                     <a
-                       href={`https://maps.google.com/?q=${encodeURIComponent(clientAddress)}`}
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       className="flex items-center gap-1.5 px-2.5 py-1 ml-1 rounded text-xs font-semibold uppercase tracking-wider bg-brand-blue/10 text-brand-blue hover:bg-brand-blue/20 transition-colors"
-                       title="View Client Address on Google Maps"
-                     >
-                       <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                       <span className="hidden sm:inline">Directions</span>
-                       <span className="sm:hidden">Map</span>
-                     </a>
-                   )}
-                 </div>
-                 <p className="text-sm md:text-base text-zinc-400 font-medium whitespace-nowrap">
-                    {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                 </p>
-               </div>
+          <div className="flex-1 space-y-3">
+             {/* Top Row: Name, Time, Map */}
+             <div className="flex items-center justify-between w-full border-b border-white/[0.08] pb-2 sm:pb-3 gap-2">
+               <h2 className="text-[17px] sm:text-xl font-bold text-white tracking-tight truncate flex-1 min-w-0">
+                 {shift.clientName}
+               </h2>
                
-               <div className="text-right flex flex-col items-end">
-                 <span className="text-[10px] sm:text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">Assigned Tasks</span>
+               <p className="text-xs sm:text-sm text-zinc-300 font-medium whitespace-nowrap shrink-0">
+                  {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+               </p>
+               
+               <div className="flex justify-end flex-1 max-w-[70px] sm:max-w-none shrink-0">
+                 {clientAddress && (
+                   <a
+                     href={`https://maps.google.com/?q=${encodeURIComponent(clientAddress)}`}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className="flex items-center gap-1.5 px-2 py-1 rounded text-[10px] sm:text-xs font-semibold uppercase tracking-wider bg-brand-blue/10 text-brand-blue hover:bg-brand-blue/20 transition-colors ml-auto"
+                     title="View Client Address on Google Maps"
+                   >
+                     <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                     <span className="hidden sm:inline">Directions</span>
+                     <span className="sm:hidden">Map</span>
+                   </a>
+                 )}
+               </div>
+             </div>
+
+             {/* Bottom Row: Assigned Tasks */}
+             <div className="flex items-center gap-2">
+                 <span className="text-[10px] sm:text-xs text-zinc-500 font-semibold uppercase tracking-wider shrink-0">Assigned Tasks:</span>
                  {shift.servicesData && shift.servicesData.length > 0 ? (
-                    <div className="flex flex-col gap-1 items-end">
+                    <div className="flex flex-wrap gap-1 w-full overflow-hidden items-center">
                        {shift.servicesData.slice(0, 1).map((s: any, idx: number) => {
                           const srv = servicesList.find((srv: any) => String(srv.id) === String(s.serviceId));
                           const srvName = srv ? srv.name : (s.serviceName || s.serviceCode || shift.serviceName);
                           return (
-                             <span key={idx} className="block text-xs sm:text-sm font-medium text-brand-teal text-right leading-tight max-w-[280px] sm:max-w-md md:max-w-lg break-words" title={srvName}>
+                             <span key={idx} className="block text-xs sm:text-sm font-medium text-brand-teal truncate" title={srvName}>
                                  {srvName}
                              </span>
                           );
                        })}
                     </div>
                  ) : shift.serviceName ? (
-                    <span className="block text-xs sm:text-sm font-medium text-brand-teal text-right leading-tight max-w-[280px] sm:max-w-md md:max-w-lg break-words" title={shift.serviceName}>
+                    <span className="block text-xs sm:text-sm font-medium text-brand-teal truncate" title={shift.serviceName}>
                         {shift.serviceName}
                     </span>
                  ) : (
-                    <span className="block text-sm font-medium text-zinc-500 italic">
+                    <span className="block text-xs sm:text-sm font-medium text-zinc-500 italic">
                         Not specified
                     </span>
                  )}
-               </div>
-            </div>
-            
-            {isEarlyStart && !isLocked && (
-               <span className="inline-block mt-4 px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded-full border border-amber-500/30">
-                  {Math.floor(startDiffMs / 60000)} minutes until shift
-               </span>
-            )}
+             </div>
+             
+             {isEarlyStart && !isLocked && (
+                <span className="inline-block px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded-full border border-amber-500/30">
+                   {Math.floor(startDiffMs / 60000)} minutes until shift
+                </span>
+             )}
           </div>
           <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04] shrink-0 -mt-1 -mr-1">
             <X className="w-5 h-5 md:w-6 md:h-6" />
@@ -488,8 +490,8 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
             <div className="flex flex-col gap-2">
               {shift.status === 'PUBLISHED' && (
                 <div className="flex flex-col gap-2">
-                  <div className="w-full py-3 bg-zinc-900/60 rounded-xl font-bold md:text-lg flex flex-col items-center justify-center text-zinc-300">
-                    {canStart && <span className="text-brand-green animate-pulse mb-1">Ready to Start</span>}
+                  <div className="w-full py-3 bg-zinc-900/60 rounded-xl font-bold flex flex-col items-center justify-center text-zinc-300">
+                    {canStart && <span className="text-brand-green text-xl md:text-2xl animate-pulse tracking-wide drop-shadow-md mb-1.5">Ready to Start</span>}
                     {startDiffMs > 0 ? (
                        <span className="text-zinc-400 text-sm md:text-base font-medium">Starts in: {formatCountdown(startDiffMs)}</span>
                     ) : (
@@ -505,8 +507,8 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
 
               {shift.status === 'IN_PROGRESS' && (
                 <div className="flex flex-col gap-2">
-                  <div className="w-full py-3 bg-zinc-900/60 rounded-xl font-bold md:text-lg flex flex-col items-center justify-center text-zinc-300">
-                    {canComplete && <span className="text-brand-green animate-pulse mb-1">Ready to Complete</span>}
+                  <div className="w-full py-3 bg-zinc-900/60 rounded-xl font-bold flex flex-col items-center justify-center text-zinc-300">
+                    {canComplete && <span className="text-brand-green text-xl md:text-2xl animate-pulse tracking-wide drop-shadow-md mb-1.5">Ready to Complete</span>}
                     {endDiffMs > 0 ? (
                        <span className="text-zinc-400 text-sm md:text-base font-medium">Ends in: {formatCountdown(endDiffMs)}</span>
                     ) : (
