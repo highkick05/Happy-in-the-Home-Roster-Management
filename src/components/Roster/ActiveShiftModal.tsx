@@ -425,7 +425,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                  <span className="text-[10px] sm:text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">Assigned Tasks</span>
                  {shift.servicesData && shift.servicesData.length > 0 ? (
                     <div className="flex flex-col gap-1 items-end">
-                       {shift.servicesData.map((s: any, idx: number) => {
+                       {shift.servicesData.slice(0, 1).map((s: any, idx: number) => {
                           const srv = servicesList.find((srv: any) => String(srv.id) === String(s.serviceId));
                           const srvName = srv ? srv.name : (s.serviceName || s.serviceCode || shift.serviceName);
                           return (
@@ -485,149 +485,133 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
               </div>
             </div>
           ) : !completeMode ? (
-            <div className="space-y-6">
-              <div className={`grid grid-cols-1 ${isNDIS ? 'md:grid-cols-2' : ''} gap-4`}>
-                {/* Left Column */}
-                <div className="space-y-6 flex flex-col">
-                  <div className="bg-zinc-800/40 border border-white/[0.08]/80 p-5 rounded-2xl space-y-4 shadow-sm">
-                    <div className="flex justify-between items-center border-b border-white/[0.12]/50 pb-4">
-                       <span className="text-zinc-400 font-medium text-sm md:text-base">Status</span>
-                       <span className={`px-3 py-1.5 rounded-full text-xs md:text-sm font-bold uppercase tracking-wider shadow-sm ${
-                          shift.status === 'PUBLISHED' ? 'bg-indigo-500/20 text-brand-teal border border-brand-teal/30' :
-                          shift.status === 'IN_PROGRESS' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                          shift.status === 'COMPLETED' ? 'bg-brand-green/20 text-brand-green border border-brand-green/30' : 'bg-zinc-500/20 text-zinc-400 border border-zinc-500/30'
-                       }`}>
-                         {shift.status.replace('_', ' ')}
-                       </span>
-                    </div>
-                    <div>
-                      <span className="text-zinc-500 font-medium block mb-2 text-sm md:text-base">Shift Notes</span>
-                      {shift.status === 'IN_PROGRESS' ? (
-                        <textarea 
-                          rows={3} 
-                          className="w-full bg-[#09090b] border border-white/[0.12]/50 rounded-xl p-3 text-sm md:text-base text-zinc-100 focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal shadow-inner resize-y transition-colors"
-                          placeholder="Log any incidents, tasks completed, client mood, etc."
-                          value={notes}
-                          onChange={e => handleNotesChange(e.target.value)}
-                        />
-                      ) : (
-                        <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-3 rounded-lg border border-white/[0.08]/50">{shift.notes || "No notes provided."}</p>
-                      )}
-                    </div>
+            <div className="flex flex-col gap-4">
+              {shift.status === 'PUBLISHED' && (
+                <div className="bg-zinc-800/40 border border-white/[0.08]/80 p-5 rounded-2xl space-y-4 shadow-sm">
+                  <div className="w-full py-5 bg-[#09090b] border border-white/[0.08] rounded-2xl font-bold text-lg md:text-xl flex flex-col items-center justify-center text-zinc-300 shadow-inner">
+                    {canStart && <span className="text-brand-green animate-pulse mb-1">Ready to Start</span>}
+                    {startDiffMs > 0 ? (
+                       <span className="text-zinc-400 text-base md:text-lg font-medium">Starts in: {formatCountdown(startDiffMs)}</span>
+                    ) : (
+                       <span className="text-zinc-400 text-base md:text-lg font-medium">Started {formatCountdown(Math.abs(startDiffMs))} ago</span>
+                    )}
                   </div>
-
-                  {shift.status === 'PUBLISHED' && (
-                    <div className="w-full py-5 bg-[#09090b] border border-white/[0.08] rounded-2xl font-bold text-lg md:text-xl flex flex-col items-center justify-center text-zinc-300 shadow-inner">
-                      {canStart && <span className="text-brand-green animate-pulse mb-1">Ready to Start</span>}
-                      {startDiffMs > 0 ? (
-                         <span className="text-zinc-400 text-base md:text-lg font-medium">Starts in: {formatCountdown(startDiffMs)}</span>
-                      ) : (
-                         <span className="text-zinc-400 text-base md:text-lg font-medium">Started {formatCountdown(Math.abs(startDiffMs))} ago</span>
-                      )}
-                    </div>
-                  )}
-
-                  {shift.status === 'IN_PROGRESS' && (
-                    <div className="w-full py-5 bg-[#09090b] border border-white/[0.08] rounded-2xl font-bold text-lg md:text-xl flex flex-col items-center justify-center text-zinc-300 shadow-inner">
-                      {canComplete && <span className="text-brand-green animate-pulse mb-1">Ready to Complete</span>}
-                      {endDiffMs > 0 ? (
-                         <span className="text-zinc-400 text-base md:text-lg font-medium">Ends in: {formatCountdown(endDiffMs)}</span>
-                      ) : (
-                         <span className="text-amber-400 text-base md:text-lg font-medium">Overdue by {formatCountdown(Math.abs(endDiffMs))}</span>
-                      )}
-                    </div>
-                  )}
-
-                  {shift.status === 'COMPLETED' && (
-                     <div className="w-full py-5 bg-brand-green/10 text-brand-green rounded-2xl font-bold text-lg md:text-xl text-center border border-brand-green/20 shadow-sm">
-                       Shift Completed
-                     </div>
-                  )}
+                  <div>
+                    <span className="text-zinc-500 font-medium block mb-2 text-sm md:text-base">Shift Notes</span>
+                    <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-3 rounded-lg border border-white/[0.08]/50">{shift.notes || "No notes provided."}</p>
+                  </div>
                 </div>
+              )}
 
-                {/* Right Column */}
-                {isNDIS && (
+              {shift.status === 'IN_PROGRESS' && (
+                <div className="bg-zinc-800/40 border border-white/[0.08]/80 p-5 rounded-2xl space-y-4 shadow-sm">
+                  <div className="w-full py-5 bg-[#09090b] border border-white/[0.08] rounded-2xl font-bold text-lg md:text-xl flex flex-col items-center justify-center text-zinc-300 shadow-inner">
+                    {canComplete && <span className="text-brand-green animate-pulse mb-1">Ready to Complete</span>}
+                    {endDiffMs > 0 ? (
+                       <span className="text-zinc-400 text-base md:text-lg font-medium">Ends in: {formatCountdown(endDiffMs)}</span>
+                    ) : (
+                       <span className="text-amber-400 text-base md:text-lg font-medium">Overdue by {formatCountdown(Math.abs(endDiffMs))}</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-zinc-500 font-medium block mb-2 text-sm md:text-base">Shift Notes</span>
+                    <textarea 
+                      rows={3} 
+                      className="w-full bg-[#09090b] border border-white/[0.12]/50 rounded-xl p-3 text-sm md:text-base text-zinc-100 focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal shadow-inner resize-y transition-colors"
+                      placeholder="Log any incidents, tasks completed, client mood, etc."
+                      value={notes}
+                      onChange={e => handleNotesChange(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {shift.status === 'COMPLETED' && (
+                <div className="bg-zinc-800/40 border border-white/[0.08]/80 p-5 rounded-2xl space-y-4 shadow-sm">
+                  <div className="w-full py-5 bg-brand-green/10 text-brand-green rounded-2xl font-bold text-lg md:text-xl text-center border border-brand-green/20 shadow-sm">
+                    Shift Completed
+                  </div>
+                  <div>
+                    <span className="text-zinc-500 font-medium block mb-2 text-sm md:text-base">Shift Notes</span>
+                    <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-3 rounded-lg border border-white/[0.08]/50">{shift.notes || "No notes provided."}</p>
+                  </div>
+                </div>
+              )}
+
+              {shift.status === 'PUBLISHED' && (
                 <div className="space-y-6 flex flex-col justify-end">
-                  {shift.status === 'PUBLISHED' && (
-                    <>
-                      {isNDIS && (
-                        <div className="bg-zinc-800/40 border border-white/[0.12]/50 rounded-2xl p-5 space-y-4 shadow-sm">
-                          <h4 className="text-sm md:text-base font-bold text-zinc-100 uppercase tracking-wide flex items-center">
-                            <MapPin className="w-5 h-5 mr-2 text-brand-teal shrink-0" /> START ODOMETER
-                          </h4>
-                          <p className="text-xs md:text-sm text-zinc-400 leading-relaxed">
-                            For your vehicle allowance claim, please record your odometer before driving to the client.
-                          </p>
-                          
-                          <div>
-                            <input 
-                              type="number" 
-                              placeholder="e.g. 85000"
-                              className="w-full bg-[#09090b] border border-white/[0.08] rounded-xl py-3 px-4 text-base md:text-lg text-white focus:outline-none focus:border-brand-teal shadow-inner transition-colors"
-                              value={odometerReading}
-                              onChange={e => setOdometerReading(e.target.value)}
-                            />
-                          </div>
-                          
-                          {showCamera ? (
-                            <div className="relative rounded-xl overflow-hidden border border-white/[0.12] bg-black shadow-inner">
-                              <video 
-                                ref={videoRef} 
-                                autoPlay 
-                                playsInline 
-                                className="w-full h-48 md:h-64 object-cover"
-                              />
-                              <canvas ref={canvasRef} className="hidden" />
-                              <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-6">
-                                <button 
-                                  onClick={takePhoto}
-                                  className="bg-white text-black rounded-full p-4 shadow-xl active:scale-95 transition-transform"
-                                >
-                                  <Camera className="w-6 h-6" />
-                                </button>
-                                <button 
-                                  onClick={stopCamera}
-                                  className="bg-zinc-800/90 text-white rounded-full p-4 shadow-xl active:scale-95 transition-transform backdrop-blur-sm"
-                                >
-                                  <X className="w-6 h-6" />
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div>
-                              <button 
-                                onClick={startCamera}
-                                className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl py-3 px-4 text-sm md:text-base flex justify-center items-center font-medium transition-colors border border-white/[0.12] shadow-sm"
-                              >
-                                <Camera className="w-5 h-5 mr-2 text-zinc-400" />
-                                {odometerPhoto ? 'Retake Photo' : 'Take Photo (Optional)'}
-                              </button>
-                            </div>
-                          )}
-
-                          {odometerPhoto && !showCamera && (
-                            <div className="mt-3 text-center relative max-w-max mx-auto">
-                              <img src={odometerPhoto} alt="Odometer Preview" className="max-h-36 rounded-lg border-2 border-white/[0.12] shadow-md" />
-                              <button 
-                                onClick={() => setOdometerPhoto('')}
-                                className="absolute -top-3 -right-3 bg-red-500 rounded-full text-white p-1.5 shadow-lg hover:bg-red-400 transition-transform active:scale-90"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          )}
+                  <>
+                    {isNDIS && (
+                      <div className="bg-zinc-800/40 border border-white/[0.12]/50 rounded-2xl p-5 space-y-4 shadow-sm">
+                        <h4 className="text-sm md:text-base font-bold text-zinc-100 uppercase tracking-wide flex items-center">
+                          <MapPin className="w-5 h-5 mr-2 text-brand-teal shrink-0" /> START ODOMETER
+                        </h4>
+                        <p className="text-xs md:text-sm text-zinc-400 leading-relaxed">
+                          For your vehicle allowance claim, please record your odometer before driving to the client.
+                        </p>
+                        
+                        <div>
+                          <input 
+                            type="number" 
+                            placeholder="e.g. 85000"
+                            className="w-full bg-[#09090b] border border-white/[0.08] rounded-xl py-3 px-4 text-base md:text-lg text-white focus:outline-none focus:border-brand-teal shadow-inner transition-colors"
+                            value={odometerReading}
+                            onChange={e => setOdometerReading(e.target.value)}
+                          />
                         </div>
-                      )}
-                    </>
-                  )}
+                        
+                        {showCamera ? (
+                          <div className="fixed inset-0 z-[100] bg-black flex flex-col justify-center items-center">
+                            <video 
+                              ref={videoRef} 
+                              autoPlay 
+                              playsInline 
+                              className="w-full h-full object-cover"
+                            />
+                            <canvas ref={canvasRef} className="hidden" />
+                            <div className="absolute bottom-10 left-0 right-0 flex justify-center space-x-8">
+                              <button 
+                                onClick={takePhoto}
+                                className="bg-white text-black rounded-full p-5 shadow-xl active:scale-95 transition-transform"
+                              >
+                                <Camera className="w-8 h-8" />
+                              </button>
+                              <button 
+                                onClick={stopCamera}
+                                className="bg-zinc-800/90 text-white rounded-full p-5 shadow-xl active:scale-95 transition-transform backdrop-blur-sm"
+                              >
+                                <X className="w-8 h-8" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <button 
+                              onClick={startCamera}
+                              className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl py-3 px-4 text-sm md:text-base flex justify-center items-center font-medium transition-colors border border-white/[0.12] shadow-sm"
+                            >
+                              <Camera className="w-5 h-5 mr-2 text-zinc-400" />
+                              {odometerPhoto ? 'Retake Photo' : 'Take Photo'}
+                            </button>
+                          </div>
+                        )}
 
-                  {shift.status === 'IN_PROGRESS' && (
-                    <div className="mt-auto pt-4 border-t border-white/[0.08]/50 hidden">
-                    </div>
-                  )}
+                        {odometerPhoto && !showCamera && (
+                          <div className="mt-3 text-center relative max-w-max mx-auto">
+                            <img src={odometerPhoto} alt="Odometer Preview" className="max-h-36 rounded-lg border-2 border-white/[0.12] shadow-md" />
+                            <button 
+                              onClick={() => setOdometerPhoto('')}
+                              className="absolute -top-3 -right-3 bg-red-500 rounded-full text-white p-1.5 shadow-lg hover:bg-red-400 transition-transform active:scale-90"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 </div>
-                )}
-              </div>
+              )}
             </div>
           ) : (
             <div className="space-y-6 outline-none animate-in opacity-100">
@@ -735,26 +719,26 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                         </div>
                         
                         {showCamera ? (
-                          <div className="relative rounded-xl overflow-hidden border border-white/[0.12] bg-black shadow-inner">
+                          <div className="fixed inset-0 z-[100] bg-black flex flex-col justify-center items-center">
                             <video 
                               ref={videoRef} 
                               autoPlay 
                               playsInline 
-                              className="w-full h-48 md:h-64 object-cover"
+                              className="w-full h-full object-cover"
                             />
                             <canvas ref={canvasRef} className="hidden" />
-                            <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-6">
+                            <div className="absolute bottom-10 left-0 right-0 flex justify-center space-x-8">
                               <button 
                                 onClick={takePhoto}
-                                className="bg-white text-black rounded-full p-4 shadow-xl active:scale-95 transition-transform"
+                                className="bg-white text-black rounded-full p-5 shadow-xl active:scale-95 transition-transform"
                               >
-                                <Camera className="w-6 h-6" />
+                                <Camera className="w-8 h-8" />
                               </button>
                               <button 
                                 onClick={stopCamera}
-                                className="bg-zinc-800/90 text-white rounded-full p-4 shadow-xl active:scale-95 transition-transform backdrop-blur-sm"
+                                className="bg-zinc-800/90 text-white rounded-full p-5 shadow-xl active:scale-95 transition-transform backdrop-blur-sm"
                               >
-                                <X className="w-6 h-6" />
+                                <X className="w-8 h-8" />
                               </button>
                             </div>
                           </div>
@@ -765,7 +749,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                               className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl py-3 px-4 text-sm md:text-base flex justify-center items-center font-medium transition-colors border border-white/[0.12] shadow-sm"
                             >
                               <Camera className="w-5 h-5 mr-2 text-zinc-400" />
-                              {odometerPhoto ? 'Retake Photo' : 'Take Photo (Optional)'}
+                              {odometerPhoto ? 'Retake Photo' : 'Take Photo'}
                             </button>
                           </div>
                         )}
