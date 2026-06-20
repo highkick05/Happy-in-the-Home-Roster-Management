@@ -7156,11 +7156,17 @@ async function startServer() {
           updatedServicesJson = JSON.stringify(checklist);
         }
 
+        if (!updatedServicesJson) {
+          updatedServicesJson = "[]";
+        }
+
         if (updatedServicesJson) {
           try {
             const servicesData = JSON.parse(updatedServicesJson);
             if (Array.isArray(servicesData)) {
               let changed = false;
+              let hasABT = false;
+              let hasProviderTravel = false;
               for (const sData of servicesData) {
                 const service = db
                   .prepare("SELECT name, unit FROM services WHERE id = ?")
@@ -7168,9 +7174,11 @@ async function startServer() {
                 if (service && service.name) {
                   const name = service.name.toLowerCase();
                   if (name.includes("activity based transport")) {
+                    hasABT = true;
                     sData.qtyOverride = parseFloat(abt_km.toFixed(2));
                     changed = true;
                   } else if (name.includes("provider travel")) {
+                    hasProviderTravel = true;
                     let billableValue = pTravel.distance; // Fallback
                     if (
                       pTravel.minutes !== undefined &&
@@ -7187,6 +7195,31 @@ async function startServer() {
                   }
                 }
               }
+              
+              if (abt_km > 0 && !hasABT) {
+                const abtService = db.prepare("SELECT id FROM services WHERE LOWER(name) LIKE '%activity based transport%' LIMIT 1").get() as any;
+                if (abtService) {
+                  servicesData.push({
+                    serviceId: abtService.id,
+                    hoursType: "Normal",
+                    qtyOverride: parseFloat(abt_km.toFixed(2))
+                  });
+                  changed = true;
+                }
+              }
+
+              if (pTravel.distance > 0 && !hasProviderTravel) {
+                const ptService = db.prepare("SELECT id FROM services WHERE LOWER(name) LIKE '%provider travel%' AND LOWER(name) NOT LIKE '%non-labour%' LIMIT 1").get() as any;
+                if (ptService) {
+                  servicesData.push({
+                    serviceId: ptService.id,
+                    hoursType: "Normal",
+                    qtyOverride: parseFloat((pTravel.minutes !== undefined ? pTravel.minutes / 60 : pTravel.distance).toFixed(2))
+                  });
+                  changed = true;
+                }
+              }
+
               if (changed) {
                 updatedServicesJson = JSON.stringify(servicesData);
               }
