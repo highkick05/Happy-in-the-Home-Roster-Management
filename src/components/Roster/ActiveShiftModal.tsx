@@ -485,39 +485,39 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
               </div>
             </div>
           ) : !completeMode ? (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
               {shift.status === 'PUBLISHED' && (
-                <div className="space-y-3">
-                  <div className="w-full py-4 bg-[#09090b] rounded-xl font-bold text-lg md:text-xl flex flex-col items-center justify-center text-zinc-300">
+                <div className="flex flex-col gap-2">
+                  <div className="w-full py-3 bg-zinc-900/60 rounded-xl font-bold md:text-lg flex flex-col items-center justify-center text-zinc-300">
                     {canStart && <span className="text-brand-green animate-pulse mb-1">Ready to Start</span>}
                     {startDiffMs > 0 ? (
-                       <span className="text-zinc-400 text-base md:text-lg font-medium">Starts in: {formatCountdown(startDiffMs)}</span>
+                       <span className="text-zinc-400 text-sm md:text-base font-medium">Starts in: {formatCountdown(startDiffMs)}</span>
                     ) : (
-                       <span className="text-zinc-400 text-base md:text-lg font-medium">Started {formatCountdown(Math.abs(startDiffMs))} ago</span>
+                       <span className="text-zinc-400 text-sm md:text-base font-medium">Started {formatCountdown(Math.abs(startDiffMs))} ago</span>
                     )}
                   </div>
-                  <div>
-                    <span className="text-zinc-500 font-medium block mb-1 text-sm md:text-base">Shift Notes</span>
-                    <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-2 text-center rounded-lg">{shift.notes || "No notes provided."}</p>
+                  <div className="bg-zinc-800/30 rounded-xl p-2.5">
+                    <span className="text-zinc-500 font-medium block mb-1 text-xs uppercase tracking-wider">Shift Notes</span>
+                    <p className="text-sm leading-relaxed text-zinc-300 text-center">{shift.notes || "No notes provided."}</p>
                   </div>
                 </div>
               )}
 
               {shift.status === 'IN_PROGRESS' && (
-                <div className="space-y-3">
-                  <div className="w-full py-4 bg-[#09090b] rounded-xl font-bold text-lg md:text-xl flex flex-col items-center justify-center text-zinc-300">
+                <div className="flex flex-col gap-2">
+                  <div className="w-full py-3 bg-zinc-900/60 rounded-xl font-bold md:text-lg flex flex-col items-center justify-center text-zinc-300">
                     {canComplete && <span className="text-brand-green animate-pulse mb-1">Ready to Complete</span>}
                     {endDiffMs > 0 ? (
-                       <span className="text-zinc-400 text-base md:text-lg font-medium">Ends in: {formatCountdown(endDiffMs)}</span>
+                       <span className="text-zinc-400 text-sm md:text-base font-medium">Ends in: {formatCountdown(endDiffMs)}</span>
                     ) : (
-                       <span className="text-amber-400 text-base md:text-lg font-medium">Overdue by {formatCountdown(Math.abs(endDiffMs))}</span>
+                       <span className="text-amber-400 text-sm md:text-base font-medium">Overdue by {formatCountdown(Math.abs(endDiffMs))}</span>
                     )}
                   </div>
-                  <div>
-                    <span className="text-zinc-500 font-medium block mb-1 text-sm md:text-base">Shift Notes</span>
+                  <div className="bg-zinc-800/30 rounded-xl p-2.5">
+                    <span className="text-zinc-500 font-medium block mb-1 text-xs uppercase tracking-wider">Shift Notes</span>
                     <textarea 
-                      rows={3} 
-                      className="w-full bg-[#09090b] rounded-xl p-2 text-sm md:text-base text-zinc-100 focus:outline-none focus:ring-1 focus:ring-brand-teal resize-y transition-colors"
+                      rows={2} 
+                      className="w-full bg-black/40 rounded-lg p-2 text-sm text-zinc-100 focus:outline-none focus:ring-1 focus:ring-brand-teal resize-none transition-colors placeholder:text-zinc-600"
                       placeholder="Log any incidents, tasks completed, client mood, etc."
                       value={notes}
                       onChange={e => handleNotesChange(e.target.value)}
@@ -527,13 +527,13 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
               )}
 
               {shift.status === 'COMPLETED' && (
-                <div className="space-y-3">
-                  <div className="w-full py-4 bg-brand-green/10 text-brand-green rounded-xl font-bold text-lg md:text-xl text-center">
+                <div className="flex flex-col gap-2">
+                  <div className="w-full py-3 bg-brand-green/10 text-brand-green rounded-xl font-bold md:text-lg text-center">
                     Shift Completed
                   </div>
-                  <div>
-                    <span className="text-zinc-500 font-medium block mb-1 text-sm md:text-base">Shift Notes</span>
-                    <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-2 text-center rounded-lg">{shift.notes || "No notes provided."}</p>
+                  <div className="bg-zinc-800/30 rounded-xl p-2.5">
+                    <span className="text-zinc-500 font-medium block mb-1 text-xs uppercase tracking-wider">Shift Notes</span>
+                    <p className="text-sm leading-relaxed text-zinc-300 text-center">{shift.notes || "No notes provided."}</p>
                   </div>
                 </div>
               )}
@@ -542,13 +542,17 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                 <div className="flex flex-col">
                   <>
                     {isNDIS && (
-                      <div className="space-y-3 mt-2">
-                        <h4 className="text-sm md:text-base font-bold text-zinc-100 uppercase tracking-wide flex items-center">
-                          <MapPin className="w-5 h-5 mr-2 text-brand-teal shrink-0" /> START ODOMETER
-                        </h4>
-                        <p className="text-xs md:text-sm text-zinc-400 leading-relaxed">
-                          For your vehicle allowance claim, please record your odometer before driving to the client.
-                        </p>
+                      <div className="bg-zinc-800/30 rounded-xl p-3 space-y-3 mt-1">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="text-xs md:text-sm font-bold text-zinc-100 uppercase tracking-wide flex items-center mb-0.5">
+                              <MapPin className="w-4 h-4 mr-1.5 text-brand-teal shrink-0" /> START ODOMETER
+                            </h4>
+                            <p className="text-[11px] md:text-xs text-zinc-400 leading-snug">
+                              Record before driving to the client.
+                            </p>
+                          </div>
+                        </div>
                         
                         <div>
                           <input 
@@ -614,14 +618,14 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
               )}
             </div>
           ) : (
-            <div className="space-y-6 outline-none animate-in opacity-100">
-              <h3 className="text-xl font-semibold border-b border-white/[0.08] pb-3 text-white mb-4">Complete Shift Checklist</h3>
+            <div className="space-y-4 outline-none animate-in opacity-100">
+              <h3 className="text-lg md:text-xl font-semibold border-b border-white/[0.08] pb-2 text-white mb-2">Complete Shift Checklist</h3>
               
-              <div className="flex flex-col space-y-6 sm:mx-auto w-full">
+              <div className="flex flex-col space-y-2 sm:mx-auto w-full">
                 {/* 2. Transport & Odometer */}
                 {isNDIS && (
                   <>
-                    <div className="bg-indigo-900/10 border border-brand-teal/20 rounded-2xl p-4 shadow-sm">
+                    <div className="bg-indigo-900/20 rounded-xl p-3 shadow-sm">
                       <div className="flex justify-between items-center">
                         <div className="flex flex-col pr-4">
                           <label className="text-sm md:text-base text-indigo-200 font-semibold leading-snug">Did you transport the client?</label>
@@ -636,10 +640,10 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                       </div>
 
                       {didTransport && (
-                        <div className="space-y-4 pt-4 mt-4 border-t border-brand-teal/20">
-                          <div className="flex items-start bg-indigo-500/10 border border-brand-teal/20 rounded-xl p-3">
-                            <Info className="w-5 h-5 text-brand-teal flex-shrink-0 mt-0.5 mr-2.5" />
-                            <p className="text-xs md:text-sm text-indigo-200 leading-relaxed font-medium">
+                        <div className="space-y-3 pt-3 mt-3 border-t border-brand-teal/20">
+                          <div className="flex items-start bg-indigo-500/10 border border-brand-teal/20 rounded-lg p-2.5">
+                            <Info className="w-4 h-4 text-brand-teal flex-shrink-0 mt-0.5 mr-2" />
+                            <p className="text-[11px] md:text-xs text-indigo-200 leading-snug font-medium">
                               Client's Home is automatically your starting point. Add destinations below.
                             </p>
                           </div>
@@ -686,7 +690,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                             ))}
                           </div>
                           
-                          <div className="flex justify-between items-center bg-[#09090b]/80 p-4 border border-white/[0.08] rounded-xl mt-3 shadow-sm">
+                          <div className="flex justify-between items-center bg-[#09090b]/80 p-3 rounded-xl mt-2 shadow-sm">
                             <label className="text-sm md:text-base text-zinc-300 font-medium pr-4 leading-snug">Did you return the client home?</label>
                             <button 
                               onClick={() => setReturnedHome(!returnedHome)}
@@ -700,13 +704,17 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                     </div>
 
                     {shift.status !== 'COMPLETED' && (
-                      <div className="bg-zinc-800/40 border border-white/[0.12]/50 rounded-2xl p-4 space-y-3 shadow-sm">
-                        <h4 className="text-sm md:text-base font-bold text-zinc-100 uppercase tracking-wide flex items-center">
-                          <MapPin className="w-5 h-5 mr-2 text-brand-green shrink-0" /> END ODOMETER
-                        </h4>
-                        <p className="text-xs md:text-sm text-zinc-400 leading-relaxed font-medium">
-                          Record your odometer at the end of the shift.
-                        </p>
+                      <div className="bg-emerald-900/10 rounded-xl p-3 space-y-2 mt-1">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="text-xs md:text-sm font-bold text-zinc-100 uppercase tracking-wide flex items-center mb-0.5">
+                              <MapPin className="w-4 h-4 mr-1.5 text-brand-green shrink-0" /> END ODOMETER
+                            </h4>
+                            <p className="text-[11px] md:text-xs text-zinc-400 leading-snug font-medium">
+                              Record your odometer at the end of the shift.
+                            </p>
+                          </div>
+                        </div>
                         
                         <div>
                           <input 
