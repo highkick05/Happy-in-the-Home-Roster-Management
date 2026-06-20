@@ -389,12 +389,12 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 sm:p-4" onClick={handleBackgroundClick}>
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-2 md:p-4" onClick={handleBackgroundClick}>
       <div 
-        className="bg-[#121214] border border-white/[0.08] rounded-2xl p-5 sm:p-4 w-full sm:max-w-lg md:max-w-2xl lg:max-w-3xl text-zinc-100 flex flex-col max-h-[90vh] overflow-hidden shadow-2xl transition-all" 
+        className="bg-[#121214] border border-white/[0.08] rounded-2xl p-4 w-full sm:max-w-lg md:max-w-2xl lg:max-w-3xl text-zinc-100 flex flex-col max-h-[95vh] overflow-hidden shadow-2xl transition-all" 
       >
         {/* Header */}
-        <div className="flex justify-between items-start mb-5 md:mb-6 shrink-0 gap-4">
+        <div className="flex justify-between items-start mb-3 shrink-0 gap-3">
           <div className="flex-1">
             <div className="flex justify-between items-start gap-4">
                <div>
@@ -459,7 +459,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
         </div>
 
         {/* Scrollable Content */}
-        <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 sm:pr-2 pb-2">
+        <div className="overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] flex-1 pr-1 sm:pr-2 pb-2">
           {showCancelPrompt ? (
             <div className="space-y-6 outline-none animate-in opacity-100">
               <div className="flex flex-col md:grid md:grid-cols-2 gap-4">
@@ -487,8 +487,8 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
           ) : !completeMode ? (
             <div className="flex flex-col gap-4">
               {shift.status === 'PUBLISHED' && (
-                <div className="bg-zinc-800/40 border border-white/[0.08]/80 p-5 rounded-2xl space-y-4 shadow-sm">
-                  <div className="w-full py-5 bg-[#09090b] border border-white/[0.08] rounded-2xl font-bold text-lg md:text-xl flex flex-col items-center justify-center text-zinc-300 shadow-inner">
+                <div className="space-y-3">
+                  <div className="w-full py-4 bg-[#09090b] rounded-xl font-bold text-lg md:text-xl flex flex-col items-center justify-center text-zinc-300">
                     {canStart && <span className="text-brand-green animate-pulse mb-1">Ready to Start</span>}
                     {startDiffMs > 0 ? (
                        <span className="text-zinc-400 text-base md:text-lg font-medium">Starts in: {formatCountdown(startDiffMs)}</span>
@@ -497,15 +497,15 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                     )}
                   </div>
                   <div>
-                    <span className="text-zinc-500 font-medium block mb-2 text-sm md:text-base">Shift Notes</span>
-                    <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-3 rounded-lg border border-white/[0.08]/50">{shift.notes || "No notes provided."}</p>
+                    <span className="text-zinc-500 font-medium block mb-1 text-sm md:text-base">Shift Notes</span>
+                    <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-2 text-center rounded-lg">{shift.notes || "No notes provided."}</p>
                   </div>
                 </div>
               )}
 
               {shift.status === 'IN_PROGRESS' && (
-                <div className="bg-zinc-800/40 border border-white/[0.08]/80 p-5 rounded-2xl space-y-4 shadow-sm">
-                  <div className="w-full py-5 bg-[#09090b] border border-white/[0.08] rounded-2xl font-bold text-lg md:text-xl flex flex-col items-center justify-center text-zinc-300 shadow-inner">
+                <div className="space-y-3">
+                  <div className="w-full py-4 bg-[#09090b] rounded-xl font-bold text-lg md:text-xl flex flex-col items-center justify-center text-zinc-300">
                     {canComplete && <span className="text-brand-green animate-pulse mb-1">Ready to Complete</span>}
                     {endDiffMs > 0 ? (
                        <span className="text-zinc-400 text-base md:text-lg font-medium">Ends in: {formatCountdown(endDiffMs)}</span>
@@ -514,10 +514,10 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                     )}
                   </div>
                   <div>
-                    <span className="text-zinc-500 font-medium block mb-2 text-sm md:text-base">Shift Notes</span>
+                    <span className="text-zinc-500 font-medium block mb-1 text-sm md:text-base">Shift Notes</span>
                     <textarea 
                       rows={3} 
-                      className="w-full bg-[#09090b] border border-white/[0.12]/50 rounded-xl p-3 text-sm md:text-base text-zinc-100 focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal shadow-inner resize-y transition-colors"
+                      className="w-full bg-[#09090b] rounded-xl p-2 text-sm md:text-base text-zinc-100 focus:outline-none focus:ring-1 focus:ring-brand-teal resize-y transition-colors"
                       placeholder="Log any incidents, tasks completed, client mood, etc."
                       value={notes}
                       onChange={e => handleNotesChange(e.target.value)}
@@ -527,22 +527,22 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
               )}
 
               {shift.status === 'COMPLETED' && (
-                <div className="bg-zinc-800/40 border border-white/[0.08]/80 p-5 rounded-2xl space-y-4 shadow-sm">
-                  <div className="w-full py-5 bg-brand-green/10 text-brand-green rounded-2xl font-bold text-lg md:text-xl text-center border border-brand-green/20 shadow-sm">
+                <div className="space-y-3">
+                  <div className="w-full py-4 bg-brand-green/10 text-brand-green rounded-xl font-bold text-lg md:text-xl text-center">
                     Shift Completed
                   </div>
                   <div>
-                    <span className="text-zinc-500 font-medium block mb-2 text-sm md:text-base">Shift Notes</span>
-                    <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-3 rounded-lg border border-white/[0.08]/50">{shift.notes || "No notes provided."}</p>
+                    <span className="text-zinc-500 font-medium block mb-1 text-sm md:text-base">Shift Notes</span>
+                    <p className="text-sm md:text-base leading-relaxed text-zinc-300 bg-[#121214]/50 p-2 text-center rounded-lg">{shift.notes || "No notes provided."}</p>
                   </div>
                 </div>
               )}
 
               {shift.status === 'PUBLISHED' && (
-                <div className="space-y-6 flex flex-col justify-end">
+                <div className="flex flex-col">
                   <>
                     {isNDIS && (
-                      <div className="bg-zinc-800/40 border border-white/[0.12]/50 rounded-2xl p-5 space-y-4 shadow-sm">
+                      <div className="space-y-3 mt-2">
                         <h4 className="text-sm md:text-base font-bold text-zinc-100 uppercase tracking-wide flex items-center">
                           <MapPin className="w-5 h-5 mr-2 text-brand-teal shrink-0" /> START ODOMETER
                         </h4>
@@ -554,7 +554,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                           <input 
                             type="number" 
                             placeholder="e.g. 85000"
-                            className="w-full bg-[#09090b] border border-white/[0.08] rounded-xl py-3 px-4 text-base md:text-lg text-white focus:outline-none focus:border-brand-teal shadow-inner transition-colors"
+                            className="w-full bg-[#09090b] border border-white/[0.08] rounded-xl py-2 px-3 text-base md:text-lg text-white focus:outline-none focus:border-brand-teal shadow-inner transition-colors"
                             value={odometerReading}
                             onChange={e => setOdometerReading(e.target.value)}
                           />
@@ -588,7 +588,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                           <div>
                             <button 
                               onClick={startCamera}
-                              className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl py-3 px-4 text-sm md:text-base flex justify-center items-center font-medium transition-colors border border-white/[0.12] shadow-sm"
+                              className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl py-2 px-4 text-sm md:text-base flex justify-center items-center font-medium transition-colors border border-white/[0.12] shadow-sm"
                             >
                               <Camera className="w-5 h-5 mr-2 text-zinc-400" />
                               {odometerPhoto ? 'Retake Photo' : 'Take Photo'}
@@ -621,7 +621,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                 {/* 2. Transport & Odometer */}
                 {isNDIS && (
                   <>
-                    <div className="bg-indigo-900/10 border border-brand-teal/20 rounded-2xl p-5 shadow-sm">
+                    <div className="bg-indigo-900/10 border border-brand-teal/20 rounded-2xl p-4 shadow-sm">
                       <div className="flex justify-between items-center">
                         <div className="flex flex-col pr-4">
                           <label className="text-sm md:text-base text-indigo-200 font-semibold leading-snug">Did you transport the client?</label>
@@ -636,8 +636,8 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                       </div>
 
                       {didTransport && (
-                        <div className="space-y-5 pt-5 mt-5 border-t border-brand-teal/20">
-                          <div className="flex items-start bg-indigo-500/10 border border-brand-teal/20 rounded-xl p-3.5">
+                        <div className="space-y-4 pt-4 mt-4 border-t border-brand-teal/20">
+                          <div className="flex items-start bg-indigo-500/10 border border-brand-teal/20 rounded-xl p-3">
                             <Info className="w-5 h-5 text-brand-teal flex-shrink-0 mt-0.5 mr-2.5" />
                             <p className="text-xs md:text-sm text-indigo-200 leading-relaxed font-medium">
                               Client's Home is automatically your starting point. Add destinations below.
@@ -700,7 +700,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                     </div>
 
                     {shift.status !== 'COMPLETED' && (
-                      <div className="bg-zinc-800/40 border border-white/[0.12]/50 rounded-2xl p-5 space-y-4 shadow-sm">
+                      <div className="bg-zinc-800/40 border border-white/[0.12]/50 rounded-2xl p-4 space-y-3 shadow-sm">
                         <h4 className="text-sm md:text-base font-bold text-zinc-100 uppercase tracking-wide flex items-center">
                           <MapPin className="w-5 h-5 mr-2 text-brand-green shrink-0" /> END ODOMETER
                         </h4>
@@ -712,7 +712,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                           <input 
                             type="number" 
                             placeholder="e.g. 85025"
-                            className="w-full bg-[#09090b] border border-white/[0.08] rounded-xl py-3 px-4 text-base md:text-lg text-white focus:outline-none focus:border-brand-green shadow-inner transition-colors"
+                            className="w-full bg-[#09090b] border border-white/[0.08] rounded-xl py-2 px-3 text-base md:text-lg text-white focus:outline-none focus:border-brand-green shadow-inner transition-colors"
                             value={odometerReading}
                             onChange={e => setOdometerReading(e.target.value)}
                           />
@@ -746,7 +746,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                           <div>
                             <button 
                               onClick={startCamera}
-                              className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl py-3 px-4 text-sm md:text-base flex justify-center items-center font-medium transition-colors border border-white/[0.12] shadow-sm"
+                              className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl py-2 px-4 text-sm md:text-base flex justify-center items-center font-medium transition-colors border border-white/[0.12] shadow-sm"
                             >
                               <Camera className="w-5 h-5 mr-2 text-zinc-400" />
                               {odometerPhoto ? 'Retake Photo' : 'Take Photo'}
@@ -787,19 +787,19 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-5 border-t border-white/[0.08]/80 mt-2 shrink-0 bg-[#121214] z-10 w-full">
+        <div className="pt-3 border-t border-white/[0.08]/80 mt-2 shrink-0 bg-[#121214] z-10 w-full">
           {showCancelPrompt ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
               <button 
                 onClick={() => setShowCancelPrompt(false)}
-                className="w-full py-3.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium text-base transition-colors border border-white/[0.12] shadow-sm"
+                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium text-base transition-colors border border-white/[0.12] shadow-sm"
               >
                 Back
               </button>
               <button 
                 onClick={handleCancelShift}
                 disabled={loading || !cancelReason.trim()}
-                className="w-full py-3.5 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold text-base flex justify-center items-center transition-colors shadow-md disabled:opacity-50"
+                className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold text-base flex justify-center items-center transition-colors shadow-md disabled:opacity-50"
               >
                 {loading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : "Confirm Cancel"}
               </button>
@@ -808,14 +808,14 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
             <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 ${!isNDIS ? 'sm:mx-auto max-w-2xl' : ''}`}>
               <button 
                 onClick={() => setCompleteMode(false)}
-                className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold text-base md:text-lg transition-colors shadow-sm"
+                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold text-base md:text-lg transition-colors shadow-sm"
               >
                 Back
               </button>
               <button 
                 onClick={handleCompleteShift}
                 disabled={loading}
-                className="w-full py-4 bg-brand-green/80 hover:bg-brand-green text-white rounded-xl font-bold text-base md:text-lg flex justify-center items-center transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                className="w-full py-3 bg-brand-green/80 hover:bg-brand-green text-white rounded-xl font-bold text-base md:text-lg flex justify-center items-center transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:active:scale-100"
               >
                 {loading ? <span className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : "Submit"}
               </button>
@@ -827,14 +827,14 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                   <button 
                     onClick={() => setShowCancelPrompt(true)}
                     disabled={loading}
-                    className="w-full py-4 bg-transparent border-2 border-red-500/30 hover:border-red-500/60 hover:bg-red-500/10 text-red-400 rounded-2xl font-bold flex items-center justify-center transition-all shadow-sm"
+                    className="w-full py-3 bg-transparent border-2 border-red-500/30 hover:border-red-500/60 hover:bg-red-500/10 text-red-400 rounded-xl font-bold flex items-center justify-center transition-all shadow-sm"
                   >
                     Cancel Shift
                   </button>
                   <button 
                     onClick={handleStartShift}
                     disabled={loading || !canStart}
-                    className="w-full py-4 bg-brand-blue hover:bg-indigo-500 text-white rounded-2xl font-bold md:text-lg flex items-center justify-center transition-all active:scale-95 shadow-md disabled:opacity-50 disabled:active:scale-100"
+                    className="w-full py-3 bg-brand-blue hover:bg-indigo-500 text-white rounded-xl font-bold md:text-lg flex items-center justify-center transition-all active:scale-95 shadow-md disabled:opacity-50 disabled:active:scale-100"
                   >
                     <Play className="w-5 h-5 md:w-6 md:h-6 mr-2 shrink-0" /> Start Shift
                   </button>
@@ -845,7 +845,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                   <button 
                      onClick={handleUndoStartShift}
                      disabled={loading}
-                     className="w-full py-5 bg-transparent border-2 border-red-500/30 hover:border-red-500/60 hover:bg-red-500/10 text-red-400 rounded-2xl font-bold flex items-center justify-center transition-all shadow-sm shrink-0"
+                     className="w-full py-3 bg-transparent border-2 border-red-500/30 hover:border-red-500/60 hover:bg-red-500/10 text-red-400 rounded-xl font-bold flex items-center justify-center transition-all shadow-sm shrink-0"
                      title="Undo Start Shift"
                   >
                      <RotateCcw className="w-5 h-5 md:w-6 md:h-6 sm:mr-2" /> 
@@ -855,7 +855,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                   <button 
                     onClick={() => setCompleteMode(true)}
                     disabled={loading}
-                    className="w-full py-5 bg-brand-green/80 hover:bg-brand-green text-white rounded-2xl font-bold text-lg md:text-xl flex items-center justify-center transition-all active:scale-95 shadow-md disabled:opacity-50 disabled:active:scale-100"
+                    className="w-full py-3 bg-brand-green/80 hover:bg-brand-green text-white rounded-xl font-bold text-lg md:text-xl flex items-center justify-center transition-all active:scale-95 shadow-md disabled:opacity-50 disabled:active:scale-100"
                   >
                     <StopCircle className="w-6 h-6 mr-2 shrink-0" /> Complete Shift
                   </button>
