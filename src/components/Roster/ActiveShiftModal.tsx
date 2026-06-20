@@ -397,16 +397,20 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
         <div className="flex justify-between items-start mb-3 shrink-0 gap-3">
           <div className="flex-1 space-y-3">
              {/* Top Row: Name, Time, Map */}
-             <div className="flex items-center justify-between w-full border-b border-white/[0.08] pb-2 sm:pb-3 gap-2">
-               <h2 className="text-[17px] sm:text-xl font-bold text-white tracking-tight truncate flex-1 min-w-0">
-                 {shift.clientName}
-               </h2>
+             <div className="flex items-center w-full border-b border-white/[0.08] pb-2 sm:pb-3 gap-2">
+               <div className="flex-1 min-w-0 text-left">
+                 <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight truncate">
+                   {shift.clientName}
+                 </h2>
+               </div>
                
-               <p className="text-xs sm:text-sm text-zinc-300 font-medium whitespace-nowrap shrink-0">
-                  {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-               </p>
+               <div className="shrink-0 text-center px-1 md:px-4">
+                 <p className="text-sm md:text-base text-zinc-300 font-medium whitespace-nowrap">
+                   {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                 </p>
+               </div>
                
-               <div className="flex justify-end flex-1 max-w-[70px] sm:max-w-none shrink-0">
+               <div className="flex-1 flex justify-end shrink-0">
                  {clientAddress && (
                    <a
                      href={`https://maps.google.com/?q=${encodeURIComponent(clientAddress)}`}
@@ -424,26 +428,26 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
              </div>
 
              {/* Bottom Row: Assigned Tasks */}
-             <div className="flex items-center gap-2">
-                 <span className="text-[10px] sm:text-xs text-zinc-500 font-semibold uppercase tracking-wider shrink-0">Assigned Tasks:</span>
+             <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2">
+                 <span className="text-xs sm:text-sm text-zinc-500 font-semibold uppercase tracking-wider shrink-0">Assigned Tasks:</span>
                  {shift.servicesData && shift.servicesData.length > 0 ? (
-                    <div className="flex flex-wrap gap-1 w-full overflow-hidden items-center">
+                    <div className="flex flex-wrap justify-center gap-1 max-w-full overflow-hidden items-center">
                        {shift.servicesData.slice(0, 1).map((s: any, idx: number) => {
                           const srv = servicesList.find((srv: any) => String(srv.id) === String(s.serviceId));
                           const srvName = srv ? srv.name : (s.serviceName || s.serviceCode || shift.serviceName);
                           return (
-                             <span key={idx} className="block text-xs sm:text-sm font-medium text-brand-teal truncate" title={srvName}>
+                             <span key={idx} className="block text-sm sm:text-base font-medium text-brand-teal truncate" title={srvName}>
                                  {srvName}
                              </span>
                           );
                        })}
                     </div>
                  ) : shift.serviceName ? (
-                    <span className="block text-xs sm:text-sm font-medium text-brand-teal truncate" title={shift.serviceName}>
+                    <span className="block text-sm sm:text-base font-medium text-brand-teal truncate text-center" title={shift.serviceName}>
                         {shift.serviceName}
                     </span>
                  ) : (
-                    <span className="block text-xs sm:text-sm font-medium text-zinc-500 italic">
+                    <span className="block text-sm sm:text-base font-medium text-zinc-500 italic text-center">
                         Not specified
                     </span>
                  )}
