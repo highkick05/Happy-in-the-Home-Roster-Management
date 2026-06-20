@@ -428,26 +428,26 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
              </div>
 
              {/* Bottom Row: Assigned Tasks */}
-             <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2">
-                 <span className="text-xs sm:text-sm text-zinc-500 font-semibold uppercase tracking-wider shrink-0">Assigned Tasks:</span>
+             <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-1.5 sm:gap-2 pt-1">
+                 <span className="text-xs sm:text-sm text-zinc-500 font-semibold uppercase tracking-wider shrink-0 text-left w-full sm:w-auto">Assigned Tasks:</span>
                  {shift.servicesData && shift.servicesData.length > 0 ? (
-                    <div className="flex flex-wrap justify-center gap-1 max-w-full overflow-hidden items-center">
+                    <div className="flex flex-wrap justify-end gap-1 overflow-hidden items-center flex-1">
                        {shift.servicesData.slice(0, 1).map((s: any, idx: number) => {
                           const srv = servicesList.find((srv: any) => String(srv.id) === String(s.serviceId));
                           const srvName = srv ? srv.name : (s.serviceName || s.serviceCode || shift.serviceName);
                           return (
-                             <span key={idx} className="block text-sm sm:text-base font-medium text-brand-teal truncate" title={srvName}>
+                             <span key={idx} className="block text-sm sm:text-base font-medium text-brand-teal truncate text-right w-full sm:w-auto" title={srvName}>
                                  {srvName}
                              </span>
                           );
                        })}
                     </div>
                  ) : shift.serviceName ? (
-                    <span className="block text-sm sm:text-base font-medium text-brand-teal truncate text-center" title={shift.serviceName}>
+                    <span className="block text-sm sm:text-base font-medium text-brand-teal truncate text-right flex-1 w-full sm:w-auto" title={shift.serviceName}>
                         {shift.serviceName}
                     </span>
                  ) : (
-                    <span className="block text-sm sm:text-base font-medium text-zinc-500 italic text-center">
+                    <span className="block text-sm sm:text-base font-medium text-zinc-500 italic text-right flex-1 w-full sm:w-auto">
                         Not specified
                     </span>
                  )}
@@ -491,39 +491,35 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
               </div>
             </div>
           ) : !completeMode ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               {shift.status === 'PUBLISHED' && (
                 <div className="flex flex-col gap-2">
-                  <div className="w-full py-3 bg-zinc-900/60 rounded-xl font-bold flex flex-col items-center justify-center text-zinc-300">
+                  <div className="w-full py-4 bg-zinc-800/80 border border-white/[0.08] shadow-sm rounded-xl font-bold flex flex-col items-center justify-center text-zinc-200">
                     {canStart && <span className="text-brand-green text-xl md:text-2xl animate-pulse tracking-wide drop-shadow-md mb-1.5">Ready to Start</span>}
                     {startDiffMs > 0 ? (
-                       <span className="text-zinc-400 text-sm md:text-base font-medium">Starts in: {formatCountdown(startDiffMs)}</span>
+                       <span className="text-zinc-300 text-sm md:text-base font-medium">Starts in: {formatCountdown(startDiffMs)}</span>
                     ) : (
-                       <span className="text-zinc-400 text-sm md:text-base font-medium">Started {formatCountdown(Math.abs(startDiffMs))} ago</span>
+                       <span className="text-zinc-300 text-sm md:text-base font-medium">Started {formatCountdown(Math.abs(startDiffMs))} ago</span>
                     )}
-                  </div>
-                  <div className="bg-zinc-800/30 rounded-xl p-2.5">
-                    <span className="text-zinc-500 font-medium block mb-1 text-xs uppercase tracking-wider">Shift Notes</span>
-                    <p className="text-sm leading-relaxed text-zinc-300 text-center">{shift.notes || "No notes provided."}</p>
                   </div>
                 </div>
               )}
 
               {shift.status === 'IN_PROGRESS' && (
                 <div className="flex flex-col gap-2">
-                  <div className="w-full py-3 bg-zinc-900/60 rounded-xl font-bold flex flex-col items-center justify-center text-zinc-300">
+                  <div className="w-full py-4 bg-zinc-800/80 border border-white/[0.08] shadow-sm rounded-xl font-bold flex flex-col items-center justify-center text-zinc-200">
                     {canComplete && <span className="text-brand-green text-xl md:text-2xl animate-pulse tracking-wide drop-shadow-md mb-1.5">Ready to Complete</span>}
                     {endDiffMs > 0 ? (
-                       <span className="text-zinc-400 text-sm md:text-base font-medium">Ends in: {formatCountdown(endDiffMs)}</span>
+                       <span className="text-zinc-300 text-sm md:text-base font-medium">Ends in: {formatCountdown(endDiffMs)}</span>
                     ) : (
                        <span className="text-amber-400 text-sm md:text-base font-medium">Overdue by {formatCountdown(Math.abs(endDiffMs))}</span>
                     )}
                   </div>
-                  <div className="bg-zinc-800/30 rounded-xl p-2.5">
-                    <span className="text-zinc-500 font-medium block mb-1 text-xs uppercase tracking-wider">Shift Notes</span>
+                  <div className="bg-zinc-800/60 border border-white/[0.05] rounded-xl p-3">
+                    <span className="text-zinc-400 font-medium block mb-1.5 text-xs uppercase tracking-wider">Shift Notes</span>
                     <textarea 
                       rows={2} 
-                      className="w-full bg-black/40 rounded-lg p-2 text-sm text-zinc-100 focus:outline-none focus:ring-1 focus:ring-brand-teal resize-none transition-colors placeholder:text-zinc-600"
+                      className="w-full bg-black/40 border border-white/[0.05] rounded-lg p-2.5 text-sm md:text-base text-zinc-100 focus:outline-none focus:ring-1 focus:ring-brand-teal resize-none transition-colors placeholder:text-zinc-600"
                       placeholder="Log any incidents, tasks completed, client mood, etc."
                       value={notes}
                       onChange={e => handleNotesChange(e.target.value)}
@@ -534,12 +530,12 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
 
               {shift.status === 'COMPLETED' && (
                 <div className="flex flex-col gap-2">
-                  <div className="w-full py-3 bg-brand-green/10 text-brand-green rounded-xl font-bold md:text-lg text-center">
+                  <div className="w-full py-4 bg-brand-green/10 border border-brand-green/20 text-brand-green shadow-sm rounded-xl font-bold md:text-lg text-center">
                     Shift Completed
                   </div>
-                  <div className="bg-zinc-800/30 rounded-xl p-2.5">
-                    <span className="text-zinc-500 font-medium block mb-1 text-xs uppercase tracking-wider">Shift Notes</span>
-                    <p className="text-sm leading-relaxed text-zinc-300 text-center">{shift.notes || "No notes provided."}</p>
+                  <div className="bg-zinc-800/60 border border-white/[0.05] rounded-xl p-3">
+                    <span className="text-zinc-400 font-medium block mb-1.5 text-xs uppercase tracking-wider">Shift Notes</span>
+                    <p className="text-sm md:text-base leading-relaxed text-zinc-200 text-center">{shift.notes || "No notes provided."}</p>
                   </div>
                 </div>
               )}
@@ -548,7 +544,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                 <div className="flex flex-col">
                   <>
                     {isNDIS && (
-                      <div className="bg-zinc-800/30 rounded-xl p-3 space-y-3 mt-1">
+                      <div className="bg-zinc-800/60 border border-white/[0.08] shadow-sm rounded-xl p-3.5 space-y-3 mt-1">
                         <div className="flex items-start justify-between">
                           <div>
                             <h4 className="text-xs md:text-sm font-bold text-zinc-100 uppercase tracking-wide flex items-center mb-0.5">
