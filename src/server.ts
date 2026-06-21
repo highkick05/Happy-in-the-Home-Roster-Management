@@ -5820,7 +5820,7 @@ async function startServer() {
     requireAdmin,
     async (req: any, res: any) => {
       try {
-        const { startDate, endDate, overwriteConflicts, dryRun, templateName = "Default Template", clearExisting = false } = req.body;
+        const { startDate, endDate, overwriteConflicts, dryRun, templateName = "Default Template", clearExisting = false, frequency = "Weekly" } = req.body;
         const clientId = req.params.id;
 
         if (!startDate || !endDate)
@@ -5856,6 +5856,44 @@ async function startServer() {
           return res
             .status(400)
             .json({ error: "No templates found for this client." });
+
+        let validMondays: Set<string> | null = null;
+        if (frequency && frequency !== "Weekly") {
+          validMondays = new Set<string>();
+          const startDt = new Date(startDate + "T12:00:00Z");
+          
+          const getMondayStr = (d: Date) => {
+            const dCopy = new Date(d.getTime());
+            const day = dCopy.getUTCDay();
+            const diff = dCopy.getUTCDate() - day + (day === 0 ? -6 : 1);
+            dCopy.setUTCDate(diff);
+            return dCopy.toISOString().split("T")[0];
+          };
+
+          if (frequency === "Fortnightly") {
+            let curr = new Date(getMondayStr(startDt) + "T12:00:00Z");
+            const endDt = new Date(endDate + "T12:00:00Z");
+            while (curr <= endDt || curr.getTime() <= startDt.getTime() + 14 * 86400000) {
+              validMondays.add(curr.toISOString().split("T")[0]);
+              curr.setUTCDate(curr.getUTCDate() + 14);
+            }
+          } else if (frequency === "3 Weekly") {
+            let curr = new Date(getMondayStr(startDt) + "T12:00:00Z");
+            const endDt = new Date(endDate + "T12:00:00Z");
+            while (curr <= endDt || curr.getTime() <= startDt.getTime() + 21 * 86400000) {
+              validMondays.add(curr.toISOString().split("T")[0]);
+              curr.setUTCDate(curr.getUTCDate() + 21);
+            }
+          } else if (frequency.endsWith("Monthly")) {
+            const months = parseInt(frequency.split(" ")[0]) || 1;
+            let curr = new Date(startDt.getTime());
+            const endDt = new Date(endDate + "T12:00:00Z");
+            while (curr <= endDt || curr.getTime() <= startDt.getTime() + 31 * 86400000) {
+              validMondays.add(getMondayStr(curr));
+              curr.setUTCMonth(curr.getUTCMonth() + months);
+            }
+          }
+        }
 
         const clientRow = db
           .prepare("SELECT funding_type FROM clients WHERE id = ?")
@@ -5945,6 +5983,17 @@ async function startServer() {
             dt <= endDt;
             dt.setUTCDate(dt.getUTCDate() + 1)
           ) {
+            if (validMondays) {
+              const dCopy = new Date(dt.getTime());
+              const day = dCopy.getUTCDay();
+              const diff = dCopy.getUTCDate() - day + (day === 0 ? -6 : 1);
+              dCopy.setUTCDate(diff);
+              const weekMondayStr = dCopy.toISOString().split("T")[0];
+              if (!validMondays.has(weekMondayStr)) {
+                continue;
+              }
+            }
+
             const shiftDateStr = dt.toISOString().split("T")[0];
             const localNoon = new Date(`${shiftDateStr}T12:00:00Z`);
             const dayOfWeek = localNoon.getUTCDay(); // 0 is Sunday, 6 is Saturday

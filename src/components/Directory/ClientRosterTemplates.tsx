@@ -160,6 +160,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [existingShiftsCount, setExistingShiftsCount] = useState(0);
   const [clearExisting, setClearExisting] = useState(false);
+  const [frequency, setFrequency] = useState('Weekly');
   const [clientConflictsList, setClientConflictsList] = useState<any[]>([]);
   const [selectedConflictsToOverwrite, setSelectedConflictsToOverwrite] = useState<Set<number>>(new Set());
   const [resolvingConflicts, setResolvingConflicts] = useState(false);
@@ -468,7 +469,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: activeTemplateName, clearExisting })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: activeTemplateName, clearExisting, frequency })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -499,7 +500,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: activeTemplateName, clearExisting })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: activeTemplateName, clearExisting, frequency })
       });
       const data = await res.json();
       
@@ -953,6 +954,24 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
             </div>
             
             <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-2">Shift Frequency</label>
+                <select 
+                  value={frequency} 
+                  onChange={(e) => setFrequency(e.target.value)}
+                  className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors"
+                >
+                  <option value="Weekly">Weekly</option>
+                  <option value="Fortnightly">Fortnightly</option>
+                  <option value="3 Weekly">3 Weekly</option>
+                  <option value="1 Monthly">1 Monthly</option>
+                  <option value="2 Monthly">2 Monthly</option>
+                  <option value="3 Monthly">3 Monthly</option>
+                  <option value="6 Monthly">6 Monthly</option>
+                  <option value="12 Monthly">12 Monthly</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-zinc-400 mb-2">Duration Preset</label>
                 <select 
