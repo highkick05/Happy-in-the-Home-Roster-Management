@@ -5784,9 +5784,12 @@ async function startServer() {
           existingClientShifts = existingRows.map((r: any) => {
              const startDate = new Date(r.start_time);
              const endDate = new Date(r.end_time);
+             // r.start_time is an ISO string so start_time.split("T")[0] is YYYY-MM-DD
+             const dateParts = r.start_time.split("T")[0].split("-");
+             const formattedDate = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : r.start_time.split("T")[0];
              return {
                id: r.id,
-               date: r.start_time.split("T")[0],
+               date: formattedDate,
                startTime: startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                endTime: endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                status: r.status
@@ -5905,9 +5908,10 @@ async function startServer() {
                 const conflict = db
                   .prepare(
                     `
-                SELECT id FROM shifts 
+                SELECT id, start_time, end_time, client_id FROM shifts 
                 WHERE staff_id = ? 
                 AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))
+                LIMIT 1
               `,
                   )
                   .get(
@@ -5918,7 +5922,7 @@ async function startServer() {
                     startDateTime.toISOString(),
                     startDateTime.toISOString(),
                     endDateTime.toISOString(),
-                  );
+                  ) as any;
 
                 if (conflict) {
                   const userRow = db
@@ -5930,11 +5934,19 @@ async function startServer() {
                     ? `${userRow.first_name} ${userRow.last_name}`
                     : `Staff ID ${assignedStaffId}`;
 
+                  const cRow = conflict.client_id ? db.prepare('SELECT first_name, last_name, preferred_name FROM clients WHERE id = ?').get(conflict.client_id) as any : null;
+                  const cName = cRow ? (cRow.preferred_name || `${cRow.first_name} ${cRow.last_name}`) : 'Unknown Client';
+                  const cStart = new Date(conflict.start_time);
+                  const cEnd = new Date(conflict.end_time);
+
+                  const parts = shiftDateStr.split('-');
+                  const formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+
                   conflicts.push({
-                    date: shiftDateStr,
+                    date: formattedDate,
                     startTime: tmpl.start_time,
                     endTime: tmpl.end_time,
-                    message: `${staffName} is already booked.`,
+                    message: `${staffName} is already booked with ${cName} (${cStart.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} - ${cEnd.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}).`,
                   });
                   assignedStaffId = null; // Unassigned
                 }
@@ -6331,9 +6343,10 @@ async function startServer() {
               const conflict = db
                 .prepare(
                   `
-              SELECT id FROM shifts 
+              SELECT id, start_time, end_time, client_id FROM shifts 
               WHERE staff_id = ? 
               AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))
+              LIMIT 1
             `,
                 )
                 .get(
@@ -6344,7 +6357,7 @@ async function startServer() {
                   startDateTime.toISOString(),
                   startDateTime.toISOString(),
                   endDateTime.toISOString(),
-                );
+                ) as any;
 
               if (conflict) {
                 const userRow = db
@@ -6356,11 +6369,19 @@ async function startServer() {
                   ? `${userRow.first_name} ${userRow.last_name}`
                   : `Staff ID ${assignedStaffId}`;
 
+                const cRow = conflict.client_id ? db.prepare('SELECT first_name, last_name, preferred_name FROM clients WHERE id = ?').get(conflict.client_id) as any : null;
+                const cName = cRow ? (cRow.preferred_name || `${cRow.first_name} ${cRow.last_name}`) : 'Unknown Client';
+                const cStart = new Date(conflict.start_time);
+                const cEnd = new Date(conflict.end_time);
+
+                const parts = shiftDateStr.split('-');
+                const formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+
                 conflicts.push({
-                  date: shiftDateStr,
+                  date: formattedDate,
                   startTime: tmpl.start_time,
                   endTime: tmpl.end_time,
-                  message: `${staffName} is already booked.`,
+                  message: `${staffName} is already booked with ${cName} (${cStart.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} - ${cEnd.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}).`,
                 });
                 assignedStaffId = null; // Unassigned
               }
