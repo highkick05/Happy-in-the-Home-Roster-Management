@@ -644,7 +644,11 @@ export default function RosterCalendar() {
       border = isSelected ? '2px solid white' : '1px inset #7c3aed';
     }
 
+    const isUnassigned = !event.staffId && !event.isRespiteWrapper;
+    let className = isUnassigned ? 'unassigned-shift-animated' : '';
+
     return {
+      className,
       style: {
         backgroundColor,
         borderRadius: '6px',

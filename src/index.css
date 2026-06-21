@@ -364,3 +364,20 @@ input:-webkit-autofill:active {
     box-shadow: none !important;
   }
 }
+
+@keyframes subtle-stripe-slide {
+  from { background-position: 0 0; }
+  to { background-position: 28px 28px; }
+}
+
+.unassigned-shift-animated {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.15),
+    rgba(255, 255, 255, 0.15) 10px,
+    transparent 10px,
+    transparent 20px
+  ) !important;
+  background-size: 28px 28px !important;
+  animation: subtle-stripe-slide 2s linear infinite !important;
+}
