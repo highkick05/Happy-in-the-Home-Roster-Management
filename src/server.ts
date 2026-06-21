@@ -5366,6 +5366,7 @@ async function startServer() {
     (req: any, res: any) => {
       try {
         const clientId = req.params.id;
+        const templateName = req.query.templateName || "Default Template";
         const client = db
           .prepare("SELECT * FROM clients WHERE id = ?")
           .get(clientId) as any;
@@ -5382,11 +5383,11 @@ async function startServer() {
         FROM client_roster_templates t
         LEFT JOIN users u ON t.staff_id = u.id
         LEFT JOIN services srv ON t.service_id = srv.id
-        WHERE t.client_id = ?
+        WHERE t.client_id = ? AND (t.template_name = ? OR (? = 'Default Template' AND t.template_name IS NULL))
         ORDER BY t.day_of_week, t.start_time
       `,
           )
-          .all(clientId) as any[];
+          .all(clientId, templateName, templateName) as any[];
 
         res.setHeader("Content-Type", "application/pdf");
         res.setHeader(

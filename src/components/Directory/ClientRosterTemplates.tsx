@@ -491,43 +491,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
            <div className="flex items-center gap-2">
              {user?.role === 'ADMIN' && (
                <>
-                 <a
-                   href={`/api/clients/${clientId}/roster-templates/pdf?token=${token}`}
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   className="px-3 py-1.5 bg-[#121214] hover:bg-zinc-800 text-white border border-white/[0.08] rounded-lg text-sm font-medium transition-colors flex items-center"
-                 >
-                   <Download className="w-4 h-4 mr-2" />
-                   PDF
-                 </a>
                  <button
                    onClick={() => setShowHistoryModal(true)}
                    className="px-3 py-1.5 bg-[#121214] hover:bg-zinc-800 text-white border border-white/[0.08] rounded-lg text-sm font-medium transition-colors flex items-center"
                  >
                    <History className="w-4 h-4 mr-2" />
                    Build History
-                 </button>
-                 <button
-                   onClick={() => setShowRunBuilderModal(true)}
-                   className="px-3 py-1.5 bg-brand-green/80 hover:bg-brand-green text-white rounded-lg text-sm font-medium transition-colors flex items-center"
-                 >
-                   <Calendar className="w-4 h-4 mr-2" />
-                   Run Builder
-                 </button>
-                 <button
-                   onClick={() => {
-                     setEditingTemplateId(null);
-                     setDaysOfWeek(displayDaysOrder.length > 0 ? [displayDaysOrder[0]] : []);
-                     setStartTime('09:00');
-                     setEndTime('17:00');
-                     setStaffId('');
-                     setServicesData([{ serviceId: '' }]);
-                     setShowAddTemplateModal(true);
-                   }}
-                   className="px-3 py-1.5 bg-indigo-500 hover:bg-brand-blue text-white rounded-lg text-sm font-medium transition-colors flex items-center"
-                 >
-                   <Plus className="w-4 h-4 mr-2" />
-                   Add Shift
                  </button>
                </>
              )}
@@ -666,12 +635,49 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           )}
         </div>
         {/* Weekly Total Footer */}
-        {templates.length > 0 && (
-          <div className="p-4 border-t border-white/[0.08] bg-[#09090b] flex justify-between items-center shrink-0">
-            <span className="text-[12px] font-medium text-zinc-400">Total Weekly Value</span>
+        <div className="p-4 border-t border-white/[0.08] bg-[#09090b] flex justify-between items-center shrink-0">
+          <div>
+            <span className="text-[12px] font-medium text-zinc-400 mr-2">Total Weekly Value</span>
             <span className="text-base font-semibold text-brand-green">${weeklyTotalAmount.toFixed(2)}</span>
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            {user?.role === 'ADMIN' && (
+              <>
+                <a
+                  href={`/api/clients/${clientId}/roster-templates/pdf?token=${token}&templateName=${encodeURIComponent(activeTemplateName)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 bg-[#121214] hover:bg-zinc-800 text-white border border-white/[0.08] rounded-lg text-sm font-medium transition-colors flex items-center"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  PDF
+                </a>
+                <button
+                  onClick={() => setShowRunBuilderModal(true)}
+                  className="px-3 py-1.5 bg-brand-green/80 hover:bg-brand-green text-white rounded-lg text-sm font-medium transition-colors flex items-center"
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Run Builder
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingTemplateId(null);
+                    setDaysOfWeek(displayDaysOrder.length > 0 ? [displayDaysOrder[0]] : []);
+                    setStartTime('09:00');
+                    setEndTime('17:00');
+                    setStaffId('');
+                    setServicesData([{ serviceId: '' }]);
+                    setShowAddTemplateModal(true);
+                  }}
+                  className="px-3 py-1.5 bg-indigo-500 hover:bg-brand-blue text-white rounded-lg text-sm font-medium transition-colors flex items-center"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Shift
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Add Template Modal */}
