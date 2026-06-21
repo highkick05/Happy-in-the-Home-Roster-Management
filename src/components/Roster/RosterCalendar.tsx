@@ -438,7 +438,13 @@ export default function RosterCalendar() {
           endTime: new Date(end).toISOString()
         })
       });
-      if (res.ok) fetchData();
+      if (res.status === 409) {
+          const data = await res.json();
+          const msgs = (data.conflicts || []).map((c: any) => c.message).join('\n');
+          alert('Conflict detected:\n' + msgs);
+      } else if (res.ok) {
+          fetchData();
+      }
     } catch (e) {
       console.error(e);
     }
@@ -469,7 +475,13 @@ export default function RosterCalendar() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload)
       });
-      if (res.ok) fetchData();
+      if (res.status === 409) {
+          const data = await res.json();
+          const msgs = (data.conflicts || []).map((c: any) => c.message).join('\n');
+          alert('Conflict detected:\n' + msgs);
+      } else if (res.ok) {
+          fetchData();
+      }
     } catch (e) {
       console.error(e);
     }

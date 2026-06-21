@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Plus, Trash2, AlertCircle, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
@@ -235,9 +236,10 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
      }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const [showConflictsModal, setShowConflictsModal] = useState(false);
+  const [conflictList, setConflictList] = useState<any[]>([]);
+
+  const saveData = async (ignoreConflicts = false) => {
     if (!staffId || !clientId || !startDate || !endTime) {
       alert("Please select staff, client, start date, and times.");
       return;
@@ -266,9 +268,6 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
     }
 
     try {
-      const start = new Date(`${startDate}T${startTime}:00`);
-      const end = new Date(`${endDate}T${endTime}:00`);
-
       const url = isEditing ? `/api/shifts/${initialData?.id}` : '/api/shifts';
       const method = isEditing ? 'PUT' : 'POST';
 
@@ -282,7 +281,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
         servicesData: servicesData.map(s => ({
             ...s,
             serviceId: parseInt(s.serviceId)
-        }))
+        })),
+        ignoreConflicts
       };
 
       if (!isEditing) {
@@ -297,6 +297,13 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
         },
         body: JSON.stringify(bodyData)
       });
+
+      if (res.status === 409) {
+        const data = await res.json();
+        setConflictList(data.conflicts || []);
+        setShowConflictsModal(true);
+        return;
+      }
 
       if (res.ok) {
         onSave();
@@ -318,6 +325,11 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
       console.error(err);
       alert("An error occurred");
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveData(false);
   };
 
   const handleBackgroundClick = (e: React.MouseEvent) => {
@@ -594,6 +606,69 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
           </div>
         </form>
       </div>
+
+      {showConflictsModal && createPortal(
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-[#121214] border border-white/[0.08] rounded-xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#18181b] rounded-t-xl shrink-0">
+              <div className="flex items-center">
+                <AlertCircle className="w-5 h-5 text-amber-500 mr-2.5" />
+                <h3 className="text-xl font-bold text-white tracking-tight">Roster Conflicts Warning</h3>
+              </div>
+              <button type="button" onClick={() => setShowConflictsModal(false)} className="text-zinc-500 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-5 overflow-y-auto custom-scrollbar flex-1 space-y-6 bg-[#09090b]">
+              <div className="text-sm text-zinc-300">
+                Please review the items below. Proceeding will save the shift despite the following conflicts with the selected staff member.
+              </div>
+
+              {conflictList.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-amber-400 uppercase tracking-wider flex items-center">
+                    <AlertCircle className="w-4 h-4 mr-1.5" />
+                    Staff Booking Conflicts ({conflictList.length})
+                  </h4>
+                  <div className="bg-[#121214] border border-white/[0.05] rounded-lg p-3">
+                    <ul className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-2">
+                      {conflictList.map((c: any, i: number) => (
+                        <li key={i} className="flex flex-col bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-md">
+                          <span className="text-sm font-medium text-amber-100">{c.date} ({c.startTime} - {c.endTime})</span>
+                          <span className="text-xs text-amber-300/80 mt-0.5">{c.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 border-t border-white/[0.08] bg-[#18181b] rounded-b-xl shrink-0 flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowConflictsModal(false)}
+                className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:text-white hover:bg-white/[0.05] rounded-md transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConflictsModal(false);
+                  saveData(true);
+                }}
+                className="px-5 py-2 bg-rose-600/90 hover:bg-rose-500 text-white text-[13px] font-medium rounded-md transition-all flex items-center shadow-[0_0_15px_rgba(225,29,72,0.3)] hover:shadow-[0_0_20px_rgba(225,29,72,0.5)] border border-rose-500/50"
+              >
+                <Check className="w-4 h-4 mr-1.5" />
+                Ignore & Save
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

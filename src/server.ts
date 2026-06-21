@@ -6728,6 +6728,7 @@ async function startServer() {
       status,
       notes,
       servicesData,
+      ignoreConflicts,
     } = req.body;
     try {
       const idsToProcess =
@@ -6737,6 +6738,67 @@ async function startServer() {
         (servicesData && servicesData.length > 0
           ? servicesData[0].serviceId
           : null);
+
+      // Conflict Checking
+      if (!ignoreConflicts && status !== 'CANCELLED') {
+        const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+        const settingsMap: any = {};
+        settingsRows.forEach((r) => {
+          try {
+            settingsMap[r.key] = JSON.parse(r.value);
+          } catch {
+            settingsMap[r.key] = r.value;
+          }
+        });
+        let rawTz = settingsMap.timezone || "Australia/Perth";
+        const timezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
+
+        const startDateTime = new Date(startTime).toISOString();
+        const endDateTime = new Date(endTime).toISOString();
+        const conflicts: any[] = [];
+
+        for (const singleStaffId of idsToProcess) {
+          if (!singleStaffId) continue;
+          
+          const conflict = db
+            .prepare(`
+              SELECT id, start_time, end_time, client_id FROM shifts 
+              WHERE staff_id = ? AND status != 'CANCELLED'
+              AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))
+              LIMIT 1
+            `)
+            .get(
+              singleStaffId,
+              endDateTime,
+              startDateTime,
+              endDateTime,
+              startDateTime,
+              startDateTime,
+              endDateTime
+            ) as any;
+
+          if (conflict) {
+            const userRow = db.prepare("SELECT first_name, last_name FROM users WHERE id = ?").get(singleStaffId) as any;
+            const staffName = userRow ? `${userRow.first_name} ${userRow.last_name}` : `Staff ID ${singleStaffId}`;
+            const cRow = conflict.client_id ? db.prepare('SELECT first_name, last_name FROM clients WHERE id = ?').get(conflict.client_id) as any : null;
+            const cName = cRow ? `${cRow.first_name} ${cRow.last_name}` : 'Unknown Client';
+            const cStart = new Date(conflict.start_time);
+            const cEnd = new Date(conflict.end_time);
+            const dt = new Date(startDateTime);
+            
+            conflicts.push({
+              date: dt.toLocaleDateString(['en-AU', 'en-US'], { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: timezone}).replace(/\//g, '-'),
+              startTime: dt.toLocaleTimeString(['en-AU', 'en-US'], {hour: '2-digit', minute: '2-digit', timeZone: timezone}),
+              endTime: new Date(endDateTime).toLocaleTimeString(['en-AU', 'en-US'], {hour: '2-digit', minute: '2-digit', timeZone: timezone}),
+              message: `${staffName} is already booked with ${cName} (${cStart.toLocaleTimeString(['en-AU', 'en-US'], {hour: '2-digit', minute: '2-digit', timeZone: timezone})} - ${cEnd.toLocaleTimeString(['en-AU', 'en-US'], {hour: '2-digit', minute: '2-digit', timeZone: timezone})}).`
+            });
+          }
+        }
+        
+        if (conflicts.length > 0) {
+          return res.status(409).json({ error: 'Conflict detected', conflicts });
+        }
+      }
 
       const processedStaffShifts: any[] = [];
       for (const singleStaffId of idsToProcess) {
@@ -6985,6 +7047,7 @@ async function startServer() {
         servicesData,
         providerTravelKm,
         abtKm,
+        ignoreConflicts,
       } = req.body;
 
       try {
@@ -6992,6 +7055,61 @@ async function startServer() {
           .prepare("SELECT * FROM shifts WHERE id = ?")
           .get(id) as any;
         if (!existing) return res.status(404).json({ error: "Not found" });
+
+        // Conflict Checking
+        if (!ignoreConflicts && status !== 'CANCELLED' && staffId) {
+          const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+          const settingsMap: any = {};
+          settingsRows.forEach((r) => {
+            try {
+              settingsMap[r.key] = JSON.parse(r.value);
+            } catch {
+              settingsMap[r.key] = r.value;
+            }
+          });
+          let rawTz = settingsMap.timezone || "Australia/Perth";
+          const timezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
+
+          const startDateTime = new Date(startTime).toISOString();
+          const endDateTime = new Date(endTime).toISOString();
+          
+          const conflict = db
+            .prepare(`
+              SELECT id, start_time, end_time, client_id FROM shifts 
+              WHERE staff_id = ? AND id != ? AND status != 'CANCELLED'
+              AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))
+              LIMIT 1
+            `)
+            .get(
+              staffId,
+              id,
+              endDateTime,
+              startDateTime,
+              endDateTime,
+              startDateTime,
+              startDateTime,
+              endDateTime
+            ) as any;
+
+          if (conflict) {
+            const userRow = db.prepare("SELECT first_name, last_name FROM users WHERE id = ?").get(staffId) as any;
+            const staffName = userRow ? `${userRow.first_name} ${userRow.last_name}` : `Staff ID ${staffId}`;
+            const cRow = conflict.client_id ? db.prepare('SELECT first_name, last_name FROM clients WHERE id = ?').get(conflict.client_id) as any : null;
+            const cName = cRow ? `${cRow.first_name} ${cRow.last_name}` : 'Unknown Client';
+            const cStart = new Date(conflict.start_time);
+            const cEnd = new Date(conflict.end_time);
+            const dt = new Date(startDateTime);
+            
+            const conflictData = {
+              date: dt.toLocaleDateString(['en-AU', 'en-US'], { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: timezone}).replace(/\//g, '-'),
+              startTime: dt.toLocaleTimeString(['en-AU', 'en-US'], {hour: '2-digit', minute: '2-digit', timeZone: timezone}),
+              endTime: new Date(endDateTime).toLocaleTimeString(['en-AU', 'en-US'], {hour: '2-digit', minute: '2-digit', timeZone: timezone}),
+              message: `${staffName} is already booked with ${cName} (${cStart.toLocaleTimeString(['en-AU', 'en-US'], {hour: '2-digit', minute: '2-digit', timeZone: timezone})} - ${cEnd.toLocaleTimeString(['en-AU', 'en-US'], {hour: '2-digit', minute: '2-digit', timeZone: timezone})}).`
+            };
+            
+            return res.status(409).json({ error: 'Conflict detected', conflicts: [conflictData] });
+          }
+        }
 
         // Build old value for audit logging
         const oldValue = JSON.stringify(existing);
