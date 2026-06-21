@@ -245,6 +245,19 @@ async function startServer() {
   }
 
   try {
+    db.exec(
+      "ALTER TABLE client_roster_templates ADD COLUMN template_name TEXT DEFAULT 'Default Template'",
+    );
+    console.log(
+      "[DEBUG] Completed client_roster_templates.template_name column check.",
+    );
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
     db.exec(`
       ALTER TABLE clients ADD COLUMN historical_internal_consumptions REAL DEFAULT 0;
     `);
@@ -5554,10 +5567,11 @@ async function startServer() {
           endTime,
           staffId,
           servicesData,
+          templateName = "Default Template"
         } = req.body;
         const stmt = db.prepare(`
-        INSERT INTO client_roster_templates (client_id, day_of_week, start_time, end_time, staff_id, services_json)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO client_roster_templates (client_id, day_of_week, start_time, end_time, staff_id, services_json, template_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
         const daysToIterate =
           Array.isArray(daysOfWeek) && daysOfWeek.length > 0
@@ -5574,10 +5588,44 @@ async function startServer() {
                 endTime,
                 staffId || null,
                 JSON.stringify(servicesData || []),
+                templateName
               );
             }
           }
         })();
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
+
+  app.put(
+    "/api/client-roster-templates/:id",
+    authenticateToken,
+    requireAdmin,
+    (req: any, res: any) => {
+      try {
+        const {
+          dayOfWeek,
+          startTime,
+          endTime,
+          staffId,
+          servicesData,
+        } = req.body;
+        db.prepare(`
+          UPDATE client_roster_templates 
+          SET day_of_week = ?, start_time = ?, end_time = ?, staff_id = ?, services_json = ?
+          WHERE id = ?
+        `).run(
+          dayOfWeek,
+          startTime,
+          endTime,
+          staffId || null,
+          JSON.stringify(servicesData || []),
+          req.params.id
+        );
         res.json({ success: true });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -5592,9 +5640,10 @@ async function startServer() {
     requireAdmin,
     (req: any, res: any) => {
       try {
+        const { templateName = "Default Template" } = req.query;
         db.prepare(
-          "DELETE FROM client_roster_templates WHERE client_id = ?",
-        ).run(req.params.id);
+          "DELETE FROM client_roster_templates WHERE client_id = ? AND template_name = ?",
+        ).run(req.params.id, templateName);
         res.json({ success: true });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -5672,7 +5721,7 @@ async function startServer() {
     requireAdmin,
     async (req: any, res: any) => {
       try {
-        const { startDate, endDate, overwriteConflicts, dryRun } = req.body;
+        const { startDate, endDate, overwriteConflicts, dryRun, templateName = "Default Template" } = req.body;
         const clientId = req.params.id;
 
         if (!startDate || !endDate)
@@ -5702,8 +5751,8 @@ async function startServer() {
         }
 
         const templates = db
-          .prepare("SELECT * FROM client_roster_templates WHERE client_id = ?")
-          .all(clientId) as any[];
+          .prepare("SELECT * FROM client_roster_templates WHERE client_id = ? AND template_name = ?")
+          .all(clientId, templateName) as any[];
         if (!templates.length)
           return res
             .status(400)
@@ -5715,21 +5764,33 @@ async function startServer() {
         const fundingType = clientRow?.funding_type || "NDIS";
 
         const shiftsCreated = [];
-        const conflicts = [];
-        const clientConflicts = [];
+        const conflicts: any[] = [];
+        const clientConflicts: any[] = [];
         let existingShiftsCount = 0;
+        let existingClientShifts: any[] = [];
 
         if (dryRun) {
-          const countRow = db
+          const existingRows = db
             .prepare(
-              `SELECT count(*) as count FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND status NOT IN ('COMPLETED', 'IN_PROGRESS')`,
+              `SELECT * FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND status NOT IN ('COMPLETED', 'IN_PROGRESS') ORDER BY start_time ASC`,
             )
-            .get(
+            .all(
               clientId,
               start.toISOString(),
               new Date(end.getTime() + 86400000).toISOString(),
-            ) as any;
-          existingShiftsCount = countRow ? countRow.count : 0;
+            ) as any[];
+          existingShiftsCount = existingRows.length;
+          existingClientShifts = existingRows.map((r: any) => {
+             const startDate = new Date(r.start_time);
+             const endDate = new Date(r.end_time);
+             return {
+               id: r.id,
+               date: r.start_time.split("T")[0],
+               startTime: startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+               endTime: endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+               status: r.status
+             };
+          });
         }
 
         const settingsRows = db
@@ -6047,6 +6108,8 @@ async function startServer() {
           createdCount: shiftsCreated.length,
           conflicts,
           clientConflicts,
+          existingShiftsCount,
+          existingClientShifts,
           dryRun,
         });
       } catch (e: any) {

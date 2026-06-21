@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Trash2, Calendar, AlertCircle, X, History, Download } from 'lucide-react';
+import { Plus, Trash2, Calendar, AlertCircle, X, History, Download, Edit2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
@@ -41,6 +41,24 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
   // New template form state
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
+  const [activeTemplateName, setActiveTemplateName] = useState('Default Template');
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
+
+  const templateNames = useMemo(() => {
+    const names = Array.from(new Set(templates.map(t => t.template_name || 'Default Template')));
+    if (names.length === 0) names.push('Default Template');
+    return names;
+  }, [templates]);
+
+  useEffect(() => {
+    if (!templateNames.includes(activeTemplateName) && templateNames.length > 0) {
+      setActiveTemplateName(templateNames[0]);
+    }
+  }, [templateNames, activeTemplateName]);
+
+  const currentTemplateList = useMemo(() => {
+    return templates.filter(t => (t.template_name || 'Default Template') === activeTemplateName);
+  }, [templates, activeTemplateName]);
 
   useEffect(() => {
     if (daysOfWeek.length === 0 && displayDaysOrder.length > 0) {
@@ -224,7 +242,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
   const weeklyTotalAmount = useMemo(() => {
     let total = 0;
-    templates.forEach(t => {
+    currentTemplateList.forEach(t => {
       const tStart = new Date(`1970-01-01T${t.start_time}:00`);
       let tEnd = new Date(`1970-01-01T${t.end_time}:00`);
       if (tEnd < tStart) tEnd = new Date(`1970-01-02T${t.end_time}:00`);
@@ -295,27 +313,54 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       }
     }
 
-    try {
-      const res = await fetch(`/api/clients/${clientId}/roster-templates`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          daysOfWeek,
-          startTime,
-          endTime,
-          staffId: parseInt(staffId),
-          servicesData
-        })
-      });
-      if (res.ok) {
-        fetchData();
-        setShowAddTemplateModal(false);
-      } else {
-        alert('Failed to add template.');
+    if (editingTemplateId) {
+      try {
+        const res = await fetch(`/api/client-roster-templates/${editingTemplateId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            dayOfWeek: daysOfWeek[0],
+            startTime,
+            endTime,
+            staffId: parseInt(staffId),
+            servicesData
+          })
+        });
+        if (res.ok) {
+          fetchData();
+          setShowAddTemplateModal(false);
+          setEditingTemplateId(null);
+        } else {
+          alert('Failed to update template shift.');
+        }
+      } catch (e) {
+        console.error(e);
+        alert('Error occurred.');
       }
-    } catch (e) {
-      console.error(e);
-      alert('Error occurred.');
+    } else {
+      try {
+        const res = await fetch(`/api/clients/${clientId}/roster-templates`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            daysOfWeek,
+            startTime,
+            endTime,
+            staffId: parseInt(staffId),
+            servicesData,
+            templateName: activeTemplateName
+          })
+        });
+        if (res.ok) {
+          fetchData();
+          setShowAddTemplateModal(false);
+        } else {
+          alert('Failed to add template shift.');
+        }
+      } catch (e) {
+        console.error(e);
+        alert('Error occurred.');
+      }
     }
   };
 
@@ -332,9 +377,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   };
 
   const handleClearTemplate = async () => {
-    if (!confirm('Are you sure you want to clear all template shifts for this client?')) return;
+    if (!confirm(`Are you sure you want to clear all template shifts for "${activeTemplateName}"?`)) return;
     try {
-      const res = await fetch(`/api/clients/${clientId}/roster-templates/clear`, {
+      const res = await fetch(`/api/clients/${clientId}/roster-templates/clear?templateName=${encodeURIComponent(activeTemplateName)}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -351,6 +396,24 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     }
   };
 
+  const handleEditTemplate = (t: any) => {
+    setEditingTemplateId(t.id);
+    setDaysOfWeek([t.day_of_week]);
+    setStartTime(t.start_time);
+    setEndTime(t.end_time);
+    setStaffId(String(t.staff_id));
+    if (t.servicesData && t.servicesData.length > 0) {
+      setServicesData(t.servicesData);
+    } else if (t.service_id) {
+      setServicesData([{ serviceId: String(t.service_id) }]);
+    } else {
+      setServicesData([{ serviceId: '' }]);
+    }
+    setShowAddTemplateModal(true);
+  };
+
+  const [staffConflictsList, setStaffConflictsList] = useState<any[]>([]);
+
   const handleGenerateRoster = async () => {
     if (!generateStartDate || !generateEndDate) {
       alert('Please select start and end dates.');
@@ -363,12 +426,14 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: activeTemplateName })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        if (data.existingShiftsCount > 0) {
-          setExistingShiftsCount(data.existingShiftsCount);
+        if (data.existingShiftsCount > 0 || (data.conflicts && data.conflicts.length > 0)) {
+          setExistingShiftsCount(data.existingShiftsCount || 0);
+          setClientConflictsList(data.existingClientShifts || []);
+          setStaffConflictsList(data.conflicts || []);
           setShowConflictsModal(true);
           setGenerating(false);
         } else {
@@ -392,7 +457,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: activeTemplateName })
       });
       const data = await res.json();
       
@@ -454,7 +519,15 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                    Run Builder
                  </button>
                  <button
-                   onClick={() => setShowAddTemplateModal(true)}
+                   onClick={() => {
+                     setEditingTemplateId(null);
+                     setDaysOfWeek(displayDaysOrder.length > 0 ? [displayDaysOrder[0]] : []);
+                     setStartTime('09:00');
+                     setEndTime('17:00');
+                     setStaffId('');
+                     setServicesData([{ serviceId: '' }]);
+                     setShowAddTemplateModal(true);
+                   }}
                    className="px-3 py-1.5 bg-indigo-500 hover:bg-brand-blue text-white rounded-lg text-sm font-medium transition-colors flex items-center"
                  >
                    <Plus className="w-4 h-4 mr-2" />
@@ -462,7 +535,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                  </button>
                </>
              )}
-             {templates.length > 0 && (
+             {currentTemplateList.length > 0 && (
                <button
                  onClick={handleClearTemplate}
                  className="bg-red-500/10 text-red-400 hover:bg-red-500/20 px-3 py-1.5 rounded-lg text-sm font-medium border border-red-500/20 transition-colors"
@@ -472,14 +545,37 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
              )}
            </div>
         </div>
+        {/* Template Tabs */}
+        <div className="bg-[#121214] border-b border-white/[0.08] px-4 flex items-center gap-2 overflow-x-auto custom-scrollbar shrink-0 pt-1 pb-1">
+           {templateNames.map((name: string) => (
+             <button
+               key={name}
+               onClick={() => setActiveTemplateName(name)}
+               className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTemplateName === name ? 'text-brand-teal border-brand-teal' : 'text-zinc-400 border-transparent hover:text-zinc-200'}`}
+             >
+               {name}
+             </button>
+           ))}
+           <button
+             onClick={() => {
+               const newName = prompt('Enter a name for the new template:');
+               if (newName && newName.trim()) {
+                 setActiveTemplateName(newName.trim());
+               }
+             }}
+             className="px-3 py-1.5 ml-2 text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/[0.04] rounded-md flex items-center shrink-0 whitespace-nowrap transition-colors"
+           >
+             <Plus className="w-3.5 h-3.5 mr-1" /> New Template
+           </button>
+        </div>
         <div className="flex-1 overflow-x-auto p-4 flex gap-4 custom-scrollbar items-stretch bg-[#121214]/10 h-full">
-          {templates.length === 0 ? (
+          {currentTemplateList.length === 0 ? (
             <div className="text-zinc-500 text-sm py-8 w-full text-center bg-[#09090b] rounded-lg border border-white/[0.08] border-dashed h-fit">
-              No templates defined yet.
+              No shifts defined for this template yet.
             </div>
           ) : (
              displayDaysOrder.map(dayIdx => {
-               const dayTemplates = templates.filter(t => t.day_of_week === dayIdx).sort((a, b) => a.start_time.localeCompare(b.start_time));
+               const dayTemplates = currentTemplateList.filter(t => t.day_of_week === dayIdx).sort((a, b) => a.start_time.localeCompare(b.start_time));
                
                return (
                  <div key={dayIdx} className="flex-1 min-w-[120px] flex flex-col gap-3 h-full overflow-hidden">
@@ -503,9 +599,14 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                              </div>
                            </div>
                            {user?.role === 'ADMIN' && (
-                             <button onClick={() => handleDeleteTemplate(t.id)} className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04]">
-                               <Trash2 className="w-4 h-4" />
-                             </button>
+                             <div className="flex items-center gap-1 shrink-0">
+                               <button onClick={() => handleEditTemplate(t)} className="p-1.5 text-zinc-400 hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]">
+                                 <Edit2 className="w-4 h-4" />
+                               </button>
+                               <button onClick={() => handleDeleteTemplate(t.id)} className="p-1.5 text-zinc-400 hover:text-red-400 transition-colors rounded-md hover:bg-white/[0.04]">
+                                 <Trash2 className="w-4 h-4" />
+                               </button>
+                             </div>
                            )}
                          </div>
                          
@@ -581,7 +682,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-2xl max-w-[80vw] w-[80vw] h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#121214]">
               <div>
-                <h3 className="text-xl font-semibold text-white">Add Template Shift</h3>
+                <h3 className="text-xl font-semibold text-white">{editingTemplateId ? "Edit Template Shift" : "Add Template Shift"}</h3>
                 <p className="text-zinc-400 text-xs mt-1">
                   Multiple services on the same day/time will belong to ONE shift.
                 </p>
@@ -611,17 +712,21 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5 flex-1">
                   <div className="space-y-4 border-r border-white/[0.08] pr-5">
                     <div>
-                      <label className="block text-xs font-medium text-zinc-400 mb-2">Days of Week</label>
+                      <label className="block text-xs font-medium text-zinc-400 mb-2">{editingTemplateId ? "Day of Week" : "Days of Week"}</label>
                       <div className="flex flex-wrap gap-1.5">
                         {displayDaysOrder.map((idx) => (
                           <button
                             key={idx}
                             type="button"
                             onClick={() => {
-                              if (daysOfWeek.includes(idx)) {
-                                setDaysOfWeek(daysOfWeek.filter(d => d !== idx));
+                              if (editingTemplateId) {
+                                setDaysOfWeek([idx]);
                               } else {
-                                setDaysOfWeek([...daysOfWeek, idx]);
+                                if (daysOfWeek.includes(idx)) {
+                                  setDaysOfWeek(daysOfWeek.filter(d => d !== idx));
+                                } else {
+                                  setDaysOfWeek([...daysOfWeek, idx]);
+                                }
                               }
                             }}
                             className={`px-2 py-1 rounded text-xs font-medium transition-colors border ${daysOfWeek.includes(idx) ? 'bg-indigo-500/20 text-brand-teal border-brand-teal/30' : 'bg-[#121214] text-zinc-400 border-white/[0.08] hover:bg-zinc-800'}`}
@@ -751,8 +856,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 form="add-template-form"
                 className="px-5 py-2 bg-indigo-500 hover:bg-brand-blue text-white rounded-md text-sm font-medium transition-colors flex items-center shadow-sm"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Save Shift Template
+                {editingTemplateId ? <Edit2 className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                {editingTemplateId ? "Update Shift" : "Save Shift Template"}
               </button>
             </div>
           </div>
@@ -880,43 +985,86 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       )}
 
       {showConflictsModal && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div className="bg-[#121214] border border-white/[0.08] rounded-xl shadow-2xl max-w-lg w-full flex flex-col overflow-hidden">
-            <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#121214]/50">
-              <div>
-                <h3 className="text-lg font-medium text-white mb-4 flex items-center">
-                  <AlertCircle className="w-5 h-5 text-amber-500 mr-2" />
-                  Existing Shifts Found
-                </h3>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-[#121214] border border-white/[0.08] rounded-xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#18181b] rounded-t-xl shrink-0">
+              <div className="flex items-center">
+                <AlertCircle className="w-5 h-5 text-amber-500 mr-2.5" />
+                <h3 className="text-xl font-bold text-white tracking-tight">Roster Conflicts Warning</h3>
               </div>
-              <button onClick={() => setShowConflictsModal(false)} className="text-zinc-500 hover:text-zinc-300">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              <button onClick={() => setShowConflictsModal(false)} className="text-zinc-500 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
               </button>
             </div>
             
-            <div className="p-4">
-              <p className="text-zinc-300">
-                This client already has <strong className="text-white">{existingShiftsCount}</strong> scheduled shift(s) between {generateStartDate} and {generateEndDate}.
-              </p>
-              <p className="text-zinc-400 text-sm mt-3 border-l-2 border-amber-500 pl-3">
-                Building the roster will <strong>permanently replace all scheduled shifts</strong> for this client in the selected date range. Completed or In-Progress shifts will not be affected.
-              </p>
+            <div className="p-5 overflow-y-auto custom-scrollbar flex-1 space-y-6 bg-[#09090b]">
+              <div className="text-sm text-zinc-300">
+                Please review the items below. Proceeding will overwrite existing scheduled shifts in the selected date range.
+              </div>
+
+              {staffConflictsList.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-amber-400 uppercase tracking-wider flex items-center">
+                    <AlertCircle className="w-4 h-4 mr-1.5" />
+                    Staff Booking Conflicts ({staffConflictsList.length})
+                  </h4>
+                  <div className="bg-[#121214] border border-white/[0.05] rounded-lg p-3">
+                    <p className="text-xs text-zinc-400 mb-3 leading-snug">
+                      The following staff members are already booked or unavailable. Overwritten shifts will be created as <strong>Unassigned</strong>.
+                    </p>
+                    <ul className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-2">
+                      {staffConflictsList.map((c: any, i: number) => (
+                        <li key={i} className="flex flex-col bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-md">
+                          <span className="text-sm font-medium text-amber-100">{c.date} ({c.startTime} - {c.endTime})</span>
+                          <span className="text-xs text-amber-300/80 mt-0.5">{c.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {existingShiftsCount > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-rose-400 uppercase tracking-wider flex items-center">
+                    <Trash2 className="w-4 h-4 mr-1.5" />
+                    Existing Client Shifts to Overwrite ({existingShiftsCount})
+                  </h4>
+                  <div className="bg-[#121214] border border-white/[0.05] rounded-lg p-3">
+                     <p className="text-xs text-zinc-400 mb-3 leading-snug">
+                       Building the roster will <strong>permanently replace</strong> these scheduled shifts. Completed or In-Progress shifts will not be affected.
+                     </p>
+                     {clientConflictsList.length > 0 && (
+                       <ul className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                         {clientConflictsList.map((s: any) => (
+                           <li key={s.id} className="flex justify-between items-center bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-md">
+                             <span className="text-sm font-medium text-rose-100">{s.date} ({s.startTime} - {s.endTime})</span>
+                             <span className="text-[10px] uppercase font-bold text-rose-300 tracking-wider">To Be Replaced</span>
+                           </li>
+                         ))}
+                       </ul>
+                     )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="p-4 border-t border-white/[0.08] bg-[#121214]/50 flex justify-end gap-3">
+            <div className="p-5 border-t border-white/[0.08] bg-[#18181b] rounded-b-xl flex justify-end gap-3 shrink-0">
               <button 
                 onClick={() => setShowConflictsModal(false)}
                 disabled={resolvingConflicts}
-                className="flex items-center px-4 py-2 bg-brand-blue hover:bg-brand-teal text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto"
+                className="px-5 py-2 hover:bg-white/[0.04] text-zinc-300 hover:text-white rounded-md text-sm font-medium transition-colors"
+                type="button"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleResolveConflicts}
                 disabled={resolvingConflicts}
-                className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded text-sm font-medium transition-colors flex items-center"
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-md text-sm font-medium transition-all flex items-center shadow-md active:scale-95"
+                type="button"
               >
-                {resolvingConflicts ? 'Replacing...' : 'Replace Scheduled Shifts'}
+                {resolvingConflicts ? 'Overwriting...' : 'Overwrite & Build Shifts'}
               </button>
             </div>
           </div>
