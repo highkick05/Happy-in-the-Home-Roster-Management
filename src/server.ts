@@ -5770,6 +5770,21 @@ async function startServer() {
         let existingShiftsCount = 0;
         let existingClientShifts: any[] = [];
 
+        const settingsRows = db
+          .prepare("SELECT key, value FROM settings")
+          .all() as any[];
+        const settingsMap: any = {};
+        settingsRows.forEach((r) => {
+          try {
+            settingsMap[r.key] = JSON.parse(r.value);
+          } catch {
+            settingsMap[r.key] = r.value;
+          }
+        });
+        let rawTz3 = settingsMap.timezone || "Australia/Perth";
+        const timezone =
+          typeof rawTz3 === "string" ? rawTz3.replace(/['"]+/g, "") : rawTz3;
+
         if (dryRun) {
           const existingRows = db
             .prepare(
@@ -5790,27 +5805,12 @@ async function startServer() {
              return {
                id: r.id,
                date: formattedDate,
-               startTime: startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-               endTime: endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+               startTime: startDate.toLocaleTimeString(['en-AU', 'en-US'], { hour: '2-digit', minute: '2-digit', timeZone: timezone }),
+               endTime: endDate.toLocaleTimeString(['en-AU', 'en-US'], { hour: '2-digit', minute: '2-digit', timeZone: timezone }),
                status: r.status
              };
           });
         }
-
-        const settingsRows = db
-          .prepare("SELECT key, value FROM settings")
-          .all() as any[];
-        const settingsMap: any = {};
-        settingsRows.forEach((r) => {
-          try {
-            settingsMap[r.key] = JSON.parse(r.value);
-          } catch {
-            settingsMap[r.key] = r.value;
-          }
-        });
-        let rawTz3 = settingsMap.timezone || "Australia/Perth";
-        const timezone =
-          typeof rawTz3 === "string" ? rawTz3.replace(/['"]+/g, "") : rawTz3;
 
         const dateFormatterAPI = getSafeDateTimeFormat("en-CA", {
           timeZone: timezone,
@@ -5953,7 +5953,6 @@ async function startServer() {
               }
 
               if (dryRun) continue; // Do not INSERT if dry run
-              if (!assignedStaffId) continue; // Skip creating shift if there is a conflict and no staff
 
               let servicesData = [];
               let isAbtApproved = false;
@@ -6386,8 +6385,6 @@ async function startServer() {
                 assignedStaffId = null; // Unassigned
               }
             }
-
-            if (!assignedStaffId) continue; // Skip creating shift if there is a conflict and no staff
 
             const localNoon = new Date(`${shiftDateStr}T12:00:00Z`);
             const dayOfWeek = localNoon.getUTCDay(); // 0 is Sunday, 6 is Saturday

@@ -153,7 +153,7 @@ export default function RosterCalendar() {
   }, [clientList, clientFilter, setClientFilter]);
 
   useEffect(() => {
-    if (staffList.length > 0 && staffFilter) {
+    if (staffList.length > 0 && staffFilter && staffFilter !== 'unassigned') {
       const recordExists = staffList.some((s: any) => s.id.toString() === staffFilter);
       if (!recordExists) {
         setStaffFilter('');
@@ -403,7 +403,14 @@ export default function RosterCalendar() {
       return false;
     }
 
-    if (staffFilter) {
+    if (staffFilter === 'unassigned') {
+      if (e.isRespiteWrapper && e.respiteData?.shifts) {
+        const isStaffAssigned = e.respiteData.shifts.some((s: any) => !s.staff_id);
+        if (!isStaffAssigned) return false;
+      } else {
+        if (e.staffId !== null && e.staffId !== undefined) return false;
+      }
+    } else if (staffFilter) {
       if (e.isRespiteWrapper && e.respiteData?.shifts) {
         // For respite bookings, check if the staff is assigned to any of the child shifts
         const isStaffAssigned = e.respiteData.shifts.some((s: any) => s.staff_id?.toString() === staffFilter);
@@ -985,6 +992,7 @@ export default function RosterCalendar() {
                 className="bg-brand-bg border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
               >
                 <option value="">All Staff</option>
+                <option value="unassigned">Unassigned Staff</option>
                 {staffList.map(s => (
                   <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
                 ))}
