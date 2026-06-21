@@ -6125,7 +6125,7 @@ async function startServer() {
                         isAbtApproved = true;
                         sData.qtyOverride = 0;
                       }
-                      if (srv.rates_json) {
+                      if (srv.rates_json && (sData.rateOverride === undefined || sData.rateOverride === null || sData.rateOverride === "")) {
                         try {
                           const rates = JSON.parse(srv.rates_json);
                           if (srv.type === "HOME_CARE") {
