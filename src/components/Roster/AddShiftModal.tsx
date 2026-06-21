@@ -36,6 +36,9 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
   const [notes, setNotes] = useState('');
   const [servicesData, setServicesData] = useState<ServiceFormEntry[]>([]);
 
+  const [showConflictsModal, setShowConflictsModal] = useState(false);
+  const [conflictList, setConflictList] = useState<any[]>([]);
+
   useEffect(() => {
     if (isOpen) {
       setStaffId(initialData?.staffId || '');
@@ -236,12 +239,9 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
      }
   };
 
-  const [showConflictsModal, setShowConflictsModal] = useState(false);
-  const [conflictList, setConflictList] = useState<any[]>([]);
-
   const saveData = async (ignoreConflicts = false) => {
-    if (!staffId || !clientId || !startDate || !endTime) {
-      alert("Please select staff, client, start date, and times.");
+    if (!clientId || !startDate || !endTime) {
+      alert("Please select client, start date, and times.");
       return;
     }
 
@@ -272,7 +272,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
       const method = isEditing ? 'PUT' : 'POST';
 
       const bodyData: any = {
-        staffId: parseInt(staffId),
+        staffId: staffId ? parseInt(staffId) : null,
         clientId: parseInt(clientId),
         serviceId: servicesData.length > 0 ? parseInt(servicesData[0].serviceId) : null,
         startTime: start.toISOString(),
@@ -356,14 +356,13 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
             {/* Left Column: Core Info */}
             <div className="md:w-[320px] shrink-0 space-y-4">
               <div>
-                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Staff Member *</label>
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Staff Member (Optional)</label>
                 <select 
-                  required
                   value={staffId}
                   onChange={e => setStaffId(e.target.value)}
                   className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
                 >
-                  <option value="">Select Staff</option>
+                  <option value="">Unassigned</option>
                   {staffList.map(s => (
                     <option key={s.id} value={s.id}>{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
                   ))}
