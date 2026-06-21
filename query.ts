@@ -1,2 +1,4 @@
 import db from './db.js';
-console.log(db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='clients'").get());
+
+console.log(JSON.stringify(db.pragma("table_info(shifts)"), null, 2));
+

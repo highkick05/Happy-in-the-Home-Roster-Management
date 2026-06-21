@@ -144,6 +144,85 @@ async function startServer() {
 
   // Run database migrations/column additions
   try {
+    const tableInfo = db.pragma("table_info(shifts)") as any[];
+    const staffIdCol = tableInfo.find(c => c.name === 'staff_id');
+    if (staffIdCol && staffIdCol.notnull === 1) {
+      console.log("[DEBUG] Modifying shifts table to allow NULL staff_id...");
+      
+      const existingColumns = tableInfo.map(c => c.name);
+      
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        
+        CREATE TABLE IF NOT EXISTS shifts_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          staff_id INTEGER,
+          client_id INTEGER NOT NULL,
+          service_id INTEGER,
+          respite_booking_id INTEGER,
+          start_time DATETIME NOT NULL,
+          end_time DATETIME NOT NULL,
+          status TEXT NOT NULL DEFAULT 'DRAFT',
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          actual_start_time TEXT,
+          actual_finish_time TEXT,
+          odometer_start_reading TEXT,
+          odometer_start_photo TEXT,
+          odometer_end_reading TEXT,
+          odometer_end_photo TEXT,
+          funding_type TEXT DEFAULT 'NDIS',
+          provider_travel_km REAL DEFAULT 0,
+          provider_travel_cost REAL DEFAULT 0,
+          abt_km REAL DEFAULT 0,
+          abt_cost REAL DEFAULT 0,
+          transport_route_log TEXT,
+          services_json TEXT,
+          home_care_travel_km REAL DEFAULT 0,
+          home_care_travel_total REAL DEFAULT 0,
+          batch_id TEXT,
+          custom_staff_name TEXT,
+          is_abt_approved INTEGER DEFAULT 0,
+          travel_breakdown TEXT,
+          FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE RESTRICT,
+          FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
+          FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE RESTRICT,
+          FOREIGN KEY (respite_booking_id) REFERENCES respite_bookings(id) ON DELETE CASCADE
+        );
+      `);
+      
+      // Get columns common to both tables
+      const newTableInfo = db.pragma("table_info(shifts_new)") as any[];
+      const newColumns = newTableInfo.map(c => c.name);
+      const commonColumns = existingColumns.filter(c => newColumns.includes(c)).join(', ');
+      
+      db.exec(`
+        INSERT INTO shifts_new (${commonColumns})
+        SELECT ${commonColumns} FROM shifts;
+      
+        DROP TABLE shifts;
+        ALTER TABLE shifts_new RENAME TO shifts;
+      
+        CREATE INDEX IF NOT EXISTS idx_shifts_client_id ON shifts(client_id);
+        CREATE INDEX IF NOT EXISTS idx_shifts_staff_id ON shifts(staff_id);
+        CREATE INDEX IF NOT EXISTS idx_shifts_status ON shifts(status);
+        CREATE INDEX IF NOT EXISTS idx_shifts_start_time ON shifts(start_time);
+        CREATE INDEX IF NOT EXISTS idx_shifts_client_start_time ON shifts(client_id, start_time);
+        CREATE INDEX IF NOT EXISTS idx_shifts_staff_start_time ON shifts(staff_id, start_time);
+        CREATE INDEX IF NOT EXISTS idx_shifts_status_start_time ON shifts(status, start_time);
+        CREATE INDEX IF NOT EXISTS idx_shifts_service ON shifts(service_id);
+        CREATE INDEX IF NOT EXISTS idx_shifts_funding ON shifts(funding_type);
+        CREATE INDEX IF NOT EXISTS idx_shifts_time ON shifts(start_time, end_time); 
+      
+        PRAGMA foreign_keys = ON;
+      `);
+      console.log("[DEBUG] Completed shifts null staff_id migration.");
+    }
+  } catch (e: any) {
+    console.warn("Migration warning for shifts table:", e.message);
+  }
+
+  try {
     db.exec(
       "ALTER TABLE providers ADD COLUMN provider_type TEXT DEFAULT 'NDIS'",
     );
