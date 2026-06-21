@@ -392,6 +392,51 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     }
   };
 
+  const handleRenameTemplate = async (oldName: string) => {
+    const newName = prompt(`Enter new name for "${oldName}":`, oldName);
+    if (!newName || !newName.trim() || newName.trim() === oldName) return;
+    
+    if (newName.trim() === "Default Template") {
+      alert("Cannot rename to Default Template.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/clients/${clientId}/roster-templates/rename`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ oldName, newName: newName.trim() })
+      });
+      if (res.ok) {
+        setCustomTemplateNames(prev => [...prev.filter(n => n !== oldName), newName.trim()]);
+        if (activeTemplateName === oldName) setActiveTemplateName(newName.trim());
+        fetchData();
+      } else {
+        alert('Failed to rename template.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error occurred.');
+    }
+  };
+
+  const handleDeleteTemplateTab = async (name: string) => {
+    if (!confirm(`Are you sure you want to completely delete the template "${name}"? This removes all its shifts.`)) return;
+    try {
+      const res = await fetch(`/api/clients/${clientId}/roster-templates/clear?templateName=${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setCustomTemplateNames(prev => prev.filter(n => n !== name));
+        if (activeTemplateName === name) setActiveTemplateName('Default Template');
+        fetchData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleEditTemplate = (t: any) => {
     setEditingTemplateId(t.id);
     setDaysOfWeek([t.day_of_week]);
@@ -513,13 +558,36 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         {/* Template Tabs */}
         <div className="bg-[#121214] border-b border-white/[0.08] px-4 flex items-center gap-2 overflow-x-auto custom-scrollbar shrink-0 pt-1 pb-1">
            {templateNames.map((name: string) => (
-             <button
-               key={name}
-               onClick={() => setActiveTemplateName(name)}
-               className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTemplateName === name ? 'text-brand-teal border-brand-teal' : 'text-zinc-400 border-transparent hover:text-zinc-200'}`}
-             >
-               {name}
-             </button>
+             <div key={name} className={`group flex items-center border-b-2 transition-colors ${activeTemplateName === name ? 'border-brand-teal' : 'border-transparent'}`}>
+               <button
+                 onClick={() => setActiveTemplateName(name)}
+                 className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${activeTemplateName === name ? 'text-brand-teal' : 'text-zinc-400 hover:text-zinc-200'}`}
+               >
+                 {name}
+               </button>
+               {name !== 'Default Template' && (
+                 <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity pr-2 space-x-1">
+                   <button
+                     onClick={(e) => {
+                        e.stopPropagation();
+                        handleRenameTemplate(name);
+                     }}
+                     className="text-zinc-500 hover:text-brand-teal p-1"
+                   >
+                     <Edit2 className="w-3.5 h-3.5" />
+                   </button>
+                   <button
+                     onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteTemplateTab(name);
+                     }}
+                     className="text-zinc-500 hover:text-red-400 p-1"
+                   >
+                     <Trash2 className="w-3.5 h-3.5" />
+                   </button>
+                 </div>
+               )}
+             </div>
            ))}
            <button
              onClick={() => {

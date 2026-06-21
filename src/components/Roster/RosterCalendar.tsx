@@ -207,7 +207,7 @@ export default function RosterCalendar() {
           end: new Date(d.end_time),
           staffId: d.staff_id,
           resourceId: d.staff_id, // required for react-big-calendar resource view
-          staffName: `${d.staff_first_name} ${d.staff_last_name}`,
+          staffName: d.staff_id ? `${d.staff_first_name} ${d.staff_last_name}` : 'Unassigned',
           clientId: d.client_id,
           clientName: `${d.client_first_name} ${d.client_last_name}`,
           status: d.status,
@@ -259,7 +259,7 @@ export default function RosterCalendar() {
                 end: new Date(s.end_time),
                 staffId: s.staff_id,
                 resourceId: s.staff_id,
-                staffName: `${s.staff_first_name} ${s.staff_last_name}`,
+                staffName: s.staff_id ? `${s.staff_first_name} ${s.staff_last_name}` : 'Unassigned',
                 clientId: d.client_id,
                 clientName: `${d.client_first_name} ${d.client_last_name}`,
                 status: s.status,

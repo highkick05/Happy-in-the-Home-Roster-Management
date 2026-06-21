@@ -5714,6 +5714,25 @@ async function startServer() {
     },
   );
 
+  app.put(
+    "/api/clients/:id/roster-templates/rename",
+    authenticateToken,
+    requireAdmin,
+    (req: any, res: any) => {
+      try {
+        const { oldName, newName } = req.body;
+        if (!oldName || !newName) return res.status(400).json({ error: "Missing names" });
+        db.prepare(
+          "UPDATE client_roster_templates SET template_name = ? WHERE client_id = ? AND template_name = ?",
+        ).run(newName, req.params.id, oldName);
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
+
   app.delete(
     "/api/clients/:id/roster-templates/clear",
     authenticateToken,
