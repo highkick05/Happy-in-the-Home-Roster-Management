@@ -5946,7 +5946,7 @@ async function startServer() {
                     date: formattedDate,
                     startTime: tmpl.start_time,
                     endTime: tmpl.end_time,
-                    message: `${staffName} is already booked with ${cName} (${cStart.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} - ${cEnd.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}).`,
+                    message: `${staffName} is already booked with ${cName} (${cStart.toLocaleTimeString(['en-AU', 'en-US'], {hour: '2-digit', minute: '2-digit', timeZone: timezone})} - ${cEnd.toLocaleTimeString(['en-AU', 'en-US'], {hour: '2-digit', minute: '2-digit', timeZone: timezone})}).`,
                   });
                   assignedStaffId = null; // Unassigned
                 }
@@ -6381,7 +6381,7 @@ async function startServer() {
                   date: formattedDate,
                   startTime: tmpl.start_time,
                   endTime: tmpl.end_time,
-                  message: `${staffName} is already booked with ${cName} (${cStart.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} - ${cEnd.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}).`,
+                  message: `${staffName} is already booked with ${cName} (${cStart.toLocaleTimeString(['en-AU', 'en-US'], {hour: '2-digit', minute: '2-digit', timeZone: timezone})} - ${cEnd.toLocaleTimeString(['en-AU', 'en-US'], {hour: '2-digit', minute: '2-digit', timeZone: timezone})}).`,
                 });
                 assignedStaffId = null; // Unassigned
               }
