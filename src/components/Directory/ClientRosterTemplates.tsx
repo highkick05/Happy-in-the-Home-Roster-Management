@@ -42,16 +42,15 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   // New template form state
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
   const [activeTemplateName, setActiveTemplateName] = useState('Default Template');
+  const [customTemplateNames, setCustomTemplateNames] = useState<string[]>(['Default Template']);
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
 
   const templateNames = useMemo(() => {
-    const names = Array.from(new Set(templates.map(t => t.template_name || 'Default Template')));
-    if (activeTemplateName && !names.includes(activeTemplateName)) {
-      names.push(activeTemplateName);
-    }
+    const fromData = templates.map(t => t.template_name || 'Default Template');
+    const names = Array.from(new Set([...customTemplateNames, ...fromData, activeTemplateName]));
     if (names.length === 0) names.push('Default Template');
     return names;
-  }, [templates, activeTemplateName]);
+  }, [templates, activeTemplateName, customTemplateNames]);
 
   const currentTemplateList = useMemo(() => {
     return templates.filter(t => (t.template_name || 'Default Template') === activeTemplateName);
@@ -557,7 +556,9 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
              onClick={() => {
                const newName = prompt('Enter a name for the new template:');
                if (newName && newName.trim()) {
-                 setActiveTemplateName(newName.trim());
+                 const trimmedName = newName.trim();
+                 setCustomTemplateNames(prev => Array.from(new Set([...prev, trimmedName])));
+                 setActiveTemplateName(trimmedName);
                }
              }}
              className="px-3 py-1.5 ml-2 text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/[0.04] rounded-md flex items-center shrink-0 whitespace-nowrap transition-colors"
