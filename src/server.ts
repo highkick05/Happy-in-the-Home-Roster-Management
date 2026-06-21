@@ -5934,8 +5934,8 @@ async function startServer() {
                     ? `${userRow.first_name} ${userRow.last_name}`
                     : `Staff ID ${assignedStaffId}`;
 
-                  const cRow = conflict.client_id ? db.prepare('SELECT first_name, last_name, preferred_name FROM clients WHERE id = ?').get(conflict.client_id) as any : null;
-                  const cName = cRow ? (cRow.preferred_name || `${cRow.first_name} ${cRow.last_name}`) : 'Unknown Client';
+                  const cRow = conflict.client_id ? db.prepare('SELECT first_name, last_name FROM clients WHERE id = ?').get(conflict.client_id) as any : null;
+                  const cName = cRow ? `${cRow.first_name} ${cRow.last_name}` : 'Unknown Client';
                   const cStart = new Date(conflict.start_time);
                   const cEnd = new Date(conflict.end_time);
 
@@ -6369,8 +6369,8 @@ async function startServer() {
                   ? `${userRow.first_name} ${userRow.last_name}`
                   : `Staff ID ${assignedStaffId}`;
 
-                const cRow = conflict.client_id ? db.prepare('SELECT first_name, last_name, preferred_name FROM clients WHERE id = ?').get(conflict.client_id) as any : null;
-                const cName = cRow ? (cRow.preferred_name || `${cRow.first_name} ${cRow.last_name}`) : 'Unknown Client';
+                const cRow = conflict.client_id ? db.prepare('SELECT first_name, last_name FROM clients WHERE id = ?').get(conflict.client_id) as any : null;
+                const cName = cRow ? `${cRow.first_name} ${cRow.last_name}` : 'Unknown Client';
                 const cStart = new Date(conflict.start_time);
                 const cEnd = new Date(conflict.end_time);
 
