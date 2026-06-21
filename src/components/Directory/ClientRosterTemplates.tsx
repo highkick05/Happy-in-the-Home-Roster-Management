@@ -159,6 +159,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   const [showRunBuilderModal, setShowRunBuilderModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [existingShiftsCount, setExistingShiftsCount] = useState(0);
+  const [clearExisting, setClearExisting] = useState(false);
   const [clientConflictsList, setClientConflictsList] = useState<any[]>([]);
   const [selectedConflictsToOverwrite, setSelectedConflictsToOverwrite] = useState<Set<number>>(new Set());
   const [resolvingConflicts, setResolvingConflicts] = useState(false);
@@ -467,7 +468,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: activeTemplateName })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: activeTemplateName, clearExisting })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -498,7 +499,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: activeTemplateName })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: activeTemplateName, clearExisting })
       });
       const data = await res.json();
       
@@ -1005,6 +1006,19 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 </div>
               </div>
               
+              <div className="flex items-center gap-2 mt-4 pb-2">
+                <input 
+                  type="checkbox" 
+                  id="clearExisting" 
+                  checked={clearExisting} 
+                  onChange={(e) => setClearExisting(e.target.checked)} 
+                  className="w-4 h-4 bg-transparent border-white/[0.2] rounded text-brand-teal focus:ring-brand-teal focus:ring-offset-bg-black"
+                />
+                <label htmlFor="clearExisting" className="text-sm font-medium text-zinc-300 select-none cursor-pointer">
+                  Clear all existing client shifts in this period 
+                </label>
+              </div>
+
               <div className="bg-brand-blue/10 border border-brand-blue/20 rounded-lg p-3 text-sm text-brand-blue">
                 This will automatically create draft shifts for this client based on their active templates for the selected period.
               </div>

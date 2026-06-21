@@ -5820,7 +5820,7 @@ async function startServer() {
     requireAdmin,
     async (req: any, res: any) => {
       try {
-        const { startDate, endDate, overwriteConflicts, dryRun, templateName = "Default Template" } = req.body;
+        const { startDate, endDate, overwriteConflicts, dryRun, templateName = "Default Template", clearExisting = false } = req.body;
         const clientId = req.params.id;
 
         if (!startDate || !endDate)
@@ -5883,7 +5883,7 @@ async function startServer() {
         const timezone =
           typeof rawTz3 === "string" ? rawTz3.replace(/['"]+/g, "") : rawTz3;
 
-        if (dryRun) {
+        if (dryRun && clearExisting) {
           const existingRows = db
             .prepare(
               `SELECT * FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND status NOT IN ('COMPLETED', 'IN_PROGRESS') ORDER BY start_time ASC`,
@@ -5897,7 +5897,6 @@ async function startServer() {
           existingClientShifts = existingRows.map((r: any) => {
              const startDate = new Date(r.start_time);
              const endDate = new Date(r.end_time);
-             // r.start_time is an ISO string so start_time.split("T")[0] is YYYY-MM-DD
              const dateParts = r.start_time.split("T")[0].split("-");
              const formattedDate = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : r.start_time.split("T")[0];
              return {
@@ -5927,7 +5926,7 @@ async function startServer() {
         const affectedStaffDates = new Set<string>();
 
         db.transaction(() => {
-          if (!dryRun && overwriteConflicts === "all") {
+          if (!dryRun && overwriteConflicts === "all" && clearExisting) {
             db.prepare(
               `DELETE FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND status NOT IN ('COMPLETED', 'IN_PROGRESS')`,
             ).run(
@@ -5976,16 +5975,12 @@ async function startServer() {
                 // If they didn't approve wipe, we shouldn't continue, but just for safety.
               }
 
-              // Check if there is an overlapping COMPLETED or IN_PROGRESS shift for this client
+              const overlapCheckSql = clearExisting
+                ? `SELECT id FROM shifts WHERE client_id = ? AND status IN ('COMPLETED', 'IN_PROGRESS') AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))`
+                : `SELECT id FROM shifts WHERE client_id = ? AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))`;
+
               const clientPreservedConflict = db
-                .prepare(
-                  `
-              SELECT id FROM shifts 
-              WHERE client_id = ? 
-              AND status IN ('COMPLETED', 'IN_PROGRESS')
-              AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))
-            `,
-                )
+                .prepare(overlapCheckSql)
                 .get(
                   clientId,
                   endDateTime.toISOString(),
