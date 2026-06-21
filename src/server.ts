@@ -2628,7 +2628,7 @@ async function startServer() {
     try {
       const rows = db
         .prepare(
-          'SELECT key, value FROM settings WHERE key IN ("hcpFundingLevels", "sahFundingLevels")',
+          "SELECT key, value FROM settings WHERE key IN ('hcpFundingLevels', 'sahFundingLevels')",
         )
         .all() as any[];
       const settings = rows.reduce(

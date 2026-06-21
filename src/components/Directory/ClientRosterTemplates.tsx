@@ -46,15 +46,12 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
   const templateNames = useMemo(() => {
     const names = Array.from(new Set(templates.map(t => t.template_name || 'Default Template')));
+    if (activeTemplateName && !names.includes(activeTemplateName)) {
+      names.push(activeTemplateName);
+    }
     if (names.length === 0) names.push('Default Template');
     return names;
-  }, [templates]);
-
-  useEffect(() => {
-    if (!templateNames.includes(activeTemplateName) && templateNames.length > 0) {
-      setActiveTemplateName(templateNames[0]);
-    }
-  }, [templateNames, activeTemplateName]);
+  }, [templates, activeTemplateName]);
 
   const currentTemplateList = useMemo(() => {
     return templates.filter(t => (t.template_name || 'Default Template') === activeTemplateName);
