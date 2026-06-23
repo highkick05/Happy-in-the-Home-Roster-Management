@@ -173,6 +173,7 @@ async function startServer() {
           odometer_end_photo TEXT,
           funding_type TEXT DEFAULT 'NDIS',
           provider_travel_km REAL DEFAULT 0,
+          provider_travel_minutes REAL DEFAULT 0,
           provider_travel_cost REAL DEFAULT 0,
           abt_km REAL DEFAULT 0,
           abt_cost REAL DEFAULT 0,
@@ -258,6 +259,15 @@ async function startServer() {
   try {
     db.exec("ALTER TABLE shifts ADD COLUMN custom_staff_name TEXT");
     console.log("[DEBUG] Completed custom_staff_name column check.");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
+    db.exec("ALTER TABLE shifts ADD COLUMN provider_travel_minutes REAL DEFAULT 0");
+    console.log("[DEBUG] Completed provider_travel_minutes column check.");
   } catch (e: any) {
     if (e.message && !e.message.includes("duplicate column")) {
       console.warn("Migration warning:", e.message);
