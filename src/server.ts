@@ -8522,12 +8522,29 @@ async function startServer() {
             shift.funding_type === "HCP" ||
             shift.funding_type === "Home Care" ||
             shift.funding_type === "HOME_CARE";
+
+          let calculatedMins = shift.provider_travel_minutes || 0;
+          if (isHomeCare && calculatedMins === 0 && shift.travel_breakdown) {
+              try {
+                  const breakdown = JSON.parse(shift.travel_breakdown);
+                  for (const b of breakdown) {
+                      const m = b.match(/\(([0-9.]+) mins\)/);
+                      if (m) calculatedMins += parseFloat(m[1]);
+                  }
+                  if (calculatedMins > 0) {
+                      try {
+                          db.prepare("UPDATE shifts SET provider_travel_minutes = ? WHERE id = ?").run(calculatedMins, shift.id);
+                      } catch(e) {}
+                  }
+              } catch(e) {}
+          }
+
           const hc_travel_km = shift.respite_booking_id
             ? 0
             : shift.provider_travel_km || shift.home_care_travel_km || 0;
           const hc_travel_hrs = shift.respite_booking_id
             ? 0
-            : (shift.provider_travel_minutes || 0) / 60;
+            : calculatedMins / 60;
           const hc_travel_total = shift.respite_booking_id
             ? 0
             : shift.home_care_travel_total || 0;
