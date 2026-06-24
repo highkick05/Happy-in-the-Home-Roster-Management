@@ -9897,7 +9897,7 @@ async function startServer() {
     authenticateToken,
     requireAdmin,
     (req: any, res: any) => {
-      const { clientId, activityName, date, services, importantNotes } =
+      const { clientId, activityName, date, endDate, services, importantNotes } =
         req.body;
       try {
         const prefix = "QUO";
@@ -9933,8 +9933,16 @@ async function startServer() {
         const dayOfWeek = getTzDayOfWeek(parsedDate, timezone);
 
         if (services && Array.isArray(services)) {
-          if (req.body.gstType && services.length > 0) {
-            services[0].gstType = req.body.gstType;
+          if (services.length > 0) {
+            if (req.body.gstType) {
+              services[0].gstType = req.body.gstType;
+            }
+            if (req.body.date) {
+              services[0].startDate = req.body.date;
+            }
+            if (req.body.endDate) {
+              services[0].endDate = req.body.endDate;
+            }
           }
 
           services.forEach((sd) => {
@@ -10100,26 +10108,45 @@ async function startServer() {
           quoteDateStr = String(quote.activity_date);
         }
 
-        let activityDateStr = "";
-        try {
-          activityDateStr = dateFormatter
-            .format(new Date(quote.activity_date))
-            .replace(/\//g, "-");
-        } catch (e) {
-          activityDateStr = String(quote.activity_date);
-        }
-
         let servicesData: any[] = [];
         try {
           if (quote.services_json)
             servicesData = JSON.parse(quote.services_json);
-        } catch (e) {
+        } catch (e: any) {
           if (
             e.message &&
             !e.message.includes("duplicate column") &&
             !e.message.includes("no such column")
           )
             logger.warn("Migration/Query warning:", e.message);
+        }
+
+        let activityDateStr = "";
+        try {
+          activityDateStr = dateFormatter
+            .format(new Date(quote.activity_date))
+            .replace(/\//g, "-");
+          if (servicesData.length > 0 && servicesData[0].endDate) {
+             const endStr = dateFormatter.format(new Date(servicesData[0].endDate)).replace(/\//g, "-");
+             activityDateStr = `${activityDateStr} to ${endStr}`;
+          }
+        } catch (e) {
+          activityDateStr = String(quote.activity_date);
+        }
+
+        let paymentDueDays = 14;
+        try {
+           paymentDueDays = settingsMap.paymentDueDays ? parseInt(settingsMap.paymentDueDays) : 14;
+           if (isNaN(paymentDueDays)) paymentDueDays = 14;
+        } catch(e) {}
+        
+        let validUntilStr = "";
+        try {
+           const d = new Date(quote.created_at || Date.now());
+           d.setDate(d.getDate() + paymentDueDays);
+           validUntilStr = dateFormatter.format(d).replace(/\//g, "-");
+        } catch(e) {
+           validUntilStr = quoteDateStr;
         }
 
         const parsedDate = new Date(quote.activity_date || Date.now());
@@ -10280,6 +10307,7 @@ async function startServer() {
           50,
           topY + 60,
         );
+        doc.text(`ABN: ${settingsMap.abn || "12 345 678 910"}`, 50, topY + 75);
 
         doc
           .font("Helvetica-Bold")
@@ -10295,7 +10323,7 @@ async function startServer() {
           .font("Helvetica-Bold")
           .text("Valid Until: ", 350, topY + 30)
           .font("Helvetica")
-          .text(quoteDateStr, 415, topY + 30); // You can add actual valid until logic if needed
+          .text(validUntilStr, 415, topY + 30);
 
         // Participant Details Box
         const partY = 230;

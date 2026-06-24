@@ -9,6 +9,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
     clientId: '',
     activityName: '',
     date: new Date().toISOString().split('T')[0],
+    endDate: '',
     importantNotes: '',
     gstType: 'GST Free'
   });
@@ -162,7 +163,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
 
   return (
     <form onSubmit={handleSubmit} className="p-5 space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Client</label>
           <select
@@ -181,7 +182,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
           </select>
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Date of Activity</label>
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Start Date</label>
           <CustomDatePicker
             position="bottom"
             required
@@ -191,7 +192,16 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">GST Configuration</label>
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">End Date</label>
+          <CustomDatePicker
+            position="bottom"
+            className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none font-mono text-sm"
+            value={formData.endDate}
+            onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">GST Config</label>
           <select
             className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none font-mono text-sm"
             value={formData.gstType}
