@@ -10100,12 +10100,12 @@ async function startServer() {
 
         let quoteDateStr = "";
         try {
-          // Use activity_date as requested
+          const createdAtDate = quote.created_at ? new Date(quote.created_at.replace(" ", "T") + (quote.created_at.includes("Z") ? "" : "Z")) : new Date();
           quoteDateStr = dateFormatter
-            .format(new Date(quote.activity_date))
+            .format(createdAtDate)
             .replace(/\//g, "-");
         } catch (e) {
-          quoteDateStr = String(quote.activity_date);
+          quoteDateStr = dateFormatter.format(new Date()).replace(/\//g, "-");
         }
 
         let servicesData: any[] = [];
@@ -10142,7 +10142,7 @@ async function startServer() {
         
         let validUntilStr = "";
         try {
-           const d = new Date(quote.created_at || Date.now());
+           const d = quote.created_at ? new Date(quote.created_at.replace(" ", "T") + (quote.created_at.includes("Z") ? "" : "Z")) : new Date();
            d.setDate(d.getDate() + paymentDueDays);
            validUntilStr = dateFormatter.format(d).replace(/\//g, "-");
         } catch(e) {
@@ -10292,22 +10292,20 @@ async function startServer() {
           .font("Helvetica-Bold")
           .fillColor("black")
           .text("From:", 50, topY);
-        doc
-          .fontSize(10)
-          .font("Helvetica")
-          .text(settingsMap.businessName || "Happy in the Home", 50, topY + 15);
-        doc.text(settingsMap.businessPhone || "0400000000", 50, topY + 30);
-        doc.text(
-          settingsMap.businessEmail || "info@happyinthehome.org",
-          50,
-          topY + 45,
-        );
-        doc.text(
-          settingsMap.businessAddress || "123 Care Lane, Sydney NSW 2000",
-          50,
-          topY + 60,
-        );
-        doc.text(`ABN: ${settingsMap.abn || "12 345 678 910"}`, 50, topY + 75);
+          
+        const fromLines: string[] = [];
+        fromLines.push(settingsMap.businessName || "Happy in the Home");
+        if (settingsMap.businessPhone && settingsMap.businessPhone.trim() !== "0400000000" && settingsMap.businessPhone.trim() !== "") {
+          fromLines.push(settingsMap.businessPhone.trim());
+        }
+        fromLines.push(settingsMap.businessEmail || "info@happyinthehome.org");
+        fromLines.push(settingsMap.businessAddress || "123 Care Lane, Sydney NSW 2000");
+        fromLines.push(`ABN: ${settingsMap.abn || "12 345 678 910"}`);
+
+        doc.fontSize(10).font("Helvetica");
+        fromLines.forEach((line, idx) => {
+          doc.text(line, 50, topY + 15 + (idx * 15));
+        });
 
         doc
           .font("Helvetica-Bold")
@@ -10485,7 +10483,6 @@ async function startServer() {
           "Remote Billing: This quote is calculated using the NDIS Price Guide for Remote (MMM 6) locations.\n" +
           "Transport: Final transport billing will be based on verified logbook odometer readings at a rate of $1.00 per kilometer.\n" +
           "Exclusions: NDIS funding does not cover personal expenses such as meals, snacks, or activity entry fees. These are out-of-pocket costs for the participant.\n" +
-          "Goal Alignment: This support is designed to facilitate community participation and social engagement goals.\n" +
           "Cancellations: Charges for cancellations will be applied in accordance with the current NDIS Pricing Arrangements and Price Limits.";
 
         const customNotes = quote.important_notes
