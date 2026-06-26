@@ -38,7 +38,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   // Choose the context user
   const contextUserId = targetUserId || user?.id;
   
-  const [expandedStep, setExpandedStep] = useState<string | null>('tfn_super');
+  const [expandedStep, setExpandedStep] = useState<string | null>(null);
   const [progressData, setProgressData] = useState<Record<string, { status: 'completed' | 'pending'; fileId?: number | null; files?: { id: number; name: string, date_expires?: string, date_issued?: string }[] }>>({});
   const [loading, setLoading] = useState(true);
   const [formDates, setFormDates] = useState<Record<string, { issued: string, expires: string, idNumber?: string }>>({});
