@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Wrench, 
@@ -8,8 +8,15 @@ import {
   Sparkles, 
   Terminal, 
   PenTool, 
-  Server
+  Server,
+  Settings,
+  Plus,
+  Trash2,
+  X,
+  Link as LinkIcon,
+  Save
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface QuickLink {
   id: string;
@@ -20,8 +27,119 @@ interface QuickLink {
   customIconUrl?: string;
   color: string;
   glowColor: string;
-  icon: React.ReactNode;
+  iconName?: string;
   description: string;
+}
+
+const DEFAULT_LINKS: QuickLink[] = [
+  {
+    id: 'xero',
+    title: 'Xero Accounting',
+    shortTitle: 'Xero',
+    url: 'https://go.xero.com/app/!S5BQ2/homepage',
+    domain: 'xero.com',
+    color: '#00b7e5',
+    glowColor: 'rgba(0,183,229,0.25)',
+    iconName: 'DollarSign',
+    description: 'Ledger, invoices & payroll'
+  },
+  {
+    id: 'hubdoc',
+    title: 'Hubdoc Extraction',
+    shortTitle: 'Hubdoc',
+    url: 'https://app.hubdoc.com/login',
+    domain: 'hubdoc.com',
+    color: '#f27a24',
+    glowColor: 'rgba(242,122,36,0.25)',
+    iconName: 'Receipt',
+    description: 'Receipts & document scans'
+  },
+  {
+    id: 'gemini',
+    title: 'Google Gemini AI',
+    shortTitle: 'Gemini',
+    url: 'https://gemini.google.com/app/5626c960cbeb3707',
+    domain: 'gemini.google.com',
+    color: '#8a5cf5',
+    glowColor: 'rgba(138,92,245,0.25)',
+    iconName: 'Sparkles',
+    description: 'Conversational assistant'
+  },
+  {
+    id: 'aistudio',
+    title: 'Google AI Studio',
+    shortTitle: 'AI Studio',
+    url: 'https://aistudio.google.com/apps/87e3cdb9-264a-49c1-97bb-8bab763826d7?showAssistant=true&showCode=true',
+    domain: 'aistudio.google.com',
+    color: '#0ea5e9',
+    glowColor: 'rgba(14,165,233,0.25)',
+    iconName: 'Terminal',
+    description: 'Developer workspace'
+  },
+  {
+    id: 'docuseal',
+    title: 'DocuSeal Service',
+    shortTitle: 'DocuSeal',
+    url: 'https://sign.happyinthehome.org/',
+    domain: 'docuseal.co',
+    color: '#3b82f6',
+    glowColor: 'rgba(59,130,246,0.25)',
+    iconName: 'PenTool',
+    description: 'Electronic signatures & templates'
+  },
+  {
+    id: 'nginx-proxy',
+    title: 'Nginx Proxy Manager',
+    shortTitle: 'Nginx Proxy',
+    url: 'https://nginx.happyinthehome.org/',
+    customIconUrl: 'https://raw.githubusercontent.com/NginxProxyManager/nginx-proxy-manager/master/frontend/src/images/logo.png',
+    color: '#10b981',
+    glowColor: 'rgba(16,185,129,0.25)',
+    iconName: 'Server',
+    description: 'Secure SSL & routing config'
+  },
+  {
+    id: 'file-storage',
+    title: 'File Storage',
+    shortTitle: 'Files',
+    url: 'https://files.happyinthehome.org/',
+    domain: 'files.happyinthehome.org',
+    color: '#fbbf24',
+    glowColor: 'rgba(251,191,36,0.25)',
+    iconName: 'LinkIcon',
+    description: 'File Storage'
+  },
+  {
+    id: 'mailcow',
+    title: 'Mailcow',
+    shortTitle: 'Mail',
+    url: 'https://mail.happyinthehome.org/',
+    domain: 'mail.happyinthehome.org',
+    color: '#ef4444',
+    glowColor: 'rgba(239,68,68,0.25)',
+    iconName: 'LinkIcon',
+    description: 'Email server'
+  },
+  {
+    id: 'paperless-ngx',
+    title: 'Paperless-ngx',
+    shortTitle: 'Paperless',
+    url: 'https://docs.mailboy.org/',
+    domain: 'docs.mailboy.org',
+    color: '#6366f1',
+    glowColor: 'rgba(99,102,241,0.25)',
+    iconName: 'LinkIcon',
+    description: 'Document management'
+  }
+];
+
+const ICONS: Record<string, React.FC<any>> = {
+  DollarSign, Receipt, Sparkles, Terminal, PenTool, Server, LinkIcon
+};
+
+function renderIcon(iconName?: string) {
+  const Icon = iconName && ICONS[iconName] ? ICONS[iconName] : LinkIcon;
+  return <Icon className="w-5 h-5" />;
 }
 
 interface BrandLogoIconProps {
@@ -33,7 +151,7 @@ interface BrandLogoIconProps {
 }
 
 function BrandLogoIcon({ domain, customIconUrl, fallbackIcon, color, alt }: BrandLogoIconProps) {
-  const [imgError, setImgError] = React.useState(false);
+  const [imgError, setImgError] = useState(false);
   
   // Choose highest fidelity image source
   const logoUrl = customIconUrl 
@@ -70,9 +188,26 @@ function BrandLogoIcon({ domain, customIconUrl, fallbackIcon, color, alt }: Bran
 }
 
 export default function QuickLinksDrawer() {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const closeTimeout = React.useRef<NodeJS.Timeout | null>(null);
-  const [activeTooltipId, setActiveTooltipId] = React.useState<string | null>(null);
+  const { settings, updateSettings, token } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+  const closeTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [activeTooltipId, setActiveTooltipId] = useState<string | null>(null);
+
+  const [links, setLinks] = useState<QuickLink[]>([]);
+  const [editingLinks, setEditingLinks] = useState<QuickLink[]>([]);
+
+  useEffect(() => {
+    if (settings && settings.quickLinks) {
+      try {
+        setLinks(settings.quickLinks);
+      } catch (e) {
+        setLinks(DEFAULT_LINKS);
+      }
+    } else {
+      setLinks(DEFAULT_LINKS);
+    }
+  }, [settings]);
 
   const handleMouseEnter = () => {
     if (closeTimeout.current) {
@@ -83,93 +218,94 @@ export default function QuickLinksDrawer() {
   };
 
   const handleMouseLeave = () => {
+    if (isManageModalOpen) return;
     closeTimeout.current = setTimeout(() => {
       setIsOpen(false);
-    }, 350); // Comfortable buffer to prevent accidental closes
+    }, 350);
   };
 
   const handleToggle = () => {
     setIsOpen(prev => !prev);
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (closeTimeout.current) clearTimeout(closeTimeout.current);
     };
   }, []);
 
-  const links: QuickLink[] = [
-    {
-      id: 'xero',
-      title: 'Xero Accounting',
-      shortTitle: 'Xero',
-      url: 'https://go.xero.com/app/!S5BQ2/homepage',
-      domain: 'xero.com',
-      color: '#00b7e5',
-      glowColor: 'rgba(0,183,229,0.25)',
-      icon: <DollarSign className="w-5 h-5" />,
-      description: 'Ledger, invoices & payroll'
-    },
-    {
-      id: 'hubdoc',
-      title: 'Hubdoc Extraction',
-      shortTitle: 'Hubdoc',
-      url: 'https://app.hubdoc.com/login',
-      domain: 'hubdoc.com',
-      color: '#f27a24',
-      glowColor: 'rgba(242,122,36,0.25)',
-      icon: <Receipt className="w-5 h-5" />,
-      description: 'Receipts & document scans'
-    },
-    {
-      id: 'gemini',
-      title: 'Google Gemini AI',
-      shortTitle: 'Gemini',
-      url: 'https://gemini.google.com/app/5626c960cbeb3707',
-      domain: 'gemini.google.com',
-      color: '#8a5cf5',
-      glowColor: 'rgba(138,92,245,0.25)',
-      icon: <Sparkles className="w-5 h-5" />,
-      description: 'Conversational assistant'
-    },
-    {
-      id: 'aistudio',
-      title: 'Google AI Studio',
-      shortTitle: 'AI Studio',
-      url: 'https://aistudio.google.com/apps/87e3cdb9-264a-49c1-97bb-8bab763826d7?showAssistant=true&showCode=true',
-      domain: 'aistudio.google.com',
-      color: '#0ea5e9',
-      glowColor: 'rgba(14,165,233,0.25)',
-      icon: <Terminal className="w-5 h-5" />,
-      description: 'Developer workspace'
-    },
-    {
-      id: 'docuseal',
-      title: 'DocuSeal Service',
-      shortTitle: 'DocuSeal',
-      url: 'https://sign.happyinthehome.org/',
-      domain: 'docuseal.co',
-      color: '#3b82f6',
-      glowColor: 'rgba(59,130,246,0.25)',
-      icon: <PenTool className="w-5 h-5" />,
-      description: 'Electronic signatures & templates'
-    },
-    {
-      id: 'nginx-proxy',
-      title: 'Nginx Proxy Manager',
-      shortTitle: 'Nginx Proxy',
-      url: 'https://nginx.happyinthehome.org/',
-      customIconUrl: 'https://raw.githubusercontent.com/NginxProxyManager/nginx-proxy-manager/master/frontend/src/images/logo.png',
-      color: '#10b981',
-      glowColor: 'rgba(16,185,129,0.25)',
-      icon: <Server className="w-5 h-5" />,
-      description: 'Secure SSL & routing config'
+  const openManageModal = () => {
+    setEditingLinks([...links]);
+    setIsManageModalOpen(true);
+    setIsOpen(false);
+  };
+
+  const closeManageModal = () => {
+    setIsManageModalOpen(false);
+  };
+
+  const handleSaveLinks = async () => {
+    try {
+      const newSettings = { ...settings, quickLinks: editingLinks };
+      const response = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newSettings)
+      });
+      if (response.ok) {
+        updateSettings(newSettings);
+        setLinks(editingLinks);
+        closeManageModal();
+      } else {
+        alert('Failed to save settings');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error saving settings');
     }
-  ];
+  };
+
+  const addLink = () => {
+    const newLink: QuickLink = {
+      id: `link-${Date.now()}`,
+      title: 'New Link',
+      shortTitle: 'New',
+      url: 'https://',
+      domain: '',
+      color: '#ffffff',
+      glowColor: 'rgba(255,255,255,0.25)',
+      description: 'Description here'
+    };
+    setEditingLinks([...editingLinks, newLink]);
+  };
+
+  const updateLink = (id: string, field: keyof QuickLink, value: string) => {
+    setEditingLinks(prev => prev.map(l => {
+      if (l.id === id) {
+        const updated = { ...l, [field]: value };
+        if (field === 'url') {
+          try {
+            const urlObj = new URL(value);
+            updated.domain = urlObj.hostname;
+          } catch (e) {}
+        }
+        return updated;
+      }
+      return l;
+    }));
+  };
+
+  const removeLink = (id: string) => {
+    setEditingLinks(prev => prev.filter(l => l.id !== id));
+  };
 
   return (
-    <div 
-      id="quick-links-hover-panel"
+    <>
+      <div 
+        id="quick-links-hover-panel"
       className="fixed right-0 top-1/2 -translate-y-1/2 z-[200] print:hidden flex items-center justify-end h-auto"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -241,7 +377,7 @@ export default function QuickLinksDrawer() {
                     <BrandLogoIcon 
                       domain={link.domain}
                       customIconUrl={link.customIconUrl}
-                      fallbackIcon={link.icon}
+                      fallbackIcon={renderIcon(link.iconName)}
                       color={link.color}
                       alt={link.title}
                     />
@@ -265,11 +401,130 @@ export default function QuickLinksDrawer() {
                     </AnimatePresence>
                   </a>
                 ))}
+                  </div>
+                  <div className="w-full pt-2 border-t border-[#30363D] mt-2 flex justify-center">
+                    <button
+                      onClick={openManageModal}
+                      className="p-2 text-[#8B949E] hover:text-white hover:bg-[#161B22] rounded-lg transition-colors"
+                      title="Manage Quicklinks"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {isManageModalOpen && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-brand-navy border border-[#30363D] rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4 border-b border-[#30363D] flex justify-between items-center bg-brand-bg shrink-0 rounded-t-xl">
+                <div>
+                  <h3 className="text-lg font-medium text-[#E6EDF3]">Manage Quicklinks</h3>
+                  <p className="text-sm text-[#8B949E]">Add, remove, or edit your quick tools.</p>
+                </div>
+                <button onClick={closeManageModal} className="p-2 text-[#8B949E] hover:text-white rounded-md transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 overflow-y-auto custom-scrollbar flex-1 space-y-3">
+                {editingLinks.map((link) => (
+                  <div key={link.id} className="bg-[#161B22] border border-[#30363D] rounded-lg p-3 flex gap-3 items-start">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold text-zinc-400 uppercase">Title</label>
+                        <input
+                          type="text"
+                          value={link.title}
+                          onChange={(e) => updateLink(link.id, 'title', e.target.value)}
+                          className="w-full bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-3 text-white text-sm focus:ring-1 focus:ring-brand-teal outline-none mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-zinc-400 uppercase">Short Title</label>
+                        <input
+                          type="text"
+                          value={link.shortTitle}
+                          onChange={(e) => updateLink(link.id, 'shortTitle', e.target.value)}
+                          className="w-full bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-3 text-white text-sm focus:ring-1 focus:ring-brand-teal outline-none mt-1"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase">URL</label>
+                        <input
+                          type="text"
+                          value={link.url}
+                          onChange={(e) => updateLink(link.id, 'url', e.target.value)}
+                          className="w-full bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-3 text-white text-sm focus:ring-1 focus:ring-brand-teal outline-none mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-zinc-400 uppercase">Description</label>
+                        <input
+                          type="text"
+                          value={link.description}
+                          onChange={(e) => updateLink(link.id, 'description', e.target.value)}
+                          className="w-full bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-3 text-white text-sm focus:ring-1 focus:ring-brand-teal outline-none mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-zinc-400 uppercase">Color (Hex)</label>
+                        <input
+                          type="text"
+                          value={link.color}
+                          onChange={(e) => updateLink(link.id, 'color', e.target.value)}
+                          className="w-full bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-3 text-white text-sm focus:ring-1 focus:ring-brand-teal outline-none mt-1"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeLink(link.id)}
+                      className="p-2 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-md transition-colors mt-6"
+                      title="Remove Link"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  onClick={addLink}
+                  className="w-full py-3 border-2 border-dashed border-[#30363D] hover:border-brand-teal text-[#8B949E] hover:text-white rounded-lg flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Quicklink</span>
+                </button>
+              </div>
+
+              <div className="p-4 border-t border-[#30363D] flex justify-end gap-3 shrink-0 bg-brand-bg rounded-b-xl">
+                <button
+                  onClick={closeManageModal}
+                  className="px-4 py-2 border border-[#30363D] text-white rounded-md hover:bg-[#161B22] transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveLinks}
+                  className="px-4 py-2 bg-brand-blue text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-2 text-sm"
+                >
+                  <Save className="w-4 h-4" />
+                  Save Changes
+                </button>
               </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
