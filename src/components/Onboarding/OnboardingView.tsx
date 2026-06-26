@@ -16,6 +16,7 @@ interface Step {
 
 export const ONBOARDING_STEPS: Step[] = [
   { id: 'tfn_super', title: 'Tax File Number Declaration & Superannuation Choice', description: 'Completed TFN and Super forms.', type: 'upload', links: [] },
+  { id: 'police_check', title: 'National Police Check', description: 'A National Police Check must be no older than 3 years and must be renewed every 3 years.', type: 'upload', links: [{ text: 'Apply for a National Police Check', url: 'https://wa-npc.verify.auspost.com.au/#/beforeStart/' }] },
   { id: 'driver_license', title: 'Valid Driver\'s License', description: 'Annual check to visually inspect physical validity and current license status.', type: 'upload', links: [] },
   { id: 'car_insurance', title: 'Comprehensive Car Insurance (with Business Use)', description: 'Annual renewal. Must verify explicit inclusion of "Business Use" or "Commuting/Work Travel".', type: 'upload', links: [] },
   { id: 'wwcc', title: 'Working with Children Check (WWCC)', description: '3 years validity. Mandatory if supporting clients under the age of 18.', type: 'upload', links: [{ text: 'WWCC Information', url: 'https://www.aifs.gov.au/resources/resource-sheets/pre-employment-screening-working-children-checks-and-police-checks' }] },
@@ -233,7 +234,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
       }
     }
 
-    if (stepId === 'first_aid') {
+    if (stepId === 'police_check' || stepId === 'first_aid') {
       if (!issued && !expires) {
         setUploadError(prev => ({ ...prev, [stepId]: 'Date issued or expires is required.' }));
         return;

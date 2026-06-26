@@ -3233,6 +3233,7 @@ async function startServer() {
 
           const compliance: Record<string, any> = {};
           const itemKeys = [
+            "tfn_super",
             "ndis_screening",
             "wwcc",
             "vevo",
@@ -3246,6 +3247,7 @@ async function startServer() {
             "flu_shot",
             "immunisation",
             "covid_vaccine",
+            "police_check",
           ];
 
           itemKeys.forEach((key) => {

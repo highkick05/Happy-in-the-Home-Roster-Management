@@ -7,8 +7,10 @@ import {
 import { format } from 'date-fns';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
+import OnboardingView from '../Onboarding/OnboardingView';
 
 const ONBOARDING_STEP_LABELS: Record<string, string> = {
+  tfn_super: 'Tax File Number & Super',
   ndis_screening: 'NDIS Screen Check (NWSC)',
   wwcc: 'Working with Children Check (WWCC)',
   vevo: 'Right to Work / VEVO',
@@ -21,7 +23,8 @@ const ONBOARDING_STEP_LABELS: Record<string, string> = {
   car_insurance: 'Car Insurance (Business)',
   flu_shot: 'Annual Influenza Vaccine',
   immunisation: 'Immunisation History',
-  covid_vaccine: 'COVID Immunisation'
+  covid_vaccine: 'COVID Immunisation',
+  police_check: 'National Police Check'
 };
 
 export default function ComplianceDashboard() {
@@ -99,6 +102,7 @@ export default function ComplianceDashboard() {
   const [loadingCompliance, setLoadingCompliance] = useState(false);
   const [complianceSearch, setComplianceSearch] = useState('');
   const [expandedStaffId, setExpandedStaffId] = useState<number | null>(null);
+  const [manageStaffId, setManageStaffId] = useState<number | null>(null);
 
   // States for Audit Logs
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -832,7 +836,7 @@ export default function ComplianceDashboard() {
                               <span className="text-xs text-[#8B949E] font-normal">({staff.email})</span>
                             </h4>
                             <p className="text-xs text-[#8B949E] mt-1 flex items-center gap-4">
-                              <span>Compliance Stats: <strong className="text-[#E6EDF3] font-medium">{stats.totalUploaded} of 13</strong> items uploaded</span>
+                              <span>Compliance Stats: <strong className="text-[#E6EDF3] font-medium">{stats.totalUploaded} of {Object.keys(ONBOARDING_STEP_LABELS).length}</strong> items uploaded</span>
                               <span>•</span>
                               <span>Missing: <strong className="text-[#E6EDF3] font-medium">{stats.missing}</strong> items</span>
                             </p>
@@ -842,6 +846,17 @@ export default function ComplianceDashboard() {
                             <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs px-3 py-1 font-semibold border ${stats.pillBg}`}>
                               {stats.pillText}
                             </span>
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setManageStaffId(staff.id);
+                              }}
+                              className="p-1 px-2.5 bg-brand-teal/10 hover:bg-brand-teal/20 border border-brand-teal/30 rounded text-xs text-brand-teal font-medium inline-flex items-center transition-colors"
+                            >
+                              <FileCheck className="w-3.5 h-3.5 mr-1" />
+                              Manage Documents
+                            </button>
 
                             <span className="p-1 px-2.5 bg-brand-bg hover:bg-brand-bg/80 border border-border-subtle rounded text-xs text-[#E6EDF3] font-medium inline-flex items-center transition-colors">
                               <Eye className="w-3.5 h-3.5 mr-1" />
@@ -1007,6 +1022,36 @@ export default function ComplianceDashboard() {
            </div>
         </div>
       </div>
+
+      {/* Manage Staff Documents Modal */}
+      {manageStaffId && (
+        <div className="fixed inset-0 bg-black/80 flex justify-center items-center z-[100] p-4 backdrop-blur-sm">
+          <div className="bg-[#09090b] w-full max-w-6xl max-h-[90vh] flex flex-col rounded-xl border border-white/[0.08] shadow-2xl overflow-hidden relative">
+            <div className="flex items-center justify-between p-5 border-b border-white/[0.08] bg-[#0E0E10] shrink-0">
+              <h2 className="text-xl font-semibold text-white">Manage Mandatory Documents</h2>
+              <button
+                onClick={() => {
+                  setManageStaffId(null);
+                  fetchComplianceData(); // Refresh data when closing
+                }}
+                className="text-zinc-400 hover:text-white transition-colors"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-[#09090b]">
+              <div className="bg-brand-teal/10 border border-brand-teal/20 text-brand-teal px-4 py-3 rounded-lg mb-6 text-sm flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <p>
+                  You are viewing this staff member's Onboarding & Compliance portal as an Administrator. You can upload documents and override dates on their behalf.
+                </p>
+              </div>
+              <OnboardingView targetUserId={manageStaffId} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
