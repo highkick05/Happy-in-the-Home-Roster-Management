@@ -12581,10 +12581,10 @@ async function startServer() {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
   }
 
-  // Daily compliance document expiry check
-  cron.schedule("0 1 * * *", async () => {
+  // Daily compliance document expiry check function
+  async function checkComplianceDocumentExpiry() {
     try {
-      logger.info("Running daily compliance document expiry check...");
+      logger.info("Running compliance document expiry check...");
 
       // Step 1: Evaluate all active date_expires records. We assume valid documents have date_expires.
       // We will look for files belonging to staff members and verify if they are expiring soon or expired.
@@ -12627,7 +12627,7 @@ async function startServer() {
               "DOCUMENT_EXPIRED",
               title,
               msg,
-              `/staff/onboarding`,
+              `/onboarding`,
             );
             logger.info(
               `Flagged EXPIRED for file ${file.id} (user ${file.uploaded_by})`,
@@ -12673,7 +12673,7 @@ async function startServer() {
               "DOCUMENT_EXPIRING_SOON",
               title,
               msg,
-              `/staff/onboarding`,
+              `/onboarding`,
             );
             logger.info(
               `Flagged EXPIRING_SOON for file ${file.id} (user ${file.uploaded_by})`,
@@ -12709,6 +12709,14 @@ async function startServer() {
     } catch (e) {
       logger.error("Error during compliance cron check:", e);
     }
+  }
+
+  // Run once on startup
+  checkComplianceDocumentExpiry();
+
+  // Daily compliance document expiry check
+  cron.schedule("0 1 * * *", async () => {
+    await checkComplianceDocumentExpiry();
   });
 
   // automated nightly backups
