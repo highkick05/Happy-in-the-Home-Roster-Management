@@ -649,7 +649,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                         <p className="text-[10px] text-zinc-500 mt-1">Saved identifiers are automatically masked as [ID Number Redacted] for privacy.</p>
                       </div>
                     )}
-                    {['ndis_screening', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && (
+                    {['ndis_screening', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine', 'police_check'].includes(step.id) && (
                       <div className="mb-2">
                         <div className="flex items-center justify-between mb-1">
                           <label className="block text-xs text-zinc-400">Issue Date</label>
@@ -666,11 +666,11 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                         />
                       </div>
                     )}
-                    {['wwcc', 'ahpra', 'driver_license', 'first_aid', 'cpr', 'manual_handling', 'car_insurance', 'flu_shot'].includes(step.id) && (
+                    {['wwcc', 'ahpra', 'driver_license', 'first_aid', 'cpr', 'manual_handling', 'car_insurance', 'flu_shot', 'police_check'].includes(step.id) && (
                       <div className="mb-2">
                         <div className="flex items-center justify-between mb-1">
                           <label className="block text-xs text-zinc-400">Expiry Date</label>
-                          {!['ndis_screening', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && progressData[step.id]?.files?.[0]?.date_expires && (
+                          {!['ndis_screening', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine', 'police_check'].includes(step.id) && progressData[step.id]?.files?.[0]?.date_expires && (
                             <span className="text-xs text-brand-teal font-medium">
                               Current expires: {progressData[step.id].files![0].date_expires}
                             </span>
@@ -736,7 +736,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                               </div>
                               {(file.date_issued || file.date_expires) && (
                                 <div className="flex items-center gap-2 ml-7">
-                                  {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && (
+                                  {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance', 'flu_shot', 'immunisation', 'covid_vaccine', 'police_check'].includes(step.id) && (
                                      <span className="text-xs text-zinc-500 font-mono">[ID Number Redacted]</span>
                                   )}
                                   {file.date_issued && <span className="text-xs text-zinc-400">Issued: {file.date_issued}</span>}
