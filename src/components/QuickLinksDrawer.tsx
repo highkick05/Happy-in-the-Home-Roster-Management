@@ -136,6 +136,42 @@ const DEFAULT_LINKS: QuickLink[] = [
   }
 ];
 
+const APP_ICON_CATALOG = [
+  { name: 'Mailcow', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/mailcow.png' },
+  { name: 'Paperless', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/paperless-ngx.png' },
+  { name: 'FileBrowser', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/filebrowser.png' },
+  { name: 'Nextcloud', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/nextcloud.png' },
+  { name: 'Proxmox', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/proxmox.png' },
+  { name: 'Portainer', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/portainer.png' },
+  { name: 'Docker', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/docker.png' },
+  { name: 'TrueNAS', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/truenas.png' },
+  { name: 'pfSense', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/pfsense.png' },
+  { name: 'Plex', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/plex.png' },
+  { name: 'Jellyfin', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jellyfin.png' },
+  { name: 'Grafana', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/grafana.png' },
+  { name: 'Nginx Proxy', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/nginx-proxy-manager.png' },
+  { name: 'Home Assistant', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/home-assistant.png' },
+  { name: 'Cloudflare', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/cloudflare.png' },
+  { name: 'GitHub', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/github.png' },
+  { name: 'GitLab', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/gitlab.png' },
+  { name: 'Bitwarden', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/bitwarden.png' },
+  { name: 'Vaultwarden', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/vaultwarden.png' },
+  { name: 'Uptime Kuma', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/uptime-kuma.png' },
+  { name: 'AdGuard', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/adguard-home.png' },
+  { name: 'Pi-hole', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/pihole.png' },
+  { name: 'Syncthing', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/syncthing.png' },
+  { name: 'Synology', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/synology.png' },
+  { name: 'Unifi', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/unifi.png' },
+  { name: 'WordPress', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/wordpress.png' },
+  { name: 'Google', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google.png' },
+  { name: 'Google Drive', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-drive.png' },
+  { name: 'Gmail', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/gmail.png' },
+  { name: 'Xero', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/xero.png' },
+  { name: 'Microsoft', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/microsoft.png' },
+  { name: 'AWS', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/aws.png' },
+  { name: 'Stripe', url: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/stripe.png' },
+];
+
 const ICONS: Record<string, React.FC<any>> = {
   DollarSign, Receipt, Sparkles, Terminal, PenTool, Server, LinkIcon, Folder, Mail, FileText
 };
@@ -160,7 +196,7 @@ function BrandLogoIcon({ domain, customIconUrl, fallbackIcon, color, alt }: Bran
   const logoUrl = customIconUrl 
     ? customIconUrl 
     : domain 
-      ? `https://www.google.com/s2/favicons?sz=128&domain=${domain}`
+      ? `https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${domain}&size=128`
       : null;
 
   return (
@@ -199,6 +235,7 @@ export default function QuickLinksDrawer() {
 
   const [links, setLinks] = useState<QuickLink[]>([]);
   const [editingLinks, setEditingLinks] = useState<QuickLink[]>([]);
+  const [showCatalogForLink, setShowCatalogForLink] = useState<string | null>(null);
 
   useEffect(() => {
     if (settings && settings.quickLinks) {
@@ -501,15 +538,58 @@ export default function QuickLinksDrawer() {
                           ))}
                         </select>
                       </div>
-                      <div className="md:col-span-2">
+                      <div className="md:col-span-2 relative">
                         <label className="text-xs font-semibold text-zinc-400 uppercase">Custom Icon URL</label>
-                        <input
-                          type="text"
-                          value={link.customIconUrl || ''}
-                          onChange={(e) => updateLink(link.id, 'customIconUrl', e.target.value)}
-                          className="w-full bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-3 text-white text-sm focus:ring-1 focus:ring-brand-teal outline-none mt-1"
-                          placeholder="Optional: Provide an image URL (PNG/SVG)"
-                        />
+                        <div className="flex gap-2 mt-1">
+                          <input
+                            type="text"
+                            value={link.customIconUrl || ''}
+                            onChange={(e) => updateLink(link.id, 'customIconUrl', e.target.value)}
+                            className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-3 text-white text-sm focus:ring-1 focus:ring-brand-teal outline-none"
+                            placeholder="Optional: Provide an image URL (PNG/SVG)"
+                          />
+                          <button
+                            onClick={() => setShowCatalogForLink(showCatalogForLink === link.id ? null : link.id)}
+                            className="px-3 py-1.5 bg-[#161B22] border border-[#30363D] hover:bg-[#21262D] rounded-md text-sm text-[#E6EDF3] transition-colors"
+                          >
+                            Catalog
+                          </button>
+                        </div>
+                        
+                        {/* Icon Catalog Popup */}
+                        <AnimatePresence>
+                          {showCatalogForLink === link.id && (
+                            <motion.div 
+                              initial={{ opacity: 0, y: -10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -10 }}
+                              className="absolute top-full left-0 right-0 mt-2 z-50 bg-[#161B22] border border-[#30363D] rounded-lg shadow-2xl p-3 max-h-64 overflow-y-auto custom-scrollbar"
+                            >
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs font-semibold text-zinc-400">Popular App Icons</span>
+                                <button onClick={() => setShowCatalogForLink(null)} className="text-zinc-500 hover:text-white">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                                {APP_ICON_CATALOG.map(appIcon => (
+                                  <button
+                                    key={appIcon.name}
+                                    onClick={() => {
+                                      updateLink(link.id, 'customIconUrl', appIcon.url);
+                                      setShowCatalogForLink(null);
+                                    }}
+                                    className="flex flex-col items-center justify-center p-2 rounded-md hover:bg-[#30363D] transition-colors gap-1 group"
+                                    title={appIcon.name}
+                                  >
+                                    <img src={appIcon.url} alt={appIcon.name} className="w-8 h-8 object-contain filter group-hover:brightness-110" />
+                                    <span className="text-[10px] text-zinc-400 group-hover:text-white truncate w-full text-center">{appIcon.name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     </div>
                     <button
