@@ -772,33 +772,12 @@ export default function ComplianceDashboard() {
 
                 const totalUploaded = expired + expiring + valid;
 
-                let pillBg = 'bg-brand-green/10 border-brand-green/20 text-brand-green';
-                let pillText = 'Fully Compliant';
-                let iconClass = 'w-4 h-4 mr-1 text-brand-green';
-
-                if (expired > 0) {
-                  pillBg = 'bg-red-500/10 border-red-500/25 text-red-400';
-                  pillText = `${expired} Expired`;
-                  iconClass = 'w-4 h-4 mr-1 text-red-400';
-                } else if (missing > 0) {
-                  pillBg = 'bg-zinc-500/10 border-border-subtle text-zinc-400';
-                  pillText = `${missing} Missing`;
-                  iconClass = 'w-4 h-4 mr-1 text-zinc-500';
-                } else if (expiring > 0) {
-                  pillBg = 'bg-amber-500/10 border-amber-500/20 text-amber-400';
-                  pillText = `${expiring} Expiring`;
-                  iconClass = 'w-4 h-4 mr-1 text-amber-400';
-                }
-
                 return {
                   expired,
                   expiring,
                   missing,
                   valid,
-                  totalUploaded,
-                  pillBg,
-                  pillText,
-                  iconClass
+                  totalUploaded
                 };
               };
 
@@ -843,9 +822,26 @@ export default function ComplianceDashboard() {
                           </div>
 
                           <div className="flex items-center gap-3">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs px-3 py-1 font-semibold border ${stats.pillBg}`}>
-                              {stats.pillText}
-                            </span>
+                            {stats.expired === 0 && stats.expiring === 0 && stats.missing === 0 && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold border bg-brand-green/10 border-brand-green/20 text-brand-green">
+                                Fully Compliant
+                              </span>
+                            )}
+                            {stats.expired > 0 && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold border bg-red-500/10 border-red-500/25 text-red-400">
+                                {stats.expired} Expired
+                              </span>
+                            )}
+                            {stats.expiring > 0 && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold border bg-amber-500/10 border-amber-500/20 text-amber-400">
+                                {stats.expiring} Expiring Soon
+                              </span>
+                            )}
+                            {stats.missing > 0 && stats.expired === 0 && stats.expiring === 0 && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold border bg-zinc-500/10 border-border-subtle text-zinc-400">
+                                {stats.missing} Missing
+                              </span>
+                            )}
 
                             <button
                               onClick={(e) => {
