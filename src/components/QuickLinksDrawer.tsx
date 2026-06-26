@@ -14,7 +14,10 @@ import {
   Trash2,
   X,
   Link as LinkIcon,
-  Save
+  Save,
+  Folder,
+  Mail,
+  FileText
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -106,7 +109,7 @@ const DEFAULT_LINKS: QuickLink[] = [
     domain: 'files.happyinthehome.org',
     color: '#fbbf24',
     glowColor: 'rgba(251,191,36,0.25)',
-    iconName: 'LinkIcon',
+    iconName: 'Folder',
     description: 'File Storage'
   },
   {
@@ -117,7 +120,7 @@ const DEFAULT_LINKS: QuickLink[] = [
     domain: 'mail.happyinthehome.org',
     color: '#ef4444',
     glowColor: 'rgba(239,68,68,0.25)',
-    iconName: 'LinkIcon',
+    iconName: 'Mail',
     description: 'Email server'
   },
   {
@@ -128,13 +131,13 @@ const DEFAULT_LINKS: QuickLink[] = [
     domain: 'docs.mailboy.org',
     color: '#6366f1',
     glowColor: 'rgba(99,102,241,0.25)',
-    iconName: 'LinkIcon',
+    iconName: 'FileText',
     description: 'Document management'
   }
 ];
 
 const ICONS: Record<string, React.FC<any>> = {
-  DollarSign, Receipt, Sparkles, Terminal, PenTool, Server, LinkIcon
+  DollarSign, Receipt, Sparkles, Terminal, PenTool, Server, LinkIcon, Folder, Mail, FileText
 };
 
 function renderIcon(iconName?: string) {
@@ -172,7 +175,7 @@ function BrandLogoIcon({ domain, customIconUrl, fallbackIcon, color, alt }: Bran
           referrerPolicy="no-referrer"
           onError={() => setImgError(true)}
           onLoad={(e) => {
-            if (e.currentTarget.naturalWidth < 12) {
+            if (e.currentTarget.naturalWidth < 32) {
               setImgError(true);
             }
           }}
@@ -484,6 +487,28 @@ export default function QuickLinksDrawer() {
                           value={link.color}
                           onChange={(e) => updateLink(link.id, 'color', e.target.value)}
                           className="w-full bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-3 text-white text-sm focus:ring-1 focus:ring-brand-teal outline-none mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-zinc-400 uppercase">Icon Name</label>
+                        <select
+                          value={link.iconName || 'LinkIcon'}
+                          onChange={(e) => updateLink(link.id, 'iconName', e.target.value)}
+                          className="w-full bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-3 text-white text-sm focus:ring-1 focus:ring-brand-teal outline-none mt-1"
+                        >
+                          {Object.keys(ICONS).map(icon => (
+                            <option key={icon} value={icon}>{icon}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase">Custom Icon URL</label>
+                        <input
+                          type="text"
+                          value={link.customIconUrl || ''}
+                          onChange={(e) => updateLink(link.id, 'customIconUrl', e.target.value)}
+                          className="w-full bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-3 text-white text-sm focus:ring-1 focus:ring-brand-teal outline-none mt-1"
+                          placeholder="Optional: Provide an image URL (PNG/SVG)"
                         />
                       </div>
                     </div>
