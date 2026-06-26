@@ -12604,8 +12604,12 @@ async function startServer() {
         "INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)",
       );
       const checkNotif = db.prepare(
-        "SELECT id FROM notifications WHERE user_id = ? AND type = ? AND title LIKE ? AND is_read = 0",
+        "SELECT id FROM notifications WHERE user_id = ? AND type = ? AND message LIKE ? AND is_read = 0",
       );
+
+      const admins = db
+        .prepare("SELECT id FROM users WHERE role = 'ADMIN'")
+        .all() as any[];
 
       for (const file of expiringFiles) {
         const expDate = new Date(file.date_expires);
@@ -12616,6 +12620,9 @@ async function startServer() {
           // EXPIRED
           const title = `Document Expired`;
           const msg = `Your mandatory document '${file.original_name}' has expired. Immediate action required.`;
+          const adminMsg = `Staff member ${file.first_name} ${file.last_name} (${file.email}) has an expired document: '${file.original_name}'.`;
+          
+          // Notify staff member
           const exists = checkNotif.get(
             file.uploaded_by,
             "DOCUMENT_EXPIRED",
@@ -12629,6 +12636,25 @@ async function startServer() {
               msg,
               `/onboarding`,
             );
+            
+            // Notify admins
+            for (const admin of admins) {
+              const adminExists = checkNotif.get(
+                admin.id,
+                "DOCUMENT_EXPIRED",
+                `%${file.original_name}%`,
+              );
+              if (!adminExists) {
+                insertNotif.run(
+                  admin.id,
+                  "DOCUMENT_EXPIRED",
+                  `Staff Document Expired`,
+                  adminMsg,
+                  `/compliance`,
+                );
+              }
+            }
+
             logger.info(
               `Flagged EXPIRED for file ${file.id} (user ${file.uploaded_by})`,
             );
@@ -12662,6 +12688,9 @@ async function startServer() {
           // EXPIRING SOON
           const title = `Document Expiring Soon`;
           const msg = `Your mandatory document '${file.original_name}' expires in ${diffDays} days. Please renew it soon.`;
+          const adminMsg = `Staff member ${file.first_name} ${file.last_name} (${file.email}) has a document expiring in ${diffDays} days: '${file.original_name}'.`;
+          
+          // Notify staff member
           const exists = checkNotif.get(
             file.uploaded_by,
             "DOCUMENT_EXPIRING_SOON",
@@ -12675,6 +12704,25 @@ async function startServer() {
               msg,
               `/onboarding`,
             );
+            
+            // Notify admins
+            for (const admin of admins) {
+              const adminExists = checkNotif.get(
+                admin.id,
+                "DOCUMENT_EXPIRING_SOON",
+                `%${file.original_name}%`,
+              );
+              if (!adminExists) {
+                insertNotif.run(
+                  admin.id,
+                  "DOCUMENT_EXPIRING_SOON",
+                  `Staff Document Expiring Soon`,
+                  adminMsg,
+                  `/compliance`,
+                );
+              }
+            }
+
             logger.info(
               `Flagged EXPIRING_SOON for file ${file.id} (user ${file.uploaded_by})`,
             );
