@@ -6107,6 +6107,8 @@ async function startServer() {
 
           let currentDt = new Date(`${startDate}T12:00:00Z`);
           let endDt = new Date(`${endDate}T12:00:00Z`);
+          
+          const masterPl = db.prepare("SELECT effective_date FROM price_lists WHERE is_master = 1 LIMIT 1").get() as any;
 
           // Loop through dates
           for (
@@ -6241,7 +6243,18 @@ async function startServer() {
               if (tmpl.services_json) {
                 try {
                   servicesData = JSON.parse(tmpl.services_json);
-                  for (const sData of servicesData) {
+                  for (let sData of servicesData) {
+                    if (sData.serviceId && !sData.isCustom && !String(sData.serviceId).startsWith("custom-")) {
+                      if (masterPl && masterPl.effective_date && shiftDateStr < masterPl.effective_date) {
+                        const currentSrv = db.prepare("SELECT * FROM services WHERE id = ?").get(sData.serviceId) as any;
+                        if (currentSrv && currentSrv.type === "NDIS" && currentSrv.code) {
+                          const historicalSrv = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' AND status = 'ARCHIVED' AND id < ? ORDER BY id DESC LIMIT 1").get(currentSrv.code, currentSrv.id) as any;
+                          if (historicalSrv) {
+                            sData.serviceId = historicalSrv.id;
+                          }
+                        }
+                      }
+                    }
                     const srv = db
                       .prepare(
                         "SELECT type, rates_json, name FROM services WHERE id = ?",
@@ -6287,11 +6300,22 @@ async function startServer() {
                 }
               } else if (tmpl.service_id) {
                 servicesData = [{ serviceId: tmpl.service_id }];
+                if (servicesData[0].serviceId) {
+                  if (masterPl && masterPl.effective_date && shiftDateStr < masterPl.effective_date) {
+                    const currentSrv = db.prepare("SELECT * FROM services WHERE id = ?").get(servicesData[0].serviceId) as any;
+                    if (currentSrv && currentSrv.type === "NDIS" && currentSrv.code) {
+                      const historicalSrv = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' AND status = 'ARCHIVED' AND id < ? ORDER BY id DESC LIMIT 1").get(currentSrv.code, currentSrv.id) as any;
+                      if (historicalSrv) {
+                        servicesData[0].serviceId = historicalSrv.id;
+                      }
+                    }
+                  }
+                }
                 const srv = db
                   .prepare(
                     "SELECT type, rates_json, name FROM services WHERE id = ?",
                   )
-                  .get(tmpl.service_id) as any;
+                  .get(servicesData[0].serviceId) as any;
                 if (srv) {
                   if (
                     srv.name.toLowerCase().includes("activity based transport")
