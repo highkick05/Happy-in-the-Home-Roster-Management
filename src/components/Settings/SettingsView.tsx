@@ -349,6 +349,29 @@ export default function SettingsView() {
     }
   };
 
+  const handleDeletePriceList = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this price list?')) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/settings/price_lists/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchPriceLists();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete price list.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to delete price list.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleMakeMaster = async (id: number) => {
     if (!confirm('Are you sure you want to make this the Master Price List? This will update all NDIS prices across the system.')) return;
     
@@ -995,14 +1018,22 @@ export default function SettingsView() {
                         <td className="px-3 py-2">
                           {statusEl}
                         </td>
-                        <td className="px-3 py-2 text-right">
+                        <td className="px-3 py-2 text-right space-x-3">
                           {!pl.is_master && (
-                            <button
-                              onClick={() => handleMakeMaster(pl.id)}
-                              className="text-xs text-brand-teal hover:text-brand-teal/80 font-medium"
-                            >
-                              Make Master
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handleMakeMaster(pl.id)}
+                                className="text-xs text-brand-teal hover:text-brand-teal/80 font-medium"
+                              >
+                                Make Master
+                              </button>
+                              <button
+                                onClick={() => handleDeletePriceList(pl.id)}
+                                className="text-xs text-red-400 hover:text-red-300 font-medium"
+                              >
+                                Delete
+                              </button>
+                            </>
                           )}
                         </td>
                       </tr>
