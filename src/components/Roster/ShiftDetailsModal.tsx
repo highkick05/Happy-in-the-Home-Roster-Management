@@ -627,14 +627,14 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                       const fullService = servicesList.find(s => String(s.id) === sIdStr);
                       const serviceName = fullService ? fullService.name : (sd.serviceName || (idx === 0 ? shift.serviceName : 'Unknown Service'));
                       const unit = fullService ? (fullService.unit || 'Hour') : (sd.serviceUnit || shift.serviceUnit || 'Hour');
-                      const serviceType = fullService ? fullService.type : (sd.serviceType || shift.serviceType);
-                      const ratesJson = fullService ? fullService.rates_json : (sd.serviceRatesJson || shift.serviceRatesJson);
+                      const serviceType = (sd.serviceType || shift.serviceType) || (fullService ? fullService.type : 'Unknown');
+                      const ratesJson = (sd.serviceRatesJson || shift.serviceRatesJson) || (fullService ? fullService.rates_json : null);
 
                       const startMs = new Date(shift.start).getTime();
                       const endMs = new Date(shift.end).getTime();
                       const hours = Math.max(0, (endMs - startMs) / (1000 * 60 * 60));
                       
-                      let baseRate = Number(fullService ? fullService.rate : (sd.serviceRate || shift.serviceRate || 0));
+                      let baseRate = Number((sd.serviceRate !== undefined && sd.serviceRate !== null) ? sd.serviceRate : (shift.serviceRate !== undefined && shift.serviceRate !== null ? shift.serviceRate : (fullService ? fullService.rate : 0)));
                       let dayOfWeek = new Date(shift.start).getDay();
                       let finalRate = baseRate;
                       

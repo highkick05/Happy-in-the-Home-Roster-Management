@@ -7,6 +7,23 @@ import db from "../db.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import multer from "multer";
+
+function getHistoricalServiceData(db, srv, shiftDateStr) {
+  if (!srv || srv.type !== 'NDIS') return { rate: srv?.rate, rates_json: srv?.rates_json };
+  if (!shiftDateStr) return { rate: srv.rate, rates_json: srv.rates_json };
+  try {
+    const shiftDateOnly = shiftDateStr.split('T')[0];
+    const pl = db.prepare("SELECT id FROM price_lists WHERE effective_date IS NOT NULL AND effective_date <= ? ORDER BY effective_date DESC LIMIT 1").get(shiftDateOnly);
+    if (pl) {
+      const item = db.prepare("SELECT rate, rates_json FROM price_list_items WHERE price_list_id = ? AND code = ?").get(pl.id, srv.code);
+      if (item && item.rates_json) {
+        return { rate: item.rate, rates_json: item.rates_json };
+      }
+    }
+  } catch (e) {}
+  return { rate: srv.rate, rates_json: srv.rates_json };
+}
+
 import * as xlsx from "xlsx";
 import PDFDocument from "pdfkit";
 import fs from "fs";
@@ -6228,9 +6245,10 @@ async function startServer() {
                         isAbtApproved = true;
                         sData.qtyOverride = 0;
                       }
-                      if (srv.rates_json && (sData.rateOverride === undefined || sData.rateOverride === null || sData.rateOverride === "")) {
+                      const histData = getHistoricalServiceData(db, srv, startDateTime.toISOString());
+                      if (histData.rates_json && (sData.rateOverride === undefined || sData.rateOverride === null || sData.rateOverride === "")) {
                         try {
-                          const rates = JSON.parse(srv.rates_json);
+                          const rates = JSON.parse(histData.rates_json);
                           if (srv.type === "HOME_CARE") {
                             if (isPublicHoliday && rates["Public Holiday"]) {
                               sData.rateOverride = Number(
@@ -6270,9 +6288,10 @@ async function startServer() {
                     isAbtApproved = true;
                     servicesData[0].qtyOverride = 0;
                   }
-                  if (srv.rates_json) {
-                    try {
-                      const rates = JSON.parse(srv.rates_json);
+                  const histData = getHistoricalServiceData(db, srv, tmpl.start_time || tmpl.start || startDateTime.toISOString());
+                    if (histData.rates_json && (servicesData[0].rateOverride === undefined || servicesData[0].rateOverride === null || servicesData[0].rateOverride === "")) {
+                      try {
+                        const rates = JSON.parse(histData.rates_json);
                       if (srv.type === "HOME_CARE") {
                         if (isPublicHoliday && rates["Public Holiday"]) {
                           servicesData[0].rateOverride = Number(
@@ -6663,9 +6682,10 @@ async function startServer() {
                       isAbtApproved = true;
                       sData.qtyOverride = 0;
                     }
-                    if (srv.rates_json) {
+                    const histData = getHistoricalServiceData(db, srv, tmpl.start_time || tmpl.start || startDateTime.toISOString());
+                    if (histData.rates_json && (sData.rateOverride === undefined || sData.rateOverride === null || sData.rateOverride === "")) {
                       try {
-                        const rates = JSON.parse(srv.rates_json);
+                        const rates = JSON.parse(histData.rates_json);
                         if (srv.type === "HOME_CARE") {
                           if (isPublicHoliday && rates["Public Holiday"]) {
                             sData.rateOverride = Number(
@@ -6710,9 +6730,10 @@ async function startServer() {
                   isAbtApproved = true;
                   servicesData[0].qtyOverride = 0;
                 }
-                if (srv.rates_json) {
-                  try {
-                    const rates = JSON.parse(srv.rates_json);
+                const histData = getHistoricalServiceData(db, srv, tmpl.start_time || tmpl.start || startDateTime.toISOString());
+                    if (histData.rates_json && (servicesData[0].rateOverride === undefined || servicesData[0].rateOverride === null || servicesData[0].rateOverride === "")) {
+                      try {
+                        const rates = JSON.parse(histData.rates_json);
                     if (srv.type === "HOME_CARE") {
                       if (isPublicHoliday && rates["Public Holiday"]) {
                         servicesData[0].rateOverride = Number(
@@ -6870,12 +6891,13 @@ async function startServer() {
                  if (sd.serviceId && !sd.serviceName) {
                      const srv = db.prepare("SELECT name, code, type, rate, unit, rates_json FROM services WHERE id = ?").get(sd.serviceId) as any;
                      if (srv) {
+                         const hist = getHistoricalServiceData(db, srv, s.start_time);
                          sd.serviceName = srv.name;
                          sd.serviceCode = srv.code;
                          sd.serviceType = srv.type;
-                         sd.serviceRate = srv.rate;
+                         sd.serviceRate = hist.rate;
                          sd.serviceUnit = srv.unit;
-                         sd.serviceRatesJson = srv.rates_json;
+                         sd.serviceRatesJson = hist.rates_json;
                      }
                  }
              }
@@ -6896,14 +6918,15 @@ async function startServer() {
            for (const sd of parsed) {
                if (sd.serviceId && !sd.serviceName) {
                    const srv = db.prepare("SELECT name, code, type, rate, unit, rates_json FROM services WHERE id = ?").get(sd.serviceId) as any;
-                   if (srv) {
-                       sd.serviceName = srv.name;
-                       sd.serviceCode = srv.code;
-                       sd.serviceType = srv.type;
-                       sd.serviceRate = srv.rate;
-                       sd.serviceUnit = srv.unit;
-                       sd.serviceRatesJson = srv.rates_json;
-                   }
+                     if (srv) {
+                         const hist = getHistoricalServiceData(db, srv, s.start_time);
+                         sd.serviceName = srv.name;
+                         sd.serviceCode = srv.code;
+                         sd.serviceType = srv.type;
+                         sd.serviceRate = hist.rate;
+                         sd.serviceUnit = srv.unit;
+                         sd.serviceRatesJson = hist.rates_json;
+                     }
                }
            }
         }
