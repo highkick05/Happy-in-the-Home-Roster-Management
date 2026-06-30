@@ -8334,12 +8334,12 @@ async function startServer() {
                 keys.find((k) => /rate|price/i.test(k));
               regGroupNumKey =
                 keys.find(
-                  (k) => k.trim().toLowerCase() === "registration group number",
-                ) || keys.find((k) => /registration group number/i.test(k));
+                  (k) => /reg.*(group|grp).*num/i.test(k.replace(/[\r\n]/g, " "))
+                );
               regGroupNameKey =
                 keys.find(
-                  (k) => k.trim().toLowerCase() === "registration group name",
-                ) || keys.find((k) => /registration group name/i.test(k));
+                  (k) => /reg.*(group|grp).*name/i.test(k.replace(/[\r\n]/g, " "))
+                );
               unitKey = keys.find(
                 (k) =>
                   k.trim().toLowerCase() === "unit" ||
