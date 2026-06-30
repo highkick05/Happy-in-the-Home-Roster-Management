@@ -662,6 +662,28 @@ async function startServer() {
 
   try {
     db.exec(`
+      ALTER TABLE price_lists ADD COLUMN effective_date TEXT;
+    `);
+    console.log("[DEBUG] Added effective_date column to price_lists table");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE services ADD COLUMN status TEXT DEFAULT 'ACTIVE';
+    `);
+    console.log("[DEBUG] Added status column to services table");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
+    db.exec(`
       ALTER TABLE services ADD COLUMN service_category TEXT CHECK(service_category IN ('Clinical', 'Independence', 'Everyday Living') OR service_category IS NULL);
     `);
     console.log("[DEBUG] Completed services.service_category column check");
@@ -7801,13 +7823,13 @@ async function startServer() {
       ? "id, code, name, description, type, unit, service_category, reg_group_number, reg_group_name"
       : "*";
 
-    let query = `SELECT ${selectCols} FROM services`;
+    let query = `SELECT ${selectCols} FROM services WHERE (status IS NULL OR status != 'ARCHIVED')`;
 
     if (type) {
       if (type === "NDIS") {
-        query += ` WHERE type = ? ORDER BY code ASC`;
+        query += ` AND type = ? ORDER BY code ASC`;
       } else {
-        query += ` WHERE type = ? ORDER BY name ASC`;
+        query += ` AND type = ? ORDER BY name ASC`;
       }
       const services = db.prepare(query).all(type);
       return res.json(services);
@@ -8072,7 +8094,7 @@ async function startServer() {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { type, region, priceListName, isMaster } = req.body;
+      const { type, region, priceListName, isMaster, effectiveDate } = req.body;
       if (type !== "NDIS" && type !== "HOME_CARE") {
         return res.status(400).json({ error: "Invalid service type" });
       }
@@ -8124,10 +8146,10 @@ async function startServer() {
           "Very Remote",
         ];
         const insertService = db.prepare(
-          "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')",
         );
         const updateService = db.prepare(
-          "UPDATE services SET code = ?, name = ?, rate = ?, description = ?, reg_group_number = ?, reg_group_name = ?, rates_json = ?, unit = ? WHERE id = ?",
+          "UPDATE services SET code = ?, name = ?, rate = ?, description = ?, reg_group_number = ?, reg_group_name = ?, rates_json = ?, unit = ?, status = 'ACTIVE' WHERE id = ?",
         );
         const insertPriceListItem = db.prepare(
           "INSERT INTO price_list_items (price_list_id, code, name, rate, description, reg_group_number, reg_group_name, rates_json, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -8136,9 +8158,13 @@ async function startServer() {
         let priceListId: number | undefined;
 
         db.transaction(() => {
+          if (type === "NDIS" && String(isMaster) === "true") {
+             db.prepare("UPDATE services SET status = 'ARCHIVED' WHERE type = 'NDIS'").run();
+          }
+
           if (type === "NDIS" && priceListName) {
-            const insertList = db.prepare("INSERT INTO price_lists (name, is_master) VALUES (?, 0)");
-            const plInfo = insertList.run(priceListName);
+            const insertList = db.prepare("INSERT INTO price_lists (name, is_master, effective_date) VALUES (?, 0, ?)");
+            const plInfo = insertList.run(priceListName, effectiveDate || null);
             priceListId = plInfo.lastInsertRowid as number;
           }
           // Keep a copy of the file on fileserver for future use
@@ -8375,15 +8401,7 @@ async function startServer() {
                  unit
                );
                imported++;
-               if (String(isMaster) === 'true') {
-                  let existing = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS'").get(code) as any;
-                  if (existing) {
-                    updateService.run(code, name, rate, description, regGroupNum, regGroupName, ratesJson, unit, existing.id);
-                    updated++;
-                  } else {
-                    insertService.run(code, name, rate, description, regGroupNum, regGroupName, 'NDIS', ratesJson, unit);
-                  }
-               }
+               // Defer the `isMaster` service generation to after the loop so we can do the full mapping!
             } else {
               let existing: { id: number } | undefined = undefined;
               if (type === "HOME_CARE") {
@@ -8427,12 +8445,11 @@ async function startServer() {
               }
             }
           }
-          
-          if (priceListId && String(isMaster) === 'true') {
-             db.prepare("UPDATE price_lists SET is_master = 0").run();
-             db.prepare("UPDATE price_lists SET is_master = 1 WHERE id = ?").run(priceListId);
-          }
         })();
+
+        if (priceListId && String(isMaster) === 'true') {
+           applyMasterPriceList(priceListId);
+        }
 
         if (imported === 0 && updated === 0 && data.length > 0) {
           return res.json({
@@ -8483,32 +8500,107 @@ async function startServer() {
     }
   });
 
+  function applyMasterPriceList(id: number) {
+    db.transaction(() => {
+      // Archive all existing NDIS services first
+      db.prepare("UPDATE services SET status = 'ARCHIVED' WHERE type = 'NDIS'").run();
+
+      const items = db.prepare("SELECT * FROM price_list_items WHERE price_list_id = ?").all(id) as any[];
+      const insertService = db.prepare(
+        "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit, status) VALUES (?, ?, ?, ?, ?, ?, 'NDIS', ?, ?, 'ACTIVE')"
+      );
+
+      const oldIdToNewId: Record<number, number> = {};
+
+      for (const item of items) {
+        // Get the most recent old ID for this code (even if archived, we want to map forward)
+        const existing = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' ORDER BY id DESC LIMIT 1").get(item.code) as any;
+        
+        const info = insertService.run(item.code, item.name, item.rate, item.description, item.reg_group_number, item.reg_group_name, item.rates_json, item.unit);
+        const newId = info.lastInsertRowid as number;
+
+        if (existing) {
+          oldIdToNewId[existing.id] = newId;
+        }
+      }
+
+      // Migrate active recurring templates and client budgets to use the new IDs
+      
+      // 1. client_services (Client special rates)
+      const clientServices = db.prepare("SELECT id, service_id FROM client_services").all() as any[];
+      const updateClientService = db.prepare("UPDATE client_services SET service_id = ? WHERE id = ?");
+      for (const cs of clientServices) {
+        if (oldIdToNewId[cs.service_id]) {
+          updateClientService.run(oldIdToNewId[cs.service_id], cs.id);
+        }
+      }
+
+      // 2. ndis_service_agreement_items
+      const agreementItems = db.prepare("SELECT id, service_id FROM ndis_service_agreement_items").all() as any[];
+      const updateAgreementItem = db.prepare("UPDATE ndis_service_agreement_items SET service_id = ? WHERE id = ?");
+      for (const ai of agreementItems) {
+        if (oldIdToNewId[ai.service_id]) {
+          updateAgreementItem.run(oldIdToNewId[ai.service_id], ai.id);
+        }
+      }
+
+      // 3. client_roster_templates
+      const templates = db.prepare("SELECT id, services_json FROM client_roster_templates").all() as any[];
+      const updateTemplate = db.prepare("UPDATE client_roster_templates SET services_json = ? WHERE id = ?");
+      for (const t of templates) {
+        if (t.services_json) {
+          try {
+            const sData = JSON.parse(t.services_json);
+            let changed = false;
+            for (const s of sData) {
+              if (s.serviceId && oldIdToNewId[s.serviceId]) {
+                s.serviceId = oldIdToNewId[s.serviceId];
+                changed = true;
+              }
+            }
+            if (changed) {
+              updateTemplate.run(JSON.stringify(sData), t.id);
+            }
+          } catch (e) {}
+        }
+      }
+
+      // 4. Update DRAFT shifts that start on or after the effective date of the price list (or today if none)
+      const pl = db.prepare("SELECT effective_date FROM price_lists WHERE id = ?").get(id) as any;
+      const cutoffDate = pl?.effective_date || new Date().toISOString().split('T')[0];
+
+      const draftShifts = db.prepare("SELECT id, services_json FROM shifts WHERE status = 'DRAFT' AND start_time >= ?").all(cutoffDate) as any[];
+      const updateShift = db.prepare("UPDATE shifts SET services_json = ? WHERE id = ?");
+      for (const shift of draftShifts) {
+        if (shift.services_json) {
+          try {
+            const sData = JSON.parse(shift.services_json);
+            let changed = false;
+            for (const s of sData) {
+              if (s.serviceId && oldIdToNewId[s.serviceId]) {
+                s.serviceId = oldIdToNewId[s.serviceId];
+                changed = true;
+              }
+            }
+            if (changed) {
+              updateShift.run(JSON.stringify(sData), shift.id);
+            }
+          } catch (e) {}
+        }
+      }
+
+      db.prepare("UPDATE price_lists SET is_master = 0").run();
+      db.prepare("UPDATE price_lists SET is_master = 1 WHERE id = ?").run(id);
+    })();
+  };
+
   app.post("/api/settings/price_lists/:id/make_master", authenticateToken, requireAdmin, (req: any, res: any) => {
     const { id } = req.params;
     try {
-      db.transaction(() => {
-        const items = db.prepare("SELECT * FROM price_list_items WHERE price_list_id = ?").all(id) as any[];
-        const updateService = db.prepare(
-          "UPDATE services SET name = ?, rate = ?, description = ?, reg_group_number = ?, reg_group_name = ?, rates_json = ?, unit = ? WHERE code = ? AND type = 'NDIS'"
-        );
-        const insertService = db.prepare(
-          "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit) VALUES (?, ?, ?, ?, ?, ?, 'NDIS', ?, ?)"
-        );
-
-        for (const item of items) {
-          const existing = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS'").get(item.code) as any;
-          if (existing) {
-            updateService.run(item.name, item.rate, item.description, item.reg_group_number, item.reg_group_name, item.rates_json, item.unit, item.code);
-          } else {
-            insertService.run(item.code, item.name, item.rate, item.description, item.reg_group_number, item.reg_group_name, item.rates_json, item.unit);
-          }
-        }
-
-        db.prepare("UPDATE price_lists SET is_master = 0").run();
-        db.prepare("UPDATE price_lists SET is_master = 1 WHERE id = ?").run(id);
-      })();
+      applyMasterPriceList(id);
       res.json({ success: true });
     } catch (e: any) {
+      console.error(e);
       res.status(500).json({ error: "Failed to apply master price list" });
     }
   });
@@ -12958,10 +13050,35 @@ async function startServer() {
 
   // Run once on startup
   checkComplianceDocumentExpiry();
+  
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const lists = db.prepare("SELECT id FROM price_lists WHERE is_master = 0 AND effective_date IS NOT NULL AND effective_date <= ?").all(today) as any[];
+    for (const list of lists) {
+      applyMasterPriceList(list.id);
+      console.log(`[Startup] Activated scheduled price list ${list.id}`);
+    }
+  } catch(e) {
+    logger.error("Failed to apply scheduled price lists on startup:", e);
+  }
 
   // Daily compliance document expiry check
   cron.schedule("0 1 * * *", async () => {
     await checkComplianceDocumentExpiry();
+  });
+
+  // Check for future-dated price lists that should become active today
+  cron.schedule("0 0 * * *", () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const lists = db.prepare("SELECT id FROM price_lists WHERE is_master = 0 AND effective_date IS NOT NULL AND effective_date <= ?").all(today) as any[];
+      for (const list of lists) {
+        applyMasterPriceList(list.id);
+        console.log(`[Cron] Activated scheduled price list ${list.id}`);
+      }
+    } catch(e) {
+      logger.error("Failed to apply scheduled price lists:", e);
+    }
   });
 
   // automated nightly backups

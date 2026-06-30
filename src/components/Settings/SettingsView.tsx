@@ -12,7 +12,7 @@ export default function SettingsView() {
   const [services, setServices] = useState<any[]>([]);
   const [priceLists, setPriceLists] = useState<any[]>([]);
   const [showPriceListModal, setShowPriceListModal] = useState(false);
-  const [priceListForm, setPriceListForm] = useState({ name: '', isMaster: false });
+  const [priceListForm, setPriceListForm] = useState({ name: '', isMaster: false, effectiveDate: '' });
   const [priceListFile, setPriceListFile] = useState<File | null>(null);
   const [savingCategoryIds, setSavingCategoryIds] = useState<Set<string>>(new Set());
   const [savedCategoryIds, setSavedCategoryIds] = useState<Set<string>>(new Set());
@@ -388,6 +388,9 @@ export default function SettingsView() {
     formData.append('region', region);
     formData.append('priceListName', priceListForm.name);
     formData.append('isMaster', String(priceListForm.isMaster));
+    if (priceListForm.effectiveDate) {
+      formData.append('effectiveDate', priceListForm.effectiveDate);
+    }
 
     setLoading(true);
     try {
@@ -400,7 +403,7 @@ export default function SettingsView() {
       if (res.ok) {
         alert(`Successfully imported price list.`);
         setShowPriceListModal(false);
-        setPriceListForm({ name: '', isMaster: false });
+        setPriceListForm({ name: '', isMaster: false, effectiveDate: '' });
         setPriceListFile(null);
         fetchPriceLists();
         if (priceListForm.isMaster) {
@@ -954,28 +957,43 @@ export default function SettingsView() {
                     <tr className="bg-brand-bg/50 border-y border-border-subtle text-xs uppercase tracking-wider text-[#8B949E]">
                       <th className="px-3 py-2 font-semibold">Name</th>
                       <th className="px-3 py-2 font-semibold">Created Date</th>
+                      <th className="px-3 py-2 font-semibold">Effective Date</th>
                       <th className="px-3 py-2 font-semibold">Status</th>
                       <th className="px-3 py-2 font-semibold text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle text-sm">
                     {priceLists.length === 0 && (
-                      <tr><td colSpan={4} className="px-3 py-4 text-center text-[#8B949E]">No price lists found.</td></tr>
+                      <tr><td colSpan={5} className="px-3 py-4 text-center text-[#8B949E]">No price lists found.</td></tr>
                     )}
-                    {priceLists.map((pl: any) => (
+                    {priceLists.map((pl: any) => {
+                      let statusEl = null;
+                      if (pl.is_master) {
+                        statusEl = (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-brand-green/20 text-brand-green border border-brand-green/30">
+                            Active Master
+                          </span>
+                        );
+                      } else if (pl.effective_date && new Date(pl.effective_date) > new Date()) {
+                        statusEl = (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-brand-teal/20 text-brand-teal border border-brand-teal/30">
+                            Pending
+                          </span>
+                        );
+                      } else {
+                        statusEl = (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">
+                            Archived
+                          </span>
+                        );
+                      }
+                      return (
                       <tr key={pl.id} className="hover:bg-brand-bg/50 transition-colors">
                         <td className="px-3 py-2 font-medium text-[#E6EDF3]">{pl.name}</td>
                         <td className="px-3 py-2 text-[#8B949E]">{new Date(pl.created_at).toLocaleDateString()}</td>
+                        <td className="px-3 py-2 text-[#8B949E]">{pl.effective_date ? new Date(pl.effective_date).toLocaleDateString() : '-'}</td>
                         <td className="px-3 py-2">
-                          {pl.is_master ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-brand-green/20 text-brand-green border border-brand-green/30">
-                              Active Master
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">
-                              Archived
-                            </span>
-                          )}
+                          {statusEl}
                         </td>
                         <td className="px-3 py-2 text-right">
                           {!pl.is_master && (
@@ -988,7 +1006,8 @@ export default function SettingsView() {
                           )}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1445,12 +1464,26 @@ export default function SettingsView() {
                   />
                 </div>
 
+                <div>
+                  <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Effective Date (Optional)</label>
+                  <input
+                    type="date"
+                    value={priceListForm.effectiveDate}
+                    disabled={priceListForm.isMaster}
+                    onChange={(e) => setPriceListForm(prev => ({ ...prev, effectiveDate: e.target.value }))}
+                    className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors disabled:opacity-50"
+                  />
+                  <p className="text-xs text-[#8B949E] mt-1">
+                    If set in the future, this price list will automatically become Master at midnight on this date.
+                  </p>
+                </div>
+
                 <div className="flex items-center space-x-2 pt-2">
                   <input
                     type="checkbox"
                     id="isMaster"
                     checked={priceListForm.isMaster}
-                    onChange={(e) => setPriceListForm(prev => ({ ...prev, isMaster: e.target.checked }))}
+                    onChange={(e) => setPriceListForm(prev => ({ ...prev, isMaster: e.target.checked, effectiveDate: e.target.checked ? '' : prev.effectiveDate }))}
                     className="w-4 h-4 text-brand-teal bg-brand-bg border-border-subtle rounded focus:ring-brand-teal focus:ring-offset-brand-navy"
                   />
                   <label htmlFor="isMaster" className="text-sm font-medium text-[#E6EDF3]">
