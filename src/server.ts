@@ -6851,6 +6851,25 @@ async function startServer() {
     try {
       const idsToProcess =
         Array.isArray(staffIds) && staffIds.length > 0 ? staffIds : [staffId];
+
+      if (servicesData && servicesData.length > 0 && startTime) {
+        const shiftDate = startTime.split("T")[0];
+        const masterPl = db.prepare("SELECT effective_date FROM price_lists WHERE is_master = 1").get() as any;
+        if (masterPl && masterPl.effective_date && shiftDate < masterPl.effective_date) {
+          for (let sd of servicesData) {
+            if (sd.serviceId && !sd.isCustom && !String(sd.serviceId).startsWith("custom-")) {
+              const currentSrv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
+              if (currentSrv && currentSrv.type === "NDIS" && currentSrv.code) {
+                const historicalSrv = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' AND status = 'ARCHIVED' AND id < ? ORDER BY id DESC LIMIT 1").get(currentSrv.code, currentSrv.id) as any;
+                if (historicalSrv) {
+                  sd.serviceId = historicalSrv.id;
+                }
+              }
+            }
+          }
+        }
+      }
+
       const mainServiceId =
         serviceId ||
         (servicesData && servicesData.length > 0
@@ -7231,6 +7250,24 @@ async function startServer() {
 
         // Build old value for audit logging
         const oldValue = JSON.stringify(existing);
+
+        if (servicesData && servicesData.length > 0 && startTime) {
+          const shiftDate = startTime.split("T")[0];
+          const masterPl = db.prepare("SELECT effective_date FROM price_lists WHERE is_master = 1").get() as any;
+          if (masterPl && masterPl.effective_date && shiftDate < masterPl.effective_date) {
+            for (let sd of servicesData) {
+              if (sd.serviceId && !sd.isCustom && !String(sd.serviceId).startsWith("custom-")) {
+                const currentSrv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
+                if (currentSrv && currentSrv.type === "NDIS" && currentSrv.code) {
+                  const historicalSrv = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' AND status = 'ARCHIVED' AND id < ? ORDER BY id DESC LIMIT 1").get(currentSrv.code, currentSrv.id) as any;
+                  if (historicalSrv) {
+                    sd.serviceId = historicalSrv.id;
+                  }
+                }
+              }
+            }
+          }
+        }
 
         let processedServicesData = servicesData
           ? JSON.parse(JSON.stringify(servicesData))
@@ -8565,13 +8602,13 @@ async function startServer() {
         }
       }
 
-      // 4. Update DRAFT shifts that start on or after the effective date of the price list (or today if none)
+      // 4. Update DRAFT and PUBLISHED shifts that start on or after the effective date of the price list (or today if none)
       const pl = db.prepare("SELECT effective_date FROM price_lists WHERE id = ?").get(id) as any;
       const cutoffDate = pl?.effective_date || new Date().toISOString().split('T')[0];
 
-      const draftShifts = db.prepare("SELECT id, services_json FROM shifts WHERE status = 'DRAFT' AND start_time >= ?").all(cutoffDate) as any[];
+      const futureShifts = db.prepare("SELECT id, services_json FROM shifts WHERE status IN ('DRAFT', 'PUBLISHED') AND start_time >= ?").all(cutoffDate) as any[];
       const updateShift = db.prepare("UPDATE shifts SET services_json = ? WHERE id = ?");
-      for (const shift of draftShifts) {
+      for (const shift of futureShifts) {
         if (shift.services_json) {
           try {
             const sData = JSON.parse(shift.services_json);
