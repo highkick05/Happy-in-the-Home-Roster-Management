@@ -12,7 +12,9 @@ export default function SettingsView() {
   const [services, setServices] = useState<any[]>([]);
   const [priceLists, setPriceLists] = useState<any[]>([]);
   const [showPriceListModal, setShowPriceListModal] = useState(false);
-  const [priceListForm, setPriceListForm] = useState({ name: '', isMaster: false, effectiveDate: '' });
+  const [showEditPriceListModal, setShowEditPriceListModal] = useState(false);
+  const [editingPriceList, setEditingPriceList] = useState<any>(null);
+  const [priceListForm, setPriceListForm] = useState({ name: '', isMaster: false, effectiveDate: '', createdDate: '' });
   const [priceListFile, setPriceListFile] = useState<File | null>(null);
   const [savingCategoryIds, setSavingCategoryIds] = useState<Set<string>>(new Set());
   const [savedCategoryIds, setSavedCategoryIds] = useState<Set<string>>(new Set());
@@ -58,6 +60,7 @@ export default function SettingsView() {
   
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
   const [creatingService, setCreatingService] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [newServiceForm, setNewServiceForm] = useState({
     name: '',
     service_category: '',
@@ -373,6 +376,50 @@ export default function SettingsView() {
     }
   };
 
+  const handleEditPriceList = (pl: any) => {
+    setEditingPriceList(pl);
+    setPriceListForm({
+      name: pl.name,
+      isMaster: pl.is_master,
+      effectiveDate: pl.effective_date ? pl.effective_date.split('T')[0] : '',
+      createdDate: pl.created_at ? pl.created_at.split('T')[0] : ''
+    });
+    setShowEditPriceListModal(true);
+  };
+
+  const handleUpdatePriceList = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPriceList) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/settings/price_lists/${editingPriceList.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: priceListForm.name,
+          effective_date: priceListForm.effectiveDate,
+          created_at: priceListForm.createdDate
+        })
+      });
+      if (res.ok) {
+        fetchPriceLists();
+        setShowEditPriceListModal(false);
+        setEditingPriceList(null);
+        setPriceListForm({ name: '', isMaster: false, effectiveDate: '', createdDate: '' });
+      } else {
+        alert('Failed to update price list.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to update price list.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleMakeMaster = async (id: number) => {
     if (!confirm('Are you sure you want to make this the Master Price List? This will update all NDIS prices across the system.')) return;
     
@@ -430,9 +477,7 @@ export default function SettingsView() {
         setPriceListForm({ name: '', isMaster: false, effectiveDate: '' });
         setPriceListFile(null);
         fetchPriceLists();
-        if (priceListForm.isMaster) {
-          fetchServices('NDIS');
-        }
+        fetchServices('NDIS');
       } else {
         alert(`Error: ${data.error}`);
       }
@@ -515,6 +560,20 @@ export default function SettingsView() {
     }
     e.target.value = '';
   };
+
+  const filteredServices = services.filter(s => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const regGroupNum = String(s.reg_group_number || '');
+    const regGroupName = String(s.reg_group_name || '');
+    return (
+      String(s.code || '').toLowerCase().includes(q) ||
+      String(s.name || '').toLowerCase().includes(q) ||
+      String(s.rate || '').toLowerCase().includes(q) ||
+      regGroupNum.toLowerCase().includes(q) ||
+      regGroupName.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="h-full flex flex-col space-y-3">
@@ -1020,6 +1079,21 @@ export default function SettingsView() {
                           {statusEl}
                         </td>
                         <td className="px-3 py-2 text-right space-x-3">
+                          {pl.file_id && (
+                            <a
+                              href={`/api/files/download/${pl.file_id}?token=${token}`}
+                              className="text-xs text-brand-teal hover:text-brand-teal/80 font-medium"
+                              download={pl.original_name}
+                            >
+                              Download
+                            </a>
+                          )}
+                          <button
+                            onClick={() => handleEditPriceList(pl)}
+                            className="text-xs text-brand-teal hover:text-brand-teal/80 font-medium"
+                          >
+                            Edit
+                          </button>
                           {!pl.is_master && (
                               <button
                                 onClick={() => handleMakeMaster(pl.id)}
@@ -1049,6 +1123,13 @@ export default function SettingsView() {
                 <p className="text-sm text-[#8B949E]">These are the active NDIS rates used across the system.</p>
               </div>
               <div className="flex space-x-2 items-center">
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder:text-[#8B949E]"
+                />
                 <select
                   value={region}
                   onChange={(e) => handleRegionChange(e.target.value)}
@@ -1090,7 +1171,7 @@ export default function SettingsView() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle text-sm">
-                    {services.map(s => (
+                    {filteredServices.map(s => (
                       <tr key={s.id} className="hover:bg-brand-bg/50 transition-colors">
                         <td className="px-2 py-1.5 font-mono text-xs text-[#E6EDF3]">{s.code}</td>
                         <td className="px-2 py-1.5 text-[#E6EDF3]">
@@ -1230,7 +1311,7 @@ export default function SettingsView() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle text-sm">
-                          {services.map(s => {
+                          {filteredServices.map(s => {
                             let isVariable = false;
                             try {
                               if (s.rates_json) {
@@ -1448,6 +1529,86 @@ export default function SettingsView() {
                     <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                   ) : (
                     'Save Service'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditPriceListModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-lg shadow-2xl flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b border-border-subtle">
+              <h2 className="text-xl font-semibold text-[#E6EDF3]">Edit NDIS Price List</h2>
+              <button 
+                onClick={() => {
+                  setShowEditPriceListModal(false);
+                  setEditingPriceList(null);
+                  setPriceListForm({ name: '', isMaster: false, effectiveDate: '', createdDate: '' });
+                }}
+                className="text-[#8B949E] hover:text-[#E6EDF3] transition-colors p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdatePriceList} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-4 space-y-5">
+                <div>
+                  <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Price List Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={priceListForm.name}
+                    onChange={(e) => setPriceListForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Created Date</label>
+                  <input
+                    type="date"
+                    value={priceListForm.createdDate}
+                    onChange={(e) => setPriceListForm(prev => ({ ...prev, createdDate: e.target.value }))}
+                    className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors disabled:opacity-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Effective Date</label>
+                  <input
+                    type="date"
+                    value={priceListForm.effectiveDate}
+                    onChange={(e) => setPriceListForm(prev => ({ ...prev, effectiveDate: e.target.value }))}
+                    className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors disabled:opacity-50"
+                  />
+                </div>
+              </div>
+              
+              <div className="p-4 border-t border-border-subtle flex justify-end gap-3 bg-brand-navy">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditPriceListModal(false);
+                    setEditingPriceList(null);
+                    setPriceListForm({ name: '', isMaster: false, effectiveDate: '', createdDate: '' });
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium text-[#8B949E] hover:text-[#E6EDF3] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !priceListForm.name.trim()}
+                  className="px-3 py-1.5 bg-brand-teal hover:bg-brand-teal/90 text-white text-sm font-medium rounded-md transition-colors flex items-center min-w-[100px] justify-center disabled:opacity-50"
+                >
+                  {loading ? (
+                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    'Save Changes'
                   )}
                 </button>
               </div>

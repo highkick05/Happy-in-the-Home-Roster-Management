@@ -738,6 +738,17 @@ async function startServer() {
 
   try {
     db.exec(`
+      ALTER TABLE price_lists ADD COLUMN file_id INTEGER;
+    `);
+    console.log("[DEBUG] Added file_id column to price_lists table");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
+    db.exec(`
       ALTER TABLE services ADD COLUMN status TEXT DEFAULT 'ACTIVE';
     `);
     console.log("[DEBUG] Added status column to services table");
@@ -8355,7 +8366,7 @@ async function startServer() {
                 ? path.posix.join(subfolder, req.file.filename)
                 : req.file.filename;
 
-            db.prepare(
+            const fileInfo = db.prepare(
               "INSERT INTO files (original_name, system_name, size, uploaded_by, region, folder_path) VALUES (?, ?, ?, ?, ?, ?)",
             ).run(
               req.file.originalname,
@@ -8365,6 +8376,10 @@ async function startServer() {
               region || null,
               folderPath,
             );
+            
+            if (priceListId) {
+              db.prepare("UPDATE price_lists SET file_id = ? WHERE id = ?").run(fileInfo.lastInsertRowid, priceListId);
+            }
           }
 
           for (const row of data) {
@@ -8633,7 +8648,12 @@ async function startServer() {
 
   app.get("/api/settings/price_lists", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const lists = db.prepare("SELECT * FROM price_lists ORDER BY created_at DESC").all();
+      const lists = db.prepare(`
+        SELECT p.*, f.system_name, f.original_name
+        FROM price_lists p
+        LEFT JOIN files f ON p.file_id = f.id
+        ORDER BY p.created_at DESC
+      `).all();
       res.json(lists);
     } catch (e: any) {
       res.status(500).json({ error: "Failed to fetch price lists" });
@@ -8769,6 +8789,20 @@ async function startServer() {
     } catch (e: any) {
       console.error(e);
       res.status(500).json({ error: "Failed to apply master price list" });
+    }
+  });
+
+  app.put("/api/settings/price_lists/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
+    const { id } = req.params;
+    const { name, created_at, effective_date } = req.body;
+    try {
+      db.prepare(
+        "UPDATE price_lists SET name = ?, created_at = ?, effective_date = ? WHERE id = ?"
+      ).run(name, created_at || null, effective_date || null, id);
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: "Failed to update price list" });
     }
   });
 
