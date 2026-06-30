@@ -224,6 +224,15 @@ async function startServer() {
   }
 
   try {
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_services_type_code_name ON services(type, code, name);
+    `);
+    console.log("[DEBUG] Added unique index on services for ON CONFLICT");
+  } catch(e: any) {
+    console.warn("Could not create unique index on services:", e.message);
+  }
+
+  try {
     db.exec(
       "ALTER TABLE providers ADD COLUMN provider_type TEXT DEFAULT 'NDIS'",
     );
@@ -8566,11 +8575,11 @@ async function startServer() {
       // Migrate active recurring templates and client budgets to use the new IDs
       
       // 1. client_services (Client special rates)
-      const clientServices = db.prepare("SELECT id, service_id FROM client_services").all() as any[];
-      const updateClientService = db.prepare("UPDATE client_services SET service_id = ? WHERE id = ?");
+      const clientServices = db.prepare("SELECT client_id, service_id FROM client_services").all() as any[];
+      const updateClientService = db.prepare("UPDATE client_services SET service_id = ? WHERE client_id = ? AND service_id = ?");
       for (const cs of clientServices) {
         if (oldIdToNewId[cs.service_id]) {
-          updateClientService.run(oldIdToNewId[cs.service_id], cs.id);
+          updateClientService.run(oldIdToNewId[cs.service_id], cs.client_id, cs.service_id);
         }
       }
 
