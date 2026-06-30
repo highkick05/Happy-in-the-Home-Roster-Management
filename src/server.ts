@@ -8183,7 +8183,7 @@ async function startServer() {
           "Very Remote",
         ];
         const insertService = db.prepare(
-          "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')",
+          "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE') ON CONFLICT(type, code, name) DO UPDATE SET rate=excluded.rate, description=excluded.description, reg_group_number=excluded.reg_group_number, reg_group_name=excluded.reg_group_name, rates_json=excluded.rates_json, unit=excluded.unit, status='ACTIVE'"
         );
         const updateService = db.prepare(
           "UPDATE services SET code = ?, name = ?, rate = ?, description = ?, reg_group_number = ?, reg_group_name = ?, rates_json = ?, unit = ?, status = 'ACTIVE' WHERE id = ?",
@@ -8545,7 +8545,7 @@ async function startServer() {
 
       const items = db.prepare("SELECT * FROM price_list_items WHERE price_list_id = ?").all(id) as any[];
       const insertService = db.prepare(
-        "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit, status) VALUES (?, ?, ?, ?, ?, ?, 'NDIS', ?, ?, 'ACTIVE')"
+        "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit, status) VALUES (?, ?, ?, ?, ?, ?, 'NDIS', ?, ?, 'ACTIVE') ON CONFLICT(type, code, name) DO UPDATE SET rate=excluded.rate, description=excluded.description, reg_group_number=excluded.reg_group_number, reg_group_name=excluded.reg_group_name, rates_json=excluded.rates_json, unit=excluded.unit, status='ACTIVE'"
       );
 
       const oldIdToNewId: Record<number, number> = {};
@@ -8554,10 +8554,11 @@ async function startServer() {
         // Get the most recent old ID for this code (even if archived, we want to map forward)
         const existing = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' ORDER BY id DESC LIMIT 1").get(item.code) as any;
         
-        const info = insertService.run(item.code, item.name, item.rate, item.description, item.reg_group_number, item.reg_group_name, item.rates_json, item.unit);
-        const newId = info.lastInsertRowid as number;
+        insertService.run(item.code, item.name, item.rate, item.description, item.reg_group_number, item.reg_group_name, item.rates_json, item.unit);
+        const newRecord = db.prepare("SELECT id FROM services WHERE code = ? AND name = ? AND type = 'NDIS'").get(item.code, item.name) as any;
+        const newId = newRecord ? newRecord.id : null;
 
-        if (existing) {
+        if (existing && newId) {
           oldIdToNewId[existing.id] = newId;
         }
       }
