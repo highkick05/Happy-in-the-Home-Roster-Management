@@ -13264,7 +13264,10 @@ async function startServer() {
   
   try {
     const today = new Date().toISOString().split('T')[0];
-    const lists = db.prepare("SELECT id FROM price_lists WHERE is_master = 0 AND effective_date IS NOT NULL AND effective_date <= ?").all(today) as any[];
+    const currentMaster = db.prepare("SELECT effective_date FROM price_lists WHERE is_master = 1 LIMIT 1").get() as any;
+    const masterDate = currentMaster && currentMaster.effective_date ? currentMaster.effective_date : '1970-01-01';
+    
+    const lists = db.prepare("SELECT id FROM price_lists WHERE is_master = 0 AND effective_date IS NOT NULL AND effective_date <= ? AND effective_date > ? ORDER BY effective_date ASC").all(today, masterDate) as any[];
     for (const list of lists) {
       applyMasterPriceList(list.id);
       console.log(`[Startup] Activated scheduled price list ${list.id}`);
@@ -13304,7 +13307,10 @@ async function startServer() {
   cron.schedule("0 0 * * *", () => {
     try {
       const today = new Date().toISOString().split('T')[0];
-      const lists = db.prepare("SELECT id FROM price_lists WHERE is_master = 0 AND effective_date IS NOT NULL AND effective_date <= ?").all(today) as any[];
+      const currentMaster = db.prepare("SELECT effective_date FROM price_lists WHERE is_master = 1 LIMIT 1").get() as any;
+      const masterDate = currentMaster && currentMaster.effective_date ? currentMaster.effective_date : '1970-01-01';
+      
+      const lists = db.prepare("SELECT id FROM price_lists WHERE is_master = 0 AND effective_date IS NOT NULL AND effective_date <= ? AND effective_date > ? ORDER BY effective_date ASC").all(today, masterDate) as any[];
       for (const list of lists) {
         applyMasterPriceList(list.id);
         console.log(`[Cron] Activated scheduled price list ${list.id}`);
