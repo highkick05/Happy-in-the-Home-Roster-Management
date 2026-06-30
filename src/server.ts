@@ -8351,13 +8351,14 @@ async function startServer() {
             let rawUnit = unitKey
               ? String(row[unitKey]).trim().toUpperCase()
               : "";
-            let unit = rawUnit;
-            if (rawUnit === "H") unit = "Hour";
-            else if (rawUnit === "E") unit = "Each";
-            else if (rawUnit === "D") unit = "Day";
-            else if (rawUnit === "WK") unit = "Week";
-            else if (rawUnit === "YR") unit = "Year";
-            else if (rawUnit === "MON") unit = "Month";
+            let unit = "";
+            if (rawUnit === "H" || rawUnit === "HOUR" || rawUnit.includes("HOUR")) unit = "Hour";
+            else if (rawUnit === "E" || rawUnit === "EACH" || rawUnit.includes("EACH")) unit = "Each";
+            else if (rawUnit === "D" || rawUnit === "DAY" || rawUnit.includes("DAY")) unit = "Day";
+            else if (rawUnit === "WK" || rawUnit === "WEEK" || rawUnit.includes("WEEK")) unit = "Week";
+            else if (rawUnit === "YR" || rawUnit === "YEAR" || rawUnit.includes("YEAR")) unit = "Year";
+            else if (rawUnit === "MON" || rawUnit === "MONTH" || rawUnit.includes("MONTH")) unit = "Month";
+            else if (rawUnit) unit = ""; // fallback to empty string to pass CHECK constraint
 
             if (!unit && type === "HOME_CARE") {
               if (code === "SERV-0026") {
