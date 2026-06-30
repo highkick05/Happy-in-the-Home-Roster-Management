@@ -8176,6 +8176,22 @@ async function startServer() {
           range: headerRowIndex,
         });
 
+        if (!data || data.length === 0) {
+          return res.status(400).json({ error: "The uploaded file contains no data." });
+        }
+
+        if (type === "NDIS") {
+          const sampleKeys = Object.keys(data[0]);
+          const hasRegGroupNum = sampleKeys.some((k) => /reg.*(group|grp).*num/i.test(k.replace(/[\r\n]/g, " ")));
+          const hasRegGroupName = sampleKeys.some((k) => /reg.*(group|grp).*name/i.test(k.replace(/[\r\n]/g, " ")));
+
+          if (!hasRegGroupNum || !hasRegGroupName) {
+            return res.status(400).json({ 
+              error: "Invalid NDIS Pricing format: Missing required columns 'Registration Group Number' and 'Registration Group Name'. Please ensure your .xlsx file contains these columns before importing." 
+            });
+          }
+        }
+
         let imported = 0;
         let updated = 0;
 
