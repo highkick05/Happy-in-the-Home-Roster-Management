@@ -6864,7 +6864,23 @@ async function startServer() {
       const shifts = db.prepare(staffQuery).all(req.user.id) as any[];
       shifts.forEach((s) => {
         try {
-          s.servicesData = s.services_json ? JSON.parse(s.services_json) : [];
+          let parsed = s.services_json ? JSON.parse(s.services_json) : [];
+          if (Array.isArray(parsed)) {
+             for (const sd of parsed) {
+                 if (sd.serviceId && !sd.serviceName) {
+                     const srv = db.prepare("SELECT name, code, type, rate, unit, rates_json FROM services WHERE id = ?").get(sd.serviceId) as any;
+                     if (srv) {
+                         sd.serviceName = srv.name;
+                         sd.serviceCode = srv.code;
+                         sd.serviceType = srv.type;
+                         sd.serviceRate = srv.rate;
+                         sd.serviceUnit = srv.unit;
+                         sd.serviceRatesJson = srv.rates_json;
+                     }
+                 }
+             }
+          }
+          s.servicesData = parsed;
         } catch (e) {
           s.servicesData = [];
         }
@@ -6875,7 +6891,23 @@ async function startServer() {
     const shifts = db.prepare(query).all() as any[];
     shifts.forEach((s) => {
       try {
-        s.servicesData = s.services_json ? JSON.parse(s.services_json) : [];
+        let parsed = s.services_json ? JSON.parse(s.services_json) : [];
+        if (Array.isArray(parsed)) {
+           for (const sd of parsed) {
+               if (sd.serviceId && !sd.serviceName) {
+                   const srv = db.prepare("SELECT name, code, type, rate, unit, rates_json FROM services WHERE id = ?").get(sd.serviceId) as any;
+                   if (srv) {
+                       sd.serviceName = srv.name;
+                       sd.serviceCode = srv.code;
+                       sd.serviceType = srv.type;
+                       sd.serviceRate = srv.rate;
+                       sd.serviceUnit = srv.unit;
+                       sd.serviceRatesJson = srv.rates_json;
+                   }
+               }
+           }
+        }
+        s.servicesData = parsed;
       } catch (e) {
         s.servicesData = [];
       }
