@@ -10,6 +10,10 @@ export default function SettingsView() {
   const { token, user, updateSettings } = useAuth();
   const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'FUNDING_TYPES' | 'DATABASE' | 'TESTING'>('settings_active_tab', 'GENERAL');
   const [services, setServices] = useState<any[]>([]);
+  const [priceLists, setPriceLists] = useState<any[]>([]);
+  const [showPriceListModal, setShowPriceListModal] = useState(false);
+  const [priceListForm, setPriceListForm] = useState({ name: '', isMaster: false });
+  const [priceListFile, setPriceListFile] = useState<File | null>(null);
   const [savingCategoryIds, setSavingCategoryIds] = useState<Set<string>>(new Set());
   const [savedCategoryIds, setSavedCategoryIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -93,7 +97,21 @@ export default function SettingsView() {
   useEffect(() => {
     if (activeTab === 'GENERAL' || activeTab === 'BILLING' || activeTab === 'BRANDING') fetchSettings();
     if (activeTab === 'NDIS' || activeTab === 'HOME_CARE') fetchServices(activeTab);
+    if (activeTab === 'NDIS') fetchPriceLists();
   }, [activeTab]);
+
+  const fetchPriceLists = async () => {
+    try {
+      const res = await fetch('/api/settings/price_lists', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setPriceLists(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -300,6 +318,102 @@ export default function SettingsView() {
     } catch (error) {
       console.error('Export error:', error);
       alert('Failed to export NDIS pricing. Please try again.');
+    }
+  };
+
+  const handleArchiveCurrentPricing = async () => {
+    const name = prompt("Enter a name for the archived price list:");
+    if (!name) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch('/api/settings/price_lists/archive', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ name })
+      });
+      if (res.ok) {
+        alert('Archived current pricing successfully.');
+        fetchPriceLists();
+      } else {
+        alert('Failed to archive pricing.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to archive pricing.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMakeMaster = async (id: number) => {
+    if (!confirm('Are you sure you want to make this the Master Price List? This will update all NDIS prices across the system.')) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/settings/price_lists/${id}/make_master`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert('Master Price List updated successfully.');
+        fetchPriceLists();
+        fetchServices(activeTab);
+      } else {
+        alert('Failed to apply Master Price List.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to apply Master Price List.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePriceListUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!priceListFile || !priceListForm.name.trim()) return;
+
+    if (user?.role !== 'ADMIN') {
+      alert("Only admins can import pricing.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', priceListFile);
+    formData.append('type', 'NDIS');
+    formData.append('region', region);
+    formData.append('priceListName', priceListForm.name);
+    formData.append('isMaster', String(priceListForm.isMaster));
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/services/import?folderPath=/Settings/Pricing', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Successfully imported price list.`);
+        setShowPriceListModal(false);
+        setPriceListForm({ name: '', isMaster: false });
+        setPriceListFile(null);
+        fetchPriceLists();
+        if (priceListForm.isMaster) {
+          fetchServices('NDIS');
+        }
+      } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Upload failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -808,10 +922,82 @@ export default function SettingsView() {
 
         {activeTab === 'NDIS' && (
           <div className="flex flex-col h-full bg-brand-navy">
+            <div className="p-4 border-b border-border-subtle bg-brand-bg relative shrink-0">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-lg font-medium text-[#E6EDF3] mb-1 font-sans">NDIS Price Lists</h3>
+                  <p className="text-sm text-[#8B949E]">Manage multiple price schedules and set the active Master Price List.</p>
+                </div>
+                <div className="flex space-x-2 items-center">
+                  <button
+                    onClick={handleArchiveCurrentPricing}
+                    className="flex items-center px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-200 text-[13px] font-medium rounded-md transition-colors shadow-sm"
+                    disabled={loading || user?.role !== 'ADMIN'}
+                  >
+                    <Save className="w-4 h-4 mr-1.5" />
+                    Archive Current
+                  </button>
+                  <button 
+                    onClick={() => setShowPriceListModal(true)}
+                    className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors shadow-sm"
+                    disabled={loading || user?.role !== 'ADMIN'}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Import Price List
+                  </button>
+                </div>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-brand-bg/50 border-y border-border-subtle text-xs uppercase tracking-wider text-[#8B949E]">
+                      <th className="px-3 py-2 font-semibold">Name</th>
+                      <th className="px-3 py-2 font-semibold">Created Date</th>
+                      <th className="px-3 py-2 font-semibold">Status</th>
+                      <th className="px-3 py-2 font-semibold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-subtle text-sm">
+                    {priceLists.length === 0 && (
+                      <tr><td colSpan={4} className="px-3 py-4 text-center text-[#8B949E]">No price lists found.</td></tr>
+                    )}
+                    {priceLists.map((pl: any) => (
+                      <tr key={pl.id} className="hover:bg-brand-bg/50 transition-colors">
+                        <td className="px-3 py-2 font-medium text-[#E6EDF3]">{pl.name}</td>
+                        <td className="px-3 py-2 text-[#8B949E]">{new Date(pl.created_at).toLocaleDateString()}</td>
+                        <td className="px-3 py-2">
+                          {pl.is_master ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-brand-green/20 text-brand-green border border-brand-green/30">
+                              Active Master
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">
+                              Archived
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {!pl.is_master && (
+                            <button
+                              onClick={() => handleMakeMaster(pl.id)}
+                              className="text-xs text-brand-teal hover:text-brand-teal/80 font-medium"
+                            >
+                              Make Master
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg relative shrink-0">
               <div>
-                <h3 className="text-lg font-medium text-[#E6EDF3] mb-1 font-sans">NDIS Line Items</h3>
-                <p className="text-sm text-[#8B949E]">Import NDIS rates from an Excel (.xlsx) file.</p>
+                <h3 className="text-lg font-medium text-[#E6EDF3] mb-1 font-sans">Current Master NDIS Items</h3>
+                <p className="text-sm text-[#8B949E]">These are the active NDIS rates used across the system.</p>
               </div>
               <div className="flex space-x-2 items-center">
                 <select
@@ -828,12 +1014,6 @@ export default function SettingsView() {
                   ref={fileInputRef}
                   onChange={handleFileUpload}
                 />
-                <select
-                  value={region}
-                  className="hidden" // Just to keep the map simple if we wanted to
-                >
-                  {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
                 <button
                   onClick={handleExportNdisPricing}
                   className="flex items-center px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-200 text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0 animate-fade-in"
@@ -841,14 +1021,6 @@ export default function SettingsView() {
                 >
                   <Download className="w-4 h-4 mr-1.5" />
                   Export Pricing
-                </button>
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0 animate-fade-in"
-                  disabled={loading || user?.role !== 'ADMIN'}
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Import Pricing
                 </button>
               </div>
             </div>
@@ -1227,6 +1399,86 @@ export default function SettingsView() {
                     <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                   ) : (
                     'Save Service'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showPriceListModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-lg shadow-2xl flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b border-border-subtle">
+              <h2 className="text-xl font-semibold text-[#E6EDF3]">Import NDIS Price List</h2>
+              <button 
+                onClick={() => setShowPriceListModal(false)}
+                className="text-[#8B949E] hover:text-[#E6EDF3] transition-colors p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handlePriceListUpload} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-4 space-y-5">
+                <div>
+                  <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Price List Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={priceListForm.name}
+                    onChange={(e) => setPriceListForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors"
+                    placeholder="e.g. 2026-27 NDIS Pricing"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Upload XLSX File *</label>
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls, .csv"
+                    required
+                    onChange={(e) => setPriceListFile(e.target.files?.[0] || null)}
+                    className="w-full text-sm text-[#8B949E] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-zinc-800 file:text-zinc-200 hover:file:bg-zinc-700 transition-colors"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2 pt-2">
+                  <input
+                    type="checkbox"
+                    id="isMaster"
+                    checked={priceListForm.isMaster}
+                    onChange={(e) => setPriceListForm(prev => ({ ...prev, isMaster: e.target.checked }))}
+                    className="w-4 h-4 text-brand-teal bg-brand-bg border-border-subtle rounded focus:ring-brand-teal focus:ring-offset-brand-navy"
+                  />
+                  <label htmlFor="isMaster" className="text-sm font-medium text-[#E6EDF3]">
+                    Set as Master Price List immediately
+                  </label>
+                </div>
+                <p className="text-xs text-[#8B949E]">
+                  If checked, this will automatically update all existing NDIS items with the new rates from this file.
+                </p>
+              </div>
+              
+              <div className="p-4 border-t border-border-subtle flex justify-end gap-3 bg-brand-navy">
+                <button
+                  type="button"
+                  onClick={() => setShowPriceListModal(false)}
+                  className="px-3 py-1.5 text-xs font-medium text-[#8B949E] hover:text-[#E6EDF3] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !priceListFile || !priceListForm.name.trim()}
+                  className="px-3 py-1.5 bg-brand-teal hover:bg-brand-teal/90 text-white text-sm font-medium rounded-md transition-colors flex items-center min-w-[100px] justify-center disabled:opacity-50"
+                >
+                  {loading ? (
+                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    'Import List'
                   )}
                 </button>
               </div>

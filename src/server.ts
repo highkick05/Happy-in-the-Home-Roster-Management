@@ -522,6 +522,27 @@ async function startServer() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (client_id) REFERENCES clients(id)
       );
+
+      CREATE TABLE IF NOT EXISTS price_lists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        is_master BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS price_list_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        price_list_id INTEGER NOT NULL,
+        code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        rate REAL NOT NULL,
+        description TEXT,
+        reg_group_number TEXT,
+        reg_group_name TEXT,
+        rates_json TEXT,
+        unit TEXT,
+        FOREIGN KEY (price_list_id) REFERENCES price_lists(id) ON DELETE CASCADE
+      );
     `);
     console.log("[DEBUG] Completed client_ledger_entries table setup.");
   } catch (e: any) {
@@ -8051,7 +8072,7 @@ async function startServer() {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { type, region } = req.body;
+      const { type, region, priceListName, isMaster } = req.body;
       if (type !== "NDIS" && type !== "HOME_CARE") {
         return res.status(400).json({ error: "Invalid service type" });
       }
@@ -8108,8 +8129,18 @@ async function startServer() {
         const updateService = db.prepare(
           "UPDATE services SET code = ?, name = ?, rate = ?, description = ?, reg_group_number = ?, reg_group_name = ?, rates_json = ?, unit = ? WHERE id = ?",
         );
+        const insertPriceListItem = db.prepare(
+          "INSERT INTO price_list_items (price_list_id, code, name, rate, description, reg_group_number, reg_group_name, rates_json, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+
+        let priceListId: number | undefined;
 
         db.transaction(() => {
+          if (type === "NDIS" && priceListName) {
+            const insertList = db.prepare("INSERT INTO price_lists (name, is_master) VALUES (?, 0)");
+            const plInfo = insertList.run(priceListName);
+            priceListId = plInfo.lastInsertRowid as number;
+          }
           // Keep a copy of the file on fileserver for future use
           if (req.file) {
             try {
@@ -8331,46 +8362,75 @@ async function startServer() {
             }
             const ratesJson = JSON.stringify(ratesObj);
 
-            let existing: { id: number } | undefined = undefined;
-            if (type === "HOME_CARE") {
-              existing = db
-                .prepare(
-                  "SELECT id FROM services WHERE code = ? AND type = ? AND name = ?",
-                )
-                .get(code, type, name) as any;
+            if (priceListId) {
+               insertPriceListItem.run(
+                 priceListId,
+                 code,
+                 name,
+                 rate,
+                 description,
+                 regGroupNum,
+                 regGroupName,
+                 ratesJson,
+                 unit
+               );
+               imported++;
+               if (String(isMaster) === 'true') {
+                  let existing = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS'").get(code) as any;
+                  if (existing) {
+                    updateService.run(code, name, rate, description, regGroupNum, regGroupName, ratesJson, unit, existing.id);
+                    updated++;
+                  } else {
+                    insertService.run(code, name, rate, description, regGroupNum, regGroupName, 'NDIS', ratesJson, unit);
+                  }
+               }
             } else {
-              existing = db
-                .prepare("SELECT id FROM services WHERE code = ? AND type = ?")
-                .get(code, type) as any;
-            }
+              let existing: { id: number } | undefined = undefined;
+              if (type === "HOME_CARE") {
+                existing = db
+                  .prepare(
+                    "SELECT id FROM services WHERE code = ? AND type = ? AND name = ?",
+                  )
+                  .get(code, type, name) as any;
+              } else {
+                existing = db
+                  .prepare("SELECT id FROM services WHERE code = ? AND type = ?")
+                  .get(code, type) as any;
+              }
 
-            if (existing) {
-              updateService.run(
-                code,
-                name,
-                rate,
-                description,
-                regGroupNum,
-                regGroupName,
-                ratesJson,
-                unit,
-                existing.id,
-              );
-              updated++;
-            } else {
-              insertService.run(
-                code,
-                name,
-                rate,
-                description,
-                regGroupNum,
-                regGroupName,
-                type,
-                ratesJson,
-                unit,
-              );
-              imported++;
+              if (existing) {
+                updateService.run(
+                  code,
+                  name,
+                  rate,
+                  description,
+                  regGroupNum,
+                  regGroupName,
+                  ratesJson,
+                  unit,
+                  existing.id,
+                );
+                updated++;
+              } else {
+                insertService.run(
+                  code,
+                  name,
+                  rate,
+                  description,
+                  regGroupNum,
+                  regGroupName,
+                  type,
+                  ratesJson,
+                  unit,
+                );
+                imported++;
+              }
             }
+          }
+          
+          if (priceListId && String(isMaster) === 'true') {
+             db.prepare("UPDATE price_lists SET is_master = 0").run();
+             db.prepare("UPDATE price_lists SET is_master = 1 WHERE id = ?").run(priceListId);
           }
         })();
 
@@ -8388,6 +8448,79 @@ async function startServer() {
       }
     },
   );
+
+  app.get("/api/settings/price_lists", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const lists = db.prepare("SELECT * FROM price_lists ORDER BY created_at DESC").all();
+      res.json(lists);
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to fetch price lists" });
+    }
+  });
+
+  app.post("/api/settings/price_lists/archive", authenticateToken, requireAdmin, (req: any, res: any) => {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: "Name is required" });
+
+    try {
+      let priceListId: number;
+      db.transaction(() => {
+        const info = db.prepare("INSERT INTO price_lists (name, is_master) VALUES (?, 0)").run(name);
+        priceListId = info.lastInsertRowid as number;
+
+        const services = db.prepare("SELECT * FROM services WHERE type = 'NDIS'").all() as any[];
+        const insertItem = db.prepare(
+          "INSERT INTO price_list_items (price_list_id, code, name, rate, description, reg_group_number, reg_group_name, rates_json, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+
+        for (const s of services) {
+          insertItem.run(priceListId, s.code, s.name, s.rate, s.description, s.reg_group_number, s.reg_group_name, s.rates_json, s.unit);
+        }
+      })();
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to archive current pricing" });
+    }
+  });
+
+  app.post("/api/settings/price_lists/:id/make_master", authenticateToken, requireAdmin, (req: any, res: any) => {
+    const { id } = req.params;
+    try {
+      db.transaction(() => {
+        const items = db.prepare("SELECT * FROM price_list_items WHERE price_list_id = ?").all(id) as any[];
+        const updateService = db.prepare(
+          "UPDATE services SET name = ?, rate = ?, description = ?, reg_group_number = ?, reg_group_name = ?, rates_json = ?, unit = ? WHERE code = ? AND type = 'NDIS'"
+        );
+        const insertService = db.prepare(
+          "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit) VALUES (?, ?, ?, ?, ?, ?, 'NDIS', ?, ?)"
+        );
+
+        for (const item of items) {
+          const existing = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS'").get(item.code) as any;
+          if (existing) {
+            updateService.run(item.name, item.rate, item.description, item.reg_group_number, item.reg_group_name, item.rates_json, item.unit, item.code);
+          } else {
+            insertService.run(item.code, item.name, item.rate, item.description, item.reg_group_number, item.reg_group_name, item.rates_json, item.unit);
+          }
+        }
+
+        db.prepare("UPDATE price_lists SET is_master = 0").run();
+        db.prepare("UPDATE price_lists SET is_master = 1 WHERE id = ?").run(id);
+      })();
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to apply master price list" });
+    }
+  });
+
+  app.delete("/api/settings/price_lists/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      db.prepare("DELETE FROM price_lists WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to delete price list" });
+    }
+  });
 
   app.get(
     "/api/reports/staff-activity",
