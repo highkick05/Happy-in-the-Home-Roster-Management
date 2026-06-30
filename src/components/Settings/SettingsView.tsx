@@ -1500,7 +1500,6 @@ export default function SettingsView() {
                   <input
                     type="date"
                     value={priceListForm.effectiveDate}
-                    disabled={priceListForm.isMaster}
                     onChange={(e) => setPriceListForm(prev => ({ ...prev, effectiveDate: e.target.value }))}
                     className="w-full bg-brand-bg text-[#E6EDF3] border border-border-subtle rounded-md px-3 py-1.5 text-xs focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none transition-colors disabled:opacity-50"
                   />
@@ -1514,7 +1513,7 @@ export default function SettingsView() {
                     type="checkbox"
                     id="isMaster"
                     checked={priceListForm.isMaster}
-                    onChange={(e) => setPriceListForm(prev => ({ ...prev, isMaster: e.target.checked, effectiveDate: e.target.checked ? '' : prev.effectiveDate }))}
+                    onChange={(e) => setPriceListForm(prev => ({ ...prev, isMaster: e.target.checked }))}
                     className="w-4 h-4 text-brand-teal bg-brand-bg border-border-subtle rounded focus:ring-brand-teal focus:ring-offset-brand-navy"
                   />
                   <label htmlFor="isMaster" className="text-sm font-medium text-[#E6EDF3]">
