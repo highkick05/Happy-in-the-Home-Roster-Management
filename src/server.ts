@@ -7917,6 +7917,70 @@ async function startServer() {
     },
   );
 
+  app.get(
+    "/api/settings/services/export-ndis",
+    authenticateToken,
+    requireAdmin,
+    (req: any, res: any) => {
+      try {
+        const services = db
+          .prepare(
+            "SELECT * FROM services WHERE type = 'NDIS' ORDER BY code ASC",
+          )
+          .all() as any[];
+
+        const exportData = services.map((s) => {
+          let rates: any = {};
+          if (s.rates_json) {
+            try {
+              rates = JSON.parse(s.rates_json);
+            } catch (e) {}
+          }
+
+          return {
+            "NDIS Code": s.code,
+            "Service Name": s.name,
+            "Reg. Grp Num": s.reg_group_number || "",
+            "Reg. Grp Name": s.reg_group_name || "",
+            "Unit": s.unit || "",
+            "ACT": rates["ACT"] !== undefined ? parseFloat(rates["ACT"]) : 0,
+            "NSW": rates["NSW"] !== undefined ? parseFloat(rates["NSW"]) : 0,
+            "NT": rates["NT"] !== undefined ? parseFloat(rates["NT"]) : 0,
+            "QLD": rates["QLD"] !== undefined ? parseFloat(rates["QLD"]) : 0,
+            "SA": rates["SA"] !== undefined ? parseFloat(rates["SA"]) : 0,
+            "TAS": rates["TAS"] !== undefined ? parseFloat(rates["TAS"]) : 0,
+            "VIC": rates["VIC"] !== undefined ? parseFloat(rates["VIC"]) : 0,
+            "WA": rates["WA"] !== undefined ? parseFloat(rates["WA"]) : 0,
+            "Remote": rates["Remote"] !== undefined ? parseFloat(rates["Remote"]) : 0,
+            "Very Remote": rates["Very Remote"] !== undefined ? parseFloat(rates["Very Remote"]) : 0,
+          };
+        });
+
+        const worksheet = xlsx.utils.json_to_sheet(exportData);
+        const workbook = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(workbook, worksheet, "NDIS Pricing");
+
+        const buffer = xlsx.write(workbook, {
+          type: "buffer",
+          bookType: "xlsx",
+        });
+
+        res.setHeader(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        );
+        res.setHeader(
+          "Content-Disposition",
+          "attachment; filename=ndis_pricing_export.xlsx",
+        );
+        res.send(buffer);
+      } catch (e: any) {
+        logger.error(`Export error: ${e.message}`);
+        res.status(500).json({ error: "Failed to export NDIS pricing" });
+      }
+    },
+  );
+
   app.post(
     "/api/settings/services",
     authenticateToken,

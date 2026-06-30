@@ -837,7 +837,7 @@ export default function ComplianceDashboard() {
                                 {stats.expiring} Expiring Soon
                               </span>
                             )}
-                            {stats.missing > 0 && stats.expired === 0 && stats.expiring === 0 && (
+                            {stats.missing > 0 && (
                               <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold border bg-zinc-500/10 border-border-subtle text-zinc-400">
                                 {stats.missing} Missing
                               </span>

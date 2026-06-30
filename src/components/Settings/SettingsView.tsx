@@ -279,6 +279,30 @@ export default function SettingsView() {
     }
   };
 
+  const handleExportNdisPricing = async () => {
+    try {
+      const res = await fetch('/api/settings/services/export-ndis', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error('Export failed');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'ndis_pricing_export.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export NDIS pricing. Please try again.');
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -804,6 +828,20 @@ export default function SettingsView() {
                   ref={fileInputRef}
                   onChange={handleFileUpload}
                 />
+                <select
+                  value={region}
+                  className="hidden" // Just to keep the map simple if we wanted to
+                >
+                  {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <button
+                  onClick={handleExportNdisPricing}
+                  className="flex items-center px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-200 text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0 animate-fade-in"
+                  disabled={loading || user?.role !== 'ADMIN'}
+                >
+                  <Download className="w-4 h-4 mr-1.5" />
+                  Export Pricing
+                </button>
                 <button 
                   onClick={() => fileInputRef.current?.click()}
                   className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto shadow-sm whitespace-nowrap shrink-0 animate-fade-in"
