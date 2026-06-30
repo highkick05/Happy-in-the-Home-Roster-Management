@@ -224,12 +224,51 @@ async function startServer() {
   }
 
   try {
-    db.exec(`
-      DROP INDEX IF EXISTS idx_services_type_code_name;
-    `);
-    console.log("[DEBUG] Removed unique index on services to preserve historical pricing");
+    // 1. Drop any explicit unique index if it exists (but we can't drop sqlite_autoindex this way)
+    const indices = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='services' AND sql LIKE '%UNIQUE%'").all() as any[];
+    for (const idx of indices) {
+       if (idx.name && !idx.name.startsWith('sqlite_autoindex')) {
+          db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
+       }
+    }
+    
+    // 2. Recreate table if UNIQUE table constraint exists
+    const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='services'").get() as any;
+    if (tableInfo && tableInfo.sql) {
+      let sql = tableInfo.sql;
+      const uniqueRegex = /,\s*UNIQUE\s*\(\s*"?type"?\s*,\s*"?code"?\s*,\s*"?name"?\s*\)/i;
+      const uniqueRegex2 = /,\s*CONSTRAINT\s+["`\w]+\s+UNIQUE\s*\(\s*"?type"?\s*,\s*"?code"?\s*,\s*"?name"?\s*\)/i;
+      const altUnique = /,\s*UNIQUE\s*\([^)]+\)/gi;
+      
+      let needsRecreate = false;
+      let newSql = sql;
+
+      if (uniqueRegex.test(sql) || uniqueRegex2.test(sql)) {
+        newSql = newSql.replace(uniqueRegex, '');
+        newSql = newSql.replace(uniqueRegex2, '');
+        needsRecreate = true;
+      } else if (altUnique.test(sql) && sql.includes('type') && sql.includes('code') && sql.includes('name')) {
+        newSql = newSql.replace(altUnique, '');
+        needsRecreate = true;
+      }
+      
+      if (needsRecreate) {
+        console.log("[DEBUG] Found UNIQUE constraint on services, recreating table...");
+        newSql = newSql.replace(/CREATE TABLE "?services"?/i, 'CREATE TABLE services_new');
+        
+        db.transaction(() => {
+          db.exec("PRAGMA foreign_keys = OFF;");
+          db.exec(newSql);
+          db.exec("INSERT INTO services_new SELECT * FROM services;");
+          db.exec("DROP TABLE services;");
+          db.exec("ALTER TABLE services_new RENAME TO services;");
+          db.exec("PRAGMA foreign_keys = ON;");
+        })();
+        console.log("[DEBUG] Recreated services table without UNIQUE constraint to preserve historical pricing");
+      }
+    }
   } catch(e: any) {
-    console.warn("Could not drop unique index on services:", e.message);
+    console.warn("Could not handle unique constraint on services:", e.message);
   }
 
   try {
