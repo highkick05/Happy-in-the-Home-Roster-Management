@@ -8312,9 +8312,17 @@ async function startServer() {
         );
 
         let priceListId: number | undefined;
+        let shouldBeMaster = String(isMaster) === "true";
 
         db.transaction(() => {
-          if (type === "NDIS" && String(isMaster) === "true") {
+          if (type === "NDIS") {
+            const countRow = db.prepare("SELECT count(*) as count FROM price_lists").get() as any;
+            if (countRow.count === 0) {
+              shouldBeMaster = true;
+            }
+          }
+
+          if (type === "NDIS" && shouldBeMaster) {
              db.prepare("UPDATE services SET status = 'ARCHIVED' WHERE type = 'NDIS'").run();
           }
 
@@ -8604,7 +8612,7 @@ async function startServer() {
           }
         })();
 
-        if (priceListId && String(isMaster) === 'true') {
+        if (priceListId && shouldBeMaster) {
            applyMasterPriceList(priceListId);
         }
 
