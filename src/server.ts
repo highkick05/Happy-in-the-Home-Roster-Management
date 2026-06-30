@@ -225,11 +225,11 @@ async function startServer() {
 
   try {
     db.exec(`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_services_type_code_name ON services(type, code, name);
+      DROP INDEX IF EXISTS idx_services_type_code_name;
     `);
-    console.log("[DEBUG] Added unique index on services for ON CONFLICT");
+    console.log("[DEBUG] Removed unique index on services to preserve historical pricing");
   } catch(e: any) {
-    console.warn("Could not create unique index on services:", e.message);
+    console.warn("Could not drop unique index on services:", e.message);
   }
 
   try {
@@ -8192,7 +8192,7 @@ async function startServer() {
           "Very Remote",
         ];
         const insertService = db.prepare(
-          "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE') ON CONFLICT(type, code, name) DO UPDATE SET rate=excluded.rate, description=excluded.description, reg_group_number=excluded.reg_group_number, reg_group_name=excluded.reg_group_name, rates_json=excluded.rates_json, unit=excluded.unit, status='ACTIVE'"
+          "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')"
         );
         const updateService = db.prepare(
           "UPDATE services SET code = ?, name = ?, rate = ?, description = ?, reg_group_number = ?, reg_group_name = ?, rates_json = ?, unit = ?, status = 'ACTIVE' WHERE id = ?",
@@ -8554,21 +8554,22 @@ async function startServer() {
 
       const items = db.prepare("SELECT * FROM price_list_items WHERE price_list_id = ?").all(id) as any[];
       const insertService = db.prepare(
-        "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit, status) VALUES (?, ?, ?, ?, ?, ?, 'NDIS', ?, ?, 'ACTIVE') ON CONFLICT(type, code, name) DO UPDATE SET rate=excluded.rate, description=excluded.description, reg_group_number=excluded.reg_group_number, reg_group_name=excluded.reg_group_name, rates_json=excluded.rates_json, unit=excluded.unit, status='ACTIVE'"
+        "INSERT INTO services (code, name, rate, description, reg_group_number, reg_group_name, type, rates_json, unit, status) VALUES (?, ?, ?, ?, ?, ?, 'NDIS', ?, ?, 'ACTIVE')"
       );
 
       const oldIdToNewId: Record<number, number> = {};
 
       for (const item of items) {
-        // Get the most recent old ID for this code (even if archived, we want to map forward)
-        const existing = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' ORDER BY id DESC LIMIT 1").get(item.code) as any;
+        // Get ALL old IDs for this code so any future shifts using an older ID get mapped
+        const allExisting = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS'").all(item.code) as any[];
         
-        insertService.run(item.code, item.name, item.rate, item.description, item.reg_group_number, item.reg_group_name, item.rates_json, item.unit);
-        const newRecord = db.prepare("SELECT id FROM services WHERE code = ? AND name = ? AND type = 'NDIS'").get(item.code, item.name) as any;
-        const newId = newRecord ? newRecord.id : null;
+        const info = insertService.run(item.code, item.name, item.rate, item.description, item.reg_group_number, item.reg_group_name, item.rates_json, item.unit);
+        const newId = info.lastInsertRowid as number;
 
-        if (existing && newId) {
-          oldIdToNewId[existing.id] = newId;
+        if (allExisting.length > 0 && newId) {
+          for (const ex of allExisting) {
+            oldIdToNewId[ex.id] = newId;
+          }
         }
       }
 
@@ -13119,6 +13120,28 @@ async function startServer() {
     }
   } catch(e) {
     logger.error("Failed to apply scheduled price lists on startup:", e);
+  }
+
+  // Migration to repair corrupted services with missing reg_group_number
+  try {
+    const corruptedServices = db.prepare("SELECT id, code FROM services WHERE type = 'NDIS' AND reg_group_number = '-'").all() as any[];
+    if (corruptedServices.length > 0) {
+      console.log(`[Startup] Found ${corruptedServices.length} corrupted services. Attempting repair...`);
+      const getGoodItem = db.prepare("SELECT reg_group_number, reg_group_name FROM price_list_items WHERE code = ? AND reg_group_number != '-' AND reg_group_number IS NOT NULL LIMIT 1");
+      const updateSrv = db.prepare("UPDATE services SET reg_group_number = ?, reg_group_name = ? WHERE id = ?");
+      
+      let repaired = 0;
+      for (const s of corruptedServices) {
+        const good = getGoodItem.get(s.code) as any;
+        if (good) {
+          updateSrv.run(good.reg_group_number, good.reg_group_name, s.id);
+          repaired++;
+        }
+      }
+      console.log(`[Startup] Repaired ${repaired} corrupted services.`);
+    }
+  } catch(e) {
+    console.error("[Startup] Failed to repair corrupted services:", e);
   }
 
   // Daily compliance document expiry check
