@@ -256,14 +256,14 @@ async function startServer() {
         console.log("[DEBUG] Found UNIQUE constraint on services, recreating table...");
         newSql = newSql.replace(/CREATE TABLE "?services"?/i, 'CREATE TABLE services_new');
         
+        db.pragma("foreign_keys = OFF");
         db.transaction(() => {
-          db.exec("PRAGMA foreign_keys = OFF;");
           db.exec(newSql);
           db.exec("INSERT INTO services_new SELECT * FROM services;");
           db.exec("DROP TABLE services;");
           db.exec("ALTER TABLE services_new RENAME TO services;");
-          db.exec("PRAGMA foreign_keys = ON;");
         })();
+        db.pragma("foreign_keys = ON");
         console.log("[DEBUG] Recreated services table without UNIQUE constraint to preserve historical pricing");
       }
     }
