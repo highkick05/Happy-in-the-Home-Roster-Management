@@ -8767,13 +8767,12 @@ async function startServer() {
   app.delete("/api/settings/price_lists/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
     const { id } = req.params;
     try {
-      // Don't allow deleting the master list
       const pl = db.prepare("SELECT is_master FROM price_lists WHERE id = ?").get(id) as any;
-      if (pl && pl.is_master) {
-        return res.status(400).json({ error: "Cannot delete the active master price list" });
-      }
 
       db.transaction(() => {
+        if (pl && pl.is_master) {
+           db.prepare("UPDATE services SET status = 'ARCHIVED' WHERE type = 'NDIS'").run();
+        }
         db.prepare("DELETE FROM price_list_items WHERE price_list_id = ?").run(id);
         db.prepare("DELETE FROM price_lists WHERE id = ?").run(id);
       })();

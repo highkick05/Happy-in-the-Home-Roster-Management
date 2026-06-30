@@ -360,6 +360,7 @@ export default function SettingsView() {
       });
       if (res.ok) {
         fetchPriceLists();
+        fetchServices('NDIS');
       } else {
         const data = await res.json();
         alert(data.error || 'Failed to delete price list.');
@@ -1020,21 +1021,19 @@ export default function SettingsView() {
                         </td>
                         <td className="px-3 py-2 text-right space-x-3">
                           {!pl.is_master && (
-                            <>
                               <button
                                 onClick={() => handleMakeMaster(pl.id)}
                                 className="text-xs text-brand-teal hover:text-brand-teal/80 font-medium"
                               >
                                 Make Master
                               </button>
+                          )}
                               <button
                                 onClick={() => handleDeletePriceList(pl.id)}
                                 className="text-xs text-red-400 hover:text-red-300 font-medium"
                               >
                                 Delete
                               </button>
-                            </>
-                          )}
                         </td>
                       </tr>
                       );
