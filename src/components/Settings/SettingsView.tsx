@@ -1086,14 +1086,6 @@ export default function SettingsView() {
                           >
                             Edit
                           </button>
-                          {!pl.is_master && (
-                              <button
-                                onClick={() => handleMakeMaster(pl.id)}
-                                className="text-xs text-brand-teal hover:text-brand-teal/80 font-medium"
-                              >
-                                Make Master
-                              </button>
-                          )}
                               <button
                                 onClick={() => handleDeletePriceList(pl.id)}
                                 className="text-xs text-red-400 hover:text-red-300 font-medium"
