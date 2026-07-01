@@ -759,6 +759,29 @@ async function startServer() {
   }
 
   try {
+    const pls = db.prepare("SELECT id, created_at, effective_date FROM price_lists").all() as any[];
+    for (const pl of pls) {
+      let changed = false;
+      let newCreatedAt = pl.created_at;
+      let newEffectiveDate = pl.effective_date;
+      if (pl.created_at && pl.created_at.includes('T')) {
+        newCreatedAt = pl.created_at.split('T')[0];
+        changed = true;
+      }
+      if (pl.effective_date && pl.effective_date.includes('T')) {
+        newEffectiveDate = pl.effective_date.split('T')[0];
+        changed = true;
+      }
+      if (changed) {
+        db.prepare("UPDATE price_lists SET created_at = ?, effective_date = ? WHERE id = ?").run(newCreatedAt, newEffectiveDate, pl.id);
+        console.log(`[DEBUG] Cleaned timestamps for price_list ${pl.id}`);
+      }
+    }
+  } catch (e: any) {
+    console.warn("Migration warning cleaning price_lists timestamps:", e.message);
+  }
+
+  try {
     db.exec(`
       ALTER TABLE services ADD COLUMN service_category TEXT CHECK(service_category IN ('Clinical', 'Independence', 'Everyday Living') OR service_category IS NULL);
     `);
@@ -6245,7 +6268,7 @@ async function startServer() {
                   servicesData = JSON.parse(tmpl.services_json);
                   for (let sData of servicesData) {
                     if (sData.serviceId && !sData.isCustom && !String(sData.serviceId).startsWith("custom-")) {
-                      if (masterPl && masterPl.effective_date && shiftDateStr < masterPl.effective_date) {
+                      if (masterPl && masterPl.effective_date && shiftDateStr < masterPl.effective_date.split('T')[0]) {
                         const currentSrv = db.prepare("SELECT * FROM services WHERE id = ?").get(sData.serviceId) as any;
                         if (currentSrv && currentSrv.type === "NDIS" && currentSrv.code) {
                           const historicalSrv = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' AND status = 'ARCHIVED' AND id < ? ORDER BY id DESC LIMIT 1").get(currentSrv.code, currentSrv.id) as any;
@@ -6301,7 +6324,7 @@ async function startServer() {
               } else if (tmpl.service_id) {
                 servicesData = [{ serviceId: tmpl.service_id }];
                 if (servicesData[0].serviceId) {
-                  if (masterPl && masterPl.effective_date && shiftDateStr < masterPl.effective_date) {
+                  if (masterPl && masterPl.effective_date && shiftDateStr < masterPl.effective_date.split('T')[0]) {
                     const currentSrv = db.prepare("SELECT * FROM services WHERE id = ?").get(servicesData[0].serviceId) as any;
                     if (currentSrv && currentSrv.type === "NDIS" && currentSrv.code) {
                       const historicalSrv = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' AND status = 'ARCHIVED' AND id < ? ORDER BY id DESC LIMIT 1").get(currentSrv.code, currentSrv.id) as any;
@@ -6991,9 +7014,29 @@ async function startServer() {
         Array.isArray(staffIds) && staffIds.length > 0 ? staffIds : [staffId];
 
       if (servicesData && servicesData.length > 0 && startTime) {
-        const shiftDate = startTime.split("T")[0];
+        let shiftDate = startTime.split("T")[0];
+        try {
+          const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+          const settingsMap: Record<string, string> = {};
+          settingsRows.forEach((r) => { settingsMap[r.key] = r.value; });
+          const rawTz = settingsMap.timezone || "Australia/Perth";
+          const timezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
+          
+          const shiftDateFormatter = new Intl.DateTimeFormat("en-GB", {
+            timeZone: timezone,
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          });
+          const localParts = shiftDateFormatter.formatToParts(new Date(startTime));
+          const day = localParts.find((p) => p.type === "day")?.value;
+          const month = localParts.find((p) => p.type === "month")?.value;
+          const year = localParts.find((p) => p.type === "year")?.value;
+          shiftDate = `${year}-${month}-${day}`;
+        } catch(e) {}
+        
         const masterPl = db.prepare("SELECT effective_date FROM price_lists WHERE is_master = 1").get() as any;
-        if (masterPl && masterPl.effective_date && shiftDate < masterPl.effective_date) {
+        if (masterPl && masterPl.effective_date && shiftDate < masterPl.effective_date.split('T')[0]) {
           for (let sd of servicesData) {
             if (sd.serviceId && !sd.isCustom && !String(sd.serviceId).startsWith("custom-")) {
               const currentSrv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
@@ -7390,9 +7433,29 @@ async function startServer() {
         const oldValue = JSON.stringify(existing);
 
         if (servicesData && servicesData.length > 0 && startTime) {
-          const shiftDate = startTime.split("T")[0];
+          let shiftDate = startTime.split("T")[0];
+          try {
+            const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+            const settingsMap: Record<string, string> = {};
+            settingsRows.forEach((r) => { settingsMap[r.key] = r.value; });
+            const rawTz = settingsMap.timezone || "Australia/Perth";
+            const timezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
+            
+            const shiftDateFormatter = new Intl.DateTimeFormat("en-GB", {
+              timeZone: timezone,
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            });
+            const localParts = shiftDateFormatter.formatToParts(new Date(startTime));
+            const day = localParts.find((p) => p.type === "day")?.value;
+            const month = localParts.find((p) => p.type === "month")?.value;
+            const year = localParts.find((p) => p.type === "year")?.value;
+            shiftDate = `${year}-${month}-${day}`;
+          } catch(e) {}
+
           const masterPl = db.prepare("SELECT effective_date FROM price_lists WHERE is_master = 1").get() as any;
-          if (masterPl && masterPl.effective_date && shiftDate < masterPl.effective_date) {
+          if (masterPl && masterPl.effective_date && shiftDate < masterPl.effective_date.split('T')[0]) {
             for (let sd of servicesData) {
               if (sd.serviceId && !sd.isCustom && !String(sd.serviceId).startsWith("custom-")) {
                 const currentSrv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
@@ -8779,11 +8842,32 @@ async function startServer() {
       // 4. Update DRAFT and PUBLISHED shifts that start on or after the effective date of the price list (or today if none)
       const pl = db.prepare("SELECT effective_date FROM price_lists WHERE id = ?").get(id) as any;
       const cutoffDate = pl?.effective_date || new Date().toISOString().split('T')[0];
+      
+      const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+      const settingsMap: Record<string, string> = {};
+      settingsRows.forEach((r) => { settingsMap[r.key] = r.value; });
+      const rawTz = settingsMap.timezone || "Australia/Perth";
+      const timezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
+      
+      const shiftDateFormatter = new Intl.DateTimeFormat("en-GB", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
 
-      const futureShifts = db.prepare("SELECT id, services_json FROM shifts WHERE status IN ('DRAFT', 'PUBLISHED') AND start_time >= ?").all(cutoffDate) as any[];
+      const futureShifts = db.prepare("SELECT id, start_time, services_json FROM shifts WHERE status IN ('DRAFT', 'PUBLISHED')").all() as any[];
       const updateShift = db.prepare("UPDATE shifts SET services_json = ? WHERE id = ?");
       for (const shift of futureShifts) {
-        if (shift.services_json) {
+        if (!shift.services_json) continue;
+        
+        const localParts = shiftDateFormatter.formatToParts(new Date(shift.start_time));
+        const day = localParts.find((p) => p.type === "day")?.value;
+        const month = localParts.find((p) => p.type === "month")?.value;
+        const year = localParts.find((p) => p.type === "year")?.value;
+        const localDateStr = `${year}-${month}-${day}`;
+        
+        if (localDateStr >= cutoffDate) {
           try {
             const sData = JSON.parse(shift.services_json);
             let changed = false;
