@@ -7052,10 +7052,9 @@ async function startServer() {
       }
 
       const mainServiceId =
-        serviceId ||
         (servicesData && servicesData.length > 0
           ? servicesData[0].serviceId
-          : null);
+          : serviceId);
 
       // Conflict Checking
       if (!ignoreConflicts && status !== 'CANCELLED') {
@@ -7495,10 +7494,9 @@ async function startServer() {
           ? JSON.stringify(processedServicesData)
           : existing.services_json;
         const mainServiceId =
-          serviceId ||
           (processedServicesData && processedServicesData.length > 0
             ? processedServicesData[0].serviceId
-            : existing.service_id);
+            : serviceId || existing.service_id);
 
         const finalFundingType =
           fundingType ||
@@ -8856,8 +8854,8 @@ async function startServer() {
         day: "2-digit",
       });
 
-      const futureShifts = db.prepare("SELECT id, start_time, services_json FROM shifts WHERE status IN ('DRAFT', 'PUBLISHED')").all() as any[];
-      const updateShift = db.prepare("UPDATE shifts SET services_json = ? WHERE id = ?");
+      const futureShifts = db.prepare("SELECT id, start_time, service_id, services_json FROM shifts WHERE status IN ('DRAFT', 'PUBLISHED')").all() as any[];
+      const updateShift = db.prepare("UPDATE shifts SET services_json = ?, service_id = ? WHERE id = ?");
       for (const shift of futureShifts) {
         if (!shift.services_json) continue;
         
@@ -8871,14 +8869,18 @@ async function startServer() {
           try {
             const sData = JSON.parse(shift.services_json);
             let changed = false;
+            let newMainServiceId = shift.service_id;
             for (const s of sData) {
               if (s.serviceId && oldIdToNewId[s.serviceId]) {
+                if (String(shift.service_id) === String(s.serviceId)) {
+                  newMainServiceId = oldIdToNewId[s.serviceId];
+                }
                 s.serviceId = oldIdToNewId[s.serviceId];
                 changed = true;
               }
             }
             if (changed) {
-              updateShift.run(JSON.stringify(sData), shift.id);
+              updateShift.run(JSON.stringify(sData), newMainServiceId, shift.id);
             }
           } catch (e) {}
         }
@@ -13404,6 +13406,30 @@ async function startServer() {
     }
   } catch(e) {
     console.error("[Startup] Failed to repair corrupted services:", e);
+  }
+
+  // Migration to sync shift.service_id with services_json
+  try {
+    const shiftsToSync = db.prepare("SELECT id, service_id, services_json FROM shifts").all() as any[];
+    let synced = 0;
+    const updateSync = db.prepare("UPDATE shifts SET service_id = ? WHERE id = ?");
+    for (const shift of shiftsToSync) {
+      if (shift.services_json) {
+        try {
+          const sData = JSON.parse(shift.services_json);
+          if (sData && sData.length > 0 && sData[0].serviceId) {
+            const jsonServiceId = sData[0].serviceId;
+            if (String(jsonServiceId) !== String(shift.service_id)) {
+              updateSync.run(jsonServiceId, shift.id);
+              synced++;
+            }
+          }
+        } catch(e) {}
+      }
+    }
+    if (synced > 0) console.log(`[Startup] Synced service_id for ${synced} shifts.`);
+  } catch(e) {
+    console.error("[Startup] Failed to sync shift service IDs:", e);
   }
 
   // Daily compliance document expiry check
