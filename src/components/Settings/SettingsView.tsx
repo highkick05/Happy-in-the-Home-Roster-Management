@@ -1656,7 +1656,9 @@ export default function SettingsView() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Effective Date (Optional)</label>
+                  <label className="block text-xs font-medium text-[#8B949E] mb-1.5">
+                    Effective Date (Optional) <span className="font-normal opacity-80 ml-1">(Format: dd/mm/yyyy)</span>
+                  </label>
                   <input
                     type="date"
                     value={priceListForm.effectiveDate}
