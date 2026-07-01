@@ -8410,6 +8410,19 @@ async function startServer() {
         let priceListId: number | undefined;
         let shouldBeMaster = String(isMaster) === "true";
 
+        if (effectiveDate) {
+          const rawTzSetting = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
+          const rawTz = rawTzSetting?.value || "Australia/Perth";
+          const timezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
+
+          const auDateStr = new Date().toLocaleDateString("en-AU", { timeZone: timezone });
+          const [day, month, year] = auDateStr.split('/');
+          const todayStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          if (effectiveDate <= todayStr) {
+            shouldBeMaster = true;
+          }
+        }
+
         db.transaction(() => {
           if (type === "NDIS") {
             const countRow = db.prepare("SELECT count(*) as count FROM price_lists").get() as any;
@@ -13373,7 +13386,12 @@ async function startServer() {
   checkComplianceDocumentExpiry();
   
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const rawTzSetting = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
+    const rawTz = rawTzSetting?.value || "Australia/Perth";
+    const timezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
+    const auDateStr = new Date().toLocaleDateString("en-AU", { timeZone: timezone });
+    const [day, month, year] = auDateStr.split('/');
+    const today = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     const currentMaster = db.prepare("SELECT effective_date FROM price_lists WHERE is_master = 1 LIMIT 1").get() as any;
     const masterDate = currentMaster && currentMaster.effective_date ? currentMaster.effective_date : '1970-01-01';
     
@@ -13440,7 +13458,12 @@ async function startServer() {
   // Check for future-dated price lists that should become active today
   cron.schedule("0 0 * * *", () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const rawTzSetting = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
+      const rawTz = rawTzSetting?.value || "Australia/Perth";
+      const timezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
+      const auDateStr = new Date().toLocaleDateString("en-AU", { timeZone: timezone });
+      const [day, month, year] = auDateStr.split('/');
+      const today = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
       const currentMaster = db.prepare("SELECT effective_date FROM price_lists WHERE is_master = 1 LIMIT 1").get() as any;
       const masterDate = currentMaster && currentMaster.effective_date ? currentMaster.effective_date : '1970-01-01';
       
