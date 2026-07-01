@@ -1015,14 +1015,6 @@ export default function SettingsView() {
                   <p className="text-sm text-[#8B949E]">Manage multiple price schedules and set the active Master Price List.</p>
                 </div>
                 <div className="flex space-x-2 items-center">
-                  <button
-                    onClick={handleArchiveCurrentPricing}
-                    className="flex items-center px-3 py-1.5 bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-200 text-[13px] font-medium rounded-md transition-colors shadow-sm"
-                    disabled={loading || user?.role !== 'ADMIN'}
-                  >
-                    <Save className="w-4 h-4 mr-1.5" />
-                    Archive Current
-                  </button>
                   <button 
                     onClick={() => setShowPriceListModal(true)}
                     className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors shadow-sm"
