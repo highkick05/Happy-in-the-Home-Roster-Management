@@ -82,7 +82,7 @@ if (typeof __dirname !== "undefined") {
   _dirname = path.dirname(_filename);
 }
 
-const UPLOADS_DIR = path.join(process.cwd(), "uploads");
+const UPLOADS_DIR = path.join(process.cwd(), "data", "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
@@ -114,8 +114,8 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB limit to prevent storage exhaustion
 });
 
-if (!fs.existsSync(path.join(process.cwd(), "invoices"))) {
-  fs.mkdirSync(path.join(process.cwd(), "invoices"), { recursive: true });
+if (!fs.existsSync(path.join(process.cwd(), "data", "invoices"))) {
+  fs.mkdirSync(path.join(process.cwd(), "data", "invoices"), { recursive: true });
 }
 
 function getSafeDateTimeFormat(
@@ -2603,7 +2603,7 @@ async function startServer() {
     }
   });
 
-  const persistentAssetsDir = path.join(process.cwd(), "uploads", "assets");
+  const persistentAssetsDir = path.join(process.cwd(), "data", "uploads", "assets");
   if (!fs.existsSync(persistentAssetsDir)) {
     fs.mkdirSync(persistentAssetsDir, { recursive: true });
   }
@@ -3245,7 +3245,7 @@ async function startServer() {
         const validFileIds = new Set();
         const fileMetadata = new Map();
         existingFiles.forEach((f) => {
-          const filePath = path.join(process.cwd(), "uploads", f.system_name);
+          const filePath = path.join(process.cwd(), "data", "uploads", f.system_name);
           if (fs.existsSync(filePath)) {
             validFileIds.add(f.id);
             fileMetadata.set(f.id, f);
@@ -7178,7 +7178,8 @@ async function startServer() {
               if (inv.file_path) {
                 const filePath = path.join(
                   process.cwd(),
-                  "invoices",
+              "data",
+              "invoices",
                   inv.file_path,
                 );
                 if (fs.existsSync(filePath)) {
@@ -7909,7 +7910,8 @@ async function startServer() {
             if (inv.file_path) {
               const filePath = path.join(
                 process.cwd(),
-                "invoices",
+              "data",
+              "invoices",
                 inv.file_path,
               );
               if (fs.existsSync(filePath)) {
@@ -9766,6 +9768,7 @@ async function startServer() {
           for (const fileRecord of fileRecords) {
             const sysFilePath = path.join(
               process.cwd(),
+              "data",
               "uploads",
               fileRecord.system_name,
             );
@@ -9812,7 +9815,7 @@ async function startServer() {
               const rawSystemName = `${data.invoiceNum}.pdf`;
               const systemName = path.posix.join(subfolder, rawSystemName);
 
-              const targetDir = path.join(process.cwd(), "uploads", subfolder);
+              const targetDir = path.join(process.cwd(), "data", "uploads", subfolder);
               if (!fs.existsSync(targetDir)) {
                 fs.mkdirSync(targetDir, { recursive: true });
               }
@@ -10014,7 +10017,8 @@ async function startServer() {
           const filename = fileWithQuery.split("?")[0]; // Strip the query params
           const persistentAssetPath = path.join(
             process.cwd(),
-            "uploads",
+              "data",
+              "uploads",
             "assets",
             filename,
           );
@@ -10389,7 +10393,7 @@ async function startServer() {
     authenticateToken,
     (req: any, res: any) => {
       const filename = req.params.filename;
-      const filePath = path.join(process.cwd(), "invoices", filename);
+      const filePath = path.join(process.cwd(), "data", "invoices", filename);
       if (fs.existsSync(filePath)) {
         res.download(filePath);
       } else {
@@ -10776,7 +10780,8 @@ async function startServer() {
               const filename = fileWithQuery.split("?")[0];
               const persistentAssetPath = path.join(
                 process.cwd(),
-                "uploads",
+              "data",
+              "uploads",
                 "assets",
                 filename,
               );
@@ -11109,10 +11114,11 @@ async function startServer() {
       if (initialSystemName !== actualSystemName) {
         const initialFilePath = path.join(
           process.cwd(),
-          "uploads",
+              "data",
+              "uploads",
           initialSystemName,
         );
-        const actualDirPath = path.join(process.cwd(), "uploads", subfolder);
+        const actualDirPath = path.join(process.cwd(), "data", "uploads", subfolder);
         const actualFilePath = path.join(actualDirPath, req.file.filename);
         if (fs.existsSync(initialFilePath)) {
           if (!fs.existsSync(actualDirPath))
@@ -11201,7 +11207,7 @@ async function startServer() {
           return res.status(403).json({ error: "Forbidden" });
         }
 
-        const filePath = path.join(process.cwd(), "uploads", file.system_name);
+        const filePath = path.join(process.cwd(), "data", "uploads", file.system_name);
         if (fs.existsSync(filePath)) {
           if (preview) {
             if (file.mime_type) {
@@ -11258,10 +11264,11 @@ async function startServer() {
 
           const currentFilePath = path.join(
             process.cwd(),
-            "uploads",
+              "data",
+              "uploads",
             file.system_name,
           );
-          const targetDir = path.join(process.cwd(), "uploads", subfolder);
+          const targetDir = path.join(process.cwd(), "data", "uploads", subfolder);
           const targetFilePath = path.join(targetDir, file.system_name);
 
           if (fs.existsSync(currentFilePath)) {
@@ -11303,7 +11310,7 @@ async function startServer() {
         if (req.user.role !== "ADMIN" && file.uploaded_by !== req.user.id) {
           return res.status(403).json({ error: "Forbidden" });
         }
-        const filePath = path.join(process.cwd(), "uploads", file.system_name);
+        const filePath = path.join(process.cwd(), "data", "uploads", file.system_name);
         if (fs.existsSync(filePath)) {
           try {
             fs.unlinkSync(filePath);
