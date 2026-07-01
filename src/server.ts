@@ -8664,6 +8664,12 @@ async function startServer() {
                 }
               }
             }
+            if (type === "NDIS" && (name.toLowerCase().includes("activity based transport") || name.toLowerCase().includes("provider travel"))) {
+              rate = 1;
+              for (const k of Object.keys(ratesObj)) {
+                ratesObj[k] = 1;
+              }
+            }
             const ratesJson = JSON.stringify(ratesObj);
 
             if (priceListId) {
