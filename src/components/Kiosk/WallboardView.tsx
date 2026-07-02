@@ -509,7 +509,12 @@ export default function WallboardView() {
                       No active tasks.
                     </div>
                   ) : (
-                    tasks.filter((t: any) => t.status === 'Active').map((task: any) => (
+                    tasks.filter((t: any) => t.status === 'Active').sort((a: any, b: any) => {
+                      if (a.is_important !== b.is_important) {
+                        return (b.is_important || 0) - (a.is_important || 0);
+                      }
+                      return b.id - a.id;
+                    }).map((task: any) => (
                       <TaskCard
                         key={task.id}
                         task={task}
