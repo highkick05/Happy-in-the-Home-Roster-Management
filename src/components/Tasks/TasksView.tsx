@@ -34,6 +34,25 @@ export default function TasksView() {
 
   const [staffList, setStaffList] = useState<any[]>([]);
   const [clientList, setClientList] = useState<any[]>([]);
+  const [quickTaskTitle, setQuickTaskTitle] = useState('');
+
+  const handleQuickAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickTaskTitle.trim()) return;
+    try {
+      const res = await fetch(`/api/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title: quickTaskTitle, status: 'Active' })
+      });
+      if (!res.ok) throw new Error('Failed to create task');
+      setQuickTaskTitle('');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert(String(err));
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -231,6 +250,26 @@ export default function TasksView() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Quick Add Task */}
+      <div className="flex-none p-4 pt-0">
+        <form onSubmit={handleQuickAddTask} className="max-w-3xl mx-auto relative group">
+          <input
+            type="text"
+            value={quickTaskTitle}
+            onChange={(e) => setQuickTaskTitle(e.target.value)}
+            placeholder="Quick add a task..."
+            className="w-full bg-brand-navy border border-border-subtle rounded-xl py-3 pl-5 pr-12 text-[14px] text-[#E6EDF3] placeholder:text-[#8B949E] focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal transition-all shadow-sm group-hover:border-brand-teal/50"
+          />
+          <button
+            type="submit"
+            disabled={!quickTaskTitle.trim()}
+            className="absolute right-2 top-2 bottom-2 aspect-square flex items-center justify-center bg-brand-teal text-white rounded-lg hover:bg-brand-teal/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-brand-teal"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        </form>
       </div>
 
       {isModalOpen && (
