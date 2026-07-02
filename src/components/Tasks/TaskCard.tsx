@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Edit2, Trash2, CheckCircle2, Circle, Clock, Users, Calendar as CalendarIcon, UserCircle2, X, Plus, Flame } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSubTask, onDeleteSubTask, onToggleImportant, staffList, clientList }: any) {
   const [newSubTask, setNewSubTask] = useState('');
