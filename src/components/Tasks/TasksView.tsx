@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Edit2, Trash2, CheckCircle2, Circle, Clock, Users, User, Calendar as CalendarIcon, ChevronDown, ChevronRight, X, UserCircle2 } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, CheckCircle2, Circle, Clock, Users, User, Calendar as CalendarIcon, ChevronDown, ChevronRight, X, UserCircle2, Flame } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -20,6 +20,7 @@ type Task = {
   assigned_staff: string; // JSON string
   assigned_clients: string; // JSON string
   created_at: string;
+  is_important?: number;
   sub_tasks: SubTask[];
 };
 
@@ -200,7 +201,26 @@ export default function TasksView() {
     }
   };
 
-  const filteredTasks = tasks.filter(t => t.status === activeTab);
+  const handleToggleImportant = async (id: number) => {
+    try {
+      const res = await fetch(`/api/tasks/${id}/important`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to toggle important task');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert(String(err));
+    }
+  };
+
+  const filteredTasks = tasks.filter(t => t.status === activeTab).sort((a, b) => {
+    if (a.is_important !== b.is_important) {
+      return (b.is_important || 0) - (a.is_important || 0);
+    }
+    return b.id - a.id;
+  });
 
   return (
     <div className="flex flex-col h-full bg-brand-bg">
@@ -248,6 +268,7 @@ export default function TasksView() {
                 onToggleSubTask={toggleSubTask}
                 onAddSubTask={addSubTask}
                 onDeleteSubTask={deleteSubTask}
+                onToggleImportant={() => handleToggleImportant(task.id)}
                 staffList={staffList}
                 clientList={clientList}
               />
@@ -290,7 +311,7 @@ export default function TasksView() {
   );
 }
 
-function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSubTask, onDeleteSubTask, staffList, clientList }: any) {
+function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSubTask, onDeleteSubTask, onToggleImportant, staffList, clientList }: any) {
   const [newSubTask, setNewSubTask] = useState('');
   
   let assignedStaff: number[] = [];
@@ -311,10 +332,40 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
 
   return (
     <motion.div 
-      whileHover={{ y: -2, boxShadow: "0 8px 30px -4px rgba(0,0,0,0.4)", borderColor: "rgba(45, 212, 191, 0.3)" }}
-      className="bg-brand-navy border border-border-subtle rounded-xl flex flex-col group overflow-hidden relative shadow-md transition-colors duration-300"
+      whileHover={{ y: -2, boxShadow: task.is_important ? "0 8px 30px -4px rgba(249,115,22,0.4)" : "0 8px 30px -4px rgba(0,0,0,0.4)", borderColor: task.is_important ? "rgba(249, 115, 22, 0.4)" : "rgba(45, 212, 191, 0.3)" }}
+      className={`bg-brand-navy border ${task.is_important ? 'border-orange-500/30' : 'border-border-subtle'} rounded-xl flex flex-col group overflow-hidden relative shadow-md transition-colors duration-300`}
     >
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-brand-teal/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      {task.is_important && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 rounded-xl">
+          <motion.div 
+            animate={{ 
+              opacity: [0.1, 0.3, 0.1],
+              scale: [1, 1.02, 1],
+            }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute -inset-4 bg-gradient-to-r from-orange-500/10 via-red-500/5 to-orange-500/10 mix-blend-screen"
+          />
+          <motion.div
+            animate={{ 
+              y: [0, -20],
+              opacity: [0, 0.2, 0],
+              scale: [1, 1.5]
+            }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.5 }}
+            className="absolute bottom-0 right-10 w-16 h-16 bg-orange-400/20 rounded-full blur-xl"
+          />
+           <motion.div
+            animate={{ 
+              y: [0, -30],
+              opacity: [0, 0.3, 0],
+              scale: [0.8, 1.8]
+            }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut" }}
+            className="absolute bottom-0 right-20 w-20 h-20 bg-red-500/20 rounded-full blur-xl"
+          />
+        </div>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-brand-teal/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-0" />
       <div 
         className="px-2.5 py-1.5 flex items-start justify-between gap-3 cursor-pointer relative z-10"
         onClick={onEdit}
@@ -367,38 +418,49 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
         </div>
 
         {/* Right Section - Dates & Assignments */}
-        <div className="flex flex-col gap-2 w-72 shrink-0 text-[13px] text-[#8B949E] mt-0.5 z-10">
-          {(task.start_date || task.end_date) && (
-            <div className="flex items-center space-x-1.5">
-              <CalendarIcon className="w-3.5 h-3.5 text-brand-teal shrink-0" />
-              <span className="truncate">
-                {task.start_date ? new Date(task.start_date).toLocaleDateString() : '...'} - {task.end_date ? new Date(task.end_date).toLocaleDateString() : '...'}
-              </span>
-            </div>
-          )}
-          
-          {(assignedStaff.length > 0 || assignedClients.length > 0) && (
-            <div className="flex flex-col gap-1.5">
-              {assignedStaff.length > 0 && (
-                <div className="flex items-center gap-1 flex-wrap" title="Assigned Staff">
-                  <Users className="w-3.5 h-3.5 mr-1 text-brand-green shrink-0" />
-                  {assignedStaff.map(id => {
-                    const staff = staffList?.find((s: any) => s.id === id);
-                    return <span key={id} className="bg-brand-green/10 text-brand-green px-1.5 py-0.5 rounded-sm whitespace-nowrap">{staff ? `${staff.first_name} ${staff.last_name}` : `Staff #${id}`}</span>;
-                  })}
-                </div>
-              )}
-              {assignedClients.length > 0 && (
-                <div className="flex items-center gap-1 flex-wrap" title="Assigned Clients">
-                  <UserCircle2 className="w-3.5 h-3.5 mr-1 text-purple-400 shrink-0" />
-                  {assignedClients.map(id => {
-                    const client = clientList?.find((c: any) => c.id === id);
-                    return <span key={id} className="bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded-sm whitespace-nowrap">{client ? `${client.first_name} ${client.last_name}` : `Client #${id}`}</span>;
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+        <div className="flex gap-4 shrink-0 items-start">
+          <div className="flex flex-col gap-2 w-72 shrink-0 text-[13px] text-[#8B949E] mt-0.5 z-10">
+            {(task.start_date || task.end_date) && (
+              <div className="flex items-center space-x-1.5">
+                <CalendarIcon className="w-3.5 h-3.5 text-brand-teal shrink-0" />
+                <span className="truncate">
+                  {task.start_date ? new Date(task.start_date).toLocaleDateString() : '...'} - {task.end_date ? new Date(task.end_date).toLocaleDateString() : '...'}
+                </span>
+              </div>
+            )}
+            
+            {(assignedStaff.length > 0 || assignedClients.length > 0) && (
+              <div className="flex flex-col gap-1.5">
+                {assignedStaff.length > 0 && (
+                  <div className="flex items-center gap-1 flex-wrap" title="Assigned Staff">
+                    <Users className="w-3.5 h-3.5 mr-1 text-brand-green shrink-0" />
+                    {assignedStaff.map(id => {
+                      const staff = staffList?.find((s: any) => s.id === id);
+                      return <span key={id} className="bg-brand-green/10 text-brand-green px-1.5 py-0.5 rounded-sm whitespace-nowrap">{staff ? `${staff.first_name} ${staff.last_name}` : `Staff #${id}`}</span>;
+                    })}
+                  </div>
+                )}
+                {assignedClients.length > 0 && (
+                  <div className="flex items-center gap-1 flex-wrap" title="Assigned Clients">
+                    <UserCircle2 className="w-3.5 h-3.5 mr-1 text-purple-400 shrink-0" />
+                    {assignedClients.map(id => {
+                      const client = clientList?.find((c: any) => c.id === id);
+                      return <span key={id} className="bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded-sm whitespace-nowrap">{client ? `${client.first_name} ${client.last_name}` : `Client #${id}`}</span>;
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <motion.button
+            onClick={(e: any) => { e.stopPropagation(); onToggleImportant(); }}
+            whileHover={{ scale: 1.15 }}
+            whileTap={{ scale: 0.85 }}
+            className={`mt-0.5 p-1.5 rounded-full transition-colors z-10 ${task.is_important ? 'text-orange-500 bg-orange-500/10' : 'text-[#8B949E] hover:text-orange-400 hover:bg-orange-500/10'}`}
+            title="Toggle Importance"
+          >
+            <Flame className={`w-5 h-5 ${task.is_important ? 'fill-orange-500/50 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]' : ''}`} />
+          </motion.button>
         </div>
       </div>
       

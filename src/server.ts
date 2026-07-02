@@ -453,6 +453,16 @@ async function startServer() {
 
   try {
     db.exec(`
+      ALTER TABLE tasks ADD COLUMN is_important INTEGER DEFAULT 0;
+    `);
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
+    db.exec(`
       CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -14429,12 +14439,12 @@ async function startServer() {
   });
 
   app.post('/api/tasks', authenticateToken, (req: any, res: any) => {
-    const { title, description, status, start_date, end_date, assigned_staff, assigned_clients, sub_tasks } = req.body;
+    const { title, description, status, start_date, end_date, assigned_staff, assigned_clients, sub_tasks, is_important } = req.body;
     try {
       const result = db.prepare(`
-        INSERT INTO tasks (title, description, status, start_date, end_date, assigned_staff, assigned_clients)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(title, description, status || 'Active', start_date || null, end_date || null, assigned_staff || '[]', assigned_clients || '[]');
+        INSERT INTO tasks (title, description, status, start_date, end_date, assigned_staff, assigned_clients, is_important)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(title, description, status || 'Active', start_date || null, end_date || null, assigned_staff || '[]', assigned_clients || '[]', is_important ? 1 : 0);
       
       const taskId = result.lastInsertRowid;
       
@@ -14453,13 +14463,13 @@ async function startServer() {
   });
 
   app.put('/api/tasks/:id', authenticateToken, (req: any, res: any) => {
-    const { title, description, status, start_date, end_date, assigned_staff, assigned_clients, sub_tasks } = req.body;
+    const { title, description, status, start_date, end_date, assigned_staff, assigned_clients, sub_tasks, is_important } = req.body;
     const taskId = req.params.id;
     try {
       db.prepare(`
-        UPDATE tasks SET title = ?, description = ?, status = ?, start_date = ?, end_date = ?, assigned_staff = ?, assigned_clients = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE tasks SET title = ?, description = ?, status = ?, start_date = ?, end_date = ?, assigned_staff = ?, assigned_clients = ?, is_important = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(title, description, status, start_date || null, end_date || null, assigned_staff || '[]', assigned_clients || '[]', taskId);
+      `).run(title, description, status, start_date || null, end_date || null, assigned_staff || '[]', assigned_clients || '[]', is_important ? 1 : 0, taskId);
       
       if (sub_tasks && Array.isArray(sub_tasks)) {
         db.prepare("DELETE FROM sub_tasks WHERE task_id = ?").run(taskId);
@@ -14492,6 +14502,16 @@ async function startServer() {
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error completing task:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/tasks/:id/important', authenticateToken, (req: any, res: any) => {
+    try {
+      db.prepare("UPDATE tasks SET is_important = CASE WHEN is_important = 1 THEN 0 ELSE 1 END, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error toggling task importance:", error);
       res.status(500).json({ error: error.message });
     }
   });
