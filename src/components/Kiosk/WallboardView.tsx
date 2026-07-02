@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import ShiftDetailsModal from '../Roster/ShiftDetailsModal';
 import { ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { TaskCard } from '../Tasks/TaskCard';
 
 export interface ShiftEvent {
   id: number | string;
@@ -27,6 +28,10 @@ export interface ShiftEvent {
 export default function WallboardView() {
   const { token, settings } = useAuth();
   const [events, setEvents] = useState<ShiftEvent[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [clientList, setClientList] = useState<any[]>([]);
+  const [activeView, setActiveView] = useState<'shifts' | 'tasks'>('shifts');
   const [date, setDate] = useState(() => subDays(new Date(), 1));
   
   const [selectedShift, setSelectedShift] = useState<ShiftEvent | null>(null);
@@ -172,12 +177,28 @@ export default function WallboardView() {
   const fetchData = async () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const [shiftsRes, respiteRes] = await Promise.all([
+      const [shiftsRes, respiteRes, tasksRes, staffRes, clientsRes] = await Promise.all([
         fetch('/api/shifts?wallboard=true', { headers }),
-        fetch('/api/respite-bookings?wallboard=true', { headers })
+        fetch('/api/respite-bookings?wallboard=true', { headers }),
+        fetch('/api/tasks', { headers }),
+        fetch('/api/staff', { headers }),
+        fetch('/api/clients', { headers })
       ]);
 
       if (shiftsRes.ok && respiteRes.ok) {
+        if (tasksRes?.ok) {
+          const tData = await tasksRes.json();
+          setTasks(tData);
+        }
+        if (staffRes?.ok) {
+          const sData = await staffRes.json();
+          setStaffList(sData);
+        }
+        if (clientsRes?.ok) {
+          const cData = await clientsRes.json();
+          setClientList(cData);
+        }
+
         const shiftsData = await shiftsRes.json();
         const respiteData = await respiteRes.json();
         
@@ -250,6 +271,7 @@ export default function WallboardView() {
         // Keep moving the 'window' forward so yesterday's shifts fall off 24 hours later
         setDate(subDays(new Date(), 1));
       }
+      setActiveView(prev => prev === 'shifts' ? 'tasks' : 'shifts');
     }, 30000);
     return () => clearInterval(interval);
   }, [token, manualMode]);
@@ -363,104 +385,192 @@ export default function WallboardView() {
 
         <div className="flex-1 w-full flex flex-col p-4 md:p-8 overflow-auto">
           <div style={{ zoom: zoomLevel } as any} className="flex-1 w-full max-w-7xl mx-auto flex flex-col gap-8 pb-32">
-            {groupedEvents.length === 0 ? (
-              <div className="flex items-center justify-center h-48 text-zinc-500 font-medium">
-                No shifts found starting from {format(date, 'd MMM yyyy')}.
-              </div>
-            ) : (
-              groupedEvents.map((group) => (
-                <div key={group.dateLabel} className="flex flex-col gap-3">
-                  <h2 className="text-2xl font-bold tracking-tight text-brand-teal uppercase border-b border-zinc-800 pb-2 mb-2 sticky top-0 bg-zinc-950/80 backdrop-blur-sm z-10">
-                    {group.dateLabel}
-                  </h2>
-                  <div className="flex flex-col gap-2">
-                    {group.events.map(event => {
-                      const isCancelled = event.status === 'CANCELLED';
-                      const isCompleted = (event.status === 'COMPLETED' || !!event.actualEndTime) && !isCancelled;
-                      const isActuallyRunning = (event.status === 'IN_PROGRESS' || (!!event.actualStartTime && !event.actualEndTime)) && !isCancelled;
-                      const isInProgress = isActuallyRunning && !isCompleted;
-                      
-                      let containerClass = "transition-all flex items-center p-3 sm:p-4 shadow-sm border-y border-white/[0.05] ";
-                      if (isCancelled) {
-                        containerClass += "opacity-80 border-l-[6px] border-red-500 bg-red-500/25";
-                      } else if (event.status === 'DRAFT') {
-                        containerClass += "opacity-90 border-l-[6px] border-orange-400 bg-orange-500/25";
-                      } else if (isCompleted) {
-                        containerClass += "opacity-80 border-l-[6px] border-brand-green bg-brand-green/25";
-                      } else if (isInProgress) {
-                        containerClass += "border-l-[6px] border-emerald-400 bg-emerald-500/35 shadow-emerald-500/30 shadow-lg pulse-border ring-1 ring-emerald-500/50";
-                      } else {
-                        // SCHEDULED / PUBLISHED -> Zinc (matches Scheduled badge)
-                        containerClass += "opacity-95 border-l-[6px] border-zinc-400 bg-zinc-500/25";
-                      }
-
-                      return (
-                        <div 
-                          key={event.id}
-                          onClick={() => handleSelectEvent(event)}
-                          className={`w-full hover:brightness-110 cursor-pointer ${containerClass} rounded-r-xl`}
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 w-full">
-                            <div className="text-zinc-300 font-mono text-lg whitespace-nowrap min-w-[140px]">
-                              {format(event.start, 'h:mm a')} <span className="text-zinc-600 px-1">–</span> {format(event.end, 'h:mm a')}
-                            </div>
+            <AnimatePresence mode="wait">
+              {activeView === 'shifts' ? (
+                <motion.div
+                  key="shifts"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.5 }}
+                  className="w-full flex flex-col gap-8"
+                >
+                  {groupedEvents.length === 0 ? (
+                    <div className="flex items-center justify-center h-48 text-zinc-500 font-medium">
+                      No shifts found starting from {format(date, 'd MMM yyyy')}.
+                    </div>
+                  ) : (
+                    groupedEvents.map((group) => (
+                      <div key={group.dateLabel} className="flex flex-col gap-3">
+                        <h2 className="text-2xl font-bold tracking-tight text-brand-teal uppercase border-b border-zinc-800 pb-2 mb-2 sticky top-0 bg-zinc-950/80 backdrop-blur-sm z-10">
+                          {group.dateLabel}
+                        </h2>
+                        <div className="flex flex-col gap-2">
+                          {group.events.map(event => {
+                            const isCancelled = event.status === 'CANCELLED';
+                            const isCompleted = (event.status === 'COMPLETED' || !!event.actualEndTime) && !isCancelled;
+                            const isActuallyRunning = (event.status === 'IN_PROGRESS' || (!!event.actualStartTime && !event.actualEndTime)) && !isCancelled;
+                            const isInProgress = isActuallyRunning && !isCompleted;
                             
-                            <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 sm:items-center flex-grow truncate px-0 sm:px-4 sm:border-l sm:border-zinc-700/50">
-                              <span className={`font-bold text-xl truncate ${isInProgress ? 'text-emerald-50' : 'text-[#E6EDF3]'}`}>
-                                {event.clientName || 'Unknown Client'}
-                              </span>
-                              <span className="hidden sm:inline text-zinc-600">•</span>
-                              <span className={`text-lg truncate ${isInProgress ? 'text-emerald-400 font-medium' : 'text-brand-teal'}`}>
-                                {event.staffName || 'Unassigned'}
-                              </span>
-                              <span className="hidden sm:inline text-zinc-600">•</span>
-                              <span className={`text-base truncate ${isInProgress ? 'text-emerald-200' : 'text-[#8B949E]'}`}>
-                                {event.serviceName || (event.isRespiteWrapper ? 'STA / Respite' : 'Support Worker')} 
-                              </span>
-                            </div>
+                            let containerClass = "transition-all flex items-center p-3 sm:p-4 shadow-sm border-y border-white/[0.05] ";
+                            if (isCancelled) {
+                              containerClass += "opacity-80 border-l-[6px] border-red-500 bg-red-500/25";
+                            } else if (event.status === 'DRAFT') {
+                              containerClass += "opacity-90 border-l-[6px] border-orange-400 bg-orange-500/25";
+                            } else if (isCompleted) {
+                              containerClass += "opacity-80 border-l-[6px] border-brand-green bg-brand-green/25";
+                            } else if (isInProgress) {
+                              containerClass += "border-l-[6px] border-emerald-400 bg-emerald-500/35 shadow-emerald-500/30 shadow-lg pulse-border ring-1 ring-emerald-500/50";
+                            } else {
+                              containerClass += "opacity-95 border-l-[6px] border-zinc-400 bg-zinc-500/25";
+                            }
 
-                            <div className="flex items-center justify-start sm:justify-end whitespace-nowrap">
-                              {isCancelled && (
-                                <span className="text-xs bg-red-500/20 text-red-400 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
-                                  Cancelled
-                                </span>
-                              )}
-                              {isInProgress && (
-                                <span className="flex items-center">
-                                  <span className="flex h-3 w-3 relative mr-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                                  </span>
-                                  <span className="text-xs bg-emerald-500/20 text-emerald-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
-                                    In Progress
-                                  </span>
-                                </span>
-                              )}
-                              {isCompleted && (
-                                <span className="text-xs bg-blue-500/20 text-blue-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
-                                  Completed
-                                </span>
-                              )}
-                              {!isInProgress && !isCompleted && !isCancelled && event.status !== 'DRAFT' && (
-                                <span className="text-xs bg-zinc-500/20 text-zinc-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
-                                  Scheduled
-                                </span>
-                              )}
-                              {event.status === 'DRAFT' && (
-                                <span className="text-xs bg-orange-500/20 text-orange-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
-                                  Draft
-                                </span>
-                              )}
-                            </div>
-                          </div>
+                            return (
+                              <div 
+                                key={event.id}
+                                onClick={() => handleSelectEvent(event)}
+                                className={`w-full hover:brightness-110 cursor-pointer ${containerClass} rounded-r-xl`}
+                              >
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 w-full">
+                                  <div className="text-zinc-300 font-mono text-lg whitespace-nowrap min-w-[140px]">
+                                    {format(event.start, 'h:mm a')} <span className="text-zinc-600 px-1">–</span> {format(event.end, 'h:mm a')}
+                                  </div>
+                                  
+                                  <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 sm:items-center flex-grow truncate px-0 sm:px-4 sm:border-l sm:border-zinc-700/50">
+                                    <span className={`font-bold text-xl truncate ${isInProgress ? 'text-emerald-50' : 'text-[#E6EDF3]'}`}>
+                                      {event.clientName || 'Unknown Client'}
+                                    </span>
+                                    <span className="hidden sm:inline text-zinc-600">•</span>
+                                    <span className={`text-lg truncate ${isInProgress ? 'text-emerald-400 font-medium' : 'text-brand-teal'}`}>
+                                      {event.staffName || 'Unassigned'}
+                                    </span>
+                                    <span className="hidden sm:inline text-zinc-600">•</span>
+                                    <span className={`text-base truncate ${isInProgress ? 'text-emerald-200' : 'text-[#8B949E]'}`}>
+                                      {event.serviceName || (event.isRespiteWrapper ? 'STA / Respite' : 'Support Worker')} 
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center justify-start sm:justify-end whitespace-nowrap">
+                                    {isCancelled && (
+                                      <span className="text-xs bg-red-500/20 text-red-400 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
+                                        Cancelled
+                                      </span>
+                                    )}
+                                    {isInProgress && (
+                                      <span className="flex items-center">
+                                        <span className="flex h-3 w-3 relative mr-2">
+                                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                                        </span>
+                                        <span className="text-xs bg-emerald-500/20 text-emerald-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
+                                          In Progress
+                                        </span>
+                                      </span>
+                                    )}
+                                    {isCompleted && (
+                                      <span className="text-xs bg-blue-500/20 text-blue-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
+                                        Completed
+                                      </span>
+                                    )}
+                                    {!isInProgress && !isCompleted && !isCancelled && event.status !== 'DRAFT' && (
+                                      <span className="text-xs bg-zinc-500/20 text-zinc-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
+                                        Scheduled
+                                      </span>
+                                    )}
+                                    {event.status === 'DRAFT' && (
+                                      <span className="text-xs bg-orange-500/20 text-orange-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
+                                        Draft
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                      </div>
+                    ))
+                  )}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="tasks"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.5 }}
+                  className="w-full flex flex-col gap-1.5"
+                >
+                  <h2 className="text-2xl font-bold tracking-tight text-brand-teal uppercase border-b border-zinc-800 pb-2 mb-2 sticky top-0 bg-zinc-950/80 backdrop-blur-sm z-10">
+                    Active Tasks
+                  </h2>
+                  {tasks.filter((t: any) => t.status === 'Active').length === 0 ? (
+                    <div className="flex items-center justify-center h-48 text-zinc-500 font-medium">
+                      No active tasks.
+                    </div>
+                  ) : (
+                    tasks.filter((t: any) => t.status === 'Active').map((task: any) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        onEdit={() => {}}
+                        onDelete={() => {}}
+                        onComplete={async () => {
+                           try {
+                             await fetch(`/api/tasks/${task.id}/status`, {
+                               method: 'PUT',
+                               headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                               body: JSON.stringify({ status: 'Completed' })
+                             });
+                             fetchData();
+                           } catch (e) {}
+                        }}
+                        onToggleSubTask={async (taskId, subTaskId) => {
+                           try {
+                             await fetch(`/api/tasks/${taskId}/subtasks/${subTaskId}/toggle`, {
+                               method: 'PUT',
+                               headers: token ? { Authorization: `Bearer ${token}` } : {}
+                             });
+                             fetchData();
+                           } catch (e) {}
+                        }}
+                        onAddSubTask={async (taskId, title) => {
+                           try {
+                             await fetch(`/api/tasks/${taskId}/subtasks`, {
+                               method: 'POST',
+                               headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                               body: JSON.stringify({ title, completed: 0 })
+                             });
+                             fetchData();
+                           } catch (e) {}
+                        }}
+                        onDeleteSubTask={async (taskId, subTaskId) => {
+                           try {
+                             await fetch(`/api/tasks/${taskId}/subtasks/${subTaskId}`, {
+                               method: 'DELETE',
+                               headers: token ? { Authorization: `Bearer ${token}` } : {}
+                             });
+                             fetchData();
+                           } catch (e) {}
+                        }}
+                        onToggleImportant={async () => {
+                           try {
+                             await fetch(`/api/tasks/${task.id}/important`, {
+                               method: 'PUT',
+                               headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                               body: JSON.stringify({ is_important: task.is_important ? 0 : 1 })
+                             });
+                             fetchData();
+                           } catch (e) {}
+                        }}
+                        staffList={staffList}
+                        clientList={clientList}
+                      />
+                    ))
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>          </div>
         </div>
 
         {/* Footer with Quote */}
