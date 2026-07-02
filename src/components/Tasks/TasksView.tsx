@@ -271,7 +271,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
     >
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-brand-teal/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
       <div 
-        className="p-4 pb-3 flex items-start justify-between gap-5 cursor-pointer relative z-10"
+        className="px-3 py-2 flex items-start justify-between gap-3 cursor-pointer relative z-10"
         onClick={onEdit}
       >
         
@@ -359,7 +359,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
       
       <div className="border-t border-border-subtle bg-black/20 rounded-b-lg">
         {task.sub_tasks?.length > 0 && (
-          <div className="w-full px-3 py-2 flex items-center justify-between text-xs font-semibold text-[#8B949E]">
+          <div className="w-full px-2 py-1.5 flex items-center justify-between text-xs font-semibold text-[#8B949E]">
             <span>Progress ({task.sub_tasks.filter((st:any) => st.completed).length}/{task.sub_tasks.length})</span>
             <div className="w-24 h-1.5 bg-[#1A2332] rounded-full overflow-hidden shadow-inner">
               <motion.div 
@@ -372,7 +372,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
           </div>
         )}
         
-        <div className="px-3 pb-3 pt-1 space-y-1.5">
+        <div className="px-2 pb-2 pt-0.5 space-y-1">
           {task.sub_tasks?.map((st: any) => (
             <div 
               key={st.id || Math.random()} 
