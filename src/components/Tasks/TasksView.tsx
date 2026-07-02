@@ -100,6 +100,10 @@ export default function TasksView() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to delete task');
+      if (editingTask?.id === id) {
+        setIsModalOpen(false);
+        setEditingTask(null);
+      }
       fetchData();
     } catch (err) {
       console.error(err);
