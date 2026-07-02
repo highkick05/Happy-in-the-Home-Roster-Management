@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Search, Edit2, Trash2, CheckCircle2, Circle, Clock, Users, User, Calendar as CalendarIcon, ChevronDown, ChevronRight, X, UserCircle2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { motion, AnimatePresence } from 'motion/react';
 
 type SubTask = {
   id?: number;
@@ -264,28 +265,56 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
   };
 
   return (
-    <div className="bg-brand-navy border border-border-subtle rounded-lg flex flex-col hover:border-brand-teal/50 transition-colors">
+    <motion.div 
+      whileHover={{ y: -2, boxShadow: "0 8px 30px -4px rgba(0,0,0,0.4)", borderColor: "rgba(45, 212, 191, 0.3)" }}
+      className="bg-brand-navy border border-border-subtle rounded-xl flex flex-col group overflow-hidden relative shadow-md transition-colors duration-300"
+    >
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-brand-teal/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
       <div 
-        className="p-3 pb-2 flex items-start justify-between gap-4 cursor-pointer group"
+        className="p-4 pb-3 flex items-start justify-between gap-5 cursor-pointer relative z-10"
         onClick={onEdit}
       >
         
         {/* Left Section - Checkbox, Title and Description */}
-        <div className="flex-1 flex gap-3 min-w-0 items-start">
-          <button 
-            onClick={(e) => { e.stopPropagation(); onComplete(); }} 
+        <div className="flex-1 flex gap-4 min-w-0 items-start">
+          <motion.button 
+            onClick={(e: any) => { e.stopPropagation(); onComplete(); }} 
             title={task.status === 'Completed' ? "Completed" : "Complete Task"} 
-            className={`mt-0.5 p-1 shrink-0 transition-colors ${task.status === 'Completed' ? 'text-brand-green' : 'text-[#8B949E] hover:text-brand-green'}`}
+            whileHover={{ scale: 1.15 }}
+            whileTap={{ scale: 0.85 }}
+            className={`mt-0.5 shrink-0 flex items-center justify-center rounded-full transition-colors duration-300 ${task.status === 'Completed' ? 'text-brand-green bg-brand-green/10 p-1 shadow-[0_0_15px_rgba(46,160,67,0.2)]' : 'text-[#8B949E] hover:text-brand-green hover:bg-brand-green/10 p-1'}`}
           >
-            {task.status === 'Completed' ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
-          </button>
+            <AnimatePresence mode="wait">
+              {task.status === 'Completed' ? (
+                <motion.div
+                  key="completed"
+                  initial={{ scale: 0.5, rotate: -90, opacity: 0 }}
+                  animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                  exit={{ scale: 0.5, rotate: 90, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                >
+                  <CheckCircle2 className="w-[26px] h-[26px] drop-shadow-md" />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="incomplete"
+                  initial={{ scale: 0.5, rotate: 90, opacity: 0 }}
+                  animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                  exit={{ scale: 0.5, rotate: -90, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                >
+                  <Circle className="w-[26px] h-[26px]" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.button>
           
-          <div className="flex flex-col gap-1 min-w-0">
-            <h3 className={`text-[#E6EDF3] font-semibold text-sm leading-snug truncate ${task.status === 'Completed' ? 'line-through text-[#8B949E]' : 'group-hover:text-brand-teal transition-colors'}`}>
+          <div className="flex flex-col gap-1 min-w-0 mt-0.5">
+            <h3 className={`font-medium text-[15px] tracking-tight leading-snug truncate transition-colors duration-300 ${task.status === 'Completed' ? 'line-through text-[#8B949E]' : 'text-[#E6EDF3] group-hover:text-brand-teal'}`}>
               {task.title}
             </h3>
             {task.description && (
-              <p className="text-[#8B949E] text-xs line-clamp-2 leading-relaxed">
+              <p className="text-[#8B949E] text-[13px] line-clamp-2 leading-relaxed">
                 {task.description}
               </p>
             )}
@@ -293,7 +322,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
         </div>
 
         {/* Right Section - Dates & Assignments */}
-        <div className="flex flex-col gap-1.5 w-72 shrink-0 text-xs text-[#8B949E]">
+        <div className="flex flex-col gap-2 w-72 shrink-0 text-[13px] text-[#8B949E] mt-0.5 z-10">
           {(task.start_date || task.end_date) && (
             <div className="flex items-center space-x-1.5">
               <CalendarIcon className="w-3.5 h-3.5 text-brand-teal shrink-0" />
@@ -332,8 +361,13 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
         {task.sub_tasks?.length > 0 && (
           <div className="w-full px-3 py-2 flex items-center justify-between text-xs font-semibold text-[#8B949E]">
             <span>Progress ({task.sub_tasks.filter((st:any) => st.completed).length}/{task.sub_tasks.length})</span>
-            <div className="w-24 h-1.5 bg-brand-navy rounded-full overflow-hidden">
-              <div className="h-full bg-brand-teal rounded-full" style={{ width: `${progress}%` }} />
+            <div className="w-24 h-1.5 bg-[#1A2332] rounded-full overflow-hidden shadow-inner">
+              <motion.div 
+                className="h-full bg-gradient-to-r from-brand-teal to-[#3BE3C5] rounded-full" 
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+              />
             </div>
           </div>
         )}
@@ -379,7 +413,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
