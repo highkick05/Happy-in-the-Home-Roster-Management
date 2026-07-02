@@ -13,7 +13,7 @@ type Task = {
   id: number;
   title: string;
   description: string;
-  status: 'Active' | 'In-Progress' | 'Archived';
+  status: 'Active' | 'In-Progress' | 'Completed';
   start_date: string | null;
   end_date: string | null;
   assigned_staff: string; // JSON string
@@ -26,7 +26,7 @@ export default function TasksView() {
   const { token } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'Active' | 'In-Progress' | 'Archived'>('Active');
+  const [activeTab, setActiveTab] = useState<'Active' | 'In-Progress' | 'Completed'>('Active');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -135,7 +135,7 @@ export default function TasksView() {
       {/* Header */}
       <div className="flex-none p-4 border-b border-border-subtle bg-brand-navy flex items-center justify-between">
         <div className="flex space-x-1">
-          {['Active', 'In-Progress', 'Archived'].map((tab) => (
+          {['Active', 'In-Progress', 'Completed'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
@@ -211,7 +211,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, staffLi
         <div className="flex justify-between items-start mb-2">
           <h3 className="text-[#E6EDF3] font-semibold text-sm leading-snug">{task.title}</h3>
           <div className="flex space-x-1 shrink-0 ml-2">
-            {task.status !== 'Archived' && (
+            {task.status !== 'Completed' && (
               <button onClick={onComplete} title="Complete Task" className="p-1 text-[#8B949E] hover:text-brand-green transition-colors">
                 <CheckCircle2 className="w-4 h-4" />
               </button>
@@ -412,7 +412,7 @@ function TaskModal({ task, onClose, onSave, staffList, clientList }: any) {
               >
                 <option value="Active">Active</option>
                 <option value="In-Progress">In-Progress</option>
-                <option value="Archived">Archived</option>
+                <option value="Completed">Completed</option>
               </select>
             </div>
 
