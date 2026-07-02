@@ -211,7 +211,7 @@ export default function TasksView() {
             No {activeTab.toLowerCase()} tasks found.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div className="flex flex-col gap-3">
             {filteredTasks.map(task => (
               <TaskCard
                 key={task.id}
@@ -264,35 +264,24 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
 
   return (
     <div className="bg-brand-navy border border-border-subtle rounded-lg flex flex-col hover:border-brand-teal/50 transition-colors">
-      <div className="p-3 pb-2 flex-1 flex flex-col">
-        <div className="flex justify-between items-start mb-2">
-          <h3 className="text-[#E6EDF3] font-semibold text-sm leading-snug">{task.title}</h3>
-          <div className="flex space-x-1 shrink-0 ml-2">
-            {task.status !== 'Completed' && (
-              <button onClick={onComplete} title="Complete Task" className="p-1 text-[#8B949E] hover:text-brand-green transition-colors">
-                <CheckCircle2 className="w-4 h-4" />
-              </button>
-            )}
-            <button onClick={onEdit} className="p-1 text-[#8B949E] hover:text-white transition-colors">
-              <Edit2 className="w-4 h-4" />
-            </button>
-            <button onClick={onDelete} className="p-1 text-[#8B949E] hover:text-red-400 transition-colors">
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+      <div className="p-3 pb-2 flex items-start justify-between gap-4">
         
-        {task.description && (
-          <p className="text-[#8B949E] text-xs mb-3 line-clamp-2 leading-relaxed flex-1">
-            {task.description}
-          </p>
-        )}
+        {/* Left Section - Title and Description */}
+        <div className="flex-1 flex flex-col gap-1 min-w-0">
+          <h3 className="text-[#E6EDF3] font-semibold text-sm leading-snug truncate">{task.title}</h3>
+          {task.description && (
+            <p className="text-[#8B949E] text-xs line-clamp-2 leading-relaxed">
+              {task.description}
+            </p>
+          )}
+        </div>
 
-        <div className="flex flex-wrap items-center gap-y-2 gap-x-4 mt-auto text-xs text-[#8B949E]">
+        {/* Middle Section - Dates & Assignments */}
+        <div className="flex flex-col gap-1.5 w-72 shrink-0 text-xs text-[#8B949E]">
           {(task.start_date || task.end_date) && (
             <div className="flex items-center space-x-1.5">
-              <CalendarIcon className="w-3.5 h-3.5 text-brand-teal" />
-              <span>
+              <CalendarIcon className="w-3.5 h-3.5 text-brand-teal shrink-0" />
+              <span className="truncate">
                 {task.start_date ? new Date(task.start_date).toLocaleDateString() : '...'} - {task.end_date ? new Date(task.end_date).toLocaleDateString() : '...'}
               </span>
             </div>
@@ -320,6 +309,21 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
               )}
             </div>
           )}
+        </div>
+        
+        {/* Right Section - Actions */}
+        <div className="flex space-x-1 shrink-0 ml-2">
+          {task.status !== 'Completed' && (
+            <button onClick={onComplete} title="Complete Task" className="p-1 text-[#8B949E] hover:text-brand-green transition-colors">
+              <CheckCircle2 className="w-4 h-4" />
+            </button>
+          )}
+          <button onClick={onEdit} className="p-1 text-[#8B949E] hover:text-white transition-colors">
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button onClick={onDelete} className="p-1 text-[#8B949E] hover:text-red-400 transition-colors">
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       </div>
       
