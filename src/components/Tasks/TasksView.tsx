@@ -237,7 +237,7 @@ export default function TasksView() {
             No {activeTab.toLowerCase()} tasks found.
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
             {filteredTasks.map(task => (
               <TaskCard
                 key={task.id}
@@ -316,7 +316,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
     >
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-brand-teal/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
       <div 
-        className="px-3 py-2 flex items-start justify-between gap-3 cursor-pointer relative z-10"
+        className="px-2.5 py-1.5 flex items-start justify-between gap-3 cursor-pointer relative z-10"
         onClick={onEdit}
       >
         
