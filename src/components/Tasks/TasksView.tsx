@@ -299,17 +299,23 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
           )}
           
           {(assignedStaff.length > 0 || assignedClients.length > 0) && (
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-col gap-1.5">
               {assignedStaff.length > 0 && (
-                <div className="flex items-center" title="Assigned Staff">
-                  <Users className="w-3.5 h-3.5 mr-1 text-brand-green" />
-                  <span>{assignedStaff.length}</span>
+                <div className="flex items-center gap-1 flex-wrap" title="Assigned Staff">
+                  <Users className="w-3.5 h-3.5 mr-1 text-brand-green shrink-0" />
+                  {assignedStaff.map(id => {
+                    const staff = staffList?.find((s: any) => s.id === id);
+                    return <span key={id} className="bg-brand-green/10 text-brand-green px-1.5 py-0.5 rounded-sm whitespace-nowrap">{staff ? `${staff.first_name} ${staff.last_name}` : `Staff #${id}`}</span>;
+                  })}
                 </div>
               )}
               {assignedClients.length > 0 && (
-                <div className="flex items-center" title="Assigned Clients">
-                  <UserCircle2 className="w-3.5 h-3.5 mr-1 text-purple-400" />
-                  <span>{assignedClients.length}</span>
+                <div className="flex items-center gap-1 flex-wrap" title="Assigned Clients">
+                  <UserCircle2 className="w-3.5 h-3.5 mr-1 text-purple-400 shrink-0" />
+                  {assignedClients.map(id => {
+                    const client = clientList?.find((c: any) => c.id === id);
+                    return <span key={id} className="bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded-sm whitespace-nowrap">{client ? `${client.first_name} ${client.last_name}` : `Client #${id}`}</span>;
+                  })}
                 </div>
               )}
             </div>
