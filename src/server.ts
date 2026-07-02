@@ -467,6 +467,8 @@ async function startServer() {
       )
     `);
 
+    db.exec(`UPDATE tasks SET status = 'Active' WHERE status = 'In-Progress'`);
+
     db.exec(`
       CREATE TABLE IF NOT EXISTS sub_tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

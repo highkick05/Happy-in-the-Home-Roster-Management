@@ -13,7 +13,7 @@ type Task = {
   id: number;
   title: string;
   description: string;
-  status: 'Active' | 'In-Progress' | 'Completed';
+  status: 'Active' | 'Completed';
   start_date: string | null;
   end_date: string | null;
   assigned_staff: string; // JSON string
@@ -26,7 +26,7 @@ export default function TasksView() {
   const { token } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'Active' | 'In-Progress' | 'Completed'>('Active');
+  const [activeTab, setActiveTab] = useState<'Active' | 'Completed'>('Active');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -183,7 +183,7 @@ export default function TasksView() {
       {/* Header */}
       <div className="flex-none p-4 border-b border-border-subtle bg-brand-navy flex items-center justify-between">
         <div className="flex space-x-1">
-          {['Active', 'In-Progress', 'Completed'].map((tab) => (
+          {['Active', 'Completed'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
@@ -490,7 +490,6 @@ function TaskModal({ task, onClose, onSave, staffList, clientList }: any) {
                 className="w-full bg-black/20 border border-border-subtle rounded-lg px-3 py-2 text-white focus:border-brand-teal outline-none"
               >
                 <option value="Active">Active</option>
-                <option value="In-Progress">In-Progress</option>
                 <option value="Completed">Completed</option>
               </select>
             </div>
