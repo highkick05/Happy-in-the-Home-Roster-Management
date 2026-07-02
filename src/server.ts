@@ -14505,6 +14505,27 @@ async function startServer() {
     }
   });
 
+  app.post('/api/tasks/:id/subtasks', authenticateToken, (req: any, res: any) => {
+    const { title } = req.body;
+    try {
+      const result = db.prepare("INSERT INTO sub_tasks (task_id, title, completed) VALUES (?, ?, 0)").run(req.params.id, title);
+      res.json({ success: true, id: result.lastInsertRowid });
+    } catch (error: any) {
+      console.error("Error adding subtask:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete('/api/subtasks/:id', authenticateToken, (req: any, res: any) => {
+    try {
+      db.prepare("DELETE FROM sub_tasks WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting subtask:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // --- END TASKS API ---
 
   // --- Vite Middleware or Static Files ---

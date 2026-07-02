@@ -116,6 +116,35 @@ export default function TasksView() {
     }
   };
 
+  const addSubTask = async (taskId: number, title: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/subtasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title })
+      });
+      if (!res.ok) throw new Error('Failed to add subtask');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert(String(err));
+    }
+  };
+
+  const deleteSubTask = async (subtaskId: number) => {
+    try {
+      const res = await fetch(`/api/subtasks/${subtaskId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to delete subtask');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert(String(err));
+    }
+  };
+
   const handleSaveTask = async (taskData: any) => {
     try {
       let res;
@@ -191,6 +220,8 @@ export default function TasksView() {
                 onDelete={() => handleDelete(task.id)}
                 onComplete={() => handleComplete(task.id)}
                 onToggleSubTask={toggleSubTask}
+                onAddSubTask={addSubTask}
+                onDeleteSubTask={deleteSubTask}
                 staffList={staffList}
                 clientList={clientList}
               />
@@ -212,8 +243,8 @@ export default function TasksView() {
   );
 }
 
-function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, staffList, clientList }: any) {
-  const [expanded, setExpanded] = useState(false);
+function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSubTask, onDeleteSubTask, staffList, clientList }: any) {
+  const [newSubTask, setNewSubTask] = useState('');
   
   let assignedStaff: number[] = [];
   let assignedClients: number[] = [];
@@ -223,6 +254,13 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, staffLi
   const progress = task.sub_tasks?.length > 0 
     ? Math.round((task.sub_tasks.filter((st: any) => st.completed).length / task.sub_tasks.length) * 100) 
     : 0;
+
+  const handleAddSubTask = () => {
+    if (newSubTask.trim()) {
+      onAddSubTask(task.id, newSubTask.trim());
+      setNewSubTask('');
+    }
+  };
 
   return (
     <div className="bg-brand-navy border border-border-subtle rounded-lg flex flex-col hover:border-brand-teal/50 transition-colors">
@@ -279,41 +317,57 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, staffLi
         </div>
       </div>
       
-      {task.sub_tasks?.length > 0 && (
-        <div className="border-t border-border-subtle bg-black/20 rounded-b-lg">
-          <button 
-            onClick={() => setExpanded(!expanded)}
-            className="w-full px-3 py-2 flex items-center justify-between text-xs font-semibold text-[#8B949E] hover:bg-white/[0.02] transition-colors"
-          >
-            <div className="flex items-center space-x-2">
-              {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              <span>Progress ({task.sub_tasks.filter((st:any) => st.completed).length}/{task.sub_tasks.length})</span>
-            </div>
+      <div className="border-t border-border-subtle bg-black/20 rounded-b-lg">
+        {task.sub_tasks?.length > 0 && (
+          <div className="w-full px-3 py-2 flex items-center justify-between text-xs font-semibold text-[#8B949E]">
+            <span>Progress ({task.sub_tasks.filter((st:any) => st.completed).length}/{task.sub_tasks.length})</span>
             <div className="w-24 h-1.5 bg-brand-navy rounded-full overflow-hidden">
               <div className="h-full bg-brand-teal rounded-full" style={{ width: `${progress}%` }} />
             </div>
-          </button>
-          
-          {expanded && (
-            <div className="px-3 pb-3 pt-1 space-y-1.5">
-              {task.sub_tasks.map((st: any) => (
-                <div 
-                  key={st.id || Math.random()} 
-                  className="flex items-start space-x-2 group cursor-pointer"
-                  onClick={() => st.id && onToggleSubTask(st.id, !!st.completed)}
-                >
-                  <button className={`shrink-0 mt-0.5 ${st.completed ? 'text-brand-green' : 'text-[#8B949E] group-hover:text-white'}`}>
-                    {st.completed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
-                  </button>
-                  <span className={`text-xs ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
-                    {st.title}
-                  </span>
-                </div>
-              ))}
+          </div>
+        )}
+        
+        <div className="px-3 pb-3 pt-1 space-y-1.5">
+          {task.sub_tasks?.map((st: any) => (
+            <div 
+              key={st.id || Math.random()} 
+              className="flex items-start justify-between space-x-2 group"
+            >
+              <div className="flex items-start space-x-2 cursor-pointer flex-1" onClick={() => st.id && onToggleSubTask(st.id, !!st.completed)}>
+                <button className={`shrink-0 mt-0.5 ${st.completed ? 'text-brand-green' : 'text-[#8B949E] group-hover:text-white'}`}>
+                  {st.completed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                </button>
+                <span className={`text-xs ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
+                  {st.title}
+                </span>
+              </div>
+              <button 
+                onClick={() => st.id && onDeleteSubTask(st.id)} 
+                className="text-[#8B949E] hover:text-red-400 p-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </div>
-          )}
+          ))}
+          <div className="flex items-center space-x-2 mt-2 pt-1 border-t border-border-subtle/50">
+            <input
+              type="text"
+              value={newSubTask}
+              onChange={e => setNewSubTask(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddSubTask())}
+              placeholder="Add progress..."
+              className="flex-1 bg-transparent border-none text-xs text-[#E6EDF3] placeholder:text-[#8B949E] focus:outline-none focus:ring-0 px-1 py-0.5"
+            />
+            <button 
+              onClick={handleAddSubTask}
+              disabled={!newSubTask.trim()}
+              className="text-brand-teal hover:text-brand-teal/80 disabled:opacity-50 transition-colors p-0.5 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
