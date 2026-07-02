@@ -335,7 +335,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
       whileHover={{ y: -2, boxShadow: task.is_important ? "0 8px 30px -4px rgba(249,115,22,0.4)" : "0 8px 30px -4px rgba(0,0,0,0.4)", borderColor: task.is_important ? "rgba(249, 115, 22, 0.4)" : "rgba(45, 212, 191, 0.3)" }}
       className={`bg-brand-navy border ${task.is_important ? 'border-orange-500/30' : 'border-border-subtle'} rounded-xl flex flex-col group overflow-hidden relative shadow-md transition-colors duration-300`}
     >
-      {task.is_important && (
+      {!!task.is_important && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 rounded-xl">
           <motion.div 
             animate={{ 
