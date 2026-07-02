@@ -336,60 +336,61 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
       className={`bg-brand-navy border ${task.is_important ? 'border-orange-900/30' : 'border-border-subtle'} rounded-xl flex flex-col group overflow-hidden relative shadow-md transition-colors duration-300`}
     >
       {!!task.is_important && (
-        <div className="absolute inset-x-0 bottom-0 h-full pointer-events-none overflow-hidden z-0 rounded-xl opacity-70">
+        <div className="absolute inset-x-0 bottom-0 h-full pointer-events-none overflow-hidden z-0 rounded-xl opacity-80">
+          {/* Base uniform glow */}
           <motion.div 
-            animate={{ opacity: [0.3, 0.5, 0.3] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-orange-600/20 via-red-500/5 to-transparent mix-blend-screen"
+            animate={{ opacity: [0.5, 0.8, 0.5] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute bottom-0 inset-x-0 h-20 bg-gradient-to-t from-orange-600/40 via-red-500/10 to-transparent mix-blend-screen"
           />
-          {[...Array(15)].map((_, i) => (
+          
+          {/* Continuous overlapping flame bodies */}
+          {[...Array(12)].map((_, i) => (
             <motion.div
-              key={`flame-${i}`}
-              className="absolute bottom-0 origin-bottom"
+              key={`flame-body-${i}`}
+              className="absolute bottom-[-20px] origin-bottom rounded-full mix-blend-screen blur-2xl"
               style={{
-                left: `${(i / 14) * 100}%`,
-                width: `${10 + Math.random() * 20}px`,
-                height: `${20 + Math.random() * 40}px`,
-                background: `linear-gradient(to top, ${Math.random() > 0.5 ? '#ea580c' : '#dc2626'}, transparent)`,
-                borderRadius: '50% 50% 20% 20%',
-                filter: 'blur(4px)',
-                mixBlendMode: 'screen'
+                left: `${(i / 11) * 100}%`,
+                width: '120px',
+                height: '120px',
+                background: i % 3 === 0 ? 'rgba(239, 68, 68, 0.4)' : i % 3 === 1 ? 'rgba(249, 115, 22, 0.4)' : 'rgba(234, 179, 8, 0.2)',
+                transform: 'translateX(-50%)'
               }}
               animate={{ 
-                y: [5, -30 - Math.random() * 50],
-                opacity: [0, 0.8, 0],
-                scaleY: [0.5, 1.5 + Math.random()],
-                scaleX: [1, 0.5],
-                x: [0, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20]
+                y: [0, -20 - (i % 4) * 10, 0],
+                scaleY: [1, 1.2 + (i % 3) * 0.2, 1],
+                opacity: [0.4, 0.8, 0.4],
               }}
               transition={{ 
-                duration: 0.8 + Math.random() * 1.5, 
+                duration: 2 + (i % 3), 
                 repeat: Infinity, 
-                ease: "easeIn", 
-                delay: Math.random() * 2 
+                ease: "easeInOut", 
+                delay: (i % 4) * 0.3 
               }}
             />
           ))}
+          
+          {/* Sparks */}
           {[...Array(8)].map((_, i) => (
             <motion.div
               key={`spark-${i}`}
               className="absolute bottom-0 w-1.5 h-1.5 bg-yellow-400 rounded-full"
               style={{
-                left: `${10 + Math.random() * 80}%`,
+                left: `${10 + (i * 10)}%`,
                 filter: 'blur(1px)',
                 mixBlendMode: 'screen'
               }}
               animate={{ 
-                y: [0, -60 - Math.random() * 60],
+                y: [0, -60 - (i % 3) * 20],
                 opacity: [0, 1, 0],
-                x: [0, (Math.random() - 0.5) * 40, (Math.random() - 0.5) * 60],
+                x: [0, (i % 2 === 0 ? 20 : -20)],
                 scale: [1, 0]
               }}
               transition={{ 
-                duration: 1 + Math.random() * 2, 
+                duration: 1.5 + (i % 2), 
                 repeat: Infinity, 
                 ease: "easeOut", 
-                delay: Math.random() * 2 
+                delay: i * 0.2 
               }}
             />
           ))}
