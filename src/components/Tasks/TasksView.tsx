@@ -336,61 +336,65 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
       className={`bg-brand-navy border ${task.is_important ? 'border-orange-900/30' : 'border-border-subtle'} rounded-xl flex flex-col group overflow-hidden relative shadow-md transition-colors duration-300`}
     >
       {!!task.is_important && (
-        <div className="absolute inset-x-0 bottom-0 h-full pointer-events-none overflow-hidden z-0 rounded-xl opacity-80">
+        <div className="absolute inset-x-0 bottom-0 h-32 pointer-events-none overflow-hidden z-0 rounded-xl opacity-90">
           {/* Base uniform glow */}
           <motion.div 
             animate={{ opacity: [0.5, 0.8, 0.5] }}
             transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute bottom-0 inset-x-0 h-20 bg-gradient-to-t from-orange-600/40 via-red-500/10 to-transparent mix-blend-screen"
+            className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-orange-600/40 via-red-500/10 to-transparent mix-blend-screen"
           />
           
-          {/* Continuous overlapping flame bodies */}
-          {[...Array(12)].map((_, i) => (
+          {/* Realistic sharp flames */}
+          {[...Array(24)].map((_, i) => (
             <motion.div
               key={`flame-body-${i}`}
-              className="absolute bottom-[-20px] origin-bottom rounded-full mix-blend-screen blur-2xl"
+              className="absolute bottom-0 origin-bottom mix-blend-screen"
               style={{
-                left: `${(i / 11) * 100}%`,
-                width: '120px',
-                height: '120px',
-                background: i % 3 === 0 ? 'rgba(239, 68, 68, 0.4)' : i % 3 === 1 ? 'rgba(249, 115, 22, 0.4)' : 'rgba(234, 179, 8, 0.2)',
+                left: `${-2 + (i / 23) * 104}%`,
+                width: `${12 + (i % 4) * 6}px`,
+                height: `${20 + (i % 5) * 12}px`,
+                background: `linear-gradient(to top, ${i % 3 === 0 ? '#ea580c' : i % 3 === 1 ? '#dc2626' : '#f59e0b'}, transparent)`,
+                borderRadius: '50% 50% 20% 20%',
+                filter: 'blur(1.5px)',
                 transform: 'translateX(-50%)'
               }}
               animate={{ 
-                y: [0, -20 - (i % 4) * 10, 0],
-                scaleY: [1, 1.2 + (i % 3) * 0.2, 1],
-                opacity: [0.4, 0.8, 0.4],
+                y: [8, -10 - (i % 3) * 8],
+                scaleY: [0.6, 1.2 + (i % 4) * 0.2],
+                scaleX: [1, 0.7],
+                opacity: [0, 0.9, 0],
+                x: [0, (i % 2 === 0 ? 8 : -8)],
               }}
               transition={{ 
-                duration: 2 + (i % 3), 
+                duration: 0.7 + (i % 3) * 0.3, 
                 repeat: Infinity, 
-                ease: "easeInOut", 
-                delay: (i % 4) * 0.3 
+                ease: "easeIn", 
+                delay: (i % 5) * 0.15 
               }}
             />
           ))}
           
           {/* Sparks */}
-          {[...Array(8)].map((_, i) => (
+          {[...Array(12)].map((_, i) => (
             <motion.div
               key={`spark-${i}`}
-              className="absolute bottom-0 w-1.5 h-1.5 bg-yellow-400 rounded-full"
+              className="absolute bottom-0 w-1 h-1 bg-yellow-400 rounded-full"
               style={{
-                left: `${10 + (i * 10)}%`,
-                filter: 'blur(1px)',
+                left: `${5 + (i * 8)}%`,
+                filter: 'blur(0.5px)',
                 mixBlendMode: 'screen'
               }}
               animate={{ 
-                y: [0, -60 - (i % 3) * 20],
+                y: [0, -30 - (i % 4) * 15],
                 opacity: [0, 1, 0],
-                x: [0, (i % 2 === 0 ? 20 : -20)],
+                x: [0, (i % 2 === 0 ? 15 : -15)],
                 scale: [1, 0]
               }}
               transition={{ 
-                duration: 1.5 + (i % 2), 
+                duration: 1 + (i % 3) * 0.5, 
                 repeat: Infinity, 
                 ease: "easeOut", 
-                delay: i * 0.2 
+                delay: i * 0.15 
               }}
             />
           ))}
