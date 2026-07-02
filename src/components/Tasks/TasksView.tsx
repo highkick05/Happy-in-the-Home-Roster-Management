@@ -237,6 +237,7 @@ export default function TasksView() {
           clientList={clientList}
           onClose={() => { setIsModalOpen(false); setEditingTask(null); }}
           onSave={handleSaveTask}
+          onDelete={editingTask ? () => handleDelete(editingTask.id) : undefined}
         />
       )}
     </div>
@@ -264,19 +265,34 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
 
   return (
     <div className="bg-brand-navy border border-border-subtle rounded-lg flex flex-col hover:border-brand-teal/50 transition-colors">
-      <div className="p-3 pb-2 flex items-start justify-between gap-4">
+      <div 
+        className="p-3 pb-2 flex items-start justify-between gap-4 cursor-pointer group"
+        onClick={onEdit}
+      >
         
-        {/* Left Section - Title and Description */}
-        <div className="flex-1 flex flex-col gap-1 min-w-0">
-          <h3 className="text-[#E6EDF3] font-semibold text-sm leading-snug truncate">{task.title}</h3>
-          {task.description && (
-            <p className="text-[#8B949E] text-xs line-clamp-2 leading-relaxed">
-              {task.description}
-            </p>
-          )}
+        {/* Left Section - Checkbox, Title and Description */}
+        <div className="flex-1 flex gap-3 min-w-0 items-start">
+          <button 
+            onClick={(e) => { e.stopPropagation(); onComplete(); }} 
+            title={task.status === 'Completed' ? "Completed" : "Complete Task"} 
+            className={`mt-0.5 p-1 shrink-0 transition-colors ${task.status === 'Completed' ? 'text-brand-green' : 'text-[#8B949E] hover:text-brand-green'}`}
+          >
+            {task.status === 'Completed' ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
+          </button>
+          
+          <div className="flex flex-col gap-1 min-w-0">
+            <h3 className={`text-[#E6EDF3] font-semibold text-sm leading-snug truncate ${task.status === 'Completed' ? 'line-through text-[#8B949E]' : 'group-hover:text-brand-teal transition-colors'}`}>
+              {task.title}
+            </h3>
+            {task.description && (
+              <p className="text-[#8B949E] text-xs line-clamp-2 leading-relaxed">
+                {task.description}
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* Middle Section - Dates & Assignments */}
+        {/* Right Section - Dates & Assignments */}
         <div className="flex flex-col gap-1.5 w-72 shrink-0 text-xs text-[#8B949E]">
           {(task.start_date || task.end_date) && (
             <div className="flex items-center space-x-1.5">
@@ -309,21 +325,6 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
               )}
             </div>
           )}
-        </div>
-        
-        {/* Right Section - Actions */}
-        <div className="flex space-x-1 shrink-0 ml-2">
-          {task.status !== 'Completed' && (
-            <button onClick={onComplete} title="Complete Task" className="p-1 text-[#8B949E] hover:text-brand-green transition-colors">
-              <CheckCircle2 className="w-4 h-4" />
-            </button>
-          )}
-          <button onClick={onEdit} className="p-1 text-[#8B949E] hover:text-white transition-colors">
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button onClick={onDelete} className="p-1 text-[#8B949E] hover:text-red-400 transition-colors">
-            <Trash2 className="w-4 h-4" />
-          </button>
         </div>
       </div>
       
@@ -382,7 +383,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
   );
 }
 
-function TaskModal({ task, onClose, onSave, staffList, clientList }: any) {
+function TaskModal({ task, onClose, onSave, onDelete, staffList, clientList }: any) {
   const [formData, setFormData] = useState({
     title: task?.title || '',
     description: task?.description || '',
@@ -596,13 +597,27 @@ function TaskModal({ task, onClose, onSave, staffList, clientList }: any) {
           </div>
         </form>
 
-        <div className="p-4 border-t border-border-subtle flex justify-end space-x-2 shrink-0">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-[#8B949E] hover:text-white transition-colors">
-            Cancel
-          </button>
-          <button onClick={handleSubmit} className="px-4 py-2 bg-brand-teal text-white text-sm font-semibold rounded-lg hover:bg-brand-teal/90 transition-colors">
-            Save Task
-          </button>
+        <div className="p-4 border-t border-border-subtle flex justify-between space-x-2 shrink-0 items-center">
+          <div>
+            {task && (
+              <button 
+                type="button" 
+                onClick={(e) => { e.preventDefault(); onDelete(); }}
+                className="px-3 py-1.5 text-sm font-semibold text-red-400 hover:bg-red-400/10 rounded-lg transition-colors flex items-center"
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" />
+                Delete Task
+              </button>
+            )}
+          </div>
+          <div className="flex space-x-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-[#8B949E] hover:text-white transition-colors">
+              Cancel
+            </button>
+            <button onClick={handleSubmit} className="px-4 py-2 bg-brand-teal text-white text-sm font-semibold rounded-lg hover:bg-brand-teal/90 transition-colors">
+              Save Task
+            </button>
+          </div>
         </div>
       </div>
     </div>
