@@ -182,29 +182,31 @@ export default function TasksView() {
   return (
     <div className="flex flex-col h-full bg-brand-bg">
       {/* Header */}
-      <div className="flex-none p-4 border-b border-border-subtle bg-brand-navy flex items-center justify-between">
-        <div className="flex space-x-1">
-          {['Active', 'Completed'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as any)}
-              className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors ${activeTab === tab ? 'bg-brand-teal text-white' : 'text-[#8B949E] hover:text-white hover:bg-white/[0.04]'}`}
-            >
-              {tab}
-            </button>
-          ))}
+      <div className="flex-none px-4 pt-4 pb-1">
+        <div className="bg-brand-navy border border-border-subtle rounded-xl flex items-center justify-between p-1.5 shadow-sm">
+          <div className="flex space-x-1">
+            {['Active', 'Completed'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab as any)}
+                className={`px-4 py-1.5 text-[13px] font-medium tracking-tight rounded-lg transition-colors ${activeTab === tab ? 'bg-brand-teal/20 text-brand-teal' : 'text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.02]'}`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
+            className="flex items-center px-4 py-1.5 bg-brand-teal text-white text-[13px] font-medium tracking-tight rounded-lg hover:bg-brand-teal/90 transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            New Task
+          </button>
         </div>
-        <button
-          onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
-          className="flex items-center px-3 py-1.5 bg-brand-teal text-white text-sm font-semibold rounded-md hover:bg-brand-teal/90 transition-colors"
-        >
-          <Plus className="w-4 h-4 mr-1.5" />
-          New Task
-        </button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-2">
         {loading ? (
           <div className="text-center text-[#8B949E] py-10">Loading...</div>
         ) : filteredTasks.length === 0 ? (
