@@ -339,36 +339,36 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
         <div className="absolute inset-x-0 bottom-0 h-32 pointer-events-none overflow-hidden z-0 rounded-xl opacity-90">
           {/* Base uniform glow */}
           <motion.div 
-            animate={{ opacity: [0.5, 0.8, 0.5] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-orange-600/40 via-red-500/10 to-transparent mix-blend-screen"
+            animate={{ opacity: [0.6, 0.9, 0.6] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-orange-600/70 via-red-500/20 to-transparent mix-blend-screen blur-[2px]"
           />
           
-          {/* Realistic sharp flames */}
-          {[...Array(24)].map((_, i) => (
+          {/* Continuous overlapping flames */}
+          {[...Array(30)].map((_, i) => (
             <motion.div
               key={`flame-body-${i}`}
-              className="absolute bottom-0 origin-bottom mix-blend-screen"
+              className="absolute bottom-[-4px] origin-bottom mix-blend-screen"
               style={{
-                left: `${-2 + (i / 23) * 104}%`,
-                width: `${12 + (i % 4) * 6}px`,
-                height: `${20 + (i % 5) * 12}px`,
+                left: `${-5 + (i / 29) * 110}%`,
+                width: `${24 + (i % 5) * 12}px`,
+                height: `${25 + (i % 4) * 16}px`,
                 background: `linear-gradient(to top, ${i % 3 === 0 ? '#ea580c' : i % 3 === 1 ? '#dc2626' : '#f59e0b'}, transparent)`,
-                borderRadius: '50% 50% 20% 20%',
-                filter: 'blur(1.5px)',
+                borderRadius: '40% 40% 20% 20%',
+                filter: 'blur(3px)',
                 transform: 'translateX(-50%)'
               }}
               animate={{ 
-                y: [8, -10 - (i % 3) * 8],
-                scaleY: [0.6, 1.2 + (i % 4) * 0.2],
-                scaleX: [1, 0.7],
-                opacity: [0, 0.9, 0],
-                x: [0, (i % 2 === 0 ? 8 : -8)],
+                y: [2, -12 - (i % 3) * 6],
+                scaleY: [0.7, 1.2 + (i % 4) * 0.15],
+                scaleX: [1, 0.8],
+                opacity: [0.2, 0.9, 0.2],
+                x: [0, (i % 2 === 0 ? 5 : -5)],
               }}
               transition={{ 
-                duration: 0.7 + (i % 3) * 0.3, 
+                duration: 0.8 + (i % 3) * 0.3, 
                 repeat: Infinity, 
-                ease: "easeIn", 
+                ease: "easeInOut", 
                 delay: (i % 5) * 0.15 
               }}
             />
