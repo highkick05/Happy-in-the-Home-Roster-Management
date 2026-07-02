@@ -344,60 +344,38 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
             className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-orange-600/70 via-red-500/20 to-transparent mix-blend-screen blur-[2px]"
           />
           
-          {/* Continuous overlapping flames */}
-          {[...Array(30)].map((_, i) => (
-            <motion.div
-              key={`flame-body-${i}`}
-              className="absolute bottom-[-4px] origin-bottom mix-blend-screen"
-              style={{
-                left: `${-5 + (i / 29) * 110}%`,
-                width: `${24 + (i % 5) * 12}px`,
-                height: `${25 + (i % 4) * 16}px`,
-                background: `linear-gradient(to top, ${i % 3 === 0 ? '#ea580c' : i % 3 === 1 ? '#dc2626' : '#f59e0b'}, transparent)`,
-                borderRadius: '40% 40% 20% 20%',
-                filter: 'blur(3px)',
-                transform: 'translateX(-50%)'
-              }}
-              animate={{ 
-                y: [2, -12 - (i % 3) * 6],
-                scaleY: [0.7, 1.2 + (i % 4) * 0.15],
-                scaleX: [1, 0.8],
-                opacity: [0.2, 0.9, 0.2],
-                x: [0, (i % 2 === 0 ? 5 : -5)],
-              }}
-              transition={{ 
-                duration: 0.8 + (i % 3) * 0.3, 
-                repeat: Infinity, 
-                ease: "easeInOut", 
-                delay: (i % 5) * 0.15 
-              }}
-            />
-          ))}
-          
           {/* Sparks */}
-          {[...Array(12)].map((_, i) => (
-            <motion.div
-              key={`spark-${i}`}
-              className="absolute bottom-0 w-1 h-1 bg-yellow-400 rounded-full"
-              style={{
-                left: `${5 + (i * 8)}%`,
-                filter: 'blur(0.5px)',
-                mixBlendMode: 'screen'
-              }}
-              animate={{ 
-                y: [0, -30 - (i % 4) * 15],
-                opacity: [0, 1, 0],
-                x: [0, (i % 2 === 0 ? 15 : -15)],
-                scale: [1, 0]
-              }}
-              transition={{ 
-                duration: 1 + (i % 3) * 0.5, 
-                repeat: Infinity, 
-                ease: "easeOut", 
-                delay: i * 0.15 
-              }}
-            />
-          ))}
+          {[...Array(25)].map((_, i) => {
+            const randomX = (i * 13.7) % 100;
+            const delay = (i * 0.27) % 2;
+            const duration = 1.5 + (i * 0.13) % 1.5;
+            const height = 30 + (i * 11) % 50;
+            const horizontalSway = -15 + (i * 7) % 30;
+
+            return (
+              <motion.div
+                key={`spark-${i}`}
+                className="absolute bottom-0 w-1 h-1 bg-yellow-400 rounded-full"
+                style={{
+                  left: `${randomX}%`,
+                  filter: 'blur(0.5px)',
+                  mixBlendMode: 'screen'
+                }}
+                animate={{ 
+                  y: [0, -height],
+                  opacity: [0, 1, 0],
+                  x: [0, horizontalSway],
+                  scale: [1, 0]
+                }}
+                transition={{ 
+                  duration: duration, 
+                  repeat: Infinity, 
+                  ease: "easeOut", 
+                  delay: delay 
+                }}
+              />
+            );
+          })}
         </div>
       )}
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-brand-teal/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-0" />
