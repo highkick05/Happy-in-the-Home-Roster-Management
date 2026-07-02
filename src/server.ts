@@ -10128,12 +10128,12 @@ async function startServer() {
     // Table Header
     doc.font("Helvetica-Bold").fontSize(10);
     doc.text("DATE", 50, currentY, { width: 60, align: "left" });
-    doc.text("DESCRIPTION", 110, currentY, { width: 180, align: "left" });
-    doc.text("TIME", 290, currentY, { width: 90, align: "left" });
-    doc.text("QTY", 385, currentY, { width: 35, align: "right" });
-    doc.text("UNIT", 425, currentY, { width: 55, align: "left" });
-    doc.text("RATE", 485, currentY, { width: 45, align: "right" });
-    doc.text("AMOUNT", 535, currentY, { width: 45, align: "right" });
+    doc.text("DESCRIPTION", 110, currentY, { width: 150, align: "left" });
+    doc.text("TIME", 265, currentY, { width: 100, align: "left" });
+    doc.text("QTY", 370, currentY, { width: 35, align: "right" });
+    doc.text("UNIT", 410, currentY, { width: 55, align: "left" });
+    doc.text("RATE", 470, currentY, { width: 50, align: "right" });
+    doc.text("AMOUNT", 525, currentY, { width: 55, align: "right" });
 
     doc
       .moveTo(50, currentY + 15)
@@ -10146,7 +10146,7 @@ async function startServer() {
     lineItems.forEach((item: any) => {
       let safeServiceName = item.serviceName || "Unknown Service";
       let textHeight =
-        doc.heightOfString(safeServiceName, { width: 180 }) || 15;
+        doc.heightOfString(safeServiceName, { width: 150 }) || 15;
       let blockHeight = textHeight + 20 + (item.metadata ? 12 : 0);
 
       // Automatically add page if the required height for this line item exceeds the margin
@@ -10155,12 +10155,12 @@ async function startServer() {
         // Print Header again for the new page
         doc.font("Helvetica-Bold").fontSize(10);
         doc.text("DATE", 50, 50, { width: 60, align: "left" });
-        doc.text("DESCRIPTION", 110, 50, { width: 180, align: "left" });
-        doc.text("TIME", 290, 50, { width: 90, align: "left" });
-        doc.text("QTY", 385, 50, { width: 35, align: "right" });
-        doc.text("UNIT", 425, 50, { width: 55, align: "left" });
-        doc.text("RATE", 485, 50, { width: 45, align: "right" });
-        doc.text("AMOUNT", 535, 50, { width: 45, align: "right" });
+        doc.text("DESCRIPTION", 110, 50, { width: 150, align: "left" });
+        doc.text("TIME", 265, 50, { width: 100, align: "left" });
+        doc.text("QTY", 370, 50, { width: 35, align: "right" });
+        doc.text("UNIT", 410, 50, { width: 55, align: "left" });
+        doc.text("RATE", 470, 50, { width: 50, align: "right" });
+        doc.text("AMOUNT", 525, 50, { width: 55, align: "right" });
         doc.moveTo(50, 65).lineTo(580, 65).stroke();
         currentY = 75;
       }
@@ -10170,11 +10170,11 @@ async function startServer() {
 
       doc
         .fontSize(9)
-        .text(item.time, 290, currentY, { width: 90, align: "left" });
+        .text(item.time, 265, currentY, { width: 100, align: "left" });
       doc.fontSize(10);
 
       // Calculate dynamic height for description block
-      doc.text(safeServiceName, 110, currentY, { width: 180, align: "left" });
+      doc.text(safeServiceName, 110, currentY, { width: 150, align: "left" });
 
       let descY = currentY + textHeight + 2;
       const codePrefix =
@@ -10184,27 +10184,27 @@ async function startServer() {
           ? "Serv. ID:"
           : "Code:";
       doc.fontSize(9).text(`${codePrefix} ${item.code || "N/A"}`, 110, descY, {
-        width: 180,
+        width: 150,
         align: "left",
       });
 
       if (item.metadata) {
         descY += 12;
-        doc.text(item.metadata, 110, descY, { width: 180, align: "left" });
+        doc.text(item.metadata, 110, descY, { width: 150, align: "left" });
       }
 
       doc.fontSize(10);
-      doc.text(item.qty.toString(), 385, currentY, {
+      doc.text(item.qty.toString(), 370, currentY, {
         width: 35,
         align: "right",
       });
-      doc.text(item.unit, 425, currentY, { width: 55, align: "left" });
-      doc.text(`$${item.rate.toFixed(2)}`, 485, currentY, {
-        width: 45,
+      doc.text(item.unit, 410, currentY, { width: 55, align: "left" });
+      doc.text(`$${item.rate.toFixed(2)}`, 470, currentY, {
+        width: 50,
         align: "right",
       });
-      doc.text(`$${item.amount.toFixed(2)}`, 535, currentY, {
-        width: 45,
+      doc.text(`$${item.amount.toFixed(2)}`, 525, currentY, {
+        width: 55,
         align: "right",
       });
 

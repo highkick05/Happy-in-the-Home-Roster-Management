@@ -202,6 +202,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           )}
         </div>
         <div className="flex items-center space-x-1">
+          <NotificationsDropdown />
           <button 
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="p-2 text-[#8B949E] hover:text-white transition-colors rounded-md hover:bg-white/[0.04]"

@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
 
 const db = new Database('data/dev-database.sqlite');
-const row = db.prepare("SELECT value FROM settings WHERE key = 'websiteLogo'").get();
-console.log(row);
+const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+console.log(tables);
