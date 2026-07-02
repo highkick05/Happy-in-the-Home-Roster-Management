@@ -332,37 +332,72 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
 
   return (
     <motion.div 
-      whileHover={{ y: -2, boxShadow: task.is_important ? "0 8px 30px -4px rgba(249,115,22,0.4)" : "0 8px 30px -4px rgba(0,0,0,0.4)", borderColor: task.is_important ? "rgba(249, 115, 22, 0.4)" : "rgba(45, 212, 191, 0.3)" }}
-      className={`bg-brand-navy border ${task.is_important ? 'border-orange-500/30' : 'border-border-subtle'} rounded-xl flex flex-col group overflow-hidden relative shadow-md transition-colors duration-300`}
+      whileHover={{ y: -2, boxShadow: "0 8px 30px -4px rgba(0,0,0,0.4)", borderColor: task.is_important ? "rgba(249, 115, 22, 0.2)" : "rgba(45, 212, 191, 0.3)" }}
+      className={`bg-brand-navy border ${task.is_important ? 'border-orange-900/30' : 'border-border-subtle'} rounded-xl flex flex-col group overflow-hidden relative shadow-md transition-colors duration-300`}
     >
       {!!task.is_important && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 rounded-xl">
+        <div className="absolute inset-x-0 bottom-0 h-full pointer-events-none overflow-hidden z-0 rounded-xl opacity-60">
           <motion.div 
-            animate={{ 
-              opacity: [0.1, 0.3, 0.1],
-              scale: [1, 1.02, 1],
-            }}
+            animate={{ opacity: [0.3, 0.5, 0.3] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute -inset-4 bg-gradient-to-r from-orange-500/10 via-red-500/5 to-orange-500/10 mix-blend-screen"
+            className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-orange-600/20 via-red-500/5 to-transparent mix-blend-screen"
           />
-          <motion.div
-            animate={{ 
-              y: [0, -20],
-              opacity: [0, 0.2, 0],
-              scale: [1, 1.5]
-            }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.5 }}
-            className="absolute bottom-0 right-10 w-16 h-16 bg-orange-400/20 rounded-full blur-xl"
-          />
-           <motion.div
-            animate={{ 
-              y: [0, -30],
-              opacity: [0, 0.3, 0],
-              scale: [0.8, 1.8]
-            }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut" }}
-            className="absolute bottom-0 right-20 w-20 h-20 bg-red-500/20 rounded-full blur-xl"
-          />
+          {[...Array(6)].map((_, i) => (
+            <motion.div
+              key={`flame-orange-${i}`}
+              animate={{ 
+                y: [10, -20 - Math.random() * 30],
+                opacity: [0, 0.6, 0],
+                scale: [1, 1 + Math.random()],
+                x: [0, (Math.random() - 0.5) * 30]
+              }}
+              transition={{ 
+                duration: 1.5 + Math.random(), 
+                repeat: Infinity, 
+                ease: "easeOut", 
+                delay: Math.random() * 2 
+              }}
+              className="absolute -bottom-10 w-40 h-40 bg-orange-500/20 rounded-full blur-2xl"
+              style={{ left: `${(i / 5) * 100}%`, transform: 'translateX(-50%)' }}
+            />
+          ))}
+          {[...Array(5)].map((_, i) => (
+            <motion.div
+              key={`flame-red-${i}`}
+              animate={{ 
+                y: [10, -30 - Math.random() * 40],
+                opacity: [0, 0.4, 0],
+                scale: [0.8, 1.2 + Math.random()],
+                x: [0, (Math.random() - 0.5) * 30]
+              }}
+              transition={{ 
+                duration: 2 + Math.random(), 
+                repeat: Infinity, 
+                ease: "easeOut", 
+                delay: Math.random() * 2 
+              }}
+              className="absolute -bottom-10 w-48 h-48 bg-red-600/20 rounded-full blur-2xl"
+              style={{ left: `${(i / 4) * 100}%`, transform: 'translateX(-50%)' }}
+            />
+          ))}
+          {[...Array(4)].map((_, i) => (
+            <motion.div
+              key={`flame-yellow-${i}`}
+              animate={{ 
+                y: [0, -15 - Math.random() * 20],
+                opacity: [0, 0.8, 0],
+                scale: [0.5, 0.8 + Math.random() * 0.5],
+              }}
+              transition={{ 
+                duration: 1 + Math.random(), 
+                repeat: Infinity, 
+                ease: "easeOut", 
+                delay: Math.random() * 1.5 
+              }}
+              className="absolute -bottom-5 w-24 h-24 bg-yellow-500/20 rounded-full blur-xl"
+              style={{ left: `${(i / 3) * 100}%`, transform: 'translateX(-50%)' }}
+            />
+          ))}
         </div>
       )}
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-brand-teal/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-0" />
