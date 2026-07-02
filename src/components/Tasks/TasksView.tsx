@@ -336,66 +336,61 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, onAddSu
       className={`bg-brand-navy border ${task.is_important ? 'border-orange-900/30' : 'border-border-subtle'} rounded-xl flex flex-col group overflow-hidden relative shadow-md transition-colors duration-300`}
     >
       {!!task.is_important && (
-        <div className="absolute inset-x-0 bottom-0 h-full pointer-events-none overflow-hidden z-0 rounded-xl opacity-60">
+        <div className="absolute inset-x-0 bottom-0 h-full pointer-events-none overflow-hidden z-0 rounded-xl opacity-70">
           <motion.div 
             animate={{ opacity: [0.3, 0.5, 0.3] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-orange-600/20 via-red-500/5 to-transparent mix-blend-screen"
           />
-          {[...Array(6)].map((_, i) => (
+          {[...Array(15)].map((_, i) => (
             <motion.div
-              key={`flame-orange-${i}`}
+              key={`flame-${i}`}
+              className="absolute bottom-0 origin-bottom"
+              style={{
+                left: `${(i / 14) * 100}%`,
+                width: `${10 + Math.random() * 20}px`,
+                height: `${20 + Math.random() * 40}px`,
+                background: `linear-gradient(to top, ${Math.random() > 0.5 ? '#ea580c' : '#dc2626'}, transparent)`,
+                borderRadius: '50% 50% 20% 20%',
+                filter: 'blur(4px)',
+                mixBlendMode: 'screen'
+              }}
               animate={{ 
-                y: [10, -20 - Math.random() * 30],
-                opacity: [0, 0.6, 0],
-                scale: [1, 1 + Math.random()],
-                x: [0, (Math.random() - 0.5) * 30]
-              }}
-              transition={{ 
-                duration: 1.5 + Math.random(), 
-                repeat: Infinity, 
-                ease: "easeOut", 
-                delay: Math.random() * 2 
-              }}
-              className="absolute -bottom-10 w-40 h-40 bg-orange-500/20 rounded-full blur-2xl"
-              style={{ left: `${(i / 5) * 100}%`, transform: 'translateX(-50%)' }}
-            />
-          ))}
-          {[...Array(5)].map((_, i) => (
-            <motion.div
-              key={`flame-red-${i}`}
-              animate={{ 
-                y: [10, -30 - Math.random() * 40],
-                opacity: [0, 0.4, 0],
-                scale: [0.8, 1.2 + Math.random()],
-                x: [0, (Math.random() - 0.5) * 30]
-              }}
-              transition={{ 
-                duration: 2 + Math.random(), 
-                repeat: Infinity, 
-                ease: "easeOut", 
-                delay: Math.random() * 2 
-              }}
-              className="absolute -bottom-10 w-48 h-48 bg-red-600/20 rounded-full blur-2xl"
-              style={{ left: `${(i / 4) * 100}%`, transform: 'translateX(-50%)' }}
-            />
-          ))}
-          {[...Array(4)].map((_, i) => (
-            <motion.div
-              key={`flame-yellow-${i}`}
-              animate={{ 
-                y: [0, -15 - Math.random() * 20],
+                y: [5, -30 - Math.random() * 50],
                 opacity: [0, 0.8, 0],
-                scale: [0.5, 0.8 + Math.random() * 0.5],
+                scaleY: [0.5, 1.5 + Math.random()],
+                scaleX: [1, 0.5],
+                x: [0, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20]
               }}
               transition={{ 
-                duration: 1 + Math.random(), 
+                duration: 0.8 + Math.random() * 1.5, 
+                repeat: Infinity, 
+                ease: "easeIn", 
+                delay: Math.random() * 2 
+              }}
+            />
+          ))}
+          {[...Array(8)].map((_, i) => (
+            <motion.div
+              key={`spark-${i}`}
+              className="absolute bottom-0 w-1.5 h-1.5 bg-yellow-400 rounded-full"
+              style={{
+                left: `${10 + Math.random() * 80}%`,
+                filter: 'blur(1px)',
+                mixBlendMode: 'screen'
+              }}
+              animate={{ 
+                y: [0, -60 - Math.random() * 60],
+                opacity: [0, 1, 0],
+                x: [0, (Math.random() - 0.5) * 40, (Math.random() - 0.5) * 60],
+                scale: [1, 0]
+              }}
+              transition={{ 
+                duration: 1 + Math.random() * 2, 
                 repeat: Infinity, 
                 ease: "easeOut", 
-                delay: Math.random() * 1.5 
+                delay: Math.random() * 2 
               }}
-              className="absolute -bottom-5 w-24 h-24 bg-yellow-500/20 rounded-full blur-xl"
-              style={{ left: `${(i / 3) * 100}%`, transform: 'translateX(-50%)' }}
             />
           ))}
         </div>
