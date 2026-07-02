@@ -43,6 +43,10 @@ export default function TasksView() {
     try {
       setLoading(true);
       const res = await fetch('/api/tasks', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Failed to fetch tasks: ${res.status} ${text.substring(0, 100)}`);
+      }
       const data = await res.json();
       setTasks(data);
     } catch (err) {
@@ -58,6 +62,7 @@ export default function TasksView() {
         fetch('/api/staff', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/clients', { headers: { Authorization: `Bearer ${token}` } })
       ]);
+      if (!sRes.ok || !cRes.ok) throw new Error('Failed to fetch staff or clients');
       const sData = await sRes.json();
       const cData = await cRes.json();
       setStaffList(sData);
@@ -70,61 +75,75 @@ export default function TasksView() {
   const handleDelete = async (id: number) => {
     if (!window.confirm("Delete this task?")) return;
     try {
-      await fetch(`/api/tasks/${id}`, {
+      const res = await fetch(`/api/tasks/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!res.ok) throw new Error('Failed to delete task');
       fetchData();
     } catch (err) {
       console.error(err);
+      alert(String(err));
     }
   };
 
   const handleComplete = async (id: number) => {
     try {
-      await fetch(`/api/tasks/${id}/complete`, {
+      const res = await fetch(`/api/tasks/${id}/complete`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!res.ok) throw new Error('Failed to complete task');
       fetchData();
     } catch (err) {
       console.error(err);
+      alert(String(err));
     }
   };
 
   const toggleSubTask = async (subtaskId: number, currentCompleted: boolean) => {
     try {
-      await fetch(`/api/subtasks/${subtaskId}/toggle`, {
+      const res = await fetch(`/api/subtasks/${subtaskId}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ completed: !currentCompleted })
       });
+      if (!res.ok) throw new Error('Failed to toggle subtask');
       fetchData();
     } catch (err) {
       console.error(err);
+      alert(String(err));
     }
   };
 
   const handleSaveTask = async (taskData: any) => {
     try {
+      let res;
       if (editingTask) {
-        await fetch(`/api/tasks/${editingTask.id}`, {
+        res = await fetch(`/api/tasks/${editingTask.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify(taskData)
         });
       } else {
-        await fetch(`/api/tasks`, {
+        res = await fetch(`/api/tasks`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify(taskData)
         });
       }
+      
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Failed to save task: ${res.status} ${errText}`);
+      }
+
       setIsModalOpen(false);
       setEditingTask(null);
       fetchData();
     } catch (err) {
       console.error(err);
+      alert(String(err));
     }
   };
 
@@ -268,7 +287,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, staffLi
           >
             <div className="flex items-center space-x-2">
               {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              <span>Sub-tasks ({task.sub_tasks.filter((st:any) => st.completed).length}/{task.sub_tasks.length})</span>
+              <span>Progress ({task.sub_tasks.filter((st:any) => st.completed).length}/{task.sub_tasks.length})</span>
             </div>
             <div className="w-24 h-1.5 bg-brand-navy rounded-full overflow-hidden">
               <div className="h-full bg-brand-teal rounded-full" style={{ width: `${progress}%` }} />
@@ -472,25 +491,37 @@ function TaskModal({ task, onClose, onSave, staffList, clientList }: any) {
               </div>
             </div>
 
-            {/* Sub-tasks */}
+            {/* Add-Progress */}
             <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Sub-tasks</label>
+              <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Add-Progress</label>
               <div className="space-y-2">
                 {formData.sub_tasks.map((st: any, idx: number) => (
                   <div key={idx} className="flex items-center justify-between bg-black/20 border border-border-subtle rounded-lg px-3 py-1.5">
-                    <span className="text-sm text-[#E6EDF3]">{st.title}</span>
-                    <button type="button" onClick={() => removeSubTask(idx)} className="text-[#8B949E] hover:text-red-400 p-1">
+                    <div 
+                      className="flex items-center space-x-2 cursor-pointer flex-1"
+                      onClick={() => {
+                        const newSubTasks = [...formData.sub_tasks];
+                        newSubTasks[idx].completed = !newSubTasks[idx].completed;
+                        setFormData({ ...formData, sub_tasks: newSubTasks });
+                      }}
+                    >
+                      <button type="button" className={`shrink-0 ${st.completed ? 'text-brand-green' : 'text-[#8B949E] hover:text-white'}`}>
+                        {st.completed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                      </button>
+                      <span className={`text-sm ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>{st.title}</span>
+                    </div>
+                    <button type="button" onClick={() => removeSubTask(idx)} className="text-[#8B949E] hover:text-red-400 p-1 shrink-0 ml-2">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 mt-2">
                   <input
                     type="text"
                     value={newSubTask}
                     onChange={e => setNewSubTask(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addSubTask())}
-                    placeholder="Add a sub-task..."
+                    placeholder="Add progress..."
                     className="flex-1 bg-black/20 border border-border-subtle rounded-lg px-3 py-1.5 text-white focus:border-brand-teal outline-none text-sm"
                   />
                   <button type="button" onClick={addSubTask} className="px-3 py-1.5 bg-[#8B949E]/20 text-white rounded-lg hover:bg-[#8B949E]/40 transition-colors text-sm font-semibold">
