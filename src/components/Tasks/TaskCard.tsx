@@ -43,15 +43,16 @@ export function TaskCard({
         <div className="flex items-start gap-3 flex-1 min-w-0">
           {!wallboardMode && dragControls && (
             <div
-              className="cursor-grab active:cursor-grabbing text-[#8B949E] hover:text-white p-2 -ml-3 transition-colors flex items-center justify-center rounded-md hover:bg-white/[0.04]"
+              style={{ touchAction: "none" }} className="cursor-grab active:cursor-grabbing text-[#8B949E] hover:text-white px-3 py-4 -ml-4 -my-4 transition-colors flex items-center justify-center rounded-md hover:bg-white/[0.04]"
               onPointerDown={(e) => {
-                e.stopPropagation();
                 dragControls.start(e);
               }}
-              onPointerUp={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
             >
-              <GripVertical className="w-5 h-5" />
+              <GripVertical className="w-5 h-5 pointer-events-none" />
             </div>
           )}
           <button 
