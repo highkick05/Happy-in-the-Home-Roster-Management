@@ -10,11 +10,11 @@ console.log(`Checking ${files.length} files...`);
 let migrated = 0;
 
 for (const file of files) {
-    if (!file.folder_path || file.folder_path === '/' || file.folder_path.trim() === '') {
+    if (!(file as any).folder_path || (file as any).folder_path === '/' || (file as any).folder_path.trim() === '') {
         continue; // Already at root, no migration needed
     }
 
-    let subfolder = file.folder_path.trim();
+    let subfolder = (file as any).folder_path.trim();
     subfolder = path.normalize(subfolder).replace(/^(\.\.[\/\\])+/, '');
     if (subfolder.startsWith('/')) {
         subfolder = subfolder.substring(1);
@@ -22,13 +22,13 @@ for (const file of files) {
     
     // Check if the current system_name already starts with the subfolder
     // E.g., if system_name is "Staff/John/docs.pdf", we don't want to move it to "Staff/John/Staff/John/docs.pdf"
-    if (file.system_name.startsWith(subfolder + '/') || file.system_name.startsWith(subfolder + '\\')) {
+    if ((file as any).system_name.startsWith(subfolder + '/') || (file as any).system_name.startsWith(subfolder + '\\')) {
         continue; 
     }
 
-    const currentFilePath = path.join(UPLOADS_DIR, file.system_name);
+    const currentFilePath = path.join(UPLOADS_DIR, (file as any).system_name);
     const targetDir = path.join(UPLOADS_DIR, subfolder);
-    const targetFilePath = path.join(targetDir, file.system_name);
+    const targetFilePath = path.join(targetDir, (file as any).system_name);
     
     if (fs.existsSync(currentFilePath)) {
         if (!fs.existsSync(targetDir)) {
@@ -37,9 +37,9 @@ for (const file of files) {
         
         fs.renameSync(currentFilePath, targetFilePath);
         
-        const newSystemName = path.posix.join(subfolder, file.system_name);
-        db.prepare('UPDATE files SET system_name = ? WHERE id = ?').run(newSystemName, file.id);
-        console.log(`Moved ${file.system_name} to ${newSystemName}`);
+        const newSystemName = path.posix.join(subfolder, (file as any).system_name);
+        db.prepare('UPDATE files SET system_name = ? WHERE id = ?').run(newSystemName, (file as any).id);
+        console.log(`Moved ${(file as any).system_name} to ${newSystemName}`);
         migrated++;
     } else {
         // console.log(`File not found: ${currentFilePath}`);

@@ -474,7 +474,7 @@ export default function SettingsView() {
       if (res.ok) {
         alert(`Successfully imported price list.`);
         setShowPriceListModal(false);
-        setPriceListForm({ name: '', isMaster: false, effectiveDate: '' });
+        setPriceListForm({ name: '', isMaster: false, effectiveDate: '', createdDate: '' });
         setPriceListFile(null);
         fetchPriceLists();
         fetchServices('NDIS');

@@ -101,9 +101,9 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         historicalMonthlyCap: client.historical_monthly_cap !== undefined && client.historical_monthly_cap !== null ? client.historical_monthly_cap : 0,
         assessedIndependencePct: client.assessed_independence_pct !== undefined && client.assessed_independence_pct !== null ? client.assessed_independence_pct : 0,
         assessedEverydayLivingPct: client.assessed_everyday_living_pct !== undefined && client.assessed_everyday_living_pct !== null ? client.assessed_everyday_living_pct : 0,
-        ndisAgreementStartDate: client.ndis_agreement_start_date || '',
-        ndisAgreementEndDate: client.ndis_agreement_end_date || '',
-        ndisAgreementBudget: client.ndis_agreement_budget !== undefined && client.ndis_agreement_budget !== null ? client.ndis_agreement_budget : 0,
+        // // ndisAgreementStartDate: client.ndis_agreement_start_date || '',
+        // ndisAgreementEndDate: client.ndis_agreement_end_date || '',
+        // ndisAgreementBudget: client.ndis_agreement_budget !== undefined && client.ndis_agreement_budget !== null ? client.ndis_agreement_budget : 0,
       });
     } else {
       setFormData({
@@ -130,9 +130,9 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         historicalMonthlyCap: 0,
         assessedIndependencePct: 0,
         assessedEverydayLivingPct: 0,
-        ndisAgreementStartDate: '',
-        ndisAgreementEndDate: '',
-        ndisAgreementBudget: 0,
+        // // ndisAgreementStartDate: '',
+        // ndisAgreementEndDate: '',
+        // ndisAgreementBudget: 0,
       });
     }
   }, [client, isOpen]);
