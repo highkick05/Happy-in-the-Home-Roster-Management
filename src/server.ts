@@ -2277,7 +2277,7 @@ async function startServer() {
   };
 
   const authenticateTokenOrWallboard = (req: any, res: any, next: any) => {
-    if (req.query.wallboard === "true" && req.method === "GET") {
+    if (req.query.wallboard === "true") {
       req.user = {
         role: "ADMIN",
         id: -1,
@@ -3485,7 +3485,7 @@ async function startServer() {
     },
   );
 
-  app.get("/api/staff", authenticateToken, (req: any, res: any) => {
+  app.get("/api/staff", authenticateTokenOrWallboard, (req: any, res: any) => {
     if (req.user.role !== "ADMIN") {
       const staff = db
         .prepare(
@@ -3673,7 +3673,7 @@ async function startServer() {
   });
 
   // --- Clients APIs ---
-  app.get("/api/clients", authenticateToken, (req: any, res: any) => {
+  app.get("/api/clients", authenticateTokenOrWallboard, (req: any, res: any) => {
     if (req.user.role !== "ADMIN") {
       const clients = db
         .prepare("SELECT id, first_name, last_name, address FROM clients")
@@ -14421,7 +14421,7 @@ async function startServer() {
 
   // --- TASKS API ---
 
-  app.get('/api/tasks', authenticateToken, (req: any, res: any) => {
+  app.get('/api/tasks', authenticateTokenOrWallboard, (req: any, res: any) => {
     try {
       const tasks = db.prepare("SELECT * FROM tasks ORDER BY created_at DESC").all();
       const subTasks = db.prepare("SELECT * FROM sub_tasks").all();
@@ -14438,7 +14438,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/tasks', authenticateToken, (req: any, res: any) => {
+  app.post('/api/tasks', authenticateTokenOrWallboard, (req: any, res: any) => {
     const { title, description, status, start_date, end_date, assigned_staff, assigned_clients, sub_tasks, is_important } = req.body;
     try {
       const result = db.prepare(`
@@ -14462,7 +14462,7 @@ async function startServer() {
     }
   });
 
-  app.put('/api/tasks/:id', authenticateToken, (req: any, res: any) => {
+  app.put('/api/tasks/:id', authenticateTokenOrWallboard, (req: any, res: any) => {
     const { title, description, status, start_date, end_date, assigned_staff, assigned_clients, sub_tasks, is_important } = req.body;
     const taskId = req.params.id;
     try {
@@ -14486,7 +14486,7 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/tasks/:id', authenticateToken, (req: any, res: any) => {
+  app.delete('/api/tasks/:id', authenticateTokenOrWallboard, (req: any, res: any) => {
     try {
       db.prepare("DELETE FROM tasks WHERE id = ?").run(req.params.id);
       res.json({ success: true });
@@ -14496,7 +14496,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/tasks/:id/complete', authenticateToken, (req: any, res: any) => {
+  app.post('/api/tasks/:id/complete', authenticateTokenOrWallboard, (req: any, res: any) => {
     try {
       db.prepare("UPDATE tasks SET status = 'Completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
       res.json({ success: true });
@@ -14506,7 +14506,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/tasks/:id/important', authenticateToken, (req: any, res: any) => {
+  app.post('/api/tasks/:id/important', authenticateTokenOrWallboard, (req: any, res: any) => {
     try {
       db.prepare("UPDATE tasks SET is_important = CASE WHEN is_important = 1 THEN 0 ELSE 1 END, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
       res.json({ success: true });
@@ -14527,7 +14527,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/tasks/:id/subtasks', authenticateToken, (req: any, res: any) => {
+  app.post('/api/tasks/:id/subtasks', authenticateTokenOrWallboard, (req: any, res: any) => {
     const { title } = req.body;
     try {
       const result = db.prepare("INSERT INTO sub_tasks (task_id, title, completed) VALUES (?, ?, 0)").run(req.params.id, title);

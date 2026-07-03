@@ -180,9 +180,9 @@ export default function WallboardView() {
       const [shiftsRes, respiteRes, tasksRes, staffRes, clientsRes] = await Promise.all([
         fetch('/api/shifts?wallboard=true', { headers }),
         fetch('/api/respite-bookings?wallboard=true', { headers }),
-        fetch('/api/tasks', { headers }),
-        fetch('/api/staff', { headers }),
-        fetch('/api/clients', { headers })
+        fetch('/api/tasks?wallboard=true', { headers }),
+        fetch('/api/staff?wallboard=true', { headers }),
+        fetch('/api/clients?wallboard=true', { headers })
       ]);
 
       if (shiftsRes.ok && respiteRes.ok) {
@@ -522,17 +522,13 @@ export default function WallboardView() {
                         onDelete={() => {}}
                         onComplete={async () => {
                            try {
-                             await fetch(`/api/tasks/${task.id}/status`, {
-                               method: 'PUT',
-                               headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                               body: JSON.stringify({ status: 'Completed' })
-                             });
+                             await fetch(`/api/tasks/${task.id}/complete?wallboard=true`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {} });
                              fetchData();
                            } catch (e) {}
                         }}
                         onToggleSubTask={async (taskId, subTaskId) => {
                            try {
-                             await fetch(`/api/tasks/${taskId}/subtasks/${subTaskId}/toggle`, {
+                             await fetch(`/api/tasks/${taskId}/subtasks/${subTaskId}/toggle?wallboard=true`, {
                                method: 'PUT',
                                headers: token ? { Authorization: `Bearer ${token}` } : {}
                              });
@@ -541,7 +537,7 @@ export default function WallboardView() {
                         }}
                         onAddSubTask={async (taskId, title) => {
                            try {
-                             await fetch(`/api/tasks/${taskId}/subtasks`, {
+                             await fetch(`/api/tasks/${taskId}/subtasks?wallboard=true`, {
                                method: 'POST',
                                headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                                body: JSON.stringify({ title, completed: 0 })
@@ -551,7 +547,7 @@ export default function WallboardView() {
                         }}
                         onDeleteSubTask={async (taskId, subTaskId) => {
                            try {
-                             await fetch(`/api/tasks/${taskId}/subtasks/${subTaskId}`, {
+                             await fetch(`/api/tasks/${taskId}/subtasks/${subTaskId}?wallboard=true`, {
                                method: 'DELETE',
                                headers: token ? { Authorization: `Bearer ${token}` } : {}
                              });
@@ -560,11 +556,7 @@ export default function WallboardView() {
                         }}
                         onToggleImportant={async () => {
                            try {
-                             await fetch(`/api/tasks/${task.id}/important`, {
-                               method: 'PUT',
-                               headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                               body: JSON.stringify({ is_important: task.is_important ? 0 : 1 })
-                             });
+                             await fetch(`/api/tasks/${task.id}/important?wallboard=true`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {} });
                              fetchData();
                            } catch (e) {}
                         }}
