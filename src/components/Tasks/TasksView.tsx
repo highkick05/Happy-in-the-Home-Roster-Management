@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Search, Edit2, Trash2, CheckCircle2, Circle, Clock, Users, User, Calendar as CalendarIcon, ChevronDown, ChevronRight, X, UserCircle2, Flame } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { TaskCard, TaskModal } from './TaskCard';
 
 type SubTask = {
@@ -18,6 +18,7 @@ type Task = {
   status: 'Active' | 'Completed';
   start_date: string | null;
   end_date: string | null;
+  sort_order?: number;
   assigned_staff: string; // JSON string
   assigned_clients: string; // JSON string
   created_at: string;
@@ -216,9 +217,31 @@ export default function TasksView() {
     }
   };
 
+
+  const handleReorder = async (reordered: Task[]) => {
+    const reorderedWithSortOrder = reordered.map((t, index) => ({ ...t, sort_order: index }));
+    setTasks(prev => prev.map(t => {
+      const match = reorderedWithSortOrder.find(r => r.id === t.id);
+      return match ? match : t;
+    }));
+
+    try {
+      await fetch('/api/tasks/reorder', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ tasks: reorderedWithSortOrder.map(t => ({ id: t.id, sort_order: t.sort_order })) })
+      });
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
   const filteredTasks = tasks.filter(t => t.status === activeTab).sort((a, b) => {
     if (a.is_important !== b.is_important) {
       return (b.is_important || 0) - (a.is_important || 0);
+    }
+    if (a.sort_order !== b.sort_order) {
+      return (a.sort_order || 0) - (b.sort_order || 0);
     }
     return b.id - a.id;
   });
@@ -258,23 +281,24 @@ export default function TasksView() {
             No {activeTab.toLowerCase()} tasks found.
           </div>
         ) : (
-          <div className="flex flex-col gap-1.5">
+          <Reorder.Group axis="y" values={filteredTasks} onReorder={handleReorder} className="flex flex-col gap-1.5">
             {filteredTasks.map(task => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onEdit={() => { setEditingTask(task); setIsModalOpen(true); }}
-                onDelete={() => handleDelete(task.id)}
-                onComplete={() => handleComplete(task.id)}
-                onToggleSubTask={toggleSubTask}
-                onAddSubTask={addSubTask}
-                onDeleteSubTask={deleteSubTask}
-                onToggleImportant={() => handleToggleImportant(task.id)}
-                staffList={staffList}
-                clientList={clientList}
-              />
+              <Reorder.Item key={task.id} value={task} className="cursor-grab active:cursor-grabbing">
+                <TaskCard
+                  task={task}
+                  onEdit={() => { setEditingTask(task); setIsModalOpen(true); }}
+                  onDelete={() => handleDelete(task.id)}
+                  onComplete={() => handleComplete(task.id)}
+                  onToggleSubTask={toggleSubTask}
+                  onAddSubTask={addSubTask}
+                  onDeleteSubTask={deleteSubTask}
+                  onToggleImportant={() => handleToggleImportant(task.id)}
+                  staffList={staffList}
+                  clientList={clientList}
+                />
+              </Reorder.Item>
             ))}
-          </div>
+          </Reorder.Group>
         )}
       </div>
 

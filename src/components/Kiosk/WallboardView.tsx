@@ -516,6 +516,7 @@ export default function WallboardView() {
                       return b.id - a.id;
                     }).map((task: any) => (
                       <TaskCard
+                        wallboardMode={true}
                         key={task.id}
                         task={task}
                         onEdit={() => {}}

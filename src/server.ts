@@ -463,6 +463,16 @@ async function startServer() {
 
   try {
     db.exec(`
+      ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0;
+    `);
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
+    db.exec(`
       CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -14459,6 +14469,23 @@ async function startServer() {
     } catch (error: any) {
       console.error("Error creating task:", error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+
+  app.put('/api/tasks/reorder', authenticateToken, (req: any, res: any) => {
+    try {
+      const { tasks } = req.body;
+      const updateStmt = db.prepare("UPDATE tasks SET sort_order = ? WHERE id = ?");
+      db.transaction(() => {
+        for (const task of tasks) {
+          updateStmt.run(task.sort_order, task.id);
+        }
+      })();
+      res.json({ message: "Tasks reordered" });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
     }
   });
 
