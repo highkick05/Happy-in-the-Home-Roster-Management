@@ -513,6 +513,9 @@ export default function WallboardView() {
                       if (a.is_important !== b.is_important) {
                         return (b.is_important || 0) - (a.is_important || 0);
                       }
+                      if (a.sort_order !== b.sort_order) {
+                        return (a.sort_order || 0) - (b.sort_order || 0);
+                      }
                       return b.id - a.id;
                     }).map((task: any) => (
                       <TaskCard

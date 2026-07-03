@@ -195,7 +195,7 @@ export function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, 
         )}
         
         <div className="px-2 pb-2 pt-0.5">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-1">
             {task.sub_tasks?.map((st: any) => (
             <div 
               key={st.id || Math.random()} 
@@ -205,7 +205,7 @@ export function TaskCard({ task, onEdit, onDelete, onComplete, onToggleSubTask, 
                 <button className={`shrink-0 mt-0.5 ${st.completed ? 'text-brand-green' : 'text-[#8B949E] group-hover:text-white'}`}>
                   {st.completed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
                 </button>
-                <span className={`\${wallboardMode ? 'text-[16px]' : 'text-xs'} \${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
+                <span className={`${wallboardMode ? 'text-[16px]' : 'text-xs'} ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
                   {st.title}
                 </span>
               </div>
