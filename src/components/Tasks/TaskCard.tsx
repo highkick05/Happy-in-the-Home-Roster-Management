@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  CheckCircle2, Circle, Clock, Flame, 
+  CheckCircle2, Circle, Clock, Flame, GripVertical, 
   UserCircle2, Users, CalendarIcon, X, Plus, MoreHorizontal, Trash2, ListChecks
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -8,26 +8,13 @@ import { useState, useEffect } from 'react';
 export function TaskCard({ 
   task, onEdit, onDelete, onComplete, 
   onToggleSubTask, onAddSubTask, onDeleteSubTask, onToggleImportant,
-  staffList, clientList, wallboardMode 
+  staffList, clientList, wallboardMode, dragControls 
 }: any) {
   const [newSubTask, setNewSubTask] = useState('');
   const [showSubtasks, setShowSubtasks] = useState(wallboardMode || false);
-  const [mouseDownPos, setMouseDownPos] = useState({ x: 0, y: 0 });
+  
 
-  const handlePointerDown = (e: any) => {
-    setMouseDownPos({ x: e.clientX, y: e.clientY });
-  };
-
-  const handlePointerUp = (e: any) => {
-    if (e.target.closest('button') || e.target.closest('.no-drag-edit')) {
-      return;
-    }
-    const dx = e.clientX - mouseDownPos.x;
-    const dy = e.clientY - mouseDownPos.y;
-    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
-      onEdit();
-    }
-  };
+  
   
   const assignedStaff = typeof task.assigned_staff === 'string' ? JSON.parse(task.assigned_staff || '[]') : (task.assigned_staff || []);
   const assignedClients = typeof task.assigned_clients === 'string' ? JSON.parse(task.assigned_clients || '[]') : (task.assigned_clients || []);
@@ -50,14 +37,22 @@ export function TaskCard({
     >
       <div 
         className={`flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer`}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
+        onClick={onEdit}
       >
         {/* Left side: Checkbox + Title + Description */}
         <div className="flex items-start gap-3 flex-1 min-w-0">
+          {!wallboardMode && dragControls && (
+            <div
+              className="cursor-grab active:cursor-grabbing text-[#8B949E] hover:text-white p-1 -ml-2 transition-colors"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                dragControls.start(e);
+              }}
+            >
+              <GripVertical className="w-4 h-4" />
+            </div>
+          )}
           <button 
-            onPointerDown={e => e.stopPropagation()}
-            onPointerUp={e => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onComplete(); }}
             className={`shrink-0 ${wallboardMode ? 'mt-1' : 'mt-0.5'} transition-colors ${task.status === 'Completed' ? 'text-brand-green' : 'text-[#8B949E] hover:text-brand-green'}`}
           >

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Search, Edit2, Trash2, CheckCircle2, Circle, Clock, Users, User, Calendar as CalendarIcon, ChevronDown, ChevronRight, X, UserCircle2, Flame } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { motion, AnimatePresence, Reorder } from 'motion/react';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'motion/react';
 import { TaskCard, TaskModal } from './TaskCard';
 
 type SubTask = {
@@ -283,20 +283,20 @@ export default function TasksView() {
         ) : (
           <Reorder.Group values={filteredTasks} onReorder={handleReorder} className="flex flex-col gap-2">
             {filteredTasks.map(task => (
-              <Reorder.Item key={task.id} value={task} className="cursor-grab active:cursor-grabbing">
-                <TaskCard
-                  task={task}
-                  onEdit={() => { setEditingTask(task); setIsModalOpen(true); }}
-                  onDelete={() => handleDelete(task.id)}
-                  onComplete={() => handleComplete(task.id)}
-                  onToggleSubTask={toggleSubTask}
-                  onAddSubTask={addSubTask}
-                  onDeleteSubTask={deleteSubTask}
-                  onToggleImportant={() => handleToggleImportant(task.id)}
-                  staffList={staffList}
-                  clientList={clientList}
-                />
-              </Reorder.Item>
+              <DraggableTask
+                key={task.id}
+                task={task}
+                setEditingTask={setEditingTask}
+                setIsModalOpen={setIsModalOpen}
+                handleDelete={handleDelete}
+                handleComplete={handleComplete}
+                toggleSubTask={toggleSubTask}
+                addSubTask={addSubTask}
+                deleteSubTask={deleteSubTask}
+                handleToggleImportant={handleToggleImportant}
+                staffList={staffList}
+                clientList={clientList}
+              />
             ))}
           </Reorder.Group>
         )}
