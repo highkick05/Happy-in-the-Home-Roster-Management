@@ -12,6 +12,19 @@ export function TaskCard({
 }: any) {
   const [newSubTask, setNewSubTask] = useState('');
   const [showSubtasks, setShowSubtasks] = useState(wallboardMode || false);
+  const [mouseDownPos, setMouseDownPos] = useState({ x: 0, y: 0 });
+
+  const handlePointerDown = (e: any) => {
+    setMouseDownPos({ x: e.clientX, y: e.clientY });
+  };
+
+  const handlePointerUp = (e: any) => {
+    const dx = e.clientX - mouseDownPos.x;
+    const dy = e.clientY - mouseDownPos.y;
+    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
+      onEdit();
+    }
+  };
   
   const assignedStaff = typeof task.assigned_staff === 'string' ? JSON.parse(task.assigned_staff || '[]') : (task.assigned_staff || []);
   const assignedClients = typeof task.assigned_clients === 'string' ? JSON.parse(task.assigned_clients || '[]') : (task.assigned_clients || []);
@@ -34,7 +47,8 @@ export function TaskCard({
     >
       <div 
         className={`flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer`}
-        onClick={onEdit}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
       >
         {/* Left side: Checkbox + Title + Description */}
         <div className="flex items-start gap-3 flex-1 min-w-0">
