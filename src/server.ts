@@ -82,7 +82,7 @@ if (typeof __dirname !== "undefined") {
   _dirname = path.dirname(_filename);
 }
 
-const UPLOADS_DIR = path.join(process.cwd(), "data", "uploads");
+const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
@@ -114,8 +114,8 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB limit to prevent storage exhaustion
 });
 
-if (!fs.existsSync(path.join(process.cwd(), "data", "invoices"))) {
-  fs.mkdirSync(path.join(process.cwd(), "data", "invoices"), { recursive: true });
+if (!fs.existsSync(path.join(process.cwd(), "invoices"))) {
+  fs.mkdirSync(path.join(process.cwd(), "invoices"), { recursive: true });
 }
 
 function getSafeDateTimeFormat(
@@ -2650,7 +2650,7 @@ async function startServer() {
     }
   });
 
-  const persistentAssetsDir = path.join(process.cwd(), "data", "uploads", "assets");
+  const persistentAssetsDir = path.join(process.cwd(), "uploads", "assets");
   if (!fs.existsSync(persistentAssetsDir)) {
     fs.mkdirSync(persistentAssetsDir, { recursive: true });
   }
@@ -9862,7 +9862,7 @@ async function startServer() {
               const rawSystemName = `${data.invoiceNum}.pdf`;
               const systemName = path.posix.join(subfolder, rawSystemName);
 
-              const targetDir = path.join(process.cwd(), "data", "uploads", subfolder);
+              const targetDir = path.join(process.cwd(), "uploads", subfolder);
               if (!fs.existsSync(targetDir)) {
                 fs.mkdirSync(targetDir, { recursive: true });
               }
@@ -10440,7 +10440,7 @@ async function startServer() {
     authenticateToken,
     (req: any, res: any) => {
       const filename = req.params.filename;
-      const filePath = path.join(process.cwd(), "data", "invoices", filename);
+      const filePath = path.join(process.cwd(), "invoices", filename);
       if (fs.existsSync(filePath)) {
         res.download(filePath);
       } else {
@@ -10451,17 +10451,32 @@ async function startServer() {
 
   
 function resolveFilePath(systemName) {
-  let filePath = path.join(process.cwd(), "data", "uploads", systemName);
-  if (!fs.existsSync(filePath) && systemName.startsWith("uploads/")) {
-    filePath = path.join(process.cwd(), "data", systemName);
-  }
-  if (!fs.existsSync(filePath) && systemName.startsWith("data/uploads/")) {
+  let filePath = path.join(process.cwd(), "uploads", systemName);
+  if (fs.existsSync(filePath)) return filePath;
+  
+  filePath = path.join(process.cwd(), "data", "uploads", systemName);
+  if (fs.existsSync(filePath)) return filePath;
+
+  if (systemName.startsWith("uploads/")) {
     filePath = path.join(process.cwd(), systemName);
+    if (fs.existsSync(filePath)) return filePath;
+    filePath = path.join(process.cwd(), "data", systemName);
+    if (fs.existsSync(filePath)) return filePath;
   }
-  if (!fs.existsSync(filePath) && systemName.startsWith("/")) {
+  
+  if (systemName.startsWith("data/uploads/")) {
+    filePath = path.join(process.cwd(), systemName);
+    if (fs.existsSync(filePath)) return filePath;
+  }
+
+  if (systemName.startsWith("/")) {
+    filePath = path.join(process.cwd(), "uploads", systemName.substring(1));
+    if (fs.existsSync(filePath)) return filePath;
     filePath = path.join(process.cwd(), "data", "uploads", systemName.substring(1));
+    if (fs.existsSync(filePath)) return filePath;
   }
-  return filePath;
+  
+  return path.join(process.cwd(), "uploads", systemName);
 }
 
   // --- Files APIs ---
@@ -11176,11 +11191,10 @@ function resolveFilePath(systemName) {
       if (initialSystemName !== actualSystemName) {
         const initialFilePath = path.join(
           process.cwd(),
-              "data",
-              "uploads",
+          "uploads",
           initialSystemName,
         );
-        const actualDirPath = path.join(process.cwd(), "data", "uploads", subfolder);
+        const actualDirPath = path.join(process.cwd(), "uploads", subfolder);
         const actualFilePath = path.join(actualDirPath, req.file.filename);
         if (fs.existsSync(initialFilePath)) {
           if (!fs.existsSync(actualDirPath))
@@ -11330,7 +11344,7 @@ function resolveFilePath(systemName) {
               "uploads",
             file.system_name,
           );
-          const targetDir = path.join(process.cwd(), "data", "uploads", subfolder);
+          const targetDir = path.join(process.cwd(), "uploads", subfolder);
           const targetFilePath = path.join(targetDir, file.system_name);
 
           if (fs.existsSync(currentFilePath)) {
