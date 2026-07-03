@@ -3,7 +3,7 @@ import {
   CheckCircle2, Circle, Clock, Flame, 
   UserCircle2, Users, CalendarIcon, X, Plus, MoreHorizontal, Trash2, ListChecks
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export function TaskCard({ 
   task, onEdit, onDelete, onComplete, 
