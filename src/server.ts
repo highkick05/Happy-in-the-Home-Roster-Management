@@ -3292,7 +3292,7 @@ async function startServer() {
         const validFileIds = new Set();
         const fileMetadata = new Map();
         existingFiles.forEach((f) => {
-          const filePath = path.join(process.cwd(), "data", "uploads", f.system_name);
+          const filePath = resolveFilePath(f.system_name);
           if (fs.existsSync(filePath)) {
             validFileIds.add(f.id);
             fileMetadata.set(f.id, f);
@@ -10449,6 +10449,21 @@ async function startServer() {
     },
   );
 
+  
+function resolveFilePath(systemName) {
+  let filePath = path.join(process.cwd(), "data", "uploads", systemName);
+  if (!fs.existsSync(filePath) && systemName.startsWith("uploads/")) {
+    filePath = path.join(process.cwd(), "data", systemName);
+  }
+  if (!fs.existsSync(filePath) && systemName.startsWith("data/uploads/")) {
+    filePath = path.join(process.cwd(), systemName);
+  }
+  if (!fs.existsSync(filePath) && systemName.startsWith("/")) {
+    filePath = path.join(process.cwd(), "data", "uploads", systemName.substring(1));
+  }
+  return filePath;
+}
+
   // --- Files APIs ---
   // --- Quotes APIs ---
   app.get("/api/quotes", authenticateToken, (req: any, res: any) => {
@@ -11254,7 +11269,7 @@ async function startServer() {
           return res.status(403).json({ error: "Forbidden" });
         }
 
-        const filePath = path.join(process.cwd(), "data", "uploads", file.system_name);
+        const filePath = resolveFilePath(file.system_name);
         if (fs.existsSync(filePath)) {
           if (preview) {
             if (file.mime_type) {
@@ -11357,7 +11372,7 @@ async function startServer() {
         if (req.user.role !== "ADMIN" && file.uploaded_by !== req.user.id) {
           return res.status(403).json({ error: "Forbidden" });
         }
-        const filePath = path.join(process.cwd(), "data", "uploads", file.system_name);
+        const filePath = resolveFilePath(file.system_name);
         if (fs.existsSync(filePath)) {
           try {
             fs.unlinkSync(filePath);
