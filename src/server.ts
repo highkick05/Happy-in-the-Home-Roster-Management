@@ -9004,6 +9004,8 @@ async function startServer() {
 
           let primaryQtyOverride: number | null = null;
           let serviceNamesList: string[] = [];
+          let hasProviderTravelService = false;
+          let hasABTService = false;
 
           if (servicesArray.length > 0) {
             for (const sData of servicesArray) {
@@ -9012,6 +9014,12 @@ async function startServer() {
                 .get(sData.serviceId) as any;
               if (srv && srv.name) {
                 const nameLower = srv.name.toLowerCase();
+                if (nameLower.includes("provider travel")) {
+                  hasProviderTravelService = true;
+                }
+                if (nameLower.includes("activity based transport")) {
+                  hasABTService = true;
+                }
                 // Do not list Provider Travel or ABT here; they get their own dedicated rows
                 if (
                   !nameLower.includes("provider travel") &&
@@ -9102,10 +9110,8 @@ async function startServer() {
           const hc_travel_total = shift.respite_booking_id
             ? 0
             : shift.home_care_travel_total || 0;
-          const prov_km = shift.respite_booking_id
-            ? 0
-            : shift.provider_travel_km || 0;
-          const abt_km = shift.respite_booking_id ? 0 : shift.abt_km || 0;
+          const prov_km = (shift.respite_booking_id ? 0 : shift.provider_travel_km || 0) * (hasProviderTravelService ? 1 : 0);
+          const abt_km = (shift.respite_booking_id ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0);
 
           totals.travelKm += isHomeCare ? hc_travel_km : prov_km + abt_km;
           totals.travelHrs += isHomeCare ? hc_travel_hrs : 0;
@@ -9152,7 +9158,7 @@ async function startServer() {
               : "-",
           });
 
-          if (!isHomeCare && prov_km > 0) {
+          if (!isHomeCare && prov_km > 0 && hasProviderTravelService) {
             rows.push({
               id: shift.id + "_prov",
               dateAndDay: dayStr,
@@ -9173,7 +9179,7 @@ async function startServer() {
             });
           }
 
-          if (!isHomeCare && abt_km > 0) {
+          if (!isHomeCare && abt_km > 0 && hasABTService) {
             rows.push({
               id: shift.id + "_abt",
               dateAndDay: dayStr,
