@@ -281,7 +281,7 @@ export default function TasksView() {
             No {activeTab.toLowerCase()} tasks found.
           </div>
         ) : (
-          <Reorder.Group values={filteredTasks} onReorder={handleReorder} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <Reorder.Group values={filteredTasks} onReorder={handleReorder} className="flex flex-col gap-2">
             {filteredTasks.map(task => (
               <Reorder.Item key={task.id} value={task} className="cursor-grab active:cursor-grabbing">
                 <TaskCard
