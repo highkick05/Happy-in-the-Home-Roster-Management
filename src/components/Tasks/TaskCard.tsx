@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import {
+import { ChevronDown, ChevronRight,
   CheckCircle2, Circle, Clock, Flame, GripVertical, 
   UserCircle2, Users, CalendarIcon, X, Plus, MoreHorizontal, Trash2, ListChecks
 } from 'lucide-react';
@@ -75,18 +75,21 @@ export function TaskCard({
             )}
             
             {/* Progress Bar (Inline if tasks exist and we are not showing them, or small indicator) */}
-            {totalSubtasks > 0 && !showSubtasks && (
-               <div className="flex items-center gap-2 mt-2 w-fit p-1 -ml-1 rounded hover:bg-white/[0.04] transition-colors cursor-pointer no-drag-edit" onClick={(e) => { e.stopPropagation(); setShowSubtasks(true); }} onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}>
+            {totalSubtasks > 0 && (
+               <div className="flex items-center gap-2 mt-2 w-fit p-1 -ml-1 rounded hover:bg-white/[0.04] transition-colors cursor-pointer no-drag-edit" onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }} onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1 text-[11px] text-[#8B949E] font-medium">
                     <ListChecks className="w-3.5 h-3.5" />
                     <span>{completedSubtasks}/{totalSubtasks}</span>
                   </div>
-                  <div className="w-32 h-1.5 bg-[#0d1117] rounded-full overflow-hidden">
+                  <div className="w-32 h-1.5 bg-[#0d1117] rounded-full overflow-hidden hidden sm:block">
                     <motion.div 
                       className="h-full bg-brand-teal"
                       initial={{ width: 0 }}
                       animate={{ width: `${progress}%` }}
                     />
+                  </div>
+                  <div className="ml-1 text-[#8B949E]">
+                    {showSubtasks ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                   </div>
                </div>
             )}
@@ -176,17 +179,8 @@ export function TaskCard({
             <div className={`${wallboardMode ? 'px-6 py-4' : 'px-4 py-3'} flex flex-col gap-2`}>
                {totalSubtasks > 0 && (
                  <>
-                   <div className="flex items-center justify-between text-[11px] font-medium text-[#8B949E] uppercase tracking-wider mb-1">
-                      <span>Checklist</span>
-                      <span>{Math.round(progress)}%</span>
-                   </div>
-                   <div className="w-full h-1.5 bg-[#0d1117] rounded-full overflow-hidden mb-2">
-                     <motion.div 
-                       className="h-full bg-brand-teal"
-                       initial={{ width: 0 }}
-                       animate={{ width: `${progress}%` }}
-                     />
-                   </div>
+                   
+                   
                    
                    <div className="flex flex-col gap-1.5">
                      {task.sub_tasks.map((st: any) => (

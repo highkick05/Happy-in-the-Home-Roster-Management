@@ -26,6 +26,28 @@ type Task = {
   sub_tasks: SubTask[];
 };
 
+
+function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, handleComplete, toggleSubTask, addSubTask, deleteSubTask, handleToggleImportant, staffList, clientList }: any) {
+  const dragControls = useDragControls();
+  return (
+    <Reorder.Item value={task} dragListener={false} dragControls={dragControls}>
+      <TaskCard
+        task={task}
+        dragControls={dragControls}
+        onEdit={() => { setEditingTask(task); setIsModalOpen(true); }}
+        onDelete={() => handleDelete(task.id)}
+        onComplete={() => handleComplete(task.id)}
+        onToggleSubTask={toggleSubTask}
+        onAddSubTask={addSubTask}
+        onDeleteSubTask={deleteSubTask}
+        onToggleImportant={() => handleToggleImportant(task.id)}
+        staffList={staffList}
+        clientList={clientList}
+      />
+    </Reorder.Item>
+  );
+}
+
 export default function TasksView() {
   const { token } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
