@@ -139,8 +139,8 @@ export function TaskCard({
     return (
       <div className={`w-full ${containerClass} rounded-r-xl`}>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 w-full">
-          <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 sm:items-center flex-grow truncate px-0">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 sm:items-center flex-grow overflow-hidden min-w-0 px-0">
+            <div className="flex items-center gap-3 shrink-0 max-w-full">
               <span className={`font-bold text-xl truncate ${task.status === 'Completed' ? 'text-zinc-500 line-through' : 'text-[#E6EDF3]'}`}>
                 {task.title}
               </span>
@@ -151,15 +151,15 @@ export function TaskCard({
             
             {(task.description || assignedStaff.length > 0 || assignedClients.length > 0) && (
               <>
-                <span className="hidden sm:inline text-zinc-600">•</span>
-                <span className={`text-lg truncate text-[#8B949E] flex items-center gap-2`}>
+                <span className="hidden sm:inline text-zinc-600 shrink-0">•</span>
+                <span className={`text-lg flex items-center gap-2 text-[#8B949E] min-w-0 overflow-hidden`}>
                   {task.description && (
                     <span className="truncate">{task.description}</span>
                   )}
                   {(assignedStaff.length > 0 || assignedClients.length > 0) && (
-                    <span className="flex gap-1.5 ml-2">
+                    <span className="flex gap-1.5 ml-2 shrink-0 overflow-x-auto no-scrollbar">
                        {assignedStaff.map((id: any) => {
-                         const staff = staffList?.find((s:any) => s.id === id);
+                         const staff = staffList?.find((s:any) => String(s.id) === String(id));
                          if (!staff) return null;
                          return (
                            <div key={id} className="px-2 py-0.5 rounded-md bg-brand-green/10 border border-brand-green/30 text-brand-green flex items-center text-[12px] font-medium whitespace-nowrap">
@@ -168,7 +168,7 @@ export function TaskCard({
                          )
                        })}
                        {assignedClients.map((id: any) => {
-                         const client = clientList?.find((c:any) => c.id === id);
+                         const client = clientList?.find((c:any) => String(c.id) === String(id));
                          if (!client) return null;
                          return (
                            <div key={id} className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center text-[12px] font-medium whitespace-nowrap">
@@ -302,7 +302,7 @@ export function TaskCard({
               {assignedStaff.length > 0 && (
                 <div className="flex flex-wrap gap-1.5" title="Assigned Staff">
                    {assignedStaff.map((id: any) => {
-                     const staff = staffList?.find((s:any) => s.id === id);
+                     const staff = staffList?.find((s:any) => String(s.id) === String(id));
                      if (!staff) return null;
                      return (
                        <div key={id} className="px-2 py-0.5 rounded-md bg-brand-green/10 border border-brand-green/30 text-brand-green flex items-center text-[11px] font-medium whitespace-nowrap">
@@ -315,7 +315,7 @@ export function TaskCard({
               {assignedClients.length > 0 && (
                 <div className="flex flex-wrap gap-1.5" title="Assigned Clients">
                    {assignedClients.map((id: any) => {
-                     const client = clientList?.find((c:any) => c.id === id);
+                     const client = clientList?.find((c:any) => String(c.id) === String(id));
                      if (!client) return null;
                      return (
                        <div key={id} className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center text-[11px] font-medium whitespace-nowrap">
