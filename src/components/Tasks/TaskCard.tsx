@@ -67,11 +67,11 @@ export function TaskCard({
                <h3 className={`font-medium ${wallboardMode ? 'text-[22px]' : 'text-[14px]'} leading-snug truncate ${task.status === 'Completed' ? 'line-through text-[#8B949E]' : 'text-[#E6EDF3]'}`}>
                  {task.title}
                </h3>
-               {task.is_important && (
+               {!!task.is_important && (
                  <span className="shrink-0 text-[10px] font-bold text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider">Urgent</span>
                )}
             </div>
-            {task.description && (
+            {!!task.description && (
               <p className={`${wallboardMode ? 'text-[16px]' : 'text-[12px]'} text-[#8B949E] mt-0.5 truncate`}>
                 {task.description}
               </p>
