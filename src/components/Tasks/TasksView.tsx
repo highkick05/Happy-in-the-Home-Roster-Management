@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Edit2, Trash2, CheckCircle2, Circle, Clock, Users, User, Calendar as CalendarIcon, ChevronDown, ChevronRight, X, UserCircle2, Flame } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, CheckCircle2, Circle, Clock, Users, UserIcon, Calendar as CalendarIcon, ChevronDown, ChevronRight, X, UserCircle2, Flame } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'motion/react';
 import { TaskCard, TaskModal } from './TaskCard';

@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, ChevronRight,
   CheckCircle2, Circle, Clock, Flame, GripVertical, 
-  UserCircle2, Users, CalendarIcon, X, Plus, MoreHorizontal, Trash2, ListChecks
+  UserCircle2, UserIcon, Users, CalendarIcon, X, Plus, MoreHorizontal, Trash2, ListChecks
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
@@ -167,7 +167,7 @@ export function TaskCard({
                    if (!staff) return null;
                    return (
                      <div key={id} className="px-3 py-1 rounded-md bg-brand-green/10 border border-brand-green/30 text-brand-green flex items-center text-sm font-bold whitespace-nowrap">
-                       <User className="w-4 h-4 mr-1.5 opacity-80" />
+                       <UserIcon className="w-4 h-4 mr-1.5 opacity-80" />
                        {staff.first_name} {staff.last_name}
                      </div>
                    )
@@ -274,18 +274,6 @@ export function TaskCard({
 
         {/* Right side: Meta info (Dates, Assignments) */}
         <div className="flex flex-wrap md:flex-nowrap items-center gap-4 shrink-0">
-          {/* Dates */}
-          {(task.start_date || task.end_date) && (
-             <div className={`flex items-center text-[#8B949E] ${wallboardMode ? 'text-[15px]' : 'text-[12px]'}`}>
-               <CalendarIcon className="mr-1.5 w-3.5 h-3.5 opacity-70" />
-               <span className="truncate">
-                 {task.start_date && new Date(task.start_date).toLocaleDateString()}
-                 {task.start_date && task.end_date && ' - '}
-                 {task.end_date && new Date(task.end_date).toLocaleDateString()}
-               </span>
-             </div>
-          )}
-
           {/* Staff & Clients Avatars */}
           {(assignedStaff.length > 0 || assignedClients.length > 0) && (
             <div className="flex items-center gap-2 border-l border-border-subtle pl-3 overflow-hidden" onPointerDown={e => e.stopPropagation()}>
