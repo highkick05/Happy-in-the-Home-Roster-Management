@@ -27,10 +27,10 @@ type Task = {
 };
 
 
-function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, handleComplete, toggleSubTask, addSubTask, deleteSubTask, handleToggleImportant, staffList, clientList }: any) {
+function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, handleComplete, toggleSubTask, addSubTask, deleteSubTask, handleToggleImportant, staffList, clientList, handleDragEnd }: any) {
   const dragControls = useDragControls();
   return (
-    <Reorder.Item value={task} dragListener={false} dragControls={dragControls}>
+    <Reorder.Item value={task} dragListener={false} dragControls={dragControls} onDragEnd={handleDragEnd}>
       <TaskCard
         task={task}
         dragControls={dragControls}
@@ -53,6 +53,7 @@ export default function TasksView() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'Active' | 'Completed'>('Active');
+  const [localDisplayTasks, setLocalDisplayTasks] = useState<Task[]>([]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -240,8 +241,25 @@ export default function TasksView() {
   };
 
 
-  const handleReorder = async (reordered: Task[]) => {
-    const reorderedWithSortOrder = reordered.map((t, index) => ({ ...t, sort_order: index }));
+  const handleReorder = (newOrder: Task[]) => {
+    setLocalDisplayTasks(newOrder);
+  };
+
+  useEffect(() => {
+    const filtered = tasks.filter(t => t.status === activeTab).sort((a, b) => {
+      if (a.is_important !== b.is_important) {
+        return (b.is_important || 0) - (a.is_important || 0);
+      }
+      if (a.sort_order !== b.sort_order) {
+        return (a.sort_order || 0) - (b.sort_order || 0);
+      }
+      return b.id - a.id;
+    });
+    setLocalDisplayTasks(filtered);
+  }, [tasks, activeTab]);
+
+  const handleDragEnd = async () => {
+    const reorderedWithSortOrder = localDisplayTasks.map((t, index) => ({ ...t, sort_order: index }));
     setTasks(prev => prev.map(t => {
       const match = reorderedWithSortOrder.find(r => r.id === t.id);
       return match ? match : t;
@@ -258,15 +276,7 @@ export default function TasksView() {
     }
   };
 
-  const filteredTasks = tasks.filter(t => t.status === activeTab).sort((a, b) => {
-    if (a.is_important !== b.is_important) {
-      return (b.is_important || 0) - (a.is_important || 0);
-    }
-    if (a.sort_order !== b.sort_order) {
-      return (a.sort_order || 0) - (b.sort_order || 0);
-    }
-    return b.id - a.id;
-  });
+  
 
   return (
     <div className="flex flex-col h-full bg-brand-bg">
@@ -298,13 +308,13 @@ export default function TasksView() {
       <div className="flex-1 overflow-y-auto px-4 pb-4 pt-2">
         {loading ? (
           <div className="text-center text-[#8B949E] py-10">Loading...</div>
-        ) : filteredTasks.length === 0 ? (
+        ) : localDisplayTasks.length === 0 ? (
           <div className="text-center text-[#8B949E] py-10 bg-brand-navy/50 rounded-lg border border-border-subtle">
             No {activeTab.toLowerCase()} tasks found.
           </div>
         ) : (
-          <Reorder.Group values={filteredTasks} onReorder={handleReorder} className="flex flex-col gap-2">
-            {filteredTasks.map(task => (
+          <Reorder.Group values={localDisplayTasks} onReorder={handleReorder} className="flex flex-col gap-2">
+            {localDisplayTasks.map(task => (
               <DraggableTask
                 key={task.id}
                 task={task}
@@ -318,6 +328,7 @@ export default function TasksView() {
                 handleToggleImportant={handleToggleImportant}
                 staffList={staffList}
                 clientList={clientList}
+                handleDragEnd={handleDragEnd}
               />
             ))}
           </Reorder.Group>

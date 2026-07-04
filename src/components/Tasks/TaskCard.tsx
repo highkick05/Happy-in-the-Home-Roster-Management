@@ -32,7 +32,7 @@ export function TaskCard({
 
   return (
     <motion.div 
-      layout
+      layout={!dragControls}
       className={`bg-brand-navy border ${task.is_important ? 'border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'border-border-subtle hover:border-[#30363d]'} rounded-xl flex flex-col relative transition-all duration-200 group overflow-hidden`}
     >
       <div 
