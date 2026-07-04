@@ -128,10 +128,10 @@ export function TaskCard({
   return (
     <motion.div 
       
-      className={`bg-brand-navy border ${task.is_important ? 'border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'border-border-subtle hover:border-[#30363d]'} rounded-xl flex flex-col relative transition-all duration-200 group overflow-hidden`}
+      className={`bg-brand-navy border ${task.is_important ? 'border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'border-border-subtle hover:border-[#30363d]'} rounded-xl flex flex-col relative transition-all duration-200 group overflow-hidden select-none`}
     >
       <div 
-        className={`flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer`}
+        className={`flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer select-none`}
         onClick={onEdit}
       >
         {/* Left side: Checkbox + Title + Description */}
@@ -285,7 +285,7 @@ export function TaskCard({
                    <div className="flex flex-col gap-1.5">
                      {task.sub_tasks.map((st: any) => (
                        <div key={st.id} className="flex items-start justify-between group/st">
-                         <div className="flex items-start gap-2 cursor-pointer flex-1" onClick={() => onToggleSubTask(st.id, !!st.completed)}>
+                         <div className="flex items-start gap-2 cursor-pointer select-none flex-1" onClick={() => onToggleSubTask(st.id, !!st.completed)}>
                            <button className={`mt-0.5 shrink-0 transition-colors ${st.completed ? 'text-brand-green' : 'text-[#8B949E] hover:text-white'}`}>
                              <AnimatedCheckbox checked={!!st.completed} className={wallboardMode ? "w-5 h-5" : "w-3.5 h-3.5"} />
                            </button>
@@ -315,7 +315,7 @@ export function TaskCard({
                       onChange={e => setNewSubTask(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddSubTask())}
                       placeholder="Add checklist item..."
-                      className="flex-1 bg-transparent border-none text-[13px] text-[#E6EDF3] placeholder:text-[#8B949E] focus:outline-none focus:ring-0 px-1 py-0.5"
+                      className="flex-1 bg-transparent select-text border-none text-[13px] text-[#E6EDF3] placeholder:text-[#8B949E] focus:outline-none focus:ring-0 px-1 py-0.5"
                     />
                     <button 
                       onClick={handleAddSubTask}
@@ -514,7 +514,7 @@ export function TaskModal({ task, onClose, onSave, onDelete, staffList, clientLi
                 {formData.sub_tasks.map((st: any, idx: number) => (
                   <div key={idx} className="flex items-center justify-between bg-black/20 border border-border-subtle rounded-lg px-3 py-1.5">
                     <div 
-                      className="flex items-center space-x-2 cursor-pointer flex-1"
+                      className="flex items-center space-x-2 cursor-pointer select-none flex-1"
                       onClick={() => {
                         const newSubTasks = [...formData.sub_tasks];
                         newSubTasks[idx].completed = !newSubTasks[idx].completed;
