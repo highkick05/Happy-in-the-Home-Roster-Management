@@ -14538,7 +14538,7 @@ function resolveFilePath(systemName) {
 
   app.post('/api/tasks/:id/complete', authenticateTokenOrWallboard, (req: any, res: any) => {
     try {
-      db.prepare("UPDATE tasks SET status = 'Completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
+      db.prepare("UPDATE tasks SET status = CASE WHEN status = 'Completed' THEN 'Active' ELSE 'Completed' END, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error completing task:", error);
