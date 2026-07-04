@@ -129,7 +129,7 @@ export function TaskCard({
       className={`bg-brand-navy border ${task.is_important ? 'border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'border-border-subtle hover:border-[#30363d]'} rounded-xl flex flex-col relative transition-all duration-200 group overflow-hidden`}
     >
       <div 
-        className={`flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer`}
+        className={`flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer select-none`}
         onClick={onEdit}
       >
         {/* Left side: Checkbox + Title + Description */}
@@ -172,7 +172,7 @@ export function TaskCard({
             
             {/* Progress Bar (Inline if tasks exist and we are not showing them, or small indicator) */}
             {totalSubtasks > 0 && (
-               <div className="flex items-center gap-2 mt-2 w-fit p-1 -ml-1 rounded hover:bg-white/[0.04] transition-colors cursor-pointer no-drag-edit" onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }} onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}>
+               <div className="flex items-center gap-2 mt-2 w-fit p-1 -ml-1 rounded hover:bg-white/[0.04] transition-colors cursor-pointer select-none no-drag-edit" onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }} onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}>
                   <div className="flex items-center gap-1 text-[11px] text-[#8B949E] font-medium">
                     <ListChecks className="w-3.5 h-3.5" />
                     <span>{completedSubtasks}/{totalSubtasks}</span>
@@ -281,7 +281,7 @@ export function TaskCard({
                    <div className="flex flex-col gap-1.5">
                      {task.sub_tasks.map((st: any) => (
                        <div key={st.id} className="flex items-start justify-between group/st">
-                         <div className="flex items-start gap-2 cursor-pointer flex-1" onClick={() => onToggleSubTask(st.id, !!st.completed)}>
+                         <div className="flex items-start gap-2 cursor-pointer select-none flex-1" onClick={() => onToggleSubTask(st.id, !!st.completed)}>
                            <button className={`mt-0.5 shrink-0 transition-colors ${st.completed ? 'text-brand-green' : 'text-[#8B949E] hover:text-white'}`}>
                              <AnimatedCheckbox checked={!!st.completed} className={wallboardMode ? "w-5 h-5" : "w-3.5 h-3.5"} />
                            </button>
@@ -473,7 +473,7 @@ export function TaskModal({ task, onClose, onSave, onDelete, staffList, clientLi
               <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Assign Staff</label>
               <div className="h-32 overflow-y-auto bg-black/20 border border-border-subtle rounded-lg p-2 space-y-1">
                 {staffList.map(s => (
-                  <label key={s.id} className="flex items-center space-x-2 text-sm text-[#E6EDF3] cursor-pointer hover:bg-white/[0.04] p-1 rounded">
+                  <label key={s.id} className="flex items-center space-x-2 text-sm text-[#E6EDF3] cursor-pointer select-none hover:bg-white/[0.04] p-1 rounded">
                     <input 
                       type="checkbox"
                       checked={formData.assigned_staff.includes(s.id)}
@@ -490,7 +490,7 @@ export function TaskModal({ task, onClose, onSave, onDelete, staffList, clientLi
               <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Assign Clients</label>
               <div className="h-32 overflow-y-auto bg-black/20 border border-border-subtle rounded-lg p-2 space-y-1">
                 {clientList.map(c => (
-                  <label key={c.id} className="flex items-center space-x-2 text-sm text-[#E6EDF3] cursor-pointer hover:bg-white/[0.04] p-1 rounded">
+                  <label key={c.id} className="flex items-center space-x-2 text-sm text-[#E6EDF3] cursor-pointer select-none hover:bg-white/[0.04] p-1 rounded">
                     <input 
                       type="checkbox"
                       checked={formData.assigned_clients.includes(c.id)}
@@ -510,7 +510,7 @@ export function TaskModal({ task, onClose, onSave, onDelete, staffList, clientLi
                 {formData.sub_tasks.map((st: any, idx: number) => (
                   <div key={idx} className="flex items-center justify-between bg-black/20 border border-border-subtle rounded-lg px-3 py-1.5">
                     <div 
-                      className="flex items-center space-x-2 cursor-pointer flex-1"
+                      className="flex items-center space-x-2 cursor-pointer select-none flex-1"
                       onClick={() => {
                         const newSubTasks = [...formData.sub_tasks];
                         newSubTasks[idx].completed = !newSubTasks[idx].completed;
