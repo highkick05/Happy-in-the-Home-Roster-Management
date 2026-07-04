@@ -5,6 +5,73 @@ import { ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
+
+function AnimatedCheckbox({ checked, className }: { checked: boolean, className?: string }) {
+  const [showFireworks, setShowFireworks] = useState(false);
+
+  useEffect(() => {
+    if (checked) {
+      setShowFireworks(true);
+      const timer = setTimeout(() => setShowFireworks(false), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [checked]);
+
+  return (
+    <div className={`relative flex items-center justify-center ${className}`}>
+      <motion.div
+        className={`w-full h-full rounded-[4px] border-[1.5px] flex items-center justify-center transition-colors ${checked ? 'bg-brand-green border-brand-green' : 'border-[#8B949E] bg-transparent group-hover:border-brand-green'}`}
+        initial={false}
+        animate={{ 
+          scale: checked ? [1, 0.8, 1.1, 1] : 1,
+        }}
+        transition={{ duration: 0.3 }}
+      >
+        <AnimatePresence>
+          {checked && (
+            <motion.svg
+              initial={{ opacity: 0, pathLength: 0 }}
+              animate={{ opacity: 1, pathLength: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.1 } }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="black"
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-3/4 h-3/4"
+            >
+              <motion.polyline points="20 6 9 17 4 12" />
+            </motion.svg>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      <AnimatePresence>
+        {showFireworks && (
+          <>
+            {[...Array(6)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute w-1 h-1 bg-brand-green rounded-full pointer-events-none"
+                initial={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+                animate={{ 
+                  opacity: 0, 
+                  x: Math.cos(i * 60 * Math.PI / 180) * 24, 
+                  y: Math.sin(i * 60 * Math.PI / 180) * 24,
+                  scale: 0
+                }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+              />
+            ))}
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function TaskCard({ 
   task, onEdit, onDelete, onComplete, 
   onToggleSubTask, onAddSubTask, onDeleteSubTask, onToggleImportant,
@@ -32,7 +99,7 @@ export function TaskCard({
 
   return (
     <motion.div 
-      layout={!dragControls}
+      
       className={`bg-brand-navy border ${task.is_important ? 'border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'border-border-subtle hover:border-[#30363d]'} rounded-xl flex flex-col relative transition-all duration-200 group overflow-hidden`}
     >
       <div 
@@ -59,7 +126,7 @@ export function TaskCard({
             onClick={(e) => { e.stopPropagation(); onComplete(); }}
             className={`shrink-0 ${wallboardMode ? 'mt-1' : 'mt-0.5'} transition-colors ${task.status === 'Completed' ? 'text-brand-green' : 'text-[#8B949E] hover:text-brand-green'}`}
           >
-            {task.status === 'Completed' ? <CheckCircle2 className={wallboardMode ? "w-7 h-7" : "w-5 h-5"} /> : <Circle className={wallboardMode ? "w-7 h-7" : "w-5 h-5"} />}
+            <AnimatedCheckbox checked={task.status === "Completed"} className={wallboardMode ? "w-7 h-7" : "w-5 h-5"} />
           </button>
           
           <div className="flex flex-col flex-1 min-w-0">
@@ -190,7 +257,7 @@ export function TaskCard({
                        <div key={st.id} className="flex items-start justify-between group/st">
                          <div className="flex items-start gap-2 cursor-pointer flex-1" onClick={() => onToggleSubTask(st.id, !!st.completed)}>
                            <button className={`mt-0.5 shrink-0 transition-colors ${st.completed ? 'text-brand-green' : 'text-[#8B949E] hover:text-white'}`}>
-                             {st.completed ? <CheckCircle2 className={wallboardMode ? "w-5 h-5" : "w-3.5 h-3.5"} /> : <Circle className={wallboardMode ? "w-5 h-5" : "w-3.5 h-3.5"} />}
+                             <AnimatedCheckbox checked={!!st.completed} className={wallboardMode ? "w-5 h-5" : "w-3.5 h-3.5"} />
                            </button>
                            <span className={`${wallboardMode ? 'text-[15px]' : 'text-[13px]'} ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
                              {st.title}
@@ -425,7 +492,7 @@ export function TaskModal({ task, onClose, onSave, onDelete, staffList, clientLi
                       }}
                     >
                       <button type="button" className={`shrink-0 ${st.completed ? 'text-brand-green' : 'text-[#8B949E] hover:text-white'}`}>
-                        {st.completed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                        <AnimatedCheckbox checked={!!st.completed} className="w-4 h-4" />
                       </button>
                       <span className={`text-sm ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>{st.title}</span>
                     </div>
