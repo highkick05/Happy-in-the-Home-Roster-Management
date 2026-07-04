@@ -123,26 +123,7 @@ export function TaskCard({
     }
   };
 
-  const clickStartRef = useRef<{ x: number, y: number } | null>(null);
 
-  const handlePointerDown = (e: any) => {
-    // Only track left clicks
-    if (e.button !== 0) return;
-    clickStartRef.current = { x: e.clientX, y: e.clientY };
-  };
-
-  const handlePointerUp = (e: any) => {
-    if (!clickStartRef.current) return;
-    const dx = e.clientX - clickStartRef.current.x;
-    const dy = e.clientY - clickStartRef.current.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    // If we moved less than 5 pixels, consider it a click
-    if (distance < 5) {
-      onEdit();
-    }
-    clickStartRef.current = null;
-  };
 
   return (
     <motion.div 
@@ -151,8 +132,7 @@ export function TaskCard({
     >
       <div 
         className={`flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer`}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
+        onClick={onEdit}
       >
         {/* Left side: Checkbox + Title + Description */}
         <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -172,7 +152,7 @@ export function TaskCard({
           )}
           <button 
             onClick={handleToggleComplete}
-            onPointerDown={(e) => e.stopPropagation()}
+            
             className={`shrink-0 ${wallboardMode ? 'mt-1' : 'mt-0.5'} transition-colors ${task.status === 'Completed' ? 'text-brand-green' : 'text-[#8B949E] hover:text-brand-green'}`}
           >
             <AnimatedCheckbox checked={isChecked} className={wallboardMode ? "w-7 h-7" : "w-5 h-5"} />
@@ -294,7 +274,7 @@ export function TaskCard({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden border-t border-border-subtle/50 bg-black/10"
-            onPointerDown={(e) => e.stopPropagation()}
+            
           >
             <div className={`${wallboardMode ? 'px-6 py-4' : 'px-4 py-3'} flex flex-col gap-2`}>
                {totalSubtasks > 0 && (
