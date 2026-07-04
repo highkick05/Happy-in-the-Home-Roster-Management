@@ -149,50 +149,40 @@ export function TaskCard({
               )}
             </div>
             
-            {(task.description || assignedStaff.length > 0 || assignedClients.length > 0) && (
+            {task.description && (
               <>
                 <span className="hidden sm:inline text-zinc-600 shrink-0">•</span>
                 <span className={`text-lg flex items-center gap-2 text-[#8B949E] min-w-0 overflow-hidden`}>
-                  {task.description && (
-                    <span className="truncate">{task.description}</span>
-                  )}
-                  {(assignedStaff.length > 0 || assignedClients.length > 0) && (
-                    <span className="flex gap-1.5 ml-2 shrink-0 overflow-x-auto no-scrollbar">
-                       {assignedStaff.map((id: any) => {
-                         const staff = staffList?.find((s:any) => String(s.id) === String(id));
-                         if (!staff) return null;
-                         return (
-                           <div key={id} className="px-2 py-0.5 rounded-md bg-brand-green/10 border border-brand-green/30 text-brand-green flex items-center text-[12px] font-medium whitespace-nowrap">
-                             {staff.first_name} {staff.last_name}
-                           </div>
-                         )
-                       })}
-                       {assignedClients.map((id: any) => {
-                         const client = clientList?.find((c:any) => String(c.id) === String(id));
-                         if (!client) return null;
-                         return (
-                           <div key={id} className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center text-[12px] font-medium whitespace-nowrap">
-                             {client.first_name} {client.last_name}
-                           </div>
-                         )
-                       })}
-                    </span>
-                  )}
+                  <span className="truncate">{task.description}</span>
                 </span>
               </>
             )}
           </div>
 
           <div className="flex items-center justify-start sm:justify-end whitespace-nowrap shrink-0">
-            {(task.start_date || task.end_date) && (
-               <div className="flex items-center text-zinc-400 font-mono text-base mr-4">
-                 <CalendarIcon className="mr-1.5 w-4 h-4 opacity-70" />
-                 <span>
-                   {task.start_date && new Date(task.start_date).toLocaleDateString()}
-                   {task.start_date && task.end_date && ' - '}
-                   {task.end_date && new Date(task.end_date).toLocaleDateString()}
-                 </span>
-               </div>
+            {(assignedStaff.length > 0 || assignedClients.length > 0) && (
+              <div className="flex gap-2 mr-4">
+                 {assignedStaff.map((id: any) => {
+                   const staff = staffList?.find((s:any) => String(s.id) === String(id));
+                   if (!staff) return null;
+                   return (
+                     <div key={id} className="px-3 py-1 rounded-md bg-brand-green/10 border border-brand-green/30 text-brand-green flex items-center text-sm font-bold whitespace-nowrap">
+                       <User className="w-4 h-4 mr-1.5 opacity-80" />
+                       {staff.first_name} {staff.last_name}
+                     </div>
+                   )
+                 })}
+                 {assignedClients.map((id: any) => {
+                   const client = clientList?.find((c:any) => String(c.id) === String(id));
+                   if (!client) return null;
+                   return (
+                     <div key={id} className="px-3 py-1 rounded-md bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center text-sm font-bold whitespace-nowrap">
+                       <UserCircle2 className="w-4 h-4 mr-1.5 opacity-80" />
+                       {client.first_name} {client.last_name}
+                     </div>
+                   )
+                 })}
+              </div>
             )}
             
             {totalSubtasks > 0 && (
