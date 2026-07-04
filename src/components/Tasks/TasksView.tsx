@@ -30,7 +30,7 @@ type Task = {
 function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, handleComplete, toggleSubTask, addSubTask, deleteSubTask, handleToggleImportant, staffList, clientList, handleDragEnd }: any) {
   const dragControls = useDragControls();
   return (
-    <Reorder.Item value={task} dragListener={true} dragControls={dragControls} onDragEnd={handleDragEnd}>
+    <Reorder.Item value={task} dragListener={false} dragControls={dragControls} onDragEnd={handleDragEnd}>
       <TaskCard
         task={task}
         dragControls={dragControls}

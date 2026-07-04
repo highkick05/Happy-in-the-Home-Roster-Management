@@ -131,6 +131,11 @@ export function TaskCard({
       <div 
         className={`flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer select-none`}
         onClick={onEdit}
+        onPointerDown={(e) => {
+          if (!wallboardMode && dragControls) {
+            dragControls.start(e);
+          }
+        }}
       >
         {/* Left side: Checkbox + Title + Description */}
         <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -150,6 +155,7 @@ export function TaskCard({
           )}
           <button 
             onClick={handleToggleComplete}
+            onPointerDown={(e) => e.stopPropagation()}
             className={`shrink-0 ${wallboardMode ? 'mt-1' : 'mt-0.5'} transition-colors ${task.status === 'Completed' ? 'text-brand-green' : 'text-[#8B949E] hover:text-brand-green'}`}
           >
             <AnimatedCheckbox checked={isChecked} className={wallboardMode ? "w-7 h-7" : "w-5 h-5"} />
