@@ -51,15 +51,15 @@ function AnimatedCheckbox({ checked, className }: { checked: boolean, className?
       <AnimatePresence>
         {showFireworks && (
           <>
-            {[...Array(8)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <motion.div
                 key={i}
-                className="absolute w-1.5 h-1.5 bg-brand-green rounded-full pointer-events-none"
+                className="absolute w-2 h-2 bg-brand-green rounded-full pointer-events-none"
                 initial={{ opacity: 1, x: 0, y: 0, scale: 1 }}
                 animate={{ 
                   opacity: 0, 
-                  x: Math.cos(i * 45 * Math.PI / 180) * 48, 
-                  y: Math.sin(i * 45 * Math.PI / 180) * 48,
+                  x: Math.cos(i * 36 * Math.PI / 180) * 60, 
+                  y: Math.sin(i * 36 * Math.PI / 180) * 60,
                   scale: 0
                 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
@@ -79,6 +79,27 @@ export function TaskCard({
 }: any) {
   const [newSubTask, setNewSubTask] = useState('');
   const [showSubtasks, setShowSubtasks] = useState(wallboardMode || false);
+  const [isToggling, setIsToggling] = useState(false);
+
+  useEffect(() => {
+    setIsToggling(false);
+  }, [task.status]);
+
+  const handleToggleComplete = (e: any) => {
+    e.stopPropagation();
+    if (isToggling) return;
+    setIsToggling(true);
+    if (task.status === 'Active') {
+      setTimeout(() => {
+        onComplete();
+      }, 800);
+    } else {
+      onComplete();
+    }
+  };
+
+  const isChecked = task.status === 'Completed' ? !isToggling : isToggling;
+
   
 
   
@@ -123,10 +144,10 @@ export function TaskCard({
             </div>
           )}
           <button 
-            onClick={(e) => { e.stopPropagation(); onComplete(); }}
+            onClick={handleToggleComplete}
             className={`shrink-0 ${wallboardMode ? 'mt-1' : 'mt-0.5'} transition-colors ${task.status === 'Completed' ? 'text-brand-green' : 'text-[#8B949E] hover:text-brand-green'}`}
           >
-            <AnimatedCheckbox checked={task.status === "Completed"} className={wallboardMode ? "w-7 h-7" : "w-5 h-5"} />
+            <AnimatedCheckbox checked={isChecked} className={wallboardMode ? "w-7 h-7" : "w-5 h-5"} />
           </button>
           
           <div className="flex flex-col flex-1 min-w-0">
