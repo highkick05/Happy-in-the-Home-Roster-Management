@@ -499,7 +499,7 @@ export default function WallboardView() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.5 }}
-                  className="w-full flex flex-col gap-1.5"
+                  className="w-full flex flex-col gap-2"
                 >
                   <h2 className="text-2xl font-bold tracking-tight text-brand-teal uppercase border-b border-zinc-800 pb-2 mb-2 sticky top-0 bg-zinc-950/80 backdrop-blur-sm z-10">
                     Active Tasks

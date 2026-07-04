@@ -125,6 +125,93 @@ export function TaskCard({
 
 
 
+  if (wallboardMode) {
+    let containerClass = "transition-all flex items-center p-3 sm:p-4 shadow-sm border-y border-white/[0.05] ";
+    
+    if (task.status === 'Completed') {
+      containerClass += "opacity-80 border-l-[6px] border-brand-green bg-brand-green/25";
+    } else if (task.is_important) {
+      containerClass += "opacity-90 border-l-[6px] border-orange-500 bg-orange-500/25 pulse-border";
+    } else {
+      containerClass += "opacity-95 border-l-[6px] border-zinc-400 bg-zinc-500/25";
+    }
+
+    return (
+      <div className={`w-full ${containerClass} rounded-r-xl`}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 w-full">
+          <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 sm:items-center flex-grow truncate px-0">
+            <div className="flex items-center gap-3">
+              <span className={`font-bold text-xl truncate ${task.status === 'Completed' ? 'text-zinc-500 line-through' : 'text-[#E6EDF3]'}`}>
+                {task.title}
+              </span>
+              {!!task.is_important && (
+                <span className="text-[10px] font-bold text-orange-500 bg-orange-500/20 px-2 py-0.5 rounded uppercase tracking-wider shrink-0">Urgent</span>
+              )}
+            </div>
+            
+            {(task.description || assignedStaff.length > 0 || assignedClients.length > 0) && (
+              <>
+                <span className="hidden sm:inline text-zinc-600">•</span>
+                <span className={`text-lg truncate text-[#8B949E] flex items-center gap-2`}>
+                  {task.description && (
+                    <span className="truncate">{task.description}</span>
+                  )}
+                  {(assignedStaff.length > 0 || assignedClients.length > 0) && (
+                    <span className="flex gap-1.5 ml-2">
+                       {assignedStaff.map((id: any) => {
+                         const staff = staffList?.find((s:any) => s.id === id);
+                         if (!staff) return null;
+                         return (
+                           <div key={id} className="px-2 py-0.5 rounded-md bg-brand-green/10 border border-brand-green/30 text-brand-green flex items-center text-[12px] font-medium whitespace-nowrap">
+                             {staff.first_name} {staff.last_name}
+                           </div>
+                         )
+                       })}
+                       {assignedClients.map((id: any) => {
+                         const client = clientList?.find((c:any) => c.id === id);
+                         if (!client) return null;
+                         return (
+                           <div key={id} className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center text-[12px] font-medium whitespace-nowrap">
+                             {client.first_name} {client.last_name}
+                           </div>
+                         )
+                       })}
+                    </span>
+                  )}
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center justify-start sm:justify-end whitespace-nowrap shrink-0">
+            {(task.start_date || task.end_date) && (
+               <div className="flex items-center text-zinc-400 font-mono text-base mr-4">
+                 <CalendarIcon className="mr-1.5 w-4 h-4 opacity-70" />
+                 <span>
+                   {task.start_date && new Date(task.start_date).toLocaleDateString()}
+                   {task.start_date && task.end_date && ' - '}
+                   {task.end_date && new Date(task.end_date).toLocaleDateString()}
+                 </span>
+               </div>
+            )}
+            
+            {totalSubtasks > 0 && (
+              <span className="text-xs bg-zinc-500/20 text-zinc-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider mr-3">
+                {completedSubtasks}/{totalSubtasks} Subtasks
+              </span>
+            )}
+            
+            {task.status === 'Completed' && (
+              <span className="text-xs bg-brand-green/20 text-brand-green font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider">
+                Completed
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <motion.div 
       
