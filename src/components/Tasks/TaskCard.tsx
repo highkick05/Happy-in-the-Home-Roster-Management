@@ -3,19 +3,24 @@ import { ChevronDown, ChevronRight,
   CheckCircle2, Circle, Clock, Flame, GripVertical, 
   UserCircle2, Users, CalendarIcon, X, Plus, MoreHorizontal, Trash2, ListChecks
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 
 function AnimatedCheckbox({ checked, className }: { checked: boolean, className?: string }) {
   const [showFireworks, setShowFireworks] = useState(false);
+  const isFirstRender = useRef(true);
 
   useEffect(() => {
-    if (checked) {
+    if (checked && !isFirstRender.current) {
       setShowFireworks(true);
       const timer = setTimeout(() => setShowFireworks(false), 800);
       return () => clearTimeout(timer);
     }
   }, [checked]);
+
+  useEffect(() => {
+    isFirstRender.current = false;
+  }, []);
 
   return (
     <div className={`relative flex items-center justify-center ${className}`}>
@@ -23,14 +28,14 @@ function AnimatedCheckbox({ checked, className }: { checked: boolean, className?
         className={`w-full h-full rounded-[4px] border-[1.5px] flex items-center justify-center transition-colors ${checked ? 'bg-brand-green border-brand-green' : 'border-[#8B949E] bg-transparent group-hover:border-brand-green'}`}
         initial={false}
         animate={{ 
-          scale: checked ? [1, 0.8, 1.1, 1] : 1,
+          scale: (checked && !isFirstRender.current) ? [1, 0.8, 1.1, 1] : 1,
         }}
         transition={{ duration: 0.3 }}
       >
         <AnimatePresence>
           {checked && (
             <motion.svg
-              initial={{ opacity: 0, pathLength: 0 }}
+              initial={isFirstRender.current ? { opacity: 1, pathLength: 1 } : { opacity: 0, pathLength: 0 }}
               animate={{ opacity: 1, pathLength: 1 }}
               exit={{ opacity: 0, transition: { duration: 0.1 } }}
               transition={{ duration: 0.3, ease: "easeOut" }}
