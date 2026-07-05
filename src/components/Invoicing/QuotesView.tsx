@@ -381,8 +381,8 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                         <div className="flex items-center">
                           <span className="text-zinc-500 font-medium mr-1.5">Date</span>
                           {row.date && (
-                            <span className="text-zinc-400 font-medium mr-1.5 w-8 truncate">
-                              {new Date(row.date).toLocaleDateString('en-US', { weekday: 'short' })}
+                            <span className="text-zinc-400 font-medium mr-1.5 w-20 truncate">
+                              {new Date(row.date).toLocaleDateString('en-US', { weekday: 'long' })}
                             </span>
                           )}
                           <CustomDatePicker 
@@ -601,7 +601,7 @@ export default function QuotesView() {
   return (
     <div className="flex-1 flex flex-col space-y-4">
       {showGenerateModal && (
-        <div className="fixed inset-0 z-[60] flex justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto custom-scrollbar" onClick={() => setShowGenerateModal(false)}>
+        <div className="fixed inset-0 z-[60] flex justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto custom-scrollbar">
           <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-[1400px] flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg shrink-0">
               <div>
