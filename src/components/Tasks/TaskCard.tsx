@@ -52,7 +52,8 @@ function AnimatedCheckbox({ checked, className }: { checked: boolean, className?
   );
 }
 
-export function TaskCard({ 
+export function TaskCard({
+ 
   task, 
   onToggleComplete, 
   onEdit, 
@@ -65,8 +66,11 @@ export function TaskCard({
   staffList,
   clientList,
   onToggleImportant
+,
+  isExpanded,
+  onToggleExpand
 }: any) {
-  const [showSubtasks, setShowSubtasks] = useState(false);
+  
   const [newSubTask, setNewSubTask] = useState('');
 
   const isChecked = task.status === 'Completed';
@@ -194,7 +198,7 @@ export function TaskCard({
 
       <div 
         className={`relative z-10 flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer select-none`}
-        onClick={() => setShowSubtasks(!showSubtasks)}
+        onClick={(e) => { e.preventDefault(); onToggleExpand?.(); }}
       >
         {/* Left side: Checkbox + Title + Description */}
         <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -302,7 +306,7 @@ export function TaskCard({
       </div>
       
       <AnimatePresence>
-        {showSubtasks && (
+        {isExpanded && (
           <motion.div 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
@@ -319,7 +323,7 @@ export function TaskCard({
                    <div className="flex flex-col gap-1.5">
                      {task.sub_tasks.map((st: any) => (
                        <div key={st.id} className="flex items-start justify-between group/st">
-                         <div className="flex items-start gap-2 cursor-pointer select-none flex-1" onClick={() => onToggleSubTask(st.id, !!st.completed)}>
+                         <div className="flex items-start gap-2 cursor-pointer select-none flex-1" onClick={(e) => { e.stopPropagation(); onToggleSubTask(st.id, !!st.completed); }}>
                            <button className={`mt-0.5 shrink-0 transition-colors ${st.completed ? 'text-brand-green' : 'text-[#8B949E] hover:text-white'}`}>
                              <AnimatedCheckbox checked={!!st.completed} className={wallboardMode ? "w-5 h-5" : "w-3.5 h-3.5"} />
                            </button>
@@ -329,7 +333,7 @@ export function TaskCard({
                          </div>
                          {!wallboardMode && (
                            <button 
-                             onClick={() => onDeleteSubTask(st.id)}
+                             onClick={(e) => { e.stopPropagation(); onDeleteSubTask(st.id); }}
                              className="text-[#8B949E] hover:text-red-400 opacity-0 group-hover/st:opacity-100 transition-opacity p-0.5"
                            >
                              <X className="w-3.5 h-3.5" />
@@ -347,12 +351,12 @@ export function TaskCard({
                       type="text"
                       value={newSubTask}
                       onChange={e => setNewSubTask(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddSubTask())}
+                      onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); handleAddSubTask(); } }}
                       placeholder="Add checklist item..."
                       className="flex-1 bg-transparent select-text border-none text-[13px] text-[#E6EDF3] placeholder:text-[#8B949E] focus:outline-none focus:ring-0 px-1 py-0.5"
                     />
                     <button 
-                      onClick={handleAddSubTask}
+                      onClick={(e) => { e.stopPropagation(); handleAddSubTask(); }}
                       disabled={!newSubTask.trim()}
                       className="text-[#8B949E] hover:text-white disabled:opacity-50 transition-colors p-1 shrink-0 bg-white/[0.04] rounded-md hover:bg-white/[0.08]"
                     >

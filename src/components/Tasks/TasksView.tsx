@@ -27,7 +27,7 @@ type Task = {
 };
 
 
-function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, handleComplete, toggleSubTask, addSubTask, deleteSubTask, handleToggleImportant, staffList, clientList, handleDragEnd }: any) {
+function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, handleComplete, toggleSubTask, addSubTask, deleteSubTask, handleToggleImportant, staffList, clientList, handleDragEnd , isExpanded, onToggleExpand}: any) {
   const dragControls = useDragControls();
   return (
     <Reorder.Item value={task} dragListener={false} dragControls={dragControls} onDragEnd={handleDragEnd}>
@@ -36,11 +36,13 @@ function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, han
         dragControls={dragControls}
         onEdit={() => { setEditingTask(task); setIsModalOpen(true); }}
         onDelete={() => handleDelete(task.id)}
-        onComplete={() => handleComplete(task.id)}
+        onToggleComplete={() => handleComplete(task.id)}
         onToggleSubTask={toggleSubTask}
         onAddSubTask={addSubTask}
         onDeleteSubTask={deleteSubTask}
         onToggleImportant={() => handleToggleImportant(task.id)}
+        isExpanded={isExpanded}
+        onToggleExpand={onToggleExpand}
         staffList={staffList}
         clientList={clientList}
       />
@@ -54,6 +56,7 @@ export default function TasksView() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'Active' | 'Completed'>('Active');
   const [localDisplayTasks, setLocalDisplayTasks] = useState<Task[]>([]);
+  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -326,6 +329,8 @@ export default function TasksView() {
                 addSubTask={addSubTask}
                 deleteSubTask={deleteSubTask}
                 handleToggleImportant={handleToggleImportant}
+                isExpanded={expandedTaskId === task.id}
+                onToggleExpand={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
                 staffList={staffList}
                 clientList={clientList}
                 handleDragEnd={handleDragEnd}
