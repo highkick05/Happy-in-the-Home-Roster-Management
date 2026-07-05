@@ -322,15 +322,15 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                 </button>
                 {row.serviceId && (
                   <div className="flex md:items-center justify-between text-[11px] bg-[#09090b]/50 p-1.5 rounded border border-white/[0.08]/50 mt-1">
-                    <div className="flex flex-col space-y-2 w-full">
-                      <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center justify-between w-full flex-wrap xl:flex-nowrap gap-4">
+                      <div className="flex items-center gap-3">
                         <div className="flex items-center">
                           <span className="text-zinc-500 font-medium mr-1.5">Date</span>
-                          <input 
-                            type="date"
+                          <CustomDatePicker 
+                            position="top"
                             value={row.date || ''}
-                            onChange={(e) => updateService(idx, 'date', e.target.value)}
-                            className="bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
+                            onChange={(e: any) => updateService(idx, 'date', e.target.value)}
+                            className="w-28 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
                           />
                         </div>
                         <div className="flex items-center">
@@ -339,50 +339,49 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                             type="time"
                             value={row.startTime || ''}
                             onChange={(e) => updateService(idx, 'startTime', e.target.value)}
-                            className="bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
+                            className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
                           />
                           <span className="text-zinc-500 mx-1">-</span>
                           <input 
                             type="time"
                             value={row.endTime || ''}
                             onChange={(e) => updateService(idx, 'endTime', e.target.value)}
-                            className="bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
+                            className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
                           />
                         </div>
                       </div>
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center space-x-4">
-                          <div>
-                            <span className="text-zinc-500 font-medium mr-1.5">Unit</span>
-                            <span className="text-zinc-300">{unit}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="text-zinc-500 font-medium mr-1.5">Rate $</span>
-                            <input 
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={row.rateOverride || ''}
-                              onChange={(e) => updateService(idx, 'rateOverride', e.target.value)}
-                              placeholder={rate.toFixed(2)}
-                              className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-sm text-zinc-300 focus:border-brand-teal outline-none"
-                            />
-                          </div>
-                          <div className="flex items-center">
-                            <span className="text-zinc-500 font-medium mr-1.5">Qty</span>
-                            <input 
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              required
-                              value={row.qtyOverride}
-                              onChange={(e) => updateService(idx, 'qtyOverride', e.target.value)}
-                              placeholder="0"
-                              className="w-16 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-sm text-zinc-300 focus:border-brand-teal outline-none"
-                            />
-                          </div>
+
+                      <div className="flex items-center gap-3 ml-auto">
+                        <div className="flex items-center">
+                          <span className="text-zinc-500 font-medium mr-1.5">Unit</span>
+                          <span className="text-zinc-300 w-8 truncate" title={unit}>{unit}</span>
                         </div>
-                        <div className="font-semibold text-white ml-2 text-right">
+                        <div className="flex items-center">
+                          <span className="text-zinc-500 font-medium mr-1.5">Rate $</span>
+                          <input 
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={row.rateOverride || ''}
+                            onChange={(e) => updateService(idx, 'rateOverride', e.target.value)}
+                            placeholder={rate.toFixed(2)}
+                            className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-sm text-zinc-300 focus:border-brand-teal outline-none"
+                          />
+                        </div>
+                        <div className="flex items-center">
+                          <span className="text-zinc-500 font-medium mr-1.5">Qty</span>
+                          <input 
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            required
+                            value={row.qtyOverride}
+                            onChange={(e) => updateService(idx, 'qtyOverride', e.target.value)}
+                            placeholder="0"
+                            className="w-16 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-sm text-zinc-300 focus:border-brand-teal outline-none"
+                          />
+                        </div>
+                        <div className="font-semibold text-white ml-2 text-right w-16">
                           ${subtotal.toFixed(2)}
                         </div>
                       </div>
@@ -534,7 +533,7 @@ export default function QuotesView() {
     <div className="flex-1 flex flex-col space-y-4">
       {showGenerateModal && (
         <div className="fixed inset-0 z-[60] flex justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto custom-scrollbar" onClick={() => setShowGenerateModal(false)}>
-          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-2xl flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-5xl flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg shrink-0">
               <div>
                 <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">{editingQuote ? 'Edit Service Quote' : 'Generate Service Quote'}</h3>
