@@ -23,6 +23,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
         activityName: editData.activity_name || '',
         date: editData.activity_date || new Date().toISOString().split('T')[0],
         endDate: endDate,
+        quoteDate: editData.quote_date || new Date().toISOString().split('T')[0],
         importantNotes: editData.important_notes || '',
         gstType
       };
@@ -32,6 +33,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
       activityName: '',
       date: new Date().toISOString().split('T')[0],
       endDate: '',
+      quoteDate: new Date().toISOString().split('T')[0],
       importantNotes: '',
       gstType: 'GST Free'
     };
@@ -200,7 +202,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
 
   return (
     <form onSubmit={handleSubmit} className="p-5 space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Client</label>
           <select
@@ -217,6 +219,16 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
               <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
             ))}
           </select>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Quote Date</label>
+          <CustomDatePicker
+            position="bottom"
+            required
+            className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none font-mono text-sm"
+            value={formData.quoteDate}
+            onChange={e => setFormData({ ...formData, quoteDate: e.target.value })}
+          />
         </div>
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Start Date</label>
@@ -355,7 +367,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
       <div className="space-y-1.5">
         <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Important Notes Override (Optional)</label>
         <textarea
-          rows={3}
+          rows={10}
           placeholder="Leave blank to use default notes..."
           className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none text-sm resize-none custom-scrollbar"
           value={formData.importantNotes}

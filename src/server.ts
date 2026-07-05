@@ -321,6 +321,11 @@ async function startServer() {
     }
   }
 
+try {
+    db.exec("ALTER TABLE quotes ADD COLUMN quote_date TEXT");
+  } catch (e) {
+    // Column might exist
+  }
   try {
     db.exec("ALTER TABLE shifts ADD COLUMN custom_staff_name TEXT");
     console.log("[DEBUG] Completed custom_staff_name column check.");
@@ -10489,7 +10494,7 @@ function resolveFilePath(systemName) {
     authenticateToken,
     requireAdmin,
     (req: any, res: any) => {
-      const { clientId, activityName, date, endDate, services, importantNotes } =
+      const { clientId, activityName, date, endDate, services, importantNotes, quoteDate } =
         req.body;
       try {
         const prefix = "QUO";
@@ -10595,8 +10600,8 @@ function resolveFilePath(systemName) {
         }
 
         const stmt = db.prepare(`
-        INSERT INTO quotes (quote_number, client_id, activity_name, activity_date, services_json, amount, status, important_notes)
-        VALUES (?, ?, ?, ?, ?, ?, 'DRAFT', ?)
+        INSERT INTO quotes (quote_number, client_id, activity_name, activity_date, services_json, amount, status, important_notes, quote_date)
+        VALUES (?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?)
       `);
         stmt.run(
           quoteNumber,
@@ -10606,6 +10611,7 @@ function resolveFilePath(systemName) {
           JSON.stringify(services || []),
           calculatedAmount,
           importantNotes || null,
+          quoteDate || null,
         );
 
         res.json({ success: true });
@@ -10623,7 +10629,7 @@ function resolveFilePath(systemName) {
     requireAdmin,
     (req: any, res: any) => {
       const quoteId = req.params.id;
-      const { clientId, activityName, date, endDate, services, importantNotes } =
+      const { clientId, activityName, date, endDate, services, importantNotes, quoteDate } =
         req.body;
 
       try {
@@ -10718,7 +10724,7 @@ function resolveFilePath(systemName) {
 
         const stmt = db.prepare(`
           UPDATE quotes 
-          SET client_id = ?, activity_name = ?, activity_date = ?, services_json = ?, amount = ?, important_notes = ?
+          SET client_id = ?, activity_name = ?, activity_date = ?, services_json = ?, amount = ?, important_notes = ?, quote_date = ?
           WHERE id = ?
         `);
 
@@ -10729,6 +10735,7 @@ function resolveFilePath(systemName) {
           JSON.stringify(services || []),
           calculatedAmount,
           importantNotes || null,
+          quoteDate || null,
           quoteId
         );
 
@@ -10815,10 +10822,13 @@ function resolveFilePath(systemName) {
 
         let quoteDateStr = "";
         try {
-          const createdAtDate = quote.created_at ? new Date(quote.created_at.replace(" ", "T") + (quote.created_at.includes("Z") ? "" : "Z")) : new Date();
-          quoteDateStr = dateFormatter
-            .format(createdAtDate)
-            .replace(/\//g, "-");
+          if (quote.quote_date) {
+            const d = new Date(quote.quote_date);
+            quoteDateStr = dateFormatter.format(d).replace(/\//g, "-");
+          } else {
+            const createdAtDate = quote.created_at ? new Date(quote.created_at.replace(" ", "T") + (quote.created_at.includes("Z") ? "" : "Z")) : new Date();
+            quoteDateStr = dateFormatter.format(createdAtDate).replace(/\//g, "-");
+          }
         } catch (e) {
           quoteDateStr = dateFormatter.format(new Date()).replace(/\//g, "-");
         }
@@ -10983,7 +10993,7 @@ function resolveFilePath(systemName) {
               buffer = Buffer.from(base64Data, "base64");
             }
             if (buffer) {
-              doc.image(buffer, 450, 40, { fit: [100, 70], align: "right" });
+              doc.image(buffer, doc.page.width - 50 - 150, 40, { fit: [150, 70], align: "right" });
             }
           } catch (e) {
             console.error("Logo render error:", e);
