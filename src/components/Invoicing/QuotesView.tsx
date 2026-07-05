@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Download, Search, Trash2, Eye, Edit2 } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import CustomTimePicker from '../ui/CustomTimePicker';
 
 function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: string | null, onGenerated: () => void, onClose: () => void, editData?: any }) {
   const { settings } = useAuth();
@@ -335,18 +336,16 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                         </div>
                         <div className="flex items-center">
                           <span className="text-zinc-500 font-medium mr-1.5">Time</span>
-                          <input 
-                            type="time"
+                          <CustomTimePicker 
                             value={row.startTime || ''}
-                            onChange={(e) => updateService(idx, 'startTime', e.target.value)}
-                            className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
+                            onChange={(e: any) => updateService(idx, 'startTime', e.target.value)}
+                            className="w-24 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
                           />
                           <span className="text-zinc-500 mx-1">-</span>
-                          <input 
-                            type="time"
+                          <CustomTimePicker 
                             value={row.endTime || ''}
-                            onChange={(e) => updateService(idx, 'endTime', e.target.value)}
-                            className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
+                            onChange={(e: any) => updateService(idx, 'endTime', e.target.value)}
+                            className="w-24 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
                           />
                         </div>
                       </div>
