@@ -10051,16 +10051,12 @@ try {
         if (settingsMap.letterheadLogo.startsWith("/api/assets/")) {
           const fileWithQuery = settingsMap.letterheadLogo.split("/").pop();
           const filename = fileWithQuery.split("?")[0]; // Strip the query params
-          const persistentAssetPath = path.join(
-            process.cwd(),
-              "data",
-              "uploads",
-            "assets",
-            filename,
-          );
+          const persistentAssetPath = path.join(process.cwd(), "data", "uploads", "assets", filename);
+          const uploadsAssetPath = path.join(process.cwd(), "uploads", "assets", filename);
           const oldAssetPath = path.join(process.cwd(), "assets", filename);
-
-          if (fs.existsSync(persistentAssetPath)) {
+          if (fs.existsSync(uploadsAssetPath)) {
+            buffer = fs.readFileSync(uploadsAssetPath);
+          } else if (fs.existsSync(persistentAssetPath)) {
             buffer = fs.readFileSync(persistentAssetPath);
           } else if (fs.existsSync(oldAssetPath)) {
             buffer = fs.readFileSync(oldAssetPath);
@@ -10975,15 +10971,13 @@ function resolveFilePath(systemName) {
             if (settingsMap.letterheadLogo.startsWith("/api/assets/")) {
               const fileWithQuery = settingsMap.letterheadLogo.split("/").pop();
               const filename = fileWithQuery.split("?")[0];
-              const persistentAssetPath = path.join(
-                process.cwd(),
-              "data",
-              "uploads",
-                "assets",
-                filename,
-              );
+              const persistentAssetPath = path.join(process.cwd(), "data", "uploads", "assets", filename);
+              const uploadsAssetPath = path.join(process.cwd(), "uploads", "assets", filename);
               const oldAssetPath = path.join(process.cwd(), "assets", filename);
-              if (fs.existsSync(persistentAssetPath)) {
+              
+              if (fs.existsSync(uploadsAssetPath)) {
+                buffer = fs.readFileSync(uploadsAssetPath);
+              } else if (fs.existsSync(persistentAssetPath)) {
                 buffer = fs.readFileSync(persistentAssetPath);
               } else if (fs.existsSync(oldAssetPath)) {
                 buffer = fs.readFileSync(oldAssetPath);
@@ -11219,10 +11213,13 @@ function resolveFilePath(systemName) {
           : "";
         const notes = customNotes !== "" ? customNotes : defaultNotes;
 
-        notes.split("\n").forEach((line: string) => {
-          doc.text(line, 50, currentY, { width: 500 });
-          currentY += doc.heightOfString(line, { width: 500 }) + 5;
-        });
+        if (currentY > 700) {
+          doc.addPage();
+          currentY = 50;
+        }
+
+        // Just use doc.text and let PDFKit handle wrapping and page breaks automatically.
+        doc.text(notes, 50, currentY, { width: 500, align: 'left' });
 
         doc.end();
       } catch (e: any) {
