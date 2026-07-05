@@ -216,35 +216,35 @@ export function TaskCard({
             animate={{ left: `${progress}%`, opacity: 1 }}
             transition={{ left: { type: "spring", stiffness: 45, damping: 10, delay: 0.2 }, opacity: { duration: 0.3 } }}
           >
-             {/* Core intense glow */}
+             {/* Core softer glow */}
              <motion.div 
-               className="absolute w-[6px] h-[6px] bg-white rounded-full shadow-[0_0_10px_4px_#fb923c,0_0_20px_8px_#ea580c]"
-               animate={{ scale: [1, 1.5, 0.8, 1.4, 1], opacity: [0.8, 1, 0.7, 1, 0.9] }}
-               transition={{ repeat: Infinity, duration: 0.15 }}
+               className="absolute w-[5px] h-[5px] bg-white rounded-full shadow-[0_0_6px_2px_rgba(251,146,60,0.8),0_0_12px_4px_rgba(234,88,12,0.6)]"
+               animate={{ scale: [1, 1.2, 0.9, 1.1, 1], opacity: [0.8, 1, 0.9, 1, 0.8] }}
+               transition={{ repeat: Infinity, duration: 0.3 }}
              />
              
-             {/* Emitting Sparks */}
+             {/* Emitting Sparks - softer and smaller spread */}
              {[
-               { x: -15, y: -15, d: 0.1 },
-               { x: 15, y: -12, d: 0.3 },
-               { x: -10, y: 15, d: 0.2 },
-               { x: 20, y: 8, d: 0.4 },
-               { x: 5, y: -20, d: 0.0 },
-               { x: -20, y: 5, d: 0.5 },
-               { x: 12, y: 16, d: 0.6 }
+               { x: -10, y: -10, d: 0.1 },
+               { x: 10, y: -8, d: 0.3 },
+               { x: -8, y: 10, d: 0.2 },
+               { x: 12, y: 6, d: 0.4 },
+               { x: 4, y: -14, d: 0.0 },
+               { x: -14, y: 4, d: 0.5 },
+               { x: 8, y: 12, d: 0.6 }
              ].map((spark, i) => (
                 <motion.div
                   key={i}
-                  className="absolute w-[2.5px] h-[2.5px] bg-yellow-200 rounded-full shadow-[0_0_4px_1px_#facc15]"
+                  className="absolute w-[2px] h-[2px] bg-yellow-100 rounded-full shadow-[0_0_2px_1px_rgba(250,204,21,0.6)]"
                   animate={{ 
                     x: [0, spark.x], 
                     y: [0, spark.y],
                     scale: [1, 0],
-                    opacity: [1, 0]
+                    opacity: [0.8, 0]
                   }}
                   transition={{ 
                     repeat: Infinity, 
-                    duration: 0.5,
+                    duration: 0.8,
                     delay: spark.d,
                     ease: "easeOut"
                   }}
