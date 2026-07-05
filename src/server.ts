@@ -10070,7 +10070,7 @@ try {
         }
 
         if (buffer) {
-          doc.image(buffer, 50, 20, { fit: [150, 60] });
+          doc.image(buffer, 50, 20, { fit: [300, 120] });
           doc.y = 50;
         } else {
           doc.moveDown();
@@ -10099,7 +10099,7 @@ try {
     doc.text(`Date: ${invoiceDate}`, { align: "right" });
     doc.moveDown();
 
-    const topY = 140;
+    const topY = 170;
     doc
       .fontSize(10)
       .font("Helvetica-Bold")
@@ -10155,7 +10155,7 @@ try {
 
     doc.moveDown(4);
 
-    let currentY = Math.max(doc.y + 10, 340);
+    let currentY = Math.max(doc.y + 10, 370);
 
     // Table Header
     doc.font("Helvetica-Bold").fontSize(10);
@@ -10990,7 +10990,7 @@ function resolveFilePath(systemName) {
               buffer = Buffer.from(base64Data, "base64");
             }
             if (buffer) {
-              doc.image(buffer, doc.page.width - 50 - 150, 20, { fit: [150, 60], align: "right" });
+              doc.image(buffer, doc.page.width - 50 - 300, 20, { fit: [300, 120], align: "right" });
             }
           } catch (e) {
             console.error("Logo render error:", e);
@@ -11009,7 +11009,7 @@ function resolveFilePath(systemName) {
           .text(settingsMap.businessName || "Happy in the Home", 50, 70);
         doc.moveDown(2);
 
-        const topY = 190;
+        const topY = 210;
         doc
           .fontSize(10)
           .font("Helvetica-Bold")
@@ -11047,7 +11047,7 @@ function resolveFilePath(systemName) {
           .text(validUntilStr, 415, topY + 30);
 
         // Participant Details Box
-        const partY = 290;
+        const partY = 310;
         doc.rect(50, partY, 4, 70).fill("#0ea5e9"); // Cyan left border
         doc.fillColor("black");
         doc
@@ -11072,7 +11072,7 @@ function resolveFilePath(systemName) {
           .font("Helvetica")
           .text(activityDateStr);
 
-        let currentY = 390;
+        let currentY = 410;
 
         // Table Header
         doc.rect(50, currentY, 500, 25).fill("#f4f4f5"); // Light gray bg for header
@@ -13778,8 +13778,8 @@ function resolveFilePath(systemName) {
               const logoFilename = logoUrl.split("/").pop();
               const logoPath = require("path").join(assetsDir, logoFilename);
               if (require("fs").existsSync(logoPath)) {
-                doc.image(logoPath, doc.page.width - 40 - 150, 20, {
-                  fit: [150, 60], align: 'right'
+                doc.image(logoPath, doc.page.width - 40 - 300, 20, {
+                  fit: [300, 120], align: 'right'
                 });
                 // We do NOT modify doc.y, so standard text on the left stays at the top.
               }
