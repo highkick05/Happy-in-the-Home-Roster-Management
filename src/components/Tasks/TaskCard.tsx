@@ -183,35 +183,39 @@ export function TaskCard({
 
   return (
     <motion.div 
-      className={`bg-brand-navy border ${task.is_important ? 'border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'border-border-subtle hover:border-[#30363d]'} rounded-xl flex flex-col relative transition-all duration-200 group overflow-hidden select-none`}
+      className={`bg-brand-navy border ${task.is_important ? 'border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'border-border-subtle hover:border-[#30363d]'} rounded-xl flex flex-col relative transition-all duration-200 group select-none`}
     >
-      {/* Overall Progress Background */}
-      {totalSubtasks > 0 && !isChecked && (
-        <div 
-          className="absolute top-0 left-0 bottom-0 bg-brand-teal/5 pointer-events-none transition-all duration-500 z-0"
-          style={{ width: `${progress}%` }}
-        />
-      )}
-      
-      {/* Top Progress Bar */}
-      {totalSubtasks > 0 && !isChecked && (
-        <div className="absolute top-0 left-0 right-0 h-1 bg-black/20 z-10">
-          {/* Main progress */}
-          <motion.div 
-            className="absolute top-0 left-0 h-full bg-brand-teal"
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{ type: "spring", stiffness: 120, damping: 20 }}
+      {/* Backgrounds and Progress that need clipping */}
+      <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none z-0">
+        {/* Overall Progress Background */}
+        {totalSubtasks > 0 && !isChecked && (
+          <div 
+            className="absolute top-0 left-0 bottom-0 bg-brand-teal/5 transition-all duration-500"
+            style={{ width: `${progress}%` }}
           />
-          {/* Trailing fuse spark */}
+        )}
+        
+        {/* Top Progress Bar - background and main line */}
+        {totalSubtasks > 0 && !isChecked && (
+          <div className="absolute top-0 left-0 right-0 h-1 bg-black/20">
+            <motion.div 
+              className="absolute top-0 left-0 h-full bg-brand-teal"
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              transition={{ type: "spring", stiffness: 120, damping: 20 }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Trailing fuse spark - OUTSIDE overflow-hidden, so shadow glows outside card */}
+      {totalSubtasks > 0 && !isChecked && (
           <motion.div 
-            className="absolute top-0 h-full w-2 bg-orange-400 shadow-[0_0_10px_4px_rgba(251,146,60,0.8)] rounded-full z-10"
-            style={{ y: '-10%' }}
+            className="absolute top-[1px] h-[2px] w-[6px] bg-yellow-100 shadow-[0_0_12px_4px_rgba(251,146,60,1),0_0_4px_1px_rgba(255,255,255,0.9)] rounded-full z-20 pointer-events-none"
             initial={{ left: 0 }}
-            animate={{ left: `calc(${progress}% - 4px)` }}
-            transition={{ type: "spring", stiffness: 60, damping: 15, delay: 0.1 }}
+            animate={{ left: `calc(${progress}% - 3px)` }}
+            transition={{ type: "spring", stiffness: 45, damping: 10, delay: 0.2 }}
           />
-        </div>
       )}
 
       <div 
@@ -337,7 +341,7 @@ export function TaskCard({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden border-t border-border-subtle/50 bg-black/10"
+            className="overflow-hidden border-t border-border-subtle/50 bg-black/10 rounded-b-xl"
             
           >
             <div className={`${wallboardMode ? 'px-6 py-4' : 'px-4 py-3'} flex flex-col gap-2`}>
