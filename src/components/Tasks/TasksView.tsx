@@ -76,7 +76,7 @@ export default function TasksView() {
       });
       if (!res.ok) throw new Error('Failed to create task');
       setQuickTaskTitle('');
-      fetchData();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert(String(err));
@@ -84,13 +84,13 @@ export default function TasksView() {
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(false);
     fetchStaffAndClients();
   }, [token]);
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent && tasks.length === 0) setLoading(true);
       const res = await fetch('/api/tasks', { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         const text = await res.text();
@@ -133,7 +133,7 @@ export default function TasksView() {
         setIsModalOpen(false);
         setEditingTask(null);
       }
-      fetchData();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert(String(err));
@@ -147,7 +147,7 @@ export default function TasksView() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to complete task');
-      fetchData();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert(String(err));
@@ -162,7 +162,7 @@ export default function TasksView() {
         body: JSON.stringify({ completed: !currentCompleted })
       });
       if (!res.ok) throw new Error('Failed to toggle subtask');
-      fetchData();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert(String(err));
@@ -177,7 +177,7 @@ export default function TasksView() {
         body: JSON.stringify({ title })
       });
       if (!res.ok) throw new Error('Failed to add subtask');
-      fetchData();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert(String(err));
@@ -191,7 +191,7 @@ export default function TasksView() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to delete subtask');
-      fetchData();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert(String(err));
@@ -222,7 +222,7 @@ export default function TasksView() {
 
       setIsModalOpen(false);
       setEditingTask(null);
-      fetchData();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert(String(err));
@@ -236,7 +236,7 @@ export default function TasksView() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to toggle important task');
-      fetchData();
+      fetchData(true);
     } catch (err) {
       console.error(err);
       alert(String(err));

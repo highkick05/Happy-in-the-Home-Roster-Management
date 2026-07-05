@@ -82,7 +82,7 @@ export function TaskCard({
       setLocalCompleted(true);
       setTimeout(() => {
         onToggleComplete();
-      }, 700);
+      }, 850);
     } else {
       onToggleComplete();
     }
@@ -101,7 +101,7 @@ export function TaskCard({
   const totalSubtasks = task.sub_tasks?.length || 0;
   const completedSubtasks = task.sub_tasks?.filter((st:any) => st.completed).length || 0;
   const totalItems = totalSubtasks + 1;
-  const completedItems = completedSubtasks + (task.status === 'Completed' ? 1 : 0);
+  const completedItems = completedSubtasks + (isChecked ? 1 : 0);
   const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
 
   if (wallboardMode) {
@@ -164,7 +164,7 @@ export function TaskCard({
               </div>
             )}
             
-            {totalSubtasks > 0 && task.status !== 'Completed' && (
+            {totalSubtasks > 0 && !isChecked && (
               <span className="text-xs font-bold text-brand-teal px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider mr-3 bg-brand-teal/10">
                 {Math.round(progress)}% Complete
               </span>
@@ -186,7 +186,7 @@ export function TaskCard({
       className={`bg-brand-navy border ${task.is_important ? 'border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'border-border-subtle hover:border-[#30363d]'} rounded-xl flex flex-col relative transition-all duration-200 group overflow-hidden select-none`}
     >
       {/* Overall Progress Background */}
-      {totalSubtasks > 0 && task.status !== 'Completed' && (
+      {totalSubtasks > 0 && !isChecked && (
         <div 
           className="absolute top-0 left-0 bottom-0 bg-brand-teal/5 pointer-events-none transition-all duration-500 z-0"
           style={{ width: `${progress}%` }}
@@ -194,7 +194,7 @@ export function TaskCard({
       )}
       
       {/* Top Progress Bar */}
-      {totalSubtasks > 0 && task.status !== 'Completed' && (
+      {totalSubtasks > 0 && !isChecked && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-black/20 z-10">
           <motion.div 
             className="h-full bg-brand-teal transition-all duration-500"
@@ -287,6 +287,13 @@ export function TaskCard({
             </div>
           )}
 
+          {/* Subtask count */}
+          {totalSubtasks > 0 && (
+             <div className="flex items-center gap-1 text-[11px] text-[#8B949E] font-medium border-l border-border-subtle/50 pl-3 ml-1" title="Checklist Progress">
+                <ListChecks className="w-3.5 h-3.5" />
+                <span>{completedSubtasks}/{totalSubtasks}</span>
+             </div>
+          )}
           {/* Quick Actions */}
           {!wallboardMode && (
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
