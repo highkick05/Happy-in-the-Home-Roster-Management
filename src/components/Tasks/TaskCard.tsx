@@ -216,35 +216,35 @@ export function TaskCard({
             animate={{ left: `${progress}%`, opacity: 1 }}
             transition={{ left: { type: "spring", stiffness: 45, damping: 10, delay: 0.2 }, opacity: { duration: 0.3 } }}
           >
-             {/* Core softer glow */}
+             {/* Core even softer glow, lighter on eyes */}
              <motion.div 
-               className="absolute w-[5px] h-[5px] bg-white rounded-full shadow-[0_0_6px_2px_rgba(251,146,60,0.8),0_0_12px_4px_rgba(234,88,12,0.6)]"
-               animate={{ scale: [1, 1.2, 0.9, 1.1, 1], opacity: [0.8, 1, 0.9, 1, 0.8] }}
-               transition={{ repeat: Infinity, duration: 0.3 }}
+               className="absolute w-[4px] h-[4px] bg-orange-100 rounded-full shadow-[0_0_4px_1px_rgba(251,146,60,0.5),0_0_8px_2px_rgba(234,88,12,0.3)]"
+               animate={{ scale: [1, 1.1, 0.95, 1.05, 1], opacity: [0.6, 0.9, 0.7, 0.9, 0.6] }}
+               transition={{ repeat: Infinity, duration: 0.4 }}
              />
              
-             {/* Emitting Sparks - softer and smaller spread */}
+             {/* Emitting Sparks - larger but softer */}
              {[
-               { x: -10, y: -10, d: 0.1 },
-               { x: 10, y: -8, d: 0.3 },
-               { x: -8, y: 10, d: 0.2 },
-               { x: 12, y: 6, d: 0.4 },
-               { x: 4, y: -14, d: 0.0 },
-               { x: -14, y: 4, d: 0.5 },
-               { x: 8, y: 12, d: 0.6 }
+               { x: -12, y: -12, d: 0.1 },
+               { x: 12, y: -10, d: 0.3 },
+               { x: -10, y: 12, d: 0.2 },
+               { x: 14, y: 8, d: 0.4 },
+               { x: 5, y: -16, d: 0.0 },
+               { x: -16, y: 5, d: 0.5 },
+               { x: 10, y: 14, d: 0.6 }
              ].map((spark, i) => (
                 <motion.div
                   key={i}
-                  className="absolute w-[2px] h-[2px] bg-yellow-100 rounded-full shadow-[0_0_2px_1px_rgba(250,204,21,0.6)]"
+                  className="absolute w-[3px] h-[3px] bg-yellow-200/80 rounded-full shadow-[0_0_3px_1px_rgba(250,204,21,0.4)]"
                   animate={{ 
                     x: [0, spark.x], 
                     y: [0, spark.y],
-                    scale: [1, 0],
-                    opacity: [0.8, 0]
+                    scale: [1, 0.2],
+                    opacity: [0.7, 0]
                   }}
                   transition={{ 
                     repeat: Infinity, 
-                    duration: 0.8,
+                    duration: 0.9,
                     delay: spark.d,
                     ease: "easeOut"
                   }}
