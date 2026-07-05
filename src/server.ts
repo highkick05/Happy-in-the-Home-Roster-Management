@@ -10070,8 +10070,8 @@ try {
         }
 
         if (buffer) {
-          doc.image(buffer, 50, 20, { fit: [250, 100] });
-          doc.y = 50;
+          doc.image(buffer, 50, 20, { fit: [200, 80] });
+          doc.y = 35;
         } else {
           doc.moveDown();
         }
@@ -10099,7 +10099,7 @@ try {
     doc.text(`Date: ${invoiceDate}`, { align: "right" });
     doc.moveDown();
 
-    const topY = 140;
+    const topY = 115;
     doc
       .fontSize(10)
       .font("Helvetica-Bold")
@@ -10155,7 +10155,7 @@ try {
 
     doc.moveDown(4);
 
-    let currentY = Math.max(doc.y + 10, 340);
+    let currentY = Math.max(doc.y + 10, 295);
 
     // Table Header
     doc.font("Helvetica-Bold").fontSize(10);
@@ -10990,7 +10990,7 @@ function resolveFilePath(systemName) {
               buffer = Buffer.from(base64Data, "base64");
             }
             if (buffer) {
-              doc.image(buffer, doc.page.width - 50 - 250, 20, { fit: [250, 100], align: "right" });
+              doc.image(buffer, doc.page.width - 50 - 200, 20, { fit: [200, 80], align: "right" });
             }
           } catch (e) {
             console.error("Logo render error:", e);
@@ -11001,15 +11001,15 @@ function resolveFilePath(systemName) {
           .fontSize(24)
           .font("Helvetica-Bold")
           .fillColor("#18181b")
-          .text("SERVICE QUOTE", 50, 50);
+          .text("SERVICE QUOTE", 50, 35);
         doc
           .fontSize(10)
           .font("Helvetica")
           .fillColor("#52525b")
-          .text(settingsMap.businessName || "Happy in the Home", 50, 70);
+          .text(settingsMap.businessName || "Happy in the Home", 50, 65);
         doc.moveDown(2);
 
-        const topY = 150;
+        const topY = 115;
         doc
           .fontSize(10)
           .font("Helvetica-Bold")
@@ -11047,7 +11047,7 @@ function resolveFilePath(systemName) {
           .text(validUntilStr, 415, topY + 30);
 
         // Participant Details Box
-        const partY = 250;
+        const partY = 195;
         doc.rect(50, partY, 4, 70).fill("#0ea5e9"); // Cyan left border
         doc.fillColor("black");
         doc
@@ -11072,7 +11072,7 @@ function resolveFilePath(systemName) {
           .font("Helvetica")
           .text(activityDateStr);
 
-        let currentY = 350;
+        let currentY = 295;
 
         // Table Header
         doc.rect(50, currentY, 500, 25).fill("#f4f4f5"); // Light gray bg for header
