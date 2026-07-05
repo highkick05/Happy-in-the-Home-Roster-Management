@@ -70,7 +70,9 @@ export function TaskCard({
   
   const totalSubtasks = task.sub_tasks?.length || 0;
   const completedSubtasks = task.sub_tasks?.filter((st:any) => st.completed).length || 0;
-  const progress = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
+  const totalItems = totalSubtasks + 1;
+  const completedItems = completedSubtasks + (task.status === 'Completed' ? 1 : 0);
+  const progress = totalSubtasks > 0 ? (completedItems / totalItems) * 100 : 0;
 
   if (wallboardMode) {
     let containerClass = "transition-all flex items-center p-3 sm:p-4 shadow-sm border-y border-white/[0.05] ";
@@ -215,7 +217,23 @@ export function TaskCard({
               </p>
             )}
             
-            
+            {/* Progress Indicator & Subtasks Toggle */}
+            {totalSubtasks > 0 && (
+               <div 
+                 className="flex items-center gap-2 mt-2 w-fit p-1 -ml-1 rounded hover:bg-white/[0.04] transition-colors cursor-pointer no-drag-edit" 
+                 onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }} 
+                 onPointerDown={e => e.stopPropagation()} 
+                 onPointerUp={e => e.stopPropagation()}
+               >
+                  <div className="flex items-center gap-1 text-[11px] text-[#8B949E] font-medium">
+                    <ListChecks className="w-3.5 h-3.5" />
+                    <span>{completedItems}/{totalItems} Checklist</span>
+                  </div>
+                  <div className="ml-1 text-[#8B949E]">
+                    {showSubtasks ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </div>
+               </div>
+            )}
           </div>
         </div>
 

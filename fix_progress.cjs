@@ -1,7 +1,10 @@
 const fs = require('fs');
 let content = fs.readFileSync('src/components/Tasks/TaskCard.tsx', 'utf8');
 
-const regex = /\{\/\* Progress Bar \(Inline if tasks exist and we are not showing them, or small indicator\) \*\/\}[\s\S]*?<div className="ml-1 text-\[#8B949E\]">[\s\S]*?<\/div>[\s\S]*?<\/div>[\s\S]*?\)\}/;
-content = content.replace(regex, '');
+const regex = /const progress = totalSubtasks > 0 \? \(completedSubtasks \/ totalSubtasks\) \* 100 : 0;/;
+const replacement = `const totalItems = totalSubtasks + 1;
+  const completedItems = completedSubtasks + (task.status === 'Completed' ? 1 : 0);
+  const progress = totalSubtasks > 0 ? (completedItems / totalItems) * 100 : 0;`;
 
+content = content.replace(regex, replacement);
 fs.writeFileSync('src/components/Tasks/TaskCard.tsx', content);
