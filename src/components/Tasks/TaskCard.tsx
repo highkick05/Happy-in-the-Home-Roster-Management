@@ -196,10 +196,20 @@ export function TaskCard({
       {/* Top Progress Bar */}
       {totalSubtasks > 0 && !isChecked && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-black/20 z-10">
+          {/* Main progress */}
           <motion.div 
-            className="h-full bg-brand-teal transition-all duration-500"
+            className="absolute top-0 left-0 h-full bg-brand-teal"
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
+            transition={{ type: "spring", stiffness: 120, damping: 20 }}
+          />
+          {/* Trailing fuse spark */}
+          <motion.div 
+            className="absolute top-0 h-full w-2 bg-orange-400 shadow-[0_0_10px_4px_rgba(251,146,60,0.8)] rounded-full z-10"
+            style={{ y: '-10%' }}
+            initial={{ left: 0 }}
+            animate={{ left: `calc(${progress}% - 4px)` }}
+            transition={{ type: "spring", stiffness: 60, damping: 15, delay: 0.1 }}
           />
         </div>
       )}
@@ -227,14 +237,14 @@ export function TaskCard({
           <button 
             onClick={handleToggleComplete}
             
-            className={`shrink-0 ${wallboardMode ? 'mt-1' : 'mt-0.5'} transition-colors ${task.status === 'Completed' ? 'text-brand-green' : 'text-[#8B949E] hover:text-brand-green'}`}
+            className={`shrink-0 ${wallboardMode ? 'mt-1' : 'mt-0.5'} transition-colors ${isChecked ? 'text-brand-green' : 'text-[#8B949E] hover:text-brand-green'}`}
           >
             <AnimatedCheckbox checked={isChecked} className={wallboardMode ? "w-7 h-7" : "w-5 h-5"} />
           </button>
           
           <div className="flex flex-col flex-1 min-w-0">
             <div className="flex items-center gap-2">
-               <h3 className={`font-medium ${wallboardMode ? 'text-[22px]' : 'text-[14px]'} leading-snug truncate ${task.status === 'Completed' ? 'line-through text-[#8B949E]' : 'text-[#E6EDF3]'}`}>
+               <h3 className={`font-medium ${wallboardMode ? 'text-[22px]' : 'text-[14px]'} leading-snug truncate ${isChecked ? 'line-through text-[#8B949E]' : 'text-[#E6EDF3]'}`}>
                  {task.title}
                </h3>
                {!!task.is_important && (
@@ -320,9 +330,10 @@ export function TaskCard({
         </div>
       </div>
       
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {isExpanded && (
           <motion.div 
+            key="subtasks" 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
