@@ -209,13 +209,19 @@ export function TaskCard({
       </div>
 
       {/* Trailing fuse spark - OUTSIDE overflow-hidden, so shadow glows outside card */}
-      {totalSubtasks > 0 && !isChecked && (
+      {totalSubtasks > 0 && !isChecked && progress > 0 && (
           <motion.div 
-            className="absolute top-[1px] h-[2px] w-[6px] bg-yellow-100 shadow-[0_0_12px_4px_rgba(251,146,60,1),0_0_4px_1px_rgba(255,255,255,0.9)] rounded-full z-20 pointer-events-none"
-            initial={{ left: 0 }}
-            animate={{ left: `calc(${progress}% - 3px)` }}
-            transition={{ type: "spring", stiffness: 45, damping: 10, delay: 0.2 }}
-          />
+            className="absolute top-0 h-1 w-0 z-20 pointer-events-none flex items-center justify-center overflow-visible"
+            initial={{ left: 0, opacity: 0 }}
+            animate={{ left: `${progress}%`, opacity: 1 }}
+            transition={{ left: { type: "spring", stiffness: 45, damping: 10, delay: 0.2 }, opacity: { duration: 0.3 } }}
+          >
+             <motion.div 
+               className="w-[8px] h-[4px] bg-white rounded-full shadow-[0_0_12px_5px_rgba(249,115,22,0.9),0_0_4px_2px_rgba(255,255,255,1)]"
+               animate={{ scale: [1, 1.4, 0.9, 1.3, 1], opacity: [0.7, 1, 0.8, 1, 0.9] }}
+               transition={{ repeat: Infinity, duration: 0.25 }}
+             />
+          </motion.div>
       )}
 
       <div 
