@@ -155,7 +155,25 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
     };
   };
 
-  const addService = () => setSelectedServices([...selectedServices, { serviceId: '', qtyOverride: '', rateOverride: '' }]);
+  const addService = () => {
+    let nextDate = '';
+    
+    if (selectedServices.length > 0) {
+      const last = selectedServices[selectedServices.length - 1];
+      if (last.date) {
+        // If end time is midnight (00:00) or it crossed midnight (startTime > endTime)
+        if (last.endTime === '00:00' || (last.startTime && last.endTime && last.startTime > last.endTime)) {
+          const d = new Date(last.date);
+          d.setDate(d.getDate() + 1);
+          nextDate = d.toISOString().split('T')[0];
+        } else {
+          nextDate = last.date;
+        }
+      }
+    }
+    
+    setSelectedServices([...selectedServices, { serviceId: '', qtyOverride: '', rateOverride: '', date: nextDate }]);
+  };
   const removeService = (index: number) => {
     if (selectedServices.length === 1) return;
     setSelectedServices(selectedServices.filter((_, i) => i !== index));
@@ -362,6 +380,11 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                       <div className="flex items-center gap-3">
                         <div className="flex items-center">
                           <span className="text-zinc-500 font-medium mr-1.5">Date</span>
+                          {row.date && (
+                            <span className="text-zinc-400 font-medium mr-1.5 w-8 truncate">
+                              {new Date(row.date).toLocaleDateString('en-US', { weekday: 'short' })}
+                            </span>
+                          )}
                           <CustomDatePicker 
                             position="top"
                             value={row.date || ''}
@@ -579,7 +602,7 @@ export default function QuotesView() {
     <div className="flex-1 flex flex-col space-y-4">
       {showGenerateModal && (
         <div className="fixed inset-0 z-[60] flex justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto custom-scrollbar" onClick={() => setShowGenerateModal(false)}>
-          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-6xl flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-[1400px] flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg shrink-0">
               <div>
                 <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">{editingQuote ? 'Edit Service Quote' : 'Generate Service Quote'}</h3>
