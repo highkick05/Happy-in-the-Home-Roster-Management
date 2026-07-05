@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, ChevronRight,
-  CheckCircle2, Circle, Clock, Flame, GripVertical, 
+  CheckSquare, Square, Clock, Flame, GripVertical, 
   UserCircle2, UserIcon, Users, CalendarIcon, X, Plus, MoreHorizontal, Trash2, ListChecks, Pencil
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
@@ -24,11 +24,29 @@ function AnimatedCheckbox({ checked, className }: { checked: boolean, className?
 
   return (
     <div className={`relative flex items-center justify-center ${className}`}>
+      {showFireworks && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+          {[...Array(6)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute w-1 h-1 rounded-full bg-brand-green"
+              initial={{ scale: 0, x: 0, y: 0, opacity: 1 }}
+              animate={{
+                scale: [0, 1.5, 0],
+                x: Math.cos((i * 60 * Math.PI) / 180) * 16,
+                y: Math.sin((i * 60 * Math.PI) / 180) * 16,
+                opacity: [1, 1, 0],
+              }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+            />
+          ))}
+        </div>
+      )}
       <motion.div
         initial={false}
         animate={{ scale: checked ? 1.1 : 1, opacity: checked ? 1 : 0.5 }}
       >
-        {checked ? <CheckCircle2 className="w-full h-full text-brand-green" /> : <Circle className="w-full h-full text-[#8B949E]" />}
+        {checked ? <CheckSquare className="w-full h-full text-brand-green" /> : <Square className="w-full h-full text-[#8B949E]" />}
       </motion.div>
     </div>
   );
@@ -72,7 +90,7 @@ export function TaskCard({
   const completedSubtasks = task.sub_tasks?.filter((st:any) => st.completed).length || 0;
   const totalItems = totalSubtasks + 1;
   const completedItems = completedSubtasks + (task.status === 'Completed' ? 1 : 0);
-  const progress = totalSubtasks > 0 ? (completedItems / totalItems) * 100 : 0;
+  const progress = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
 
   if (wallboardMode) {
     let containerClass = "transition-all flex items-center p-3 sm:p-4 shadow-sm border-y border-white/[0.05] ";
@@ -217,23 +235,9 @@ export function TaskCard({
               </p>
             )}
             
-            {/* Progress Indicator & Subtasks Toggle */}
-            {totalSubtasks > 0 && (
-               <div 
-                 className="flex items-center gap-2 mt-2 w-fit p-1 -ml-1 rounded hover:bg-white/[0.04] transition-colors cursor-pointer no-drag-edit" 
-                 onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }} 
-                 onPointerDown={e => e.stopPropagation()} 
-                 onPointerUp={e => e.stopPropagation()}
-               >
-                  <div className="flex items-center gap-1 text-[11px] text-[#8B949E] font-medium">
-                    <ListChecks className="w-3.5 h-3.5" />
-                    <span>{completedItems}/{totalItems} Checklist</span>
-                  </div>
-                  <div className="ml-1 text-[#8B949E]">
-                    {showSubtasks ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  </div>
-               </div>
-            )}
+            
+            
+            
           </div>
         </div>
 
@@ -338,7 +342,7 @@ export function TaskCard({
                )}
                
                {!wallboardMode && (
-                 <div className="flex items-center space-x-2 mt-1 pt-2 border-t border-border-subtle/30">
+                 <div className={`flex items-center space-x-2 mt-1 ${totalSubtasks > 0 ? "pt-2 border-t border-border-subtle/30" : ""}`}>
                     <input
                       type="text"
                       value={newSubTask}
