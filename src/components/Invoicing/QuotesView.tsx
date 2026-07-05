@@ -297,7 +297,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
             const subtotal = qty * rate;
 
             return (
-              <div key={idx} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+              <div key={idx} className="w-full relative bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
                 <div className="flex items-center space-x-2 mb-1.5 pr-8">
                   <div className="flex-1 min-w-0">
                     <select
