@@ -162,7 +162,42 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
   };
   const updateService = (index: number, field: any, value: string) => {
     const fresh = [...selectedServices];
-    fresh[index][field] = value;
+    const row = fresh[index];
+    row[field] = value;
+
+    // Time/Duration calculations
+    if (field === 'startTime' || field === 'duration' || field === 'endTime') {
+      const start = row.startTime;
+      const end = row.endTime;
+      let dur = parseFloat(row.duration) || 0;
+
+      if (field === 'startTime' && start && dur > 0) {
+        // recalc end time
+        const [h, m] = start.split(':').map(Number);
+        const totalMin = h * 60 + m + Math.round(dur * 60);
+        const eh = Math.floor(totalMin / 60) % 24;
+        const em = totalMin % 60;
+        row.endTime = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+        row.qtyOverride = dur.toString();
+      } else if (field === 'duration' && start && dur >= 0) {
+        // recalc end time
+        const [h, m] = start.split(':').map(Number);
+        const totalMin = h * 60 + m + Math.round(dur * 60);
+        const eh = Math.floor(totalMin / 60) % 24;
+        const em = totalMin % 60;
+        row.endTime = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+        row.qtyOverride = dur.toString();
+      } else if (field === 'endTime' && start && end) {
+        // recalc duration
+        const [sh, sm] = start.split(':').map(Number);
+        const [eh, em] = end.split(':').map(Number);
+        let diff = (eh * 60 + em) - (sh * 60 + sm);
+        if (diff < 0) diff += 24 * 60;
+        row.duration = (diff / 60).toFixed(2);
+        row.qtyOverride = row.duration;
+      }
+    }
+    
     setSelectedServices(fresh);
   };
 
@@ -341,6 +376,18 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                             onChange={(e: any) => updateService(idx, 'startTime', e.target.value)}
                             className="w-24 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
                           />
+                          <div className="flex items-center mx-1">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.25"
+                              placeholder="Dur (hr)"
+                              title="Duration (hr)"
+                              value={row.duration || ''}
+                              onChange={(e) => updateService(idx, 'duration', e.target.value)}
+                              className="w-16 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
+                            />
+                          </div>
                           <span className="text-zinc-500 mx-1">-</span>
                           <CustomTimePicker 
                             value={row.endTime || ''}
@@ -532,7 +579,7 @@ export default function QuotesView() {
     <div className="flex-1 flex flex-col space-y-4">
       {showGenerateModal && (
         <div className="fixed inset-0 z-[60] flex justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto custom-scrollbar" onClick={() => setShowGenerateModal(false)}>
-          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-5xl flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-6xl flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg shrink-0">
               <div>
                 <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">{editingQuote ? 'Edit Service Quote' : 'Generate Service Quote'}</h3>
