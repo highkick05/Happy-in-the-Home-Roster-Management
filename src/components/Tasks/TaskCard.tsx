@@ -72,12 +72,20 @@ export function TaskCard({
 }: any) {
   
   const [newSubTask, setNewSubTask] = useState('');
+  const [localCompleted, setLocalCompleted] = useState(false);
 
-  const isChecked = task.status === 'Completed';
+  const isChecked = task.status === 'Completed' || localCompleted;
 
   const handleToggleComplete = (e: any) => {
     e.stopPropagation();
-    onToggleComplete();
+    if (!isChecked && task.status !== 'Completed') {
+      setLocalCompleted(true);
+      setTimeout(() => {
+        onToggleComplete();
+      }, 700);
+    } else {
+      onToggleComplete();
+    }
   };
 
   const handleAddSubTask = () => {
