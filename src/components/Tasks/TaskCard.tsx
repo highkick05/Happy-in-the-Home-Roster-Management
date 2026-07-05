@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, ChevronRight,
   CheckCircle2, Circle, Clock, Flame, GripVertical, 
-  UserCircle2, UserIcon, Users, CalendarIcon, X, Plus, MoreHorizontal, Trash2, ListChecks
+  UserCircle2, UserIcon, Users, CalendarIcon, X, Plus, MoreHorizontal, Trash2, ListChecks, Pencil
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
@@ -174,7 +174,7 @@ export function TaskCard({
 
       <div 
         className={`relative z-10 flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer select-none`}
-        onClick={onEdit}
+        onClick={() => setShowSubtasks(!showSubtasks)}
       >
         {/* Left side: Checkbox + Title + Description */}
         <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -259,11 +259,11 @@ export function TaskCard({
               <button
                 onPointerDown={e => e.stopPropagation()}
                 onPointerUp={e => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }}
-                className={`p-1.5 rounded-md transition-colors ${showSubtasks ? 'text-brand-teal bg-brand-teal/10' : 'text-[#8B949E] hover:bg-white/[0.04]'}`}
-                title="Toggle Subtasks"
+                onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                className="p-1.5 rounded-md transition-colors text-[#8B949E] hover:text-white hover:bg-white/[0.04]"
+                title="Edit Task"
               >
-                <ListChecks className="w-4 h-4" />
+                <Pencil className="w-4 h-4" />
               </button>
               <button
                 onPointerDown={e => e.stopPropagation()}
