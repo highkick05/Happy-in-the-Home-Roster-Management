@@ -1,22 +1,57 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Download, Search, Trash2, Eye } from 'lucide-react';
+import { Download, Search, Trash2, Eye, Edit2 } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 
-function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | null, onGenerated: () => void, onClose: () => void }) {
+function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: string | null, onGenerated: () => void, onClose: () => void, editData?: any }) {
   const { settings } = useAuth();
-  const [formData, setFormData] = useState({
-    clientId: '',
-    activityName: '',
-    date: new Date().toISOString().split('T')[0],
-    endDate: '',
-    importantNotes: '',
-    gstType: 'GST Free'
+  
+  const [formData, setFormData] = useState(() => {
+    if (editData) {
+      let gstType = 'GST Free';
+      let endDate = '';
+      try {
+        const svcs = JSON.parse(editData.services_json || '[]');
+        if (svcs.length > 0) {
+           if (svcs[0].gstType) gstType = svcs[0].gstType;
+           if (svcs[0].endDate) endDate = svcs[0].endDate;
+        }
+      } catch (e) {}
+
+      return {
+        clientId: String(editData.client_id || ''),
+        activityName: editData.activity_name || '',
+        date: editData.activity_date || new Date().toISOString().split('T')[0],
+        endDate: endDate,
+        importantNotes: editData.important_notes || '',
+        gstType
+      };
+    }
+    return {
+      clientId: '',
+      activityName: '',
+      date: new Date().toISOString().split('T')[0],
+      endDate: '',
+      importantNotes: '',
+      gstType: 'GST Free'
+    };
   });
   
-  const [selectedServices, setSelectedServices] = useState<{serviceId: string, qtyOverride: string, rateOverride: string}[]>([
-    { serviceId: '', qtyOverride: '', rateOverride: '' }
-  ]);
+  const [selectedServices, setSelectedServices] = useState<{serviceId: string, qtyOverride: string, rateOverride: string}[]>(() => {
+    if (editData && editData.services_json) {
+      try {
+        const svcs = JSON.parse(editData.services_json);
+        if (Array.isArray(svcs) && svcs.length > 0) {
+          return svcs.map((s: any) => ({
+            serviceId: String(s.serviceId || ''),
+            qtyOverride: String(s.qtyOverride || ''),
+            rateOverride: String(s.rateOverride || '')
+          }));
+        }
+      } catch(e) {}
+    }
+    return [{ serviceId: '', qtyOverride: '', rateOverride: '' }];
+  });
   
   const [options, setOptions] = useState<any>({ clients: [], services: [] });
   const [submitting, setSubmitting] = useState(false);
@@ -137,8 +172,10 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
     }
     setSubmitting(true);
     try {
-      const res = await fetch('/api/quotes', {
-        method: 'POST',
+      const url = editData ? `/api/quotes/${editData.id}` : '/api/quotes';
+      const method = editData ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           ...formData,
@@ -362,7 +399,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose }: { token: string | nu
           disabled={submitting}
           className="px-4 py-2 bg-brand-blue hover:bg-brand-teal disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors"
         >
-          {submitting ? 'Generating...' : 'Generate Quote'}
+          {submitting ? (editData ? 'Saving...' : 'Generating...') : (editData ? 'Save Changes' : 'Generate Quote')}
         </button>
       </div>
     </form>
@@ -376,6 +413,7 @@ export default function QuotesView() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [editingQuote, setEditingQuote] = useState<any | null>(null);
 
   useEffect(() => {
     fetchQuotes();
@@ -456,7 +494,7 @@ export default function QuotesView() {
           <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-2xl flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg shrink-0">
               <div>
-                <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">Generate Service Quote</h3>
+                <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">{editingQuote ? 'Edit Service Quote' : 'Generate Service Quote'}</h3>
                 <p className="text-sm text-[#8B949E] mt-1">Configure service and cost details for a new quote.</p>
               </div>
               <button onClick={() => setShowGenerateModal(false)} className="w-10 h-10 flex items-center justify-center bg-brand-navy border border-border-subtle hover:border-brand-blue rounded-md text-[#E6EDF3] transition-colors">
@@ -465,7 +503,7 @@ export default function QuotesView() {
             </div>
             
             <div className="overflow-visible flex-1">
-              <GenerateQuoteForm token={token} onGenerated={() => fetchQuotes()} onClose={() => setShowGenerateModal(false)} />
+              <GenerateQuoteForm token={token} onGenerated={() => fetchQuotes()} onClose={() => { setShowGenerateModal(false); setEditingQuote(null); }} editData={editingQuote} />
             </div>
           </div>
         </div>
@@ -495,7 +533,7 @@ export default function QuotesView() {
           </div>
         </div>
         <button
-          onClick={() => setShowGenerateModal(true)}
+          onClick={() => { setEditingQuote(null); setShowGenerateModal(true); }}
           className="flex items-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full justify-center md:w-auto"
         >
           Generate Quote
@@ -547,6 +585,7 @@ export default function QuotesView() {
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-brand-bg text-[#8B949E] border border-border-subtle">{q.status}</span>
                     </td>
                     <td className="px-4 py-4 text-right flex items-center justify-end space-x-1">
+                      <button title="Edit Quote" onClick={() => { setEditingQuote(q); setShowGenerateModal(true); }} className="p-1.5 text-zinc-400 hover:text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors"><Edit2 className="w-4 h-4" /></button>
                       <button title="Download PDF" onClick={() => downloadPDF(q.id, q.quote_number)} className="p-1.5 text-zinc-400 hover:text-brand-teal hover:bg-brand-teal/10 rounded-md transition-colors"><Download className="w-4 h-4" /></button>
                       <button title="Delete Quote" onClick={() => handleDeleteSingle(q.id)} className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
                     </td>

@@ -10616,6 +10616,129 @@ function resolveFilePath(systemName) {
     },
   );
 
+
+  app.put(
+    "/api/quotes/:id",
+    authenticateToken,
+    requireAdmin,
+    (req: any, res: any) => {
+      const quoteId = req.params.id;
+      const { clientId, activityName, date, endDate, services, importantNotes } =
+        req.body;
+
+      try {
+        const existingQuote = db.prepare("SELECT * FROM quotes WHERE id = ?").get(quoteId) as any;
+        if (!existingQuote) {
+          return res.status(404).json({ error: "Quote not found" });
+        }
+
+        // Calculate amount based on services map
+        const settingsRows = db
+          .prepare("SELECT key, value FROM settings")
+          .all() as any[];
+        const settingsMap: Record<string, any> = {};
+        settingsRows.forEach((r) => {
+          try {
+            settingsMap[r.key] = JSON.parse(r.value);
+          } catch {
+            settingsMap[r.key] = r.value;
+          }
+        });
+
+        let rawTzQuote = settingsMap.timezone || "Australia/Perth";
+        const timezone =
+          typeof rawTzQuote === "string"
+            ? rawTzQuote.replace(/['"]+/g, "")
+            : rawTzQuote;
+
+        let calculatedAmount = 0;
+        const parsedDate = new Date(date);
+        const dayOfWeek = getTzDayOfWeek(parsedDate, timezone);
+
+        if (services && Array.isArray(services)) {
+          if (services.length > 0) {
+            if (req.body.gstType) {
+              services[0].gstType = req.body.gstType;
+            }
+            if (req.body.date) {
+              services[0].startDate = req.body.date;
+            }
+            if (req.body.endDate) {
+              services[0].endDate = req.body.endDate;
+            }
+          }
+
+          services.forEach((sd) => {
+            const srv = db
+              .prepare("SELECT * FROM services WHERE id = ?")
+              .get(sd.serviceId) as any;
+            if (srv) {
+              let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 0;
+              let finalRate = Number(srv.rate || 0);
+
+              if (srv.type === "HOME_CARE" && srv.rates_json) {
+                try {
+                  const rates = JSON.parse(srv.rates_json);
+                  if (dayOfWeek === 0 && rates["Sunday"])
+                    finalRate = Number(rates["Sunday"]);
+                  else if (dayOfWeek === 6 && rates["Saturday"])
+                    finalRate = Number(rates["Saturday"]);
+                  else if (rates["Weekday"])
+                    finalRate = Number(rates["Weekday"]);
+                } catch (e: any) {
+                  // ignore
+                }
+              } else if (srv.type === "NDIS" && srv.rates_json) {
+                try {
+                  const rates = JSON.parse(srv.rates_json);
+                  const region = settingsMap.ndisRegion || "NSW";
+                  if (rates[region] !== undefined)
+                    finalRate = Number(rates[region]);
+                } catch (e: any) {
+                  // ignore
+                }
+              }
+
+              if (
+                sd.rateOverride !== undefined &&
+                sd.rateOverride !== null &&
+                sd.rateOverride !== ""
+              ) {
+                finalRate = Number(sd.rateOverride);
+              }
+
+              calculatedAmount += qty * finalRate;
+            }
+          });
+        }
+        
+        if (req.body.gstType === "10%") {
+          calculatedAmount = calculatedAmount * 1.1; // Add GST
+        }
+
+        const stmt = db.prepare(`
+          UPDATE quotes 
+          SET client_id = ?, activity_name = ?, activity_date = ?, services_json = ?, amount = ?, important_notes = ?
+          WHERE id = ?
+        `);
+
+        stmt.run(
+          clientId,
+          activityName,
+          date,
+          JSON.stringify(services || []),
+          calculatedAmount,
+          importantNotes || null,
+          quoteId
+        );
+
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
   app.delete(
     "/api/quotes/:id",
     authenticateToken,
