@@ -10944,6 +10944,9 @@ function resolveFilePath(systemName) {
                 unit: mappedUnit,
                 rate: finalRate,
                 amount: amt,
+                date: sd.date,
+                startTime: sd.startTime,
+                endTime: sd.endTime
               });
             }
           });
@@ -11096,8 +11099,16 @@ function resolveFilePath(systemName) {
         doc.font("Helvetica").fontSize(9);
 
         lineItems.forEach((item: any) => {
+          let descText = item.desc || "Unknown";
+          if (item.date) {
+             let timeStr = "";
+             if (item.startTime || item.endTime) {
+               timeStr = ` ${item.startTime || ''} - ${item.endTime || ''}`;
+             }
+             descText += `\nDate: ${item.date}${timeStr}`;
+          }
           let textHeight =
-            doc.heightOfString(item.desc || "Unknown", { width: 180 }) || 15;
+            doc.heightOfString(descText, { width: 180 }) || 15;
           let blockHeight = Math.max(textHeight, 15) + 20;
 
           if (currentY + blockHeight > 700) {
@@ -11106,7 +11117,7 @@ function resolveFilePath(systemName) {
           }
 
           doc.fillColor("#18181b");
-          doc.text(item.desc || "Unknown", 60, currentY, {
+          doc.text(descText, 60, currentY, {
             width: 180,
             align: "left",
           });

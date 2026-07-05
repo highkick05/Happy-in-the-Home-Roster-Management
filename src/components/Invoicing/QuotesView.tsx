@@ -159,7 +159,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
     if (selectedServices.length === 1) return;
     setSelectedServices(selectedServices.filter((_, i) => i !== index));
   };
-  const updateService = (index: number, field: 'serviceId' | 'qtyOverride' | 'rateOverride', value: string) => {
+  const updateService = (index: number, field: any, value: string) => {
     const fresh = [...selectedServices];
     fresh[index][field] = value;
     setSelectedServices(fresh);
@@ -322,39 +322,70 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                 </button>
                 {row.serviceId && (
                   <div className="flex md:items-center justify-between text-[11px] bg-[#09090b]/50 p-1.5 rounded border border-white/[0.08]/50 mt-1">
-                    <div className="flex items-center space-x-4">
-                      <div>
-                        <span className="text-zinc-500 font-medium mr-1.5">Unit</span>
-                        <span className="text-zinc-300">{unit}</span>
+                    <div className="flex flex-col space-y-2 w-full">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex items-center">
+                          <span className="text-zinc-500 font-medium mr-1.5">Date</span>
+                          <input 
+                            type="date"
+                            value={row.date || ''}
+                            onChange={(e) => updateService(idx, 'date', e.target.value)}
+                            className="bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
+                          />
+                        </div>
+                        <div className="flex items-center">
+                          <span className="text-zinc-500 font-medium mr-1.5">Time</span>
+                          <input 
+                            type="time"
+                            value={row.startTime || ''}
+                            onChange={(e) => updateService(idx, 'startTime', e.target.value)}
+                            className="bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
+                          />
+                          <span className="text-zinc-500 mx-1">-</span>
+                          <input 
+                            type="time"
+                            value={row.endTime || ''}
+                            onChange={(e) => updateService(idx, 'endTime', e.target.value)}
+                            className="bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
+                          />
+                        </div>
                       </div>
-                      <div className="flex items-center">
-                        <span className="text-zinc-500 font-medium mr-1.5">Rate $</span>
-                        <input 
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={row.rateOverride || ''}
-                          onChange={(e) => updateService(idx, 'rateOverride', e.target.value)}
-                          placeholder={rate.toFixed(2)}
-                          className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-sm text-zinc-300 focus:border-brand-teal outline-none"
-                        />
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center space-x-4">
+                          <div>
+                            <span className="text-zinc-500 font-medium mr-1.5">Unit</span>
+                            <span className="text-zinc-300">{unit}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-zinc-500 font-medium mr-1.5">Rate $</span>
+                            <input 
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row.rateOverride || ''}
+                              onChange={(e) => updateService(idx, 'rateOverride', e.target.value)}
+                              placeholder={rate.toFixed(2)}
+                              className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-sm text-zinc-300 focus:border-brand-teal outline-none"
+                            />
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-zinc-500 font-medium mr-1.5">Qty</span>
+                            <input 
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              required
+                              value={row.qtyOverride}
+                              onChange={(e) => updateService(idx, 'qtyOverride', e.target.value)}
+                              placeholder="0"
+                              className="w-16 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-sm text-zinc-300 focus:border-brand-teal outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="font-semibold text-white ml-2 text-right">
+                          ${subtotal.toFixed(2)}
+                        </div>
                       </div>
-                      <div className="flex items-center">
-                        <span className="text-zinc-500 font-medium mr-1.5">Qty</span>
-                        <input 
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          required
-                          value={row.qtyOverride}
-                          onChange={(e) => updateService(idx, 'qtyOverride', e.target.value)}
-                          placeholder="0"
-                          className="w-16 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-sm text-zinc-300 focus:border-brand-teal outline-none"
-                        />
-                      </div>
-                    </div>
-                    <div className="font-semibold text-white ml-2 text-right">
-                      ${subtotal.toFixed(2)}
                     </div>
                   </div>
                 )}
