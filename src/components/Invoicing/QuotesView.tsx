@@ -162,12 +162,15 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
     if (selectedServices.length > 0) {
       const last = selectedServices[selectedServices.length - 1];
       if (last.date) {
+        if (last.endTime) {
+          nextStartTime = last.endTime;
+        }
+        
         // If end time is midnight (00:00) or it crossed midnight (startTime > endTime)
         if (last.endTime === '00:00' || (last.startTime && last.endTime && last.startTime > last.endTime)) {
           const d = new Date(last.date);
           d.setDate(d.getDate() + 1);
           nextDate = d.toISOString().split('T')[0];
-          nextStartTime = '00:00';
         } else {
           nextDate = last.date;
         }
