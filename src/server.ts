@@ -10803,10 +10803,12 @@ function resolveFilePath(systemName) {
           .all() as any[];
         const settingsMap: any = {};
         settingsRows.forEach((row) => {
-          try {
-            settingsMap[row.key] = JSON.parse(row.value);
-          } catch {
-            settingsMap[row.key] = row.value;
+          if (row.value && row.value !== "undefined") {
+            try {
+              settingsMap[row.key] = JSON.parse(row.value);
+            } catch (e) {
+              settingsMap[row.key] = row.value;
+            }
           }
         });
 
@@ -10966,6 +10968,7 @@ function resolveFilePath(systemName) {
         const doc = new PDFDocument({ margin: 50 });
         doc.pipe(res);
 
+        console.log("QUOTE PDF LOGO:", String(settingsMap.letterheadLogo).substring(0, 50));
         if (settingsMap.letterheadLogo) {
           try {
             let buffer: Buffer | null = null;
@@ -10993,7 +10996,7 @@ function resolveFilePath(systemName) {
               buffer = Buffer.from(base64Data, "base64");
             }
             if (buffer) {
-              doc.image(buffer, doc.page.width - 50 - 150, 40, { fit: [150, 70], align: "right" });
+              doc.image(buffer, doc.page.width - 50 - 150, 40, { fit: [150, 60], align: "right" });
             }
           } catch (e) {
             console.error("Logo render error:", e);
