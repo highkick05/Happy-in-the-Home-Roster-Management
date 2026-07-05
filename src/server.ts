@@ -10070,7 +10070,7 @@ try {
         }
 
         if (buffer) {
-          doc.image(buffer, 50, 40, { height: 50 });
+          doc.image(buffer, 50, 40, { fit: [250, 100] });
           doc.y = 40;
         } else {
           doc.moveDown();
@@ -10990,7 +10990,7 @@ function resolveFilePath(systemName) {
               buffer = Buffer.from(base64Data, "base64");
             }
             if (buffer) {
-              doc.image(buffer, doc.page.width - 50 - 150, 40, { fit: [150, 60], align: "right" });
+              doc.image(buffer, doc.page.width - 50 - 250, 40, { fit: [250, 120], align: "right" });
             }
           } catch (e) {
             console.error("Logo render error:", e);
@@ -13778,8 +13778,8 @@ function resolveFilePath(systemName) {
               const logoFilename = logoUrl.split("/").pop();
               const logoPath = require("path").join(assetsDir, logoFilename);
               if (require("fs").existsSync(logoPath)) {
-                doc.image(logoPath, doc.page.width - 40 - 90, 40, {
-                  width: 90,
+                doc.image(logoPath, doc.page.width - 40 - 250, 40, {
+                  fit: [250, 100], align: 'right'
                 });
                 // We do NOT modify doc.y, so standard text on the left stays at the top.
               }
