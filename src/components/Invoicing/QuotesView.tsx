@@ -157,6 +157,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
 
   const addService = () => {
     let nextDate = '';
+    let nextStartTime = '';
     
     if (selectedServices.length > 0) {
       const last = selectedServices[selectedServices.length - 1];
@@ -166,13 +167,14 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
           const d = new Date(last.date);
           d.setDate(d.getDate() + 1);
           nextDate = d.toISOString().split('T')[0];
+          nextStartTime = '00:00';
         } else {
           nextDate = last.date;
         }
       }
     }
     
-    setSelectedServices([...selectedServices, { serviceId: '', qtyOverride: '', rateOverride: '', date: nextDate }]);
+    setSelectedServices([...selectedServices, { serviceId: '', qtyOverride: '', rateOverride: '', date: nextDate, startTime: nextStartTime }]);
   };
   const removeService = (index: number) => {
     if (selectedServices.length === 1) return;
