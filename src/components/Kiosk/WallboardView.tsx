@@ -524,7 +524,9 @@ export default function WallboardView() {
                         task={task}
                         onEdit={() => {}}
                         onDelete={() => {}}
-                        onComplete={async () => {
+                        staffList={staffList}
+                        clientList={clientList}
+                        onToggleComplete={async () => {
                            try {
                              await fetch(`/api/tasks/${task.id}/complete?wallboard=true`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {} });
                              fetchData();
@@ -564,8 +566,6 @@ export default function WallboardView() {
                              fetchData();
                            } catch (e) {}
                         }}
-                        staffList={staffList}
-                        clientList={clientList}
                       />
                     ))
                   )}

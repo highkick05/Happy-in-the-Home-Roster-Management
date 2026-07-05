@@ -25,96 +25,38 @@ function AnimatedCheckbox({ checked, className }: { checked: boolean, className?
   return (
     <div className={`relative flex items-center justify-center ${className}`}>
       <motion.div
-        className={`w-full h-full rounded-[4px] border-[1.5px] flex items-center justify-center transition-colors ${checked ? 'bg-brand-green border-brand-green' : 'border-[#8B949E] bg-transparent group-hover:border-brand-green'}`}
         initial={false}
-        animate={{ 
-          scale: (checked && !isFirstRender.current) ? [1, 0.8, 1.1, 1] : 1,
-        }}
-        transition={{ duration: 0.3 }}
+        animate={{ scale: checked ? 1.1 : 1, opacity: checked ? 1 : 0.5 }}
       >
-        <AnimatePresence>
-          {checked && (
-            <motion.svg
-              initial={isFirstRender.current ? { opacity: 1, pathLength: 1 } : { opacity: 0, pathLength: 0 }}
-              animate={{ opacity: 1, pathLength: 1 }}
-              exit={{ opacity: 0, transition: { duration: 0.1 } }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="black"
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-3/4 h-3/4"
-            >
-              <motion.polyline points="20 6 9 17 4 12" />
-            </motion.svg>
-          )}
-        </AnimatePresence>
+        {checked ? <CheckCircle2 className="w-full h-full text-brand-green" /> : <Circle className="w-full h-full text-[#8B949E]" />}
       </motion.div>
-
-      <AnimatePresence>
-        {showFireworks && (
-          <>
-            {[...Array(10)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="absolute w-2 h-2 bg-brand-green rounded-full pointer-events-none"
-                initial={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-                animate={{ 
-                  opacity: 0, 
-                  x: Math.cos(i * 36 * Math.PI / 180) * 60, 
-                  y: Math.sin(i * 36 * Math.PI / 180) * 60,
-                  scale: 0
-                }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
-              />
-            ))}
-          </>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
 
 export function TaskCard({ 
-  task, onEdit, onDelete, onComplete, 
-  onToggleSubTask, onAddSubTask, onDeleteSubTask, onToggleImportant,
-  staffList, clientList, wallboardMode, dragControls 
+  task, 
+  onToggleComplete, 
+  onEdit, 
+  onDelete,
+  onAddSubTask,
+  onToggleSubTask,
+  onDeleteSubTask,
+  wallboardMode,
+  dragControls,
+  staffList,
+  clientList,
+  onToggleImportant
 }: any) {
+  const [showSubtasks, setShowSubtasks] = useState(false);
   const [newSubTask, setNewSubTask] = useState('');
-  const [showSubtasks, setShowSubtasks] = useState(wallboardMode || false);
-  const [isToggling, setIsToggling] = useState(false);
 
-  useEffect(() => {
-    setIsToggling(false);
-  }, [task.status]);
+  const isChecked = task.status === 'Completed';
 
   const handleToggleComplete = (e: any) => {
     e.stopPropagation();
-    if (isToggling) return;
-    setIsToggling(true);
-    if (task.status === 'Active') {
-      setTimeout(() => {
-        onComplete();
-      }, 800);
-    } else {
-      onComplete();
-    }
+    onToggleComplete();
   };
-
-  const isChecked = task.status === 'Completed' ? !isToggling : isToggling;
-
-  
-
-  
-  
-  const assignedStaff = typeof task.assigned_staff === 'string' ? JSON.parse(task.assigned_staff || '[]') : (task.assigned_staff || []);
-  const assignedClients = typeof task.assigned_clients === 'string' ? JSON.parse(task.assigned_clients || '[]') : (task.assigned_clients || []);
-  
-  const totalSubtasks = task.sub_tasks?.length || 0;
-  const completedSubtasks = task.sub_tasks?.filter((st:any) => st.completed).length || 0;
-  const progress = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
 
   const handleAddSubTask = () => {
     if (newSubTask.trim()) {
@@ -123,7 +65,12 @@ export function TaskCard({
     }
   };
 
-
+  const assignedStaff = typeof task.assigned_staff === 'string' ? JSON.parse(task.assigned_staff || '[]') : (task.assigned_staff || []);
+  const assignedClients = typeof task.assigned_clients === 'string' ? JSON.parse(task.assigned_clients || '[]') : (task.assigned_clients || []);
+  
+  const totalSubtasks = task.sub_tasks?.length || 0;
+  const completedSubtasks = task.sub_tasks?.filter((st:any) => st.completed).length || 0;
+  const progress = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
 
   if (wallboardMode) {
     let containerClass = "transition-all flex items-center p-3 sm:p-4 shadow-sm border-y border-white/[0.05] ";
@@ -185,9 +132,9 @@ export function TaskCard({
               </div>
             )}
             
-            {totalSubtasks > 0 && (
-              <span className="text-xs bg-zinc-500/20 text-zinc-300 font-medium px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider mr-3">
-                {completedSubtasks}/{totalSubtasks} Subtasks
+            {totalSubtasks > 0 && task.status !== 'Completed' && (
+              <span className="text-xs font-bold text-brand-teal px-3 py-1 rounded-full uppercase whitespace-nowrap tracking-wider mr-3 bg-brand-teal/10">
+                {Math.round(progress)}% Complete
               </span>
             )}
             
@@ -204,11 +151,29 @@ export function TaskCard({
 
   return (
     <motion.div 
-      
       className={`bg-brand-navy border ${task.is_important ? 'border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'border-border-subtle hover:border-[#30363d]'} rounded-xl flex flex-col relative transition-all duration-200 group overflow-hidden select-none`}
     >
+      {/* Overall Progress Background */}
+      {totalSubtasks > 0 && task.status !== 'Completed' && (
+        <div 
+          className="absolute top-0 left-0 bottom-0 bg-brand-teal/5 pointer-events-none transition-all duration-500 z-0"
+          style={{ width: `${progress}%` }}
+        />
+      )}
+      
+      {/* Top Progress Bar */}
+      {totalSubtasks > 0 && task.status !== 'Completed' && (
+        <div className="absolute top-0 left-0 right-0 h-1 bg-black/20 z-10">
+          <motion.div 
+            className="h-full bg-brand-teal transition-all duration-500"
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+          />
+        </div>
+      )}
+
       <div 
-        className={`flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer select-none`}
+        className={`relative z-10 flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer select-none`}
         onClick={onEdit}
       >
         {/* Left side: Checkbox + Title + Description */}
@@ -250,25 +215,7 @@ export function TaskCard({
               </p>
             )}
             
-            {/* Progress Bar (Inline if tasks exist and we are not showing them, or small indicator) */}
-            {totalSubtasks > 0 && (
-               <div className="flex items-center gap-2 mt-2 w-fit p-1 -ml-1 rounded hover:bg-white/[0.04] transition-colors cursor-pointer no-drag-edit" onClick={(e) => { e.stopPropagation(); setShowSubtasks(!showSubtasks); }} onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}>
-                  <div className="flex items-center gap-1 text-[11px] text-[#8B949E] font-medium">
-                    <ListChecks className="w-3.5 h-3.5" />
-                    <span>{completedSubtasks}/{totalSubtasks}</span>
-                  </div>
-                  <div className="w-32 h-1.5 bg-[#0d1117] rounded-full overflow-hidden hidden sm:block">
-                    <motion.div 
-                      className="h-full bg-brand-teal"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progress}%` }}
-                    />
-                  </div>
-                  <div className="ml-1 text-[#8B949E]">
-                    {showSubtasks ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  </div>
-               </div>
-            )}
+            
           </div>
         </div>
 
