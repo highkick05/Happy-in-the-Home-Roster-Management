@@ -14638,7 +14638,7 @@ function resolveFilePath(systemName) {
     try {
       const result = db.prepare(`
         INSERT INTO tasks (title, description, status, start_date, end_date, due_date, assigned_staff, assigned_clients, is_important, is_reminder)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(title, description, status || 'Active', start_date || null, end_date || null, due_date || null, assigned_staff || '[]', assigned_clients || '[]', is_important ? 1 : 0, is_reminder ? 1 : 0);
       
       const taskId = result.lastInsertRowid;

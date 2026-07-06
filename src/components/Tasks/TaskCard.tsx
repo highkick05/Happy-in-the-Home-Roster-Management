@@ -474,7 +474,7 @@ export function TaskModal({ task, onClose, onSave, onDelete, staffList, clientLi
     status: task?.status || 'Active',
     start_date: task?.start_date || '',
     end_date: task?.end_date || '',
-    due_date: task?.due_date || '',
+    due_date: task?.due_date || (task ? '' : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000 - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16)),
     assigned_staff: [] as number[],
     assigned_clients: [] as number[],
     is_reminder: task?.is_reminder || 0,
