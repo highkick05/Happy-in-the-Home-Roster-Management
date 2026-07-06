@@ -12,6 +12,7 @@ export function useCountdown(due_date: string | null | undefined, created_at: st
       setTimeLeft('');
       setIsOverdue(false);
       setIsNearDue(false);
+      setTimeProgress(0);
       return;
     }
 
@@ -19,6 +20,7 @@ export function useCountdown(due_date: string | null | undefined, created_at: st
       setTimeLeft('Completed');
       setIsOverdue(false);
       setIsNearDue(false);
+      setTimeProgress(0);
       return;
     }
 
