@@ -208,81 +208,10 @@ export function TaskCard({
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ type: "spring", stiffness: 120, damping: 20 }}
-            >
-              {/* Little Runner Man on the left edge of the blue line */}
-              {timeProgress + progress < 100 && (
-                <div className="absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none drop-shadow-md">
-                  <motion.div
-                    animate={{ y: [-1.5, 1.5, -1.5], rotate: [-5, 5, -5] }}
-                    transition={{ repeat: Infinity, duration: 0.4 }}
-                    className="text-[12px] md:text-[14px]"
-                    style={{ transform: 'scaleX(-1)' }}
-                    title="Running to extinguish the fuse!"
-                  >
-🏃‍♂️
-                  </motion.div>
-                </div>
-              )}
-              {timeProgress + progress >= 100 && (
-                <div className="absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none drop-shadow-md">
-                  <motion.div
-                    animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }}
-                    transition={{ repeat: Infinity, duration: 1 }}
-                    className="text-[12px] md:text-[14px]"
-                  >
-                    💦
-                  </motion.div>
-                </div>
-              )}
-            </motion.div>
+            />
           </div>
         )}
       </div>
-
-      {/* Trailing fuse spark - OUTSIDE overflow-hidden, so shadow glows outside card */}
-      {totalSubtasks > 0 && !isChecked && timeProgress > 0 && (
-          <motion.div 
-            className="absolute top-0 h-1 w-0 z-20 pointer-events-none flex items-center justify-center overflow-visible"
-            initial={{ left: 0, opacity: 0 }}
-            animate={{ left: `${timeProgress}%`, opacity: 1 }}
-            transition={{ left: { type: "tween", duration: 1 }, opacity: { duration: 0.3 } }}
-          >
-             {/* Core even softer glow, lighter on eyes */}
-             <motion.div 
-               className={`absolute w-[4px] h-[4px] rounded-full ${timeProgress + progress >= 100 ? 'bg-red-500 shadow-[0_0_12px_4px_rgba(239,68,68,0.9)] z-50' : 'bg-orange-100 shadow-[0_0_4px_1px_rgba(251,146,60,0.5),0_0_8px_2px_rgba(234,88,12,0.3)]'}`}
-               animate={timeProgress + progress >= 100 ? { scale: [1.5, 2.5, 1.5], opacity: [0.8, 1, 0.8] } : { scale: [1, 1.1, 0.95, 1.05, 1], opacity: [0.6, 0.9, 0.7, 0.9, 0.6] }}
-               transition={{ repeat: Infinity, duration: timeProgress + progress >= 100 ? 0.2 : 0.4 }}
-             />
-             
-             {/* Emitting Sparks - larger but softer */}
-             {timeProgress + progress < 100 && [
-               { x: -12, y: -12, d: 0.1 },
-               { x: 12, y: -10, d: 0.3 },
-               { x: -10, y: 12, d: 0.2 },
-               { x: 14, y: 8, d: 0.4 },
-               { x: 5, y: -16, d: 0.0 },
-               { x: -16, y: 5, d: 0.5 },
-               { x: 10, y: 14, d: 0.6 }
-             ].map((spark, i) => (
-                <motion.div
-                  key={i}
-                  className="absolute w-[3px] h-[3px] bg-yellow-200/80 rounded-full shadow-[0_0_3px_1px_rgba(250,204,21,0.4)]"
-                  animate={{ 
-                    x: [0, spark.x], 
-                    y: [0, spark.y],
-                    scale: [1, 0.2],
-                    opacity: [0.7, 0]
-                  }}
-                  transition={{ 
-                    repeat: Infinity, 
-                    duration: 0.9,
-                    delay: spark.d,
-                    ease: "easeOut"
-                  }}
-                />
-             ))}
-          </motion.div>
-      )}
 
       {isOverdue && !isChecked && (
         <div className="absolute inset-0 z-10 pointer-events-none rounded-xl overflow-hidden opacity-40 mix-blend-overlay">
