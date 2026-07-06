@@ -74,7 +74,7 @@ export default function TasksView() {
       const res = await fetch(`/api/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ title: quickTaskTitle, status: 'Active' })
+        body: JSON.stringify({ title: quickTaskTitle, status: 'Active', is_important: 0, is_reminder: activeTab === 'Reminders' ? 1 : 0, assigned_staff: '[]', assigned_clients: '[]' })
       });
       if (!res.ok) throw new Error('Failed to create task');
       setQuickTaskTitle('');
@@ -266,7 +266,12 @@ export default function TasksView() {
   };
 
   useEffect(() => {
-    const filtered = tasks.filter(t => t.status === activeTab).sort((a, b) => {
+    const filtered = tasks.filter(t => {
+      if (activeTab === 'Reminders') {
+        return !!t.is_reminder;
+      }
+      return t.status === activeTab && !t.is_reminder;
+    }).sort((a, b) => {
       if (a.is_important !== b.is_important) {
         return (b.is_important || 0) - (a.is_important || 0);
       }
@@ -304,7 +309,7 @@ export default function TasksView() {
       <div className="flex-none px-4 pt-4 pb-1">
         <div className="bg-brand-navy border border-border-subtle rounded-xl flex items-center justify-between p-1.5 shadow-sm">
           <div className="flex space-x-1">
-            {['Active', 'Completed'].map((tab) => (
+            {['Active', 'Completed', 'Reminders'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
@@ -315,11 +320,14 @@ export default function TasksView() {
             ))}
           </div>
           <button
-            onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
+            onClick={() => { 
+              setEditingTask(activeTab === 'Reminders' ? { is_reminder: 1 } as any : null); 
+              setIsModalOpen(true); 
+            }}
             className="flex items-center px-4 py-1.5 bg-brand-teal text-white text-[13px] font-medium tracking-tight rounded-lg hover:bg-brand-teal/90 transition-colors shadow-sm"
           >
             <Plus className="w-4 h-4 mr-1.5" />
-            New Task
+            New {activeTab === 'Reminders' ? 'Reminder' : 'Task'}
           </button>
         </div>
       </div>
