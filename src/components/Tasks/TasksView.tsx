@@ -298,6 +298,13 @@ export default function TasksView() {
     setLocalDisplayTasks(filtered);
   }, [tasks, activeTab]);
 
+  const getTabCount = (tab: string) => {
+    if (tab === 'Reminders') {
+      return tasks.filter(t => !!t.is_reminder).length;
+    }
+    return tasks.filter(t => t.status === tab && !t.is_reminder).length;
+  };
+
   const handleDragEnd = async () => {
     const reorderedWithSortOrder = localDisplayTasks.map((t, index) => ({ ...t, sort_order: index }));
     setTasks(prev => prev.map(t => {
@@ -324,15 +331,21 @@ export default function TasksView() {
       <div className="flex-none px-4 pt-4 pb-1">
         <div className="bg-brand-navy border border-border-subtle rounded-xl flex items-center justify-between p-1.5 shadow-sm">
           <div className="flex space-x-1">
-            {['Active', 'Completed', 'Reminders'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab as any)}
-                className={`px-4 py-1.5 text-[13px] font-medium tracking-tight rounded-lg transition-colors ${activeTab === tab ? 'bg-brand-teal/20 text-brand-teal' : 'text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.02]'}`}
-              >
-                {tab}
-              </button>
-            ))}
+            {['Active', 'Completed', 'Reminders'].map((tab) => {
+              const count = getTabCount(tab);
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab as any)}
+                  className={`px-4 py-1.5 text-[13px] font-medium tracking-tight rounded-lg transition-colors flex items-center gap-2 ${activeTab === tab ? 'bg-brand-teal/20 text-brand-teal' : 'text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.02]'}`}
+                >
+                  {tab}
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded-md ${activeTab === tab ? 'bg-brand-teal/20 text-brand-teal' : 'bg-white/10 text-[#8B949E]'}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
           <button
             onClick={() => { 
