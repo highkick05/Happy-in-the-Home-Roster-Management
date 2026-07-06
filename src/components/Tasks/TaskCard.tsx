@@ -73,6 +73,8 @@ export function TaskCard({
 }: any) {
   
   const [newSubTask, setNewSubTask] = useState('');
+  const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
+  const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
   const [localCompleted, setLocalCompleted] = useState(false);
 
   const isChecked = task.status === 'Completed' || localCompleted;
