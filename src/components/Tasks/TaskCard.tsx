@@ -195,7 +195,7 @@ export function TaskCard({
         {/* Overall Progress Background */}
         {totalSubtasks > 0 && !isChecked && (
           <div 
-            className="absolute top-0 right-0 bottom-0 bg-brand-teal/5 transition-all duration-500"
+            className="absolute top-0 left-0 bottom-0 bg-brand-teal/5 transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         )}
@@ -204,7 +204,7 @@ export function TaskCard({
         {totalSubtasks > 0 && !isChecked && (
           <div className="absolute top-0 left-0 right-0 h-1 bg-black/20">
             <motion.div 
-              className="absolute top-0 right-0 h-full bg-brand-teal"
+              className="absolute top-0 left-0 h-full bg-brand-teal"
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ type: "spring", stiffness: 120, damping: 20 }}
@@ -217,9 +217,9 @@ export function TaskCard({
       {totalSubtasks > 0 && !isChecked && progress > 0 && (
           <motion.div 
             className="absolute top-0 h-1 w-0 z-20 pointer-events-none flex items-center justify-center overflow-visible"
-            initial={{ right: 0, opacity: 0 }}
-            animate={{ right: `${progress}%`, opacity: 1 }}
-            transition={{ right: { type: "spring", stiffness: 45, damping: 10, delay: 0.2 }, opacity: { duration: 0.3 } }}
+            initial={{ left: 0, opacity: 0 }}
+            animate={{ left: `${progress}%`, opacity: 1 }}
+            transition={{ left: { type: "spring", stiffness: 45, damping: 10, delay: 0.2 }, opacity: { duration: 0.3 } }}
           >
              {/* Core even softer glow, lighter on eyes */}
              <motion.div 
