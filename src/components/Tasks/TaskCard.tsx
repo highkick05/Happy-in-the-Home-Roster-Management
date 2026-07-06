@@ -66,8 +66,8 @@ export function TaskCard({
   dragControls,
   staffList,
   clientList,
-  onToggleImportant
-,
+  onToggleImportant,
+  onToggleReminder,
   isExpanded,
   onToggleExpand
 }: any) {
