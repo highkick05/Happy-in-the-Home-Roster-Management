@@ -76,7 +76,7 @@ export default function TasksView() {
       const res = await fetch(`/api/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ title: quickTaskTitle, status: 'Active', is_important: 0, is_reminder: activeTab === 'Reminders' ? 1 : 0, assigned_staff: '[]', assigned_clients: '[]' })
+        body: JSON.stringify({ title: quickTaskTitle, status: 'Active', is_important: 0, is_reminder: activeTab === 'Reminders' ? 1 : 0, assigned_staff: '[]', assigned_clients: '[]', due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() })
       });
       if (!res.ok) throw new Error('Failed to create task');
       setQuickTaskTitle('');
@@ -291,6 +291,13 @@ export default function TasksView() {
       if (a.is_important !== b.is_important) {
         return (b.is_important || 0) - (a.is_important || 0);
       }
+      // Sort by least time left (closest due date first)
+      if (a.due_date && b.due_date) {
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      }
+      if (a.due_date) return -1;
+      if (b.due_date) return 1;
+
       if (a.sort_order !== b.sort_order) {
         return (a.sort_order || 0) - (b.sort_order || 0);
       }

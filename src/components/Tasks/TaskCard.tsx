@@ -208,7 +208,33 @@ export function TaskCard({
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ type: "spring", stiffness: 120, damping: 20 }}
-            />
+            >
+              {/* Little Runner Man on the left edge of the blue line */}
+              {timeProgress + progress < 100 && (
+                <div className="absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none drop-shadow-md">
+                  <motion.div
+                    animate={{ y: [-1.5, 1.5, -1.5], rotate: [-5, 5, -5] }}
+                    transition={{ repeat: Infinity, duration: 0.4 }}
+                    className="text-[12px] md:text-[14px]"
+                    style={{ transform: 'scaleX(-1)' }}
+                    title="Running to extinguish the fuse!"
+                  >
+🏃‍♂️
+                  </motion.div>
+                </div>
+              )}
+              {timeProgress + progress >= 100 && (
+                <div className="absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none drop-shadow-md">
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }}
+                    transition={{ repeat: Infinity, duration: 1 }}
+                    className="text-[12px] md:text-[14px]"
+                  >
+                    💦
+                  </motion.div>
+                </div>
+              )}
+            </motion.div>
           </div>
         )}
       </div>
