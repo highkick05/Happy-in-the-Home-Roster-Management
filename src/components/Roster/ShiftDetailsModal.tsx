@@ -830,7 +830,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                      setProgressNoteText(shift.notes || '');
                      setShowProgressNotePrompt(true);
                   }}
-                  className="w-full flex items-center justify-center px-4 py-3 bg-brand-teal/20 hover:bg-brand-teal/30 text-brand-teal rounded-xl text-sm md:text-base font-bold transition-all shadow-md col-span-1 sm:col-span-2 md:col-span-3 border border-brand-teal/30 animate-in fade-in"
+                  className="w-full flex items-center justify-center px-4 py-3 bg-brand-teal/20 hover:bg-brand-teal/30 text-brand-teal rounded-xl text-sm md:text-base font-bold transition-all shadow-md border border-brand-teal/30 animate-in fade-in"
                 >
                   <FileText className="w-5 h-5 mr-2" />
                   Progress Note
@@ -907,7 +907,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
               {isAdmin && (
                 <button 
                   onClick={handleDelete}
-                  className="w-full sm:col-span-2 md:col-span-1 flex items-center justify-center px-4 py-3 border border-red-600/50 hover:bg-red-600 text-red-500 hover:text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-sm active:scale-95"
+                  className="w-full flex items-center justify-center px-4 py-3 border border-red-600/50 hover:bg-red-600 text-red-500 hover:text-white rounded-xl text-sm md:text-base font-bold transition-all shadow-sm active:scale-95"
                 >
                   <Trash2 className="w-5 h-5 mr-2" />
                   {shift.isRespiteWrapper ? "Delete Booking" : "Delete"}
