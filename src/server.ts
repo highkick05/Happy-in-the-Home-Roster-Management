@@ -11188,7 +11188,8 @@ function resolveFilePath(systemName) {
           align: "right",
         });
 
-        doc.text(`GST:`, 250, currentY + 25, { width: 150, align: "right" });
+        const gstLabel = gstTypeFromMeta === "GST Free" ? "GST (GST Free):" : "GST:";
+        doc.text(gstLabel, 250, currentY + 25, { width: 150, align: "right" });
         doc.text(`$${gstAmount.toFixed(2)}`, 410, currentY + 25, {
           width: 120,
           align: "right",
