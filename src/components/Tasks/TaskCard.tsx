@@ -585,6 +585,40 @@ export function TaskModal({ task, onClose, onSave, onDelete, staffList, clientLi
               </select>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Assigned Staff</label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {staffList?.map((staff: any) => (
+                    <button
+                      key={staff.id}
+                      type="button"
+                      onClick={() => toggleStaff(staff.id)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${formData.assigned_staff.includes(staff.id) ? 'bg-brand-teal/20 border-brand-teal/50 text-brand-teal' : 'bg-black/20 border-white/[0.05] text-[#8B949E] hover:border-white/[0.1]'}`}
+                    >
+                      {staff.first_name} {staff.last_name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Assigned Clients</label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {clientList?.map((client: any) => (
+                    <button
+                      key={client.id}
+                      type="button"
+                      onClick={() => toggleClient(client.id)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${formData.assigned_clients.includes(client.id) ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-400' : 'bg-black/20 border-white/[0.05] text-[#8B949E] hover:border-white/[0.1]'}`}
+                    >
+                      {client.first_name} {client.last_name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Start Date</label>
