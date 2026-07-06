@@ -61,6 +61,7 @@ export function TaskCard({
   onAddSubTask,
   onToggleSubTask,
   onDeleteSubTask,
+  onEditSubTask,
   wallboardMode,
   dragControls,
   staffList,
@@ -388,13 +389,55 @@ export function TaskCard({
                    <div className="flex flex-col gap-1.5">
                      {task.sub_tasks.map((st: any) => (
                        <div key={st.id} className="flex items-start justify-between group/st">
-                         <div className="flex items-start gap-2 cursor-pointer select-none flex-1" onClick={(e) => { e.stopPropagation(); onToggleSubTask(st.id, !!st.completed); }}>
-                           <button className={`mt-0.5 shrink-0 transition-colors ${st.completed ? 'text-brand-green' : 'text-[#8B949E] hover:text-white'}`}>
+                         <div className="flex items-start gap-2 select-none flex-1">
+                           <button 
+                             onClick={(e) => { e.stopPropagation(); onToggleSubTask(st.id, !!st.completed); }}
+                             className={`mt-0.5 shrink-0 transition-colors cursor-pointer ${st.completed ? 'text-brand-green' : 'text-[#8B949E] hover:text-white'}`}
+                           >
                              <AnimatedCheckbox checked={!!st.completed} className={wallboardMode ? "w-5 h-5" : "w-3.5 h-3.5"} />
                            </button>
-                           <span className={`${wallboardMode ? 'text-[15px]' : 'text-[13px]'} ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
-                             {st.title}
-                           </span>
+                           
+                           {editingSubtaskId === st.id ? (
+                             <input
+                               autoFocus
+                               type="text"
+                               value={editingSubtaskTitle}
+                               onChange={(e) => setEditingSubtaskTitle(e.target.value)}
+                               onBlur={(e) => {
+                                 e.stopPropagation();
+                                 if (editingSubtaskTitle.trim() !== st.title) {
+                                   if (onEditSubTask) onEditSubTask(st.id, editingSubtaskTitle.trim());
+                                 }
+                                 setEditingSubtaskId(null);
+                               }}
+                               onKeyDown={(e) => {
+                                 e.stopPropagation();
+                                 if (e.key === 'Enter') {
+                                   e.preventDefault();
+                                   if (editingSubtaskTitle.trim() !== st.title) {
+                                     if (onEditSubTask) onEditSubTask(st.id, editingSubtaskTitle.trim());
+                                   }
+                                   setEditingSubtaskId(null);
+                                 } else if (e.key === 'Escape') {
+                                   setEditingSubtaskId(null);
+                                 }
+                               }}
+                               className="flex-1 bg-black/20 border border-brand-teal/50 rounded px-1.5 py-0.5 text-[13px] text-white outline-none focus:ring-1 focus:ring-brand-teal"
+                             />
+                           ) : (
+                             <span 
+                               onClick={(e) => { 
+                                 e.stopPropagation(); 
+                                 if (!wallboardMode) {
+                                   setEditingSubtaskId(st.id);
+                                   setEditingSubtaskTitle(st.title);
+                                 }
+                               }}
+                               className={`cursor-pointer flex-1 ${wallboardMode ? 'text-[15px]' : 'text-[13px]'} ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}
+                             >
+                               {st.title}
+                             </span>
+                           )}
                          </div>
                          {!wallboardMode && (
                            <button 

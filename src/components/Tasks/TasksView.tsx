@@ -38,6 +38,7 @@ function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, han
         onDelete={() => handleDelete(task.id)}
         onToggleComplete={() => handleComplete(task.id)}
         onToggleSubTask={toggleSubTask}
+                    onEditSubTask={editSubTask}
         onAddSubTask={addSubTask}
         onDeleteSubTask={deleteSubTask}
         onToggleImportant={() => handleToggleImportant(task.id)}
@@ -147,6 +148,21 @@ export default function TasksView() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to complete task');
+      fetchData(true);
+    } catch (err) {
+      console.error(err);
+      alert(String(err));
+    }
+  };
+
+  const editSubTask = async (subtaskId: number, title: string) => {
+    try {
+      const res = await fetch(`/api/subtasks/${subtaskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title })
+      });
+      if (!res.ok) throw new Error('Failed to update subtask');
       fetchData(true);
     } catch (err) {
       console.error(err);

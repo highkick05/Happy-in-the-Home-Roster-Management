@@ -14700,6 +14700,17 @@ function resolveFilePath(systemName) {
     }
   });
 
+  app.put('/api/subtasks/:id', authenticateToken, (req: any, res: any) => {
+    const { title } = req.body;
+    try {
+      db.prepare("UPDATE sub_tasks SET title = ? WHERE id = ?").run(title, req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error updating subtask:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post('/api/subtasks/:id/toggle', authenticateToken, (req: any, res: any) => {
     const { completed } = req.body;
     try {
