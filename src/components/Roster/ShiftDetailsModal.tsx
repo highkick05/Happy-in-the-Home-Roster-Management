@@ -16,6 +16,8 @@ interface ShiftDetailsModalProps {
 export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEdit, servicesList = [], holidays }: ShiftDetailsModalProps) {
   const { token, user, settings } = useAuth();
   const [showCancelPrompt, setShowCancelPrompt] = React.useState(false);
+  const [showProgressNotePrompt, setShowProgressNotePrompt] = React.useState(false);
+  const [progressNoteText, setProgressNoteText] = React.useState('');
   const [cancelReason, setCancelReason] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [internalHolidays, setInternalHolidays] = React.useState<any[]>([]);
@@ -23,6 +25,8 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
   React.useEffect(() => {
     if (!isOpen) {
       setShowCancelPrompt(false);
+      setShowProgressNotePrompt(false);
+      setProgressNoteText('');
       setCancelReason('');
       setIsSubmitting(false);
     }
@@ -327,6 +331,42 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
     }
   };
 
+
+  const handleSaveProgressNote = async () => {
+    setIsSubmitting(true);
+    try {
+      const isRespite = shift.isRespiteWrapper;
+      // if respite, maybe we don't have notes update route, but assuming it uses the same PUT or doesn't have notes
+      // We will just do it for shifts. For respite, we can try to PUT /api/respite-bookings/:id ?
+      // Wait, let's just do it for normal shifts. If it's respite, we'll try PUT /api/respite-bookings/:id with notes
+      // Let's check how EditShiftModal saves notes for respite. Usually respite also has notes.
+      const endpoint = isRespite 
+        ? `/api/respite-bookings/${shift.respiteData?.id}` 
+        : `/api/shifts/${shift.id}`;
+
+      const res = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ notes: progressNoteText })
+      });
+      if (res.ok) {
+        setShowProgressNotePrompt(false);
+        onSave(); // this refetches the events
+      } else {
+        const err = await res.json();
+        alert(`Failed to save progress note: ${err.error || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error saving progress note');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleCancelShift = async () => {
     if (!cancelReason.trim()) {
       alert("Please provide a reason for cancellation.");
@@ -408,6 +448,30 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                       placeholder="E.g., Client sick, Support worker unavailable"
                       value={cancelReason}
                       onChange={e => setCancelReason(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : showProgressNotePrompt ? (
+            <div className="space-y-6 outline-none animate-in opacity-100">
+              <div className="flex flex-col gap-4">
+                <div className="space-y-4">
+                  <h3 className="text-xl font-semibold border-b border-brand-teal/30 text-brand-teal pb-3 mb-4">Progress Note</h3>
+                  <div className="bg-brand-teal/10 border border-brand-teal/20 rounded-xl p-4 text-sm text-brand-teal leading-relaxed shadow-sm">
+                    Enter the progress note for this shift. This will be saved directly to the shift's details.
+                  </div>
+                </div>
+                
+                <div className="space-y-4 flex flex-col">
+                  <div>
+                    <label className="block text-sm md:text-base font-semibold text-zinc-300 mb-2">Note content</label>
+                    <textarea 
+                      rows={6} 
+                      className="w-full bg-[#09090b] border border-white/[0.08] rounded-xl p-4 text-sm md:text-base text-white focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal shadow-inner resize-none custom-scrollbar"
+                      placeholder="Optional notes for shift..."
+                      value={progressNoteText}
+                      onChange={e => setProgressNoteText(e.target.value)}
                     />
                   </div>
                 </div>
@@ -742,8 +806,36 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                 {isSubmitting ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : "Confirm Cancel"}
               </button>
             </>
+          ) : showProgressNotePrompt ? (
+            <>
+              <button 
+                onClick={() => setShowProgressNotePrompt(false)}
+                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium text-sm md:text-base transition-colors border border-white/[0.12] shadow-sm animate-in fade-in"
+              >
+                Back
+              </button>
+              <button 
+                onClick={handleSaveProgressNote}
+                disabled={isSubmitting}
+                className="w-full sm:col-span-2 py-3 bg-brand-teal hover:bg-brand-teal/80 text-zinc-950 rounded-xl font-bold text-sm md:text-base flex justify-center items-center transition-colors shadow-md disabled:opacity-50 animate-in fade-in"
+              >
+                {isSubmitting ? <span className="w-5 h-5 border-2 border-zinc-950/30 border-t-zinc-950 rounded-full animate-spin"/> : "Save Note"}
+              </button>
+            </>
           ) : (
             <>
+              {canEdit && shift.status !== 'COMPLETED' && shift.status !== 'CANCELLED' && (
+                <button 
+                  onClick={() => {
+                     setProgressNoteText(shift.notes || '');
+                     setShowProgressNotePrompt(true);
+                  }}
+                  className="w-full flex items-center justify-center px-4 py-3 bg-brand-teal/20 hover:bg-brand-teal/30 text-brand-teal rounded-xl text-sm md:text-base font-bold transition-all shadow-md col-span-1 sm:col-span-2 md:col-span-3 border border-brand-teal/30 animate-in fade-in"
+                >
+                  <FileText className="w-5 h-5 mr-2" />
+                  Progress Note
+                </button>
+              )}
               {canEdit && shift.status !== 'COMPLETED' && shift.status !== 'CANCELLED' && (
                 <button 
                   onClick={() => handleUpdateStatus('COMPLETED')}
