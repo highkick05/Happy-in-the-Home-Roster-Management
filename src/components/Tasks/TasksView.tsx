@@ -23,11 +23,12 @@ type Task = {
   assigned_clients: string; // JSON string
   created_at: string;
   is_important?: number;
+  is_reminder?: number;
   sub_tasks: SubTask[];
 };
 
 
-function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, handleComplete, toggleSubTask, addSubTask, deleteSubTask, handleToggleImportant, staffList, clientList, handleDragEnd , isExpanded, onToggleExpand}: any) {
+function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, handleComplete, toggleSubTask, editSubTask, addSubTask, deleteSubTask, handleToggleImportant, staffList, clientList, handleDragEnd , isExpanded, onToggleExpand}: any) {
   const dragControls = useDragControls();
   return (
     <Reorder.Item value={task} dragListener={false} dragControls={dragControls} onDragEnd={handleDragEnd}>
@@ -55,7 +56,7 @@ export default function TasksView() {
   const { token } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'Active' | 'Completed'>('Active');
+  const [activeTab, setActiveTab] = useState<'Active' | 'Completed' | 'Reminders'>('Active');
   const [localDisplayTasks, setLocalDisplayTasks] = useState<Task[]>([]);
   const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
   
@@ -342,6 +343,7 @@ export default function TasksView() {
                 handleDelete={handleDelete}
                 handleComplete={handleComplete}
                 toggleSubTask={toggleSubTask}
+                editSubTask={editSubTask}
                 addSubTask={addSubTask}
                 deleteSubTask={deleteSubTask}
                 handleToggleImportant={handleToggleImportant}

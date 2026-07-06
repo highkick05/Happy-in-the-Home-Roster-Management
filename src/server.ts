@@ -478,6 +478,16 @@ try {
 
   try {
     db.exec(`
+      ALTER TABLE tasks ADD COLUMN is_reminder INTEGER DEFAULT 0;
+    `);
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
+    db.exec(`
       CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -14606,12 +14616,12 @@ function resolveFilePath(systemName) {
   });
 
   app.post('/api/tasks', authenticateTokenOrWallboard, (req: any, res: any) => {
-    const { title, description, status, start_date, end_date, assigned_staff, assigned_clients, sub_tasks, is_important } = req.body;
+    const { title, description, status, start_date, end_date, assigned_staff, assigned_clients, sub_tasks, is_important, is_reminder } = req.body;
     try {
       const result = db.prepare(`
-        INSERT INTO tasks (title, description, status, start_date, end_date, assigned_staff, assigned_clients, is_important)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(title, description, status || 'Active', start_date || null, end_date || null, assigned_staff || '[]', assigned_clients || '[]', is_important ? 1 : 0);
+        INSERT INTO tasks (title, description, status, start_date, end_date, assigned_staff, assigned_clients, is_important, is_reminder)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(title, description, status || 'Active', start_date || null, end_date || null, assigned_staff || '[]', assigned_clients || '[]', is_important ? 1 : 0, is_reminder ? 1 : 0);
       
       const taskId = result.lastInsertRowid;
       

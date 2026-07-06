@@ -490,6 +490,7 @@ export function TaskModal({ task, onClose, onSave, onDelete, staffList, clientLi
     end_date: task?.end_date || '',
     assigned_staff: [] as number[],
     assigned_clients: [] as number[],
+    is_reminder: task?.is_reminder || 0,
     sub_tasks: task?.sub_tasks || []
   });
 
