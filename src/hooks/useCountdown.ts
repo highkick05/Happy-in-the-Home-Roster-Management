@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
-export function useCountdown(due_date: string | null | undefined, isCompleted: boolean) {
+export function useCountdown(due_date: string | null | undefined, created_at: string | null | undefined, isCompleted: boolean) {
+  const [timeProgress, setTimeProgress] = useState(0);
   const [timeLeft, setTimeLeft] = useState('');
   const [isOverdue, setIsOverdue] = useState(false);
   const [isNearDue, setIsNearDue] = useState(false);
@@ -61,13 +62,38 @@ export function useCountdown(due_date: string | null | undefined, isCompleted: b
         
         setTimeLeft(formatted.trim());
       }
+      
+      // Calculate time progress
+      if (created_at) {
+        const start = new Date(created_at).getTime();
+        const due = new Date(due_date).getTime();
+        const now = new Date().getTime();
+        if (due > start) {
+          const total = due - start;
+          const elapsed = now - start;
+          const p = Math.max(0, Math.min(100, (elapsed / total) * 100));
+          setTimeProgress(p);
+        } else {
+          setTimeProgress(100);
+        }
+      } else {
+        // If no created_at, assume a 24h default window for visual effect
+        const due = new Date(due_date).getTime();
+        const start = due - (24 * 60 * 60 * 1000);
+        const now = new Date().getTime();
+        const total = due - start;
+        const elapsed = now - start;
+        const p = Math.max(0, Math.min(100, (elapsed / total) * 100));
+        setTimeProgress(p);
+      }
+
     };
 
     calculateTime();
     const interval = setInterval(calculateTime, 60000);
 
     return () => clearInterval(interval);
-  }, [due_date, isCompleted]);
+  }, [due_date, created_at, isCompleted]);
 
-  return { timeLeft, isOverdue, isNearDue };
+  return { timeLeft, isOverdue, isNearDue, timeProgress };
 }

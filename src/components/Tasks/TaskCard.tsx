@@ -79,7 +79,7 @@ export function TaskCard({
   const [localCompleted, setLocalCompleted] = useState(false);
 
   const isChecked = task.status === 'Completed' || localCompleted;
-  const { timeLeft, isOverdue, isNearDue } = useCountdown(task?.due_date, isChecked);
+  const { timeLeft, isOverdue, isNearDue, timeProgress } = useCountdown(task?.due_date, task?.created_at, isChecked);
 
   const handleToggleComplete = (e: any) => {
     e.stopPropagation();
@@ -195,7 +195,7 @@ export function TaskCard({
         {/* Overall Progress Background */}
         {totalSubtasks > 0 && !isChecked && (
           <div 
-            className="absolute top-0 left-0 bottom-0 bg-brand-teal/5 transition-all duration-500"
+            className="absolute top-0 right-0 bottom-0 bg-brand-teal/5 transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         )}
@@ -204,7 +204,7 @@ export function TaskCard({
         {totalSubtasks > 0 && !isChecked && (
           <div className="absolute top-0 left-0 right-0 h-1 bg-black/20">
             <motion.div 
-              className="absolute top-0 left-0 h-full bg-brand-teal"
+              className="absolute top-0 right-0 h-full bg-brand-teal"
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ type: "spring", stiffness: 120, damping: 20 }}
@@ -214,22 +214,22 @@ export function TaskCard({
       </div>
 
       {/* Trailing fuse spark - OUTSIDE overflow-hidden, so shadow glows outside card */}
-      {totalSubtasks > 0 && !isChecked && progress > 0 && (
+      {totalSubtasks > 0 && !isChecked && timeProgress > 0 && (
           <motion.div 
             className="absolute top-0 h-1 w-0 z-20 pointer-events-none flex items-center justify-center overflow-visible"
             initial={{ left: 0, opacity: 0 }}
-            animate={{ left: `${progress}%`, opacity: 1 }}
-            transition={{ left: { type: "spring", stiffness: 45, damping: 10, delay: 0.2 }, opacity: { duration: 0.3 } }}
+            animate={{ left: `${timeProgress}%`, opacity: 1 }}
+            transition={{ left: { type: "tween", duration: 1 }, opacity: { duration: 0.3 } }}
           >
              {/* Core even softer glow, lighter on eyes */}
              <motion.div 
-               className="absolute w-[4px] h-[4px] bg-orange-100 rounded-full shadow-[0_0_4px_1px_rgba(251,146,60,0.5),0_0_8px_2px_rgba(234,88,12,0.3)]"
-               animate={{ scale: [1, 1.1, 0.95, 1.05, 1], opacity: [0.6, 0.9, 0.7, 0.9, 0.6] }}
-               transition={{ repeat: Infinity, duration: 0.4 }}
+               className={`absolute w-[4px] h-[4px] rounded-full ${timeProgress + progress >= 100 ? 'bg-red-500 shadow-[0_0_12px_4px_rgba(239,68,68,0.9)] z-50' : 'bg-orange-100 shadow-[0_0_4px_1px_rgba(251,146,60,0.5),0_0_8px_2px_rgba(234,88,12,0.3)]'}`}
+               animate={timeProgress + progress >= 100 ? { scale: [1.5, 2.5, 1.5], opacity: [0.8, 1, 0.8] } : { scale: [1, 1.1, 0.95, 1.05, 1], opacity: [0.6, 0.9, 0.7, 0.9, 0.6] }}
+               transition={{ repeat: Infinity, duration: timeProgress + progress >= 100 ? 0.2 : 0.4 }}
              />
              
              {/* Emitting Sparks - larger but softer */}
-             {[
+             {timeProgress + progress < 100 && [
                { x: -12, y: -12, d: 0.1 },
                { x: 12, y: -10, d: 0.3 },
                { x: -10, y: 12, d: 0.2 },

@@ -40,7 +40,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
     };
   });
   
-  const [selectedServices, setSelectedServices] = useState<{serviceId: string, qtyOverride: string, rateOverride: string}[]>(() => {
+  const [selectedServices, setSelectedServices] = useState<any[]>(() => {
     if (editData && editData.services_json) {
       try {
         const svcs = JSON.parse(editData.services_json);
