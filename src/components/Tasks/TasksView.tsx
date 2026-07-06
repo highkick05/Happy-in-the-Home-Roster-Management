@@ -24,6 +24,7 @@ type Task = {
   created_at: string;
   is_important?: number;
   is_reminder?: number;
+  due_date?: string | null;
   sub_tasks: SubTask[];
 };
 

@@ -300,6 +300,16 @@ async function startServer() {
   }
 
   try {
+    db.exec(`
+      ALTER TABLE tasks ADD COLUMN due_date TEXT;
+    `);
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
     db.exec(
       "ALTER TABLE providers ADD COLUMN management_fee REAL DEFAULT 10.00",
     );
@@ -498,6 +508,7 @@ try {
         assigned_staff TEXT,
         assigned_clients TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        due_date TEXT,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -6781,7 +6792,7 @@ try {
 
             const stmt = db.prepare(`
             INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, status, funding_type, is_abt_approved)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
             const shiftInfo = stmt.run(
               clientId,
@@ -14617,12 +14628,12 @@ function resolveFilePath(systemName) {
   });
 
   app.post('/api/tasks', authenticateTokenOrWallboard, (req: any, res: any) => {
-    const { title, description, status, start_date, end_date, assigned_staff, assigned_clients, sub_tasks, is_important, is_reminder } = req.body;
+    const { title, description, status, start_date, end_date, due_date, assigned_staff, assigned_clients, sub_tasks, is_important, is_reminder } = req.body;
     try {
       const result = db.prepare(`
-        INSERT INTO tasks (title, description, status, start_date, end_date, assigned_staff, assigned_clients, is_important, is_reminder)
+        INSERT INTO tasks (title, description, status, start_date, end_date, due_date, assigned_staff, assigned_clients, is_important, is_reminder)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(title, description, status || 'Active', start_date || null, end_date || null, assigned_staff || '[]', assigned_clients || '[]', is_important ? 1 : 0, is_reminder ? 1 : 0);
+      `).run(title, description, status || 'Active', start_date || null, end_date || null, due_date || null, assigned_staff || '[]', assigned_clients || '[]', is_important ? 1 : 0, is_reminder ? 1 : 0);
       
       const taskId = result.lastInsertRowid;
       
@@ -14658,13 +14669,13 @@ function resolveFilePath(systemName) {
   });
 
   app.put('/api/tasks/:id', authenticateTokenOrWallboard, (req: any, res: any) => {
-    const { title, description, status, start_date, end_date, assigned_staff, assigned_clients, sub_tasks, is_important } = req.body;
+    const { title, description, status, start_date, end_date, due_date, assigned_staff, assigned_clients, sub_tasks, is_important } = req.body;
     const taskId = req.params.id;
     try {
       db.prepare(`
-        UPDATE tasks SET title = ?, description = ?, status = ?, start_date = ?, end_date = ?, assigned_staff = ?, assigned_clients = ?, is_important = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE tasks SET title = ?, description = ?, status = ?, start_date = ?, end_date = ?, due_date = ?, assigned_staff = ?, assigned_clients = ?, is_important = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(title, description, status, start_date || null, end_date || null, assigned_staff || '[]', assigned_clients || '[]', is_important ? 1 : 0, taskId);
+      `).run(title, description, status, start_date || null, end_date || null, due_date || null, assigned_staff || '[]', assigned_clients || '[]', is_important ? 1 : 0, taskId);
       
       if (sub_tasks && Array.isArray(sub_tasks)) {
         db.prepare("DELETE FROM sub_tasks WHERE task_id = ?").run(taskId);

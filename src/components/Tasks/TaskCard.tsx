@@ -1,3 +1,4 @@
+import { useCountdown } from '../../hooks/useCountdown';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, ChevronRight,
   CheckSquare, Square, Clock, Flame, GripVertical, 
@@ -193,7 +194,7 @@ export function TaskCard({
         {/* Overall Progress Background */}
         {totalSubtasks > 0 && !isChecked && (
           <div 
-            className="absolute top-0 left-0 bottom-0 bg-brand-teal/5 transition-all duration-500"
+            className="absolute top-0 right-0 bottom-0 bg-brand-teal/5 transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         )}
@@ -202,7 +203,7 @@ export function TaskCard({
         {totalSubtasks > 0 && !isChecked && (
           <div className="absolute top-0 left-0 right-0 h-1 bg-black/20">
             <motion.div 
-              className="absolute top-0 left-0 h-full bg-brand-teal"
+              className="absolute top-0 right-0 h-full bg-brand-teal"
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ type: "spring", stiffness: 120, damping: 20 }}
@@ -215,9 +216,9 @@ export function TaskCard({
       {totalSubtasks > 0 && !isChecked && progress > 0 && (
           <motion.div 
             className="absolute top-0 h-1 w-0 z-20 pointer-events-none flex items-center justify-center overflow-visible"
-            initial={{ left: 0, opacity: 0 }}
-            animate={{ left: `${progress}%`, opacity: 1 }}
-            transition={{ left: { type: "spring", stiffness: 45, damping: 10, delay: 0.2 }, opacity: { duration: 0.3 } }}
+            initial={{ right: 0, opacity: 0 }}
+            animate={{ right: `${progress}%`, opacity: 1 }}
+            transition={{ right: { type: "spring", stiffness: 45, damping: 10, delay: 0.2 }, opacity: { duration: 0.3 } }}
           >
              {/* Core even softer glow, lighter on eyes */}
              <motion.div 
@@ -256,6 +257,15 @@ export function TaskCard({
           </motion.div>
       )}
 
+      {isOverdue && !isChecked && (
+        <div className="absolute inset-0 z-10 pointer-events-none rounded-xl overflow-hidden opacity-40 mix-blend-overlay">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full text-black">
+            <path stroke="currentColor" strokeWidth="0.8" fill="none" d="M 10,0 L 20,30 L 15,50 L 30,70 L 20,100 M 50,0 L 45,25 L 60,40 L 55,80 L 65,100 M 85,0 L 75,30 L 90,60 L 80,100 M 0,20 L 30,25 L 60,15 L 100,30 M 0,60 L 40,55 L 70,65 L 100,55 M 0,85 L 25,75 L 50,85 L 100,75 M 35,40 L 45,60 L 75,50" />
+            <path stroke="currentColor" strokeWidth="0.3" fill="none" d="M 20,30 L 45,25 M 60,40 L 75,30 M 30,70 L 55,80 M 60,15 L 75,30 M 15,50 L 40,55" />
+          </svg>
+          <div className="absolute inset-0 shadow-[inset_0_0_40px_rgba(239,68,68,0.3)]"></div>
+        </div>
+      )}
       <div 
         className={`relative z-10 flex flex-col md:flex-row md:items-center ${wallboardMode ? 'p-4 gap-4' : 'px-4 py-3 gap-3'} cursor-pointer select-none`}
         onClick={(e) => { e.preventDefault(); onToggleExpand?.(); }}
@@ -291,6 +301,15 @@ export function TaskCard({
                </h3>
                {!!task.is_important && (
                  <span className="shrink-0 text-[10px] font-bold text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider">Urgent</span>
+               )}
+               {!!timeLeft && (
+                 <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded tracking-wider flex items-center gap-1 transition-all ${
+                   isChecked ? 'bg-brand-green/20 text-brand-green' : 
+                   isOverdue ? 'bg-red-500/20 text-red-500 animate-pulse' : 
+                   isNearDue ? 'bg-orange-500/20 text-orange-500' : 'bg-brand-teal/10 text-brand-teal'
+                 }`}>
+                   {isChecked ? 'DONE' : timeLeft}
+                 </span>
                )}
             </div>
             {!!task.description && (
@@ -499,6 +518,7 @@ export function TaskModal({ task, onClose, onSave, onDelete, staffList, clientLi
     status: task?.status || 'Active',
     start_date: task?.start_date || '',
     end_date: task?.end_date || '',
+    due_date: task?.due_date || '',
     assigned_staff: [] as number[],
     assigned_clients: [] as number[],
     is_reminder: task?.is_reminder || 0,
@@ -609,7 +629,7 @@ export function TaskModal({ task, onClose, onSave, onDelete, staffList, clientLi
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Start Date</label>
                 <input
@@ -628,80 +648,14 @@ export function TaskModal({ task, onClose, onSave, onDelete, staffList, clientLi
                   className="w-full bg-black/20 border border-border-subtle rounded-lg px-3 py-2 text-white focus:border-brand-teal outline-none text-sm"
                 />
               </div>
-            </div>
-
-            {/* Assignments */}
-            <div>
-              <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Assign Staff</label>
-              <div className="h-32 overflow-y-auto bg-black/20 border border-border-subtle rounded-lg p-2 space-y-1">
-                {staffList.map(s => (
-                  <label key={s.id} className="flex items-center space-x-2 text-sm text-[#E6EDF3] cursor-pointer hover:bg-white/[0.04] p-1 rounded">
-                    <input 
-                      type="checkbox"
-                      checked={formData.assigned_staff.includes(s.id)}
-                      onChange={() => toggleStaff(s.id)}
-                      className="rounded border-border-subtle bg-black/20 text-brand-teal focus:ring-brand-teal focus:ring-offset-0"
-                    />
-                    <span>{s.first_name} {s.last_name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Assign Clients</label>
-              <div className="h-32 overflow-y-auto bg-black/20 border border-border-subtle rounded-lg p-2 space-y-1">
-                {clientList.map(c => (
-                  <label key={c.id} className="flex items-center space-x-2 text-sm text-[#E6EDF3] cursor-pointer hover:bg-white/[0.04] p-1 rounded">
-                    <input 
-                      type="checkbox"
-                      checked={formData.assigned_clients.includes(c.id)}
-                      onChange={() => toggleClient(c.id)}
-                      className="rounded border-border-subtle bg-black/20 text-purple-500 focus:ring-purple-500 focus:ring-offset-0"
-                    />
-                    <span>{c.first_name} {c.last_name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Add-Progress */}
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Add-Progress</label>
-              <div className="space-y-2">
-                {formData.sub_tasks.map((st: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between bg-black/20 border border-border-subtle rounded-lg px-3 py-1.5">
-                    <div 
-                      className="flex items-center space-x-2 cursor-pointer select-none flex-1"
-                      onClick={() => {
-                        const newSubTasks = [...formData.sub_tasks];
-                        newSubTasks[idx].completed = !newSubTasks[idx].completed;
-                        setFormData({ ...formData, sub_tasks: newSubTasks });
-                      }}
-                    >
-                      <button type="button" className={`shrink-0 ${st.completed ? 'text-brand-green' : 'text-[#8B949E] hover:text-white'}`}>
-                        <AnimatedCheckbox checked={!!st.completed} className="w-4 h-4" />
-                      </button>
-                      <span className={`text-sm ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>{st.title}</span>
-                    </div>
-                    <button type="button" onClick={() => removeSubTask(idx)} className="text-[#8B949E] hover:text-red-400 p-1 shrink-0 ml-2">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-                <div className="flex items-center space-x-2 mt-2">
-                  <input
-                    type="text"
-                    value={newSubTask}
-                    onChange={e => setNewSubTask(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addSubTask())}
-                    placeholder="Add progress..."
-                    className="flex-1 bg-black/20 border border-border-subtle rounded-lg px-3 py-1.5 text-white focus:border-brand-teal outline-none text-sm"
-                  />
-                  <button type="button" onClick={addSubTask} className="px-3 py-1.5 bg-[#8B949E]/20 text-white rounded-lg hover:bg-[#8B949E]/40 transition-colors text-sm font-semibold">
-                    Add
-                  </button>
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-1">Due Date</label>
+                <input
+                  type="datetime-local"
+                  value={formData.due_date}
+                  onChange={e => setFormData({...formData, due_date: e.target.value})}
+                  className="w-full bg-black/20 border border-border-subtle rounded-lg px-3 py-2 text-white focus:border-brand-teal outline-none text-sm"
+                />
               </div>
             </div>
           </div>
