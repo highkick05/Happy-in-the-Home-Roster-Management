@@ -10102,9 +10102,9 @@ try {
       }
     } else {
       doc.moveDown();
-      doc.fontSize(14).text(settingsMap.businessName || "Happy in the Home");
-      doc.fontSize(10).text(`ABN: ${settingsMap.abn || "12 345 678 910"}`);
-      doc.text(settingsMap.businessAddress || "123 Care Lane, Sydney NSW 2000");
+      if (settingsMap.businessName) doc.fontSize(14).text(settingsMap.businessName);
+      if (settingsMap.abn) doc.fontSize(10).text(`ABN: ${settingsMap.abn}`);
+      if (settingsMap.businessAddress) doc.text(settingsMap.businessAddress);
       doc.moveDown();
     }
 
@@ -10129,18 +10129,20 @@ try {
     doc
       .fontSize(12)
       .font("Helvetica-Bold")
-      .text(settingsMap.businessName || "Happy in the Home", 50, topY + 15);
-    doc
-      .fontSize(10)
-      .font("Helvetica")
-      .text(`ABN: ${settingsMap.abn || "12 345 678 910"}`, 50, topY + 30);
-    doc.text(
-      settingsMap.businessAddress || "123 Care Lane, Sydney NSW 2000",
-      50,
-      topY + 45,
-    );
-    const bizEmail = settingsMap.businessEmail || "";
-    if (bizEmail) doc.text(bizEmail, 50, topY + 60);
+      .text(settingsMap.businessName || "", 50, topY + 15);
+    doc.fontSize(10).font("Helvetica");
+    let cy = topY + 30;
+    if (settingsMap.abn) {
+      doc.text(`ABN: ${settingsMap.abn}`, 50, cy);
+      cy += 15;
+    }
+    if (settingsMap.businessAddress) {
+      doc.text(settingsMap.businessAddress, 50, cy);
+      cy += 15;
+    }
+    if (settingsMap.contactEmail) {
+      doc.text(settingsMap.contactEmail, 50, cy);
+    }
 
     const billToLabel = isHomeCare ? "PROVIDER" : "PLAN MANAGER";
     let billToName = shift.plan_manager_name || `${shift.c_fn} ${shift.c_ln}`;
@@ -11030,7 +11032,7 @@ function resolveFilePath(systemName) {
           .fontSize(10)
           .font("Helvetica")
           .fillColor("#52525b")
-          .text(settingsMap.businessName || "Happy in the Home", 50, 65);
+          .text(settingsMap.businessName || "", 50, 65);
         doc.moveDown(2);
 
         const topY = 115;
@@ -11041,17 +11043,21 @@ function resolveFilePath(systemName) {
           .text("From:", 50, topY);
           
         const fromLines: string[] = [];
-        fromLines.push(settingsMap.businessName || "Happy in the Home");
-        if (settingsMap.businessPhone && settingsMap.businessPhone.trim() !== "0400000000" && settingsMap.businessPhone.trim() !== "") {
-          fromLines.push(settingsMap.businessPhone.trim());
+        if (settingsMap.businessName) fromLines.push(settingsMap.businessName);
+        if (settingsMap.contactPhone && settingsMap.contactPhone.trim() !== "0400000000" && settingsMap.contactPhone.trim() !== "") {
+          fromLines.push(settingsMap.contactPhone.trim());
         }
-        fromLines.push(settingsMap.businessEmail || "info@happyinthehome.org");
-        fromLines.push(settingsMap.businessAddress || "123 Care Lane, Sydney NSW 2000");
-        fromLines.push(`ABN: ${settingsMap.abn || "12 345 678 910"}`);
+        if (settingsMap.contactEmail) fromLines.push(settingsMap.contactEmail);
+        if (settingsMap.businessAddress) fromLines.push(settingsMap.businessAddress);
+        if (settingsMap.abn) fromLines.push(`ABN: ${settingsMap.abn}`);
 
         doc.fontSize(10).font("Helvetica");
-        fromLines.forEach((line, idx) => {
-          doc.text(line, 50, topY + 15 + (idx * 15));
+        let currentY = topY + 15;
+        fromLines.forEach((line) => {
+          if (line.trim()) {
+            doc.text(line, 50, currentY);
+            currentY += 15;
+          }
         });
 
         doc
@@ -11096,7 +11102,7 @@ function resolveFilePath(systemName) {
           .font("Helvetica")
           .text(activityDateStr);
 
-        let currentY = 295;
+        currentY = 295;
 
         // Table Header
         doc.rect(50, currentY, 500, 25).fill("#f4f4f5"); // Light gray bg for header

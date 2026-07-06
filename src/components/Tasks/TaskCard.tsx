@@ -79,6 +79,7 @@ export function TaskCard({
   const [localCompleted, setLocalCompleted] = useState(false);
 
   const isChecked = task.status === 'Completed' || localCompleted;
+  const { timeLeft, isOverdue, isNearDue } = useCountdown(task?.due_date, isChecked);
 
   const handleToggleComplete = (e: any) => {
     e.stopPropagation();
