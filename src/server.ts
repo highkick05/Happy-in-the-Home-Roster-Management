@@ -14710,6 +14710,16 @@ function resolveFilePath(systemName) {
     }
   });
 
+  app.post('/api/tasks/:id/reminder', authenticateTokenOrWallboard, (req: any, res: any) => {
+    try {
+      db.prepare("UPDATE tasks SET is_reminder = CASE WHEN is_reminder = 1 THEN 0 ELSE 1 END, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error toggling task reminder:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.put('/api/subtasks/:id', authenticateToken, (req: any, res: any) => {
     const { title } = req.body;
     try {

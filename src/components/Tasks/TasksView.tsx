@@ -28,7 +28,7 @@ type Task = {
 };
 
 
-function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, handleComplete, toggleSubTask, editSubTask, addSubTask, deleteSubTask, handleToggleImportant, staffList, clientList, handleDragEnd , isExpanded, onToggleExpand}: any) {
+function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, handleComplete, toggleSubTask, editSubTask, addSubTask, deleteSubTask, handleToggleImportant, handleToggleReminder, staffList, clientList, handleDragEnd , isExpanded, onToggleExpand}: any) {
   const dragControls = useDragControls();
   return (
     <Reorder.Item value={task} dragListener={false} dragControls={dragControls} onDragEnd={handleDragEnd}>
@@ -39,10 +39,11 @@ function DraggableTask({ task, setEditingTask, setIsModalOpen, handleDelete, han
         onDelete={() => handleDelete(task.id)}
         onToggleComplete={() => handleComplete(task.id)}
         onToggleSubTask={toggleSubTask}
-                    onEditSubTask={editSubTask}
+        onEditSubTask={editSubTask}
         onAddSubTask={addSubTask}
         onDeleteSubTask={deleteSubTask}
         onToggleImportant={() => handleToggleImportant(task.id)}
+        onToggleReminder={() => handleToggleReminder(task.id)}
         isExpanded={isExpanded}
         onToggleExpand={onToggleExpand}
         staffList={staffList}
@@ -260,6 +261,20 @@ export default function TasksView() {
     }
   };
 
+  const handleToggleReminder = async (id: number) => {
+    try {
+      const res = await fetch(`/api/tasks/${id}/reminder`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to toggle reminder');
+      fetchData(true);
+    } catch (err) {
+      console.error(err);
+      alert(String(err));
+    }
+  };
+
 
   const handleReorder = (newOrder: Task[]) => {
     setLocalDisplayTasks(newOrder);
@@ -355,6 +370,7 @@ export default function TasksView() {
                 addSubTask={addSubTask}
                 deleteSubTask={deleteSubTask}
                 handleToggleImportant={handleToggleImportant}
+                handleToggleReminder={handleToggleReminder}
                 isExpanded={expandedTaskId === task.id}
                 onToggleExpand={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
                 staffList={staffList}

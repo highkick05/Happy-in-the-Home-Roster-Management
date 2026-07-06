@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, ChevronRight,
   CheckSquare, Square, Clock, Flame, GripVertical, 
-  UserCircle2, UserIcon, Users, CalendarIcon, X, Plus, MoreHorizontal, Trash2, ListChecks, Pencil
+  UserCircle2, UserIcon, Users, CalendarIcon, X, Plus, MoreHorizontal, Trash2, ListChecks, Pencil, Bell
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
@@ -366,6 +366,15 @@ export function TaskCard({
                 title="Toggle Importance"
               >
                 <Flame className="w-4 h-4" />
+              </button>
+              <button
+                onPointerDown={e => e.stopPropagation()}
+                onPointerUp={e => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); onToggleReminder(); }}
+                className={`p-1.5 rounded-md transition-colors ${task.is_reminder ? 'text-brand-teal bg-brand-teal/10' : 'text-[#8B949E] hover:bg-white/[0.04]'}`}
+                title={task.is_reminder ? "Remove Reminder" : "Make Reminder"}
+              >
+                <Bell className="w-4 h-4" />
               </button>
             </div>
           )}
