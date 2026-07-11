@@ -9201,8 +9201,8 @@ try {
             (totals.providerTravelKm || 0) + (isHomeCare ? 0 : prov_km);
           totals.abtKm = (totals.abtKm || 0) + (isHomeCare ? 0 : abt_km);
 
-          const rowProvReimbursement = parseFloat((prov_km * 1.00).toFixed(2));
-          const rowAbtReimbursement = parseFloat((abt_km * 1.00).toFixed(2));
+          const rowProvReimbursement = parseFloat((prov_km * 0.99).toFixed(2));
+          const rowAbtReimbursement = parseFloat((abt_km * 0.99).toFixed(2));
           const shiftTravelPay = isHomeCare
             ? 0
             : rowProvReimbursement + rowAbtReimbursement;

@@ -531,7 +531,7 @@ export default function ComplianceDashboard() {
                              <td className="px-4 py-2 whitespace-nowrap font-mono text-xs text-emerald-400 tracking-tight">
                                 {(row.funding_type === 'HOME_CARE' || row.funding_type === 'Home Care' || row.funding_type === 'HCP') 
                                   ? '-' 
-                                  : "$" + ((row.provider_travel_cost || 0) + (row.abt_cost || 0)).toFixed(2)}
+                                  : "$" + ((p_km * 1.00) + ((row.abt_km || 0) * 1.00)).toFixed(2)}
                               </td>
                            </tr>
                          );
@@ -703,7 +703,7 @@ export default function ComplianceDashboard() {
                              <td className="px-4 py-2 whitespace-nowrap font-mono text-xs text-emerald-400 tracking-tight">
                                 {(row.funding_type === 'HOME_CARE' || row.funding_type === 'Home Care' || row.funding_type === 'HCP') 
                                   ? '-' 
-                                  : "$" + ((row.provider_travel_cost || 0) + (row.abt_cost || 0)).toFixed(2)}
+                                  : "$" + ((p_km * 1.00) + ((row.abt_km || 0) * 1.00)).toFixed(2)}
                               </td>
                            </tr>
                          );
