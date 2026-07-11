@@ -7155,19 +7155,11 @@ try {
              if (name.includes('activity based transport') && s.qtyOverride) abtQty += Number(s.qtyOverride);
            }
         }
-        if (travelQty > 0 || abtQty > 0 || start_odometer !== undefined || end_odometer !== undefined) {
-          db.prepare(`INSERT INTO staff_activity 
-            (staff_id, shift_id, client_id, start_odometer, end_odometer, provider_travel_km, abt_km, date, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-            .run(single.staffId, shiftId, clientId, start_odometer || null, end_odometer || null, travelQty, abtQty, startTime.split('T')[0], now);
-            
-          db.prepare(`INSERT INTO compliance 
-            (client_id, shift_id, staff_id, type, date, notes, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-            .run(clientId, shiftId, single.staffId, 'Transport Evidence', startTime.split('T')[0], 
-            `Manual historical entry: Start Odo ${start_odometer||0}, End Odo ${end_odometer||0}, PT ${travelQty}km, ABT ${abtQty}km`, 
-            'Approved', now);
-        }
+        db.prepare(`UPDATE shifts 
+                   SET actual_start_time = ?, actual_finish_time = ?,
+                       odometer_start_reading = ?, odometer_end_reading = ?,
+                       provider_travel_km = ?, abt_km = ?
+                   WHERE id = ?`).run(startTime, endTime, start_odometer || null, end_odometer || null, travelQty, abtQty, shiftId);
       };
 
 
