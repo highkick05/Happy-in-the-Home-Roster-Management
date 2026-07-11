@@ -541,7 +541,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                   const isABT = name.toLowerCase().includes('activity based transport');
                   const isTravelOrTransport = isProviderTravel || isABT;
                   
-                  const effectiveQty = isTravelOrTransport ? 0 : (s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1));
+                  const effectiveQty = (isTravelOrTransport && !isHistorical) ? 0 : (s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1));
                   const effectiveRate = (s.rateOverride !== undefined && s.rateOverride !== '') ? Number(s.rateOverride) : rate;
                   const subtotal = effectiveQty * effectiveRate;
                   
@@ -643,7 +643,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                 const { rate, unit, name } = getServiceDetails(s.serviceId);
                 const isProviderTravel = name.toLowerCase().includes('provider travel');
                 const isABT = name.toLowerCase().includes('activity based transport');
-                if (isProviderTravel || isABT) return acc;
+                if ((isProviderTravel || isABT) && !isHistorical) return acc;
                 const effectiveQty = s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1);
                 const effectiveRate = s.rateOverride !== undefined && s.rateOverride !== '' ? Number(s.rateOverride) : rate;
                 return acc + (effectiveQty * effectiveRate);
