@@ -6977,6 +6977,10 @@ try {
       notes,
       servicesData,
       ignoreConflicts,
+      is_historical,
+      progress_note,
+      start_odometer,
+      end_odometer
     } = req.body;
     try {
       const idsToProcess =
@@ -7121,6 +7125,44 @@ try {
       const stmt = db.prepare(
         "INSERT INTO shifts (staff_id, client_id, service_id, start_time, end_time, status, notes, services_json, is_abt_approved, funding_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
+      
+      const isHist = Boolean(is_historical);
+      const shiftStatus = isHist ? 'COMPLETED' : (status || "DRAFT");
+      const actualNotes = isHist ? (notes ? notes + ' [HISTORICAL]' : '[HISTORICAL]') : notes;
+      
+      const insertHistoricalData = (shiftId, single) => {
+        if (!isHist) return;
+        const now = new Date().toISOString();
+        if (progress_note) {
+          db.prepare("INSERT INTO progress_notes (shift_id, note_text, created_by, is_admin_note, is_incident) VALUES (?, ?, ?, 0, 0)")
+            .run(shiftId, progress_note, req.user?.id || 1);
+        }
+        let travelQty = 0, abtQty = 0;
+        let sData = [];
+        try { sData = JSON.parse(single.servicesJson || '[]'); } catch(e){}
+        for (let s of sData) {
+           const srv = db.prepare("SELECT name FROM services WHERE id = ?").get(s.serviceId);
+           if (srv) {
+             const name = srv.name.toLowerCase();
+             if (name.includes('provider travel') && s.qtyOverride) travelQty += Number(s.qtyOverride);
+             if (name.includes('activity based transport') && s.qtyOverride) abtQty += Number(s.qtyOverride);
+           }
+        }
+        if (travelQty > 0 || abtQty > 0 || start_odometer !== undefined || end_odometer !== undefined) {
+          db.prepare(`INSERT INTO staff_activity 
+            (staff_id, shift_id, client_id, start_odometer, end_odometer, provider_travel_km, abt_km, date, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(single.staffId, shiftId, clientId, start_odometer || null, end_odometer || null, travelQty, abtQty, startTime.split('T')[0], now);
+            
+          db.prepare(`INSERT INTO compliance 
+            (client_id, shift_id, staff_id, type, date, notes, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(clientId, shiftId, single.staffId, 'Transport Evidence', startTime.split('T')[0], 
+            `Manual historical entry: Start Odo ${start_odometer||0}, End Odo ${end_odometer||0}, PT ${travelQty}km, ABT ${abtQty}km`, 
+            'Approved', now);
+        }
+      };
+
 
       if (idsToProcess.length > 1) {
         const createShifts = db.transaction((shiftsArray) => {
@@ -9982,7 +10024,7 @@ try {
         JOIN clients c ON s.client_id = c.id
         JOIN users u ON s.staff_id = u.id
         LEFT JOIN invoices i ON s.id = i.shift_id
-        WHERE s.status = 'COMPLETED' AND i.id IS NULL AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
+        WHERE s.status = 'COMPLETED' AND i.id IS NULL AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL) AND (s.notes NOT LIKE '%[HISTORICAL]%' OR s.notes IS NULL) AND (s.notes NOT LIKE '%[HISTORICAL]%' OR s.notes IS NULL)
         ORDER BY s.start_time DESC
       `;
         const shifts = db.prepare(query).all();

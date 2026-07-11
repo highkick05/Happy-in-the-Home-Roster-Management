@@ -45,6 +45,42 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
     return options.services.filter(s => selectedClient.service_ids.includes(s.id) || selectedServiceIds.includes(s.id));
   }, [selectedClient, options.services, selectedServices]);
 
+
+  const handleUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadClientId || !uploadDate || !uploadFile) {
+      alert("Please fill all fields and select a file.");
+      return;
+    }
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('clientId', uploadClientId);
+    formData.append('date', uploadDate);
+    formData.append('file', uploadFile);
+
+    try {
+      const res = await fetch('/api/invoices/historical', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      });
+      if (!res.ok) throw new Error('Failed to upload historical invoice');
+      setShowUploadModal(false);
+      setUploadClientId('');
+      setUploadDate('');
+      setUploadFile(null);
+      fetchInvoices();
+    } catch (err) {
+      console.error(err);
+      alert(String(err));
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   useEffect(() => {
     fetchOptions();
   }, []);
@@ -601,6 +637,13 @@ export default function InvoicingView() {
   const [filterClient, setFilterClient] = useLocalStorage('invoicing_filter_client', '');
   const [filterStaff, setFilterStaff] = useLocalStorage('invoicing_filter_staff', '');
   const [showManualModal, setShowManualModal] = useState(false);
+
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadClientId, setUploadClientId] = useState('');
+  const [uploadDate, setUploadDate] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<number[]>([]);
   const [isMerging, setIsMerging] = useState(false);
 
@@ -897,7 +940,72 @@ export default function InvoicingView() {
         <QuotesView />
       ) : (
         <div className="flex-1 flex flex-col space-y-4">
-          {showManualModal && (
+          
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-[#121214] border border-white/[0.08] rounded-xl shadow-2xl max-w-md w-full flex flex-col">
+            <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#18181b] rounded-t-xl shrink-0">
+              <h2 className="text-lg font-bold text-white tracking-tight">Upload Historical Invoice</h2>
+              <button onClick={() => setShowUploadModal(false)} className="text-zinc-500 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleUploadSubmit} className="p-5 space-y-4 bg-[#09090b]">
+              <div>
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Client</label>
+                <select
+                  required
+                  value={uploadClientId}
+                  onChange={e => setUploadClientId(e.target.value)}
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
+                >
+                  <option value="">Select Client</option>
+                  {rawClients.map(c => (
+                    <option key={c.id} value={c.id}>{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Historical Date</label>
+                <input
+                  type="date"
+                  required
+                  value={uploadDate}
+                  onChange={e => setUploadDate(e.target.value)}
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
+                />
+              </div>
+              <div>
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Invoice PDF</label>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  required
+                  onChange={e => setUploadFile(e.target.files ? e.target.files[0] : null)}
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-brand-teal/20 file:text-brand-teal hover:file:bg-brand-teal/30"
+                />
+              </div>
+              <div className="pt-4 border-t border-white/[0.08] flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUploading}
+                  className="px-4 py-2 bg-amber-500/20 text-amber-500 border border-amber-500/30 hover:bg-amber-500/30 text-[13px] font-medium rounded-md transition-colors disabled:opacity-50"
+                >
+                  {isUploading ? 'Uploading...' : 'Upload'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+{showManualModal && (
         <div className="fixed inset-0 z-[60] flex justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto custom-scrollbar" onClick={() => setShowManualModal(false)}>
           <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-4xl flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg shrink-0">
@@ -996,6 +1104,15 @@ export default function InvoicingView() {
           >
             Generate Invoice
           </button>
+          {subTab === 'paid' && (
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="flex items-center px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-500 text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto whitespace-nowrap"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Upload Historical
+            </button>
+          )}
           <div className="hidden md:flex text-[10px] border border-border-subtle bg-brand-navy text-[#8B949E] px-2 py-1 rounded items-center uppercase tracking-wider">
             <CheckCircle className="w-3 h-3 mr-1.5 text-brand-teal" />
             Auto-gen Active
