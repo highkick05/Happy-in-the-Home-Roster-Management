@@ -13,7 +13,7 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
              c.address as client_address
       FROM shifts s
       LEFT JOIN clients c ON s.client_id = c.id
-      WHERE s.staff_id = ? AND s.start_time >= ? AND s.start_time <= ? AND s.status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+      WHERE s.staff_id = ? AND s.start_time >= ? AND s.start_time <= ? AND s.status NOT IN ('CANCELLED', 'DELETED', 'deleted') AND (s.notes IS NULL OR s.notes NOT LIKE '%[HISTORICAL]%')
       ORDER BY s.start_time ASC
     `).all(staffId, startTimeRangeStart, startTimeRangeEnd) as any[];
 

@@ -2223,6 +2223,11 @@ try {
         subtotal,
         totalAmount,
       } = data;
+      if (shift.notes && shift.notes.includes('[HISTORICAL]')) {
+        console.log(`[DEBUG] Skipping invoice generation for historical shift ${shiftId}`);
+        return;
+      }
+
       const fileName = `${invoiceNum}.pdf`;
 
       // Just update DB record, no need to write to fs since it's on-the-fly now.
@@ -7165,57 +7170,62 @@ try {
 
 
       if (idsToProcess.length > 1) {
-        const createShifts = db.transaction((shiftsArray) => {
-          return shiftsArray.map((shift: any) => {
+        let shiftIds = [];
+        db.transaction((shiftsArray) => {
+          shiftIds = shiftsArray.map((shift) => {
             const info = stmt.run(
               shift.staffId,
               clientId,
               mainServiceId,
               startTime,
               endTime,
-              status || "DRAFT",
-              notes,
+              shiftStatus,
+              actualNotes,
               shift.servicesJson,
               shift.isAbtApproved ? 1 : 0,
               fType,
             );
+            insertHistoricalData(info.lastInsertRowid, shift);
             return info.lastInsertRowid;
           });
-        });
+        })(processedStaffShifts);
 
-        const shiftIds = createShifts(processedStaffShifts);
-
-        // Recalculate after batch insert
         for (const single of processedStaffShifts) {
-          console.log(
-            `[DEBUG CASCADE] Calling hook for POST batch insert: staffId ${single.staffId}, time: ${startTime}`,
-          );
-          await recalculateDayTravelForStaff(single.staffId, startTime);
+          if (!isHist) {
+            console.log(
+              `[DEBUG CASCADE] Calling hook for POST batch insert: staffId ${single.staffId}, time: ${startTime}`,
+            );
+            await recalculateDayTravelForStaff(single.staffId, startTime);
+          }
         }
-
         res.json({ id: shiftIds[0], ids: shiftIds });
       } else {
         const single = processedStaffShifts[0];
-        const info = stmt.run(
-          single.staffId,
-          clientId,
-          mainServiceId,
-          startTime,
-          endTime,
-          status || "DRAFT",
-          notes,
-          single.servicesJson,
-          single.isAbtApproved ? 1 : 0,
-          fType,
-        );
+        let sid = 0;
+        db.transaction(() => {
+          const info = stmt.run(
+            single.staffId,
+            clientId,
+            mainServiceId,
+            startTime,
+            endTime,
+            shiftStatus,
+            actualNotes,
+            single.servicesJson,
+            single.isAbtApproved ? 1 : 0,
+            fType,
+          );
+          sid = info.lastInsertRowid;
+          insertHistoricalData(sid, single);
+        })();
 
-        // Recalculate after single insert
-        console.log(
-          `[DEBUG CASCADE] Calling hook for POST single insert: staffId ${single.staffId}, time: ${startTime}`,
-        );
-        await recalculateDayTravelForStaff(single.staffId, startTime);
-
-        res.json({ id: info.lastInsertRowid });
+        if (!isHist) {
+          console.log(
+            `[DEBUG CASCADE] Calling hook for POST single insert: staffId ${single.staffId}, time: ${startTime}`,
+          );
+          await recalculateDayTravelForStaff(single.staffId, startTime);
+        }
+        res.json({ id: sid });
       }
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
