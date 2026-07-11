@@ -1654,7 +1654,7 @@ try {
       });
 
       if (shift.provider_travel_km > 0) {
-        const travelCost = shift.provider_travel_cost;
+        const travelCost = shift.provider_travel_cost || (shift.provider_travel_km * 1.00);
         const travelRate =
           shift.provider_travel_km > 0
             ? travelCost / shift.provider_travel_km
@@ -1673,7 +1673,7 @@ try {
         });
       }
       if (shift.abt_km > 0) {
-        const abtCost = shift.abt_cost;
+        const abtCost = shift.abt_cost || (shift.abt_km * 1.00);
         const abtRate = shift.abt_km > 0 ? abtCost / shift.abt_km : 1.0;
         subtotal += abtCost;
         lineItems.push({
@@ -7145,21 +7145,30 @@ try {
         if (!isHist) return;
         const now = new Date().toISOString();
         let travelQty = 0, abtQty = 0;
+        let travelCost = 0, abtCost = 0;
         let sData = [];
         try { sData = JSON.parse(single.servicesJson || '[]'); } catch(e){}
         for (let s of sData) {
-           const srv = db.prepare("SELECT name FROM services WHERE id = ?").get(s.serviceId);
+           const srv = db.prepare("SELECT name, rate FROM services WHERE id = ?").get(s.serviceId);
            if (srv) {
              const name = srv.name.toLowerCase();
-             if (name.includes('provider travel') && s.qtyOverride) travelQty += Number(s.qtyOverride);
-             if (name.includes('activity based transport') && s.qtyOverride) abtQty += Number(s.qtyOverride);
+             const rate = Number(s.rateOverride || srv.rate || 1.00);
+             if (name.includes('provider travel') && s.qtyOverride) {
+                 travelQty += Number(s.qtyOverride);
+                 travelCost += Number(s.qtyOverride) * rate;
+             }
+             if (name.includes('activity based transport') && s.qtyOverride) {
+                 abtQty += Number(s.qtyOverride);
+                 abtCost += Number(s.qtyOverride) * rate;
+             }
            }
         }
         db.prepare(`UPDATE shifts 
                    SET actual_start_time = ?, actual_finish_time = ?,
                        odometer_start_reading = ?, odometer_end_reading = ?,
-                       provider_travel_km = ?, abt_km = ?
-                   WHERE id = ?`).run(startTime, endTime, start_odometer || null, end_odometer || null, travelQty, abtQty, shiftId);
+                       provider_travel_km = ?, abt_km = ?,
+                       provider_travel_cost = ?, abt_cost = ?
+                   WHERE id = ?`).run(startTime, endTime, start_odometer || null, end_odometer || null, travelQty, abtQty, travelCost, abtCost, shiftId);
       };
 
 
@@ -12352,7 +12361,7 @@ function resolveFilePath(systemName) {
             // Explicitly set 0 so formatting applies, we'll override it with the formula below
             travelCost: isHomeCare
               ? 0
-              : (s.provider_travel_cost || 0) + (s.abt_cost || 0),
+              : ((p_km * 1.00) + ((s.abt_km || 0) * 1.00)),
             startOdo: s.odometer_start_reading || "",
             startPhoto: "",
             endOdo: s.odometer_end_reading || "",
