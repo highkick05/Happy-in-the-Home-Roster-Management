@@ -7110,7 +7110,7 @@ try {
             const name = srv.name.toLowerCase();
             if (name.includes("activity based transport")) {
               isAbtApproved = true;
-              sData.qtyOverride = 0;
+              if (!is_historical) sData.qtyOverride = 0;
             }
             // Provider travel logic is deferred entirely to the async cascade hook
           }
