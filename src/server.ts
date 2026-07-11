@@ -6368,7 +6368,7 @@ try {
                           .includes("activity based transport")
                       ) {
                         isAbtApproved = true;
-                        sData.qtyOverride = 0;
+              sData.qtyOverride = 0;
                       }
                       const histData = getHistoricalServiceData(db, srv, startDateTime.toISOString());
                     }
@@ -6762,7 +6762,7 @@ try {
                         .includes("activity based transport")
                     ) {
                       isAbtApproved = true;
-                      sData.qtyOverride = 0;
+              sData.qtyOverride = 0;
                     }
                     const histData = getHistoricalServiceData(db, srv, tmpl.start_time || tmpl.start || startDateTime.toISOString());
                   }
@@ -7381,6 +7381,7 @@ try {
         providerTravelKm,
         abtKm,
         ignoreConflicts,
+        is_historical,
       } = req.body;
 
       try {
@@ -7500,7 +7501,7 @@ try {
               const name = srv.name.toLowerCase();
               if (name.includes("activity based transport")) {
                 isAbtApproved = true;
-                sData.qtyOverride = 0;
+                if (!is_historical) sData.qtyOverride = 0;
               }
             }
           }
