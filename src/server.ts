@@ -7133,15 +7133,17 @@ try {
       
       const isHist = Boolean(is_historical);
       const shiftStatus = isHist ? 'COMPLETED' : (status || "DRAFT");
-      const actualNotes = isHist ? (notes ? notes + ' [HISTORICAL]' : '[HISTORICAL]') : notes;
+      let actualNotes = notes || "";
+      if (isHist) {
+          if (progress_note) actualNotes += (actualNotes ? "\n" : "") + progress_note;
+          actualNotes += (actualNotes ? " " : "") + "[HISTORICAL]";
+      } else {
+          actualNotes = notes;
+      }
       
       const insertHistoricalData = (shiftId, single) => {
         if (!isHist) return;
         const now = new Date().toISOString();
-        if (progress_note) {
-          db.prepare("INSERT INTO progress_notes (shift_id, note_text, created_by, is_admin_note, is_incident) VALUES (?, ?, ?, 0, 0)")
-            .run(shiftId, progress_note, req.user?.id || 1);
-        }
         let travelQty = 0, abtQty = 0;
         let sData = [];
         try { sData = JSON.parse(single.servicesJson || '[]'); } catch(e){}
