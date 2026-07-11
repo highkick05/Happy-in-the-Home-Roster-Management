@@ -9192,8 +9192,8 @@ try {
             (totals.providerTravelKm || 0) + (isHomeCare ? 0 : prov_km);
           totals.abtKm = (totals.abtKm || 0) + (isHomeCare ? 0 : abt_km);
 
-          const rowProvReimbursement = parseFloat((prov_km * 0.99).toFixed(2));
-          const rowAbtReimbursement = parseFloat((abt_km * 0.99).toFixed(2));
+          const rowProvReimbursement = parseFloat((prov_km * 1.00).toFixed(2));
+          const rowAbtReimbursement = parseFloat((abt_km * 1.00).toFixed(2));
           const shiftTravelPay = isHomeCare
             ? 0
             : rowProvReimbursement + rowAbtReimbursement;
@@ -12098,7 +12098,7 @@ function resolveFilePath(systemName) {
           params.push(et, et);
         }
 
-        query += ` ORDER BY s.actual_start_time DESC`;
+        query += ` ORDER BY COALESCE(s.actual_start_time, s.start_time) DESC`;
 
         const shifts = db.prepare(query).all(...params) as any[];
 
@@ -12153,7 +12153,7 @@ function resolveFilePath(systemName) {
           params.push(et, et);
         }
 
-        query += ` ORDER BY s.actual_start_time DESC`;
+        query += ` ORDER BY COALESCE(s.actual_start_time, s.start_time) DESC`;
 
         const shifts = db.prepare(query).all(...params) as any[];
 
@@ -12284,7 +12284,7 @@ function resolveFilePath(systemName) {
 
         for (let i = 0; i < shifts.length; i++) {
           const s = shifts[i];
-          let dateStr = s.start_time ? s.start_time.split("T")[0] : "";
+          let dateStr = s.start_time ? (s.start_time.split("T")[0].includes("-") ? s.start_time.split("T")[0].split("-").reverse().join("-") : s.start_time.split("T")[0]) : "";
 
           const st = (s.actual_start_time || s.start_time || "").split("T")[1];
           const et = (s.actual_finish_time || s.end_time || "").split("T")[1];

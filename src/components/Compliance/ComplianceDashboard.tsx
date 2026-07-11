@@ -47,9 +47,9 @@ export default function ComplianceDashboard() {
       const year = parts.find(p => p.type === 'year')?.value;
       const month = parts.find(p => p.type === 'month')?.value;
       const day = parts.find(p => p.type === 'day')?.value;
-      return `${year}-${month}-${day}`;
+      return `${day}-${month}-${year}`;
     } catch (e) {
-      return isoString.split('T')[0] || 'N/A';
+      const fb = isoString.split('T')[0] || 'N/A'; return fb.includes('-') ? fb.split('-').reverse().join('-') : fb;
     }
   };
 
