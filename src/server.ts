@@ -6880,8 +6880,7 @@ try {
           data = getInvoiceDataForShift(invoiceRow.shift_id);
         }
 
-        if (!data)
-          return res.status(404).json({ error: "Invoice data not found" });
+        if (!data) return res.status(404).json({ error: "Invoice data not found" });
         res.json({ success: true, data });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -10534,6 +10533,20 @@ try {
         if (!invoiceRow)
           return res.status(404).json({ error: "Invoice not found" });
 
+        if (!invoiceRow.services_json && !invoiceRow.respite_booking_id && !invoiceRow.shift_id && invoiceRow.file_path) {
+          const client = db.prepare("SELECT first_name, last_name FROM clients WHERE id = ?").get(invoiceRow.client_id) as any;
+          if (!client) return res.status(404).json({ error: "Client not found" });
+          
+          const clientNameSafe = `${client.first_name || ""} ${client.last_name || ""}`.trim().replace(/[\\/\\]/g, "");
+          const filePath = path.join(UPLOADS_DIR, "Clients", clientNameSafe, "Invoices", invoiceRow.file_path);
+          
+          if (!fs.existsSync(filePath)) {
+            console.error("Historical invoice file not found:", filePath);
+            return res.status(404).json({ error: "File not found" });
+          }
+          return res.download(filePath, invoiceRow.file_path);
+        }
+
         let data: any = null;
         if (invoiceRow.services_json) {
           data = getInvoiceDataForMergedInvoice(invoiceRow);
@@ -10543,8 +10556,7 @@ try {
           data = getInvoiceDataForShift(invoiceRow.shift_id);
         }
 
-        if (!data)
-          return res.status(404).json({ error: "Invoice data not found" });
+        if (!data) return res.status(404).json({ error: "Invoice data not found" });
         if (data.lineItems.length === 0)
           return res.status(400).json({ error: "No billable items" });
 
