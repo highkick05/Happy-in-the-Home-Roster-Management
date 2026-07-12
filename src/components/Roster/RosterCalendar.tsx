@@ -552,7 +552,7 @@ export default function RosterCalendar() {
   };
 
   const handleAddHistShift = () => {
-    setSelectedEventInfo(null);
+    setInitialShiftData(null);
     setIsHistShiftModalOpen(true);
   };
 
@@ -1117,8 +1117,12 @@ export default function RosterCalendar() {
       <AddHistoricalShiftModal 
         isOpen={isHistShiftModalOpen}
         onClose={() => setIsHistShiftModalOpen(false)}
-        initialData={selectedEventInfo}
-        onSave={fetchShifts}
+        initialData={initialShiftData}
+        onSave={fetchData}
+        staffList={staffList}
+        clientList={clientList}
+        servicesList={servicesList}
+        holidays={holidays}
       />
       <AddShiftModal 
         isOpen={isShiftModalOpen}
