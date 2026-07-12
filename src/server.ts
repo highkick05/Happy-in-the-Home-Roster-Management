@@ -367,6 +367,17 @@ try {
   try {
     db.exec("ALTER TABLE invoices ADD COLUMN services_json TEXT");
     console.log("[DEBUG] Completed invoices.services_json column check.");
+  try {
+    const shiftCols = db.pragma("table_info(shifts)") as any[];
+    const hasProgressNote = shiftCols.some((c: any) => c.name === "progress_note");
+    if (!hasProgressNote) {
+      db.exec("ALTER TABLE shifts ADD COLUMN progress_note TEXT");
+      console.log("[DEBUG] Completed shifts.progress_note column check.");
+    }
+  } catch (e: any) {
+    console.warn("Migration warning for shifts.progress_note:", e.message);
+  }
+
   } catch (e: any) {
     if (e.message && !e.message.includes("duplicate column")) {
       console.warn("Migration warning:", e.message);
@@ -7176,9 +7187,9 @@ try {
         db.prepare(`UPDATE shifts 
                    SET actual_start_time = ?, actual_finish_time = ?,
                        odometer_start_reading = ?, odometer_end_reading = ?,
-                       provider_travel_km = ?, abt_km = ?,
+                       provider_travel_km = ?, abt_km = ?, progress_note = ?,
                        provider_travel_cost = ?, abt_cost = ?
-                   WHERE id = ?`).run(startTime, endTime, start_odometer || null, end_odometer || null, travelQty, abtQty, travelCost, abtCost, shiftId);
+                   WHERE id = ?`).run(startTime, endTime, start_odometer || null, end_odometer || null, travelQty, abtQty, progress_note || null, travelCost, abtCost, shiftId);
       };
 
 

@@ -60,9 +60,21 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
       setEndDate(endD);
       setStartTime(startT);
       setEndTime(endT);
-      setNotes(initialData?.notes || '');
-      setIsHistorical(!!initialData?.isHistorical);
-      setProgressNote(initialData?.progressNote || '');
+      
+      let pNote = initialData?.progressNote || '';
+      let cNotes = initialData?.notes || '';
+      const isHistCheck = !!initialData?.isHistorical || (initialData?.status === 'COMPLETED' && cNotes.includes('[HISTORICAL]'));
+      setIsHistorical(isHistCheck);
+      
+      if (!pNote && cNotes.includes('[HISTORICAL]')) {
+         cNotes = cNotes.replace('[HISTORICAL]', '').trim();
+         pNote = cNotes;
+         cNotes = '';
+      }
+      
+      setNotes(cNotes);
+      setProgressNote(pNote);
+  
       setStartOdometer(initialData?.startOdometer ? initialData.startOdometer.toString() : '');
       setEndOdometer(initialData?.endOdometer ? initialData.endOdometer.toString() : '');
       
@@ -373,7 +385,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
             
             {/* Left Column: Core Info */}
             <div className="md:w-[320px] shrink-0 space-y-4">
-              {(!initialData?.id || initialData?.isHistorical) && (
+              {(!initialData?.id || isHistorical) && (
                 <>
                   <div className="flex items-center justify-between bg-[#18181b] p-3 rounded-lg border border-amber-500/30">
                 <div>
@@ -598,7 +610,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                                 type="number"
                                 min="0.00"
                                 step="0.01"
-                                value={s.rateOverride || ''}
+                                value={s.rateOverride !== undefined && s.rateOverride !== null ? s.rateOverride : ''}
                                 onChange={(e) => updateServiceEntry(index, 'rateOverride', e.target.value)}
                                 placeholder={`$${rate.toFixed(2)}`}
                                 className="w-24 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
@@ -615,7 +627,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                                   type="number"
                                   min="0.01"
                                   step="0.01"
-                                  value={s.qtyOverride || ''}
+                                  value={s.qtyOverride !== undefined && s.qtyOverride !== null ? s.qtyOverride : ''}
                                   onChange={(e) => updateServiceEntry(index, 'qtyOverride', e.target.value)}
                                   placeholder={String(effectiveQty)}
                                   className="w-16 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
