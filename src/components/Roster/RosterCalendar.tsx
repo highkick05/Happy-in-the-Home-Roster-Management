@@ -1037,25 +1037,25 @@ export default function RosterCalendar() {
                     {/* Primary Actions */}
                     <div className="flex items-center gap-2">
                       <button 
-                        onClick={handleAddRespiteBooking}
-                        className="flex items-center justify-center px-3 py-1.5 bg-violet-600 hover:bg-violet-500 border border-violet-400/50 text-white text-[13px] font-medium rounded-md transition-all shadow-[inset_0px_1px_rgba(255,255,255,0.2)] w-full sm:w-auto"
-                      >
-                        <Bed className="w-4 h-4 mr-1.5" />
-                        STA / Respite
-                      </button>
-                      <button 
-                        onClick={handleAddHistShift}
-                        className="flex items-center justify-center px-3 py-1.5 bg-amber-500/20 text-amber-500 hover:bg-amber-500/30 border border-amber-500/50 text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-auto"
-                      >
-                        <Plus className="w-4 h-4 mr-1.5" />
-                        Add Historical
-                      </button>
-                      <button 
                         onClick={handleAddShift}
-                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-auto"
+                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-[170px]"
                       >
                         <Plus className="w-4 h-4 mr-1.5" />
                         Add Shift
+                      </button>
+                      <button 
+                        onClick={handleAddRespiteBooking}
+                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-[170px]"
+                      >
+                        <Bed className="w-4 h-4 mr-1.5" />
+                        Add Respite / STA
+                      </button>
+                      <button 
+                        onClick={handleAddHistShift}
+                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-[170px]"
+                      >
+                        <Plus className="w-4 h-4 mr-1.5" />
+                        Add Historical Shift
                       </button>
                     </div>
                   </>
