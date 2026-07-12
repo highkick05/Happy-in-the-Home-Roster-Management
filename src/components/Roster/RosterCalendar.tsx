@@ -955,100 +955,114 @@ export default function RosterCalendar() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0 px-2 md:px-0 mt-2 md:mt-0">
         <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight mb-6 md:mb-0">Roster Management</h2>
         
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
           {user?.role === 'ADMIN' && (
-            <>
-              <select
-                value={groupBy}
-                onChange={(e) => setGroupBy(e.target.value as 'STAFF' | 'CLIENT')}
-                className="bg-brand-bg border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
-              >
-                <option value="STAFF">Group by Staff</option>
-                <option value="CLIENT">Group by Client</option>
-              </select>
+            <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
+              {/* Filters Group */}
+              <div className="flex flex-wrap items-center gap-2 p-1 bg-black/20 rounded-lg border border-white/5 w-full sm:w-auto">
+                <select
+                  value={groupBy}
+                  onChange={(e) => setGroupBy(e.target.value as 'STAFF' | 'CLIENT')}
+                  className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[13px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
+                >
+                  <option value="STAFF">Group by Staff</option>
+                  <option value="CLIENT">Group by Client</option>
+                </select>
 
-              <select
-                value={clientFilter}
-                onChange={(e) => setClientFilter(e.target.value)}
-                className="bg-brand-bg border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
-              >
-                <option value="">All Clients</option>
-                {clientList.map(c => (
-                  <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
-                ))}
-              </select>
+                <select
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value)}
+                  className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[13px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
+                >
+                  <option value="">All Clients</option>
+                  {clientList.map(c => (
+                    <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
+                  ))}
+                </select>
 
-              <select
-                value={staffFilter}
-                onChange={(e) => setStaffFilter(e.target.value)}
-                className="bg-brand-bg border border-border-subtle rounded-md px-3 py-2 text-[13px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
-              >
-                <option value="">All Staff</option>
-                <option value="unassigned">Unassigned Staff</option>
-                {staffList.map(s => (
-                  <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
-                ))}
-              </select>
+                <select
+                  value={staffFilter}
+                  onChange={(e) => setStaffFilter(e.target.value)}
+                  className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[13px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
+                >
+                  <option value="">All Staff</option>
+                  <option value="unassigned">Unassigned Staff</option>
+                  {staffList.map(s => (
+                    <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+                  ))}
+                </select>
+              </div>
 
-              {multiSelectMode ? (
-                <div className="flex items-center space-x-2 w-full sm:w-auto bg-brand-bg rounded p-1 border border-brand-teal/30">
-                   <span className="text-xs font-semibold px-2 text-brand-teal whitespace-nowrap">{selectedEventIds.size} Selected</span>
-                   
-                   {confirmDeleteBatch ? (
-                     <>
-                       <span className="text-xs text-zinc-300 px-2 border-l border-border-subtle whitespace-nowrap">Are you sure?</span>
-                       <button onClick={() => handleBatchAction('delete', true)} disabled={batchActionLoading} className="px-3 py-1.5 bg-red-600/80 hover:bg-red-600 text-white rounded-md text-[12px] font-medium disabled:opacity-50 whitespace-nowrap transition-colors">Yes, Delete</button>
-                       <button onClick={() => setConfirmDeleteBatch(false)} disabled={batchActionLoading} className="px-3 py-1.5 bg-brand-navy hover:bg-[#1f262e] border border-border-subtle text-white rounded-md text-[12px] font-medium disabled:opacity-50 whitespace-nowrap transition-colors">No</button>
-                     </>
-                   ) : (
-                     <div className="flex gap-1 overflow-x-auto">
-                       <button onClick={() => handleBatchAction('publish')} disabled={batchActionLoading} className="px-3 py-1.5 bg-brand-navy border border-border-subtle hover:border-brand-blue text-[#E6EDF3] rounded-md text-[12px] font-medium disabled:opacity-50 whitespace-nowrap transition-colors">Publish</button>
-                       <button onClick={() => handleBatchAction('unpublish')} disabled={batchActionLoading} className="px-3 py-1.5 bg-brand-navy border border-border-subtle hover:border-brand-blue text-[#E6EDF3] rounded-md text-[12px] font-medium disabled:opacity-50 whitespace-nowrap transition-colors">Unpublish</button>
-                       <button onClick={() => handleBatchAction('delete')} disabled={batchActionLoading} className="px-3 py-1.5 bg-red-600/80 hover:bg-red-600 text-white rounded-md text-[12px] font-medium disabled:opacity-50 whitespace-nowrap transition-colors">Delete</button>
-                       <button onClick={() => { setMultiSelectMode(false); setSelectedEventIds(new Set()); }} disabled={batchActionLoading} className="px-3 py-1.5 bg-brand-navy border border-border-subtle hover:border-brand-blue text-[#E6EDF3] rounded-md text-[12px] font-medium disabled:opacity-50 whitespace-nowrap transition-colors">Cancel</button>
-                     </div>
-                   )}
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                  <button 
-                    onClick={() => setMultiSelectMode(true)}
-                    className="flex items-center justify-center px-4 py-2 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[13px] font-medium rounded-md transition-colors w-full sm:w-auto"
-                  >
-                    Select Mode
-                  </button>
-                  <button 
-                    onClick={handleAddRespiteBooking}
-                    className="flex items-center justify-center px-4 py-2 bg-violet-600 hover:bg-violet-500 border border-violet-400/50 text-white text-[13px] font-medium rounded-md transition-all shadow-[inset_0px_1px_rgba(255,255,255,0.2)] w-full sm:w-auto"
-                  >
-                    <Bed className="w-4 h-4 mr-2" />
-                    STA / Respite
-                  </button>
-                  <button 
-                    onClick={handleAddHistShift}
-                    className="flex items-center justify-center px-4 py-2 bg-amber-500/20 text-amber-500 hover:bg-amber-500/30 border border-amber-500/50 text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-auto"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Historical Shift
-                  </button>
-                  <button 
-                    onClick={handleAddShift}
-                    className="flex items-center justify-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-auto"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Shift
-                  </button>
-                  <button 
-                    onClick={handlePublishDrafts}
-                    className="flex items-center justify-center px-4 py-2 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[13px] font-medium rounded-md transition-colors w-full sm:w-auto"
-                  >
-                    Publish Drafts
-                  </button>
-                </div>
-              )}
-            </>
+              {/* Action Group */}
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                {multiSelectMode ? (
+                  <div className="flex items-center space-x-2 w-full sm:w-auto bg-brand-bg rounded p-1 border border-brand-teal/30"> 
+                    <span className="text-xs font-semibold px-2 text-brand-teal whitespace-nowrap">{selectedEventIds.size} Selected</span>
+                    
+                    {confirmDeleteBatch ? (
+                      <>
+                        <span className="text-xs text-zinc-300 px-2 border-l border-border-subtle whitespace-nowrap">Are you sure?</span>
+                        <button onClick={() => handleBatchAction('delete', true)} disabled={batchActionLoading} className="px-3 py-1.5 bg-red-600/80 hover:bg-red-600 text-white rounded-md text-[12px] font-medium disabled:opacity-50 whitespace-nowrap transition-colors">Yes, Delete</button>
+                        <button onClick={() => setConfirmDeleteBatch(false)} disabled={batchActionLoading} className="px-3 py-1.5 bg-brand-navy hover:bg-[#1f262e] border border-border-subtle text-white rounded-md text-[12px] font-medium disabled:opacity-50 whitespace-nowrap transition-colors">No</button>
+                      </>
+                    ) : (
+                      <div className="flex gap-1 overflow-x-auto">
+                        <button onClick={() => handleBatchAction('publish')} disabled={batchActionLoading} className="px-3 py-1.5 bg-brand-navy border border-border-subtle hover:border-brand-blue text-[#E6EDF3] rounded-md text-[12px] font-medium disabled:opacity-50 whitespace-nowrap transition-colors">Publish</button>
+                        <button onClick={() => handleBatchAction('unpublish')} disabled={batchActionLoading} className="px-3 py-1.5 bg-brand-navy border border-border-subtle hover:border-brand-blue text-[#E6EDF3] rounded-md text-[12px] font-medium disabled:opacity-50 whitespace-nowrap transition-colors">Unpublish</button>
+                        <button onClick={() => handleBatchAction('delete')} disabled={batchActionLoading} className="px-3 py-1.5 bg-red-600/80 hover:bg-red-600 text-white rounded-md text-[12px] font-medium disabled:opacity-50 whitespace-nowrap transition-colors">Delete</button>
+                        <button onClick={() => { setMultiSelectMode(false); setSelectedEventIds(new Set()); }} disabled={batchActionLoading} className="px-3 py-1.5 bg-brand-navy border border-border-subtle hover:border-brand-blue text-[#E6EDF3] rounded-md text-[12px] font-medium disabled:opacity-50 whitespace-nowrap transition-colors">Cancel</button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Secondary Actions */}
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setMultiSelectMode(true)}
+                        className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[13px] font-medium rounded-md transition-colors w-full sm:w-auto"
+                      >
+                        Select Mode
+                      </button>
+                      <button 
+                        onClick={handlePublishDrafts}
+                        className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[13px] font-medium rounded-md transition-colors w-full sm:w-auto"
+                      >
+                        Publish Drafts
+                      </button>
+                    </div>
+
+                    <div className="w-px h-6 bg-white/10 hidden sm:block mx-1"></div>
+                    
+                    {/* Primary Actions */}
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={handleAddRespiteBooking}
+                        className="flex items-center justify-center px-3 py-1.5 bg-violet-600 hover:bg-violet-500 border border-violet-400/50 text-white text-[13px] font-medium rounded-md transition-all shadow-[inset_0px_1px_rgba(255,255,255,0.2)] w-full sm:w-auto"
+                      >
+                        <Bed className="w-4 h-4 mr-1.5" />
+                        STA / Respite
+                      </button>
+                      <button 
+                        onClick={handleAddHistShift}
+                        className="flex items-center justify-center px-3 py-1.5 bg-amber-500/20 text-amber-500 hover:bg-amber-500/30 border border-amber-500/50 text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-auto"
+                      >
+                        <Plus className="w-4 h-4 mr-1.5" />
+                        Add Historical
+                      </button>
+                      <button 
+                        onClick={handleAddShift}
+                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-auto"
+                      >
+                        <Plus className="w-4 h-4 mr-1.5" />
+                        Add Shift
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           )}
-          
           {user?.role === 'ADMIN' && (
             <button 
               onClick={() => setIsFullScreen(!isFullScreen)}

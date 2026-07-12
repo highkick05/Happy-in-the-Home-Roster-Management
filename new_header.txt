@@ -1,19 +1,4 @@
-const fs = require('fs');
-let code = fs.readFileSync('src/components/Roster/RosterCalendar.tsx', 'utf-8');
-
-const regex = /<div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">[\s\S]*?\{\/\* End of ADMIN block \*\/\}/;
-
-// I'll just use indexOf to find the start and end of the block.
-const startStr = '<div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">';
-const endStr = `</>\n          )}\n        </div>`;
-
-const startIdx = code.indexOf(startStr);
-const endIdx = code.indexOf(endStr, startIdx);
-
-if (startIdx !== -1 && endIdx !== -1) {
-    const oldBlock = code.substring(startIdx, endIdx + endStr.length);
-    
-const newHeaderBlock = \`<div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
+        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
           {user?.role === 'ADMIN' && (
             <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
               {/* Filters Group */}
@@ -26,6 +11,7 @@ const newHeaderBlock = \`<div className="flex flex-wrap items-center gap-3 w-ful
                   <option value="STAFF">Group by Staff</option>
                   <option value="CLIENT">Group by Client</option>
                 </select>
+
                 <select
                   value={clientFilter}
                   onChange={(e) => setClientFilter(e.target.value)}
@@ -36,6 +22,7 @@ const newHeaderBlock = \`<div className="flex flex-wrap items-center gap-3 w-ful
                     <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
                   ))}
                 </select>
+
                 <select
                   value={staffFilter}
                   onChange={(e) => setStaffFilter(e.target.value)}
@@ -119,11 +106,3 @@ const newHeaderBlock = \`<div className="flex flex-wrap items-center gap-3 w-ful
               </div>
             </div>
           )}
-        </div>\`;
-
-    code = code.replace(oldBlock, newHeaderBlock);
-    fs.writeFileSync('src/components/Roster/RosterCalendar.tsx', code);
-    console.log("Updated header block!");
-} else {
-    console.log("Could not find start or end block.");
-}
