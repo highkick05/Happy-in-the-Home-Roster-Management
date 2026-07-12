@@ -1,3 +1,4 @@
+import { useDropzone } from 'react-dropzone';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { FileText, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle, X, Upload } from 'lucide-react';
