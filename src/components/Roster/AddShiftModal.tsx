@@ -61,6 +61,10 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
       setStartTime(startT);
       setEndTime(endT);
       setNotes(initialData?.notes || '');
+      setIsHistorical(initialData?.status === 'COMPLETED');
+      setProgressNote(initialData?.progressNote || '');
+      setStartOdometer(initialData?.startOdometer ? initialData.startOdometer.toString() : '');
+      setEndOdometer(initialData?.endOdometer ? initialData.endOdometer.toString() : '');
       
       if (startD && startT && endD && endT) {
          const start = new Date(`${startD}T${startT}:00`);

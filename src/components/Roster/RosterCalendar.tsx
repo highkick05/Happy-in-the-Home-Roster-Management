@@ -230,6 +230,9 @@ export default function RosterCalendar() {
           transportRouteLog: d.transport_route_log,
           actualStartTime: d.actual_start_time,
           actualFinishTime: d.actual_finish_time,
+          progressNote: d.progress_note,
+          startOdometer: d.odometer_start_reading,
+          endOdometer: d.odometer_end_reading,
         }));
         
         const mappedRespites: any[] = [];
@@ -1175,6 +1178,10 @@ export default function RosterCalendar() {
               startTime: new Date(shift.start).toTimeString().slice(0, 5),
               endTime: new Date(shift.end).toTimeString().slice(0, 5),
               servicesData: shift.servicesData,
+              status: shift.status,
+              progressNote: shift.progressNote,
+              startOdometer: shift.startOdometer,
+              endOdometer: shift.endOdometer,
             });
             setIsShiftModalOpen(true);
           }
