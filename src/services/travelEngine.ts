@@ -148,7 +148,14 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
                  console.error('[DEBUG CASCADE] NDIS JSON parse error:', e);
              }
              for (const sData of servicesData) {
-                 const service = db.prepare('SELECT name, unit FROM services WHERE id = ?').get(sData.serviceId) as any;
+                 let service = db.prepare('SELECT id, name, unit, status, code, type FROM services WHERE id = ?').get(sData.serviceId) as any;
+                 if (service && service.status === 'ARCHIVED') {
+                     const activeSrv = db.prepare("SELECT id, name, unit, status, code, type FROM services WHERE code = ? AND type = ? AND (status IS NULL OR status != 'ARCHIVED') ORDER BY id DESC LIMIT 1").get(service.code, service.type) as any;
+                     if (activeSrv) {
+                         service = activeSrv;
+                         sData.serviceId = activeSrv.id;
+                     }
+                 }
                  if (service && service.name && service.name.toLowerCase().includes('provider travel')) {
                      sData.qtyOverride = parseFloat(pTravel.distance.toFixed(2));
                  }

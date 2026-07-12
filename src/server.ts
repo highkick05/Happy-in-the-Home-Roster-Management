@@ -6368,15 +6368,7 @@ try {
                   servicesData = JSON.parse(tmpl.services_json);
                   for (let sData of servicesData) {
                     if (sData.serviceId && !sData.isCustom && !String(sData.serviceId).startsWith("custom-")) {
-                      if (masterPl && masterPl.effective_date && shiftDateStr < masterPl.effective_date.split('T')[0]) {
-                        const currentSrv = db.prepare("SELECT * FROM services WHERE id = ?").get(sData.serviceId) as any;
-                        if (currentSrv && currentSrv.type === "NDIS" && currentSrv.code) {
-                          const historicalSrv = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' AND status = 'ARCHIVED' AND id < ? ORDER BY id DESC LIMIT 1").get(currentSrv.code, currentSrv.id) as any;
-                          if (historicalSrv) {
-                            sData.serviceId = historicalSrv.id;
-                          }
-                        }
-                      }
+
                     }
                     const srv = db
                       .prepare(
@@ -6401,15 +6393,7 @@ try {
               } else if (tmpl.service_id) {
                 servicesData = [{ serviceId: tmpl.service_id }];
                 if (servicesData[0].serviceId) {
-                  if (masterPl && masterPl.effective_date && shiftDateStr < masterPl.effective_date.split('T')[0]) {
-                    const currentSrv = db.prepare("SELECT * FROM services WHERE id = ?").get(servicesData[0].serviceId) as any;
-                    if (currentSrv && currentSrv.type === "NDIS" && currentSrv.code) {
-                      const historicalSrv = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' AND status = 'ARCHIVED' AND id < ? ORDER BY id DESC LIMIT 1").get(currentSrv.code, currentSrv.id) as any;
-                      if (historicalSrv) {
-                        servicesData[0].serviceId = historicalSrv.id;
-                      }
-                    }
-                  }
+
                 }
                 const srv = db
                   .prepare(
@@ -6943,8 +6927,15 @@ try {
           if (Array.isArray(parsed)) {
              for (const sd of parsed) {
                  if (sd.serviceId && !sd.serviceName) {
-                     const srv = db.prepare("SELECT name, code, type, rate, unit, rates_json FROM services WHERE id = ?").get(sd.serviceId) as any;
+                     let srv = db.prepare("SELECT id, name, code, type, rate, unit, rates_json, status FROM services WHERE id = ?").get(sd.serviceId) as any;
                      if (srv) {
+                         if (srv.status === 'ARCHIVED') {
+                             const activeSrv = db.prepare("SELECT id, name, code, type, rate, unit, rates_json FROM services WHERE code = ? AND type = ? AND (status IS NULL OR status != 'ARCHIVED') ORDER BY id DESC LIMIT 1").get(srv.code, srv.type) as any;
+                             if (activeSrv) {
+                                 srv = activeSrv;
+                                 sd.serviceId = activeSrv.id;
+                             }
+                         }
                          const hist = getHistoricalServiceData(db, srv, s.start_time);
                          sd.serviceName = srv.name;
                          sd.serviceCode = srv.code;
@@ -6971,8 +6962,15 @@ try {
         if (Array.isArray(parsed)) {
            for (const sd of parsed) {
                if (sd.serviceId && !sd.serviceName) {
-                   const srv = db.prepare("SELECT name, code, type, rate, unit, rates_json FROM services WHERE id = ?").get(sd.serviceId) as any;
+                   let srv = db.prepare("SELECT id, name, code, type, rate, unit, rates_json, status FROM services WHERE id = ?").get(sd.serviceId) as any;
                      if (srv) {
+                         if (srv.status === 'ARCHIVED') {
+                             const activeSrv = db.prepare("SELECT id, name, code, type, rate, unit, rates_json FROM services WHERE code = ? AND type = ? AND (status IS NULL OR status != 'ARCHIVED') ORDER BY id DESC LIMIT 1").get(srv.code, srv.type) as any;
+                             if (activeSrv) {
+                                 srv = activeSrv;
+                                 sd.serviceId = activeSrv.id;
+                             }
+                         }
                          const hist = getHistoricalServiceData(db, srv, s.start_time);
                          sd.serviceName = srv.name;
                          sd.serviceCode = srv.code;
@@ -7035,20 +7033,7 @@ try {
           shiftDate = `${year}-${month}-${day}`;
         } catch(e) {}
         
-        const masterPl = db.prepare("SELECT effective_date FROM price_lists WHERE is_master = 1").get() as any;
-        if (masterPl && masterPl.effective_date && shiftDate < masterPl.effective_date.split('T')[0]) {
-          for (let sd of servicesData) {
-            if (sd.serviceId && !sd.isCustom && !String(sd.serviceId).startsWith("custom-")) {
-              const currentSrv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
-              if (currentSrv && currentSrv.type === "NDIS" && currentSrv.code) {
-                const historicalSrv = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' AND status = 'ARCHIVED' AND id < ? ORDER BY id DESC LIMIT 1").get(currentSrv.code, currentSrv.id) as any;
-                if (historicalSrv) {
-                  sd.serviceId = historicalSrv.id;
-                }
-              }
-            }
-          }
-        }
+
       }
 
       const mainServiceId =
@@ -7506,20 +7491,7 @@ try {
             shiftDate = `${year}-${month}-${day}`;
           } catch(e) {}
 
-          const masterPl = db.prepare("SELECT effective_date FROM price_lists WHERE is_master = 1").get() as any;
-          if (masterPl && masterPl.effective_date && shiftDate < masterPl.effective_date.split('T')[0]) {
-            for (let sd of servicesData) {
-              if (sd.serviceId && !sd.isCustom && !String(sd.serviceId).startsWith("custom-")) {
-                const currentSrv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
-                if (currentSrv && currentSrv.type === "NDIS" && currentSrv.code) {
-                  const historicalSrv = db.prepare("SELECT id FROM services WHERE code = ? AND type = 'NDIS' AND status = 'ARCHIVED' AND id < ? ORDER BY id DESC LIMIT 1").get(currentSrv.code, currentSrv.id) as any;
-                  if (historicalSrv) {
-                    sd.serviceId = historicalSrv.id;
-                  }
-                }
-              }
-            }
-          }
+
         }
 
         let processedServicesData = servicesData

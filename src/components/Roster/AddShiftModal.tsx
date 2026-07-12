@@ -107,6 +107,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
     }
   }, [isOpen, initialData]);
 
+  console.log("DEBUG SERVICES:", servicesData, "LIST:", servicesList.map(x=>x.id), "CLIENT:", selectedClient?.service_ids);
   const shiftHours = useMemo(() => {
     if (!startTime || !endTime || !startDate || !endDate) return 0;
     const start = new Date(`${startDate}T${startTime}:00`);
@@ -310,7 +311,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
         notes: notes,
         servicesData: servicesData.map(s => ({
             ...s,
-            serviceId: parseInt(s.serviceId)
+            serviceId: s.serviceId ? parseInt(s.serviceId, 10) : null
         })),
         ignoreConflicts
       };
