@@ -695,10 +695,10 @@ export default function ComplianceDashboard() {
                              </td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{km} km</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">
-                               {row.odometer_start_reading || ''} {row.odometer_start_photo ? '📸' : ''}
+                               {row.odometer_start_reading ? Math.round(Number(row.odometer_start_reading)) : ''} {row.odometer_start_photo ? '📸' : ''}
                              </td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">
-                               {row.odometer_end_reading || ''} {row.odometer_end_photo ? '📸' : ''}
+                               {row.odometer_end_reading ? Math.round(Number(row.odometer_end_reading)) : ''} {row.odometer_end_photo ? '📸' : ''}
                              </td>
                              <td className="px-4 py-2 whitespace-nowrap font-mono text-xs text-emerald-400 tracking-tight">
                                 {(row.funding_type === 'HOME_CARE' || row.funding_type === 'Home Care' || row.funding_type === 'HCP') 

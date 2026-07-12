@@ -26,6 +26,11 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
 
     for (let i = 0; i < shifts.length; i++) {
       const currentShift = shifts[i];
+
+      if (currentShift.is_historical === 1) {
+        console.log(`[DEBUG CASCADE] Skipping recalculation for historical shift ${currentShift.id}`);
+        continue;
+      }
       
       const isHomeCare = (currentShift.funding_type === 'HCP' || currentShift.funding_type === 'Home Care' || currentShift.funding_type === 'HOME_CARE');
       

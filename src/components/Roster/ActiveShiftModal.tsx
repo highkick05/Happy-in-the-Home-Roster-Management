@@ -189,7 +189,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
         },
         body: JSON.stringify({
           actual_start_time: new Date().toISOString(),
-          odometer_start_reading: odometerReading,
+          odometer_start_reading: odometerReading ? Math.round(Number(odometerReading)).toString() : '',
           odometer_start_photo: odometerPhoto
         })
       });
@@ -285,7 +285,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
       actual_finish_time: actualFinish.toISOString(),
       notes: notes,
       abtCoordinates: resolvedWaypoints,
-      odometer_end_reading: odometerReading,
+      odometer_end_reading: odometerReading ? Math.round(Number(odometerReading)).toString() : '',
       odometer_end_photo: odometerPhoto
     };
 
@@ -559,6 +559,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                         <div>
                           <input 
                             type="number" 
+                            step="1"
                             placeholder="e.g. 85000"
                             className="w-full bg-black/50 border border-indigo-500/30 rounded-xl py-3 px-4 text-base md:text-lg text-white focus:outline-none focus:border-brand-teal shadow-inner transition-colors"
                             value={odometerReading}
@@ -721,6 +722,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                         <div>
                           <input 
                             type="number" 
+                            step="1"
                             placeholder="e.g. 85025"
                             className="w-full bg-[#09090b] border border-white/[0.08] rounded-xl py-2 px-3 text-base md:text-lg text-white focus:outline-none focus:border-brand-green shadow-inner transition-colors"
                             value={odometerReading}

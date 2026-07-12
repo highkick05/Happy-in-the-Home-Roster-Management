@@ -299,8 +299,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
       const bodyData: any = {
       is_historical: isHistorical,
       progress_note: progressNote,
-      start_odometer: startOdometer ? Number(startOdometer) : null,
-      end_odometer: endOdometer ? Number(endOdometer) : null,
+      start_odometer: startOdometer ? Math.round(Number(startOdometer)) : null,
+      end_odometer: endOdometer ? Math.round(Number(endOdometer)) : null,
 
         staffId: staffId ? parseInt(staffId) : null,
         clientId: parseInt(clientId),
@@ -418,6 +418,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                       <label className="block text-[12px] font-medium text-amber-500 mb-1.5">Start Odo</label>
                       <input 
                         type="number"
+                        step="1"
                         value={startOdometer}
                         onChange={e => setStartOdometer(e.target.value)}
                         className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
@@ -428,6 +429,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                       <label className="block text-[12px] font-medium text-amber-500 mb-1.5">End Odo</label>
                       <input 
                         type="number"
+                        step="1"
                         value={endOdometer}
                         onChange={e => setEndOdometer(e.target.value)}
                         className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"

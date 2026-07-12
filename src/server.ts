@@ -203,6 +203,7 @@ async function startServer() {
           is_abt_approved INTEGER DEFAULT 0,
           travel_breakdown TEXT,
           is_historical INTEGER DEFAULT 0,
+          progress_note TEXT,
           FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE RESTRICT,
           FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
           FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE RESTRICT,
@@ -7536,7 +7537,8 @@ try {
               const name = srv.name.toLowerCase();
               if (name.includes("activity based transport")) {
                 isAbtApproved = true;
-                if (!is_historical) sData.qtyOverride = 0;
+                const isHist = is_historical || (is_historical === undefined && existing.status === 'COMPLETED');
+                if (!isHist) sData.qtyOverride = 0;
               }
             }
           }
