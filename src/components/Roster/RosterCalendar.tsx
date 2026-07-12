@@ -48,6 +48,10 @@ export interface ShiftEvent {
   isRespiteWrapper?: boolean;
   isRespiteChild?: boolean;
   respiteBookingId?: number;
+  progressNote?: string;
+  startOdometer?: string | number;
+  endOdometer?: string | number;
+  isHistorical?: number;
   respiteData?: any;
   notes?: string;
   servicesData?: any[];

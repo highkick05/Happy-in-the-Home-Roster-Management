@@ -61,7 +61,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
       setStartTime(startT);
       setEndTime(endT);
       setNotes(initialData?.notes || '');
-      setIsHistorical(initialData?.isHistorical === 1);
+      setIsHistorical(!!initialData?.isHistorical);
       setProgressNote(initialData?.progressNote || '');
       setStartOdometer(initialData?.startOdometer ? initialData.startOdometer.toString() : '');
       setEndOdometer(initialData?.endOdometer ? initialData.endOdometer.toString() : '');
@@ -135,6 +135,9 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
           const region = settings?.ndisRegion || 'NSW';
           if (rates[region] !== undefined) finalRate = Number(rates[region]);
        } catch(e) {}
+    }
+    if (finalRate === 0 && (service.name?.toLowerCase().includes('provider travel') || service.name?.toLowerCase().includes('activity based transport'))) {
+      finalRate = 1.00;
     }
     return { rate: finalRate, unit: service.unit || 'Hour', name: service.name || '' };
   };
@@ -370,7 +373,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
             
             {/* Left Column: Core Info */}
             <div className="md:w-[320px] shrink-0 space-y-4">
-              {(!initialData?.id || initialData?.isHistorical === 1) && (
+              {(!initialData?.id || initialData?.isHistorical) && (
                 <>
                   <div className="flex items-center justify-between bg-[#18181b] p-3 rounded-lg border border-amber-500/30">
                 <div>
