@@ -367,6 +367,12 @@ try {
   try {
     db.exec("ALTER TABLE invoices ADD COLUMN services_json TEXT");
     console.log("[DEBUG] Completed invoices.services_json column check.");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+  
   try {
     const shiftCols = db.pragma("table_info(shifts)") as any[];
     const hasProgressNote = shiftCols.some((c: any) => c.name === "progress_note");
@@ -376,12 +382,6 @@ try {
     }
   } catch (e: any) {
     console.warn("Migration warning for shifts.progress_note:", e.message);
-  }
-
-  } catch (e: any) {
-    if (e.message && !e.message.includes("duplicate column")) {
-      console.warn("Migration warning:", e.message);
-    }
   }
 
   try {
@@ -7170,7 +7170,7 @@ try {
         let sData = [];
         try { sData = JSON.parse(single.servicesJson || '[]'); } catch(e){}
         for (let s of sData) {
-           const srv = db.prepare("SELECT name, rate FROM services WHERE id = ?").get(s.serviceId);
+           const srv = db.prepare("SELECT name, rate FROM services WHERE id = ?").get(s.serviceId) as any;
            if (srv) {
              const name = srv.name.toLowerCase();
              const rate = Number(s.rateOverride || srv.rate || 1.00);
@@ -7241,7 +7241,7 @@ try {
             fType,
             isHist ? 1 : 0
           );
-          sid = info.lastInsertRowid;
+          sid = Number(info.lastInsertRowid);
           insertHistoricalData(sid, single);
         })();
 

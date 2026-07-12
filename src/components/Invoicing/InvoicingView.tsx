@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { FileText, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle } from 'lucide-react';
+import { FileText, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle, X, Upload } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
 import { RefreshCw, Search } from 'lucide-react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -46,40 +46,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
   }, [selectedClient, options.services, selectedServices]);
 
 
-  const handleUploadSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!uploadClientId || !uploadDate || !uploadFile) {
-      alert("Please fill all fields and select a file.");
-      return;
-    }
-
-    setIsUploading(true);
-    const formData = new FormData();
-    formData.append('clientId', uploadClientId);
-    formData.append('date', uploadDate);
-    formData.append('file', uploadFile);
-
-    try {
-      const res = await fetch('/api/invoices/historical', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
-        body: formData
-      });
-      if (!res.ok) throw new Error('Failed to upload historical invoice');
-      setShowUploadModal(false);
-      setUploadClientId('');
-      setUploadDate('');
-      setUploadFile(null);
-      fetchInvoices();
-    } catch (err) {
-      console.error(err);
-      alert(String(err));
-    } finally {
-      setIsUploading(false);
-    }
-  };
+;
 
   useEffect(() => {
     fetchOptions();
@@ -725,6 +692,41 @@ export default function InvoicingView() {
     .filter(i => selectedInvoiceIds.includes(i.id))
     .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
 
+  const handleUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadClientId || !uploadDate || !uploadFile) {
+      alert("Please fill all fields and select a file.");
+      return;
+    }
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('clientId', uploadClientId);
+    formData.append('date', uploadDate);
+    formData.append('file', uploadFile);
+
+    try {
+      const res = await fetch('/api/invoices/historical', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      });
+      if (!res.ok) throw new Error('Failed to upload historical invoice');
+      setShowUploadModal(false);
+      setUploadClientId('');
+      setUploadDate('');
+      setUploadFile(null);
+      fetchInvoices();
+    } catch (err) {
+      console.error(err);
+      alert(String(err));
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
   const fetchInvoices = async () => {
     setLoading(true);
     setSelectedInvoiceIds([]);
@@ -960,7 +962,7 @@ export default function InvoicingView() {
                   className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
                 >
                   <option value="">Select Client</option>
-                  {rawClients.map(c => (
+                  {allDbClients.map(c => (
                     <option key={c.id} value={c.id}>{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
                   ))}
                 </select>
