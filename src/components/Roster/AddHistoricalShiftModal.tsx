@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
 
-interface AddShiftModalProps {
+interface AddHistoricalShiftModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
@@ -23,7 +23,7 @@ interface ServiceFormEntry {
   rateOverride?: number | string;
 }
 
-export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clientList, servicesList, initialData, holidays = [] }: AddShiftModalProps) {
+export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staffList, clientList, servicesList, initialData, holidays = [] }: AddHistoricalShiftModalProps) {
   const { token, settings } = useAuth();
   
   const [staffId, setStaffId] = useState('');
@@ -39,7 +39,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
   const [showConflictsModal, setShowConflictsModal] = useState(false);
   const [conflictList, setConflictList] = useState<any[]>([]);
 
-  const isHistorical = false;
+  const isHistorical = true;
   const [progressNote, setProgressNote] = useState('');
   const [startOdometer, setStartOdometer] = useState('');
   const [endOdometer, setEndOdometer] = useState('');
@@ -385,7 +385,44 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
             
             {/* Left Column: Core Info */}
             <div className="md:w-[320px] shrink-0 space-y-4">
-              
+              {isHistorical && (
+                    <div className="space-y-3 p-3 bg-amber-500/5 rounded-lg border border-amber-500/20">
+                  <div>
+                    <label className="block text-[12px] font-medium text-amber-500 mb-1.5">Progress Note</label>
+                    <textarea 
+                      value={progressNote}
+                      onChange={e => setProgressNote(e.target.value)}
+                      rows={2}
+                      className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 resize-none"
+                      placeholder="Historical note..."
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[12px] font-medium text-amber-500 mb-1.5">Start Odo</label>
+                      <input 
+                        type="number"
+                        step="1"
+                        value={startOdometer}
+                        onChange={e => setStartOdometer(e.target.value)}
+                        className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
+                        placeholder="Optional"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[12px] font-medium text-amber-500 mb-1.5">End Odo</label>
+                      <input 
+                        type="number"
+                        step="1"
+                        value={endOdometer}
+                        onChange={e => setEndOdometer(e.target.value)}
+                        className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
+                        placeholder="Optional"
+                      />
+                    </div>
+                      </div>
+                    </div>
+                  )}
 
               <div>
                 <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Staff Member (Optional)</label>

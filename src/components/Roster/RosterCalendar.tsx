@@ -11,6 +11,7 @@ import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import { Plus, Maximize, Minimize, Bed, Star } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
+import AddHistoricalShiftModal from './AddHistoricalShiftModal';
 import AddRespiteBookingModal from './AddRespiteBookingModal';
 import ShiftDetailsModal from './ShiftDetailsModal';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -93,6 +94,7 @@ export default function RosterCalendar() {
   const [servicesList, setServicesList] = useState<any[]>([]);
   
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [isHistShiftModalOpen, setIsHistShiftModalOpen] = useState(false);
   const [isRespiteModalOpen, setIsRespiteModalOpen] = useState(false);
   const [initialShiftData, setInitialShiftData] = useState<any>(null);
   const [selectedShift, setSelectedShift] = useState<ShiftEvent | null>(null);
@@ -547,6 +549,11 @@ export default function RosterCalendar() {
 
     setInitialShiftData(initialData);
     setIsShiftModalOpen(true);
+  };
+
+  const handleAddHistShift = () => {
+    setSelectedEventInfo(null);
+    setIsHistShiftModalOpen(true);
   };
 
   const handleAddShift = () => {
@@ -1018,6 +1025,13 @@ export default function RosterCalendar() {
                     STA / Respite
                   </button>
                   <button 
+                    onClick={handleAddHistShift}
+                    className="flex items-center justify-center px-4 py-2 bg-amber-500/20 text-amber-500 hover:bg-amber-500/30 border border-amber-500/50 text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-auto"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Historical Shift
+                  </button>
+                  <button 
                     onClick={handleAddShift}
                     className="flex items-center justify-center px-4 py-2 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-auto"
                   >
@@ -1100,6 +1114,12 @@ export default function RosterCalendar() {
         )}
       </div>
 
+      <AddHistoricalShiftModal 
+        isOpen={isHistShiftModalOpen}
+        onClose={() => setIsHistShiftModalOpen(false)}
+        initialData={selectedEventInfo}
+        onSave={fetchShifts}
+      />
       <AddShiftModal 
         isOpen={isShiftModalOpen}
         onClose={() => setIsShiftModalOpen(false)}
