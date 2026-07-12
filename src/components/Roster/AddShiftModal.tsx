@@ -605,7 +605,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                               <span className="text-zinc-500 text-xs block">Qty</span>
                               {isTravelOrTransport && !isHistorical ? (
                                 <span className="text-zinc-500 italic">Auto</span>
-                              ) : unit === 'Hour' ? (
+                              ) : (unit === 'Hour' && !isTravelOrTransport) ? (
                                 <span className="text-zinc-300">{effectiveQty.toFixed(2)}</span>
                               ) : (
                                 <input 

@@ -1183,6 +1183,7 @@ export default function RosterCalendar() {
               progressNote: shift.progressNote,
               startOdometer: shift.startOdometer,
               endOdometer: shift.endOdometer,
+              isHistorical: shift.isHistorical,
             });
             setIsShiftModalOpen(true);
           }
