@@ -6858,6 +6858,19 @@ try {
         if (!invoiceRow)
           return res.status(404).json({ error: "Invoice not found" });
 
+        if (!invoiceRow.services_json && !invoiceRow.respite_booking_id && !invoiceRow.shift_id) {
+          const client = db.prepare("SELECT first_name, last_name FROM clients WHERE id = ?").get(invoiceRow.client_id) as any;
+          if (!client) return res.status(404).json({ error: "Client not found" });
+          
+          const clientNameSafe = `${client.first_name || ""} ${client.last_name || ""}`.trim().replace(/[\\/\\]/g, "");
+          const filePath = path.join(UPLOADS_DIR, "Clients", clientNameSafe, "Invoices", invoiceRow.file_path);
+          
+          if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: "File not found" });
+          }
+          return res.sendFile(filePath);
+        }
+
         let data: any = null;
         if (invoiceRow.services_json) {
           data = getInvoiceDataForMergedInvoice(invoiceRow);
