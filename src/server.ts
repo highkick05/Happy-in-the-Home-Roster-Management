@@ -9521,6 +9521,28 @@ try {
         // Move the file from temp upload location to the client's invoice folder
         fs.renameSync(file.path, destPath);
 
+        const folderPathDb = `/Clients/${clientNameSafe}/Invoices`;
+        let subfolder = folderPathDb.replace(/^(\.\.[\\/\\])+/, "");
+        if (subfolder.startsWith("/")) {
+          subfolder = subfolder.substring(1);
+        }
+        const systemName = path.posix.join(subfolder, newFileName);
+        const stats = fs.statSync(destPath);
+
+        try {
+          db.prepare(
+            "INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path) VALUES (?, ?, ?, ?, ?)"
+          ).run(
+            newFileName,
+            systemName,
+            stats.size,
+            (req).user?.id || 1,
+            folderPathDb
+          );
+        } catch (fileErr) {
+          console.error("Failed to insert file record for historical invoice", fileErr);
+        }
+
         const createdAt = `${date} 12:00:00`;
 
         db.prepare(

@@ -1,4 +1,4 @@
-const db = require('better-sqlite3')('data/database.sqlite');
+const db = require('better-sqlite3')('data/dev-database.sqlite');
 const fs = require('fs');
 const path = require('path');
 
