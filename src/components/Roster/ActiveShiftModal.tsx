@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera, RotateCcw, CheckSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { ShiftEvent } from './RosterCalendar';
+import { ShiftEvent } from './types';
 
 interface ActiveShiftModalProps {
   isOpen: boolean;

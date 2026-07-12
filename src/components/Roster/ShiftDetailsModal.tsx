@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Trash2, CheckCircle, Edit, Cast, Undo2, ArrowDown, FileText } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { ShiftEvent } from './RosterCalendar';
+import { ShiftEvent } from './types';
 
 interface ShiftDetailsModalProps {
   isOpen: boolean;
