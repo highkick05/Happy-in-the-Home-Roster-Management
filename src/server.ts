@@ -202,6 +202,7 @@ async function startServer() {
           custom_staff_name TEXT,
           is_abt_approved INTEGER DEFAULT 0,
           travel_breakdown TEXT,
+          is_historical INTEGER DEFAULT 0,
           FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE RESTRICT,
           FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
           FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE RESTRICT,
@@ -348,6 +349,15 @@ try {
   try {
     db.exec("ALTER TABLE shifts ADD COLUMN provider_travel_minutes REAL DEFAULT 0");
     console.log("[DEBUG] Completed provider_travel_minutes column check.");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
+    db.exec("ALTER TABLE shifts ADD COLUMN is_historical INTEGER DEFAULT 0");
+    console.log("[DEBUG] Completed is_historical column check.");
   } catch (e: any) {
     if (e.message && !e.message.includes("duplicate column")) {
       console.warn("Migration warning:", e.message);
@@ -7128,7 +7138,7 @@ try {
         .get(clientId) as any;
       const fType = clientQ?.funding_type || "NDIS";
       const stmt = db.prepare(
-        "INSERT INTO shifts (staff_id, client_id, service_id, start_time, end_time, status, notes, services_json, is_abt_approved, funding_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO shifts (staff_id, client_id, service_id, start_time, end_time, status, notes, services_json, is_abt_approved, funding_type, is_historical) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
       
       const isHist = Boolean(is_historical);
@@ -7187,6 +7197,7 @@ try {
               shift.servicesJson,
               shift.isAbtApproved ? 1 : 0,
               fType,
+              isHist ? 1 : 0
             );
             insertHistoricalData(info.lastInsertRowid, shift);
             return info.lastInsertRowid;
@@ -7217,6 +7228,7 @@ try {
             single.servicesJson,
             single.isAbtApproved ? 1 : 0,
             fType,
+            isHist ? 1 : 0
           );
           sid = info.lastInsertRowid;
           insertHistoricalData(sid, single);

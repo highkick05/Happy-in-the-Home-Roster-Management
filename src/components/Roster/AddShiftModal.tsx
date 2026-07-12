@@ -61,7 +61,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
       setStartTime(startT);
       setEndTime(endT);
       setNotes(initialData?.notes || '');
-      setIsHistorical(initialData?.status === 'COMPLETED');
+      setIsHistorical(initialData?.isHistorical === 1);
       setProgressNote(initialData?.progressNote || '');
       setStartOdometer(initialData?.startOdometer ? initialData.startOdometer.toString() : '');
       setEndOdometer(initialData?.endOdometer ? initialData.endOdometer.toString() : '');
@@ -370,7 +370,9 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
             
             {/* Left Column: Core Info */}
             <div className="md:w-[320px] shrink-0 space-y-4">
-              <div className="flex items-center justify-between bg-[#18181b] p-3 rounded-lg border border-amber-500/30">
+              {(!initialData?.id || initialData?.isHistorical === 1) && (
+                <>
+                  <div className="flex items-center justify-between bg-[#18181b] p-3 rounded-lg border border-amber-500/30">
                 <div>
                   <h4 className="text-[13px] font-semibold text-amber-500">Historical Shift Migration</h4>
                   <p className="text-[11px] text-zinc-400">Instantly complete shift & save manual data</p>
@@ -384,8 +386,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                 </button>
               </div>
 
-              {isHistorical && (
-                <div className="space-y-3 p-3 bg-amber-500/5 rounded-lg border border-amber-500/20">
+                  {isHistorical && (
+                    <div className="space-y-3 p-3 bg-amber-500/5 rounded-lg border border-amber-500/20">
                   <div>
                     <label className="block text-[12px] font-medium text-amber-500 mb-1.5">Progress Note</label>
                     <textarea 
@@ -417,8 +419,10 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                         placeholder="Optional"
                       />
                     </div>
-                  </div>
-                </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               <div>

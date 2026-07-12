@@ -233,6 +233,7 @@ export default function RosterCalendar() {
           progressNote: d.progress_note,
           startOdometer: d.odometer_start_reading,
           endOdometer: d.odometer_end_reading,
+          isHistorical: d.is_historical,
         }));
         
         const mappedRespites: any[] = [];
