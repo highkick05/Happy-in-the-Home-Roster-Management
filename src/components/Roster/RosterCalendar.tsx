@@ -196,8 +196,8 @@ export default function RosterCalendar() {
           actualStartTime: d.actual_start_time,
           actualFinishTime: d.actual_finish_time,
           progressNote: d.progress_note,
-          startOdometer: d.odometer_start_reading,
-          endOdometer: d.odometer_end_reading,
+          startOdometer: d.odometer_start_reading ? Math.round(Number(d.odometer_start_reading)).toString() : null,
+          endOdometer: d.odometer_end_reading ? Math.round(Number(d.odometer_end_reading)).toString() : null,
           isHistorical: d.is_historical,
         }));
         

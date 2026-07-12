@@ -12377,9 +12377,9 @@ function resolveFilePath(systemName) {
             travelCost: isHomeCare
               ? 0
               : ((p_km * 1.00) + ((s.abt_km || 0) * 1.00)),
-            startOdo: s.odometer_start_reading || "",
+            startOdo: s.odometer_start_reading ? Math.round(Number(s.odometer_start_reading)).toString() : "",
             startPhoto: "",
-            endOdo: s.odometer_end_reading || "",
+            endOdo: s.odometer_end_reading ? Math.round(Number(s.odometer_end_reading)).toString() : "",
             endPhoto: "",
           });
 
@@ -13293,8 +13293,8 @@ function resolveFilePath(systemName) {
               doc.text(row.km.toFixed(2), 420, rowStartY, { width: 25 });
 
               if (idx === 0) {
-                const startOdo = s.odometer_start_reading || "N/A";
-                const endOdo = s.odometer_end_reading || "N/A";
+                const startOdo = s.odometer_start_reading ? Math.round(Number(s.odometer_start_reading)).toString() : "N/A";
+                const endOdo = s.odometer_end_reading ? Math.round(Number(s.odometer_end_reading)).toString() : "N/A";
                 doc.text(`${startOdo}-${endOdo}`, 450, rowStartY, {
                   width: 100,
                 });
