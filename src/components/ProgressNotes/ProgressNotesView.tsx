@@ -102,9 +102,37 @@ export default function ProgressNotesView() {
 
   return (
     <div className="w-full">
-       <div className="mb-2 flex items-center justify-between">
-         <h1 className="text-lg font-bold text-white">Progress Notes</h1>
-         <p className="text-[12px] text-zinc-400">View and manage chronological progress notes.</p>
+       <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+         <div>
+           <h1 className="text-lg font-bold text-white mb-0.5">Progress Notes</h1>
+           <p className="text-[12px] text-zinc-400">View and manage chronological progress notes.</p>
+         </div>
+         <div className="flex items-center gap-3">
+            <div className="flex items-center space-x-2 bg-zinc-800/80 px-3 py-1.5 rounded-lg border border-white/[0.05]">
+              <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Client</span>
+              <select
+                value={selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+                className="bg-transparent text-[13px] text-white outline-none min-w-[150px] [color-scheme:dark]"
+              >
+                {clients.length === 0 && <option value="">No clients available</option>}
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex items-center space-x-2 bg-zinc-800/80 px-3 py-1.5 rounded-lg border border-white/[0.05]">
+              <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">From</span>
+              <input type="date" className="bg-transparent text-[12px] text-zinc-400 outline-none [color-scheme:dark]" />
+              <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider ml-2">To</span>
+              <input type="date" className="bg-transparent text-[12px] text-zinc-400 outline-none [color-scheme:dark]" />
+            </div>
+            
+            <button className="bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 px-3 py-1.5 rounded-lg text-[12px] font-medium hover:bg-[#3A422F] transition-colors flex items-center">
+              Time Critical Alert
+            </button>
+         </div>
        </div>
 
        <ProgressNotesFeed

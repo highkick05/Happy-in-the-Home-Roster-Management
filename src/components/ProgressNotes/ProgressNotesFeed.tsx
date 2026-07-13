@@ -115,7 +115,7 @@ export default function ProgressNotesFeed({
       const data = JSON.parse(contentStr);
       if (data && data.blocks) {
         return (
-          <div className="prose prose-invert max-w-none text-sm pointer-events-none">
+          <div className="prose prose-invert max-w-none text-[14px] inline-block">
             {data.blocks.map((block: any, idx: number) => {
               if (block.type === 'paragraph') return <p key={idx} dangerouslySetInnerHTML={{__html: block.data.text}} />;
               if (block.type === 'header') {
@@ -146,69 +146,58 @@ export default function ProgressNotesFeed({
     } catch (e) {
       // Fallback if not valid JSON (e.g. plain text old notes)
     }
-    return <div className="text-[14px] text-zinc-200 leading-relaxed whitespace-pre-wrap">{contentStr}</div>;
+    return <div className="text-[14px] text-zinc-200 leading-relaxed whitespace-pre-wrap inline">{contentStr}</div>;
   };
 
   return (
     <div className="space-y-3 w-full">
-      {/* Top Controls: Client Selector */}
-      <div className="flex items-center space-x-2 bg-zinc-800/80 p-2 rounded-lg border border-white/[0.05]">
-        <div className="flex-1 max-w-sm flex items-center space-x-3">
-          <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider shrink-0">Client:</label>
-          <select
-            value={selectedClientId}
-            onChange={(e) => onClientChange(e.target.value)}
-            className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2 py-1 text-[12px] text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
-          >
-            {availableClients.length === 0 && <option value="">No clients available</option>}
-            {availableClients.map(c => (
-              <option key={c.id} value={c.id}>{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      
 
       {/* Add New Note */}
       {selectedClientId && (
         <div className="bg-zinc-800 rounded-xl border border-white/[0.05] overflow-hidden">
-          <div className="px-3 py-1.5 border-b border-white/[0.05] flex flex-wrap items-center justify-between bg-zinc-800/50 gap-2">
-            <h3 className="text-[13px] font-semibold text-white">Add New Progress Note</h3>
-            
-            <div className="flex flex-wrap items-center gap-3 ml-auto">
-                {userRole === 'ADMIN' && (
-                  <div className="flex items-center space-x-2 text-xs">
-                    <span className="text-zinc-400">Author:</span>
-                    <select 
-                      value={newNoteAuthorId}
-                      onChange={(e) => setNewNoteAuthorId(e.target.value)}
-                      className="bg-black/40 border border-white/[0.08] rounded px-2 py-1.5 text-white outline-none min-w-[120px]"
-                    >
-                      <option value="">(Self)</option>
-                      {staffList.map(s => (
-                        <option key={s.id} value={s.id}>{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                
-                <div className="flex items-center space-x-2 text-xs">
-                  <span className="text-zinc-400">Tag:</span>
-                  <select 
-                    value={newNoteTags}
-                    onChange={(e) => setNewNoteTags(e.target.value)}
-                    className="bg-black/40 border border-white/[0.08] rounded px-2 py-1.5 text-white outline-none"
-                  >
-                    <option value="Activity">Activity</option>
-                    <option value="Health">Health</option>
-                    <option value="Behavioural">Behavioural</option>
-                    <option value="Incident">Incident</option>
-                  </select>
-                </div>
-            </div>
+          <div className="px-3 py-2">
+            <h3 className="text-[14px] font-semibold text-white">Add New Progress Note</h3>
           </div>
           <div className="p-0">
             <div className="bg-transparent text-white">
-              <EditorJSWrapper ref={editorRef} minHeight={80} />
+              <EditorJSWrapper 
+                ref={editorRef} 
+                minHeight={80} 
+                toolbarRight={
+                  <div className="flex items-center gap-3">
+                    {userRole === 'ADMIN' && (
+                      <div className="flex items-center space-x-2 text-[11px]">
+                        <span className="text-zinc-500">Author:</span>
+                        <select 
+                          value={newNoteAuthorId}
+                          onChange={(e) => setNewNoteAuthorId(e.target.value)}
+                          className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none min-w-[100px]"
+                        >
+                          <option value="">(Self)</option>
+                          {staffList.map(s => (
+                            <option key={s.id} value={s.id}>{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex items-center space-x-2 text-[11px]">
+                      <span className="text-zinc-500">Tag:</span>
+                      <div className="bg-black/40 border border-white/[0.08] rounded flex overflow-hidden">
+                        {['Behavioural', 'Health', 'Activity'].map(tag => (
+                          <button
+                            key={tag}
+                            onClick={() => setNewNoteTags(tag)}
+                            className={`px-3 py-1 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                }
+              />
             </div>
             
             <div className="flex justify-end p-2 border-t border-white/[0.05]">

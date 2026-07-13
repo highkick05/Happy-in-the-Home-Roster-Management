@@ -15,13 +15,14 @@ import Underline from '@editorjs/underline';
 // @ts-ignore
 import ImageTool from '@editorjs/image';
 import { useAuth } from '../../context/AuthContext';
-import { Heading1, Heading2, List as ListIcon, ListOrdered, Image as ImageIcon } from 'lucide-react';
+import { Heading1, Heading2, List as ListIcon, ListOrdered, Image as ImageIcon, Bold, Italic, Underline as UnderlineIcon, Baseline, AlignLeft, AlignCenter, AlignRight, Type } from 'lucide-react';
 
 interface EditorJSWrapperProps {
   initialData?: OutputData;
   onChange?: (data: OutputData) => void;
   readOnly?: boolean;
   minHeight?: number;
+  toolbarRight?: React.ReactNode;
 }
 
 export interface EditorJSRef {
@@ -30,7 +31,7 @@ export interface EditorJSRef {
   setFocus: () => void;
 }
 
-const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initialData, onChange, readOnly = false, minHeight = 100 }, ref) => {
+const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initialData, onChange, readOnly = false, minHeight = 100, toolbarRight }, ref) => {
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorInstanceRef = useRef<EditorJS | null>(null);
   const { token } = useAuth();
@@ -66,6 +67,28 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
       data: parsedData,
       readOnly,
       minHeight,
+      sanitize: {
+        font: {
+          color: true,
+          size: true,
+          face: true
+        },
+        span: {
+          style: true,
+          class: true
+        },
+        div: {
+          style: true,
+          align: true,
+          class: true
+        },
+        p: {
+          style: true,
+          align: true,
+          class: true
+        }
+      },
+
       placeholder: 'Type your progress note here... Use drag & drop for images.',
       tools: {
         paragraph: {
@@ -112,6 +135,11 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
     editorInstanceRef.current = editor;
 
   
+  
+  const formatText = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+  };
+
   const insertBlock = (type: string, data: any = {}) => {
     if (editorInstanceRef.current) {
       editorInstanceRef.current.blocks.insert(type, data);
@@ -172,6 +200,11 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
     }
   }));
 
+  
+  const formatText = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+  };
+
   const insertBlock = (type: string, data: any = {}) => {
     if (editorInstanceRef.current) {
       editorInstanceRef.current.blocks.insert(type, data);
@@ -203,17 +236,39 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
   return (
     <div className={`editorjs-container flex flex-col ${readOnly ? 'read-only' : ''}`}>
       {!readOnly && (
-        <div className="flex items-center gap-1 bg-zinc-800/80 border-b border-white/[0.05] p-1 px-2 rounded-t-md border-b border-white/[0.05]">
-           <button type="button" onClick={() => insertBlock('header', { level: 1 })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Heading 1"><Heading1 size={15} /></button>
-           <button type="button" onClick={() => insertBlock('header', { level: 2 })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Heading 2"><Heading2 size={15} /></button>
-           <div className="w-px h-4 bg-white/10 mx-1" />
+        <div className="flex items-center justify-between bg-zinc-800/80 border-b border-white/[0.05] p-1 px-2 rounded-t-md">
+          <div className="flex items-center gap-1">
            <button type="button" onClick={() => insertBlock('list', { style: 'unordered' })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Bullet List"><ListIcon size={15} /></button>
            <button type="button" onClick={() => insertBlock('list', { style: 'ordered' })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Numbered List"><ListOrdered size={15} /></button>
+           <div className="w-px h-4 bg-white/10 mx-1" />
+           <button type="button" onMouseDown={(e) => { e.preventDefault(); formatText('bold'); }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Bold"><Bold size={15} /></button>
+           <button type="button" onMouseDown={(e) => { e.preventDefault(); formatText('italic'); }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Italic"><Italic size={15} /></button>
+           <button type="button" onMouseDown={(e) => { e.preventDefault(); formatText('underline'); }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Underline"><UnderlineIcon size={15} /></button>
+           <div className="w-px h-4 bg-white/10 mx-1" />
+           <button type="button" onMouseDown={(e) => { e.preventDefault(); formatText('justifyLeft'); }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Align Left"><AlignLeft size={15} /></button>
+           <button type="button" onMouseDown={(e) => { e.preventDefault(); formatText('justifyCenter'); }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Align Center"><AlignCenter size={15} /></button>
+           <button type="button" onMouseDown={(e) => { e.preventDefault(); formatText('justifyRight'); }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Align Right"><AlignRight size={15} /></button>
+           <div className="w-px h-4 bg-white/10 mx-1" />
+           <label className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors cursor-pointer relative" title="Text Color">
+             <Baseline size={15} />
+             <input type="color" className="absolute opacity-0 inset-0 w-full h-full cursor-pointer" onChange={(e) => formatText('foreColor', e.target.value)} />
+           </label>
+           <label className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors cursor-pointer relative" title="Font Size">
+             <Type size={15} />
+             <select className="absolute opacity-0 inset-0 w-full h-full cursor-pointer" onChange={(e) => formatText('fontSize', e.target.value)}>
+                <option value="1">Small</option>
+                <option value="3">Normal</option>
+                <option value="5">Large</option>
+                <option value="7">Huge</option>
+             </select>
+           </label>
            <div className="w-px h-4 bg-white/10 mx-1" />
            <label className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors cursor-pointer" title="Upload Image">
              <ImageIcon size={15} />
              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
            </label>
+          </div>
+          {toolbarRight && <div className="flex items-center">{toolbarRight}</div>}
         </div>
       )}
       <div 
