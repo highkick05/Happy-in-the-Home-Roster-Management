@@ -485,7 +485,7 @@ it might be cut off if padding is not sufficient */
 }
 .editorjs-wrapper .ce-block {
   margin: 0 !important;
-  padding: 0.25em 0 !important;
+  padding: 0 !important;
 }
 .editorjs-wrapper .codex-editor__redactor {
   padding-bottom: 20px !important;
@@ -507,4 +507,10 @@ it might be cut off if padding is not sufficient */
   width: auto !important;
   height: auto !important;
   object-fit: contain;
+}
+
+.editorjs-wrapper .ce-paragraph {
+  line-height: 1.4 !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }

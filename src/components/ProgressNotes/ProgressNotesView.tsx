@@ -132,7 +132,7 @@ export default function ProgressNotesView() {
               <select
                 value={selectedClientId}
                 onChange={(e) => setSelectedClientId(e.target.value)}
-                className="bg-brand-navy text-[13px] text-white outline-none min-w-[150px] border border-border-subtle rounded px-1.5 py-0.5"
+                className="bg-transparent text-[13px] text-white outline-none min-w-[150px] [color-scheme:dark]"
               >
                 {clients.length === 0 && <option value="" className="bg-brand-navy text-white">No clients available</option>}
                 {clients.map(c => (
@@ -144,11 +144,11 @@ export default function ProgressNotesView() {
             <div className="flex items-center space-x-2 bg-brand-navy px-3 py-1.5 rounded-lg border border-white/[0.05]">
               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">From</span>
               <div className="w-[120px]">
-                <CustomDatePicker selected={fromDate} onDateChange={(d) => setFromDate(d)} />
+                <CustomDatePicker selected={fromDate} onDateChange={(d) => setFromDate(d)} position="bottom" className="bg-transparent text-[13px] text-white outline-none w-full border-none p-0 focus:ring-0" />
               </div>
               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider ml-2">To</span>
               <div className="w-[120px]">
-                <CustomDatePicker selected={toDate} onDateChange={(d) => setToDate(d)} />
+                <CustomDatePicker selected={toDate} onDateChange={(d) => setToDate(d)} position="bottom" className="bg-transparent text-[13px] text-white outline-none w-full border-none p-0 focus:ring-0" />
               </div>
             </div>
             
