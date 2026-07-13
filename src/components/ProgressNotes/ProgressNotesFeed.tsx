@@ -155,8 +155,8 @@ export default function ProgressNotesFeed({
 
       {/* Add New Note */}
       {selectedClientId && (
-        <div className="bg-[#1C1D22] rounded-xl border border-white/[0.05] p-5 shadow-sm">
-          <div className="mb-4">
+        <div className="bg-[#1C1D22] rounded-xl border border-white/[0.05] p-3 shadow-sm">
+          <div className="mb-2">
             <h3 className="text-[15px] font-semibold text-white">Add New Progress Note</h3>
           </div>
           <div className="border border-white/[0.05] rounded-lg overflow-hidden">
@@ -200,11 +200,11 @@ export default function ProgressNotesFeed({
               />
             </div>
           </div>
-          <div className="flex justify-end mt-4">
+          <div className="flex justify-end mt-2">
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 px-3 py-1.5 rounded text-[12px] font-medium hover:bg-[#3A422F] transition-colors disabled:opacity-50 flex items-center"
+              className="bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 px-3 py-1 rounded text-[12px] font-medium hover:bg-[#3A422F] transition-colors disabled:opacity-50 flex items-center leading-none"
             >
               Submit Note
             </button>
@@ -221,7 +221,7 @@ export default function ProgressNotesFeed({
           </div>
         ) : (
           notes.map((note, idx) => (
-            <div key={`${note.source}-${note.id}-${idx}`} className="bg-[#1C1D22] rounded-xl border border-white/[0.05] p-5 shadow-sm">
+            <div key={`${note.source}-${note.id}-${idx}`} className="bg-[#1C1D22] rounded-xl border border-white/[0.05] p-3 shadow-sm">
                <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="text-[13px] text-zinc-300">
