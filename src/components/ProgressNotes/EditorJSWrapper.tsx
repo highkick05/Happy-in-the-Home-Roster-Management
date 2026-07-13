@@ -5,6 +5,14 @@ import Header from '@editorjs/header';
 // @ts-ignore
 import List from '@editorjs/list';
 // @ts-ignore
+import Paragraph from '@editorjs/paragraph';
+// @ts-ignore
+import Marker from '@editorjs/marker';
+// @ts-ignore
+import InlineCode from '@editorjs/inline-code';
+// @ts-ignore
+import Underline from '@editorjs/underline';
+// @ts-ignore
 import ImageTool from '@editorjs/image';
 import { useAuth } from '../../context/AuthContext';
 
@@ -59,8 +67,27 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
       minHeight,
       placeholder: 'Type your progress note here... Use drag & drop for images.',
       tools: {
-        header: Header,
-        list: List,
+        paragraph: {
+          class: Paragraph,
+          inlineToolbar: true,
+        },
+        header: {
+          class: Header,
+          inlineToolbar: true,
+        },
+        list: {
+          class: List,
+          inlineToolbar: true,
+        },
+        Marker: {
+          class: Marker,
+        },
+        inlineCode: {
+          class: InlineCode,
+        },
+        underline: {
+          class: Underline,
+        },
         image: {
           class: ImageTool,
           config: {

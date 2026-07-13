@@ -397,7 +397,7 @@ input:-webkit-autofill:active {
 /* EditorJS Dark Mode Overrides */
 .editorjs-wrapper .ce-block__content,
 .editorjs-wrapper .ce-toolbar__content {
-  max-w: 100%;
+  max-width: 100%;
 }
 .editorjs-wrapper .ce-toolbar__actions {
   color: #fff;
@@ -436,4 +436,42 @@ input:-webkit-autofill:active {
 }
 .editorjs-wrapper .ce-inline-tool:hover {
   background: rgba(255,255,255,0.1);
+}
+
+
+
+/* Ensure the plus icon (block toolbar) is visible */
+.editorjs-wrapper .ce-toolbar__actions {
+  right: 100%;
+  margin-right: 5px;
+}
+
+.editorjs-wrapper .image-tool__image {
+  max-width: 100% !important;
+  max-height: 400px !important;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+}
+.editorjs-wrapper .image-tool__image-picture {
+  max-width: 100% !important;
+  max-height: 400px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+  border-radius: 8px;
+}
+/* Ensure the inner block stretches fully */
+.editorjs-wrapper .ce-block__content,
+.editorjs-wrapper .ce-toolbar__content {
+  max-width: 100% !important;
+}
+/* The block toolbar icon (plus) needs to be positioned on the left side but because of 100% width, 
+it might be cut off if padding is not sufficient */
+.editorjs-wrapper {
+  padding-left: 40px;
+}
+.editorjs-wrapper .ce-toolbar__actions {
+  left: -40px;
+  right: auto;
 }
