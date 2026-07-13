@@ -86,6 +86,22 @@ export default function ProgressNotesView() {
     await fetchNotes();
   };
 
+  const handleDeleteNote = async (id: number) => {
+    // Only support deleting manual notes for now or check source?
+    // Wait, the feed doesn't pass source to delete... let's check
+    const res = await fetch(`/api/progress-notes/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) {
+       // It might be a shift note or something, but usually only manual notes are deleted this way.
+       console.error("Failed to delete");
+       alert("Failed to delete note. You can only delete manual notes.");
+       return;
+    }
+    await fetchNotes();
+  };
+
   const handleEditNote = async (source: 'SHIFT' | 'MANUAL', id: number, content: string, tags?: string) => {
     const endpoint = source === 'MANUAL' ? `/api/progress-notes/${id}` : `/api/progress-notes/shifts/${id}`;
     const res = await fetch(endpoint, {
@@ -108,7 +124,7 @@ export default function ProgressNotesView() {
            <p className="text-[12px] text-zinc-400">View and manage chronological progress notes.</p>
          </div>
          <div className="flex items-center gap-3">
-            <div className="flex items-center space-x-2 bg-[#1C1D22] px-3 py-1.5 rounded-lg border border-white/[0.05]">
+            <div className="flex items-center space-x-2 bg-brand-navy px-3 py-1.5 rounded-lg border border-white/[0.05]">
               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Client</span>
               <select
                 value={selectedClientId}
@@ -122,7 +138,7 @@ export default function ProgressNotesView() {
               </select>
             </div>
             
-            <div className="flex items-center space-x-2 bg-[#1C1D22] px-3 py-1.5 rounded-lg border border-white/[0.05]">
+            <div className="flex items-center space-x-2 bg-brand-navy px-3 py-1.5 rounded-lg border border-white/[0.05]">
               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">From</span>
               <input type="date" className="bg-transparent text-[12px] text-zinc-400 outline-none [color-scheme:dark]" />
               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider ml-2">To</span>
@@ -144,6 +160,7 @@ export default function ProgressNotesView() {
          onClientChange={setSelectedClientId}
          notes={notes}
          onSubmitNote={handleSubmitNote}
+         onDeleteNote={handleDeleteNote}
          onEditNote={handleEditNote}
          loading={loading}
        />

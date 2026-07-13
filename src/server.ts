@@ -5300,6 +5300,21 @@ try {
     }
   );
   
+  app.delete(
+    "/api/progress-notes/:id",
+    authenticateToken,
+    async (req: any, res) => {
+      const { id } = req.params;
+      try {
+        db.prepare("DELETE FROM progress_notes WHERE id = ?").run(id);
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`Error deleting progress note: ${e.message}`, { error: e });
+        res.status(500).json({ error: "Failed to delete progress note" });
+      }
+    },
+  );
+
   app.put(
     "/api/progress-notes/:id",
     authenticateToken,
