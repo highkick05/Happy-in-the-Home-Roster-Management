@@ -13,6 +13,17 @@ export default function ProgressNotesView() {
   
   const [notes, setNotes] = useState<ProgressNote[]>([]);
   const [loading, setLoading] = useState(false);
+  const [staffList, setStaffList] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user?.role === 'ADMIN') {
+      fetch('/api/staff', { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => res.json())
+        .then(data => setStaffList(data))
+        .catch(console.error);
+    }
+  }, [user, token]);
+
 
   useEffect(() => {
     fetchClients(selectedClientId);
@@ -62,14 +73,14 @@ export default function ProgressNotesView() {
     }
   };
 
-  const handleSubmitNote = async (content: string, tags: string, clientId: string) => {
+  const handleSubmitNote = async (content: string, tags: string, clientId: string, authorId?: string) => {
     const res = await fetch('/api/progress-notes', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({ clientId, content, tags })
+      body: JSON.stringify({ clientId, content, tags, authorId })
     });
     if (!res.ok) throw new Error('Failed to submit note');
     await fetchNotes();
@@ -90,7 +101,7 @@ export default function ProgressNotesView() {
   };
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
        <div className="mb-6">
          <h1 className="text-2xl font-bold text-white mb-2">Progress Notes</h1>
          <p className="text-zinc-400">View and manage chronological progress notes.</p>
@@ -98,6 +109,8 @@ export default function ProgressNotesView() {
 
        <ProgressNotesFeed
          userRole={user?.role || 'STAFF'}
+         staffList={staffList}
+         currentUserId={user?.id}
          availableClients={clients}
          selectedClientId={selectedClientId}
          onClientChange={setSelectedClientId}

@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 @source "../node_modules/tailwind-datepicker-react/dist/**/*.js";
 
 @theme {
@@ -391,4 +392,48 @@ input:-webkit-autofill:active {
 .shake-alert {
   animation: shake-violent 0.5s cubic-bezier(.36,.07,.19,.97) both infinite;
   overflow-x: hidden;
+}
+
+/* EditorJS Dark Mode Overrides */
+.editorjs-wrapper .ce-block__content,
+.editorjs-wrapper .ce-toolbar__content {
+  max-w: 100%;
+}
+.editorjs-wrapper .ce-toolbar__actions {
+  color: #fff;
+}
+.editorjs-wrapper .ce-popover {
+  background: #27272a;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+}
+.editorjs-wrapper .ce-popover__item:hover {
+  background: rgba(255,255,255,0.1);
+}
+.editorjs-wrapper .ce-popover__item-icon {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.editorjs-wrapper .cdx-button {
+  background: #27272a;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.editorjs-wrapper .cdx-button:hover {
+  background: rgba(255,255,255,0.1);
+}
+.editorjs-wrapper .tc-wrap {
+  border-color: rgba(255,255,255,0.1);
+}
+.editorjs-wrapper .ce-inline-toolbar {
+  background: #27272a;
+  border-color: rgba(255,255,255,0.1);
+  color: #fff;
+}
+.editorjs-wrapper .ce-inline-toolbar__buttons {
+  background: #27272a;
+}
+.editorjs-wrapper .ce-inline-tool:hover {
+  background: rgba(255,255,255,0.1);
 }

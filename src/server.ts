@@ -5275,7 +5275,7 @@ try {
     authenticateToken,
     (req: any, res: any) => {
       try {
-        const { clientId, content, tags } = req.body;
+        const { clientId, content, tags, authorId } = req.body;
         if (!clientId || !content) {
           return res.status(400).json({ error: "Missing required fields" });
         }
@@ -5290,7 +5290,7 @@ try {
         
         const result = db.prepare(
           "INSERT INTO progress_notes (client_id, author_id, content, tags) VALUES (?, ?, ?, ?)"
-        ).run(clientId, req.user.id, content, tags || null);
+        ).run(clientId, authorId ? authorId : req.user.id, content, tags || null);
         
         res.json({ success: true, id: result.lastInsertRowid });
       } catch (e: any) {
@@ -5342,6 +5342,41 @@ try {
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
         res.status(500).json({ error: "Internal Server Error" });
+      }
+    }
+  );
+
+  
+  app.post(
+    "/api/progress-notes/upload-image",
+    authenticateToken,
+    upload.single("image"),
+    (req: any, res: any) => {
+      try {
+        const file = req.file;
+        if (!file) {
+          return res.status(400).json({ success: 0, error: "No file provided" });
+        }
+        
+        const persistentAssetsDir = require("path").join(process.cwd(), "uploads", "assets");
+        if (!require("fs").existsSync(persistentAssetsDir)) {
+          require("fs").mkdirSync(persistentAssetsDir, { recursive: true });
+        }
+        
+        const fileName = `${Date.now()}-${file.originalname}`;
+        const destPath = require("path").join(persistentAssetsDir, fileName);
+        
+        require("fs").renameSync(file.path, destPath);
+        
+        return res.json({
+          success: 1,
+          file: {
+            url: `/api/assets/${fileName}`
+          }
+        });
+      } catch (e: any) {
+        console.error("Image upload failed", e);
+        return res.status(500).json({ success: 0, error: "Upload failed" });
       }
     }
   );
