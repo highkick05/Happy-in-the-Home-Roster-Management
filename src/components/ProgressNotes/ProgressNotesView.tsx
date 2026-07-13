@@ -1,34 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Printer, Calendar, User, Search, RefreshCw, FileText } from 'lucide-react';
-import PrintableClinicalChart from './PrintableClinicalChart';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
+import ProgressNotesFeed, { ProgressNote } from './ProgressNotesFeed';
 
 export default function ProgressNotesView() {
   const { token, user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   
-  const defaultEndDate = new Date().toISOString().split('T')[0];
-  const defaultStartDate = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useLocalStorage<string>('progress_notes_client_id', searchParams.get('client') || '');
-  const [startDate, setStartDate] = useState<string>(defaultStartDate);
-  const [endDate, setEndDate] = useState<string>(defaultEndDate);
   
-  const [notes, setNotes] = useState<any[]>([]);
+  const [notes, setNotes] = useState<ProgressNote[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedClientData, setSelectedClientData] = useState<any>(null);
-
-  useEffect(() => {
-    if (!loading && clients.length > 0 && selectedClientId) {
-      const recordExists = clients.some(client => client.id.toString() === selectedClientId);
-      if (!recordExists) {
-        setSelectedClientId(clients[0]?.id?.toString() || ''); // Failsafe trigger
-      }
-    }
-  }, [clients, loading, selectedClientId, setSelectedClientId]);
 
   useEffect(() => {
     fetchClients(selectedClientId);
@@ -37,14 +21,12 @@ export default function ProgressNotesView() {
   useEffect(() => {
     if (selectedClientId) {
       fetchNotes();
-      fetchClientDetails(selectedClientId);
       setSearchParams(prev => { prev.set('client', selectedClientId); return prev; }, { replace: true });
     } else {
       setNotes([]);
-      setSelectedClientData(null);
       setSearchParams(prev => { prev.delete('client'); return prev; }, { replace: true });
     }
-  }, [selectedClientId, startDate, endDate, token]);
+  }, [selectedClientId, token]);
 
   const fetchClients = async (currentSelectedId: string) => {
     try {
@@ -68,10 +50,7 @@ export default function ProgressNotesView() {
     if (!selectedClientId) return;
     setLoading(true);
     try {
-      let url = `/api/progress-notes/${selectedClientId}?`;
-      if (startDate) url += `startDate=${startDate}&`;
-      if (endDate) url += `endDate=${endDate}&`;
-      
+      let url = `/api/progress-notes/${selectedClientId}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         setNotes(await res.json());
@@ -83,182 +62,50 @@ export default function ProgressNotesView() {
     }
   };
 
-  const [isExporting, setIsExporting] = useState(false);
-
-  const fetchClientDetails = async (id: string) => {
-    try {
-      const res = await fetch(`/api/clients/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setSelectedClientData(await res.json());
-    } catch (e) {
-      console.error(e);
-    }
+  const handleSubmitNote = async (content: string, tags: string, clientId: string) => {
+    const res = await fetch('/api/progress-notes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ clientId, content, tags })
+    });
+    if (!res.ok) throw new Error('Failed to submit note');
+    await fetchNotes();
   };
 
-  const handlePrint = async () => {
-    if (!selectedClientId) return;
-    setIsExporting(true);
-    try {
-      const url = new URL('/api/progress-notes/export', window.location.origin);
-      url.searchParams.append('clientId', selectedClientId);
-      if (startDate) url.searchParams.append('startDate', startDate);
-      if (endDate) url.searchParams.append('endDate', endDate);
-      
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (!res.ok) throw new Error('Failed to generate PDF');
-      
-      const blob = await res.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      
-      let dateStr = '';
-      if (startDate && endDate) {
-        dateStr = `_${startDate}_to_${endDate}`;
-      } else if (startDate) {
-        dateStr = `_from_${startDate}`;
-      } else if (endDate) {
-        dateStr = `_until_${endDate}`;
-      }
-      
-      const clientName = selectedClientData ? `${selectedClientData.first_name || ''}_${selectedClientData.last_name || ''}`.replace(/[^a-zA-Z0-9_-]/g, '_') : 'Client';
-      a.download = `Progress_Notes_${clientName}${dateStr}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(downloadUrl);
-    } catch (error) {
-      console.error('Error downloading printable progress notes:', error);
-      alert('Error generating PDF');
-    } finally {
-      setIsExporting(false);
-    }
+  const handleEditNote = async (source: 'SHIFT' | 'MANUAL', id: number, content: string, tags?: string) => {
+    const endpoint = source === 'MANUAL' ? `/api/progress-notes/${id}` : `/api/progress-notes/shifts/${id}`;
+    const res = await fetch(endpoint, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ content, tags })
+    });
+    if (!res.ok) throw new Error('Failed to edit note');
+    await fetchNotes();
   };
 
   return (
-    <div className="flex flex-col h-full bg-brand-bg print:bg-white print:h-auto overflow-hidden print:overflow-visible relative print:block">
-      
-      {/* --- WEB UI HEADER / FILTER BAR --- */}
-      <div className="shrink-0 flex flex-col justify-center px-4 sm:px-6 py-3 bg-brand-navy border-b border-border-subtle print:hidden shadow-sm z-10 w-full relative">
-        <div className="flex flex-col lg:flex-row shadow-sm justify-between gap-4">
-          
-          <div className="flex items-center gap-6">
-            <div>
-              <h1 className="text-lg font-sans font-semibold text-[#E6EDF3] tracking-tight leading-none mb-1">Progress Notes</h1>
-              <p className="text-[11px] text-[#8B949E] leading-none">Unified chronological timeline to review multi-staff shift progress notes.</p>
-            </div>
-          </div>
-            
-          <div className="flex flex-wrap lg:flex-nowrap items-center gap-3 w-full lg:w-auto">
-            <div className="flex items-center">
-              <span className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider mr-2 hidden sm:inline-block">Client <span className="text-red-400">*</span></span>
-              <div className="relative w-full sm:w-[240px]">
-                <User className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <select
-                  value={selectedClientId}
-                  onChange={(e) => setSelectedClientId(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 min-h-[32px] bg-[#09090b] border border-white/[0.08] text-white rounded text-sm focus:outline-none focus:border-brand-teal appearance-none transition-colors"
-                  title="Client Selector"
-                >
-                  <option value="">-- Choose a client --</option>
-                  {clients.sort((a,b) => a.first_name.localeCompare(b.first_name)).map(c => (
-                    <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            
-            <div className="flex items-center">
-               <span className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider mx-2 hidden sm:inline-block">From</span>
-               <div className="relative">
-                <Calendar className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-1/2 -translate-y-1/2" />
-                 <input
-                   type="date"
-                   value={startDate}
-                   onChange={(e) => setStartDate(e.target.value)}
-                   className="pl-8 pr-2 py-1.5 min-h-[32px] bg-[#09090b] border border-white/[0.08] text-[#E6EDF3] rounded text-xs focus:outline-none focus:border-brand-teal transition-colors"
-                   title="Start Date"
-                 />
-               </div>
-            </div>
+    <div className="max-w-4xl">
+       <div className="mb-6">
+         <h1 className="text-2xl font-bold text-white mb-2">Progress Notes</h1>
+         <p className="text-zinc-400">View and manage chronological progress notes.</p>
+       </div>
 
-            <div className="flex items-center">
-               <span className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider mx-2 hidden sm:inline-block">To</span>
-               <div className="relative">
-                <Calendar className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-1/2 -translate-y-1/2" />
-                 <input
-                   type="date"
-                   value={endDate}
-                   onChange={(e) => setEndDate(e.target.value)}
-                   className="pl-8 pr-2 py-1.5 min-h-[32px] bg-[#09090b] border border-white/[0.08] text-[#E6EDF3] rounded text-xs focus:outline-none focus:border-brand-teal transition-colors"
-                   title="End Date"
-                 />
-               </div>
-            </div>
-
-            <div className="hidden lg:block w-px h-6 bg-white/10 mx-2"></div>
-
-            <button 
-              onClick={handlePrint}
-              disabled={!selectedClientId || isExporting}
-              className="px-3 py-1.5 min-h-[32px] bg-brand-green/10 text-brand-green border border-brand-green/20 rounded font-medium text-xs flex items-center justify-center hover:bg-brand-green/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap w-full sm:w-auto"
-            >
-              <Printer className={`w-3.5 h-3.5 mr-2 ${isExporting ? 'animate-pulse' : ''}`} />
-              {isExporting ? 'Exporting PDF...' : 'Print Clinical Chart'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* --- WEB UI MAIN CONTENT AREA --- */}
-      <div className="flex-1 overflow-x-hidden overflow-y-auto w-full print:hidden">
-        <div className="p-4 sm:p-8 w-full max-w-5xl mx-auto space-y-6">
-          {!selectedClientId ? (
-             <div className="w-full flex justify-center pb-12 overflow-x-auto print:hidden">
-               <div className="w-full min-w-[700px] max-w-[900px] shadow-2xl overflow-hidden rounded-sm ring-1 ring-white/10 origin-top relative group mx-auto bg-white">
-                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 opacity-100">
-                   <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-6">
-                     <FileText className="w-8 h-8 text-white" />
-                   </div>
-                   <h3 className="text-xl font-bold text-white mb-2 tracking-tight">No Client Selected</h3>
-                   <p className="text-white/80 max-w-md mx-auto text-sm leading-relaxed text-center">
-                     Progress notes are individualized health records. Please select a client from the dropdown above to view their unified timeline.
-                   </p>
-                 </div>
-                 <div className="pointer-events-none select-none">
-                   <PrintableClinicalChart clientData={null} notes={[]} period={{start: startDate, end: endDate}} />
-                 </div>
-               </div>
-             </div>
-          ) : loading ? (
-             <div className="flex justify-center p-12 w-full">
-                <RefreshCw className="w-8 h-8 text-brand-teal animate-spin opacity-60" />
-             </div>
-          ) : notes.length === 0 ? (
-             <div className="w-full flex justify-center pb-12 overflow-x-auto">
-               <div className="w-full min-w-[700px] max-w-[900px] shadow-2xl overflow-hidden rounded-sm ring-1 ring-white/10 origin-top relative group mx-auto bg-white">
-                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[1px]">
-                   <Search className="w-12 h-12 text-white mb-4" />
-                   <h3 className="text-xl font-bold text-white mb-2">No progress notes match the current filters.</h3>
-                   <p className="text-white/80 max-w-sm text-center">
-                     Showing blank template. You can print this blank chart for physical records.
-                   </p>
-                 </div>
-                 <PrintableClinicalChart notes={[]} clientData={selectedClientData} period={{start: startDate, end: endDate}} />
-               </div>
-             </div>
-          ) : (
-             <div className="w-full flex justify-center pb-12 overflow-x-auto">
-               <div className="w-full min-w-[700px] max-w-[900px] shadow-2xl overflow-hidden rounded-sm ring-1 ring-white/10 mx-auto bg-white">
-                 <PrintableClinicalChart notes={notes} clientData={selectedClientData} period={{start: startDate, end: endDate}} />
-               </div>
-             </div>
-          )}
-        </div>
-      </div>
-
+       <ProgressNotesFeed
+         userRole={user?.role || 'STAFF'}
+         availableClients={clients}
+         selectedClientId={selectedClientId}
+         onClientChange={setSelectedClientId}
+         notes={notes}
+         onSubmitNote={handleSubmitNote}
+         onEditNote={handleEditNote}
+         loading={loading}
+       />
     </div>
   );
 }
