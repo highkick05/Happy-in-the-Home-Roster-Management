@@ -9626,20 +9626,18 @@ try {
             quote_number,
             amount,
             status,
-            date,
-            start_time,
-            end_time,
-            created_at,
-            updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            quote_date,
+            activity_date,
+            services_json,
+            activity_name
+          ) VALUES (?, ?, ?, ?, ?, ?, '[]', 'Historical Quote')
         `).run(
           parseInt(clientId),
           quoteNum || fallbackNum,
           0, 
           'DRAFT', 
           date,
-          date, 
-          date  
+          date
         );
         
         res.json({ success: true, message: "Historical quote uploaded successfully" });
