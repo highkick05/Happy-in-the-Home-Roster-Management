@@ -1,6 +1,7 @@
+import { useDropzone } from 'react-dropzone';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Download, Copy, ChevronUp, ChevronDown, CheckCircle, Search, Trash2, Eye, Edit2 } from 'lucide-react';
+import { Download, X, Upload, Copy, ChevronUp, ChevronDown, CheckCircle, Search, Trash2, Eye, Edit2 } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
 
@@ -522,6 +523,35 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
   );
 }
 
+
+function HistoricalDropzone({ uploadFile, setUploadFile }: { uploadFile: File | null, setUploadFile: (f: File | null) => void }) {
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    accept: { 'application/pdf': ['.pdf'] },
+    maxFiles: 1,
+    onDrop: acceptedFiles => {
+      if (acceptedFiles.length > 0) {
+        setUploadFile(acceptedFiles[0]);
+      }
+    }
+  });
+
+  return (
+    <div 
+      {...getRootProps()}
+      className={`w-full bg-black/40 border-2 border-dashed ${isDragActive ? 'border-brand-teal bg-brand-teal/10' : 'border-white/[0.08] hover:border-white/20'} rounded-lg p-12 flex flex-col items-center justify-center transition-colors cursor-pointer`}
+    >
+      <input {...getInputProps()} required={!uploadFile} />
+      <div className="flex flex-col items-center space-y-3 pointer-events-none">
+        {uploadFile ? (
+          <span className="text-[14px] text-brand-teal font-medium text-center">{uploadFile.name}</span>
+        ) : (
+          <span className="text-[14px] text-zinc-400 font-medium text-center">Drag & drop PDF here, or click to select</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function QuotesView() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -547,6 +577,68 @@ export default function QuotesView() {
   useEffect(() => {
     fetchQuotes();
   }, []);
+
+  
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadClientId, setUploadClientId] = useState('');
+  const [uploadDate, setUploadDate] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [allDbClients, setAllDbClients] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchClients = async () => {
+      try {
+        const res = await fetch('/api/invoices/form-data', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAllDbClients(data.clients || []);
+        }
+      } catch (e) {
+        console.error('Failed to fetch clients:', e);
+      }
+    };
+    if (token) {
+      fetchClients();
+    }
+  }, [token]);
+
+  const handleUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadClientId || !uploadDate || !uploadFile) {
+      alert("Please fill all fields and select a file.");
+      return;
+    }
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('clientId', uploadClientId);
+    formData.append('date', uploadDate);
+    formData.append('file', uploadFile);
+
+    try {
+      const res = await fetch('/api/quotes/historical', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      });
+      if (!res.ok) throw new Error('Failed to upload historical quote');
+      setShowUploadModal(false);
+      setUploadClientId('');
+      setUploadDate('');
+      setUploadFile(null);
+      fetchQuotes();
+    } catch (err) {
+      console.error(err);
+      alert(String(err));
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const fetchQuotes = async () => {
     setLoading(true);
@@ -676,6 +768,65 @@ export default function QuotesView() {
   );
   return (
     <div className="flex-1 flex flex-col space-y-4">
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-[#121214] border border-white/[0.08] rounded-xl shadow-2xl max-w-3xl w-full flex flex-col">
+            <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#18181b] rounded-t-xl shrink-0">
+              <h2 className="text-lg font-bold text-white tracking-tight">Upload Historical Quote</h2>
+              <button onClick={() => setShowUploadModal(false)} className="text-zinc-500 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleUploadSubmit} className="p-5 space-y-4 bg-[#09090b]">
+              <div>
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Client</label>
+                <select
+                  required
+                  value={uploadClientId}
+                  onChange={e => setUploadClientId(e.target.value)}
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
+                >
+                  <option value="">Select Client</option>
+                  {allDbClients.map(c => (
+                    <option key={c.id} value={c.id}>{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Historical Date</label>
+                <input
+                  type="date"
+                  required
+                  value={uploadDate}
+                  onChange={e => setUploadDate(e.target.value)}
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
+                />
+              </div>
+              <div>
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Quote PDF</label>
+                <HistoricalDropzone uploadFile={uploadFile} setUploadFile={setUploadFile} />
+              </div>
+              <div className="pt-4 border-t border-white/[0.08] flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUploading}
+                  className="px-4 py-2 bg-amber-500/20 text-amber-500 border border-amber-500/30 hover:bg-amber-500/30 text-[13px] font-medium rounded-md transition-colors disabled:opacity-50"
+                >
+                  {isUploading ? 'Uploading...' : 'Upload'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showGenerateModal && (
         <div className="fixed inset-0 z-[60] flex justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto custom-scrollbar">
           <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-[1400px] flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
@@ -718,6 +869,13 @@ export default function QuotesView() {
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#8B949E]" />
             {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-2 top-1.5 text-[#8B949E] hover:text-[#E6EDF3] transition-colors">&times;</button>}
           </div>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white border-0 text-[13px] font-medium rounded-md transition-colors shadow-sm w-full sm:w-auto h-9 whitespace-nowrap"
+          >
+            <Upload className="w-4 h-4 mr-1.5" />
+            Upload Historical
+          </button>
           <button
             onClick={() => { setEditingQuote(null); setShowGenerateModal(true); }}
             className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white border-0 text-[13px] font-medium rounded-md transition-colors shadow-sm w-full sm:w-auto h-9"
