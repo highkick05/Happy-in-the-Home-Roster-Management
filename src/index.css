@@ -468,10 +468,43 @@ input:-webkit-autofill:active {
 }
 /* The block toolbar icon (plus) needs to be positioned on the left side but because of 100% width, 
 it might be cut off if padding is not sufficient */
-.editorjs-wrapper {
-  padding-left: 40px;
-}
+
 .editorjs-wrapper .ce-toolbar__actions {
   left: -40px;
   right: auto;
+}
+
+/* Hide EditorJS default block toolbar (plus icon and drag handle) to make it look like a standard WYSIWYG */
+.editorjs-wrapper .ce-toolbar__actions {
+  display: none !important;
+}
+
+/* Tighten the blocks spacing */
+.editorjs-wrapper .ce-block__content {
+  max-width: 100% !important;
+}
+.editorjs-wrapper .ce-block {
+  margin: 0 !important;
+  padding: 0.25em 0 !important;
+}
+.editorjs-wrapper .codex-editor__redactor {
+  padding-bottom: 20px !important;
+}
+
+/* Allow images to be resized naturally */
+.editorjs-wrapper .image-tool__image {
+  max-width: 100% !important;
+  max-height: 400px !important;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.editorjs-wrapper .image-tool__image-picture {
+  max-width: 100% !important;
+  max-height: 400px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
 }

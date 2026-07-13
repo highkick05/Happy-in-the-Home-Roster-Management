@@ -15,6 +15,7 @@ import Underline from '@editorjs/underline';
 // @ts-ignore
 import ImageTool from '@editorjs/image';
 import { useAuth } from '../../context/AuthContext';
+import { Heading1, Heading2, List as ListIcon, ListOrdered, Image as ImageIcon } from 'lucide-react';
 
 interface EditorJSWrapperProps {
   initialData?: OutputData;
@@ -110,7 +111,37 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
 
     editorInstanceRef.current = editor;
 
-    return () => {
+  
+  const insertBlock = (type: string, data: any = {}) => {
+    if (editorInstanceRef.current) {
+      editorInstanceRef.current.blocks.insert(type, data);
+      editorInstanceRef.current.caret.setToBlock('end');
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('image', file);
+    try {
+      const res = await fetch('/api/progress-notes/upload-image', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success && data.file) {
+        insertBlock('image', { file: data.file });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+) => {
       if (editorInstanceRef.current && typeof editorInstanceRef.current.destroy === 'function') {
         try {
           editorInstanceRef.current.destroy();
@@ -141,7 +172,37 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
     }
   }));
 
+
+  const insertBlock = (type: string, data: any = {}) => {
+    if (editorInstanceRef.current) {
+      editorInstanceRef.current.blocks.insert(type, data);
+      editorInstanceRef.current.caret.setToBlock('end');
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('image', file);
+    try {
+      const res = await fetch('/api/progress-notes/upload-image', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success && data.file) {
+        insertBlock('image', { file: data.file });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
+
     <div 
       className={`prose prose-invert max-w-none text-sm editorjs-wrapper ${readOnly ? 'read-only' : ''}`}
       ref={editorContainerRef} 

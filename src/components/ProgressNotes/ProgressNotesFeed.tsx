@@ -150,9 +150,9 @@ export default function ProgressNotesFeed({
   };
 
   return (
-    <div className="space-y-6 w-full">
+    <div className="space-y-4 w-full">
       {/* Top Controls: Client Selector */}
-      <div className="flex items-center space-x-4 bg-zinc-800 p-4 rounded-xl border border-white/[0.05]">
+      <div className="flex items-center space-x-3 bg-zinc-800/80 p-3 rounded-lg border border-white/[0.05]">
         <div className="flex-1 max-w-sm flex items-center space-x-3">
           <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0">Client</label>
           <select
@@ -171,8 +171,8 @@ export default function ProgressNotesFeed({
       {/* Add New Note */}
       {selectedClientId && (
         <div className="bg-zinc-800 rounded-xl border border-white/[0.05] overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/[0.05] flex flex-wrap items-center justify-between bg-zinc-800/50 gap-4">
-            <h3 className="font-semibold text-white">Add New Progress Note</h3>
+          <div className="px-4 py-2.5 border-b border-white/[0.05] flex flex-wrap items-center justify-between bg-zinc-800/50 gap-3">
+            <h3 className="text-[13px] font-semibold text-white">Add New Progress Note</h3>
             
             <div className="flex flex-wrap items-center gap-3 ml-auto">
                 {userRole === 'ADMIN' && (
@@ -206,8 +206,8 @@ export default function ProgressNotesFeed({
                 </div>
             </div>
           </div>
-          <div className="p-5 space-y-4">
-            <div className="bg-black/20 rounded-lg border border-white/[0.05] p-4 text-white">
+          <div className="p-3 space-y-3">
+            <div className="bg-transparent rounded-lg border border-white/[0.05] text-white">
               <EditorJSWrapper ref={editorRef} minHeight={100} />
             </div>
             
@@ -234,7 +234,7 @@ export default function ProgressNotesFeed({
           </div>
         ) : (
           notes.map((note, idx) => (
-            <div key={`${note.source}-${note.id}-${idx}`} className="bg-zinc-800 rounded-xl border border-white/[0.05] p-5">
+            <div key={`${note.source}-${note.id}-${idx}`} className="bg-zinc-800/80 rounded-lg border border-white/[0.05] p-4">
                <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="text-[13px] text-zinc-300">
