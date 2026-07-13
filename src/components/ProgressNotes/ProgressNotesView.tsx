@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CustomDatePicker } from '../ui/CustomDatePicker';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -13,6 +14,8 @@ export default function ProgressNotesView() {
   
   const [notes, setNotes] = useState<ProgressNote[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
   const [staffList, setStaffList] = useState<any[]>([]);
 
   useEffect(() => {
@@ -129,20 +132,24 @@ export default function ProgressNotesView() {
               <select
                 value={selectedClientId}
                 onChange={(e) => setSelectedClientId(e.target.value)}
-                className="bg-transparent text-[13px] text-white outline-none min-w-[150px] [color-scheme:dark]"
+                className="bg-brand-navy text-[13px] text-white outline-none min-w-[150px] border border-border-subtle rounded px-1.5 py-0.5"
               >
-                {clients.length === 0 && <option value="">No clients available</option>}
+                {clients.length === 0 && <option value="" className="bg-brand-navy text-white">No clients available</option>}
                 {clients.map(c => (
-                  <option key={c.id} value={c.id}>{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
+                  <option key={c.id} value={c.id} className="bg-brand-navy text-white">{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
                 ))}
               </select>
             </div>
             
             <div className="flex items-center space-x-2 bg-brand-navy px-3 py-1.5 rounded-lg border border-white/[0.05]">
               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">From</span>
-              <input type="date" className="bg-transparent text-[12px] text-zinc-400 outline-none [color-scheme:dark]" />
+              <div className="w-[120px]">
+                <CustomDatePicker selected={fromDate} onDateChange={(d) => setFromDate(d)} />
+              </div>
               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider ml-2">To</span>
-              <input type="date" className="bg-transparent text-[12px] text-zinc-400 outline-none [color-scheme:dark]" />
+              <div className="w-[120px]">
+                <CustomDatePicker selected={toDate} onDateChange={(d) => setToDate(d)} />
+              </div>
             </div>
             
             <button className="bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 px-3 py-1.5 rounded-lg text-[12px] font-medium hover:bg-[#3A422F] transition-colors flex items-center">

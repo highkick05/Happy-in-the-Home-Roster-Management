@@ -117,7 +117,7 @@ export default function ProgressNotesFeed({
       const data = JSON.parse(contentStr);
       if (data && data.blocks) {
         return (
-          <div className="text-[14px] leading-relaxed block [&>p]:mb-1 [&>p]:last:mb-0 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1">
+          <div className="text-[14px] leading-[1.4] text-[#E6EDF3] block [&>p]:mb-1 [&>p]:last:mb-0 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1">
             {data.blocks.map((block: any, idx: number) => {
               if (block.type === 'paragraph') return <p key={idx} dangerouslySetInnerHTML={{__html: block.data.text}} />;
               if (block.type === 'header') {
@@ -148,7 +148,7 @@ export default function ProgressNotesFeed({
     } catch (e) {
       // Fallback if not valid JSON (e.g. plain text old notes)
     }
-    return <div className="text-[14px] text-zinc-200 leading-relaxed whitespace-pre-wrap block">{contentStr}</div>;
+    return <div className="text-[14px] text-[#E6EDF3] leading-[1.4] whitespace-pre-wrap block">{contentStr}</div>;
   };
 
   return (
@@ -176,9 +176,9 @@ export default function ProgressNotesFeed({
                           onChange={(e) => setNewNoteAuthorId(e.target.value)}
                           className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none min-w-[100px]"
                         >
-                          <option value="">(Self)</option>
+                          <option value="" className="bg-brand-navy text-white">(Self)</option>
                           {staffList?.filter(s => s.role === 'STAFF').map(s => (
-                            <option key={s.id} value={s.id}>{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
+                            <option key={s.id} value={s.id} className="bg-brand-navy text-white">{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
                           ))}
                         </select>
                       </div>
@@ -256,9 +256,9 @@ export default function ProgressNotesFeed({
                           onChange={(e) => setEditTags(e.target.value)}
                           className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none"
                         >
-                          <option value="Activity">Activity</option>
-                          <option value="Behavioural">Behavioural</option>
-                          <option value="Incident">Incident</option>
+                          <option value="Activity" className="bg-brand-navy text-white">Activity</option>
+                          <option value="Behavioural" className="bg-brand-navy text-white">Behavioural</option>
+                          <option value="Incident" className="bg-brand-navy text-white">Incident</option>
                         </select>
                       </div>
                     )}
