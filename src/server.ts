@@ -9604,32 +9604,18 @@ try {
         const systemName = path.posix.join(subfolder, newFileName);
         const stats = fs.statSync(destPath);
         
-        const existingDoc = db
-          .prepare("SELECT id FROM documents WHERE system_name = ?")
-          .get(systemName) as any;
-
-        if (existingDoc) {
+        try {
           db.prepare(
-            `UPDATE documents 
-             SET size = ?, 
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE system_name = ?`
-          ).run(stats.size, systemName);
-        } else {
-          db.prepare(
-            `INSERT INTO documents (
-              title, original_name, system_name, folder_path,
-              mime_type, size, uploader_id, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+            "INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path) VALUES (?, ?, ?, ?, ?)"
           ).run(
             newFileName,
-            originalName,
             systemName,
-            folderPathDb,
-            "application/pdf",
             stats.size,
-            (req as any).user!.id
+            (req as any).user?.id || 1,
+            folderPathDb
           );
+        } catch (fileErr) {
+          console.error("Failed to insert file record for historical quote", fileErr);
         }
 
         const fallbackNum = `QUO-HIST-${Date.now()}`;
