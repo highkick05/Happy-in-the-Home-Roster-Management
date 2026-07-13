@@ -150,15 +150,15 @@ export default function ProgressNotesFeed({
   };
 
   return (
-    <div className="space-y-4 w-full">
+    <div className="space-y-3 w-full">
       {/* Top Controls: Client Selector */}
-      <div className="flex items-center space-x-3 bg-zinc-800/80 p-3 rounded-lg border border-white/[0.05]">
+      <div className="flex items-center space-x-2 bg-zinc-800/80 p-2 rounded-lg border border-white/[0.05]">
         <div className="flex-1 max-w-sm flex items-center space-x-3">
-          <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0">Client</label>
+          <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider shrink-0">Client:</label>
           <select
             value={selectedClientId}
             onChange={(e) => onClientChange(e.target.value)}
-            className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
+            className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2 py-1 text-[12px] text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
           >
             {availableClients.length === 0 && <option value="">No clients available</option>}
             {availableClients.map(c => (
@@ -171,7 +171,7 @@ export default function ProgressNotesFeed({
       {/* Add New Note */}
       {selectedClientId && (
         <div className="bg-zinc-800 rounded-xl border border-white/[0.05] overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-white/[0.05] flex flex-wrap items-center justify-between bg-zinc-800/50 gap-3">
+          <div className="px-3 py-1.5 border-b border-white/[0.05] flex flex-wrap items-center justify-between bg-zinc-800/50 gap-2">
             <h3 className="text-[13px] font-semibold text-white">Add New Progress Note</h3>
             
             <div className="flex flex-wrap items-center gap-3 ml-auto">
@@ -206,12 +206,12 @@ export default function ProgressNotesFeed({
                 </div>
             </div>
           </div>
-          <div className="p-3 space-y-3">
-            <div className="bg-transparent rounded-lg border border-white/[0.05] text-white">
-              <EditorJSWrapper ref={editorRef} minHeight={100} />
+          <div className="p-0">
+            <div className="bg-transparent text-white">
+              <EditorJSWrapper ref={editorRef} minHeight={80} />
             </div>
             
-            <div className="flex justify-end">
+            <div className="flex justify-end p-2 border-t border-white/[0.05]">
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}

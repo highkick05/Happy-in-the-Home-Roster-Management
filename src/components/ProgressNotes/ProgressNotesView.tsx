@@ -102,9 +102,9 @@ export default function ProgressNotesView() {
 
   return (
     <div className="w-full">
-       <div className="mb-6">
-         <h1 className="text-2xl font-bold text-white mb-2">Progress Notes</h1>
-         <p className="text-zinc-400">View and manage chronological progress notes.</p>
+       <div className="mb-2 flex items-center justify-between">
+         <h1 className="text-lg font-bold text-white">Progress Notes</h1>
+         <p className="text-[12px] text-zinc-400">View and manage chronological progress notes.</p>
        </div>
 
        <ProgressNotesFeed
