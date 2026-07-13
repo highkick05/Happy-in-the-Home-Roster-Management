@@ -236,8 +236,11 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
   return (
     <div className={`editorjs-container flex flex-col ${readOnly ? 'read-only' : ''}`}>
       {!readOnly && (
-        <div className="flex items-center justify-between bg-zinc-800/80 border-b border-white/[0.05] p-1 px-2 rounded-t-md">
+        <div className="flex items-center justify-between bg-[#1C1D22] border-b border-[#0B0C0E] p-1 px-2 rounded-t-none">
           <div className="flex items-center gap-1">
+           <button type="button" onClick={() => insertBlock('header', { level: 1 })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Heading 1"><Heading1 size={15} /></button>
+           <button type="button" onClick={() => insertBlock('header', { level: 2 })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Heading 2"><Heading2 size={15} /></button>
+           <div className="w-px h-4 bg-white/10 mx-1" />
            <button type="button" onClick={() => insertBlock('list', { style: 'unordered' })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Bullet List"><ListIcon size={15} /></button>
            <button type="button" onClick={() => insertBlock('list', { style: 'ordered' })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Numbered List"><ListOrdered size={15} /></button>
            <div className="w-px h-4 bg-white/10 mx-1" />
@@ -272,7 +275,7 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
         </div>
       )}
       <div 
-        className={`prose prose-invert max-w-none text-sm editorjs-wrapper bg-black/20 p-2 rounded-b-md min-h-[80px]`}
+        className={`prose prose-invert max-w-none text-[15px] editorjs-wrapper bg-[#0B0C0E] px-6 py-4 rounded-b-none min-h-[140px]`}
         ref={editorContainerRef} 
       />
     </div>

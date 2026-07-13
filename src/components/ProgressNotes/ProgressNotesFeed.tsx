@@ -155,7 +155,7 @@ export default function ProgressNotesFeed({
 
       {/* Add New Note */}
       {selectedClientId && (
-        <div className="bg-zinc-800 rounded-xl border border-white/[0.05] overflow-hidden">
+        <div className="bg-[#1C1D22] rounded-xl border border-white/[0.05] overflow-hidden">
           <div className="px-3 py-2">
             <h3 className="text-[14px] font-semibold text-white">Add New Progress Note</h3>
           </div>
@@ -183,12 +183,12 @@ export default function ProgressNotesFeed({
                     )}
                     <div className="flex items-center space-x-2 text-[11px]">
                       <span className="text-zinc-500">Tag:</span>
-                      <div className="bg-black/40 border border-white/[0.08] rounded flex overflow-hidden">
-                        {['Behavioural', 'Health', 'Activity'].map(tag => (
+                      <div className="bg-[#1C1D22] border border-[#0B0C0E] rounded flex overflow-hidden">
+                        {['Behavioural', 'Health', 'Activity', 'Incident'].map(tag => (
                           <button
                             key={tag}
                             onClick={() => setNewNoteTags(tag)}
-                            className={`px-3 py-1 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+                            className={`px-3 py-1 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-[#1C1D22]'}`}
                           >
                             {tag}
                           </button>
@@ -200,7 +200,7 @@ export default function ProgressNotesFeed({
               />
             </div>
             
-            <div className="flex justify-end p-2 border-t border-white/[0.05]">
+            <div className="flex justify-end p-3 bg-[#1C1D22] border-t border-white/[0.05]">
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
@@ -218,12 +218,12 @@ export default function ProgressNotesFeed({
         {loading ? (
           <div className="text-center py-8 text-zinc-400">Loading notes...</div>
         ) : notes.length === 0 ? (
-          <div className="text-center py-12 text-zinc-500 bg-zinc-800/50 rounded-xl border border-white/[0.05]">
+          <div className="text-center py-12 text-zinc-500 bg-[#1C1D22]/80 rounded-xl border border-white/[0.05]">
             No progress notes found for this client.
           </div>
         ) : (
           notes.map((note, idx) => (
-            <div key={`${note.source}-${note.id}-${idx}`} className="bg-zinc-800/80 rounded-lg border border-white/[0.05] p-4">
+            <div key={`${note.source}-${note.id}-${idx}`} className="bg-[#1C1D22] rounded-xl border border-white/[0.05] p-5 shadow-sm">
                <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="text-[13px] text-zinc-300">

@@ -108,7 +108,7 @@ export default function ProgressNotesView() {
            <p className="text-[12px] text-zinc-400">View and manage chronological progress notes.</p>
          </div>
          <div className="flex items-center gap-3">
-            <div className="flex items-center space-x-2 bg-zinc-800/80 px-3 py-1.5 rounded-lg border border-white/[0.05]">
+            <div className="flex items-center space-x-2 bg-[#1C1D22] px-3 py-1.5 rounded-lg border border-white/[0.05]">
               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Client</span>
               <select
                 value={selectedClientId}
@@ -122,7 +122,7 @@ export default function ProgressNotesView() {
               </select>
             </div>
             
-            <div className="flex items-center space-x-2 bg-zinc-800/80 px-3 py-1.5 rounded-lg border border-white/[0.05]">
+            <div className="flex items-center space-x-2 bg-[#1C1D22] px-3 py-1.5 rounded-lg border border-white/[0.05]">
               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">From</span>
               <input type="date" className="bg-transparent text-[12px] text-zinc-400 outline-none [color-scheme:dark]" />
               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider ml-2">To</span>
