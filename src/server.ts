@@ -9500,7 +9500,7 @@ try {
       }
 
       try {
-        const client = db.prepare("SELECT first_name, last_name FROM clients WHERE id = ?").get(parseInt(clientId));
+        const client = db.prepare("SELECT first_name, last_name FROM clients WHERE id = ?").get(parseInt(clientId)) as any;
         if (!client) {
           return res.status(404).json({ error: "Client not found" });
         }
@@ -9535,7 +9535,7 @@ try {
             newFileName,
             systemName,
             stats.size,
-            (req).user?.id || 1,
+            (req as any).user?.id || 1,
             folderPathDb
           );
         } catch (fileErr) {
