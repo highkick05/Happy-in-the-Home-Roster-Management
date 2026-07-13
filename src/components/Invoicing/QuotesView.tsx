@@ -582,6 +582,7 @@ export default function QuotesView() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadClientId, setUploadClientId] = useState('');
   const [uploadDate, setUploadDate] = useState('');
+  const [uploadActivity, setUploadActivity] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [allDbClients, setAllDbClients] = useState<any[]>([]);
@@ -617,6 +618,7 @@ export default function QuotesView() {
     formData.append('clientId', uploadClientId);
     formData.append('date', uploadDate);
     formData.append('file', uploadFile);
+    if (uploadActivity) formData.append('activity', uploadActivity);
 
     try {
       const res = await fetch('/api/quotes/historical', {
@@ -630,6 +632,7 @@ export default function QuotesView() {
       setShowUploadModal(false);
       setUploadClientId('');
       setUploadDate('');
+      setUploadActivity('');
       setUploadFile(null);
       fetchQuotes();
     } catch (err) {
@@ -800,6 +803,16 @@ export default function QuotesView() {
                   value={uploadDate}
                   onChange={e => setUploadDate(e.target.value)}
                   className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
+                />
+              </div>
+              <div>
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Activity Name (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Historical Quote"
+                  value={uploadActivity}
+                  onChange={e => setUploadActivity(e.target.value)}
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder:text-zinc-600"
                 />
               </div>
               <div>

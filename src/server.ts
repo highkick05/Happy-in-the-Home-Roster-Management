@@ -9492,7 +9492,7 @@ try {
     requireAdmin,
     upload.single("file"),
     (req, res) => {
-      const { clientId, date } = req.body;
+      const { clientId, date, activity } = req.body;
       const file = req.file;
 
       if (!clientId || !date || !file) {
@@ -9569,7 +9569,7 @@ try {
     requireAdmin,
     upload.single("file"),
     (req, res) => {
-      const { clientId, date } = req.body;
+      const { clientId, date, activity } = req.body;
       const file = req.file;
 
       if (!clientId || !date || !file) {
@@ -9630,14 +9630,15 @@ try {
             activity_date,
             services_json,
             activity_name
-          ) VALUES (?, ?, ?, ?, ?, ?, '[]', 'Historical Quote')
+          ) VALUES (?, ?, ?, ?, ?, ?, '[]', ?)
         `).run(
           parseInt(clientId),
           quoteNum || fallbackNum,
           0, 
           'DRAFT', 
           date,
-          date
+          date,
+          activity || 'Historical Quote'
         );
         
         res.json({ success: true, message: "Historical quote uploaded successfully" });
