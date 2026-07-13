@@ -9513,7 +9513,16 @@ try {
         }
         
         const originalName = file.originalname || "historical-invoice.pdf";
-        const invoiceNum = originalName.replace(/\.[^/.]+$/, "");
+        let invoiceNum = originalName.replace(/\.[^/.]+$/, "");
+        
+        // Ensure unique invoice number
+        let existingInvoice = db.prepare("SELECT id FROM invoices WHERE invoice_number = ?").get(invoiceNum);
+        let invoiceCounter = 1;
+        while (existingInvoice) {
+            invoiceNum = `${originalName.replace(/\.[^/.]+$/, "")}-${invoiceCounter}`;
+            existingInvoice = db.prepare("SELECT id FROM invoices WHERE invoice_number = ?").get(invoiceNum);
+            invoiceCounter++;
+        }
         const newFileName = originalName;
         const destPath = path.join(folderPath, newFileName);
         
@@ -9620,6 +9629,15 @@ try {
 
         const fallbackNum = `QUO-HIST-${Date.now()}`;
         
+        let finalQuoteNum = quoteNum || fallbackNum;
+        let existingQuote = db.prepare("SELECT id FROM quotes WHERE quote_number = ?").get(finalQuoteNum);
+        let quoteCounter = 1;
+        while (existingQuote) {
+            finalQuoteNum = `${quoteNum || fallbackNum}-${quoteCounter}`;
+            existingQuote = db.prepare("SELECT id FROM quotes WHERE quote_number = ?").get(finalQuoteNum);
+            quoteCounter++;
+        }
+
         db.prepare(`
           INSERT INTO quotes (
             client_id,
@@ -9633,7 +9651,7 @@ try {
           ) VALUES (?, ?, ?, ?, ?, ?, '[]', ?)
         `).run(
           parseInt(clientId),
-          quoteNum || fallbackNum,
+          finalQuoteNum,
           0, 
           'DRAFT', 
           date,
