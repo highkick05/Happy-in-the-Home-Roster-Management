@@ -236,7 +236,7 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
   return (
     <div className={`editorjs-container flex flex-col ${readOnly ? 'read-only' : ''}`}>
       {!readOnly && (
-        <div className="flex items-center justify-between bg-[#1C1D22] border-b border-[#0B0C0E] p-1 px-2 rounded-t-none">
+        <div className="flex items-center justify-between bg-[#1C1D22] border-b border-[#0B0C0E] py-2 px-4">
           <div className="flex items-center gap-1">
            <button type="button" onClick={() => insertBlock('header', { level: 1 })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Heading 1"><Heading1 size={15} /></button>
            <button type="button" onClick={() => insertBlock('header', { level: 2 })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Heading 2"><Heading2 size={15} /></button>
