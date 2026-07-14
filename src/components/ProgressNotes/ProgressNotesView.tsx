@@ -127,7 +127,7 @@ export default function ProgressNotesView() {
            <p className="text-[12px] text-zinc-400">View and manage chronological progress notes.</p>
          </div>
          <div className="flex items-center gap-3">
-            <div className="flex items-center space-x-2 bg-brand-navy px-3 py-1.5 rounded-lg border border-white/[0.05]">
+            <div className="flex items-center space-x-2 h-9 bg-brand-navy px-3 rounded-lg border border-white/[0.05]">
               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Client</span>
               <select
                 value={selectedClientId}
@@ -141,7 +141,7 @@ export default function ProgressNotesView() {
               </select>
             </div>
             
-            <div className="flex items-center space-x-2 bg-brand-navy px-3 py-1.5 rounded-lg border border-white/[0.05]">
+            <div className="flex items-center space-x-2 h-9 bg-brand-navy px-3 rounded-lg border border-white/[0.05]">
               <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">From</span>
               <div className="w-[120px]">
                 <CustomDatePicker selected={fromDate} onDateChange={(d) => setFromDate(d)} position="bottom" className="bg-transparent text-[13px] text-white outline-none w-full border-none p-0 focus:ring-0" />
@@ -152,7 +152,7 @@ export default function ProgressNotesView() {
               </div>
             </div>
             
-            <button className="bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 px-3 py-1.5 rounded-lg text-[12px] font-medium hover:bg-[#3A422F] transition-colors flex items-center">
+            <button className="bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 px-3 h-9 rounded-lg text-[12px] font-medium hover:bg-[#3A422F] transition-colors flex items-center justify-center">
               Time Critical Alert
             </button>
          </div>

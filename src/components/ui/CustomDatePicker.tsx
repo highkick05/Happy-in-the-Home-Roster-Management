@@ -157,7 +157,7 @@ export function CustomDatePicker({
         <div className="relative w-full">
           <input 
             type="text"
-            className={className + " w-full pl-2 pr-7 cursor-pointer"}
+            className={className + " w-full pl-2 pr-7 cursor-pointer py-0 h-full !border-0 bg-transparent"}
             placeholder={placeholderText || "dd/mm/yyyy"}
             value={dateValue ? dateValue.toLocaleDateString("en-GB") : ""}
             onClick={() => {
