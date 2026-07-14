@@ -448,17 +448,13 @@ input:-webkit-autofill:active {
 
 .editorjs-wrapper .image-tool__image {
   max-width: 100% !important;
-  max-height: 400px !important;
   margin: 0 !important;
-  display: flex;
-  justify-content: flex-start;
+  display: inline-block !important;
 }
 .editorjs-wrapper .image-tool__image-picture {
-  max-width: 100% !important;
-  max-height: 400px !important;
-  width: auto !important;
+  width: 100% !important;
   height: auto !important;
-  object-fit: contain;
+  display: block;
   border-radius: 8px;
 }
 /* Ensure the inner block stretches fully */
@@ -494,24 +490,25 @@ it might be cut off if padding is not sufficient */
 /* Allow images to be resized naturally */
 .editorjs-wrapper .image-tool__image {
   max-width: 100% !important;
-  max-height: 400px !important;
   margin: 0 !important;
-  display: flex;
-  justify-content: flex-start;
+  display: inline-block !important;
   border-radius: 6px;
-  overflow: auto;
+  overflow: hidden;
   resize: horizontal;
 }
 .editorjs-wrapper .image-tool__image-picture {
-  max-width: 100% !important;
-  max-height: 400px !important;
-  width: auto !important;
+  width: 100% !important;
   height: auto !important;
-  object-fit: contain;
+  display: block;
 }
 
 .editorjs-wrapper .ce-paragraph {
   line-height: 1.4 !important;
   margin: 0 !important;
   padding: 0 !important;
+}
+
+.editorjs-wrapper .image-tool__caption,
+.editorjs-wrapper .cdx-input.image-tool__caption {
+  display: none !important;
 }
