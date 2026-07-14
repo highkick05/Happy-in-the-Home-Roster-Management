@@ -715,6 +715,18 @@ try {
       );
     `);
     console.log("[DEBUG] Completed client_ledger_entries table setup.");
+
+    // Migration: Add author_id to progress_notes if it doesn't exist
+    try {
+      const progressNotesColumns = db.prepare("PRAGMA table_info(progress_notes)").all() as any[];
+      if (!progressNotesColumns.some(col => col.name === 'author_id')) {
+        db.exec("ALTER TABLE progress_notes ADD COLUMN author_id INTEGER NOT NULL DEFAULT 1");
+        console.log("Migrated progress_notes table to add author_id");
+      }
+    } catch (e) {
+      console.error("Failed to migrate progress_notes:", e);
+    }
+
   } catch (e: any) {
     console.error("Migration error for client_ledger_entries:", e);
   }
