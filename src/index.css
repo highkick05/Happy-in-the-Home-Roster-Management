@@ -449,9 +449,9 @@ input:-webkit-autofill:active {
 .editorjs-wrapper .image-tool__image {
   max-width: 100% !important;
   max-height: 400px !important;
-  margin: 0 auto;
+  margin: 0 !important;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
 }
 .editorjs-wrapper .image-tool__image-picture {
   max-width: 100% !important;
@@ -495,11 +495,12 @@ it might be cut off if padding is not sufficient */
 .editorjs-wrapper .image-tool__image {
   max-width: 100% !important;
   max-height: 400px !important;
-  margin: 0 auto;
+  margin: 0 !important;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   border-radius: 6px;
-  overflow: hidden;
+  overflow: auto;
+  resize: horizontal;
 }
 .editorjs-wrapper .image-tool__image-picture {
   max-width: 100% !important;

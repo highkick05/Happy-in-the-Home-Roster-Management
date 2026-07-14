@@ -134,7 +134,7 @@ export default function ProgressNotesFeed({
               }
               if (block.type === 'image') {
                 return (
-                  <div key={idx} className="my-4">
+                  <div key={idx} className="my-4 flex flex-col items-start">
                     <img src={block.data.file.url} alt={block.data.caption || 'Image'} className="rounded max-w-full h-auto max-h-96" />
                     {block.data.caption && <div className="text-xs text-zinc-500 mt-1" dangerouslySetInnerHTML={{__html: block.data.caption}} />}
                   </div>
