@@ -3,72 +3,41 @@ import re
 with open("src/components/ProgressNotes/ProgressNotesFeed.tsx", "r") as f:
     code = f.read()
 
-# 1. Update Tags Array
-code = code.replace("['Behavioural', 'Health', 'Activity', 'Incident']", "['Activity', 'Behavioural', 'Incident']")
+old_prop = "  onDeleteNote?: (id: number) => Promise<void>;"
+new_prop = "  onDeleteNote?: (source: 'SHIFT' | 'MANUAL', id: number) => Promise<void>;"
+code = code.replace(old_prop, new_prop)
 
-# 2. Update staffList.map
-old_staff = "{staffList.map(s => ("
-new_staff = "{staffList?.filter(s => s.role === 'STAFF').map(s => ("
-code = code.replace(old_staff, new_staff)
+old_edit_btn = """                  <div className="flex items-center space-x-4">
+                     <button 
+                       onClick={() => handleStartEdit(note)}
+                       className="text-zinc-400 hover:text-white flex items-center text-[12px] transition-colors"
+                     >
+                       <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                       Edit
+                     </button>
+                  </div>"""
 
-# 3. Update the Add New Note layout
-old_add_note = """        <div className="bg-[#1C1D22] rounded-xl border border-white/[0.05] overflow-hidden">
-          <div className="px-3 py-2">
-            <h3 className="text-[14px] font-semibold text-white">Add New Progress Note</h3>
-          </div>
-          <div className="p-0">
-            <div className="bg-transparent text-white">
-              <EditorJSWrapper """
+new_edit_btn = """                  <div className="flex items-center space-x-4">
+                     <button 
+                       onClick={() => handleStartEdit(note)}
+                       className="text-zinc-400 hover:text-white flex items-center text-[12px] transition-colors"
+                     >
+                       <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                       Edit
+                     </button>
+                     {(userRole === 'ADMIN' || currentUserId === note.author_id) && (
+                       <button 
+                         onClick={() => onDeleteNote && onDeleteNote(note.source, note.id)}
+                         className="text-red-400/80 hover:text-red-400 flex items-center text-[12px] transition-colors"
+                       >
+                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                         Delete
+                       </button>
+                     )}
+                  </div>"""
+code = code.replace(old_edit_btn, new_edit_btn)
 
-new_add_note = """        <div className="bg-[#1C1D22] rounded-xl border border-white/[0.05] p-5 shadow-sm">
-          <div className="mb-4">
-            <h3 className="text-[15px] font-semibold text-white">Add New Progress Note</h3>
-          </div>
-          <div className="border border-white/[0.05] rounded-lg overflow-hidden">
-            <div className="bg-transparent text-white">
-              <EditorJSWrapper """
-
-code = code.replace(old_add_note, new_add_note)
-
-old_footer = """            <div className="flex justify-end p-3 bg-[#1C1D22] border-t border-white/[0.05]">
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 px-4 py-2 rounded-md text-[13px] font-medium hover:bg-[#3A422F] transition-colors disabled:opacity-50 flex items-center"
-              >
-                Submit Note
-              </button>
-            </div>
-          </div>
-        </div>"""
-
-new_footer = """            </div>
-          </div>
-          <div className="flex justify-end mt-4">
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 px-3 py-1.5 rounded text-[12px] font-medium hover:bg-[#3A422F] transition-colors disabled:opacity-50 flex items-center"
-            >
-              Submit Note
-            </button>
-          </div>
-        </div>"""
-
-code = code.replace(old_footer, new_footer)
-
-# Also fix the edit note tags select options
-old_edit_tags = """                          <option value="Activity">Activity</option>
-                          <option value="Health">Health</option>
-                          <option value="Behavioural">Behavioural</option>
-                          <option value="Incident">Incident</option>"""
-
-new_edit_tags = """                          <option value="Activity">Activity</option>
-                          <option value="Behavioural">Behavioural</option>
-                          <option value="Incident">Incident</option>"""
-
-code = code.replace(old_edit_tags, new_edit_tags)
-
+# Ensure staff_id check works for shift notes too, which might not have author_id, but the staff_id isn't in ProgressNote interface maybe?
+# Wait, let's check ProgressNote interface
 with open("src/components/ProgressNotes/ProgressNotesFeed.tsx", "w") as f:
     f.write(code)
-

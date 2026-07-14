@@ -5362,6 +5362,27 @@ try {
   );
 
   
+
+  app.delete(
+    "/api/progress-notes/shifts/:id",
+    authenticateToken,
+    (req: any, res: any) => {
+      try {
+        const { id } = req.params;
+        const shift = db.prepare("SELECT staff_id FROM shifts WHERE id = ?").get(id) as any;
+        if (!shift) return res.status(404).json({ error: "Shift not found" });
+        if (req.user.role !== "ADMIN" && shift.staff_id !== req.user.id) {
+          return res.status(403).json({ error: "Forbidden" });
+        }
+        db.prepare("UPDATE shifts SET notes = NULL WHERE id = ?").run(id);
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    }
+  );
+
   app.post(
     "/api/progress-notes/upload-image",
     authenticateToken,
@@ -5797,7 +5818,7 @@ try {
           c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
           u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
           srv.name as service_name, srv.type as service_type,
-          NULL as tags
+          NULL as tags, s.staff_id as author_id
         FROM shifts s
         LEFT JOIN clients c ON s.client_id = c.id
         LEFT JOIN users u ON s.staff_id = u.id

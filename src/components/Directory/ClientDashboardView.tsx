@@ -373,7 +373,7 @@ export default function ClientDashboardView() {
                          </div>
                        </div>
                        <div className="text-sm text-[#E6EDF3] leading-relaxed line-clamp-3">
-                         {note.notes}
+                         {getNotePreview(note.notes)}
                        </div>
                      </div>
                    ))}

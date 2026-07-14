@@ -89,17 +89,20 @@ export default function ProgressNotesView() {
     await fetchNotes();
   };
 
-  const handleDeleteNote = async (id: number) => {
-    // Only support deleting manual notes for now or check source?
-    // Wait, the feed doesn't pass source to delete... let's check
-    const res = await fetch(`/api/progress-notes/${id}`, {
+  const handleDeleteNote = async (source: 'SHIFT' | 'MANUAL', id: number) => {
+    if (!confirm('Are you sure you want to delete this progress note?')) return;
+    
+    const url = source === 'SHIFT' 
+      ? `/api/progress-notes/shifts/${id}` 
+      : `/api/progress-notes/${id}`;
+      
+    const res = await fetch(url, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!res.ok) {
-       // It might be a shift note or something, but usually only manual notes are deleted this way.
        console.error("Failed to delete");
-       alert("Failed to delete note. You can only delete manual notes.");
+       alert("Failed to delete note. You might not have permission.");
        return;
     }
     await fetchNotes();
