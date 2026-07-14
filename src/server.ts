@@ -5847,7 +5847,7 @@ try {
           c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
           u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
           NULL as service_name, NULL as service_type,
-          pn.tags as tags
+          pn.tags as tags, pn.author_id
         FROM progress_notes pn
         LEFT JOIN clients c ON pn.client_id = c.id
         LEFT JOIN users u ON pn.author_id = u.id
