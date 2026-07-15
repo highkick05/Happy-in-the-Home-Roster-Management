@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, GripVertical, CheckSquare, Square, Trash2, X, Plus, Paperclip, File, Image as ImageIcon, CheckCircle2, Circle } from 'lucide-react';
+import { Clock, Check, MoreVertical, GripVertical, CheckSquare, Square, Trash2, X, Plus, Paperclip, File, Image as ImageIcon, CheckCircle2, Circle } from 'lucide-react';
 import { useCountdown } from '../../hooks/useCountdown';
 
 function AnimatedCheckbox({ checked, className }: { checked: boolean, className?: string }) {
@@ -102,15 +102,21 @@ export function TaskCard({
       {...provided.draggableProps}
       {...provided.dragHandleProps}
       onClick={onEdit}
-      className={`group relative flex flex-col p-2.5 bg-brand-navy border border-border-subtle rounded-xl shadow-sm mb-3 cursor-pointer hover:border-brand-teal/50 transition-colors ${snapshot.isDragging ? 'opacity-90 shadow-xl ring-2 ring-brand-teal scale-[1.02]' : ''}`}
+      className={`group relative flex flex-col p-3 bg-[#1E293B] hover:bg-[#273548] border border-border-subtle rounded-xl shadow-sm mb-3 cursor-pointer transition-all ${snapshot.isDragging ? 'shadow-xl ring-2 ring-brand-teal/50 rotate-2' : ''}`}
     >
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button className="text-[#8B949E] hover:text-white p-1">
+          <MoreVertical className="w-4 h-4" />
+        </button>
+      </div>
       <div className="flex justify-between items-start mb-2">
         <div className="flex flex-wrap gap-1.5">
           {task.category_name && (
             <span 
-              className="text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider"
+              className="text-[10px] font-medium px-2 py-0.5 rounded flex items-center gap-1.5"
               style={{ backgroundColor: `${task.category_color}20`, color: task.category_color, border: `1px solid ${task.category_color}40` }}
             >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.category_color }}></span>
               {task.category_name}
             </span>
           )}
@@ -120,21 +126,25 @@ export function TaskCard({
         </div>
       </div>
 
-      <h3 className={`text-[13px] font-semibold leading-snug mb-1.5 ${isChecked ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
-        {task.title}
-      </h3>
-      
-      {task.description && (
-        <p className="text-[11px] text-[#8B949E] line-clamp-2 mb-2 leading-tight">
-          {task.description}
-        </p>
-      )}
+      <div className="flex items-start gap-2.5 mb-2 mt-1">
+        <button onClick={(e) => { e.stopPropagation(); /* TODO */ }} className={`mt-0.5 shrink-0 flex items-center justify-center w-4 h-4 rounded-full border ${isChecked ? 'bg-brand-teal border-brand-teal' : 'border-[#8B949E] group-hover:border-white/50'}`}>
+          {isChecked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+        </button>
+        <div className="flex-1 min-w-0">
+          <h3 className={`text-[14px] font-medium leading-snug ${isChecked ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
+            {task.title}
+          </h3>
+                  {task.description && (
+            <p className="text-[12px] text-[#8B949E] line-clamp-2 mt-1 leading-tight">
+              {task.description}
+            </p>
+          )}
+        </div>
+      </div>
 
       {imageAttachments.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto mb-2 pb-0.5 -mx-1.5 px-1.5 no-scrollbar">
-          {imageAttachments.map((img: any, idx: number) => (
-            <img key={idx} src={img.url} alt={img.filename} className="h-10 w-10 object-cover rounded-md border border-border-subtle shrink-0" />
-          ))}
+        <div className="mb-3 -mx-3 mt-1">
+          <img src={imageAttachments[0].url} alt="Cover" className="w-full h-24 object-cover border-y border-border-subtle" />
         </div>
       )}
       
