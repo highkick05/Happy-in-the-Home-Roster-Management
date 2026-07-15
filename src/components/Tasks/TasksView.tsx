@@ -149,7 +149,7 @@ export default function TasksView() {
                           </span>
                         </div>
                       </div>
-                      <button onClick={() => { setEditingTask({ category_id: col.id === 'null' ? '' : col.id }); setIsModalOpen(true); }} className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] font-medium text-[#8B949E] bg-white/[0.02] hover:bg-white/[0.05] border border-transparent hover:border-white/[0.05] rounded-none transition-colors">
+                      <button onClick={() => { setEditingTask({ category_id: col.id }); setIsModalOpen(true); }} className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] font-medium text-[#8B949E] bg-white/[0.02] hover:bg-white/[0.05] border border-transparent hover:border-white/[0.05] rounded-none transition-colors">
                         <Plus className="w-3 h-3" />
                         Add task
                       </button>

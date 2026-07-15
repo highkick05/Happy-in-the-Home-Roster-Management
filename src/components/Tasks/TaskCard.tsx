@@ -30,8 +30,8 @@ export function TaskCard({
   const attachments = task.attachments ? (typeof task.attachments === 'string' ? JSON.parse(task.attachments) : task.attachments) : [];
   
   const completedSubtasks = subTasks.filter((st: any) => st.completed).length;
-  const imageAttachments = attachments.filter((a: any) => a.url.match(/\.(jpeg|jpg|gif|png|webp)$/i));
-  const fileAttachments = attachments.filter((a: any) => !a.url.match(/\.(jpeg|jpg|gif|png|webp)$/i));
+  const imageAttachments = attachments.filter((a: any) => (a.filename && a.filename.match(/\.(jpeg|jpg|gif|png|webp)$/i)) || (a.url && a.url.match(/\.(jpeg|jpg|gif|png|webp)$/i)));
+  const fileAttachments = attachments.filter((a: any) => !((a.filename && a.filename.match(/\.(jpeg|jpg|gif|png|webp)$/i)) || (a.url && a.url.match(/\.(jpeg|jpg|gif|png|webp)$/i))));
 
   if (wallboardMode) {
     let containerClass = "transition-all flex items-center p-3 sm:p-4 shadow-sm border-y border-white/[0.05] ";
@@ -102,9 +102,26 @@ export function TaskCard({
       {...provided.draggableProps}
       {...provided.dragHandleProps}
       onClick={onEdit}
-      className={`group relative flex flex-col p-3 bg-[#1E293B] hover:bg-[#273548] border border-border-subtle rounded-none shadow-sm mb-3 cursor-pointer transition-all ${snapshot.isDragging ? 'shadow-xl ring-2 ring-brand-teal/50 rotate-2' : ''}`}
+      className={`group relative flex flex-col p-0 bg-[#1E293B] hover:bg-[#273548] border border-border-subtle rounded-none shadow-sm mb-3 cursor-pointer transition-all ${snapshot.isDragging ? 'shadow-xl ring-2 ring-brand-teal/50 rotate-2' : ''}`}
     >
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      {imageAttachments.length > 0 && (
+        <div className="w-full">
+          {imageAttachments.map((img: any, idx: number) => (
+            <a 
+              key={idx}
+              href={img.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="block w-full border-b border-border-subtle"
+            >
+              <img src={img.url} alt={img.filename} className="w-full h-32 object-cover" />
+            </a>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-col p-3 flex-1">
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
         <button className="text-[#8B949E] hover:text-white p-1">
           <MoreVertical className="w-4 h-4" />
         </button>
@@ -127,29 +144,23 @@ export function TaskCard({
         </div>
       </div>
 
-      {imageAttachments.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3 mt-1">
-          {imageAttachments.map((img: any, idx: number) => (
+
+      
+      {fileAttachments.length > 0 && (
+        <div className="flex flex-col gap-1 mb-2 pt-1 border-t border-white/[0.03]">
+          {fileAttachments.map((file: any, idx: number) => (
             <a 
               key={idx}
-              href={img.url}
+              href={file.url}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="w-12 h-12 border border-border-subtle hover:border-brand-teal transition-colors"
+              className="flex items-center gap-1.5 text-[11px] font-medium text-brand-teal hover:underline truncate"
             >
-              <img src={img.url} alt={img.filename} className="w-full h-full object-cover" />
+              <Paperclip className="w-3 h-3 shrink-0" />
+              <span className="truncate">{file.filename || (file.url && file.url.split('/').pop()) || 'Attachment'}</span>
             </a>
           ))}
-        </div>
-      )}
-      
-      {fileAttachments.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2 text-[10px] font-medium text-[#8B949E]">
-          <div className="flex items-center gap-1.5">
-            <Paperclip className="w-3.5 h-3.5" />
-            {fileAttachments.length} file{fileAttachments.length === 1 ? '' : 's'}
-          </div>
         </div>
       )}
       
@@ -195,6 +206,7 @@ export function TaskCard({
           </div>
         )}
       </div>
+      </div>
     </div>
   );
 }
@@ -213,7 +225,7 @@ export function TaskModal({
     description: task?.description || '',
     status: task?.status || 'To Do',
     due_date: task?.due_date || '',
-    category_id: task?.category_id || '',
+    category_id: task?.category_id || (categories && categories.length > 0 ? categories[0].id : ''),
     staff_ids: task?.staff?.map((s: any) => s.id) || task?.assigned_staff_parsed || [],
     client_ids: task?.clients?.map((c: any) => c.id) || task?.assigned_clients_parsed || [],
     sub_tasks: task?.sub_tasks || [],
@@ -306,8 +318,8 @@ export function TaskModal({
     onSave(formData);
   };
 
-  const imageAttachments = formData.attachments.filter((a: any) => a.url.match(/\.(jpeg|jpg|gif|png|webp)$/i));
-  const fileAttachments = formData.attachments.filter((a: any) => !a.url.match(/\.(jpeg|jpg|gif|png|webp)$/i));
+  const imageAttachments = formData.attachments.filter((a: any) => a.filename?.match(/\.(jpeg|jpg|gif|png|webp)$/i) || a.url?.match(/\.(jpeg|jpg|gif|png|webp)$/i));
+  const fileAttachments = formData.attachments.filter((a: any) => !a.filename?.match(/\.(jpeg|jpg|gif|png|webp)$/i) || a.url?.match(/\.(jpeg|jpg|gif|png|webp)$/i));
 
   return (
     <div className="fixed inset-0 bg-brand-bg/90 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
@@ -355,7 +367,7 @@ export function TaskModal({
                 onChange={e => setFormData({...formData, category_id: e.target.value})}
                 className="bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none"
               >
-                <option value="">No Category</option>
+                
                 {categories?.map((c: any) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
