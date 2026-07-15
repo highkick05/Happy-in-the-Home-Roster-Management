@@ -15268,6 +15268,16 @@ function resolveFilePath(systemName) {
     }
   });
 
+  app.put('/api/tasks/:id/category', authenticateTokenOrWallboard, (req: any, res: any) => {
+    try {
+      const catId = req.body.category_id || null;
+      db.prepare("UPDATE tasks SET category_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(catId, req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.put('/api/tasks/:id/status', authenticateTokenOrWallboard, (req: any, res: any) => {
     try {
       db.prepare("UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.body.status, req.params.id);

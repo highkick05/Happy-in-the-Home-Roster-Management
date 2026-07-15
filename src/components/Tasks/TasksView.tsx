@@ -4,7 +4,6 @@ import { useAuth } from '../../context/AuthContext';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { TaskCard, TaskModal } from './TaskCard';
 
-const COLUMNS = ['To Do', 'In Progress', 'Done'];
 
 export default function TasksView() {
   const { token } = useAuth();
@@ -50,18 +49,19 @@ export default function TasksView() {
 
     if (source.droppableId === destination.droppableId && source.index === destination.index) return;
 
-    const newStatus = destination.droppableId;
+    const newCategoryId = destination.droppableId === 'null' ? null : parseInt(destination.droppableId, 10);
     const taskId = parseInt(draggableId, 10);
 
     // Optimistic update
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, category_id: newCategoryId } : t));
 
     try {
-      await fetch(`/api/tasks/${taskId}/status`, {
+      await fetch(`/api/tasks/${taskId}/category`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ category_id: newCategoryId })
       });
+      fetchData();
     } catch (err) {
       console.error(err);
       fetchData(); // Revert on failure
@@ -109,21 +109,21 @@ export default function TasksView() {
 
   return (
     <div className="flex flex-col h-full bg-brand-bg text-[#E6EDF3]">
-      <div className="flex-none px-4 py-2 flex items-center justify-between border-b border-border-subtle bg-brand-navy">
-        <h1 className="text-lg font-bold tracking-tight text-white">Kanban Board</h1>
-        <div className="flex items-center gap-3">
+      <div className="flex-none px-3 py-2 flex items-center justify-between border-b border-border-subtle bg-brand-navy">
+        <h1 className="text-sm font-bold tracking-tight text-white">Tasks</h1>
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setIsCategoryModalOpen(true)}
-            className="flex items-center px-4 py-2 text-sm font-medium text-[#8B949E] bg-black/20 border border-white/[0.05] rounded-lg hover:text-white hover:bg-white/[0.05] transition-colors"
+            className="flex items-center px-3 py-1 text-xs font-semibold bg-brand-teal text-white rounded-none hover:bg-brand-teal/90 transition-colors shadow-sm"
           >
-            <Settings2 className="w-4 h-4 mr-2" />
+            <Settings2 className="w-3.5 h-3.5 mr-1.5" />
             Categories
           </button>
           <button
             onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
-            className="flex items-center px-4 py-2 text-sm font-semibold bg-brand-teal text-white rounded-lg hover:bg-brand-teal/90 transition-colors shadow-sm"
+            className="flex items-center px-3 py-1 text-xs font-semibold bg-brand-teal text-white rounded-none hover:bg-brand-teal/90 transition-colors shadow-sm"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
             New Task
           </button>
         </div>
@@ -134,35 +134,33 @@ export default function TasksView() {
           <div className="text-center text-[#8B949E] mt-10">Loading...</div>
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
-            <div className="grid grid-cols-1 md:grid-cols-3 h-full gap-3 items-start min-w-[700px]">
-              {COLUMNS.map(col => {
-                const colTasks = tasks.filter(t => t.status === col);
+            <div className="flex h-full gap-3 items-start min-w-max">
+              {[{id: 'null', name: 'No Category', color_hex: '#8B949E'}, ...categories].map(col => {
+                const colTasks = tasks.filter(t => col.id === 'null' ? !t.category_id : t.category_id === col.id);
                 return (
-                  <div key={col} className="flex flex-col w-full max-h-full bg-black/20 rounded-xl p-2">
+                  <div key={col.id} className="flex flex-col w-[300px] max-h-full bg-black/20 rounded-none p-2 border border-white/[0.02]">
                     <div className="flex flex-col mb-2 px-1">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <h2 className="font-semibold text-[15px] text-white tracking-wide">{col}</h2>
-                          <span className="text-xs font-medium text-[#8B949E]">
+                          <div className="w-2 h-2 rounded-none" style={{ backgroundColor: col.color_hex }}></div>
+                          <h2 className="font-semibold text-[13px] text-white tracking-wide uppercase">{col.name}</h2>
+                          <span className="text-[10px] font-bold bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-none text-[#8B949E]">
                             {colTasks.length}
                           </span>
                         </div>
-                        <button className="text-[#8B949E] hover:text-white transition-colors p-1">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-                        </button>
                       </div>
-                      <button onClick={() => { setEditingTask({ status: col }); setIsModalOpen(true); }} className="flex items-center gap-2 w-full px-3 py-2 text-[14px] font-medium text-[#8B949E] bg-white/[0.02] hover:bg-white/[0.05] border border-transparent hover:border-white/[0.05] rounded-lg transition-colors">
-                        <Plus className="w-4 h-4" />
+                      <button onClick={() => { setEditingTask({ category_id: col.id === 'null' ? '' : col.id }); setIsModalOpen(true); }} className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] font-medium text-[#8B949E] bg-white/[0.02] hover:bg-white/[0.05] border border-transparent hover:border-white/[0.05] rounded-none transition-colors">
+                        <Plus className="w-3 h-3" />
                         Add task
                       </button>
                     </div>
                     
-                    <Droppable droppableId={col}>
+                    <Droppable droppableId={String(col.id)}>
                       {(provided, snapshot) => (
                         <div
                           ref={provided.innerRef}
                           {...provided.droppableProps}
-                          className={`flex-1 overflow-y-auto rounded-xl p-2 min-h-[150px] transition-colors ${snapshot.isDraggingOver ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-transparent border-transparent'}`}
+                          className={`flex-1 overflow-y-auto rounded-none p-1 min-h-[150px] transition-colors ${snapshot.isDraggingOver ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-transparent border-transparent'}`}
                         >
                           {colTasks.map((task, index) => (
                             <Draggable key={task.id} draggableId={String(task.id)} index={index}>
@@ -246,10 +244,10 @@ function CategoryModal({ categories, token, onClose, onRefresh }: any) {
 
   return (
     <div className="fixed inset-0 bg-brand-bg/90 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
-      <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+      <div className="bg-brand-navy border border-border-subtle rounded-none w-full max-w-md shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-border-subtle bg-black/20">
           <h2 className="text-lg font-bold text-white">Manage Categories</h2>
-          <button onClick={onClose} className="p-2 text-[#8B949E] hover:text-white rounded-md hover:bg-white/[0.04]">
+          <button onClick={onClose} className="p-2 text-[#8B949E] hover:text-white rounded-none hover:bg-white/[0.04]">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -259,7 +257,7 @@ function CategoryModal({ categories, token, onClose, onRefresh }: any) {
               type="color"
               value={colorHex}
               onChange={e => setColorHex(e.target.value)}
-              className="w-10 h-10 rounded cursor-pointer border-0 p-0"
+              className="w-10 h-10 rounded-none cursor-pointer border-0 p-0"
             />
             <input
               type="text"
@@ -267,21 +265,21 @@ function CategoryModal({ categories, token, onClose, onRefresh }: any) {
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="Category name..."
-              className="flex-1 bg-black/20 border border-border-subtle rounded-lg px-3 py-2 text-white focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none"
+              className="flex-1 bg-black/20 border border-border-subtle rounded-none px-3 py-2 text-white focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none"
             />
-            <button type="submit" className="px-4 py-2 bg-brand-teal text-white font-semibold rounded-lg hover:bg-brand-teal/90">
+            <button type="submit" className="px-4 py-2 bg-brand-teal text-white font-semibold rounded-none hover:bg-brand-teal/90">
               Add
             </button>
           </form>
 
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
             {categories.map((c: any) => (
-              <div key={c.id} className="flex items-center justify-between p-3 bg-black/20 border border-border-subtle rounded-lg">
+              <div key={c.id} className="flex items-center justify-between p-3 bg-black/20 border border-border-subtle rounded-none">
                 <div className="flex items-center gap-3">
                   <div className="w-4 h-4 rounded-full" style={{ backgroundColor: c.color_hex }} />
                   <span className="font-medium">{c.name}</span>
                 </div>
-                <button onClick={() => handleDelete(c.id)} className="text-[#8B949E] hover:text-red-400 p-1 rounded hover:bg-red-400/10">
+                <button onClick={() => handleDelete(c.id)} className="text-[#8B949E] hover:text-red-400 p-1 rounded-none hover:bg-red-400/10">
                   <X className="w-4 h-4" />
                 </button>
               </div>

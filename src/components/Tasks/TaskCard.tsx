@@ -80,7 +80,7 @@ export function TaskCard({
               </div>
             )}
             {task.due_date && !isChecked && (
-              <div className={`flex items-center text-lg font-medium tracking-tight px-3 py-1 rounded-lg border ${
+              <div className={`flex items-center text-lg font-medium tracking-tight px-3 py-1 rounded-none border ${
                 isOverdue ? 'text-red-400 border-red-400/30 bg-red-400/10' :
                 isNearDue ? 'text-amber-400 border-amber-400/30 bg-amber-400/10' :
                 'text-[#8B949E] border-white/[0.05] bg-white/[0.02]'
@@ -102,7 +102,7 @@ export function TaskCard({
       {...provided.draggableProps}
       {...provided.dragHandleProps}
       onClick={onEdit}
-      className={`group relative flex flex-col p-3 bg-[#1E293B] hover:bg-[#273548] border border-border-subtle rounded-xl shadow-sm mb-3 cursor-pointer transition-all ${snapshot.isDragging ? 'shadow-xl ring-2 ring-brand-teal/50 rotate-2' : ''}`}
+      className={`group relative flex flex-col p-3 bg-[#1E293B] hover:bg-[#273548] border border-border-subtle rounded-none shadow-sm mb-3 cursor-pointer transition-all ${snapshot.isDragging ? 'shadow-xl ring-2 ring-brand-teal/50 rotate-2' : ''}`}
     >
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
         <button className="text-[#8B949E] hover:text-white p-1">
@@ -189,7 +189,7 @@ export function TaskCard({
         </div>
         
         {task.due_date && !isChecked && (
-          <div className={`flex items-center text-[11px] font-medium px-2 py-1 rounded-md border ${
+          <div className={`flex items-center text-[11px] font-medium px-2 py-1 rounded-none border ${
             isOverdue ? 'text-red-400 border-red-400/30 bg-red-400/10' :
             isNearDue ? 'text-amber-400 border-amber-400/30 bg-amber-400/10' :
             'text-[#8B949E] border-white/[0.05] bg-white/[0.02]'
@@ -315,17 +315,17 @@ export function TaskModal({
 
   return (
     <div className="fixed inset-0 bg-brand-bg/90 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
-      <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-sm">
+      <div className="bg-brand-navy border border-border-subtle rounded-none w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-sm">
         <div className="flex items-center justify-between p-3 border-b border-border-subtle shrink-0 bg-black/20">
           <h2 className="text-xl font-bold text-white">{task ? 'Edit Task' : 'New Task'}</h2>
           <div className="flex items-center gap-3">
             {task && onDelete && (
-              <button type="button" onClick={onDelete} className="text-red-400 hover:bg-red-400/10 p-2 rounded-lg transition-colors flex items-center text-sm font-medium">
+              <button type="button" onClick={onDelete} className="text-red-400 hover:bg-red-400/10 p-2 rounded-none transition-colors flex items-center text-sm font-medium">
                 <Trash2 className="w-4 h-4 mr-1.5" />
                 Delete
               </button>
             )}
-            <button onClick={onClose} className="p-2 text-[#8B949E] hover:text-white rounded-md hover:bg-white/[0.04]">
+            <button onClick={onClose} className="p-2 text-[#8B949E] hover:text-white rounded-none hover:bg-white/[0.04]">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -347,7 +347,7 @@ export function TaskModal({
               <select
                 value={formData.status}
                 onChange={e => setFormData({...formData, status: e.target.value})}
-                className="bg-black/20 border border-border-subtle rounded-lg px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none"
+                className="bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none"
               >
                 <option value="To Do">To Do</option>
                 <option value="In Progress">In Progress</option>
@@ -357,7 +357,7 @@ export function TaskModal({
               <select
                 value={formData.category_id}
                 onChange={e => setFormData({...formData, category_id: e.target.value})}
-                className="bg-black/20 border border-border-subtle rounded-lg px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none"
+                className="bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none"
               >
                 <option value="">No Category</option>
                 {categories?.map((c: any) => (
@@ -369,7 +369,7 @@ export function TaskModal({
                 type="datetime-local"
                 value={formData.due_date}
                 onChange={e => setFormData({...formData, due_date: e.target.value})}
-                className="bg-black/20 border border-border-subtle rounded-lg px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none"
+                className="bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none"
               />
             </div>
             
@@ -378,7 +378,7 @@ export function TaskModal({
                 value={formData.description}
                 onChange={e => setFormData({...formData, description: e.target.value})}
                 rows={3}
-                className="w-full bg-black/20 border border-border-subtle rounded-lg px-4 py-3 text-[#E6EDF3] placeholder:text-[#8B949E] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none resize-none"
+                className="w-full bg-black/20 border border-border-subtle rounded-none px-4 py-3 text-[#E6EDF3] placeholder:text-[#8B949E] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none resize-none"
                 placeholder="Add more details..."
               />
             </div>
@@ -390,7 +390,7 @@ export function TaskModal({
               </label>
               <div className="space-y-2 mb-2">
                 {formData.sub_tasks.map((st: any) => (
-                  <div key={st.id} className="flex items-center gap-3 p-2 bg-black/20 rounded-lg group">
+                  <div key={st.id} className="flex items-center gap-3 p-2 bg-black/20 rounded-none group">
                     <button type="button" onClick={() => toggleSubtask(st.id)} className="shrink-0">
                       <AnimatedCheckbox checked={!!st.completed} className="w-5 h-5" />
                     </button>
@@ -409,7 +409,7 @@ export function TaskModal({
                 onChange={e => setNewSubtask(e.target.value)}
                 onKeyDown={handleAddSubtask}
                 placeholder="Add a subtask (press Enter)"
-                className="w-full bg-transparent border border-dashed border-[#8B949E]/50 rounded-lg px-4 py-2 text-sm text-[#E6EDF3] placeholder:text-[#8B949E] focus:border-brand-teal focus:bg-black/20 outline-none transition-colors"
+                className="w-full bg-transparent border border-dashed border-[#8B949E]/50 rounded-none px-4 py-2 text-sm text-[#E6EDF3] placeholder:text-[#8B949E] focus:border-brand-teal focus:bg-black/20 outline-none transition-colors"
               />
             </div>
             
@@ -419,7 +419,7 @@ export function TaskModal({
                 <label className="block text-sm font-semibold text-white flex items-center gap-2">
                   <Paperclip className="w-4 h-4 text-brand-teal" /> Attachments
                 </label>
-                <label className="cursor-pointer text-xs font-semibold bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors text-white">
+                <label className="cursor-pointer text-xs font-semibold bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-none transition-colors text-white">
                   {uploading ? 'Uploading...' : '+ Add File'}
                   <input type="file" onChange={handleFileUpload} className="hidden" disabled={uploading} />
                 </label>
@@ -428,11 +428,11 @@ export function TaskModal({
               {imageAttachments.length > 0 && (
                 <div className="flex flex-wrap gap-3 mb-3">
                   {imageAttachments.map((img: any, idx: number) => (
-                    <div key={idx} className="relative group rounded-lg overflow-hidden border border-border-subtle w-24 h-24 bg-black/40">
+                    <div key={idx} className="relative group rounded-none overflow-hidden border border-border-subtle w-24 h-24 bg-black/40">
                       <img src={img.url} alt={img.filename} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 text-center gap-1">
                         <p className="text-[9px] text-white truncate w-full">{img.filename}</p>
-                        <button type="button" onClick={() => removeAttachment(formData.attachments.indexOf(img))} className="p-1 bg-red-500/80 rounded hover:bg-red-500 text-white">
+                        <button type="button" onClick={() => removeAttachment(formData.attachments.indexOf(img))} className="p-1 bg-red-500/80 rounded-none hover:bg-red-500 text-white">
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
@@ -444,7 +444,7 @@ export function TaskModal({
               {fileAttachments.length > 0 && (
                 <div className="space-y-2">
                   {fileAttachments.map((file: any, idx: number) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-black/20 border border-border-subtle rounded-lg">
+                    <div key={idx} className="flex items-center justify-between p-3 bg-black/20 border border-border-subtle rounded-none">
                       <div className="flex items-center gap-3 overflow-hidden">
                         <File className="w-5 h-5 text-[#8B949E] shrink-0" />
                         <span className="text-sm text-[#E6EDF3] truncate">{file.filename}</span>
@@ -467,7 +467,7 @@ export function TaskModal({
                       key={staff.id}
                       type="button"
                       onClick={() => toggleStaff(staff.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${formData.staff_ids.includes(staff.id) ? 'bg-brand-teal/20 border-brand-teal/50 text-brand-teal' : 'bg-black/20 border-white/[0.05] text-[#8B949E] hover:border-white/[0.1]'}`}
+                      className={`px-3 py-1.5 rounded-none text-xs font-semibold transition-all border ${formData.staff_ids.includes(staff.id) ? 'bg-brand-teal/20 border-brand-teal/50 text-brand-teal' : 'bg-black/20 border-white/[0.05] text-[#8B949E] hover:border-white/[0.1]'}`}
                     >
                       {staff.first_name} {staff.last_name}
                     </button>
@@ -482,7 +482,7 @@ export function TaskModal({
                       key={client.id}
                       type="button"
                       onClick={() => toggleClient(client.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${formData.client_ids.includes(client.id) ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-400' : 'bg-black/20 border-white/[0.05] text-[#8B949E] hover:border-white/[0.1]'}`}
+                      className={`px-3 py-1.5 rounded-none text-xs font-semibold transition-all border ${formData.client_ids.includes(client.id) ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-400' : 'bg-black/20 border-white/[0.05] text-[#8B949E] hover:border-white/[0.1]'}`}
                     >
                       {client.first_name} {client.last_name}
                     </button>
@@ -493,10 +493,10 @@ export function TaskModal({
           </div>
           
           <div className="pt-4 mt-2 border-t border-white/[0.05] flex justify-end gap-2 shrink-0">
-            <button type="button" onClick={onClose} className="px-4 py-1.5 font-medium text-white hover:bg-white/5 rounded-lg transition-colors text-sm">
+            <button type="button" onClick={onClose} className="px-4 py-1.5 font-medium text-white hover:bg-white/5 rounded-none transition-colors text-sm">
               Cancel
             </button>
-            <button type="submit" className="px-4 py-1.5 bg-brand-teal text-white font-semibold rounded-lg hover:bg-brand-teal/90 shadow-sm transition-colors text-sm">
+            <button type="submit" className="px-4 py-1.5 bg-brand-teal text-white font-semibold rounded-none hover:bg-brand-teal/90 shadow-sm transition-colors text-sm">
               Save Task
             </button>
           </div>

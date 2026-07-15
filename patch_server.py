@@ -1,36 +1,19 @@
-import re
-
 with open("src/server.ts", "r") as f:
     code = f.read()
 
-delete_shift_api = """
-  app.delete(
-    "/api/progress-notes/shifts/:id",
-    authenticateToken,
-    (req: any, res: any) => {
-      try {
-        const { id } = req.params;
-        const shift = db.prepare("SELECT staff_id FROM shifts WHERE id = ?").get(id) as any;
-        if (!shift) return res.status(404).json({ error: "Shift not found" });
-        if (req.user.role !== "ADMIN" && shift.staff_id !== req.user.id) {
-          return res.status(403).json({ error: "Forbidden" });
-        }
-        db.prepare("UPDATE shifts SET notes = NULL WHERE id = ?").run(id);
-        res.json({ success: true });
-      } catch (e: any) {
-        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
-        res.status(500).json({ error: "Internal Server Error" });
-      }
+new_endpoint = """  app.put('/api/tasks/:id/category', authenticateTokenOrWallboard, (req: any, res: any) => {
+    try {
+      const catId = req.body.category_id || null;
+      db.prepare("UPDATE tasks SET category_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(catId, req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
-  );
-"""
+  });
 
-if "/api/progress-notes/shifts/:id" in code and "app.delete(" not in code.split("app.put(\\n    \"/api/progress-notes/shifts/:id\"")[0]: # well that's complicated
-    pass
+  app.put('/api/tasks/:id/status', authenticateTokenOrWallboard, (req: any, res: any) => {"""
 
-# let's just insert it before app.post("/api/progress-notes/upload-image"
-code = code.replace("  app.post(\n    \"/api/progress-notes/upload-image\",", delete_shift_api + "\n  app.post(\n    \"/api/progress-notes/upload-image\",")
+code = code.replace("  app.put('/api/tasks/:id/status', authenticateTokenOrWallboard, (req: any, res: any) => {", new_endpoint)
 
 with open("src/server.ts", "w") as f:
     f.write(code)
-
