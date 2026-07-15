@@ -109,8 +109,8 @@ export default function TasksView() {
 
   return (
     <div className="flex flex-col h-full bg-brand-bg text-[#E6EDF3]">
-      <div className="flex-none px-6 py-4 flex items-center justify-between border-b border-border-subtle bg-brand-navy">
-        <h1 className="text-xl font-bold tracking-tight">Kanban Board</h1>
+      <div className="flex-none px-4 py-2 flex items-center justify-between border-b border-border-subtle bg-brand-navy">
+        <h1 className="text-lg font-bold tracking-tight text-white">Kanban Board</h1>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsCategoryModalOpen(true)}
@@ -129,12 +129,12 @@ export default function TasksView() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
+      <div className="flex-1 overflow-x-auto overflow-y-hidden p-3">
         {loading ? (
           <div className="text-center text-[#8B949E] mt-10">Loading...</div>
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
-            <div className="grid grid-cols-1 md:grid-cols-3 h-full gap-6 items-start min-w-[700px]">
+            <div className="grid grid-cols-1 md:grid-cols-3 h-full gap-3 items-start min-w-[700px]">
               {COLUMNS.map(col => {
                 const colTasks = tasks.filter(t => t.status === col);
                 return (

@@ -102,7 +102,7 @@ export function TaskCard({
       {...provided.draggableProps}
       {...provided.dragHandleProps}
       onClick={onEdit}
-      className={`group relative flex flex-col p-4 bg-brand-navy border border-border-subtle rounded-xl shadow-sm mb-3 cursor-pointer hover:border-brand-teal/50 transition-colors ${snapshot.isDragging ? 'opacity-90 shadow-xl ring-2 ring-brand-teal scale-[1.02]' : ''}`}
+      className={`group relative flex flex-col p-2.5 bg-brand-navy border border-border-subtle rounded-xl shadow-sm mb-3 cursor-pointer hover:border-brand-teal/50 transition-colors ${snapshot.isDragging ? 'opacity-90 shadow-xl ring-2 ring-brand-teal scale-[1.02]' : ''}`}
     >
       <div className="flex justify-between items-start mb-2">
         <div className="flex flex-wrap gap-1.5">
@@ -120,26 +120,26 @@ export function TaskCard({
         </div>
       </div>
 
-      <h3 className={`text-[15px] font-semibold leading-snug mb-2 ${isChecked ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
+      <h3 className={`text-[13px] font-semibold leading-snug mb-1.5 ${isChecked ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
         {task.title}
       </h3>
       
       {task.description && (
-        <p className="text-[13px] text-[#8B949E] line-clamp-2 mb-3">
+        <p className="text-[11px] text-[#8B949E] line-clamp-2 mb-2 leading-tight">
           {task.description}
         </p>
       )}
 
       {imageAttachments.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto mb-3 pb-1 -mx-2 px-2 no-scrollbar">
+        <div className="flex gap-1.5 overflow-x-auto mb-2 pb-0.5 -mx-1.5 px-1.5 no-scrollbar">
           {imageAttachments.map((img: any, idx: number) => (
-            <img key={idx} src={img.url} alt={img.filename} className="h-16 w-16 object-cover rounded-lg border border-border-subtle shrink-0" />
+            <img key={idx} src={img.url} alt={img.filename} className="h-10 w-10 object-cover rounded-md border border-border-subtle shrink-0" />
           ))}
         </div>
       )}
       
       {fileAttachments.length > 0 && (
-        <div className="flex flex-wrap gap-3 mb-3 text-xs font-medium text-[#8B949E]">
+        <div className="flex flex-wrap gap-2 mb-2 text-[10px] font-medium text-[#8B949E]">
           <div className="flex items-center gap-1.5">
             <Paperclip className="w-3.5 h-3.5" />
             {fileAttachments.length} file{fileAttachments.length === 1 ? '' : 's'}
@@ -148,7 +148,7 @@ export function TaskCard({
       )}
       
       {subTasks.length > 0 && (
-        <div className="space-y-1.5 mb-3 pt-2 border-t border-white/[0.03]">
+        <div className="space-y-1 mb-2 pt-1.5 border-t border-white/[0.03]">
           {subTasks.map((st: any) => (
             <div key={st.id} className="flex items-start gap-2">
               <div className="mt-0.5 shrink-0">
@@ -156,7 +156,7 @@ export function TaskCard({
                   {st.completed ? <CheckSquare className="w-2.5 h-2.5 text-brand-teal" /> : null}
                 </div>
               </div>
-              <span className={`text-[12px] leading-tight ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]/90'}`}>
+              <span className={`text-[11px] leading-tight ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]/90'}`}>
                 {st.title}
               </span>
             </div>
@@ -164,7 +164,7 @@ export function TaskCard({
         </div>
       )}
       
-      <div className="mt-auto pt-3 flex items-center justify-between border-t border-white/[0.03]">
+      <div className="mt-auto pt-2 flex items-center justify-between border-t border-white/[0.03]">
         <div className="flex items-center -space-x-2 overflow-hidden">
           {safeStaff.map((s: any) => (
              <span key={s.id} className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-brand-teal/20 border-2 border-brand-navy text-brand-teal text-[10px] font-bold z-10" title={s.name}>
@@ -295,7 +295,7 @@ export function TaskModal({
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: any) => {
     e.preventDefault();
     onSave(formData);
   };
@@ -305,8 +305,8 @@ export function TaskModal({
 
   return (
     <div className="fixed inset-0 bg-brand-bg/90 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
-      <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between p-5 border-b border-border-subtle shrink-0 bg-black/20">
+      <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-sm">
+        <div className="flex items-center justify-between p-3 border-b border-border-subtle shrink-0 bg-black/20">
           <h2 className="text-xl font-bold text-white">{task ? 'Edit Task' : 'New Task'}</h2>
           <div className="flex items-center gap-3">
             {task && onDelete && (
@@ -320,7 +320,7 @@ export function TaskModal({
             </button>
           </div>
         </div>
-        <form id="task-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form id="task-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="space-y-4">
             <div>
               <input
@@ -481,15 +481,16 @@ export function TaskModal({
               </div>
             </div>
           </div>
+          
+          <div className="pt-4 mt-2 border-t border-white/[0.05] flex justify-end gap-2 shrink-0">
+            <button type="button" onClick={onClose} className="px-4 py-1.5 font-medium text-white hover:bg-white/5 rounded-lg transition-colors text-sm">
+              Cancel
+            </button>
+            <button type="submit" className="px-4 py-1.5 bg-brand-teal text-white font-semibold rounded-lg hover:bg-brand-teal/90 shadow-sm transition-colors text-sm">
+              Save Task
+            </button>
+          </div>
         </form>
-        <div className="p-5 border-t border-border-subtle bg-black/20 flex justify-end gap-3 shrink-0">
-          <button type="button" onClick={onClose} className="px-5 py-2 font-medium text-white hover:bg-white/5 rounded-lg transition-colors">
-            Cancel
-          </button>
-          <button type="submit" form="task-form" className="px-6 py-2 bg-brand-teal text-white font-semibold rounded-lg hover:bg-brand-teal/90 shadow-sm transition-colors">
-            Save Task
-          </button>
-        </div>
       </div>
     </div>
   );

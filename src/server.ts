@@ -508,6 +508,7 @@ try {
     }
   }
 
+
   try {
     db.exec(`
       ALTER TABLE tasks ADD COLUMN is_reminder INTEGER DEFAULT 0;
@@ -517,6 +518,17 @@ try {
       console.warn("Migration warning:", e.message);
     }
   }
+
+  try {
+    db.exec(`
+      ALTER TABLE tasks ADD COLUMN attachments TEXT DEFAULT '[]';
+    `);
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
 
   try {
     db.exec(`
