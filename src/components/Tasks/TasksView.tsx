@@ -138,7 +138,7 @@ export default function TasksView() {
               {categories.map(col => {
                 const colTasks = tasks.filter(t => t.category_id === col.id);
                 return (
-                  <div key={col.id} className="flex flex-col w-[300px] max-h-full bg-black/20 rounded-none p-2 border border-white/[0.02]">
+                  <div key={col.id} className="flex flex-col w-[300px] max-h-full">
                     <div className="flex flex-col mb-2 px-1">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
