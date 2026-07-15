@@ -530,6 +530,29 @@ try {
         FOREIGN KEY (client_id) REFERENCES clients(id),
         FOREIGN KEY (author_id) REFERENCES users(id)
       );
+      
+      CREATE TABLE IF NOT EXISTS task_categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        color_hex TEXT NOT NULL
+      );
+      
+      CREATE TABLE IF NOT EXISTS task_staff (
+        task_id INTEGER NOT NULL,
+        staff_id INTEGER NOT NULL,
+        PRIMARY KEY (task_id, staff_id),
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+        FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      
+      CREATE TABLE IF NOT EXISTS task_clients (
+        task_id INTEGER NOT NULL,
+        client_id INTEGER NOT NULL,
+        PRIMARY KEY (task_id, client_id),
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+        FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+      );
+
       CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -715,6 +738,15 @@ try {
       );
     `);
     console.log("[DEBUG] Completed client_ledger_entries table setup.");
+
+    // Migration for tasks
+    try {
+      const taskCols = db.prepare("PRAGMA table_info(tasks)").all() as any[];
+      if (!taskCols.some(c => c.name === 'category_id')) {
+        db.exec("ALTER TABLE tasks ADD COLUMN category_id INTEGER REFERENCES task_categories(id) ON DELETE SET NULL");
+      }
+    } catch(e) {}
+
 
     // Migration: Add author_id to progress_notes if it doesn't exist
     try {
@@ -15096,17 +15128,79 @@ function resolveFilePath(systemName) {
 
   // --- TASKS API ---
 
+  
+  // --- Task Categories API ---
+  app.get('/api/task-categories', authenticateTokenOrWallboard, (req: any, res: any) => {
+    try {
+      const categories = db.prepare("SELECT * FROM task_categories").all();
+      res.json(categories);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/task-categories', authenticateToken, (req: any, res: any) => {
+    const { name, color_hex } = req.body;
+    try {
+      const result = db.prepare("INSERT INTO task_categories (name, color_hex) VALUES (?, ?)").run(name, color_hex);
+      res.json({ success: true, id: result.lastInsertRowid });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete('/api/task-categories/:id', authenticateToken, (req: any, res: any) => {
+    try {
+      db.prepare("DELETE FROM task_categories WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // --- Tasks API ---
   app.get('/api/tasks', authenticateTokenOrWallboard, (req: any, res: any) => {
     try {
-      const tasks = db.prepare("SELECT * FROM tasks ORDER BY created_at DESC").all();
+      // First get all tasks with their category
+      const tasks = db.prepare(`
+        SELECT 
+          t.*, 
+          tc.name as category_name, 
+          tc.color_hex as category_color 
+        FROM tasks t
+        LEFT JOIN task_categories tc ON t.category_id = tc.id
+        ORDER BY t.created_at DESC
+      `).all();
+
       const subTasks = db.prepare("SELECT * FROM sub_tasks").all();
       
-      const tasksWithSubTasks = tasks.map((task: any) => ({
+      const taskStaff = db.prepare(`
+        SELECT ts.task_id, u.id, u.first_name, u.last_name, u.avatar
+        FROM task_staff ts
+        JOIN users u ON ts.staff_id = u.id
+      `).all();
+      
+      const taskClients = db.prepare(`
+        SELECT tc.task_id, c.id, c.first_name, c.last_name
+        FROM task_clients tc
+        JOIN clients c ON tc.client_id = c.id
+      `).all();
+
+      const tasksWithRelations = tasks.map((task: any) => ({
         ...task,
-        sub_tasks: subTasks.filter((st: any) => st.task_id === task.id)
+        sub_tasks: subTasks.filter((st: any) => st.task_id === task.id),
+        staff: taskStaff.filter((ts: any) => ts.task_id === task.id).map((ts: any) => ({
+           id: ts.id, name: `${ts.first_name} ${ts.last_name}`, avatar: ts.avatar
+        })),
+        clients: taskClients.filter((tc: any) => tc.task_id === task.id).map((tc: any) => ({
+           id: tc.id, name: `${tc.first_name} ${tc.last_name}`
+        })),
+        // Fallbacks for existing data
+        assigned_staff_parsed: task.assigned_staff ? JSON.parse(task.assigned_staff) : [],
+        assigned_clients_parsed: task.assigned_clients ? JSON.parse(task.assigned_clients) : []
       }));
       
-      res.json(tasksWithSubTasks);
+      res.json(tasksWithRelations);
     } catch (error: any) {
       console.error("Error fetching tasks:", error);
       res.status(500).json({ error: error.message });
@@ -15114,62 +15208,88 @@ function resolveFilePath(systemName) {
   });
 
   app.post('/api/tasks', authenticateTokenOrWallboard, (req: any, res: any) => {
-    const { title, description, status, start_date, end_date, due_date, assigned_staff, assigned_clients, sub_tasks, is_important, is_reminder } = req.body;
+    const { title, description, status, due_date, category_id, sub_tasks, staff_ids, client_ids } = req.body;
     try {
-      const result = db.prepare(`
-        INSERT INTO tasks (title, description, status, start_date, end_date, due_date, assigned_staff, assigned_clients, is_important, is_reminder)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(title, description, status || 'Active', start_date || null, end_date || null, due_date || null, assigned_staff || '[]', assigned_clients || '[]', is_important ? 1 : 0, is_reminder ? 1 : 0);
-      
-      const taskId = result.lastInsertRowid;
-      
-      if (sub_tasks && Array.isArray(sub_tasks)) {
-        const insertSubTask = db.prepare("INSERT INTO sub_tasks (task_id, title, completed) VALUES (?, ?, ?)");
-        for (const st of sub_tasks) {
-          insertSubTask.run(taskId, st.title, st.completed ? 1 : 0);
+      db.transaction(() => {
+        const result = db.prepare(`
+          INSERT INTO tasks (title, description, status, due_date, category_id)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(title, description, status || 'To Do', due_date || null, category_id || null);
+        
+        const taskId = result.lastInsertRowid;
+        
+        if (sub_tasks && Array.isArray(sub_tasks)) {
+          const insertSubTask = db.prepare("INSERT INTO sub_tasks (task_id, title, completed) VALUES (?, ?, ?)");
+          for (const st of sub_tasks) {
+            insertSubTask.run(taskId, st.title, st.completed ? 1 : 0);
+          }
         }
-      }
+        
+        if (staff_ids && Array.isArray(staff_ids)) {
+          const insertStaff = db.prepare("INSERT INTO task_staff (task_id, staff_id) VALUES (?, ?)");
+          for (const sId of staff_ids) {
+            insertStaff.run(taskId, sId);
+          }
+        }
+        
+        if (client_ids && Array.isArray(client_ids)) {
+          const insertClient = db.prepare("INSERT INTO task_clients (task_id, client_id) VALUES (?, ?)");
+          for (const cId of client_ids) {
+            insertClient.run(taskId, cId);
+          }
+        }
+      })();
       
-      res.json({ success: true, id: taskId });
+      res.json({ success: true });
     } catch (error: any) {
       console.error("Error creating task:", error);
       res.status(500).json({ error: error.message });
     }
   });
 
-
-  app.put('/api/tasks/reorder', authenticateToken, (req: any, res: any) => {
+  app.put('/api/tasks/:id/status', authenticateTokenOrWallboard, (req: any, res: any) => {
     try {
-      const { tasks } = req.body;
-      const updateStmt = db.prepare("UPDATE tasks SET sort_order = ? WHERE id = ?");
-      db.transaction(() => {
-        for (const task of tasks) {
-          updateStmt.run(task.sort_order, task.id);
-        }
-      })();
-      res.json({ message: "Tasks reordered" });
-    } catch (e: any) {
-      console.error(e);
-      res.status(500).json({ error: e.message });
+      db.prepare("UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.body.status, req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
   app.put('/api/tasks/:id', authenticateTokenOrWallboard, (req: any, res: any) => {
-    const { title, description, status, start_date, end_date, due_date, assigned_staff, assigned_clients, sub_tasks, is_important } = req.body;
+    const { title, description, status, due_date, category_id, sub_tasks, staff_ids, client_ids } = req.body;
     const taskId = req.params.id;
     try {
-      db.prepare(`
-        UPDATE tasks SET title = ?, description = ?, status = ?, start_date = ?, end_date = ?, due_date = ?, assigned_staff = ?, assigned_clients = ?, is_important = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(title, description, status, start_date || null, end_date || null, due_date || null, assigned_staff || '[]', assigned_clients || '[]', is_important ? 1 : 0, taskId);
-      
-      if (sub_tasks && Array.isArray(sub_tasks)) {
-        db.prepare("DELETE FROM sub_tasks WHERE task_id = ?").run(taskId);
-        const insertSubTask = db.prepare("INSERT INTO sub_tasks (task_id, title, completed) VALUES (?, ?, ?)");
-        for (const st of sub_tasks) {
-          insertSubTask.run(taskId, st.title, st.completed ? 1 : 0);
+      db.transaction(() => {
+        db.prepare(`
+          UPDATE tasks SET title = ?, description = ?, status = ?, due_date = ?, category_id = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(title, description, status, due_date || null, category_id || null, taskId);
+        
+        if (sub_tasks && Array.isArray(sub_tasks)) {
+          db.prepare("DELETE FROM sub_tasks WHERE task_id = ?").run(taskId);
+          const insertSubTask = db.prepare("INSERT INTO sub_tasks (task_id, title, completed) VALUES (?, ?, ?)");
+          for (const st of sub_tasks) {
+            insertSubTask.run(taskId, st.title, st.completed ? 1 : 0);
+          }
         }
-      }
+        
+        if (staff_ids && Array.isArray(staff_ids)) {
+          db.prepare("DELETE FROM task_staff WHERE task_id = ?").run(taskId);
+          const insertStaff = db.prepare("INSERT INTO task_staff (task_id, staff_id) VALUES (?, ?)");
+          for (const sId of staff_ids) {
+            insertStaff.run(taskId, sId);
+          }
+        }
+        
+        if (client_ids && Array.isArray(client_ids)) {
+          db.prepare("DELETE FROM task_clients WHERE task_id = ?").run(taskId);
+          const insertClient = db.prepare("INSERT INTO task_clients (task_id, client_id) VALUES (?, ?)");
+          for (const cId of client_ids) {
+            insertClient.run(taskId, cId);
+          }
+        }
+      })();
       
       res.json({ success: true });
     } catch (error: any) {
@@ -15188,17 +15308,7 @@ function resolveFilePath(systemName) {
     }
   });
 
-  app.post('/api/tasks/:id/complete', authenticateTokenOrWallboard, (req: any, res: any) => {
-    try {
-      db.prepare("UPDATE tasks SET status = CASE WHEN status = 'Completed' THEN 'Active' ELSE 'Completed' END, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error("Error completing task:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post('/api/tasks/:id/important', authenticateTokenOrWallboard, (req: any, res: any) => {
+    app.post('/api/tasks/:id/important', authenticateTokenOrWallboard, (req: any, res: any) => {
     try {
       db.prepare("UPDATE tasks SET is_important = CASE WHEN is_important = 1 THEN 0 ELSE 1 END, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
       res.json({ success: true });

@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import os
+
+with open("src/components/Tasks/TaskCard.tsx", "w") as f:
+    f.write("""import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, GripVertical, CheckSquare, Square, Trash2, X, Plus } from 'lucide-react';
 import { useCountdown } from '../../hooks/useCountdown';
@@ -327,3 +330,4 @@ export function TaskModal({
     </div>
   );
 }
+""")

@@ -504,12 +504,12 @@ export default function WallboardView() {
                   <h2 className="text-2xl font-bold tracking-tight text-brand-teal uppercase border-b border-zinc-800 pb-2 mb-2 sticky top-0 bg-zinc-950/80 backdrop-blur-sm z-10">
                     Active Tasks
                   </h2>
-                  {tasks.filter((t: any) => t.status === 'Active').length === 0 ? (
+                  {tasks.filter((t: any) => (t.status === 'To Do' || t.status === 'In Progress')).length === 0 ? (
                     <div className="flex items-center justify-center h-48 text-zinc-500 font-medium">
                       No active tasks.
                     </div>
                   ) : (
-                    tasks.filter((t: any) => t.status === 'Active').sort((a: any, b: any) => {
+                    tasks.filter((t: any) => (t.status === 'To Do' || t.status === 'In Progress')).sort((a: any, b: any) => {
                       if (a.is_important !== b.is_important) {
                         return (b.is_important || 0) - (a.is_important || 0);
                       }

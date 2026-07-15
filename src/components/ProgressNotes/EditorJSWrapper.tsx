@@ -67,7 +67,7 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
       data: parsedData,
       readOnly,
       minHeight,
-      sanitize: {
+      sanitizer: {
         font: {
           color: true,
           size: true,

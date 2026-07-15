@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+with open("src/components/Tasks/TasksView.tsx", "w") as f:
+    f.write("""import React, { useState, useEffect } from 'react';
 import { Plus, Check, X, Settings2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -284,3 +285,4 @@ function CategoryModal({ categories, token, onClose, onRefresh }: any) {
     </div>
   );
 }
+""")
