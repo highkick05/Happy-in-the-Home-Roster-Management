@@ -135,8 +135,8 @@ export default function TasksView() {
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="flex h-full gap-3 items-start min-w-max">
-              {[{id: 'null', name: 'No Category', color_hex: '#8B949E'}, ...categories].map(col => {
-                const colTasks = tasks.filter(t => col.id === 'null' ? !t.category_id : t.category_id === col.id);
+              {categories.map(col => {
+                const colTasks = tasks.filter(t => t.category_id === col.id);
                 return (
                   <div key={col.id} className="flex flex-col w-[300px] max-h-full bg-black/20 rounded-none p-2 border border-white/[0.02]">
                     <div className="flex flex-col mb-2 px-1">
