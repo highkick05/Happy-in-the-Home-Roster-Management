@@ -15175,7 +15175,7 @@ function resolveFilePath(systemName) {
       const subTasks = db.prepare("SELECT * FROM sub_tasks").all();
       
       const taskStaff = db.prepare(`
-        SELECT ts.task_id, u.id, u.first_name, u.last_name, u.avatar
+        SELECT ts.task_id, u.id, u.first_name, u.last_name
         FROM task_staff ts
         JOIN users u ON ts.staff_id = u.id
       `).all();
@@ -15190,7 +15190,7 @@ function resolveFilePath(systemName) {
         ...task,
         sub_tasks: subTasks.filter((st: any) => st.task_id === task.id),
         staff: taskStaff.filter((ts: any) => ts.task_id === task.id).map((ts: any) => ({
-           id: ts.id, name: `${ts.first_name} ${ts.last_name}`, avatar: ts.avatar
+           id: ts.id, name: `${ts.first_name} ${ts.last_name}`, avatar: undefined
         })),
         clients: taskClients.filter((tc: any) => tc.task_id === task.id).map((tc: any) => ({
            id: tc.id, name: `${tc.first_name} ${tc.last_name}`

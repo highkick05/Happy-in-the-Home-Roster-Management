@@ -134,11 +134,11 @@ export default function TasksView() {
           <div className="text-center text-[#8B949E] mt-10">Loading...</div>
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
-            <div className="flex h-full gap-6 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-3 h-full gap-6 items-start min-w-[700px]">
               {COLUMNS.map(col => {
                 const colTasks = tasks.filter(t => t.status === col);
                 return (
-                  <div key={col} className="flex flex-col w-[320px] shrink-0 max-h-full">
+                  <div key={col} className="flex flex-col w-full max-h-full">
                     <div className="flex items-center justify-between mb-4 px-2">
                       <h2 className="font-semibold text-[15px] tracking-tight">{col}</h2>
                       <span className="text-xs font-bold bg-white/10 px-2 py-0.5 rounded-full text-[#8B949E]">
