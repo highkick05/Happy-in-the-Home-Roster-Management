@@ -15149,6 +15149,14 @@ function resolveFilePath(systemName) {
     }
   });
 
+  app.post('/api/tasks/upload-attachment', authenticateToken, upload.single('file'), (req: any, res: any) => {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.json({ url: fileUrl, filename: req.file.originalname, size: req.file.size });
+  });
+
   app.delete('/api/task-categories/:id', authenticateToken, (req: any, res: any) => {
     try {
       db.prepare("DELETE FROM task_categories WHERE id = ?").run(req.params.id);
@@ -15195,6 +15203,7 @@ function resolveFilePath(systemName) {
         clients: taskClients.filter((tc: any) => tc.task_id === task.id).map((tc: any) => ({
            id: tc.id, name: `${tc.first_name} ${tc.last_name}`
         })),
+        attachments: task.attachments ? JSON.parse(task.attachments) : [],
         // Fallbacks for existing data
         assigned_staff_parsed: task.assigned_staff ? JSON.parse(task.assigned_staff) : [],
         assigned_clients_parsed: task.assigned_clients ? JSON.parse(task.assigned_clients) : []
@@ -15208,13 +15217,13 @@ function resolveFilePath(systemName) {
   });
 
   app.post('/api/tasks', authenticateTokenOrWallboard, (req: any, res: any) => {
-    const { title, description, status, due_date, category_id, sub_tasks, staff_ids, client_ids } = req.body;
+    const { title, description, status, due_date, category_id, sub_tasks, staff_ids, client_ids, attachments } = req.body;
     try {
       db.transaction(() => {
         const result = db.prepare(`
-          INSERT INTO tasks (title, description, status, due_date, category_id)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(title, description, status || 'To Do', due_date || null, category_id || null);
+          INSERT INTO tasks (title, description, status, due_date, category_id, attachments)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(title, description, status || 'To Do', due_date || null, category_id || null, attachments ? JSON.stringify(attachments) : '[]');
         
         const taskId = result.lastInsertRowid;
         
@@ -15257,14 +15266,14 @@ function resolveFilePath(systemName) {
   });
 
   app.put('/api/tasks/:id', authenticateTokenOrWallboard, (req: any, res: any) => {
-    const { title, description, status, due_date, category_id, sub_tasks, staff_ids, client_ids } = req.body;
+    const { title, description, status, due_date, category_id, sub_tasks, staff_ids, client_ids, attachments } = req.body;
     const taskId = req.params.id;
     try {
       db.transaction(() => {
         db.prepare(`
-          UPDATE tasks SET title = ?, description = ?, status = ?, due_date = ?, category_id = ?, updated_at = CURRENT_TIMESTAMP
+          UPDATE tasks SET title = ?, description = ?, status = ?, due_date = ?, category_id = ?, attachments = ?, updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
-        `).run(title, description, status, due_date || null, category_id || null, taskId);
+        `).run(title, description, status, due_date || null, category_id || null, attachments ? JSON.stringify(attachments) : '[]', taskId);
         
         if (sub_tasks && Array.isArray(sub_tasks)) {
           db.prepare("DELETE FROM sub_tasks WHERE task_id = ?").run(taskId);

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+with open("src/components/Tasks/TaskCard.tsx", "w") as f:
+    f.write("""import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, GripVertical, CheckSquare, Square, Trash2, X, Plus, Paperclip, File, Image as ImageIcon, CheckCircle2, Circle } from 'lucide-react';
 import { useCountdown } from '../../hooks/useCountdown';
@@ -30,8 +31,8 @@ export function TaskCard({
   const attachments = task.attachments ? (typeof task.attachments === 'string' ? JSON.parse(task.attachments) : task.attachments) : [];
   
   const completedSubtasks = subTasks.filter((st: any) => st.completed).length;
-  const imageAttachments = attachments.filter((a: any) => a.url.match(/\.(jpeg|jpg|gif|png|webp)$/i));
-  const fileAttachments = attachments.filter((a: any) => !a.url.match(/\.(jpeg|jpg|gif|png|webp)$/i));
+  const imageAttachments = attachments.filter((a: any) => a.url.match(/\\.(jpeg|jpg|gif|png|webp)$/i));
+  const fileAttachments = attachments.filter((a: any) => !a.url.match(/\\.(jpeg|jpg|gif|png|webp)$/i));
 
   if (wallboardMode) {
     let containerClass = "transition-all flex items-center p-3 sm:p-4 shadow-sm border-y border-white/[0.05] ";
@@ -138,29 +139,20 @@ export function TaskCard({
         </div>
       )}
       
-      {fileAttachments.length > 0 && (
+      {(subTasks.length > 0 || fileAttachments.length > 0) && (
         <div className="flex flex-wrap gap-3 mb-3 text-xs font-medium text-[#8B949E]">
-          <div className="flex items-center gap-1.5">
-            <Paperclip className="w-3.5 h-3.5" />
-            {fileAttachments.length} file{fileAttachments.length === 1 ? '' : 's'}
-          </div>
-        </div>
-      )}
-      
-      {subTasks.length > 0 && (
-        <div className="space-y-1.5 mb-3 pt-2 border-t border-white/[0.03]">
-          {subTasks.map((st: any) => (
-            <div key={st.id} className="flex items-start gap-2">
-              <div className="mt-0.5 shrink-0">
-                <div className={`w-3.5 h-3.5 rounded-sm flex items-center justify-center border ${st.completed ? 'bg-brand-teal/20 border-brand-teal/50' : 'border-[#8B949E]/50'}`}>
-                  {st.completed ? <CheckSquare className="w-2.5 h-2.5 text-brand-teal" /> : null}
-                </div>
-              </div>
-              <span className={`text-[12px] leading-tight ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]/90'}`}>
-                {st.title}
-              </span>
+          {subTasks.length > 0 && (
+            <div className={`flex items-center gap-1.5 ${completedSubtasks === subTasks.length ? 'text-brand-green' : ''}`}>
+              <CheckSquare className="w-3.5 h-3.5" />
+              {completedSubtasks}/{subTasks.length}
             </div>
-          ))}
+          )}
+          {fileAttachments.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Paperclip className="w-3.5 h-3.5" />
+              {fileAttachments.length}
+            </div>
+          )}
         </div>
       )}
       
@@ -300,8 +292,8 @@ export function TaskModal({
     onSave(formData);
   };
 
-  const imageAttachments = formData.attachments.filter((a: any) => a.url.match(/\.(jpeg|jpg|gif|png|webp)$/i));
-  const fileAttachments = formData.attachments.filter((a: any) => !a.url.match(/\.(jpeg|jpg|gif|png|webp)$/i));
+  const imageAttachments = formData.attachments.filter((a: any) => a.url.match(/\\.(jpeg|jpg|gif|png|webp)$/i));
+  const fileAttachments = formData.attachments.filter((a: any) => !a.url.match(/\\.(jpeg|jpg|gif|png|webp)$/i));
 
   return (
     <div className="fixed inset-0 bg-brand-bg/90 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
@@ -494,3 +486,4 @@ export function TaskModal({
     </div>
   );
 }
+""")
