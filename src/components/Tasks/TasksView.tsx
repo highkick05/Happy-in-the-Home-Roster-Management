@@ -68,7 +68,31 @@ export default function TasksView() {
     }
   };
 
+
+  const handleToggleSubtask = async (task: any, subtaskId: number) => {
+    const updatedSubTasks = (task.sub_tasks || []).map((st: any) => st.id === subtaskId ? { ...st, completed: st.completed ? 0 : 1 } : st);
+    const updatedTask = {
+      ...task,
+      sub_tasks: updatedSubTasks,
+      staff_ids: task.staff?.map((s: any) => s.id) || task.assigned_staff_parsed || [],
+      client_ids: task.clients?.map((c: any) => c.id) || task.assigned_clients_parsed || []
+    };
+    
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(updatedTask)
+      });
+      if (!res.ok) throw new Error('Failed to update task');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleSaveTask = async (taskData: any) => {
+
     try {
       let res;
       if (editingTask && editingTask.id) {
@@ -109,26 +133,6 @@ export default function TasksView() {
 
   return (
     <div className="flex flex-col h-full bg-brand-bg text-[#E6EDF3]">
-      <div className="flex-none px-3 py-2 flex items-center justify-between border-b border-border-subtle bg-brand-navy">
-        <h1 className="text-sm font-bold tracking-tight text-white">Tasks</h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsCategoryModalOpen(true)}
-            className="flex items-center px-3 py-1 text-xs font-semibold bg-brand-teal text-white rounded-none hover:bg-brand-teal/90 transition-colors shadow-sm"
-          >
-            <Settings2 className="w-3.5 h-3.5 mr-1.5" />
-            Categories
-          </button>
-          <button
-            onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
-            className="flex items-center px-3 py-1 text-xs font-semibold bg-brand-teal text-white rounded-none hover:bg-brand-teal/90 transition-colors shadow-sm"
-          >
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
-            New Task
-          </button>
-        </div>
-      </div>
-
       <div className="flex-1 overflow-x-auto overflow-y-hidden p-3">
         {loading ? (
           <div className="text-center text-[#8B949E] mt-10">Loading...</div>
@@ -170,6 +174,7 @@ export default function TasksView() {
                                   provided={provided}
                                   snapshot={snapshot}
                                   onEdit={() => { setEditingTask(task); setIsModalOpen(true); }}
+                                  onToggleSubtask={handleToggleSubtask}
                                   wallboardMode={false}
                                 />
                               )}
@@ -196,6 +201,7 @@ export default function TasksView() {
           onClose={() => setIsModalOpen(false)}
           onSave={handleSaveTask}
           onDelete={(editingTask && editingTask.id) ? () => handleDeleteTask(editingTask.id) : undefined}
+          onManageCategories={() => { setIsModalOpen(false); setIsCategoryModalOpen(true); }}
         />
       )}
 

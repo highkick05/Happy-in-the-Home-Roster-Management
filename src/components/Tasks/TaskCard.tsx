@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, Check, MoreVertical, GripVertical, CheckSquare, Square, Trash2, X, Plus, Paperclip, File, Image as ImageIcon, CheckCircle2, Circle } from 'lucide-react';
+import { Clock, Check, MoreVertical, GripVertical, CheckSquare, Square, Trash2, X, Plus, Paperclip, File, Image as ImageIcon, CheckCircle2, Circle, Settings } from 'lucide-react';
 import { useCountdown } from '../../hooks/useCountdown';
 
 function AnimatedCheckbox({ checked, className }: { checked: boolean, className?: string }) {
@@ -19,7 +19,8 @@ export function TaskCard({
   wallboardMode,
   dragControls,
   provided,
-  snapshot
+  snapshot,
+  onToggleSubtask
 }: any) {
   const isChecked = task.status === 'Done';
   const { timeLeft, isOverdue, isNearDue } = useCountdown(task.due_date, task.created_at, isChecked);
@@ -121,10 +122,19 @@ export function TaskCard({
         </div>
       )}
       <div className="flex flex-col p-3 flex-1">
-      <div className="mb-2">
-        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider ${task.status === 'Done' ? 'bg-zinc-500/20 text-zinc-400' : task.status === 'In Progress' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-brand-teal/20 text-brand-teal'}`}>
-          {task.status || 'To Do'}
-        </span>
+            <div className="mb-2">
+        {task.status === 'In Progress' && safeStaff.length > 0 ? (
+          <span className="inline-flex items-center gap-1.5 bg-indigo-500/20 text-indigo-400 text-[9px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider">
+            <span>In Progress</span>
+            <span className="w-3.5 h-3.5 rounded-full bg-indigo-500/30 text-indigo-300 flex items-center justify-center text-[7px] border border-indigo-500/50" title={safeStaff[0].name}>
+              {safeStaff[0].name.substring(0,2).toUpperCase()}
+            </span>
+          </span>
+        ) : (
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider ${task.status === 'Done' ? 'bg-zinc-500/20 text-zinc-400' : task.status === 'In Progress' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-brand-teal/20 text-brand-teal'}`}>
+            {task.status || 'To Do'}
+          </span>
+        )}
       </div>
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
         <button className="text-[#8B949E] hover:text-white p-1">
@@ -172,9 +182,9 @@ export function TaskCard({
       {subTasks.length > 0 && (
         <div className="space-y-1 mb-2 pt-1.5 border-t border-white/[0.03]">
           {subTasks.map((st: any) => (
-            <div key={st.id} className="flex items-start gap-2">
+            <div key={st.id} className="flex items-start gap-2 cursor-pointer group" onClick={(e) => { e.stopPropagation(); if (onToggleSubtask) onToggleSubtask(task, st.id); }}>
               <div className="mt-0.5 shrink-0">
-                <div className={`w-3.5 h-3.5 rounded-sm flex items-center justify-center border ${st.completed ? 'bg-brand-teal/20 border-brand-teal/50' : 'border-[#8B949E]/50'}`}>
+                <div className={`w-3.5 h-3.5 rounded-sm flex items-center justify-center border ${st.completed ? 'bg-brand-teal/20 border-brand-teal/50' : 'border-[#8B949E]/50 group-hover:border-[#8B949E]'}`}>
                   {st.completed ? <CheckSquare className="w-2.5 h-2.5 text-brand-teal" /> : null}
                 </div>
               </div>
@@ -223,7 +233,8 @@ export function TaskModal({
   categories,
   onClose,
   onSave,
-  onDelete
+  onDelete,
+  onManageCategories
 }: any) {
   const [formData, setFormData] = useState({
     title: task?.title || '',
@@ -320,6 +331,10 @@ export function TaskModal({
 
   const handleSubmit = (e: any) => {
     e.preventDefault();
+    if (formData.status === 'In Progress' && formData.staff_ids.length === 0) {
+      alert("Please assign at least one staff member when setting status to In Progress.");
+      return;
+    }
     onSave(formData);
   };
 
@@ -367,16 +382,25 @@ export function TaskModal({
                 <option value="Done">Done</option>
               </select>
               
-              <select
-                value={formData.category_id}
-                onChange={e => setFormData({...formData, category_id: e.target.value})}
-                className="bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none"
-              >
-                
-                {categories?.map((c: any) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              <div className="flex items-center gap-1">
+                <select
+                  value={formData.category_id}
+                  onChange={e => setFormData({...formData, category_id: e.target.value})}
+                  className="bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none"
+                >
+                  {categories?.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={onManageCategories}
+                  className="p-1.5 text-[#8B949E] hover:text-white bg-black/20 hover:bg-black/40 border border-border-subtle rounded-none transition-colors"
+                  title="Manage Categories"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+              </div>
               
               <input
                 type="datetime-local"
