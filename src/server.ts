@@ -13074,12 +13074,12 @@ function resolveFilePath(systemName) {
           const p_km = isHomeCare ? 0 : s.provider_travel_km || 0;
           
           const extractAddress = (desc) => {
-              if (!desc) return '';
-              const match = desc.match(/\(([^)]+)\)/);
-              if (match) {
-                  const content = match[1].trim();
-                  if (!content.match(/^\s*[-+]?\d*\.?\d+$/)) {
-                      return match;
+              if (!desc) return null;
+              const matches = [...desc.matchAll(/\(([^)]+)\)/g)];
+              for (let i = matches.length - 1; i >= 0; i--) {
+                  const m = matches[i][1];
+                  if (!m.includes('%') && !m.match(/^[-+]?\d*\.?\d+,\s*[-+]?\d*\.?\d+$/)) {
+                      return m;
                   }
               }
               let cleaned = desc.replace(/\([^)]+\)/g, '').trim();
