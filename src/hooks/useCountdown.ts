@@ -36,11 +36,6 @@ export function useCountdown(due_date: string | null | undefined, created_at: st
 
         if (!hasTriggeredRef.current) {
           hasTriggeredRef.current = true;
-          // Trigger shake effect
-          document.body.classList.add('shake-alert');
-          setTimeout(() => {
-            document.body.classList.remove('shake-alert');
-          }, 3000);
         }
       } else {
         setIsOverdue(false);
