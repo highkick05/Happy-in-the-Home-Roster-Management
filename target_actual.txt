@@ -1,0 +1,33 @@
+          }
+
+          const isHomeCare =
+            s.funding_type === "HOME_CARE" ||
+            s.funding_type === "Home Care" ||
+            s.funding_type === "HCP";
+          const hc_km = isHomeCare
+            ? s.home_care_travel_km || s.provider_travel_km || 0
+            : 0;
+          const p_km = isHomeCare ? 0 : s.provider_travel_km || 0;
+          const km = p_km + hc_km + (s.abt_km || 0);
+
+          const row = evidenceSheet.addRow({
+            clientName: `${s.client_first} ${s.client_last}`,
+            staffName: `${s.staff_first} ${s.staff_last}`,
+            serviceDate: dateStr,
+            shiftTimes: timeStr,
+            careType:
+              s.funding_type === "HOME_CARE" ? "Home Care" : "NDIS Support",
+            careHours: Math.max(0, hrs).toFixed(2),
+            noteStatus: s.notes ? "Completed" : "Pending",
+            totalKm: km,
+            // Explicitly set 0 so formatting applies, we'll override it with the formula below
+            travelCost: isHomeCare
+              ? 0
+              : ((p_km * 1.00) + ((s.abt_km || 0) * 1.00)),
+            startOdo: s.odometer_start_reading ? Math.round(Number(s.odometer_start_reading)).toString() : "",
+            startPhoto: "",
+            endOdo: s.odometer_end_reading ? Math.round(Number(s.odometer_end_reading)).toString() : "",
+            endPhoto: "",
+          });
+
+          row.getCell('claimableTravel').alignment = { wrapText: true, vertical: 'top' };
