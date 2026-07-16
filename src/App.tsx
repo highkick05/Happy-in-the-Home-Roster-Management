@@ -324,7 +324,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         <header className="h-12 shrink-0 border-b border-border-subtle bg-brand-bg/80 text-[#E6EDF3] backdrop-blur-md flex items-center justify-end px-4 md:px-8 hidden md:flex sticky top-0 z-[100] print:hidden">
           <DateTimer />
         </header>
-        <main className={`flex-1 overflow-auto print:overflow-visible ${location.pathname.includes('/files') ? 'p-0' : location.pathname.includes('/roster') || location.pathname.includes('/kiosk') ? 'p-0 md:pt-4 md:pb-6 md:px-8' : 'p-4 md:pt-4 md:pb-6 md:px-8'} print:p-0 relative`}>
+        <main className={`flex-1 overflow-auto print:overflow-visible ${location.pathname.includes('/files') || location.pathname.includes('/tasks') ? 'p-0' : location.pathname.includes('/roster') || location.pathname.includes('/kiosk') ? 'p-0 md:pt-4 md:pb-6 md:px-8' : 'p-4 md:pt-4 md:pb-6 md:px-8'} print:p-0 relative`}>
           {children}
         </main>
       </div>

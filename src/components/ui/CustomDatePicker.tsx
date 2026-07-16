@@ -157,7 +157,7 @@ export function CustomDatePicker({
         <div className="relative w-full">
           <input 
             type="text"
-            className={className + " w-full pl-2 pr-7 cursor-pointer py-0 h-full !border-0 bg-transparent"}
+            className={className + " w-full pl-1 pr-6 cursor-pointer py-0 h-full !border-0 bg-transparent"}
             placeholder={placeholderText || "dd/mm/yyyy"}
             value={dateValue ? dateValue.toLocaleDateString("en-GB") : ""}
             onClick={() => {
@@ -169,7 +169,7 @@ export function CustomDatePicker({
             id={id}
             required={required}
           />
-          <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-zinc-400">
+          <div className="absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none text-zinc-400">
              <Calendar className="w-4 h-4" />
           </div>
         </div>

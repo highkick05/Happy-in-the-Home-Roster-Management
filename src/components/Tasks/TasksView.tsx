@@ -184,7 +184,7 @@ export default function TasksView() {
 
   return (
     <div className="flex flex-col h-full bg-brand-bg text-[#E6EDF3]">
-      <div className="flex flex-wrap items-center justify-end gap-4 p-3 bg-transparent shrink-0 mt-2 mr-2">
+      <div className="flex flex-wrap items-center justify-end gap-4 px-6 pt-2 pb-0 bg-transparent shrink-0">
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="bg-transparent border-b border-white/10 hover:border-white/30 text-[11px] text-[#8B949E] hover:text-white px-0 py-1 rounded-none outline-none transition-colors cursor-pointer appearance-none">
           <option value="active" className="bg-[#1A2332]">Active Tasks</option>
           <option value="done" className="bg-[#1A2332]">Done</option>
@@ -198,23 +198,29 @@ export default function TasksView() {
           <option value="all" className="bg-[#1A2332]">All Clients</option>
           {clientList.map((c: any) => <option key={c.id} value={c.id} className="bg-[#1A2332]">{c.first_name} {c.last_name}</option>)}
         </select>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 border-b border-white/10 hover:border-white/30 transition-colors pb-0.5">
           <span className="text-[10px] text-[#8B949E] uppercase tracking-wider font-semibold">From:</span>
-          <CustomDatePicker 
-            value={dateFrom} 
-            onChange={(e: any) => setDateFrom(e.target ? e.target.value : '')}
-            className="bg-transparent border-b border-white/10 hover:border-white/30 text-[11px] text-[#8B949E] hover:text-white px-0 py-1 rounded-none outline-none transition-colors w-24"
-            position="bottom"
-          />
+          <div className="w-24">
+            <CustomDatePicker 
+              value={dateFrom} 
+              onChange={(e: any) => setDateFrom(e.target ? e.target.value : '')}
+              className="bg-transparent text-[11px] text-[#8B949E] hover:text-white px-0 outline-none w-full cursor-pointer h-full border-none"
+              position="bottom"
+              align="right"
+            />
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 border-b border-white/10 hover:border-white/30 transition-colors pb-0.5">
           <span className="text-[10px] text-[#8B949E] uppercase tracking-wider font-semibold">To:</span>
-          <CustomDatePicker 
-            value={dateTo} 
-            onChange={(e: any) => setDateTo(e.target ? e.target.value : '')}
-            className="bg-transparent border-b border-white/10 hover:border-white/30 text-[11px] text-[#8B949E] hover:text-white px-0 py-1 rounded-none outline-none transition-colors w-24"
-            position="bottom"
-          />
+          <div className="w-24">
+            <CustomDatePicker 
+              value={dateTo} 
+              onChange={(e: any) => setDateTo(e.target ? e.target.value : '')}
+              className="bg-transparent text-[11px] text-[#8B949E] hover:text-white px-0 outline-none w-full cursor-pointer h-full border-none"
+              position="bottom"
+              align="right"
+            />
+          </div>
         </div>
       </div>
       <div className="flex-1 overflow-x-auto overflow-y-hidden p-3">
