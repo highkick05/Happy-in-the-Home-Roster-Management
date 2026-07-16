@@ -12901,19 +12901,20 @@ function resolveFilePath(systemName) {
         // Evidence Dataset
         const evidenceSheet = workbook.addWorksheet("Evidence Dataset");
         evidenceSheet.columns = [
-          { header: "Client Name", key: "clientName", width: 25 },
-          { header: "Staff Name", key: "staffName", width: 25 },
-          { header: "Service Date", key: "serviceDate", width: 15 },
-          { header: "Shift Timestamps", key: "shiftTimes", width: 30 },
-          { header: "Care Type", key: "careType", width: 20 },
-          { header: "Logged Care Hours", key: "careHours", width: 20 },
-          { header: "Progress Note Status", key: "noteStatus", width: 25 },
-          { header: "Total Transport Kilometers", key: "totalKm", width: 30 },
-          { header: "Calculated Travel Cost", key: "travelCost", width: 25 },
-          { header: "Start Odometer", key: "startOdo", width: 15 },
-          { header: "Start Photo", key: "startPhoto", width: 15 },
-          { header: "End Odometer", key: "endOdo", width: 15 },
-          { header: "End Photo", key: "endPhoto", width: 15 },
+          { header: "CLIENT NAME", key: "clientName", width: 25 },
+          { header: "STAFF NAME", key: "staffName", width: 25 },
+          { header: "SERVICE DATE", key: "serviceDate", width: 15 },
+          { header: "SHIFT TIMESTAMPS", key: "shiftTimes", width: 30 },
+          { header: "CARE TYPE", key: "careType", width: 20 },
+          { header: "LOGGED CARE HRS", key: "careHours", width: 20 },
+          { header: "PROGRESS NOTE STATUS", key: "noteStatus", width: 25 },
+          { header: "TRAVEL CATEGORY & TIME", key: "travelCategory", width: 35 },
+          { header: "TRAVEL ROUTE", key: "travelRoute", width: 60 },
+          { header: "CLAIMABLE TRAVEL", key: "claimableTravel", width: 45 },
+          { header: "START ODOMETER", key: "startOdo", width: 15 },
+          { header: "START PHOTO", key: "startPhoto", width: 15 },
+          { header: "END ODOMETER", key: "endOdo", width: 15 },
+          { header: "END PHOTO", key: "endPhoto", width: 15 },
         ];
 
         evidenceSheet.getRow(1).fill = {
@@ -13094,6 +13095,9 @@ function resolveFilePath(systemName) {
             endPhoto: "",
           });
 
+          row.getCell('claimableTravel').alignment = { wrapText: true, vertical: 'top' };
+          row.getCell('travelRoute').alignment = { wrapText: true, vertical: 'top' };
+          row.getCell('travelCategory').alignment = { wrapText: true, vertical: 'top' };
           // Alternating row styling
           if (i % 2 === 0)
             row.fill = {
@@ -13102,9 +13106,7 @@ function resolveFilePath(systemName) {
               fgColor: { argb: "FFF9FAFB" },
             };
 
-          // Currency formatting & Formula for cost
-          const costCell = row.getCell("travelCost");
-          costCell.numFmt = '"$"#,##0.00';
+          // (Cost formatting is now part of the string in claimableTravel)
 
           // Extract base64 photos and embed them
           const embedPhoto = (base64Photo: string, colIndex: number) => {
