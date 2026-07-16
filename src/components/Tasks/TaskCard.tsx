@@ -134,9 +134,9 @@ export function TaskCard({
           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider ${task.status === 'Done' ? 'bg-zinc-500/20 text-zinc-400' : task.status === 'In Progress' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-brand-teal/20 text-brand-teal'}`}>
             {task.status || 'To Do'}
           </span>
-          {task.assigned_to_id && (task.status === 'In Progress' || task.status === 'Done') ? (
+          {(task.assigned_to_id || (task.staff && task.staff.length > 0)) && (task.status === 'In Progress' || task.status === 'Done') ? (
             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider bg-white/10 text-[#E6EDF3]">
-              {task.assigned_first_name} {task.assigned_last_name}
+              {task.assigned_to_id ? `${task.assigned_first_name} ${task.assigned_last_name}` : task.staff[0].name}
             </span>
           ) : null}
         </div>
