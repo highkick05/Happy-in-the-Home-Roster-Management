@@ -564,6 +564,13 @@ try {
   }
 
   try {
+    db.exec("ALTER TABLE tasks ADD COLUMN assigned_to_id INTEGER");
+  } catch (e: any) {}
+  try {
+    db.exec("ALTER TABLE task_categories ADD COLUMN sort_order INTEGER DEFAULT 0");
+  } catch (e: any) {}
+  
+  try {
     const existingCats = db.prepare("SELECT COUNT(*) as count FROM task_categories").get() as any;
     if (existingCats.count === 0) {
       db.prepare("INSERT INTO task_categories (name, color_hex, sort_order) VALUES ('To Do', '#8B949E', 0)").run();
