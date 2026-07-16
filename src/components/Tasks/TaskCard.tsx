@@ -13,6 +13,23 @@ function AnimatedCheckbox({ checked, className }: { checked: boolean, className?
   );
 }
 
+const getFileIconUrl = (ext?: string) => {
+  const e = (ext || '').toLowerCase();
+  let type = '';
+  if (['pdf'].includes(e)) type = 'file_type_pdf';
+  else if (['doc', 'docx'].includes(e)) type = 'file_type_word';
+  else if (['xls', 'xlsx', 'csv'].includes(e)) type = 'file_type_excel';
+  else if (['ppt', 'pptx'].includes(e)) type = 'file_type_powerpoint';
+  else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(e)) type = 'file_type_zip';
+  else if (['txt', 'md', 'rtf', 'log'].includes(e)) type = 'file_type_text';
+  else if (['mp3', 'wav', 'ogg', 'flac'].includes(e)) type = 'file_type_audio';
+  else if (['mp4', 'avi', 'mkv', 'mov'].includes(e)) type = 'file_type_video';
+  else if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(e)) type = 'file_type_image';
+  else return 'https://raw.githubusercontent.com/vscode-icons/vscode-icons/master/icons/default_file.svg';
+  
+  return `https://raw.githubusercontent.com/vscode-icons/vscode-icons/master/icons/${type}.svg`;
+};
+
 export function TaskCard({
   task,
   onEdit,
@@ -118,14 +135,19 @@ export function TaskCard({
           ))}
         </div>
       ) : fileAttachments.length > 0 ? (
-        <div className="w-full h-24 bg-[#273548] flex items-center justify-center border-b border-border-subtle">
+        <div className="w-full h-24 bg-[#273548] flex items-center justify-center border-b border-border-subtle overflow-hidden">
            {(() => {
-             const ext = fileAttachments[0].filename?.split('.').pop()?.toLowerCase();
-             if (ext === 'pdf') return <FileText className="w-10 h-10 text-red-400" />;
-             if (ext === 'docx' || ext === 'doc') return <FileText className="w-10 h-10 text-blue-400" />;
-             if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') return <FileSpreadsheet className="w-10 h-10 text-green-400" />;
-             if (ext === 'zip' || ext === 'rar') return <FileArchive className="w-10 h-10 text-yellow-400" />;
-             return <File className="w-10 h-10 text-[#8B949E]" />;
+             const ext = fileAttachments[0].filename?.split('.').pop()?.toLowerCase() || '';
+             return (
+               <img 
+                 src={getFileIconUrl(ext)} 
+                 alt={ext || 'file'} 
+                 className="w-12 h-12 object-contain drop-shadow-sm"
+                 onError={(e) => {
+                   e.currentTarget.src = 'https://raw.githubusercontent.com/vscode-icons/vscode-icons/master/icons/default_file.svg';
+                 }}
+               />
+             );
            })()}
         </div>
       ) : null}
@@ -490,7 +512,7 @@ export function TaskModal({
                   {fileAttachments.map((file: any, idx: number) => (
                     <div key={idx} className="flex items-center justify-between p-3 bg-black/20 border border-border-subtle rounded-none">
                       <div className="flex items-center gap-3 overflow-hidden">
-                        <File className="w-5 h-5 text-[#8B949E] shrink-0" />
+                        <img src={getFileIconUrl(file.filename?.split('.').pop())} alt="file" className="w-5 h-5 shrink-0 object-contain drop-shadow-sm" onError={(e) => e.currentTarget.src = 'https://raw.githubusercontent.com/vscode-icons/vscode-icons/master/icons/default_file.svg'} />
                         <span className="text-sm text-[#E6EDF3] truncate">{file.filename}</span>
                       </div>
                       <button type="button" onClick={() => removeAttachment(formData.attachments.indexOf(file))} className="text-[#8B949E] hover:text-red-400 p-1">
