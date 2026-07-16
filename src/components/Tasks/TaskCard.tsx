@@ -212,10 +212,9 @@ export function TaskCard({
             <a 
               key={idx}
               href={file.url}
-              target="_blank"
-              rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="flex items-center gap-1.5 text-[11px] font-medium text-brand-teal hover:underline truncate"
+              download={file.filename || (file.url && file.url.split('/').pop()) || 'Attachment'}
             >
               <Paperclip className="w-3 h-3 shrink-0" />
               <span className="truncate">{file.filename || (file.url && file.url.split('/').pop()) || 'Attachment'}</span>

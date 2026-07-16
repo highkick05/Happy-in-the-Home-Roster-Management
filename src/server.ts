@@ -15662,7 +15662,13 @@ function resolveFilePath(systemName) {
   // --- END TASKS API ---
 
   // --- Vite Middleware or Static Files ---
-  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), {
+    setHeaders: (res, path, stat) => {
+      if (!path.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i)) {
+        res.set('Content-Disposition', 'attachment');
+      }
+    }
+  }));
   
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
