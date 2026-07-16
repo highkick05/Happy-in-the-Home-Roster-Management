@@ -1,12 +1,6 @@
 const Database = require('better-sqlite3');
-const dbs = ['data/dev-database.sqlite', 'data/database.sqlite', 'database.sqlite', 'data/data.db'];
-for (const f of dbs) {
-  try {
-    const db = new Database(f);
-    const tbls = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-    if (tbls.some(t => t.name === 'quotes')) {
-       console.log(f, 'has quotes table:', db.prepare("SELECT sql FROM sqlite_master WHERE name='quotes'").get().sql);
-    }
-  } catch (e) {
-  }
+const db = new Database('/app/applet/data/dev-database.sqlite');
+const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+for (let t of tables) {
+   console.log(t.name, db.prepare(`SELECT count(*) as c FROM "${t.name}"`).get().c);
 }

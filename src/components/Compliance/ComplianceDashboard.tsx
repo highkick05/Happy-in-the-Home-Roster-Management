@@ -24,22 +24,34 @@ const extractAddress = (desc: string) => {
     return cleaned || desc.trim();
 };
 
-const formatRouteLog = (logStr: string | null): string | null => {
+const formatRouteLog = (logStr: string | null, row?: any): string | null => {
   if (!logStr) return null;
   if (logStr === 'No route logged') return 'No route logged';
   if (!logStr.startsWith('{')) return logStr;
+  
+  const fallbackOrigin = row?.origin_address || 'Unknown';
+  const fallbackDest = row?.destination_address || 'Unknown';
+
+  const cleanLocationStr = (val: string, fallback: string) => {
+      if (!val || val.trim().toLowerCase() === 'location' || val.trim().toLowerCase() === 'unknown' || val.trim() === '') {
+          return fallback;
+      }
+      return val;
+  };
+
   try {
     const parsed = JSON.parse(logStr);
     let out = [];
 
     // HOME CARE
     if (parsed.homeCareTravel && parsed.homeCareTravel.legs) {
-      const hcLegs = parsed.homeCareTravel.legs.map((l: any) => {
+      const hcLegs = parsed.homeCareTravel.legs.map((l: any, idx: number) => {
          if (l.description && l.description.includes('Private Commute')) {
             return 'Private Commute';
          }
          let start = l.addressStart;
          let end = l.addressEnd;
+         
          if (!start || !end) {
             const parts = l.description ? l.description.split(' to ') : [];
             if (parts.length === 2) {
@@ -47,14 +59,14 @@ const formatRouteLog = (logStr: string | null): string | null => {
                end = end || extractAddress(parts[1]);
             }
          }
-         return `${start || 'Unknown'} ➡️ ${end || 'Unknown'}`;
+         return `${cleanLocationStr(start, idx === 0 ? fallbackOrigin : 'Unknown')} ➡️ ${cleanLocationStr(end, fallbackDest)}`;
       }).join(' | ');
       if (hcLegs) out.push(hcLegs);
     }
 
     // PROVIDER TRAVEL (NDIS)
     if (parsed.providerTravel && parsed.providerTravel.legs) {
-      const pLegs = parsed.providerTravel.legs.map((l: any) => {
+      const pLegs = parsed.providerTravel.legs.map((l: any, idx: number) => {
          if (l.distance === 0 && l.description && l.description.includes('Capped')) return 'MMM6 Capped';
          let start = l.addressStart;
          let end = l.addressEnd;
@@ -72,14 +84,14 @@ const formatRouteLog = (logStr: string | null): string | null => {
                }
             }
          }
-         return `${start || 'Unknown'} ➡️ ${end || 'Unknown'}`;
+         return `${cleanLocationStr(start, idx === 0 ? fallbackOrigin : 'Unknown')} ➡️ ${cleanLocationStr(end, fallbackDest)}`;
       }).join(' | ');
       if (pLegs) out.push(`PT: ${pLegs}`);
     }
 
     // ABT
     if (parsed.abt && parsed.abt.legs) {
-      const aLegs = parsed.abt.legs.map((l: any) => {
+      const aLegs = parsed.abt.legs.map((l: any, idx: number) => {
          let start = l.addressStart;
          let end = l.addressEnd;
          
@@ -96,7 +108,7 @@ const formatRouteLog = (logStr: string | null): string | null => {
                }
             }
          }
-         return `${start || 'Unknown'} ➡️ ${end || 'Unknown'}`;
+         return `${cleanLocationStr(start, idx === 0 ? fallbackOrigin : 'Unknown')} ➡️ ${cleanLocationStr(end, fallbackDest)}`;
       }).join(' | ');
       if (aLegs) out.push(`ABT: ${aLegs}`);
     }
@@ -629,7 +641,22 @@ export default function ComplianceDashboard() {
                          
                          let travelCategoryCell = <span className="text-[#8B949E]">-</span>;
                          if (isHC) {
-                             travelCategoryCell = <span className="text-[#E6EDF3] text-xs font-medium">Inter-Shift Travel ({row.travel_minutes || 0} mins)</span>;
+                             let actualDriveMins = 0;
+                             if (row.transport_route_log) {
+                                try {
+                                   const tLog = JSON.parse(row.transport_route_log);
+                                   if (tLog && tLog.homeCareTravel && tLog.homeCareTravel.minutes !== undefined) {
+                                      actualDriveMins = tLog.homeCareTravel.minutes;
+                                   } else if (tLog && tLog.homeCareTravel && tLog.homeCareTravel.legs) {
+                                      actualDriveMins = tLog.homeCareTravel.legs.reduce((sum: number, l: any) => sum + (l.durationMins || 0), 0);
+                                   }
+                                } catch(e) {}
+                             }
+                             if (actualDriveMins <= 0 && row.provider_travel_minutes) {
+                                actualDriveMins = row.provider_travel_minutes;
+                             }
+                             if (actualDriveMins < 0) actualDriveMins = 0;
+                             travelCategoryCell = <span className="text-[#E6EDF3] text-xs font-medium">Inter-Shift Travel ({Math.round(actualDriveMins)} mins)</span>;
                          } else if (isBoth) {
                              travelCategoryCell = (
                                  <div className="flex flex-col gap-1 w-max">
@@ -645,10 +672,10 @@ export default function ComplianceDashboard() {
                          
                          let travelRouteCell = <span className="text-[#8B949E]">-</span>;
                          if (isHC) {
-                             const hcRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
+                             const hcRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
                              travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={hcRoute || 'No route logged'}>{hcRoute || 'No route logged'}</div>;
                          } else if (isBoth) {
-                             const fullRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
+                             const fullRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
                              const routes = (fullRoute || 'No route logged').split(' ; ');
                              travelRouteCell = (
                                  <div className="flex flex-col gap-1 text-xs text-[#E6EDF3] max-w-[200px]">
@@ -656,16 +683,31 @@ export default function ComplianceDashboard() {
                                  </div>
                              );
                          } else if (hasPT) {
-                             const ptRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
+                             const ptRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
                              travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={ptRoute || 'No route logged'}>{ptRoute || 'No route logged'}</div>;
                          } else if (hasABT) {
-                             const abtRoute = formatRouteLog(row.transport_route_log);
+                             const abtRoute = formatRouteLog(row.transport_route_log, row);
                              travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={abtRoute || 'No route logged'}>{abtRoute || 'No route logged'}</div>;
                          }
                          
                          let claimableTravelCell = <span className="text-[#8B949E]">-</span>;
                          if (isHC) {
-                             const decHrs = (row.travel_minutes || 0) / 60;
+                             let actualDriveMins = 0;
+                             if (row.transport_route_log) {
+                                try {
+                                   const tLog = JSON.parse(row.transport_route_log);
+                                   if (tLog && tLog.homeCareTravel && tLog.homeCareTravel.minutes !== undefined) {
+                                      actualDriveMins = tLog.homeCareTravel.minutes;
+                                   } else if (tLog && tLog.homeCareTravel && tLog.homeCareTravel.legs) {
+                                      actualDriveMins = tLog.homeCareTravel.legs.reduce((sum: number, l: any) => sum + (l.durationMins || 0), 0);
+                                   }
+                                } catch(e) {}
+                             }
+                             if (actualDriveMins <= 0 && row.provider_travel_minutes) {
+                                actualDriveMins = row.provider_travel_minutes;
+                             }
+                             if (actualDriveMins < 0) actualDriveMins = 0;
+                             const decHrs = actualDriveMins / 60;
                              claimableTravelCell = <span className="font-mono text-xs text-emerald-400 tracking-tight">{decHrs.toFixed(2)} hrs</span>;
                          } else if (isBoth) {
                              claimableTravelCell = (

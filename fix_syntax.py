@@ -1,7 +1,12 @@
-with open("src/components/Tasks/TasksView.tsx", "r") as f:
-    code = f.read()
+import re
+with open("src/server.ts", "r") as f:
+    lines = f.readlines()
 
-code = code.replace("\\'", "'")
+new_lines = []
+for i, line in enumerate(lines):
+    if 3476 <= i <= 3477:
+        continue
+    new_lines.append(line)
 
-with open("src/components/Tasks/TasksView.tsx", "w") as f:
-    f.write(code)
+with open("src/server.ts", "w") as f:
+    f.writelines(new_lines)
