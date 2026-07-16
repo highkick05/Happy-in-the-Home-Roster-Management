@@ -9,6 +9,51 @@ import CustomDatePicker from '../ui/CustomDatePicker';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import OnboardingView from '../Onboarding/OnboardingView';
 
+
+const formatRouteLog = (logStr: string | null): string | null => {
+  if (!logStr) return null;
+  if (logStr === 'No route logged') return 'No route logged';
+  if (!logStr.startsWith('{')) return logStr;
+  try {
+    const parsed = JSON.parse(logStr);
+    let out = [];
+    if (parsed.providerTravel && parsed.providerTravel.legs) {
+      const pLegs = parsed.providerTravel.legs.map((l: any) => {
+         let f = l.fromName || "Unknown";
+         let t = l.toName || "Client";
+         if (l.description && l.description.includes(' to ')) {
+            const parts = l.description.split(' to ');
+            f = parts[0];
+            t = parts.slice(1).join(' to ');
+         }
+         // try to strip long coordinates if they got put into name
+         if (f.startsWith('(-') || f.startsWith('(')) f = "Location";
+         if (t.startsWith('(-') || t.startsWith('(')) t = "Location";
+         return `${f} ➡️ ${t}`;
+      }).join(' | ');
+      if (pLegs) out.push(`PT: ${pLegs}`);
+    }
+    if (parsed.abt && parsed.abt.legs) {
+      const aLegs = parsed.abt.legs.map((l: any) => {
+         let f = l.fromName || "Unknown";
+         let t = l.toName || "Unknown";
+         if (l.description && l.description.includes(' to ')) {
+            const parts = l.description.split(' to ');
+            f = parts[0];
+            t = parts.slice(1).join(' to ');
+         }
+         if (f.startsWith('(-') || f.startsWith('(')) f = "Location";
+         if (t.startsWith('(-') || t.startsWith('(')) t = "Location";
+         return `${f} ➡️ ${t}`;
+      }).join(' | ');
+      if (aLegs) out.push(`ABT: ${aLegs}`);
+    }
+    return out.join(' ; ') || logStr;
+  } catch (e) {
+    return logStr;
+  }
+};
+
 const ONBOARDING_STEP_LABELS: Record<string, string> = {
   tfn_super: 'Tax File Number & Super',
   ndis_screening: 'NDIS Screen Check (NWSC)',
@@ -549,16 +594,18 @@ export default function ComplianceDashboard() {
                          if (isHC) {
                              travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={`${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`}>{row.origin_address || 'Unknown'} ➡️ {row.destination_address || 'Unknown'}</div>;
                          } else if (isBoth) {
+                             const ptRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
                              travelRouteCell = (
                                  <div className="flex flex-col gap-1 text-xs text-[#E6EDF3] max-w-[200px]">
-                                     <div className="truncate" title={`➡️ ${row.destination_address || 'Unknown'}`}>➡️ {row.destination_address || 'Unknown'}</div>
-                                     <div className="truncate" title={row.transport_route_log || 'No route logged'}>{row.transport_route_log || 'No route logged'}</div>
+                                     <div className="truncate" title={ptRoute || 'No route logged'}>{ptRoute || 'No route logged'}</div>
                                  </div>
                              );
                          } else if (hasPT) {
-                             travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={`➡️ ${row.destination_address || 'Unknown'}`}>➡️ {row.destination_address || 'Unknown'}</div>;
+                             const ptRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
+                             travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={ptRoute || 'No route logged'}>{ptRoute || 'No route logged'}</div>;
                          } else if (hasABT) {
-                             travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={row.transport_route_log || 'No route logged'}>{row.transport_route_log || 'No route logged'}</div>;
+                             const abtRoute = formatRouteLog(row.transport_route_log);
+                             travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={abtRoute || 'No route logged'}>{abtRoute || 'No route logged'}</div>;
                          }
                          
                          let claimableTravelCell = <span className="text-[#8B949E]">-</span>;
