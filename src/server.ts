@@ -12784,7 +12784,7 @@ function resolveFilePath(systemName) {
                  c.first_name as client_first, c.last_name as client_last,
                  c.funding_type,
                  c.address as destination_address,
-                 LAG(c.address) OVER (PARTITION BY s.staff_id, DATE(s.start_time) ORDER BY s.start_time) as origin_address,
+                 COALESCE(LAG(c.address) OVER (PARTITION BY s.staff_id, DATE(s.start_time) ORDER BY s.start_time), u.address) as origin_address,
                  CAST((strftime('%s', s.start_time) - strftime('%s', LAG(s.end_time) OVER (PARTITION BY s.staff_id, DATE(s.start_time) ORDER BY s.start_time))) / 60 AS INTEGER) as travel_minutes
           FROM shifts s
           JOIN users u ON s.staff_id = u.id
@@ -12843,7 +12843,7 @@ function resolveFilePath(systemName) {
                  c.first_name as client_first, c.last_name as client_last,
                  c.funding_type,
                  c.address as destination_address,
-                 LAG(c.address) OVER (PARTITION BY s.staff_id, DATE(s.start_time) ORDER BY s.start_time) as origin_address,
+                 COALESCE(LAG(c.address) OVER (PARTITION BY s.staff_id, DATE(s.start_time) ORDER BY s.start_time), u.address) as origin_address,
                  CAST((strftime('%s', s.start_time) - strftime('%s', LAG(s.end_time) OVER (PARTITION BY s.staff_id, DATE(s.start_time) ORDER BY s.start_time))) / 60 AS INTEGER) as travel_minutes
           FROM shifts s
           JOIN users u ON s.staff_id = u.id

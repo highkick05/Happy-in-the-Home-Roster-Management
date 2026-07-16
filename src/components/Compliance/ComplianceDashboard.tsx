@@ -10,6 +10,20 @@ import { useLocalStorage } from '../../hooks/useLocalStorage';
 import OnboardingView from '../Onboarding/OnboardingView';
 
 
+const extractAddress = (desc: string) => {
+    if (!desc) return null;
+    const matches = [...desc.matchAll(/\(([^)]+)\)/g)];
+    for (let i = matches.length - 1; i >= 0; i--) {
+        const m = matches[i][1];
+        if (!m.includes('%') && !m.match(/^[-+]?\d*\.?\d+,\s*[-+]?\d*\.?\d+$/)) {
+            return m;
+        }
+    }
+    // if no address in parenthesis, just return the raw string but remove coordinates
+    let cleaned = desc.replace(/\([^)]+\)/g, '').trim();
+    return cleaned || desc.trim();
+};
+
 const formatRouteLog = (logStr: string | null): string | null => {
   if (!logStr) return null;
   if (logStr === 'No route logged') return 'No route logged';
@@ -17,37 +31,76 @@ const formatRouteLog = (logStr: string | null): string | null => {
   try {
     const parsed = JSON.parse(logStr);
     let out = [];
+
+    // HOME CARE
+    if (parsed.homeCareTravel && parsed.homeCareTravel.legs) {
+      const hcLegs = parsed.homeCareTravel.legs.map((l: any) => {
+         if (l.description && l.description.includes('Private Commute')) {
+            return 'Private Commute';
+         }
+         let start = l.addressStart;
+         let end = l.addressEnd;
+         if (!start || !end) {
+            const parts = l.description ? l.description.split(' to ') : [];
+            if (parts.length === 2) {
+               start = start || extractAddress(parts[0]);
+               end = end || extractAddress(parts[1]);
+            }
+         }
+         return `${start || 'Unknown'} ➡️ ${end || 'Unknown'}`;
+      }).join(' | ');
+      if (hcLegs) out.push(hcLegs);
+    }
+
+    // PROVIDER TRAVEL (NDIS)
     if (parsed.providerTravel && parsed.providerTravel.legs) {
       const pLegs = parsed.providerTravel.legs.map((l: any) => {
-         let f = l.fromName || "Unknown";
-         let t = l.toName || "Client";
-         if (l.description && l.description.includes(' to ')) {
-            const parts = l.description.split(' to ');
-            f = parts[0];
-            t = parts.slice(1).join(' to ');
+         if (l.distance === 0 && l.description && l.description.includes('Capped')) return 'MMM6 Capped';
+         let start = l.addressStart;
+         let end = l.addressEnd;
+         
+         if (!start || !end) {
+            const parts = l.description ? l.description.split(' to ') : [];
+            if (parts.length === 2) {
+               start = start || extractAddress(parts[0]);
+               end = end || extractAddress(parts[1]);
+            } else {
+               const arrowParts = l.description ? l.description.split(' → ') : [];
+               if (arrowParts.length === 2) {
+                  start = start || extractAddress(arrowParts[0]);
+                  end = end || extractAddress(arrowParts[1]);
+               }
+            }
          }
-         // try to strip long coordinates if they got put into name
-         if (f.startsWith('(-') || f.startsWith('(')) f = "Location";
-         if (t.startsWith('(-') || t.startsWith('(')) t = "Location";
-         return `${f} ➡️ ${t}`;
+         return `${start || 'Unknown'} ➡️ ${end || 'Unknown'}`;
       }).join(' | ');
       if (pLegs) out.push(`PT: ${pLegs}`);
     }
+
+    // ABT
     if (parsed.abt && parsed.abt.legs) {
       const aLegs = parsed.abt.legs.map((l: any) => {
-         let f = l.fromName || "Unknown";
-         let t = l.toName || "Unknown";
-         if (l.description && l.description.includes(' to ')) {
-            const parts = l.description.split(' to ');
-            f = parts[0];
-            t = parts.slice(1).join(' to ');
+         let start = l.addressStart;
+         let end = l.addressEnd;
+         
+         if (!start || !end) {
+            const arrowParts = l.description ? l.description.split(' → ') : [];
+            if (arrowParts.length === 2) {
+               start = start || extractAddress(arrowParts[0]);
+               end = end || extractAddress(arrowParts[1]);
+            } else {
+               const parts = l.description ? l.description.split(' to ') : [];
+               if (parts.length === 2) {
+                  start = start || extractAddress(parts[0]);
+                  end = end || extractAddress(parts[1]);
+               }
+            }
          }
-         if (f.startsWith('(-') || f.startsWith('(')) f = "Location";
-         if (t.startsWith('(-') || t.startsWith('(')) t = "Location";
-         return `${f} ➡️ ${t}`;
+         return `${start || 'Unknown'} ➡️ ${end || 'Unknown'}`;
       }).join(' | ');
       if (aLegs) out.push(`ABT: ${aLegs}`);
     }
+    
     return out.join(' ; ') || logStr;
   } catch (e) {
     return logStr;
@@ -592,12 +645,14 @@ export default function ComplianceDashboard() {
                          
                          let travelRouteCell = <span className="text-[#8B949E]">-</span>;
                          if (isHC) {
-                             travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={`${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`}>{row.origin_address || 'Unknown'} ➡️ {row.destination_address || 'Unknown'}</div>;
+                             const hcRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
+                             travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={hcRoute || 'No route logged'}>{hcRoute || 'No route logged'}</div>;
                          } else if (isBoth) {
-                             const ptRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
+                             const fullRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
+                             const routes = (fullRoute || 'No route logged').split(' ; ');
                              travelRouteCell = (
                                  <div className="flex flex-col gap-1 text-xs text-[#E6EDF3] max-w-[200px]">
-                                     <div className="truncate" title={ptRoute || 'No route logged'}>{ptRoute || 'No route logged'}</div>
+                                     {routes.map((r, i) => <div key={i} className="truncate" title={r}>{r}</div>)}
                                  </div>
                              );
                          } else if (hasPT) {
