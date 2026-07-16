@@ -538,7 +538,7 @@ export function TaskModal({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-white/[0.05]">
               <div>
-                <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-3">Assigned Staff</label>
+                <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-3">Staff</label>
                 <div className="flex flex-wrap gap-2">
                   {staffList?.map((staff: any) => (
                     <button
@@ -553,7 +553,7 @@ export function TaskModal({
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-3">Assigned Clients</label>
+                <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-3">Clients</label>
                 <div className="flex flex-wrap gap-2">
                   {clientList?.map((client: any) => (
                     <button
