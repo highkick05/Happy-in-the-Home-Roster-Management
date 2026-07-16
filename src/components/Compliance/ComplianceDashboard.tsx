@@ -620,6 +620,7 @@ export default function ComplianceDashboard() {
                          }
 
                          
+                         const isHC = (row.funding_type === 'HOME_CARE' || row.funding_type === 'Home Care' || row.funding_type === 'HCP');
                          const km = (isHC ? (row.home_care_travel_km || row.provider_travel_km || 0) : (row.provider_travel_km || 0)) + (row.abt_km || 0);
                          
                          const pt_km = row.provider_travel_km || 0;
