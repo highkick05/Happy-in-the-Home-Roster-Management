@@ -12911,6 +12911,7 @@ function resolveFilePath(systemName) {
           { header: "TRAVEL CATEGORY & TIME", key: "travelCategory", width: 35 },
           { header: "TRAVEL ROUTE", key: "travelRoute", width: 60 },
           { header: "CLAIMABLE TRAVEL", key: "claimableTravel", width: 45 },
+          { header: "TRANSPORT KM", key: "transportKM", width: 15 },
           { header: "START ODOMETER", key: "startOdo", width: 15 },
           { header: "START PHOTO", key: "startPhoto", width: 15 },
           { header: "END ODOMETER", key: "endOdo", width: 15 },
@@ -13144,7 +13145,7 @@ function resolveFilePath(systemName) {
                 }).join(' | ');
                 if (aLegs) out.push(`ABT: ${aLegs}`);
               }
-              return out.join(' ; ') || logStr;
+              return out.join('\n') || logStr;
             } catch (e) { return logStr; }
           };
 
@@ -13154,6 +13155,7 @@ function resolveFilePath(systemName) {
           let travelCategoryCell = "-";
           let travelRouteCell = "-";
           let claimableTravelCell = "-";
+          const totalTransportKM = p_km + hc_km + (s.abt_km || 0) + " km";
           
           if (isHomeCare) {
               let actualDriveMins = 0;
@@ -13201,6 +13203,7 @@ function resolveFilePath(systemName) {
             travelCategory: travelCategoryCell,
             travelRoute: travelRouteCell,
             claimableTravel: claimableTravelCell,
+            transportKM: totalTransportKM,
             startOdo: s.odometer_start_reading ? Math.round(Number(s.odometer_start_reading)).toString() : "",
             startPhoto: "",
             endOdo: s.odometer_end_reading ? Math.round(Number(s.odometer_end_reading)).toString() : "",
