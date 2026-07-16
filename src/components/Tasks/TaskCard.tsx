@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, Check, MoreVertical, GripVertical, CheckSquare, Square, Trash2, X, Plus, Paperclip, File, Image as ImageIcon, CheckCircle2, Circle, Settings } from 'lucide-react';
+import { Clock, Check, MoreVertical, GripVertical, CheckSquare, Square, Trash2, X, Plus, Paperclip, File, Image as ImageIcon, CheckCircle2, Circle, Settings, FileText, FileSpreadsheet, FileArchive } from 'lucide-react';
 import { useCountdown } from '../../hooks/useCountdown';
 
 function AnimatedCheckbox({ checked, className }: { checked: boolean, className?: string }) {
@@ -105,7 +105,7 @@ export function TaskCard({
       onClick={onEdit}
       className={`group relative flex flex-col p-0 bg-[#1E293B] hover:bg-[#273548] shadow-md border border-black/20 rounded-sm mb-3 cursor-pointer transition-all ${snapshot.isDragging ? 'shadow-xl ring-2 ring-brand-teal/50 rotate-2' : ''}`}
     >
-      {imageAttachments.length > 0 && (
+            {imageAttachments.length > 0 ? (
         <div className="w-full">
           {imageAttachments.map((img: any, idx: number) => (
             <a 
@@ -120,7 +120,18 @@ export function TaskCard({
             </a>
           ))}
         </div>
-      )}
+      ) : fileAttachments.length > 0 ? (
+        <div className="w-full h-24 bg-[#273548] flex items-center justify-center border-b border-border-subtle">
+           {(() => {
+             const ext = fileAttachments[0].filename?.split('.').pop()?.toLowerCase();
+             if (ext === 'pdf') return <FileText className="w-10 h-10 text-red-400" />;
+             if (ext === 'docx' || ext === 'doc') return <FileText className="w-10 h-10 text-blue-400" />;
+             if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') return <FileSpreadsheet className="w-10 h-10 text-green-400" />;
+             if (ext === 'zip' || ext === 'rar') return <FileArchive className="w-10 h-10 text-yellow-400" />;
+             return <File className="w-10 h-10 text-[#8B949E]" />;
+           })()}
+        </div>
+      ) : null}
       <div className="flex flex-col p-3 flex-1">
             <div className="mb-2">
         {task.status === 'In Progress' && safeStaff.length > 0 ? (
@@ -161,23 +172,7 @@ export function TaskCard({
 
 
       
-      {fileAttachments.length > 0 && (
-        <div className="flex flex-col gap-1 mb-2 pt-1 border-t border-white/[0.03]">
-          {fileAttachments.map((file: any, idx: number) => (
-            <a 
-              key={idx}
-              href={file.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1.5 text-[11px] font-medium text-brand-teal hover:underline truncate"
-            >
-              <Paperclip className="w-3 h-3 shrink-0" />
-              <span className="truncate">{file.filename || (file.url && file.url.split('/').pop()) || 'Attachment'}</span>
-            </a>
-          ))}
-        </div>
-      )}
+      
       
       {subTasks.length > 0 && (
         <div className="space-y-1 mb-2 pt-1.5 border-t border-white/[0.03]">
@@ -192,6 +187,24 @@ export function TaskCard({
                 {st.title}
               </span>
             </div>
+          ))}
+        </div>
+      )}
+      
+      {attachments.length > 0 && (
+        <div className="flex flex-col gap-1 mb-2 pt-1.5 border-t border-white/[0.03]">
+          {attachments.map((file: any, idx: number) => (
+            <a 
+              key={idx}
+              href={file.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1.5 text-[11px] font-medium text-brand-teal hover:underline truncate"
+            >
+              <Paperclip className="w-3 h-3 shrink-0" />
+              <span className="truncate">{file.filename || (file.url && file.url.split('/').pop()) || 'Attachment'}</span>
+            </a>
           ))}
         </div>
       )}

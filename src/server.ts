@@ -477,6 +477,44 @@ try {
 
   try {
     db.exec("ALTER TABLE shifts ADD COLUMN is_historical INTEGER DEFAULT 0");
+
+  try {
+    const shiftCols = db.pragma("table_info(shifts)") as any[];
+    const colNames = shiftCols.map((c: any) => c.name);
+    const colsToAdd = [
+      ["transport_route_log", "TEXT"],
+      ["services_json", "TEXT"],
+      ["home_care_travel_km", "REAL DEFAULT 0"],
+      ["home_care_travel_total", "REAL DEFAULT 0"],
+      ["batch_id", "TEXT"],
+      ["odometer_start_photo", "TEXT"],
+      ["odometer_end_photo", "TEXT"],
+      ["odometer_start_reading", "REAL"],
+      ["odometer_end_reading", "REAL"],
+      ["merged_into_shift_id", "INTEGER"]
+    ];
+    for (const [colName, colType] of colsToAdd) {
+      if (!colNames.includes(colName)) {
+        db.exec(`ALTER TABLE shifts ADD COLUMN ${colName} ${colType}`);
+        console.log(`[DEBUG] Added missing column shifts.${colName}`);
+      }
+    }
+  } catch (e: any) {
+    console.warn("Migration warning for shifts cols:", e.message);
+  }
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
+    console.log("[DEBUG] Created settings table if missing");
+  } catch (e: any) {
+    console.warn("Migration warning for settings table:", e.message);
+  }
+
     console.log("[DEBUG] Completed is_historical column check.");
   } catch (e: any) {
     if (e.message && !e.message.includes("duplicate column")) {
@@ -854,7 +892,35 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
+      
+      CREATE TABLE IF NOT EXISTS files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        original_name TEXT NOT NULL,
+        system_name TEXT NOT NULL,
+        size INTEGER,
+        uploaded_by INTEGER,
+        region TEXT,
+        folder_path TEXT,
+        date_issued TEXT,
+        date_expires TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      
+      CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        link TEXT,
+        is_read INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS price_list_items (
+
+
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         price_list_id INTEGER NOT NULL,
         code TEXT NOT NULL,
