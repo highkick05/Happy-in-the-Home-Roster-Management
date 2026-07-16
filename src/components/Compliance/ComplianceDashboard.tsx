@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { 
   Download, Users, Briefcase, FileCheck, Search, FileText, ClipboardList,
-  AlertTriangle, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, RefreshCw, Eye
+  AlertTriangle, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, RefreshCw, Eye, Camera
 } from 'lucide-react';
 import { format } from 'date-fns';
 import CustomDatePicker from '../ui/CustomDatePicker';
