@@ -12,6 +12,11 @@ export default function TasksView() {
   const [staffList, setStaffList] = useState<any[]>([]);
   const [clientList, setClientList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterStaff, setFilterStaff] = useState<string>('all');
+  const [filterClient, setFilterClient] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('active');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
@@ -45,9 +50,29 @@ export default function TasksView() {
 
   const onDragEnd = async (result: any) => {
     if (!result.destination) return;
-    const { source, destination, draggableId } = result;
+    const { source, destination, draggableId, type } = result;
 
     if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+
+    if (type === 'category') {
+      const newCategories = Array.from(categories);
+      const [removed] = newCategories.splice(source.index, 1);
+      newCategories.splice(destination.index, 0, removed);
+      setCategories(newCategories);
+
+      try {
+        await fetch('/api/tasks/categories/order', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ categoryIds: newCategories.map((c: any) => c.id) })
+        });
+        fetchData();
+      } catch (err) {
+        console.error(err);
+        fetchData();
+      }
+      return;
+    }
 
     const newCategoryId = destination.droppableId === 'null' ? null : parseInt(destination.droppableId, 10);
     const taskId = parseInt(draggableId, 10);
@@ -68,6 +93,31 @@ export default function TasksView() {
     }
   };
 
+
+  const handleToggleTaskStatus = async (task: any) => {
+    const newStatus = task.status === 'Done' ? 'To Do' : 'Done';
+    const updatedTask = {
+      ...task,
+      status: newStatus,
+      staff_ids: task.staff?.map((s: any) => s.id) || task.assigned_staff_parsed || [],
+      client_ids: task.clients?.map((c: any) => c.id) || task.assigned_clients_parsed || []
+    };
+    
+    // Optimistic
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
+    
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(updatedTask)
+      });
+      if (res.ok) fetchData();
+    } catch (err) {
+      console.error(err);
+      fetchData();
+    }
+  };
 
   const handleToggleSubtask = async (task: any, subtaskId: number) => {
     const updatedSubTasks = (task.sub_tasks || []).map((st: any) => st.id === subtaskId ? { ...st, completed: st.completed ? 0 : 1 } : st);
@@ -133,61 +183,129 @@ export default function TasksView() {
 
   return (
     <div className="flex flex-col h-full bg-brand-bg text-[#E6EDF3]">
+      <div className="flex flex-wrap items-center gap-3 p-3 bg-black/10 border-b border-border-subtle shrink-0">
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="bg-black/20 border border-border-subtle text-xs text-white px-2 py-1.5 rounded-none outline-none">
+          <option value="active">Active (To Do & In Progress)</option>
+          <option value="done">Done</option>
+          <option value="all">All Statuses</option>
+        </select>
+        <select value={filterStaff} onChange={e => setFilterStaff(e.target.value)} className="bg-black/20 border border-border-subtle text-xs text-white px-2 py-1.5 rounded-none outline-none">
+          <option value="all">All Staff</option>
+          {staffList.map((s: any) => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+        </select>
+        <select value={filterClient} onChange={e => setFilterClient(e.target.value)} className="bg-black/20 border border-border-subtle text-xs text-white px-2 py-1.5 rounded-none outline-none">
+          <option value="all">All Clients</option>
+          {clientList.map((c: any) => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+        </select>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-[#8B949E]">From:</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="bg-black/20 border border-border-subtle text-xs text-white px-2 py-1 rounded-none outline-none" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-[#8B949E]">To:</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="bg-black/20 border border-border-subtle text-xs text-white px-2 py-1 rounded-none outline-none" />
+        </div>
+      </div>
       <div className="flex-1 overflow-x-auto overflow-y-hidden p-3">
         {loading ? (
           <div className="text-center text-[#8B949E] mt-10">Loading...</div>
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
-            <div className="flex h-full gap-3 items-start min-w-max">
-              {categories.map(col => {
-                const colTasks = tasks.filter(t => t.category_id === col.id);
-                return (
-                  <div key={col.id} className="flex flex-col w-[300px] max-h-full">
-                    <div className="flex flex-col mb-2 px-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-none" style={{ backgroundColor: col.color_hex }}></div>
-                          <h2 className="font-semibold text-[13px] text-white tracking-wide uppercase">{col.name}</h2>
-                          <span className="text-[10px] font-bold bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-none text-[#8B949E]">
-                            {colTasks.length}
-                          </span>
-                        </div>
-                      </div>
-                      <button onClick={() => { setEditingTask({ category_id: col.id }); setIsModalOpen(true); }} className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] font-medium text-[#8B949E] bg-white/[0.02] hover:bg-white/[0.05] border border-transparent hover:border-white/[0.05] rounded-none transition-colors">
-                        <Plus className="w-3 h-3" />
-                        Add task
-                      </button>
-                    </div>
+            <Droppable droppableId="board" type="category" direction="horizontal">
+              {(provided) => (
+                <div 
+                  ref={provided.innerRef} 
+                  {...provided.droppableProps} 
+                  className="flex h-full gap-3 items-start min-w-max"
+                >
+                  {categories.map((col: any, index: number) => {
+                    const colTasks = tasks.filter(t => {
+                    if (t.category_id !== col.id) return false;
                     
-                    <Droppable droppableId={String(col.id)}>
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.droppableProps}
-                          className={`flex-1 overflow-y-auto rounded-none p-1 min-h-[150px] transition-colors ${snapshot.isDraggingOver ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-transparent border-transparent'}`}
-                        >
-                          {colTasks.map((task, index) => (
-                            <Draggable key={task.id} draggableId={String(task.id)} index={index}>
+                    if (filterStatus === 'active' && t.status === 'Done') return false;
+                    if (filterStatus === 'done' && t.status !== 'Done') return false;
+                    
+                    if (filterStaff !== 'all') {
+                      const hasStaff = (t.staff && t.staff.some((s:any) => s.id.toString() === filterStaff)) || (t.assigned_to_id && t.assigned_to_id.toString() === filterStaff);
+                      if (!hasStaff) return false;
+                    }
+                    
+                    if (filterClient !== 'all') {
+                      const hasClient = t.clients && t.clients.some((c:any) => c.id.toString() === filterClient);
+                      if (!hasClient) return false;
+                    }
+
+                    if (dateFrom && t.created_at) {
+                      if (new Date(t.created_at) < new Date(dateFrom)) return false;
+                    }
+                    
+                    if (dateTo && t.created_at) {
+                      const toDate = new Date(dateTo);
+                      toDate.setHours(23, 59, 59, 999);
+                      if (new Date(t.created_at) > toDate) return false;
+                    }
+
+                    return true;
+                  });
+                    return (
+                      <Draggable key={col.id} draggableId={`category-${col.id}`} index={index}>
+                        {(provided, snapshot) => (
+                          <div 
+                            ref={provided.innerRef} 
+                            {...provided.draggableProps} 
+                            className={`flex flex-col w-[300px] max-h-full ${snapshot.isDragging ? 'opacity-80' : ''}`}
+                          >
+                            <div className="flex flex-col mb-2 px-1" {...provided.dragHandleProps}>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-none" style={{ backgroundColor: col.color_hex }}></div>
+                                  <h2 className="font-bold text-[14px] text-white tracking-widest uppercase font-sans drop-shadow-sm">{col.name}</h2>
+                                  <span className="text-[10px] font-bold bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-none text-[#8B949E]">
+                                    {colTasks.length}
+                                  </span>
+                                </div>
+                              </div>
+                              <button onClick={() => { setEditingTask({ category_id: col.id }); setIsModalOpen(true); }} className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] font-medium text-[#8B949E] bg-white/[0.02] hover:bg-white/[0.05] border border-transparent hover:border-white/[0.05] rounded-none transition-colors">
+                                <Plus className="w-3 h-3" />
+                                Add task
+                              </button>
+                            </div>
+                            
+                            <Droppable droppableId={String(col.id)} type="task">
                               {(provided, snapshot) => (
-                                <TaskCard
-                                  task={task}
-                                  provided={provided}
-                                  snapshot={snapshot}
-                                  onEdit={() => { setEditingTask(task); setIsModalOpen(true); }}
-                                  onToggleSubtask={handleToggleSubtask}
-                                  wallboardMode={false}
-                                />
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.droppableProps}
+                                  className={`flex-1 overflow-y-auto rounded-none p-1 min-h-[150px] transition-colors ${snapshot.isDraggingOver ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-transparent border-transparent'}`}
+                                >
+                                  {colTasks.map((task, index) => (
+                                    <Draggable key={task.id} draggableId={String(task.id)} index={index}>
+                                      {(provided, snapshot) => (
+                                        <TaskCard
+                                          task={task}
+                                          provided={provided}
+                                          snapshot={snapshot}
+                                          onEdit={() => { setEditingTask(task); setIsModalOpen(true); }}
+                                          onToggleSubtask={handleToggleSubtask}
+                                          onToggleTaskStatus={handleToggleTaskStatus}
+                                          wallboardMode={false}
+                                        />
+                                      )}
+                                    </Draggable>
+                                  ))}
+                                  {provided.placeholder}
+                                </div>
                               )}
-                            </Draggable>
-                          ))}
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
-                  </div>
-                );
-              })}
-            </div>
+                            </Droppable>
+                          </div>
+                        )}
+                      </Draggable>
+                    );
+                  })}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
           </DragDropContext>
         )}
       </div>

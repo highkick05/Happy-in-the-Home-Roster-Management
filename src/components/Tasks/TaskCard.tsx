@@ -20,7 +20,8 @@ export function TaskCard({
   dragControls,
   provided,
   snapshot,
-  onToggleSubtask
+  onToggleSubtask,
+  onToggleTaskStatus
 }: any) {
   const isChecked = task.status === 'Done';
   const { timeLeft, isOverdue, isNearDue } = useCountdown(task.due_date, task.created_at, isChecked);
@@ -108,16 +109,12 @@ export function TaskCard({
             {imageAttachments.length > 0 ? (
         <div className="w-full">
           {imageAttachments.map((img: any, idx: number) => (
-            <a 
+            <div 
               key={idx}
-              href={img.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
               className="block w-full border-b border-border-subtle"
             >
               <img src={img.url} alt={img.filename} className="w-full h-32 object-cover" />
-            </a>
+            </div>
           ))}
         </div>
       ) : fileAttachments.length > 0 ? (
@@ -134,11 +131,11 @@ export function TaskCard({
       ) : null}
       <div className="flex flex-col p-3 flex-1">
             <div className="mb-2">
-        {task.status === 'In Progress' && safeStaff.length > 0 ? (
-          <span className="inline-flex items-center gap-1.5 bg-indigo-500/20 text-indigo-400 text-[9px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider">
-            <span>In Progress</span>
-            <span className="w-3.5 h-3.5 rounded-full bg-indigo-500/30 text-indigo-300 flex items-center justify-center text-[7px] border border-indigo-500/50" title={safeStaff[0].name}>
-              {safeStaff[0].name.substring(0,2).toUpperCase()}
+        {task.assigned_to_id ? (
+          <span className={`inline-flex items-center gap-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider ${task.status === 'Done' ? 'bg-zinc-500/20 text-zinc-400' : task.status === 'In Progress' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-brand-teal/20 text-brand-teal'}`}>
+            <span>{task.status || 'To Do'}</span>
+            <span className="w-3.5 h-3.5 rounded-full bg-white/10 text-white flex items-center justify-center text-[7px] border border-white/20" title={`${task.assigned_first_name} ${task.assigned_last_name}`}>
+              {task.assigned_first_name?.substring(0,1).toUpperCase()}{task.assigned_last_name?.substring(0,1).toUpperCase()}
             </span>
           </span>
         ) : (
@@ -155,7 +152,7 @@ export function TaskCard({
 
 
       <div className="flex items-start gap-2.5 mb-2 mt-1">
-        <button onClick={(e) => { e.stopPropagation(); /* TODO */ }} className={`mt-0.5 shrink-0 flex items-center justify-center w-4 h-4 rounded-full border ${isChecked ? 'bg-brand-teal border-brand-teal' : 'border-[#8B949E] group-hover:border-white/50'}`}>
+        <button onClick={(e) => { e.stopPropagation(); if (onToggleTaskStatus) onToggleTaskStatus(task); }} className={`mt-0.5 shrink-0 flex items-center justify-center w-4 h-4 rounded-full border ${isChecked ? 'bg-brand-teal border-brand-teal' : 'border-[#8B949E] group-hover:border-white/50'}`}>
           {isChecked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
         </button>
         <div className="flex-1 min-w-0">
@@ -258,7 +255,8 @@ export function TaskModal({
     staff_ids: task?.staff?.map((s: any) => s.id) || task?.assigned_staff_parsed || [],
     client_ids: task?.clients?.map((c: any) => c.id) || task?.assigned_clients_parsed || [],
     sub_tasks: task?.sub_tasks || [],
-    attachments: task?.attachments ? (typeof task?.attachments === 'string' ? JSON.parse(task.attachments) : task.attachments) : []
+    attachments: task?.attachments ? (typeof task?.attachments === 'string' ? JSON.parse(task.attachments) : task.attachments) : [],
+    assigned_to_id: task?.assigned_to_id || ''
   });
   const [newSubtask, setNewSubtask] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -508,6 +506,19 @@ export function TaskModal({
               )}
             </div>
 
+            <div className="pt-4 border-t border-white/[0.05]">
+              <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-2">Primary Staff Assignment</label>
+              <select
+                value={formData.assigned_to_id || ''}
+                onChange={e => setFormData({...formData, assigned_to_id: e.target.value ? parseInt(e.target.value) : ''})}
+                className="w-full bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none mb-4"
+              >
+                <option value="">-- Select Staff --</option>
+                {staffList?.map((staff: any) => (
+                  <option key={staff.id} value={staff.id}>{staff.first_name} {staff.last_name}</option>
+                ))}
+              </select>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-white/[0.05]">
               <div>
                 <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-3">Assigned Staff</label>

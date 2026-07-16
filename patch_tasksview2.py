@@ -3,84 +3,83 @@ import re
 with open("src/components/Tasks/TasksView.tsx", "r") as f:
     code = f.read()
 
-# Remove the header
-header_pattern = re.compile(
-    r'<div className="flex-none px-3 py-2 flex items-center justify-between border-b border-border-subtle bg-brand-navy">.*?</div>\s*<div className="flex-1 overflow-x-auto',
-    re.DOTALL
-)
+# Make the categories Droppable and Draggable
+# We will replace the children of DragDropContext
 
-code = header_pattern.sub('<div className="flex-1 overflow-x-auto', code)
+categories_container_pattern = re.compile(r'(<DragDropContext onDragEnd=\{onDragEnd\}>)\s*<div className="flex h-full gap-3 items-start min-w-max">\s*\{categories\.map\(col => \{\s*const colTasks = tasks\.filter\(t => t\.category_id === col\.id\);\s*return \(\s*<div key=\{col\.id\} className="flex flex-col w-\[300px\] max-h-full">(.*?)\n\s*</Droppable>\s*</div>\s*\);\s*\}\)\}\s*</div>', re.DOTALL)
 
-# Add handleToggleSubtask
-toggle_code = """
-  const handleToggleSubtask = async (task: any, subtaskId: number) => {
-    const updatedSubTasks = (task.sub_tasks || []).map((st: any) => st.id === subtaskId ? { ...st, completed: st.completed ? 0 : 1 } : st);
-    const updatedTask = {
-      ...task,
-      sub_tasks: updatedSubTasks,
-      staff_ids: task.staff?.map((s: any) => s.id) || task.assigned_staff_parsed || [],
-      client_ids: task.clients?.map((c: any) => c.id) || task.assigned_clients_parsed || []
-    };
-    
-    try {
-      const res = await fetch(`/api/tasks/${task.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(updatedTask)
-      });
-      if (!res.ok) throw new Error('Failed to update task');
-      fetchData();
-    } catch (err) {
-      console.error(err);
-    }
-  };
+def replace_categories(match):
+    inner_content = match.group(2)
+    return f'''<DragDropContext onDragEnd={{onDragEnd}}>
+            <Droppable droppableId="board" type="category" direction="horizontal">
+              {{(provided) => (
+                <div 
+                  ref={{provided.innerRef}} 
+                  {{...provided.droppableProps}} 
+                  className="flex h-full gap-3 items-start min-w-max"
+                >
+                  {{categories.map((col: any, index: number) => {{
+                    const colTasks = tasks.filter(t => t.category_id === col.id);
+                    return (
+                      <Draggable key={{col.id}} draggableId={{`category-${{col.id}}`}} index={{index}}>
+                        {{(provided, snapshot) => (
+                          <div 
+                            ref={{provided.innerRef}} 
+                            {{...provided.draggableProps}} 
+                            className={{`flex flex-col w-[300px] max-h-full ${{snapshot.isDragging ? 'opacity-80' : ''}}`}}
+                          >
+                            <div className="flex flex-col mb-2 px-1" {{...provided.dragHandleProps}}>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-none" style={{{{ backgroundColor: col.color_hex }}}}></div>
+                                  <h2 className="font-bold text-[14px] text-white tracking-widest uppercase font-sans drop-shadow-sm">{{col.name}}</h2>
+                                  <span className="text-[10px] font-bold bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-none text-[#8B949E]">
+                                    {{colTasks.length}}
+                                  </span>
+                                </div>
+                              </div>
+                              <button onClick={{() => {{ setEditingTask({{ category_id: col.id }}); setIsModalOpen(true); }}}} className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] font-medium text-[#8B949E] bg-white/[0.02] hover:bg-white/[0.05] border border-transparent hover:border-white/[0.05] rounded-none transition-colors">
+                                <Plus className="w-3 h-3" />
+                                Add task
+                              </button>
+                            </div>
+                            
+                            <Droppable droppableId={{String(col.id)}} type="task">
+                              {{(provided, snapshot) => (
+                                <div
+                                  ref={{provided.innerRef}}
+                                  {{...provided.droppableProps}}
+                                  className={{`flex-1 overflow-y-auto rounded-none p-1 min-h-[150px] transition-colors ${{snapshot.isDraggingOver ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-transparent border-transparent'}}`}}
+                                >
+                                  {{colTasks.map((task, index) => (
+                                    <Draggable key={{task.id}} draggableId={{String(task.id)}} index={{index}}>
+                                      {{(provided, snapshot) => (
+                                        <TaskCard
+                                          task={{task}}
+                                          provided={{provided}}
+                                          snapshot={{snapshot}}
+                                          onEdit={{() => {{ setEditingTask(task); setIsModalOpen(true); }}}}
+                                          onToggleSubtask={{handleToggleSubtask}}
+                                          wallboardMode={{false}}
+                                        />
+                                      )}}
+                                    </Draggable>
+                                  ))}}
+                                  {{provided.placeholder}}
+                                </div>
+                              )}}
+                            </Droppable>
+                          </div>
+                        )}}
+                      </Draggable>
+                    );
+                  }})}}
+                  {{provided.placeholder}}
+                </div>
+              )}}
+            </Droppable>'''
 
-  const handleSaveTask = async (taskData: any) => {
-"""
-
-code = code.replace("  const handleSaveTask = async (taskData: any) => {", toggle_code)
-
-# Add onToggleSubtask to TaskCard
-code = code.replace(
-    """<TaskCard
-                                  task={task}
-                                  provided={provided}
-                                  snapshot={snapshot}
-                                  onEdit={() => { setEditingTask(task); setIsModalOpen(true); }}
-                                  wallboardMode={false}
-                                />""",
-    """<TaskCard
-                                  task={task}
-                                  provided={provided}
-                                  snapshot={snapshot}
-                                  onEdit={() => { setEditingTask(task); setIsModalOpen(true); }}
-                                  onToggleSubtask={handleToggleSubtask}
-                                  wallboardMode={false}
-                                />"""
-)
-
-# Add onManageCategories to TaskModal
-code = code.replace(
-    """<TaskModal
-          task={editingTask}
-          staffList={staffList}
-          clientList={clientList}
-          categories={categories}
-          onClose={() => setIsModalOpen(false)}
-          onSave={handleSaveTask}
-          onDelete={(editingTask && editingTask.id) ? () => handleDeleteTask(editingTask.id) : undefined}
-        />""",
-    """<TaskModal
-          task={editingTask}
-          staffList={staffList}
-          clientList={clientList}
-          categories={categories}
-          onClose={() => setIsModalOpen(false)}
-          onSave={handleSaveTask}
-          onDelete={(editingTask && editingTask.id) ? () => handleDeleteTask(editingTask.id) : undefined}
-          onManageCategories={() => { setIsModalOpen(false); setIsCategoryModalOpen(true); }}
-        />"""
-)
+code = categories_container_pattern.sub(replace_categories, code)
 
 with open("src/components/Tasks/TasksView.tsx", "w") as f:
     f.write(code)

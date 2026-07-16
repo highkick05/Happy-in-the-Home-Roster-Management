@@ -186,6 +186,7 @@ async function startServer() {
       CREATE TABLE IF NOT EXISTS providers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         company_name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
         contact_name TEXT,
         email TEXT,
         phone TEXT,
@@ -197,7 +198,9 @@ async function startServer() {
       CREATE TABLE IF NOT EXISTS clients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         first_name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
         last_name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
         ndis_number TEXT,
         care_plan_details TEXT,
         contact_email TEXT,
@@ -234,6 +237,7 @@ async function startServer() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         code TEXT NOT NULL,
         name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
         rate REAL NOT NULL,
         description TEXT,
         type TEXT,
@@ -477,6 +481,12 @@ try {
 
   try {
     db.exec("ALTER TABLE shifts ADD COLUMN is_historical INTEGER DEFAULT 0");
+    console.log("[DEBUG] Completed is_historical column check.");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
 
   try {
     const shiftCols = db.pragma("table_info(shifts)") as any[];
@@ -515,13 +525,6 @@ try {
     console.warn("Migration warning for settings table:", e.message);
   }
 
-    console.log("[DEBUG] Completed is_historical column check.");
-  } catch (e: any) {
-    if (e.message && !e.message.includes("duplicate column")) {
-      console.warn("Migration warning:", e.message);
-    }
-  }
-
   try {
     db.exec("ALTER TABLE invoices ADD COLUMN services_json TEXT");
     console.log("[DEBUG] Completed invoices.services_json column check.");
@@ -551,6 +554,13 @@ try {
     if (e.message && !e.message.includes("duplicate column")) {
       console.warn("Migration warning:", e.message);
     }
+  }
+
+  try {
+    db.exec("ALTER TABLE invoices ADD COLUMN merged_into_shift_id INTEGER");
+    console.log("[DEBUG] Completed invoices.merged_into_shift_id column check.");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) console.warn("Migration warning:", e.message);
   }
 
   try {
@@ -703,6 +713,7 @@ try {
       CREATE TABLE IF NOT EXISTS task_categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
         color_hex TEXT NOT NULL
       );
       
@@ -727,6 +738,7 @@ try {
         title TEXT NOT NULL,
         description TEXT,
         status TEXT DEFAULT 'Active',
+        assigned_to_id INTEGER,
         start_date TEXT,
         end_date TEXT,
         assigned_staff TEXT,
@@ -754,6 +766,7 @@ try {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
         name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
         start_date TEXT,
         end_date TEXT,
         total_budget REAL DEFAULT 0,
@@ -874,6 +887,7 @@ try {
         client_id INTEGER NOT NULL,
         date TEXT NOT NULL,
         service_name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
         vendor_name TEXT,
         base_amount REAL NOT NULL,
         care_coord_fee REAL DEFAULT 0,
@@ -888,6 +902,7 @@ try {
       CREATE TABLE IF NOT EXISTS price_lists (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
         is_master BOOLEAN DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -896,7 +911,9 @@ try {
       CREATE TABLE IF NOT EXISTS files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         original_name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
         system_name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
         size INTEGER,
         uploaded_by INTEGER,
         region TEXT,
@@ -925,6 +942,7 @@ try {
         price_list_id INTEGER NOT NULL,
         code TEXT NOT NULL,
         name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
         rate REAL NOT NULL,
         description TEXT,
         reg_group_number TEXT,
@@ -15329,7 +15347,7 @@ function resolveFilePath(systemName) {
   // --- Task Categories API ---
   app.get('/api/task-categories', authenticateTokenOrWallboard, (req: any, res: any) => {
     try {
-      const categories = db.prepare("SELECT * FROM task_categories").all();
+      const categories = db.prepare("SELECT * FROM task_categories ORDER BY sort_order ASC, id ASC").all();
       res.json(categories);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -15367,13 +15385,16 @@ function resolveFilePath(systemName) {
   app.get('/api/tasks', authenticateTokenOrWallboard, (req: any, res: any) => {
     try {
       // First get all tasks with their category
-      const tasks = db.prepare(`
+            const tasks = db.prepare(`
         SELECT 
           t.*, 
           tc.name as category_name, 
-          tc.color_hex as category_color 
+          tc.color_hex as category_color,
+          u.first_name as assigned_first_name,
+          u.last_name as assigned_last_name
         FROM tasks t
         LEFT JOIN task_categories tc ON t.category_id = tc.id
+        LEFT JOIN users u ON t.assigned_to_id = u.id
         ORDER BY t.created_at DESC
       `).all();
 
@@ -15450,6 +15471,23 @@ function resolveFilePath(systemName) {
     } catch (error: any) {
       console.error("Error creating task:", error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  
+  app.put('/api/tasks/categories/order', authenticateTokenOrWallboard, (req: any, res: any) => {
+    try {
+      const { categoryIds } = req.body;
+      const stmt = db.prepare(`UPDATE task_categories SET sort_order = ? WHERE id = ?`);
+      const transaction = db.transaction((ids: number[]) => {
+        ids.forEach((id, index) => {
+          stmt.run(index, id);
+        });
+      });
+      transaction(categoryIds);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
     }
   });
 
