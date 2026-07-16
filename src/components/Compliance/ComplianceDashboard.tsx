@@ -74,7 +74,7 @@ export default function ComplianceDashboard() {
     }
   };
 
-  const [activeTab, setActiveTab] = useLocalStorage<'evidence' | 'staff' | 'mandatory_documents'>('compliance_active_tab', 'evidence');
+  const [activeTab, setActiveTab] = useLocalStorage<'evidence' | 'staff' | 'mandatory_documents' | 'system_logs'>('compliance_active_tab', 'evidence');
   
   // States for Evidence Pack (Clients)
   const [clients, setClients] = useState<any[]>([]);
@@ -106,6 +106,15 @@ export default function ComplianceDashboard() {
 
   // States for Audit Logs
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+
+  // Pagination states
+  const [evidencePage, setEvidencePage] = useState(1);
+  const [evidencePageSize, setEvidencePageSize] = useState(50);
+  const [staffPage, setStaffPage] = useState(1);
+  const [staffPageSize, setStaffPageSize] = useState(50);
+  const [logsPage, setLogsPage] = useState(1);
+  const [logsPageSize, setLogsPageSize] = useState(50);
+
 
   useEffect(() => {
     fetchClients();
@@ -372,6 +381,12 @@ export default function ComplianceDashboard() {
           className={`px-4 py-2 text-[13px] rounded-md transition-colors flex items-center ${activeTab === 'mandatory_documents' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
           <ClipboardList className="w-4 h-4 mr-2" /> Mandatory Documents
+        </button>
+        <button
+          onClick={() => setActiveTab('system_logs')}
+          className={`px-4 py-2 text-[13px] rounded-md transition-colors flex items-center ml-auto ${activeTab === 'system_logs' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+        >
+          <Search className="w-4 h-4 mr-2" /> Immutable System Logs
         </button>
       </div>
 
@@ -968,7 +983,8 @@ export default function ComplianceDashboard() {
       )}
 
       {/* System Audit Logs Visualizer */}
-      <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-x-auto mt-8">
+      {activeTab === 'system_logs' && (
+      <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-x-auto">
         <div className="p-5 border-b border-border-subtle flex items-center justify-between bg-brand-bg">
            <h3 className="text-sm font-semibold tracking-wide text-[#E6EDF3] flex items-center uppercase">
              <Search className="w-4 h-4 mr-2" /> Immutable System Logs (Read-Only)
@@ -1011,15 +1027,45 @@ export default function ComplianceDashboard() {
                  </tbody>
                </table>
              ) : (
-               <div className="flex items-center justify-center p-8">
-                 <p className="text-[#8B949E] text-sm">No manual modifications found for completed records.</p>
-               </div>
-             )}
-           </div>
+                              <div className="flex items-center justify-center p-8">                 <p className="text-[#8B949E] text-sm">No manual modifications found for completed records.</p>               </div>             )}           </div>
+        <div className="flex items-center justify-between p-4 border-t border-border-subtle bg-brand-bg/50">
+            <div className="text-sm text-[#8B949E]">
+                Showing {Math.min((logsPage - 1) * logsPageSize + (auditLogs.length > 0 ? 1 : 0), auditLogs.length)} to {Math.min(logsPage * logsPageSize, auditLogs.length)} of {auditLogs.length} entries
+            </div>
+            <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm text-[#8B949E]">Rows per page:</span>
+                    <select
+                        value={logsPageSize}
+                        onChange={(e) => {setLogsPageSize(Number(e.target.value)); setLogsPage(1);}}
+                        className="bg-brand-navy border border-border-subtle rounded px-2 py-1 text-sm text-[#E6EDF3] outline-none"
+                    >
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value={250}>250</option>
+                        <option value={500}>500</option>
+                    </select>
+                </div>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => setLogsPage(Math.max(1, logsPage - 1))}
+                        disabled={logsPage === 1}
+                        className="p-1 rounded hover:bg-white/5 disabled:opacity-50 text-[#8B949E] hover:text-[#E6EDF3]"
+                    >
+                        &lt;
+                    </button>
+                    <span className="text-sm text-[#E6EDF3] px-2">{logsPage} / {Math.ceil(auditLogs.length / logsPageSize) || 1}</span>
+                    <button
+                        onClick={() => setLogsPage(Math.min(Math.ceil(auditLogs.length / logsPageSize), logsPage + 1))}
+                        disabled={logsPage >= Math.ceil(auditLogs.length / logsPageSize)}
+                        className="p-1 rounded hover:bg-white/5 disabled:opacity-50 text-[#8B949E] hover:text-[#E6EDF3]"
+                    >
+                        &gt;
+                    </button>
+                </div>
+            </div>
         </div>
-      </div>
-
-      {/* Manage Staff Documents Modal */}
+        </div>      </div>      )}      {/* Manage Staff Documents Modal */}
       {manageStaffId && (
         <div className="fixed inset-0 bg-black/80 flex justify-center items-center z-[100] p-4 backdrop-blur-sm">
           <div className="bg-[#09090b] w-full max-w-6xl max-h-[90vh] flex flex-col rounded-xl border border-white/[0.08] shadow-2xl overflow-hidden relative">
