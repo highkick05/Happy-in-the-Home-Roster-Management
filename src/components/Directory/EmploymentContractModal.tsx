@@ -22,6 +22,7 @@ export default function EmploymentContractModal({ staffMember, onClose }: Props)
     baseHourlyRate: '',
     industrialInstrument: 'Social, Community, Home Care and Disability Services Industry Award 2010 [MA000100]',
     contractDate: new Date().toISOString().split('T')[0],
+    returnDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
     commencementDate: new Date().toISOString().split('T')[0],
     probationPeriod: '6 Months',
     positionDescription: ''
@@ -249,6 +250,15 @@ export default function EmploymentContractModal({ staffMember, onClose }: Props)
                   <option>6 Months</option>
                   <option>None</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Return Date</label>
+                <input 
+                  type="date"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue cursor-pointer [&::-webkit-calendar-picker-indicator]:invert"
+                  value={formData.returnDate} onChange={e => setFormData(p => ({ ...p, returnDate: e.target.value }))}
+                />
               </div>
             </div>
           </div>

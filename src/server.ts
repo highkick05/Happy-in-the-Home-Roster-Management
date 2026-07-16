@@ -14543,6 +14543,7 @@ function resolveFilePath(systemName) {
         baseHourlyRate,
         industrialInstrument,
         contractDate,
+        returnDate,
         commencementDate,
         probationPeriod,
         positionDescription,
@@ -14643,8 +14644,9 @@ function resolveFilePath(systemName) {
         );
         doc.moveDown(1);
 
+        const parsedReturnDate = returnDate ? new Date(returnDate) : new Date(parsedContractDate.getTime() + 14 * 86400000);
         doc.text(
-          `To accept this offer and the attached terms and conditions, please sign and date this letter in the section below and sign the attached employment contract and return to me by ${new Date(parsedContractDate.getTime() + 14 * 86400000).toLocaleDateString("en-AU")}.`,
+          `To accept this offer and the attached terms and conditions, please sign and date this letter in the section below and sign the attached employment contract and return to me by ${parsedReturnDate.toLocaleDateString("en-AU")}.`,
         );
         doc.moveDown(1);
 
