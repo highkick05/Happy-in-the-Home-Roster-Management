@@ -27,8 +27,8 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
     bankAcc: '',
     taxNumber: '',
     superFundName: '',
-    superMemberNumber: '',
-    canSwitchAdmin: false,
+    superMemberNumber: staff?.super_member_number || '',
+    canSwitchAdmin: staff ? !!staff.can_switch_admin : false,
   });
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         bankAcc: staff.bank_acc || '',
         taxNumber: staff.tax_number || '',
         superFundName: staff.super_fund_name || '',
-        superMemberNumber: staff.super_member_number || '',
+        superMemberNumber: staff?.super_member_number || '',
         canSwitchAdmin: !!staff.can_switch_admin,
       });
     } else {
@@ -69,7 +69,8 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         bankAcc: '',
         taxNumber: '',
         superFundName: '',
-        superMemberNumber: '',
+        superMemberNumber: staff?.super_member_number || '',
+    canSwitchAdmin: staff ? !!staff.can_switch_admin : false,
       });
     }
   }, [staff, isOpen]);

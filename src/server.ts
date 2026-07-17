@@ -523,7 +523,7 @@ try {
     console.log("[DEBUG] Created settings table if missing");
 
   try {
-    const usersCols = db.pragma("table_info(users)");
+    const usersCols = db.pragma("table_info(users)") as any[];
     if (!usersCols.some(c => c.name === 'can_switch_admin')) {
       db.exec("ALTER TABLE users ADD COLUMN can_switch_admin INTEGER DEFAULT 0");
     }
@@ -2688,11 +2688,11 @@ try {
 
   // Auth Routes
   
-  app.post("/api/switch-role", authenticateToken, (req, res) => {
+  app.post("/api/switch-role", authenticateToken, (req: any, res: any) => {
     const { targetRole } = req.body;
     const user = db
       .prepare("SELECT * FROM users WHERE id = ?")
-      .get(req.user.id);
+      .get(req.user.id) as any;
     
     if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -2976,7 +2976,7 @@ try {
       FROM users WHERE id = ?
     `,
       )
-      .get(req.user.id);
+      .get(req.user.id) as any;
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json(user);
   });
@@ -3922,7 +3922,7 @@ app.get("/api/health", (req, res) => {
     }
     const staff = db
       .prepare(
-        "SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, created_at FROM users",
+        "SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, created_at, can_switch_admin FROM users",
       )
       .all();
     res.json(staff);

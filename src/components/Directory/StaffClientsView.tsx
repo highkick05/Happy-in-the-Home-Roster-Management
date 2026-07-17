@@ -47,7 +47,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const endpoint = activeTab === 'STAFF' ? '/api/staff' : activeTab === 'CLIENTS' ? '/api/clients' : '/api/providers';
+      const endpoint = (activeTab === "STAFF" ? "/api/staff" : activeTab === "CLIENTS" ? "/api/clients" : "/api/providers") + "?t=" + Date.now();
       const res = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${token}` }
       });

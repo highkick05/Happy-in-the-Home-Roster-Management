@@ -1076,7 +1076,7 @@ export default function RosterCalendar() {
       </div>
       
       <div className="flex-1 bg-brand-bg p-0 md:p-4 rounded-lg md:border border-border-subtle overflow-y-auto min-h-0 scrollbar-hide">
-        {user?.role === 'ADMIN' && activeView !== Views.AGENDA ? (
+        {activeView !== Views.AGENDA ? (
           <DnDCalendar
             localizer={localizer}
             events={mappedEvents}
@@ -1094,8 +1094,9 @@ export default function RosterCalendar() {
             onEventResize={onEventResize}
             onSelectEvent={onSelectEvent}
             onSelectSlot={onSelectSlot}
-            selectable
-            resizable
+            selectable={user?.role === 'ADMIN'}
+            draggableAccessor={() => user?.role === 'ADMIN'}
+            resizable={user?.role === 'ADMIN'}
             resources={activeView === Views.DAY ? resources : undefined}
             resourceIdAccessor={activeView === Views.DAY ? (r: any) => r?.id : undefined}
             resourceTitleAccessor={activeView === Views.DAY ? (r: any) => r?.title : undefined}
@@ -1118,7 +1119,8 @@ export default function RosterCalendar() {
             components={calendarComponents}
             onSelectEvent={onSelectEvent}
             onSelectSlot={onSelectSlot}
-            selectable
+            selectable={user?.role === 'ADMIN'}
+            draggableAccessor={() => user?.role === 'ADMIN'}
             resources={activeView === Views.DAY ? resources : undefined}
             resourceIdAccessor={activeView === Views.DAY ? (r: any) => r?.id : undefined}
             resourceTitleAccessor={activeView === Views.DAY ? (r: any) => r?.title : undefined}
