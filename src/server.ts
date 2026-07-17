@@ -2864,6 +2864,8 @@ try {
       ).run(token, expires, email);
 
       const appUrl =
+        req.headers.origin ||
+        (req.headers.referer ? new URL(req.headers.referer).origin : null) ||
         process.env.APP_URL || process.env.BASE_URL || "http://localhost:3000";
       const resetLink = `${appUrl}/reset-password/${token}`;
 
