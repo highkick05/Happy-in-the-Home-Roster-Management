@@ -15877,23 +15877,40 @@ function resolveFilePath(systemName) {
     }
   }));
   
+  const distPath = path.join(process.cwd(), "dist");
+
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: {
-        middlewareMode: true,
-        allowedHosts: true, // <--- ADD THIS LINE HERE
-      },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+    try {
+      const vite = await createViteServer({
+        server: {
+          middlewareMode: true,
+          allowedHosts: true,
+        },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (e) {
+      console.warn("Vite not found or failed to start, falling back to static files.");
+      app.use(express.static(distPath));
+    }
   } else {
     // Serve static files in production
-    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
   }
+
+  // ALWAYS fallback to index.html for GET requests that accept HTML
+  // This ensures SPA routing works even if NODE_ENV is misconfigured in Docker
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && req.accepts('html') && !req.path.startsWith('/api/')) {
+      res.sendFile(path.join(distPath, "index.html"), (err) => {
+        if (err) {
+          next();
+        }
+      });
+    } else {
+      next();
+    }
+  });
 
   // --- Global Robust Error Handler ---
   app.use((err: any, req: any, res: any, next: any) => {
