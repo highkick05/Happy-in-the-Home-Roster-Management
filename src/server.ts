@@ -521,6 +521,19 @@ try {
       );
     `);
     console.log("[DEBUG] Created settings table if missing");
+
+  try {
+    const usersCols = db.pragma("table_info(users)");
+    if (!usersCols.some(c => c.name === 'can_switch_admin')) {
+      db.exec("ALTER TABLE users ADD COLUMN can_switch_admin INTEGER DEFAULT 0");
+    }
+    if (!usersCols.some(c => c.name === 'last_active_role')) {
+      db.exec("ALTER TABLE users ADD COLUMN last_active_role TEXT");
+    }
+  } catch(e) {
+    console.error("Migration error for users table:", e.message);
+  }
+
   } catch (e: any) {
     console.warn("Migration warning for settings table:", e.message);
   }
