@@ -15877,7 +15877,7 @@ function resolveFilePath(systemName) {
     }
   }));
   
-  const distPath = path.join(process.cwd(), "dist");
+  const distPath = path.join(_dirname, "../dist");
 
   if (process.env.NODE_ENV !== "production") {
     try {
@@ -15898,8 +15898,18 @@ function resolveFilePath(systemName) {
     app.use(express.static(distPath));
   }
 
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
+  // Universal fallback for SPA routing
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && req.accepts('html') && !req.path.startsWith('/api/')) {
+      res.sendFile(path.join(distPath, 'index.html'), (err) => {
+        if (err) {
+          console.error(`[SPA Fallback Error] Failed to serve index.html from ${distPath}: `, err.message);
+          next();
+        }
+      });
+    } else {
+      next();
+    }
   });
 
   // --- Global Robust Error Handler ---
