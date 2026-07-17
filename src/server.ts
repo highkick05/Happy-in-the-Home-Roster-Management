@@ -2831,6 +2831,9 @@ try {
     host: process.env.SMTP_HOST || "smtp.hostinger.com",
     port: parseInt(process.env.SMTP_PORT || "465", 10),
     secure: parseInt(process.env.SMTP_PORT || "465", 10) === 465,
+    tls: {
+      rejectUnauthorized: false,
+    },
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
