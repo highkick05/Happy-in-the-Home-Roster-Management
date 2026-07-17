@@ -15898,18 +15898,8 @@ function resolveFilePath(systemName) {
     app.use(express.static(distPath));
   }
 
-  // ALWAYS fallback to index.html for GET requests that accept HTML
-  // This ensures SPA routing works even if NODE_ENV is misconfigured in Docker
-  app.use((req, res, next) => {
-    if (req.method === 'GET' && req.accepts('html') && !req.path.startsWith('/api/')) {
-      res.sendFile(path.join(distPath, "index.html"), (err) => {
-        if (err) {
-          next();
-        }
-      });
-    } else {
-      next();
-    }
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
   });
 
   // --- Global Robust Error Handler ---
