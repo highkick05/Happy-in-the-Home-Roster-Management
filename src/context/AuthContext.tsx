@@ -6,6 +6,7 @@ export interface User {
   role: 'ADMIN' | 'STAFF';
   firstName: string;
   lastName: string;
+  canSwitchAdmin?: boolean;
 }
 
 interface AuthContextType {
@@ -14,6 +15,7 @@ interface AuthContextType {
   token: string | null;
   login: (token: string, user: User, settings: any) => void;
   logout: () => void;
+  switchRole: (targetRole: "ADMIN" | "STAFF") => Promise<void>;
   updateSettings: (newSettings: any) => void;
   isLoading: boolean;
 }
@@ -93,12 +95,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSettings({});
   };
 
+  
+  const switchRole = async (targetRole: "ADMIN" | "STAFF") => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/switch-role', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ targetRole })
+      });
+      if (!res.ok) throw new Error('Failed to switch role');
+      const data = await res.json();
+      login(data.token, data.user, settings);
+    } catch (error) {
+      console.error(error);
+      alert('Error switching roles');
+    }
+  };
+
   const updateSettings = (newSettings: any) => {
     setSettings(newSettings);
   };
 
   return (
-    <AuthContext.Provider value={{ user, settings, token, login, logout, updateSettings, isLoading }}>
+    <AuthContext.Provider value={{ user, settings, token, login, logout, switchRole, updateSettings, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

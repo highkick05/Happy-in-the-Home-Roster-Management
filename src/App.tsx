@@ -104,7 +104,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     } ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? "justify-center !px-2" : ""}`;
   };
 
-  const { logout, user, settings, token } = useAuth();
+  const { logout, user, settings, token, switchRole } = useAuth();
   const location = useLocation();
 
   React.useEffect(() => {
@@ -305,6 +305,19 @@ function Layout({ children }: { children: React.ReactNode }) {
           {!isDesktopSidebarCollapsed || isMobileMenuOpen ? (
             <div className="mb-2 px-3 text-xs text-brand-teal font-medium tracking-wide truncate">Logged in as {user?.firstName}</div>
           ) : null}
+
+          {user?.canSwitchAdmin && (
+            <div className="flex px-2 pb-2">
+              <button 
+                onClick={() => switchRole(user.role === 'ADMIN' ? 'STAFF' : 'ADMIN')}
+                className="w-full flex items-center justify-center px-3 py-1.5 text-[11px] font-semibold tracking-wide bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 border border-brand-teal/30 rounded-md transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> 
+                {!isDesktopSidebarCollapsed || isMobileMenuOpen ? (user.role === 'ADMIN' ? 'Switch to Staff' : 'Switch to Admin') : ''}
+              </button>
+            </div>
+          )}
+
           <div className={isDesktopSidebarCollapsed && !isMobileMenuOpen ? "flex flex-col space-y-2" : "flex items-center space-x-2"}>
             <NavLink to="/profile" className={(props: {isActive: boolean}) => `${getNavClasses(props)} ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-full' : 'flex-1'}`} title="Profile">
               <User className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Profile' : ''}

@@ -2674,6 +2674,43 @@ try {
   });
 
   // Auth Routes
+  
+  app.post("/api/switch-role", authenticateToken, (req, res) => {
+    const { targetRole } = req.body;
+    const user = db
+      .prepare("SELECT * FROM users WHERE id = ?")
+      .get(req.user.id);
+    
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Ensure they have permission
+    if (user.role !== 'ADMIN' && !user.can_switch_admin) {
+      return res.status(403).json({ error: "Forbidden: Not allowed to switch roles" });
+    }
+
+    if (targetRole !== 'ADMIN' && targetRole !== 'STAFF') {
+      return res.status(400).json({ error: "Invalid target role" });
+    }
+
+    db.prepare("UPDATE users SET last_active_role = ? WHERE id = ?").run(targetRole, user.id);
+
+    const token = jwt.sign({ id: user.id, role: targetRole }, process.env.JWT_SECRET || "happyinthehome-secret-key-123", {
+      expiresIn: "1d",
+    });
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: targetRole,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        canSwitchAdmin: !!user.can_switch_admin,
+      },
+    });
+  });
+
   app.post("/api/login", loginRateLimiter, (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -2687,7 +2724,14 @@ try {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
+        let loginRole = user.role;
+    if (user.last_active_role && (user.last_active_role === 'ADMIN' || user.last_active_role === 'STAFF')) {
+      if (user.role === 'ADMIN' || user.can_switch_admin) {
+        loginRole = user.last_active_role;
+      }
+    }
+
+    const token = jwt.sign({ id: user.id, role: loginRole }, JWT_SECRET, {
       expiresIn: "1d",
     });
 
@@ -2705,9 +2749,10 @@ try {
       user: {
         id: user.id,
         email: user.email,
-        role: user.role,
+        role: loginRole,
         firstName: user.first_name,
         lastName: user.last_name,
+        canSwitchAdmin: !!user.can_switch_admin,
       },
       settings,
     });
@@ -2876,7 +2921,7 @@ try {
   app.get("/api/me", authenticateToken, (req: any, res: any) => {
     const user = db
       .prepare(
-        "SELECT id, email, role, first_name, last_name FROM users WHERE id = ?",
+        "SELECT id, email, role, first_name, last_name, can_switch_admin FROM users WHERE id = ?"
       )
       .get(req.user.id) as any;
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -2887,16 +2932,17 @@ try {
       .all() as any[];
     const settings = settingsRows.reduce(
       (acc, row) => ({ ...acc, [row.key]: JSON.parse(row.value) }),
-      {},
+      {}
     );
 
     res.json({
       user: {
         id: user.id,
         email: user.email,
-        role: user.role,
+        role: req.user.role || user.role,
         firstName: user.first_name,
         lastName: user.last_name,
+        canSwitchAdmin: !!user.can_switch_admin,
       },
       settings,
     });
@@ -3887,11 +3933,12 @@ app.get("/api/health", (req, res) => {
       taxNumber,
       superFundName,
       superMemberNumber,
+      canSwitchAdmin,
     } = req.body;
     try {
       const hash = bcrypt.hashSync(password, 10);
       const stmt = db.prepare(
-        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
       const info = stmt.run(
         email,
@@ -3910,6 +3957,7 @@ app.get("/api/health", (req, res) => {
         taxNumber,
         superFundName,
         superMemberNumber,
+        canSwitchAdmin ? 1 : 0,
       );
       res.json({
         id: info.lastInsertRowid,
@@ -3956,11 +4004,12 @@ app.get("/api/health", (req, res) => {
       taxNumber,
       superFundName,
       superMemberNumber,
+      canSwitchAdmin,
     } = req.body;
     const { id } = req.params;
     try {
       const stmt = db.prepare(
-        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ? WHERE id = ?",
+        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ? WHERE id = ?",
       );
       stmt.run(
         email,
@@ -3978,6 +4027,7 @@ app.get("/api/health", (req, res) => {
         taxNumber,
         superFundName,
         superMemberNumber,
+        canSwitchAdmin ? 1 : 0,
         id,
       );
       res.json({
