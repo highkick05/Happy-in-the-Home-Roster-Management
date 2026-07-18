@@ -16,6 +16,7 @@ export default function VehiclesView() {
     name: '', rego: '', user_id: '', ownership: 'COMPANY', 
     rego_expiry: '', rego_evidence_url: '', 
     insurance_type: 'THIRD_PARTY', insurance_provider: '', insurance_expiry: '', insurance_evidence_url: '',
+    roadside_provider: '', roadside_expiry: '', roadside_evidence_url: '',
     is_primary: false
   });
 
@@ -65,7 +66,7 @@ export default function VehiclesView() {
       });
       
       if (res.ok) {
-        setNewVehicle({ name: '', rego: '', user_id: '', ownership: 'COMPANY', rego_expiry: '', rego_evidence_url: '', insurance_type: 'THIRD_PARTY', insurance_provider: '', insurance_expiry: '', insurance_evidence_url: '', is_primary: false });
+        setNewVehicle({ name: '', rego: '', user_id: '', ownership: 'COMPANY', rego_expiry: '', rego_evidence_url: '', insurance_type: 'THIRD_PARTY', insurance_provider: '', insurance_expiry: '', insurance_evidence_url: '', roadside_provider: '', roadside_expiry: '', roadside_evidence_url: '', is_primary: false });
         setSelectedVehicle(null);
         setShowAddModal(false);
         fetchVehicles();
@@ -98,7 +99,7 @@ export default function VehiclesView() {
     }
   };
   
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'rego_evidence_url' | 'insurance_evidence_url') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'rego_evidence_url' | 'insurance_evidence_url' | 'roadside_evidence_url') => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     const formData = new FormData();
@@ -126,6 +127,7 @@ export default function VehiclesView() {
       rego_expiry: v.rego_expiry || '', rego_evidence_url: v.rego_evidence_url || '',
       insurance_type: v.insurance_type || 'THIRD_PARTY', insurance_provider: v.insurance_provider || '', 
       insurance_expiry: v.insurance_expiry || '', insurance_evidence_url: v.insurance_evidence_url || '',
+      roadside_provider: v.roadside_provider || '', roadside_expiry: v.roadside_expiry || '', roadside_evidence_url: v.roadside_evidence_url || '',
       is_primary: !!v.is_primary
     });
     setShowAddModal(true);
@@ -133,12 +135,12 @@ export default function VehiclesView() {
 
   const openAddModal = () => {
     setSelectedVehicle(null);
-    setNewVehicle({ name: '', rego: '', user_id: '', ownership: 'COMPANY', rego_expiry: '', rego_evidence_url: '', insurance_type: 'THIRD_PARTY', insurance_provider: '', insurance_expiry: '', insurance_evidence_url: '', is_primary: false });
+    setNewVehicle({ name: '', rego: '', user_id: '', ownership: 'COMPANY', rego_expiry: '', rego_evidence_url: '', insurance_type: 'THIRD_PARTY', insurance_provider: '', insurance_expiry: '', insurance_evidence_url: '', roadside_provider: '', roadside_expiry: '', roadside_evidence_url: '', is_primary: false });
     setShowAddModal(true);
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-black p-4 md:p-6 lg:p-8">
+    <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         
         <div className="flex items-center justify-between">
@@ -155,24 +157,25 @@ export default function VehiclesView() {
           </button>
         </div>
 
-        <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden">
-          <table className="w-full text-left text-sm">
+        <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden overflow-x-auto">
+          <table className="w-full text-left text-sm min-w-[900px]">
             <thead className="bg-brand-navy border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] font-semibold">
               <tr>
-                <th className="px-4 py-3 border-r border-border-subtle/30">Vehicle Make & Model</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30">Rego</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30">Ownership</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30 text-center">Default</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30">Rego Expiry</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30">Insurance Expiry</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[200px]">Vehicle Make & Model</th>
+                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[120px]">Rego</th>
+                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[150px]">Ownership</th>
+                <th className="px-4 py-3 border-r border-border-subtle/30 text-center min-w-[80px]">Default</th>
+                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[120px]">Rego Expiry</th>
+                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[140px]">Insurance Expiry</th>
+                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[140px]">Roadside Expiry</th>
+                <th className="px-4 py-3 text-right min-w-[100px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
               {loading ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-[#8B949E]">Loading vehicles...</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-[#8B949E]">Loading vehicles...</td></tr>
               ) : vehicles.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-[#8B949E]">No vehicles found.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-[#8B949E]">No vehicles found.</td></tr>
               ) : (
                 vehicles.map(v => (
                   <tr key={v.id} className="hover:bg-brand-bg/50 transition-colors">
@@ -207,6 +210,15 @@ export default function VehiclesView() {
                       {v.insurance_expiry}
                       {v.insurance_evidence_url && (
                         <a href={`/uploads/${v.insurance_evidence_url}`} target="_blank" rel="noreferrer" className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
+                          <FileText className="w-3 h-3" /> View Document
+                        </a>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 border-r border-border-subtle/30">
+                      {v.roadside_expiry}
+                      {v.roadside_provider && <div className="text-[10px] text-[#8B949E] uppercase tracking-wider">{v.roadside_provider}</div>}
+                      {v.roadside_evidence_url && (
+                        <a href={`/uploads/${v.roadside_evidence_url}`} target="_blank" rel="noreferrer" className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
                           <FileText className="w-3 h-3" /> View Document
                         </a>
                       )}
@@ -354,6 +366,44 @@ export default function VehiclesView() {
                            <input type="file" className="hidden" onChange={(e) => handleFileUpload(e, 'insurance_evidence_url')} />
                          </label>
                          {newVehicle.insurance_evidence_url && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+                      </div>
+                   </div>
+                 </div>
+               </div>
+
+               <div className="border-t border-border-subtle pt-6">
+                 <h4 className="text-sm font-semibold text-white mb-4">Roadside Assistance Details</h4>
+                 <div className="grid grid-cols-2 gap-4 mb-4">
+                   <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">Roadside Provider</label>
+                      <input 
+                        type="text" 
+                        value={newVehicle.roadside_provider}
+                        onChange={e => setNewVehicle({...newVehicle, roadside_provider: e.target.value})}
+                        placeholder="e.g. RACV, NRMA"
+                        className="w-full bg-black/50 border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none"
+                      />
+                   </div>
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                   <div>
+                      <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">Roadside Expiry Date</label>
+                      <input 
+                        type="date" 
+                        value={newVehicle.roadside_expiry}
+                        onChange={e => setNewVehicle({...newVehicle, roadside_expiry: e.target.value})}
+                        className="w-full bg-black/50 border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none"
+                      />
+                   </div>
+                   <div>
+                      <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">Roadside Evidence</label>
+                      <div className="flex items-center gap-3">
+                         <label className="flex-1 h-[38px] px-3 bg-black/50 border border-border-subtle hover:border-brand-teal text-[#E6EDF3] rounded-md text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                           <Upload className="w-4 h-4" />
+                           {newVehicle.roadside_evidence_url ? 'Change File' : 'Upload File'}
+                           <input type="file" className="hidden" onChange={(e) => handleFileUpload(e, 'roadside_evidence_url')} />
+                         </label>
+                         {newVehicle.roadside_evidence_url && <CheckCircle2 className="w-5 h-5 text-green-500" />}
                       </div>
                    </div>
                  </div>

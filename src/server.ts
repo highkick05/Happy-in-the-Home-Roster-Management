@@ -176,7 +176,10 @@ async function startServer() {
         insurance_type TEXT,
         insurance_provider TEXT,
         insurance_expiry TEXT,
-        insurance_evidence_url TEXT
+        insurance_evidence_url TEXT,
+        roadside_provider TEXT,
+        roadside_expiry TEXT,
+        roadside_evidence_url TEXT
       );
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1234,6 +1237,9 @@ try {
       db.exec("ALTER TABLE vehicles ADD COLUMN insurance_provider TEXT");
       db.exec("ALTER TABLE vehicles ADD COLUMN insurance_expiry TEXT");
       db.exec("ALTER TABLE vehicles ADD COLUMN insurance_evidence_url TEXT");
+      db.exec("ALTER TABLE vehicles ADD COLUMN roadside_provider TEXT");
+      db.exec("ALTER TABLE vehicles ADD COLUMN roadside_expiry TEXT");
+      db.exec("ALTER TABLE vehicles ADD COLUMN roadside_evidence_url TEXT");
     }
   } catch(e) {}
 
@@ -4265,7 +4271,7 @@ app.get("/api/health", (req, res) => {
 
   app.post("/api/vehicles", authenticateToken, (req: any, res: any) => {
     try {
-      const { name, rego, user_id, is_primary, ownership, rego_expiry, rego_evidence_url, insurance_type, insurance_provider, insurance_expiry, insurance_evidence_url } = req.body;
+      const { name, rego, user_id, is_primary, ownership, rego_expiry, rego_evidence_url, insurance_type, insurance_provider, insurance_expiry, insurance_evidence_url, roadside_provider, roadside_expiry, roadside_evidence_url } = req.body;
       const targetUserId = req.user.role === "staff" ? req.user.id : user_id || req.user.id;
       
       const existing = db.prepare("SELECT COUNT(*) as c FROM vehicles WHERE user_id = ?").get(targetUserId) as {c: number};
@@ -4275,13 +4281,13 @@ app.get("/api/health", (req, res) => {
          db.prepare("UPDATE vehicles SET is_primary = 0 WHERE user_id = ?").run(targetUserId);
       }
       
-      const result = db.prepare("INSERT INTO vehicles (name, rego, user_id, is_primary, ownership, rego_expiry, rego_evidence_url, insurance_type, insurance_provider, insurance_expiry, insurance_evidence_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(name, rego, targetUserId, willBePrimary, ownership || 'COMPANY', rego_expiry || null, rego_evidence_url || null, insurance_type || null, insurance_provider || null, insurance_expiry || null, insurance_evidence_url || null);
+      const result = db.prepare("INSERT INTO vehicles (name, rego, user_id, is_primary, ownership, rego_expiry, rego_evidence_url, insurance_type, insurance_provider, insurance_expiry, insurance_evidence_url, roadside_provider, roadside_expiry, roadside_evidence_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(name, rego, targetUserId, willBePrimary, ownership || 'COMPANY', rego_expiry || null, rego_evidence_url || null, insurance_type || null, insurance_provider || null, insurance_expiry || null, insurance_evidence_url || null, roadside_provider || null, roadside_expiry || null, roadside_evidence_url || null);
       
       // Auto-assign to unassigned shifts if it's the primary vehicle
       if (willBePrimary === 1) {
          db.prepare("UPDATE shifts SET vehicle_id = ? WHERE staff_id = ? AND (vehicle_id IS NULL OR vehicle_id = '')").run(result.lastInsertRowid, targetUserId);
       }
-      res.json({ id: result.lastInsertRowid, name, rego, user_id: targetUserId, is_primary: willBePrimary, ownership, rego_expiry, rego_evidence_url, insurance_type, insurance_provider, insurance_expiry, insurance_evidence_url });
+      res.json({ id: result.lastInsertRowid, name, rego, user_id: targetUserId, is_primary: willBePrimary, ownership, rego_expiry, rego_evidence_url, insurance_type, insurance_provider, insurance_expiry, insurance_evidence_url, roadside_provider, roadside_expiry, roadside_evidence_url });
     } catch (error) {
       console.error("Error creating vehicle:", error);
       res.status(500).json({ error: "Failed to create vehicle" });
@@ -4290,15 +4296,15 @@ app.get("/api/health", (req, res) => {
 
   app.put("/api/vehicles/:id", authenticateToken, (req: any, res: any) => {
     try {
-      const { name, rego, user_id, ownership, rego_expiry, rego_evidence_url, insurance_type, insurance_provider, insurance_expiry, insurance_evidence_url } = req.body;
+      const { name, rego, user_id, ownership, rego_expiry, rego_evidence_url, insurance_type, insurance_provider, insurance_expiry, insurance_evidence_url, roadside_provider, roadside_expiry, roadside_evidence_url } = req.body;
       const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(req.params.id) as any;
       if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
       if (req.user.role === "staff" && vehicle.user_id !== req.user.id) {
          return res.status(403).json({ error: "Forbidden" });
       }
       
-      db.prepare("UPDATE vehicles SET name = ?, rego = ?, user_id = ?, ownership = ?, rego_expiry = ?, rego_evidence_url = ?, insurance_type = ?, insurance_provider = ?, insurance_expiry = ?, insurance_evidence_url = ? WHERE id = ?").run(
-        name, rego, req.user.role === "staff" ? req.user.id : (user_id || vehicle.user_id), ownership || vehicle.ownership, rego_expiry || vehicle.rego_expiry, rego_evidence_url || vehicle.rego_evidence_url, insurance_type || vehicle.insurance_type, insurance_provider || vehicle.insurance_provider, insurance_expiry || vehicle.insurance_expiry, insurance_evidence_url || vehicle.insurance_evidence_url, req.params.id
+      db.prepare("UPDATE vehicles SET name = ?, rego = ?, user_id = ?, ownership = ?, rego_expiry = ?, rego_evidence_url = ?, insurance_type = ?, insurance_provider = ?, insurance_expiry = ?, insurance_evidence_url = ?, roadside_provider = ?, roadside_expiry = ?, roadside_evidence_url = ? WHERE id = ?").run(
+        name, rego, req.user.role === "staff" ? req.user.id : (user_id || vehicle.user_id), ownership || vehicle.ownership, rego_expiry || vehicle.rego_expiry, rego_evidence_url || vehicle.rego_evidence_url, insurance_type || vehicle.insurance_type, insurance_provider || vehicle.insurance_provider, insurance_expiry || vehicle.insurance_expiry, insurance_evidence_url || vehicle.insurance_evidence_url, roadside_provider || vehicle.roadside_provider, roadside_expiry || vehicle.roadside_expiry, roadside_evidence_url || vehicle.roadside_evidence_url, req.params.id
       );
       res.json({ success: true });
     } catch (error) {
