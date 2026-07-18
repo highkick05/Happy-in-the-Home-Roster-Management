@@ -105,16 +105,24 @@ export default function VehiclesView() {
     const file = e.target.files[0];
     const formData = new FormData();
     formData.append('file', file);
+    
+    let url = '/api/files';
+    if (newVehicle.ownership === 'COMPANY') {
+      url = '/api/files?folderPath=/Company%20Vehicles';
+    } else {
+      formData.append('context', 'STAFF_VEHICLES');
+      formData.append('targetUserId', newVehicle.user_id || String(user?.id || ''));
+    }
 
     try {
-      const res = await fetch('/api/upload', {
+      const res = await fetch(url, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData
       });
       if (res.ok) {
         const data = await res.json();
-        setNewVehicle({ ...newVehicle, [field]: data.url });
+        setNewVehicle({ ...newVehicle, [field]: data.system_name });
       }
     } catch (err) {
       console.error("Upload failed", err);

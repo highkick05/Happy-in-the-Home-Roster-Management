@@ -12393,7 +12393,7 @@ function resolveFilePath(systemName) {
         targetUserId = req.body.targetUserId;
       }
 
-      if (req.body.context === "STAFF_ONBOARDING") {
+      if (req.body.context === "STAFF_ONBOARDING" || req.body.context === "STAFF_VEHICLES") {
         try {
           const targetUser = db
             .prepare("SELECT first_name, last_name FROM users WHERE id = ?")
@@ -12404,7 +12404,7 @@ function resolveFilePath(systemName) {
               .join(" ")
               .trim()
               .replace(/[\/\\]/g, "");
-            folderPath = `/Staff/${name ? `${name}/` : ""}Onboarding`;
+            folderPath = `/Staff/${name ? `${name}/` : ""}${req.body.context === "STAFF_VEHICLES" ? "Vehicles" : "Onboarding"}`;
           }
         } catch (err: any) {
           logger.error(
@@ -12476,6 +12476,7 @@ function resolveFilePath(systemName) {
         res.json({
           success: true,
           id: info.lastInsertRowid,
+          system_name: systemName,
           date_issued: dateIssued,
           date_expires: dateExpires,
         });
