@@ -57,13 +57,11 @@ export default function TravelLogsView() {
   
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const [showVehicles, setShowVehicles] = useState(false);
-  const [newVehicle, setNewVehicle] = useState({ name: '', rego: '', is_primary: true, user_id: '' });
 
   const fetchFilters = async () => {
     try {
       const [vRes, sRes, cRes] = await Promise.all([
-        fetch('/api/vehicles', { headers }),
+        user?.role === 'ADMIN' ? fetch('/api/vehicles/all', { headers }) : fetch('/api/vehicles', { headers }),
         user?.role === 'ADMIN' ? fetch('/api/staff', { headers }) : Promise.resolve({ ok: true, json: () => Promise.resolve([]) }),
         fetch('/api/clients', { headers })
       ]);
@@ -104,36 +102,6 @@ export default function TravelLogsView() {
   useEffect(() => {
     fetchLogs();
   }, [selectedStaff, selectedClient, selectedVehicle, selectedFundingType, startDate, endDate]);
-
-  const handleAddVehicle = async () => {
-    if (!newVehicle.name || !newVehicle.rego) {
-      alert("Please enter a vehicle make/model and registration.");
-      return;
-    }
-    try {
-      const res = await fetch('/api/vehicles', {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(newVehicle)
-      });
-      if (res.ok) {
-        setNewVehicle({ name: '', rego: '', is_primary: true, user_id: '' });
-        fetchFilters();
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleDeleteVehicle = async (id: string) => {
-    if (!confirm('Delete this vehicle?')) return;
-    try {
-      const res = await fetch(`/api/vehicles/${id}`, { method: 'DELETE', headers });
-      if (res.ok) fetchFilters();
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   const handleInlineSave = async (log: any, updates: any) => {
     try {
@@ -352,12 +320,6 @@ const expandedLogs = logs.map(log => {
         </h1>
         <div className="flex items-center gap-6 relative">
           <img src={carImage} alt="Luxury Vehicle" className="h-[44px] w-auto object-contain pointer-events-none" style={{ mixBlendMode: "screen", filter: "contrast(1.2) brightness(1.2)" }} />
-          <button 
-            onClick={() => setShowVehicles(true)}
-            className="bg-brand-teal text-white px-3 py-1.5 rounded font-medium text-xs hover:bg-brand-teal/90 transition-colors h-fit whitespace-nowrap"
-          >
-            Vehicle Register
-          </button>
         </div>
       </div>
       
@@ -662,95 +624,6 @@ const expandedLogs = logs.map(log => {
             </div>
           )}
         </div>
-
-      {showVehicles && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setShowVehicles(false)}>
-          <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden max-w-4xl w-full" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-brand-navy">
-              <h3 className="text-lg font-semibold text-white">Vehicle Register</h3>
-              <button onClick={() => setShowVehicles(false)} className="text-[#8B949E] hover:text-white text-xl leading-none">&times;</button>
-            </div>
-            
-            <div className="p-6">
-              {user?.role === 'ADMIN' && (
-                <div className="flex items-end gap-4 mb-6 p-4 border border-border-subtle rounded-lg bg-black/30">
-                  <div className="flex-1">
-                    <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">Vehicle Make & Model</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Toyota Corolla"
-                      value={newVehicle.name}
-                      onChange={e => setNewVehicle({...newVehicle, name: e.target.value})}
-                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal outline-none"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">Registration</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. 1ABC123"
-                      value={newVehicle.rego}
-                      onChange={e => setNewVehicle({...newVehicle, rego: e.target.value})}
-                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal outline-none"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">Owner (Staff)</label>
-                    <select
-                      value={newVehicle.user_id}
-                      onChange={e => setNewVehicle({...newVehicle, user_id: e.target.value})}
-                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal outline-none"
-                    >
-                      <option value="">Select Staff</option>
-                      {staff.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
-                    </select>
-                  </div>
-                  <button 
-                    onClick={handleAddVehicle}
-                    className="h-[38px] px-4 bg-brand-teal hover:bg-teal-600 text-white rounded-md text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Vehicle
-                  </button>
-                </div>
-              )}
-
-              <div className="border border-border-subtle rounded-lg overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="bg-brand-navy border-b border-border-subtle text-xs uppercase text-[#8B949E]">
-                    <tr>
-                      <th className="px-4 py-2 border-r border-border-subtle/30">Vehicle</th>
-                      <th className="px-4 py-2 border-r border-border-subtle/30">Rego</th>
-                      {user?.role === 'ADMIN' && <th className="px-4 py-2 border-r border-border-subtle/30">Owner</th>}
-                      <th className="px-4 py-2">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border-subtle bg-brand-navy/30">
-                    {vehicles.length === 0 ? (
-                      <tr><td colSpan={user?.role === 'ADMIN' ? 4 : 3} className="px-4 py-8 text-center text-[#8B949E] text-sm">No vehicles registered yet.</td></tr>
-                    ) : vehicles.map(v => (
-                      <tr key={v.id}>
-                        <td className="px-2 py-1.5 text-sm text-white font-medium border-r border-border-subtle/30">{v.name}</td>
-                        <td className="px-2 py-1.5 text-sm text-[#E6EDF3] border-r border-border-subtle/30">{v.rego}</td>
-                        {user?.role === 'ADMIN' && (
-                          <td className="px-2 py-1.5 text-sm text-[#8B949E] border-r border-border-subtle/30">
-                            {staff.find(s => s.id === v.user_id)?.first_name} {staff.find(s => s.id === v.user_id)?.last_name}
-                          </td>
-                        )}
-                        <td className="px-2 py-1.5">
-                          <button onClick={() => handleDeleteVehicle(v.id.toString())} className="text-red-500 hover:text-red-400 p-1">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Photo Preview Modal */}
       {hoveredPhoto && (

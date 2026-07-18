@@ -32,6 +32,7 @@ import NotificationsDropdown from './components/NotificationsDropdown';
 import WallboardView from './components/Kiosk/WallboardView';
 import TasksView from './components/Tasks/TasksView';
 import TravelLogsView from './components/TravelLogsView';
+import VehiclesView from './components/VehiclesView';
 
 
 function DateTimer() {
@@ -265,6 +266,9 @@ function Layout({ children }: { children: React.ReactNode }) {
           <NavLink to="/travel-logs" className={getNavClasses} title="Travel Logs">
             <Car className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Travel Logs' : ''}
           </NavLink>
+          <NavLink to="/vehicles" className={getNavClasses} title="Vehicles">
+            <Car className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Vehicles' : ''}
+          </NavLink>
           <NavLink to="/progress-notes" className={getNavClasses} title="Progress Notes">
             <ClipboardEdit className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Progress Notes' : ''}
           </NavLink>
@@ -411,6 +415,7 @@ export default function App() {
             <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
             <Route path="/tasks" element={<ProtectedRoute adminOnly><Layout><TasksView /></Layout></ProtectedRoute>} />
             <Route path="/travel-logs" element={<ProtectedRoute><Layout><TravelLogsView /></Layout></ProtectedRoute>} />
+            <Route path="/vehicles" element={<ProtectedRoute><Layout><VehiclesView /></Layout></ProtectedRoute>} />
             <Route path="/roster" element={<ProtectedRoute><Layout><RosterCalendar /></Layout></ProtectedRoute>} />
             <Route path="/staff" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="STAFF" /></Layout></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="CLIENTS" /></Layout></ProtectedRoute>} />
