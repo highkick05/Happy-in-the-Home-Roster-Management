@@ -1233,18 +1233,18 @@ try {
     const hasOwnership = tableInfo.some(col => col.name === 'ownership');
     if (!hasOwnership) {
       db.exec("ALTER TABLE vehicles ADD COLUMN ownership TEXT DEFAULT 'COMPANY'");
-      db.exec("ALTER TABLE vehicles ADD COLUMN rego_expiry TEXT");
-      db.exec("ALTER TABLE vehicles ADD COLUMN rego_evidence_url TEXT");
-      db.exec("ALTER TABLE vehicles ADD COLUMN insurance_type TEXT");
-      db.exec("ALTER TABLE vehicles ADD COLUMN insurance_provider TEXT");
-      db.exec("ALTER TABLE vehicles ADD COLUMN insurance_expiry TEXT");
-      db.exec("ALTER TABLE vehicles ADD COLUMN insurance_evidence_url TEXT");
-      db.exec("ALTER TABLE vehicles ADD COLUMN roadside_provider TEXT");
-      db.exec("ALTER TABLE vehicles ADD COLUMN roadside_expiry TEXT");
-      db.exec("ALTER TABLE vehicles ADD COLUMN roadside_evidence_url TEXT");
-      db.exec("ALTER TABLE vehicles ADD COLUMN year TEXT");
-      db.exec("ALTER TABLE vehicles ADD COLUMN has_roadside INTEGER DEFAULT 0");
     }
+    if (!tableInfo.some(col => col.name === 'rego_expiry')) db.exec("ALTER TABLE vehicles ADD COLUMN rego_expiry TEXT");
+    if (!tableInfo.some(col => col.name === 'rego_evidence_url')) db.exec("ALTER TABLE vehicles ADD COLUMN rego_evidence_url TEXT");
+    if (!tableInfo.some(col => col.name === 'insurance_type')) db.exec("ALTER TABLE vehicles ADD COLUMN insurance_type TEXT");
+    if (!tableInfo.some(col => col.name === 'insurance_provider')) db.exec("ALTER TABLE vehicles ADD COLUMN insurance_provider TEXT");
+    if (!tableInfo.some(col => col.name === 'insurance_expiry')) db.exec("ALTER TABLE vehicles ADD COLUMN insurance_expiry TEXT");
+    if (!tableInfo.some(col => col.name === 'insurance_evidence_url')) db.exec("ALTER TABLE vehicles ADD COLUMN insurance_evidence_url TEXT");
+    if (!tableInfo.some(col => col.name === 'roadside_provider')) db.exec("ALTER TABLE vehicles ADD COLUMN roadside_provider TEXT");
+    if (!tableInfo.some(col => col.name === 'roadside_expiry')) db.exec("ALTER TABLE vehicles ADD COLUMN roadside_expiry TEXT");
+    if (!tableInfo.some(col => col.name === 'roadside_evidence_url')) db.exec("ALTER TABLE vehicles ADD COLUMN roadside_evidence_url TEXT");
+    if (!tableInfo.some(col => col.name === 'year')) db.exec("ALTER TABLE vehicles ADD COLUMN year TEXT");
+    if (!tableInfo.some(col => col.name === 'has_roadside')) db.exec("ALTER TABLE vehicles ADD COLUMN has_roadside INTEGER DEFAULT 0");
   } catch(e) {}
 
   // Data consistency sync for old templates
