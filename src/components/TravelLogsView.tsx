@@ -21,14 +21,14 @@ const extractAddress = (desc: string) => {
 
 const OdometerPhotoIcon = ({ url, type, onClick }: { url: string, type: string, onClick: () => void }) => {
   return (
-    <div className="relative group flex items-center justify-center z-10 hover:z-50">
+    <div className="relative group/icon flex items-center justify-center z-10 hover:z-50">
       <button onClick={onClick} className="text-brand-teal hover:text-white transition-colors p-1">
         <Eye className="w-3.5 h-3.5" />
       </button>
       
-      <div className="absolute bottom-full mb-2 hidden group-hover:block pointer-events-none drop-shadow-2xl right-0 transform translate-x-1/4">
+      <div className="absolute bottom-full mb-2 hidden group-hover/icon:block pointer-events-none drop-shadow-2xl right-0 transform translate-x-1/4">
         <div className="bg-brand-navy border border-border-subtle p-1.5 rounded-lg">
-           <img src={url.startsWith('data:') || url.startsWith('blob:') ? url : `/uploads/${url}`} alt="Preview" className="max-h-[40vh] max-w-[40vw] object-contain rounded bg-black/50" />
+           <img src={url.startsWith('data:') || url.startsWith('blob:') ? url : `/uploads/${url}`} alt="Preview" className="max-h-48 max-w-48 object-contain rounded bg-black/50" />
         </div>
       </div>
     </div>
@@ -304,7 +304,7 @@ const expandedLogs = logs.map(log => {
     if (isHC) {
        category = 'Home Care Travel';
     } else if (hasPT && hasABT) {
-       category = 'PT & ABT';
+       category = 'Provider Travel & Activity Based Transport';
     } else if (hasPT) {
        category = 'Provider Travel';
     } else if (hasABT) {
@@ -472,17 +472,17 @@ const expandedLogs = logs.map(log => {
                           <div className="flex flex-col text-[11px] leading-tight gap-0.5">
                             {Number(log.provider_travel_km) > 0 && (
                               <span className="text-[#8B949E]">
-                                PT: {Number(log.provider_travel_km).toFixed(3)} km (${Number(log.provider_travel_cost || 0).toFixed(2)})
+                                PT: {Number(log.provider_travel_km).toFixed(3)} km
                               </span>
                             )}
                             {Number(log.abt_km) > 0 && (
                               <span className="text-[#8B949E]">
-                                ABT: {Number(log.abt_km).toFixed(3)} km (${Number(log.abt_cost || 0).toFixed(2)})
+                                ABT: {Number(log.abt_km).toFixed(3)} km
                               </span>
                             )}
                             {(Number(log.provider_travel_km) > 0 || Number(log.abt_km) > 0) ? (
                               <span className="text-[#E6EDF3] font-semibold mt-1 border-t border-border-subtle/50 pt-1">
-                                Total: {((Number(log.provider_travel_km) || 0) + (Number(log.abt_km) || 0)).toFixed(3)} km (${((Number(log.provider_travel_cost) || 0) + (Number(log.abt_cost) || 0)).toFixed(2)})
+                                Total: {((Number(log.provider_travel_km) || 0) + (Number(log.abt_km) || 0)).toFixed(3)} km
                               </span>
                             ) : (
                               <span className="text-[#8B949E] italic text-xs">0 km</span>
@@ -551,16 +551,16 @@ const expandedLogs = logs.map(log => {
                     <div className="flex flex-col text-[11px] leading-tight gap-0.5">
                       {totalPTKm > 0 && (
                         <span className="text-[#8B949E]">
-                          PT: {totalPTKm.toFixed(3)} km (${totalPTCost.toFixed(2)})
+                          PT: {totalPTKm.toFixed(3)} km
                         </span>
                       )}
                       {totalABTKm > 0 && (
                         <span className="text-[#8B949E]">
-                          ABT: {totalABTKm.toFixed(3)} km (${totalABTCost.toFixed(2)})
+                          ABT: {totalABTKm.toFixed(3)} km
                         </span>
                       )}
                       <span className="text-brand-teal font-bold mt-1 border-t border-border-subtle/50 pt-1">
-                        Total: {grandTotalKm.toFixed(3)} km (${grandTotalCost.toFixed(2)})
+                        Total: {grandTotalKm.toFixed(3)} km
                       </span>
                     </div>
                   </td>
