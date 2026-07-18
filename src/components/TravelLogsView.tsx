@@ -4,7 +4,7 @@ import { FileText, Search, RefreshCw, Eye, Edit2, CheckCircle } from 'lucide-rea
 import { format } from 'date-fns';
 import CustomDatePicker from './ui/CustomDatePicker';
 import { Plus, Trash2 } from 'lucide-react';
-import carImage from '../assets/images/high_quality_car_1784363727210.jpg';
+import carImage from '../assets/images/car_black_bg_1784365022147.jpg';
 
 const extractAddress = (desc: string) => {
     if (!desc) return null;
@@ -346,37 +346,32 @@ const expandedLogs = logs.map(log => {
 
   return (
     <div className="flex flex-col h-full bg-brand-bg relative min-h-screen">
-      <div className="flex items-center justify-between px-8 py-6 mb-2 border-b border-border-subtle bg-brand-navy">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <FileText className="w-7 h-7 text-brand-teal" />
+      <div className="flex items-center justify-between px-3 py-1 border-b border-border-subtle bg-brand-navy">
+        <h1 className="text-base font-bold text-white flex items-center gap-2">
+            <FileText className="w-4 h-4 text-brand-teal" />
             Travel Logs
-          </h1>
-          <p className="text-sm text-[#8B949E] mt-1">
-            View and manage travel information and odometer readings for shifts.
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
+        </h1>
+        <div className="flex items-center gap-3 relative">
           <button 
             onClick={() => setShowVehicles(true)}
-            className="bg-brand-teal text-white px-4 py-2 rounded font-medium text-sm hover:bg-brand-teal/90 transition-colors h-fit"
+            className="bg-brand-teal text-white px-3 py-1.5 rounded font-medium text-xs hover:bg-brand-teal/90 transition-colors h-fit relative z-10 mr-[120px]"
           >
             Vehicle Register
           </button>
-          <img src={carImage} alt="Luxury Vehicle" className="h-[52px] w-auto rounded-md shadow-sm border border-border-subtle object-cover" />
+          <img src={carImage} alt="Luxury Vehicle" className="h-[80px] w-auto object-contain absolute right-[-10px] top-1/2 -translate-y-1/2 pointer-events-none" style={{ mixBlendMode: "screen", filter: "contrast(1.2) brightness(1.2)", transform: "translateY(-50%) scale(1.4)", transformOrigin: "right center" }} />
         </div>
       </div>
       
-      <div className="p-8 pb-32 max-w-full overflow-x-auto space-y-6">
+      <div className="p-2 pb-16 max-w-full overflow-x-auto space-y-2">
         
         {/* Filters */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           {user?.role === 'ADMIN' && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-[#8B949E] uppercase tracking-wider">Staff</label>
+              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Staff</label>
               <select 
                 value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)}
-                className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
+                className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
               >
                 <option value="all">All Staff</option>
                 {staff.map(s => (
@@ -387,10 +382,10 @@ const expandedLogs = logs.map(log => {
           )}
           
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-[#8B949E] uppercase tracking-wider">Client</label>
+            <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Client</label>
             <select 
               value={selectedClient} onChange={e => setSelectedClient(e.target.value)}
-              className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
+              className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
             >
               <option value="all">All Clients</option>
               {clients.map(c => (
@@ -400,10 +395,10 @@ const expandedLogs = logs.map(log => {
           </div>
           
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-[#8B949E] uppercase tracking-wider">Vehicle</label>
+            <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Vehicle</label>
             <select 
               value={selectedVehicle} onChange={e => setSelectedVehicle(e.target.value)}
-              className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
+              className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
             >
               <option value="all">All Vehicles</option>
               {vehicles.map(v => (
@@ -413,10 +408,10 @@ const expandedLogs = logs.map(log => {
           </div>
           
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-[#8B949E] uppercase tracking-wider">Funding Type</label>
+            <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Funding Type</label>
             <select 
               value={selectedFundingType} onChange={e => setSelectedFundingType(e.target.value)}
-              className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
+              className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
             >
               <option value="all">All Funding</option>
               <option value="NDIS">NDIS</option>
@@ -425,46 +420,46 @@ const expandedLogs = logs.map(log => {
           </div>
           
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
-            <CustomDatePicker selected={startDate} onDateChange={(date: Date | null) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3]"  position="bottom" />
+            <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
+            <CustomDatePicker selected={startDate} onDateChange={(date: Date | null) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
           </div>
           
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
-            <CustomDatePicker selected={endDate} onDateChange={(date: Date | null) => setEndDate(date)} placeholderText="End Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3]"  position="bottom" />
+            <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
+            <CustomDatePicker selected={endDate} onDateChange={(date: Date | null) => setEndDate(date)} placeholderText="End Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
           </div>
         </div>
 
         {/* Table */}
         <div className="bg-brand-navy/50 rounded-xl border border-border-subtle overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-max">
+            <table className="w-full text-left text-xs border-collapse min-w-max">
               <thead>
                 <tr className="bg-brand-navy border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] font-semibold">
-                  <th className="px-4 py-3 border-r border-border-subtle/30">Shift ID</th>
-                  {user?.role === 'ADMIN' && <th className="px-4 py-3 border-r border-border-subtle/30">Staff Name</th>}
-                  <th className="px-4 py-3 border-r border-border-subtle/30">Service Date</th>
-                  <th className="px-4 py-3 border-r border-border-subtle/30">Care Type</th>
-                  <th className="px-4 py-3 border-r border-border-subtle/30">Client</th>
-                  <th className="px-4 py-3 border-r border-border-subtle/30">Category</th>
-                  <th className="px-4 py-3 border-r border-border-subtle/30">Travel Route</th>
-                  <th className="px-4 py-3 border-r border-border-subtle/30">Transport KM</th>
-                  <th className="px-4 py-3 border-r border-border-subtle/30">Start Odometer</th>
-                  <th className="px-4 py-3 border-r border-border-subtle/30">End Odometer</th>
-                  <th className="px-4 py-3 border-r border-border-subtle/30">Vehicle</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30">Shift ID</th>
+                  {user?.role === 'ADMIN' && <th className="px-2 py-1.5 border-r border-border-subtle/30">Staff Name</th>}
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30">Service Date</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30">Care Type</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30">Client</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30">Category</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30">Travel Route</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30">Transport KM</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30">Start Odometer</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30">End Odometer</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30">Vehicle</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle text-sm text-[#E6EDF3]">
                 {loading ? (
                   <tr>
-                    <td colSpan={14} className="px-4 py-12 text-center text-[#8B949E]">
+                    <td colSpan={14} className="px-2 py-6 text-center text-[#8B949E]">
                        <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2" />
                        Loading travel logs...
                     </td>
                   </tr>
                 ) : logs.length === 0 ? (
                   <tr>
-                    <td colSpan={14} className="px-4 py-12 text-center text-[#8B949E]">
+                    <td colSpan={14} className="px-2 py-6 text-center text-[#8B949E]">
                        No travel logs found for the selected filters.
                     </td>
                   </tr>
@@ -473,27 +468,27 @@ const expandedLogs = logs.map(log => {
                     const isEditing = isEditingOdo === log.id.toString();
                     return (
                       <tr key={log._rowId} className="hover:bg-brand-bg/50 transition-colors group">
-                        <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs text-[#8B949E]">#{log.id}</td>
-                        {user?.role === 'ADMIN' && <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">{log.staff_first} {log.staff_last}</td>}
-                        <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">{getLocalizedDateString(log.start_time)}</td>
-                        <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
-                          <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border ${log.funding_type === 'HOME_CARE' || log.funding_type === 'Home Care' || log.funding_type === 'HCP' ? 'bg-purple-900/10 border-purple-900/20 text-purple-400' : 'bg-blue-900/10 border-blue-900/20 text-blue-400'}`}>
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs text-[#8B949E]">#{log.id}</td>
+                        {user?.role === 'ADMIN' && <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">{log.staff_first} {log.staff_last}</td>}
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">{getLocalizedDateString(log.start_time)}</td>
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">
+                          <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border ${log.funding_type === 'HOME_CARE' || log.funding_type === 'Home Care' || log.funding_type === 'HCP' ? 'bg-purple-900/10 border-purple-900/20 text-purple-400' : 'bg-blue-900/10 border-blue-900/20 text-blue-400'}`}>
                             {log.funding_type === 'HOME_CARE' || log.funding_type === 'Home Care' || log.funding_type === 'HCP' ? 'Home Care' : 'NDIS'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">{log.client_first} {log.client_last}</td>
-                        <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">{log.client_first} {log.client_last}</td>
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">
                           {log._category === 'Provider Travel & Activity Based Transport' ? (
                             <div className="flex flex-col gap-1 w-fit">
-                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border bg-blue-900/10 border-blue-900/20 text-blue-400">
+                              <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border bg-blue-900/10 border-blue-900/20 text-blue-400">
                                 Provider Travel
                               </span>
-                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border bg-brand-teal/10 border-brand-teal/20 text-brand-teal">
+                              <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border bg-brand-teal/10 border-brand-teal/20 text-brand-teal">
                                 Activity Based Transport
                               </span>
                             </div>
                           ) : (
-                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border ${
+                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border ${
                               log._category === 'Provider Travel' ? 'bg-blue-900/10 border-blue-900/20 text-blue-400' :
                               log._category === 'Activity Based Transport' ? 'bg-brand-teal/10 border-brand-teal/20 text-brand-teal' :
                               log._category === 'Home Care Travel' ? 'bg-purple-900/10 border-purple-900/20 text-purple-400' :
@@ -503,10 +498,10 @@ const expandedLogs = logs.map(log => {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 border-r border-border-subtle/30 max-w-sm truncate" title={log._route}>
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 max-w-sm truncate" title={log._route}>
                           {log._route}
                         </td>
-                        <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">
                           <div className="flex flex-col text-[11px] leading-tight gap-0.5">
                             {log._isHC ? (
                               <>
@@ -546,7 +541,7 @@ const expandedLogs = logs.map(log => {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <input 
                               type="number" 
@@ -556,7 +551,7 @@ const expandedLogs = logs.map(log => {
                                     handleInlineSave(log, { odometer_start_reading: e.target.value });
                                  }
                               }}
-                              className="w-24 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-2 py-1 text-xs transition-colors"
+                              className="w-20 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-[9px] transition-colors"
                               placeholder="Start"
                             />
                             {log.odometer_start_photo && (
@@ -564,7 +559,7 @@ const expandedLogs = logs.map(log => {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <input 
                               type="number" 
@@ -574,7 +569,7 @@ const expandedLogs = logs.map(log => {
                                     handleInlineSave(log, { odometer_end_reading: e.target.value });
                                  }
                               }}
-                              className="w-24 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-2 py-1 text-xs transition-colors"
+                              className="w-20 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-[9px] transition-colors"
                               placeholder="End"
                             />
                             {log.odometer_end_photo && (
@@ -582,13 +577,13 @@ const expandedLogs = logs.map(log => {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-2 py-1.5 whitespace-nowrap">
                           <select 
                             defaultValue={log.vehicle_id !== null ? log.vehicle_id : ''}
                             onChange={(e) => {
                                handleInlineSave(log, { vehicle_id: e.target.value });
                             }}
-                            className="bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-2 py-1 text-xs transition-colors"
+                            className="bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-[9px] transition-colors"
                           >
                             <option value="">No Vehicle</option>
                             {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.rego})</option>)}
@@ -603,7 +598,7 @@ const expandedLogs = logs.map(log => {
           </div>
           
           {expandedLogs.length > 0 && (
-            <div className="flex items-center justify-between p-4 border-t border-border-subtle bg-brand-navy">
+            <div className="flex items-center justify-between p-2 border-t border-border-subtle bg-brand-navy">
               <div className="flex items-center gap-4">
                 <span className="text-sm text-[#8B949E]">
                   Showing {Math.min((page - 1) * pageSize + 1, expandedLogs.length)} to {Math.min(page * pageSize, expandedLogs.length)} of {expandedLogs.length} entries
@@ -663,7 +658,7 @@ const expandedLogs = logs.map(log => {
                       placeholder="e.g. Toyota Corolla"
                       value={newVehicle.name}
                       onChange={e => setNewVehicle({...newVehicle, name: e.target.value})}
-                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none"
+                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal outline-none"
                     />
                   </div>
                   <div className="flex-1">
@@ -673,7 +668,7 @@ const expandedLogs = logs.map(log => {
                       placeholder="e.g. 1ABC123"
                       value={newVehicle.rego}
                       onChange={e => setNewVehicle({...newVehicle, rego: e.target.value})}
-                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none"
+                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal outline-none"
                     />
                   </div>
                   <div className="flex-1">
@@ -681,7 +676,7 @@ const expandedLogs = logs.map(log => {
                     <select
                       value={newVehicle.user_id}
                       onChange={e => setNewVehicle({...newVehicle, user_id: e.target.value})}
-                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none"
+                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal outline-none"
                     >
                       <option value="">Select Staff</option>
                       {staff.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
@@ -712,14 +707,14 @@ const expandedLogs = logs.map(log => {
                       <tr><td colSpan={user?.role === 'ADMIN' ? 4 : 3} className="px-4 py-8 text-center text-[#8B949E] text-sm">No vehicles registered yet.</td></tr>
                     ) : vehicles.map(v => (
                       <tr key={v.id}>
-                        <td className="px-4 py-3 text-sm text-white font-medium border-r border-border-subtle/30">{v.name}</td>
-                        <td className="px-4 py-3 text-sm text-[#E6EDF3] border-r border-border-subtle/30">{v.rego}</td>
+                        <td className="px-2 py-1.5 text-sm text-white font-medium border-r border-border-subtle/30">{v.name}</td>
+                        <td className="px-2 py-1.5 text-sm text-[#E6EDF3] border-r border-border-subtle/30">{v.rego}</td>
                         {user?.role === 'ADMIN' && (
-                          <td className="px-4 py-3 text-sm text-[#8B949E] border-r border-border-subtle/30">
+                          <td className="px-2 py-1.5 text-sm text-[#8B949E] border-r border-border-subtle/30">
                             {staff.find(s => s.id === v.user_id)?.first_name} {staff.find(s => s.id === v.user_id)?.last_name}
                           </td>
                         )}
-                        <td className="px-4 py-3">
+                        <td className="px-2 py-1.5">
                           <button onClick={() => handleDeleteVehicle(v.id.toString())} className="text-red-500 hover:text-red-400 p-1">
                             <Trash2 className="w-4 h-4" />
                           </button>
