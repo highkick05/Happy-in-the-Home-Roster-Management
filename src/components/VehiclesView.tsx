@@ -41,7 +41,7 @@ export default function VehiclesView() {
 
   const fetchStaff = async () => {
     try {
-      const res = await fetch('/api/users?role=STAFF', { headers });
+      const res = await fetch('/api/staff', { headers });
       if (res.ok) setStaff(await res.json());
     } catch (e) {
       console.error(e);
@@ -137,7 +137,24 @@ export default function VehiclesView() {
 
   const openAddModal = () => {
     setSelectedVehicle(null);
-    setNewVehicle({ name: '', rego: '', user_id: '', ownership: 'COMPANY', rego_expiry: '', rego_evidence_url: '', insurance_type: 'THIRD_PARTY', insurance_provider: '', insurance_expiry: '', insurance_evidence_url: '', roadside_provider: '', roadside_expiry: '', roadside_evidence_url: '', year: '', has_roadside: false, is_primary: false });
+    setNewVehicle({ 
+      name: '', 
+      rego: '', 
+      user_id: user?.role === 'ADMIN' ? '' : (user?.id ? String(user.id) : ''), 
+      ownership: user?.role === 'ADMIN' ? 'COMPANY' : 'PRIVATE', 
+      rego_expiry: '', 
+      rego_evidence_url: '', 
+      insurance_type: 'THIRD_PARTY', 
+      insurance_provider: '', 
+      insurance_expiry: '', 
+      insurance_evidence_url: '', 
+      roadside_provider: '', 
+      roadside_expiry: '', 
+      roadside_evidence_url: '', 
+      year: '', 
+      has_roadside: false, 
+      is_primary: false 
+    });
     setShowAddModal(true);
   };
 
@@ -300,9 +317,9 @@ export default function VehiclesView() {
                       value={newVehicle.ownership}
                       onChange={e => setNewVehicle({...newVehicle, ownership: e.target.value})}
                       disabled={user?.role !== 'ADMIN'}
-                      className="w-full bg-black/50 border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none disabled:opacity-50"
+                      className={`w-full bg-black/50 border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none ${user?.role !== 'ADMIN' ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      <option value="COMPANY">Company Vehicle</option>
+                      {(user?.role === 'ADMIN' || newVehicle.ownership === 'COMPANY') && <option value="COMPANY">Company Vehicle</option>}
                       <option value="PRIVATE">Private (Staff Owned)</option>
                     </select>
                   </div>
