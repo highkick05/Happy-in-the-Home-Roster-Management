@@ -19,7 +19,8 @@ const extractAddress = (desc: string) => {
 };
 
 export default function TravelLogsView() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const headers = { Authorization: `Bearer ${token}` };
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -49,9 +50,9 @@ export default function TravelLogsView() {
   const fetchFilters = async () => {
     try {
       const [vRes, sRes, cRes] = await Promise.all([
-        fetch('/api/vehicles'),
-        user?.role === 'ADMIN' ? fetch('/api/staff') : Promise.resolve({ ok: true, json: () => Promise.resolve([]) }),
-        fetch('/api/clients')
+        fetch('/api/vehicles', { headers }),
+        user?.role === 'ADMIN' ? fetch('/api/staff', { headers }) : Promise.resolve({ ok: true, json: () => Promise.resolve([]) }),
+        fetch('/api/clients', { headers })
       ]);
       if (vRes.ok) setVehicles(await vRes.json());
       if (sRes.ok && user?.role === 'ADMIN') setStaff(await sRes.json());
@@ -73,7 +74,7 @@ export default function TravelLogsView() {
       if (startDate) url.searchParams.set('startDate', format(startDate, 'yyyy-MM-dd'));
       if (endDate) url.searchParams.set('endDate', format(endDate, 'yyyy-MM-dd'));
       
-      const res = await fetch(url.toString());
+      const res = await fetch(url.toString(), { headers });
       if (res.ok) {
         setLogs(await res.json());
       }
@@ -96,7 +97,7 @@ export default function TravelLogsView() {
     try {
       const res = await fetch('/api/vehicles', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(newVehicle)
       });
       if (res.ok) {
@@ -111,7 +112,7 @@ export default function TravelLogsView() {
   const handleDeleteVehicle = async (id: string) => {
     if (!confirm('Delete this vehicle?')) return;
     try {
-      const res = await fetch(`/api/vehicles/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/vehicles/${id}`, { method: 'DELETE', headers });
       if (res.ok) fetchFilters();
     } catch (e) {
       console.error(e);
@@ -122,7 +123,7 @@ export default function TravelLogsView() {
     try {
       const res = await fetch(`/api/travel-logs/${id}/odometer`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           odometer_start_reading: editOdoStart ? parseFloat(editOdoStart) : null,
           odometer_end_reading: editOdoEnd ? parseFloat(editOdoEnd) : null,
