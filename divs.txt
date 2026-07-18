@@ -1,0 +1,34 @@
+3:    <div className="flex flex-col h-full bg-brand-bg relative min-h-screen">
+4:      <div className="flex items-center justify-between px-8 py-6 mb-2 border-b border-border-subtle bg-brand-navy">
+5:        <div>
+22:      <div className="p-8 pb-32 max-w-full overflow-x-auto space-y-6">
+25:        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+27:            <div className="flex flex-col gap-1.5">
+41:          <div className="flex flex-col gap-1.5">
+54:          <div className="flex flex-col gap-1.5">
+67:          <div className="flex flex-col gap-1.5">
+79:          <div className="flex flex-col gap-1.5">
+84:          <div className="flex flex-col gap-1.5">
+91:        <div className="bg-brand-navy/50 rounded-xl border border-border-subtle overflow-hidden">
+92:          <div className="overflow-x-auto">
+144:                          <div className="flex flex-col text-[11px] leading-tight gap-0.5">
+165:                          <div className="flex items-center gap-2">
+183:                          <div className="flex items-center gap-2">
+223:                    <div className="flex flex-col text-[11px] leading-tight gap-0.5">
+246:            <div className="flex items-center justify-between p-4 border-t border-border-subtle bg-brand-navy">
+247:              <div className="flex items-center gap-4">
+251:                <div className="flex items-center gap-2">
+268:              <div className="flex items-center gap-2">
+289:        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setShowVehicles(false)}>
+290:          <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden max-w-3xl w-full" onClick={e => e.stopPropagation()}>
+291:            <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-brand-navy">
+296:            <div className="p-6">
+298:                <div className="flex items-end gap-4 mb-6 p-4 border border-border-subtle rounded-lg bg-black/30">
+299:                  <div className="flex-1">
+309:                  <div className="flex-1">
+319:                  <div className="flex-1">
+340:              <div className="border border-border-subtle rounded-lg overflow-hidden">
+379:        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setPreviewPhoto(null)}>
+380:          <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden max-w-3xl w-full" onClick={e => e.stopPropagation()}>
+381:            <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-brand-navy">
+385:            <div className="p-6 flex justify-center bg-black/30">

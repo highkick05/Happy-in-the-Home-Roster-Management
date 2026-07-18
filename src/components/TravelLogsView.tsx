@@ -18,6 +18,23 @@ const extractAddress = (desc: string) => {
     return cleaned || desc.trim();
 };
 
+
+const OdometerPhotoIcon = ({ url, type, onClick }: { url: string, type: string, onClick: () => void }) => {
+  return (
+    <div className="relative group flex items-center justify-center z-10 hover:z-50">
+      <button onClick={onClick} className="text-brand-teal hover:text-white transition-colors p-1">
+        <Eye className="w-3.5 h-3.5" />
+      </button>
+      
+      <div className="absolute bottom-full mb-2 hidden group-hover:block pointer-events-none drop-shadow-2xl right-0 transform translate-x-1/4">
+        <div className="bg-brand-navy border border-border-subtle p-1.5 rounded-lg">
+           <img src={url.startsWith('data:') || url.startsWith('blob:') ? url : `/uploads/${url}`} alt="Preview" className="max-h-[40vh] max-w-[40vw] object-contain rounded bg-black/50" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function TravelLogsView() {
   const { user, token } = useAuth();
   const headers = { Authorization: `Bearer ${token}` };
@@ -302,6 +319,14 @@ const expandedLogs = logs.map(log => {
     };
   });
 
+  
+  const totalPTKm = expandedLogs.reduce((acc, log) => acc + (Number(log.provider_travel_km) || 0), 0);
+  const totalPTCost = expandedLogs.reduce((acc, log) => acc + (Number(log.provider_travel_cost) || 0), 0);
+  const totalABTKm = expandedLogs.reduce((acc, log) => acc + (Number(log.abt_km) || 0), 0);
+  const totalABTCost = expandedLogs.reduce((acc, log) => acc + (Number(log.abt_cost) || 0), 0);
+  const grandTotalKm = totalPTKm + totalABTKm;
+  const grandTotalCost = totalPTCost + totalABTCost;
+
   return (
     <div className="flex flex-col h-full bg-brand-bg relative min-h-screen">
       <div className="flex items-center justify-between px-8 py-6 mb-2 border-b border-border-subtle bg-brand-navy">
@@ -456,8 +481,8 @@ const expandedLogs = logs.map(log => {
                               </span>
                             )}
                             {(Number(log.provider_travel_km) > 0 || Number(log.abt_km) > 0) ? (
-                              <span className="text-[#E6EDF3] font-semibold mt-1">
-                                Total: {((Number(log.provider_travel_km) || 0) + (Number(log.abt_km) || 0)).toFixed(3)} km
+                              <span className="text-[#E6EDF3] font-semibold mt-1 border-t border-border-subtle/50 pt-1">
+                                Total: {((Number(log.provider_travel_km) || 0) + (Number(log.abt_km) || 0)).toFixed(3)} km (${((Number(log.provider_travel_cost) || 0) + (Number(log.abt_cost) || 0)).toFixed(2)})
                               </span>
                             ) : (
                               <span className="text-[#8B949E] italic text-xs">0 km</span>
@@ -478,9 +503,7 @@ const expandedLogs = logs.map(log => {
                               placeholder="Start"
                             />
                             {log.odometer_start_photo && (
-                              <button onClick={() => setPreviewPhoto({url: log.odometer_start_photo, type: 'Start'})} className="text-brand-teal hover:text-white transition-colors">
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
+                              <OdometerPhotoIcon url={log.odometer_start_photo} type="Start" onClick={() => setPreviewPhoto({url: log.odometer_start_photo, type: 'Start'})} />
                             )}
                           </div>
                         </td>
@@ -498,9 +521,7 @@ const expandedLogs = logs.map(log => {
                               placeholder="End"
                             />
                             {log.odometer_end_photo && (
-                              <button onClick={() => setPreviewPhoto({url: log.odometer_end_photo, type: 'End'})} className="text-brand-teal hover:text-white transition-colors">
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
+                              <OdometerPhotoIcon url={log.odometer_end_photo} type="End" onClick={() => setPreviewPhoto({url: log.odometer_end_photo, type: 'End'})} />
                             )}
                           </div>
                         </td>
@@ -520,7 +541,32 @@ const expandedLogs = logs.map(log => {
                     )
                   })
                 )}
-              </tbody>
+                            </tbody>
+              <tfoot className="bg-brand-navy border-t-2 border-border-subtle font-semibold">
+                <tr>
+                  <td colSpan={user?.role === 'ADMIN' ? 6 : 5} className="px-4 py-3 text-right text-[#E6EDF3] border-r border-border-subtle/30">
+                    Grand Total
+                  </td>
+                  <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
+                    <div className="flex flex-col text-[11px] leading-tight gap-0.5">
+                      {totalPTKm > 0 && (
+                        <span className="text-[#8B949E]">
+                          PT: {totalPTKm.toFixed(3)} km (${totalPTCost.toFixed(2)})
+                        </span>
+                      )}
+                      {totalABTKm > 0 && (
+                        <span className="text-[#8B949E]">
+                          ABT: {totalABTKm.toFixed(3)} km (${totalABTCost.toFixed(2)})
+                        </span>
+                      )}
+                      <span className="text-brand-teal font-bold mt-1 border-t border-border-subtle/50 pt-1">
+                        Total: {grandTotalKm.toFixed(3)} km (${grandTotalCost.toFixed(2)})
+                      </span>
+                    </div>
+                  </td>
+                  <td colSpan={3} className="px-4 py-3 border-r border-border-subtle/30"></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
           
@@ -540,10 +586,10 @@ const expandedLogs = logs.map(log => {
                     }}
                     className="bg-black border border-border-subtle rounded px-2 py-1 text-sm text-[#E6EDF3] outline-none focus:border-brand-teal"
                   >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
                     <option value={50}>50</option>
                     <option value={100}>100</option>
-                    <option value={250}>250</option>
-                    <option value={500}>500</option>
                   </select>
                 </div>
               </div>
@@ -551,14 +597,14 @@ const expandedLogs = logs.map(log => {
                 <button 
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="px-3 py-1 rounded border border-border-subtle text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-bg transition-colors"
+                  className="px-3 py-1 bg-brand-navy border border-border-subtle text-[#E6EDF3] rounded text-sm disabled:opacity-50"
                 >
                   Previous
                 </button>
                 <button 
                   onClick={() => setPage(p => Math.min(Math.ceil(expandedLogs.length / pageSize), p + 1))}
-                  disabled={page >= Math.ceil(expandedLogs.length / pageSize)}
-                  className="px-3 py-1 rounded border border-border-subtle text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-bg transition-colors"
+                  disabled={page === Math.ceil(expandedLogs.length / pageSize)}
+                  className="px-3 py-1 bg-brand-navy border border-border-subtle text-[#E6EDF3] rounded text-sm disabled:opacity-50"
                 >
                   Next
                 </button>
@@ -566,68 +612,59 @@ const expandedLogs = logs.map(log => {
             </div>
           )}
         </div>
-      </div>
-      
-      {/* Vehicle Register Modal */}
+
       {showVehicles && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setShowVehicles(false)}>
-          <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden max-w-2xl w-full" onClick={e => e.stopPropagation()}>
+          <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden max-w-3xl w-full" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-brand-navy">
               <h3 className="text-lg font-semibold text-white">Vehicle Register</h3>
               <button onClick={() => setShowVehicles(false)} className="text-[#8B949E] hover:text-white text-xl leading-none">&times;</button>
             </div>
+            
             <div className="p-6">
-              <div className="mb-6 bg-brand-bg/50 p-4 rounded-lg border border-border-subtle flex flex-col gap-4">
-                <div className="flex gap-4 items-end">
+              {user?.role === 'ADMIN' && (
+                <div className="flex items-end gap-4 mb-6 p-4 border border-border-subtle rounded-lg bg-black/30">
                   <div className="flex-1">
-                    <label className="block text-xs font-semibold text-[#8B949E] mb-1">Make & Model</label>
+                    <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">Vehicle Make & Model</label>
                     <input 
-                      type="text" value={newVehicle.name} onChange={e => setNewVehicle(prev => ({...prev, name: e.target.value}))}
-                      className="w-full bg-brand-navy border border-border-subtle rounded px-3 py-2 text-sm text-[#E6EDF3]" placeholder="e.g. Toyota Camry"
+                      type="text" 
+                      placeholder="e.g. Toyota Corolla"
+                      value={newVehicle.name}
+                      onChange={e => setNewVehicle({...newVehicle, name: e.target.value})}
+                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none"
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-xs font-semibold text-[#8B949E] mb-1">Registration (Rego)</label>
+                    <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">Registration</label>
                     <input 
-                      type="text" value={newVehicle.rego} onChange={e => setNewVehicle(prev => ({...prev, rego: e.target.value}))}
-                      className="w-full bg-brand-navy border border-border-subtle rounded px-3 py-2 text-sm text-[#E6EDF3]" placeholder="e.g. 1ABC123"
+                      type="text" 
+                      placeholder="e.g. 1ABC123"
+                      value={newVehicle.rego}
+                      onChange={e => setNewVehicle({...newVehicle, rego: e.target.value})}
+                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none"
                     />
                   </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-4">
-                    {user?.role === 'ADMIN' && (
-                      <div>
-                         <label className="block text-xs font-semibold text-[#8B949E] mb-1">Owner</label>
-                         <select 
-                           value={newVehicle.user_id} 
-                           onChange={e => setNewVehicle(prev => ({...prev, user_id: e.target.value}))}
-                           className="bg-brand-navy border border-border-subtle rounded px-3 py-1.5 text-sm text-[#E6EDF3] w-48"
-                         >
-                           <option value="">Select Staff...</option>
-                           {staff.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
-                         </select>
-                      </div>
-                    )}
-                    <label className="flex items-center gap-2 text-sm text-[#E6EDF3] cursor-pointer mt-4">
-                      <input 
-                        type="checkbox" 
-                        checked={newVehicle.is_primary} 
-                        onChange={e => setNewVehicle(prev => ({...prev, is_primary: e.target.checked}))}
-                        className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-brand-teal"
-                      />
-                      Primary Vehicle
-                    </label>
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">Owner (Staff)</label>
+                    <select
+                      value={newVehicle.user_id}
+                      onChange={e => setNewVehicle({...newVehicle, user_id: e.target.value})}
+                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none"
+                    >
+                      <option value="">Select Staff</option>
+                      {staff.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                    </select>
                   </div>
                   <button 
                     onClick={handleAddVehicle}
-                    className="bg-brand-teal text-white px-4 py-2 rounded font-medium text-sm hover:bg-brand-teal/90 transition-colors flex items-center gap-2 mt-4"
+                    className="h-[38px] px-4 bg-brand-teal hover:bg-teal-600 text-white rounded-md text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap"
                   >
-                    <Plus className="w-4 h-4" /> Add Vehicle
+                    <Plus className="w-4 h-4" />
+                    Add Vehicle
                   </button>
                 </div>
-              </div>
-              
+              )}
+
               <div className="border border-border-subtle rounded-lg overflow-hidden">
                 <table className="w-full text-left">
                   <thead className="bg-brand-navy border-b border-border-subtle text-xs uppercase text-[#8B949E]">
@@ -640,7 +677,7 @@ const expandedLogs = logs.map(log => {
                   </thead>
                   <tbody className="divide-y divide-border-subtle bg-brand-navy/30">
                     {vehicles.length === 0 ? (
-                      <tr><td colSpan={13} className="px-4 py-8 text-center text-[#8B949E] text-sm">No vehicles registered yet.</td></tr>
+                      <tr><td colSpan={user?.role === 'ADMIN' ? 4 : 3} className="px-4 py-8 text-center text-[#8B949E] text-sm">No vehicles registered yet.</td></tr>
                     ) : vehicles.map(v => (
                       <tr key={v.id}>
                         <td className="px-4 py-3 text-sm text-white font-medium border-r border-border-subtle/30">{v.name}</td>
@@ -683,6 +720,7 @@ const expandedLogs = logs.map(log => {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

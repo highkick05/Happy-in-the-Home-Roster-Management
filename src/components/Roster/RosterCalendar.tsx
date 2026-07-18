@@ -1095,11 +1095,11 @@ export default function RosterCalendar() {
             onSelectEvent={onSelectEvent}
             onSelectSlot={onSelectSlot}
             selectable={user?.role === 'ADMIN'}
-            draggableAccessor={() => user?.role === 'ADMIN'}
+            
             resizable={user?.role === 'ADMIN'}
-            resources={activeView === Views.DAY ? resources : undefined}
-            resourceIdAccessor={activeView === Views.DAY ? (r: any) => r?.id : undefined}
-            resourceTitleAccessor={activeView === Views.DAY ? (r: any) => r?.title : undefined}
+            resources={(activeView as View) === Views.DAY ? resources : undefined}
+            resourceIdAccessor={(activeView as View) === Views.DAY ? (r: any) => r?.id : undefined}
+            resourceTitleAccessor={(activeView as View) === Views.DAY ? (r: any) => r?.title : undefined}
             style={{ height: '100%', minHeight: '500px' }}
             className="text-[#E6EDF3] custom-calendar h-full"
           />
@@ -1120,10 +1120,10 @@ export default function RosterCalendar() {
             onSelectEvent={onSelectEvent}
             onSelectSlot={onSelectSlot}
             selectable={user?.role === 'ADMIN'}
-            draggableAccessor={() => user?.role === 'ADMIN'}
-            resources={activeView === Views.DAY ? resources : undefined}
-            resourceIdAccessor={activeView === Views.DAY ? (r: any) => r?.id : undefined}
-            resourceTitleAccessor={activeView === Views.DAY ? (r: any) => r?.title : undefined}
+            
+            resources={(activeView as View) === Views.DAY ? resources : undefined}
+            resourceIdAccessor={(activeView as View) === Views.DAY ? (r: any) => r?.id : undefined}
+            resourceTitleAccessor={(activeView as View) === Views.DAY ? (r: any) => r?.title : undefined}
             style={{ height: '100%', minHeight: '500px' }}
             className="text-[#E6EDF3] custom-calendar h-full"
           />

@@ -3823,7 +3823,7 @@ app.get("/api/health", (req, res) => {
 
   // --- Staff (Users) APIs ---
   // --- Travel Logs API ---
-  app.get("/api/travel-logs", authenticateToken, (req, res) => {
+  app.get("/api/travel-logs", authenticateToken, (req: any, res: any) => {
     try {
       const { clientId, staffId, vehicleId, fundingType, startDate, endDate } = req.query;
       
@@ -3891,12 +3891,12 @@ app.get("/api/health", (req, res) => {
     }
   });
 
-  app.put("/api/travel-logs/:id/odometer", authenticateToken, (req, res) => {
+  app.put("/api/travel-logs/:id/odometer", authenticateToken, (req: any, res: any) => {
     try {
       const { odometer_start_reading, odometer_end_reading, vehicle_id } = req.body;
       const shiftId = req.params.id;
       
-      const shift = db.prepare("SELECT * FROM shifts WHERE id = ?").get(shiftId);
+      const shift = db.prepare("SELECT * FROM shifts WHERE id = ?").get(shiftId) as any;
       if (!shift) return res.status(404).json({ error: "Shift not found" });
       
       if (req.user.role === 'staff' && shift.staff_id !== req.user.id) {
@@ -4266,7 +4266,7 @@ app.get("/api/health", (req, res) => {
   app.put("/api/vehicles/:id", authenticateToken, (req: any, res: any) => {
     try {
       const { name, rego, user_id } = req.body;
-      const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(req.params.id);
+      const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(req.params.id) as any;
       if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
       if (req.user.role === "staff" && vehicle.user_id !== req.user.id) {
          return res.status(403).json({ error: "Forbidden" });
@@ -4284,7 +4284,7 @@ app.get("/api/health", (req, res) => {
 
   app.delete("/api/vehicles/:id", authenticateToken, (req: any, res: any) => {
     try {
-      const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(req.params.id);
+      const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(req.params.id) as any;
       if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
       if (req.user.role === "staff" && vehicle.user_id !== req.user.id) {
          return res.status(403).json({ error: "Forbidden" });
