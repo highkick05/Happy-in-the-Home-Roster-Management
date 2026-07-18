@@ -394,7 +394,7 @@ const expandedLogs = logs.map(log => {
               </select>
             </div>
             
-            <div className="flex flex-col gap-1.5 w-36">
+            <div className="flex flex-col gap-1.5 w-48">
               <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Vehicle</label>
               <select 
                 value={selectedVehicle} onChange={e => setSelectedVehicle(e.target.value)}
@@ -440,6 +440,7 @@ const expandedLogs = logs.map(log => {
               <thead>
                 <tr className="bg-brand-navy border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] font-semibold">
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Shift ID</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30 text-center">Vehicle</th>
                   {user?.role === 'ADMIN' && <th className="px-2 py-1.5 border-r border-border-subtle/30">Staff Name</th>}
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Service Date</th>
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Shift Times</th>
@@ -449,8 +450,7 @@ const expandedLogs = logs.map(log => {
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Travel Route</th>
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Transport KM</th>
                   <th className="px-2 py-1.5 border-r border-border-subtle/30 text-center">Start Odometer</th>
-                  <th className="px-2 py-1.5 border-r border-border-subtle/30 text-center">End Odometer</th>
-                  <th className="px-2 py-1.5 border-r border-border-subtle/30 text-center">Vehicle</th>
+                  <th className="px-2 py-1.5 text-center">End Odometer</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle text-sm text-[#E6EDF3]">
@@ -473,6 +473,18 @@ const expandedLogs = logs.map(log => {
                     return (
                       <tr key={log._rowId} className="hover:bg-brand-bg/50 transition-colors group">
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs text-[#8B949E]">#{log.id}</td>
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-center">
+                          <select 
+                            defaultValue={log.vehicle_id !== null ? log.vehicle_id : ''}
+                            onChange={(e) => {
+                               handleInlineSave(log, { vehicle_id: e.target.value });
+                            }}
+                            className="bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
+                          >
+                            <option value="">No Vehicle</option>
+                            {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.rego})</option>)}
+                          </select>
+                        </td>
                         {user?.role === 'ADMIN' && <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">{log.staff_first} {log.staff_last}</td>}
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">{getLocalizedDateString(log.start_time)}</td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-xs text-[#8B949E]">{getLocalizedTimeString(log.start_time)} - {getLocalizedTimeString(log.end_time)}</td>
@@ -599,18 +611,6 @@ const expandedLogs = logs.map(log => {
                               </div>
                             )}
                           </div>
-                        </td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-center">
-                          <select 
-                            defaultValue={log.vehicle_id !== null ? log.vehicle_id : ''}
-                            onChange={(e) => {
-                               handleInlineSave(log, { vehicle_id: e.target.value });
-                            }}
-                            className="bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
-                          >
-                            <option value="">No Vehicle</option>
-                            {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.rego})</option>)}
-                          </select>
                         </td>
                       </tr>
                     )
