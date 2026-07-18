@@ -573,6 +573,7 @@ export default function ComplianceDashboard() {
                  <table className="w-full text-left text-sm border-collapse">
                    <thead className="text-xs text-[#E6EDF3] uppercase tracking-wider bg-zinc-800 border-b border-border-subtle font-bold">
                      <tr>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Shift ID</th>
                        <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Client Name</th>
                        <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Service Date</th>
                        <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Shift Timestamps</th>
@@ -587,10 +588,10 @@ export default function ComplianceDashboard() {
                    <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
                      {evidenceMatrix.length === 0 ? (
                        <tr>
-                         <td colSpan={8} className="px-4 py-8 text-center text-[#8B949E]">No evidence records available.</td>
+                         <td colSpan={9} className="px-4 py-8 text-center text-[#8B949E]">No evidence records available.</td>
                        </tr>
                      ) : (
-                       evidenceMatrix.map((row, idx) => {
+                       evidenceMatrix.slice((evidencePage - 1) * evidencePageSize, evidencePage * evidencePageSize).map((row, idx) => {
                          const startString = row.actual_start_time ? getLocalizedTimeString(row.actual_start_time) : (row.start_time ? getLocalizedTimeString(row.start_time) : 'N/A');
                          const endString = row.actual_finish_time ? getLocalizedTimeString(row.actual_finish_time) : (row.end_time ? getLocalizedTimeString(row.end_time) : 'N/A');
                          
@@ -751,6 +752,46 @@ export default function ComplianceDashboard() {
                    </tbody>
                  </table>
              )}
+             
+             {!loadingMatrix && evidenceMatrix.length > 0 && (
+                <div className="flex items-center justify-between p-4 border-t border-border-subtle bg-brand-bg/50 mt-4 rounded-b-xl">
+                    <div className="text-sm text-[#8B949E]">
+                        Showing {Math.min((evidencePage - 1) * evidencePageSize + 1, evidenceMatrix.length)} to {Math.min(evidencePage * evidencePageSize, evidenceMatrix.length)} of {evidenceMatrix.length} entries
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-[#8B949E]">Rows per page:</span>
+                            <select
+                                value={evidencePageSize}
+                                onChange={(e) => {setEvidencePageSize(Number(e.target.value)); setEvidencePage(1);}}
+                                className="bg-brand-navy border border-border-subtle rounded px-2 py-1 text-sm text-[#E6EDF3] outline-none"
+                            >
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                                <option value={250}>250</option>
+                                <option value={500}>500</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setEvidencePage(Math.max(1, evidencePage - 1))}
+                                disabled={evidencePage === 1}
+                                className="p-1 rounded hover:bg-white/5 disabled:opacity-50 text-[#8B949E] hover:text-[#E6EDF3]"
+                            >
+                                &lt;
+                            </button>
+                            <span className="text-sm text-[#E6EDF3] px-2">{evidencePage} / {Math.ceil(evidenceMatrix.length / evidencePageSize) || 1}</span>
+                            <button
+                                onClick={() => setEvidencePage(Math.min(Math.ceil(evidenceMatrix.length / evidencePageSize), evidencePage + 1))}
+                                disabled={evidencePage >= Math.ceil(evidenceMatrix.length / evidencePageSize)}
+                                className="p-1 rounded hover:bg-white/5 disabled:opacity-50 text-[#8B949E] hover:text-[#E6EDF3]"
+                            >
+                                &gt;
+                            </button>
+                        </div>
+                    </div>
+                </div>
+             )}
            </div>
         </div>
       )}
@@ -828,6 +869,7 @@ export default function ComplianceDashboard() {
                  <table className="w-full text-left text-sm border-collapse">
                    <thead className="text-xs text-[#E6EDF3] uppercase tracking-wider bg-zinc-800 border-b border-border-subtle font-bold">
                      <tr>
+                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Shift ID</th>
                        <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Staff Name</th>
                        <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Service Date</th>
                        <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Shift Timestamps</th>
@@ -846,10 +888,10 @@ export default function ComplianceDashboard() {
                    <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
                      {staffMatrix.length === 0 ? (
                        <tr>
-                         <td colSpan={10} className="px-4 py-8 text-center text-[#8B949E]">No staff records available.</td>
+                         <td colSpan={11} className="px-4 py-8 text-center text-[#8B949E]">No staff records available.</td>
                        </tr>
                      ) : (
-                       staffMatrix.map((row, idx) => {
+                       staffMatrix.slice((staffPage - 1) * staffPageSize, staffPage * staffPageSize).map((row, idx) => {
                          const startString = row.actual_start_time ? getLocalizedTimeString(row.actual_start_time) : (row.start_time ? getLocalizedTimeString(row.start_time) : 'N/A');
                          const endString = row.actual_finish_time ? getLocalizedTimeString(row.actual_finish_time) : (row.end_time ? getLocalizedTimeString(row.end_time) : 'N/A');
                          
@@ -1047,6 +1089,46 @@ export default function ComplianceDashboard() {
                      )}
                    </tbody>
                  </table>
+             )}
+             
+             {!loadingStaffMatrix && staffMatrix.length > 0 && (
+                <div className="flex items-center justify-between p-4 border-t border-border-subtle bg-brand-bg/50 mt-4 rounded-b-xl">
+                    <div className="text-sm text-[#8B949E]">
+                        Showing {Math.min((staffPage - 1) * staffPageSize + 1, staffMatrix.length)} to {Math.min(staffPage * staffPageSize, staffMatrix.length)} of {staffMatrix.length} entries
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-[#8B949E]">Rows per page:</span>
+                            <select
+                                value={staffPageSize}
+                                onChange={(e) => {setStaffPageSize(Number(e.target.value)); setStaffPage(1);}}
+                                className="bg-brand-navy border border-border-subtle rounded px-2 py-1 text-sm text-[#E6EDF3] outline-none"
+                            >
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                                <option value={250}>250</option>
+                                <option value={500}>500</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setStaffPage(Math.max(1, staffPage - 1))}
+                                disabled={staffPage === 1}
+                                className="p-1 rounded hover:bg-white/5 disabled:opacity-50 text-[#8B949E] hover:text-[#E6EDF3]"
+                            >
+                                &lt;
+                            </button>
+                            <span className="text-sm text-[#E6EDF3] px-2">{staffPage} / {Math.ceil(staffMatrix.length / staffPageSize) || 1}</span>
+                            <button
+                                onClick={() => setStaffPage(Math.min(Math.ceil(staffMatrix.length / staffPageSize), staffPage + 1))}
+                                disabled={staffPage >= Math.ceil(staffMatrix.length / staffPageSize)}
+                                className="p-1 rounded hover:bg-white/5 disabled:opacity-50 text-[#8B949E] hover:text-[#E6EDF3]"
+                            >
+                                &gt;
+                            </button>
+                        </div>
+                    </div>
+                </div>
              )}
            </div>
          </div>
