@@ -4,6 +4,7 @@ import { FileText, Search, RefreshCw, Eye, Edit2, CheckCircle } from 'lucide-rea
 import { format } from 'date-fns';
 import CustomDatePicker from './ui/CustomDatePicker';
 import { Plus, Trash2 } from 'lucide-react';
+import carImage from '../assets/images/high_quality_car_1784363727210.jpg';
 
 const extractAddress = (desc: string) => {
     if (!desc) return null;
@@ -355,12 +356,15 @@ const expandedLogs = logs.map(log => {
             View and manage travel information and odometer readings for shifts.
           </p>
         </div>
-        <button 
-          onClick={() => setShowVehicles(true)}
-          className="bg-brand-teal text-white px-4 py-2 rounded font-medium text-sm hover:bg-brand-teal/90 transition-colors"
-        >
-          Vehicle Register
-        </button>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setShowVehicles(true)}
+            className="bg-brand-teal text-white px-4 py-2 rounded font-medium text-sm hover:bg-brand-teal/90 transition-colors h-fit"
+          >
+            Vehicle Register
+          </button>
+          <img src={carImage} alt="Luxury Vehicle" className="h-[52px] w-auto rounded-md shadow-sm border border-border-subtle object-cover" />
+        </div>
       </div>
       
       <div className="p-8 pb-32 max-w-full overflow-x-auto space-y-6">
