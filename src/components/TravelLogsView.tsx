@@ -437,6 +437,7 @@ const expandedLogs = logs.map(log => {
             <table className="w-full text-left border-collapse min-w-max">
               <thead>
                 <tr className="bg-brand-navy border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] font-semibold">
+                  <th className="px-4 py-3 border-r border-border-subtle/30">Shift ID</th>
                   {user?.role === 'ADMIN' && <th className="px-4 py-3 border-r border-border-subtle/30">Staff Name</th>}
                   <th className="px-4 py-3 border-r border-border-subtle/30">Service Date</th>
                   <th className="px-4 py-3 border-r border-border-subtle/30">Care Type</th>
@@ -452,14 +453,14 @@ const expandedLogs = logs.map(log => {
               <tbody className="divide-y divide-border-subtle text-sm text-[#E6EDF3]">
                 {loading ? (
                   <tr>
-                    <td colSpan={13} className="px-4 py-12 text-center text-[#8B949E]">
+                    <td colSpan={14} className="px-4 py-12 text-center text-[#8B949E]">
                        <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2" />
                        Loading travel logs...
                     </td>
                   </tr>
                 ) : logs.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-4 py-12 text-center text-[#8B949E]">
+                    <td colSpan={14} className="px-4 py-12 text-center text-[#8B949E]">
                        No travel logs found for the selected filters.
                     </td>
                   </tr>
@@ -468,6 +469,7 @@ const expandedLogs = logs.map(log => {
                     const isEditing = isEditingOdo === log.id.toString();
                     return (
                       <tr key={log._rowId} className="hover:bg-brand-bg/50 transition-colors group">
+                        <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs text-[#8B949E]">#{log.id}</td>
                         {user?.role === 'ADMIN' && <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">{log.staff_first} {log.staff_last}</td>}
                         <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">{getLocalizedDateString(log.start_time)}</td>
                         <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
@@ -585,7 +587,7 @@ const expandedLogs = logs.map(log => {
                             className="bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-2 py-1 text-xs transition-colors"
                           >
                             <option value="">No Vehicle</option>
-                            {vehicles.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                            {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.rego})</option>)}
                           </select>
                         </td>
                       </tr>
