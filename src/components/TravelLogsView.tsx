@@ -20,18 +20,12 @@ const extractAddress = (desc: string) => {
 };
 
 
-const OdometerPhotoIcon = ({ url, type, onClick }: { url: string, type: string, onClick: () => void }) => {
+const OdometerPhotoIcon = ({ url, type, onClick, onMouseEnter, onMouseLeave }: { url: string, type: string, onClick: () => void, onMouseEnter: (e: React.MouseEvent) => void, onMouseLeave: () => void }) => {
   return (
-    <div className="relative group/icon flex items-center justify-center z-10 hover:z-50">
-      <button onClick={onClick} className="text-brand-teal hover:text-white transition-colors p-1">
+    <div className="flex items-center justify-center">
+      <button onClick={onClick} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className="text-brand-teal hover:text-white transition-colors p-1">
         <Eye className="w-3.5 h-3.5" />
       </button>
-      
-      <div className="absolute bottom-full mb-2 hidden group-hover/icon:block pointer-events-none drop-shadow-2xl right-0 transform translate-x-1/4">
-        <div className="bg-brand-navy border border-border-subtle p-1.5 rounded-lg">
-           <img src={url.startsWith('data:') || url.startsWith('blob:') ? url : `/uploads/${url}`} alt="Preview" className="max-h-48 max-w-48 object-contain rounded bg-black/50" />
-        </div>
-      </div>
     </div>
   );
 };
@@ -59,6 +53,7 @@ export default function TravelLogsView() {
   const [editVehicleId, setEditVehicleId] = useState('');
   
   const [previewPhoto, setPreviewPhoto] = useState<{url: string, type: string} | null>(null);
+  const [hoveredPhoto, setHoveredPhoto] = useState<{url: string, type: string, x: number, y: number} | null>(null);
   
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -371,18 +366,6 @@ const expandedLogs = logs.map(log => {
         {/* Filters */}
         <div className="flex flex-wrap items-center justify-start gap-4">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex flex-col gap-1.5 w-32">
-              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
-              <CustomDatePicker selected={startDate} onDateChange={(date: Date | null) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
-            </div>
-            
-            <div className="flex flex-col gap-1.5 w-32">
-              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
-              <CustomDatePicker selected={endDate} onDateChange={(date: Date | null) => setEndDate(date)} placeholderText="End Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-3">
             {user?.role === 'ADMIN' && (
               <div className="flex flex-col gap-1.5 w-36">
                 <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Staff</label>
@@ -434,6 +417,18 @@ const expandedLogs = logs.map(log => {
                 <option value="NDIS">NDIS</option>
                 <option value="HOME_CARE">Home Care</option>
               </select>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col gap-1.5 w-32">
+              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
+              <CustomDatePicker selected={startDate} onDateChange={(date: Date | null) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
+            </div>
+            
+            <div className="flex flex-col gap-1.5 w-32">
+              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
+              <CustomDatePicker selected={endDate} onDateChange={(date: Date | null) => setEndDate(date)} placeholderText="End Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
             </div>
           </div>
         </div>
@@ -562,7 +557,16 @@ const expandedLogs = logs.map(log => {
                             />
                             {log.odometer_start_photo && (
                               <div className="shrink-0">
-                                <OdometerPhotoIcon url={log.odometer_start_photo} type="Start" onClick={() => setPreviewPhoto({url: log.odometer_start_photo, type: 'Start'})} />
+                                <OdometerPhotoIcon 
+                                  url={log.odometer_start_photo} 
+                                  type="Start" 
+                                  onClick={() => setPreviewPhoto({url: log.odometer_start_photo, type: 'Start'})} 
+                                  onMouseEnter={(e) => {
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      setHoveredPhoto({url: log.odometer_start_photo, type: 'Start', x: rect.left + rect.width/2, y: rect.top});
+                                  }}
+                                  onMouseLeave={() => setHoveredPhoto(null)}
+                                />
                               </div>
                             )}
                           </div>
@@ -582,7 +586,16 @@ const expandedLogs = logs.map(log => {
                             />
                             {log.odometer_end_photo && (
                               <div className="shrink-0">
-                                <OdometerPhotoIcon url={log.odometer_end_photo} type="End" onClick={() => setPreviewPhoto({url: log.odometer_end_photo, type: 'End'})} />
+                                <OdometerPhotoIcon 
+                                  url={log.odometer_end_photo} 
+                                  type="End" 
+                                  onClick={() => setPreviewPhoto({url: log.odometer_end_photo, type: 'End'})} 
+                                  onMouseEnter={(e) => {
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      setHoveredPhoto({url: log.odometer_end_photo, type: 'End', x: rect.left + rect.width/2, y: rect.top});
+                                  }}
+                                  onMouseLeave={() => setHoveredPhoto(null)}
+                                />
                               </div>
                             )}
                           </div>
@@ -740,6 +753,22 @@ const expandedLogs = logs.map(log => {
       )}
 
       {/* Photo Preview Modal */}
+      {hoveredPhoto && (
+        <div 
+           className="fixed z-[70] pointer-events-none transform -translate-x-1/2 -translate-y-full pb-2"
+           style={{ left: hoveredPhoto.x, top: hoveredPhoto.y }}
+        >
+          <div className="bg-[#121214] border border-border-subtle rounded-md shadow-xl p-1 w-48 relative">
+             {hoveredPhoto.url.startsWith('data:') || hoveredPhoto.url.startsWith('blob:') ? (
+               <img src={hoveredPhoto.url} alt="Odometer" className="w-full h-auto rounded object-cover" />
+             ) : (
+               <img src={`/uploads/${hoveredPhoto.url}`} alt="Odometer" className="w-full h-auto rounded object-cover" />
+             )}
+             <div className="w-2 h-2 bg-[#121214] border-r border-b border-border-subtle transform rotate-45 absolute -bottom-1 left-1/2 -translate-x-1/2"></div>
+          </div>
+        </div>
+      )}
+
       {previewPhoto && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setPreviewPhoto(null)}>
           <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden max-w-6xl w-full" onClick={e => e.stopPropagation()}>
