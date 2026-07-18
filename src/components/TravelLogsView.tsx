@@ -526,15 +526,11 @@ const expandedLogs = logs.map(log => {
                               </>
                             ) : (
                               <>
-                                {Number(log.provider_travel_km) > 0 && (
-                                  <span className="text-[#8B949E]">
-                                    PT: {Number(log.provider_travel_km).toFixed(3)} km
-                                  </span>
-                                )}
-                                {Number(log.abt_km) > 0 && (
-                                  <span className="text-[#8B949E]">
-                                    ABT: {Number(log.abt_km).toFixed(3)} km
-                                  </span>
+                                {(Number(log.provider_travel_km) > 0 || Number(log.abt_km) > 0) && (
+                                  <div className="flex items-center gap-1.5 flex-wrap text-[#8B949E]">
+                                    {Number(log.provider_travel_km) > 0 && <span>PT: {Number(log.provider_travel_km).toFixed(3)} km</span>}
+                                    {Number(log.abt_km) > 0 && <span>ABT: {Number(log.abt_km).toFixed(3)} km</span>}
+                                  </div>
                                 )}
                                 {(Number(log.provider_travel_km) > 0 || Number(log.abt_km) > 0) ? (
                                   <span className="text-[#E6EDF3] font-semibold mt-1 border-t border-border-subtle/50 pt-1">

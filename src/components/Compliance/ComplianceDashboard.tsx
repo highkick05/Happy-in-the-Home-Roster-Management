@@ -1058,6 +1058,16 @@ export default function ComplianceDashboard() {
                                      <button onClick={() => setPreviewPhoto({url: row.odometer_start_photo, type: 'Start'})} className="text-[#8B949E] hover:text-[#E6EDF3] transition-colors">
                                        <Camera className="w-3.5 h-3.5" />
                                      </button>
+                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-[60]">
+                                       <div className="bg-[#121214] border border-border-subtle rounded-md shadow-xl p-1 w-48">
+                                         {row.odometer_start_photo.startsWith('data:') || row.odometer_start_photo.startsWith('blob:') ? (
+                                           <img src={row.odometer_start_photo} alt="Start Odometer" className="w-full h-auto rounded object-cover" />
+                                         ) : (
+                                           <img src={`/uploads/${row.odometer_start_photo}`} alt="Start Odometer" className="w-full h-auto rounded object-cover" />
+                                         )}
+                                       </div>
+                                       <div className="w-2 h-2 bg-[#121214] border-r border-b border-border-subtle transform rotate-45 absolute -bottom-1 left-1/2 -translate-x-1/2"></div>
+                                     </div>
                                    </div>
                                  )}
                                </div>
@@ -1070,6 +1080,16 @@ export default function ComplianceDashboard() {
                                      <button onClick={() => setPreviewPhoto({url: row.odometer_end_photo, type: 'End'})} className="text-[#8B949E] hover:text-[#E6EDF3] transition-colors">
                                        <Camera className="w-3.5 h-3.5" />
                                      </button>
+                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-[60]">
+                                       <div className="bg-[#121214] border border-border-subtle rounded-md shadow-xl p-1 w-48">
+                                         {row.odometer_end_photo.startsWith('data:') || row.odometer_end_photo.startsWith('blob:') ? (
+                                           <img src={row.odometer_end_photo} alt="End Odometer" className="w-full h-auto rounded object-cover" />
+                                         ) : (
+                                           <img src={`/uploads/${row.odometer_end_photo}`} alt="End Odometer" className="w-full h-auto rounded object-cover" />
+                                         )}
+                                       </div>
+                                       <div className="w-2 h-2 bg-[#121214] border-r border-b border-border-subtle transform rotate-45 absolute -bottom-1 left-1/2 -translate-x-1/2"></div>
+                                     </div>
                                    </div>
                                  )}
                                </div>
