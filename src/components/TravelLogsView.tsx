@@ -369,68 +369,72 @@ const expandedLogs = logs.map(log => {
       <div className="p-2 pb-16 max-w-full overflow-x-auto space-y-2">
         
         {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-          {user?.role === 'ADMIN' && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Staff</label>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            {user?.role === 'ADMIN' && (
+              <div className="flex flex-col gap-1.5 w-36">
+                <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Staff</label>
+                <select 
+                  value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)}
+                  className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
+                >
+                  <option value="all">All Staff</option>
+                  {staff.map(s => (
+                    <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            <div className="flex flex-col gap-1.5 w-36">
+              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Client</label>
               <select 
-                value={selectedStaff} onChange={e => setSelectedStaff(e.target.value)}
+                value={selectedClient} onChange={e => setSelectedClient(e.target.value)}
                 className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
               >
-                <option value="all">All Staff</option>
-                {staff.map(s => (
-                  <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+                <option value="all">All Clients</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
                 ))}
               </select>
             </div>
-          )}
-          
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Client</label>
-            <select 
-              value={selectedClient} onChange={e => setSelectedClient(e.target.value)}
-              className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
-            >
-              <option value="all">All Clients</option>
-              {clients.map(c => (
-                <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
-              ))}
-            </select>
+            
+            <div className="flex flex-col gap-1.5 w-36">
+              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Vehicle</label>
+              <select 
+                value={selectedVehicle} onChange={e => setSelectedVehicle(e.target.value)}
+                className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
+              >
+                <option value="all">All Vehicles</option>
+                {vehicles.map(v => (
+                  <option key={v.id} value={v.id}>{v.name} ({v.rego})</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex flex-col gap-1.5 w-32">
+              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Funding Type</label>
+              <select 
+                value={selectedFundingType} onChange={e => setSelectedFundingType(e.target.value)}
+                className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
+              >
+                <option value="all">All Funding</option>
+                <option value="NDIS">NDIS</option>
+                <option value="HOME_CARE">Home Care</option>
+              </select>
+            </div>
           </div>
           
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Vehicle</label>
-            <select 
-              value={selectedVehicle} onChange={e => setSelectedVehicle(e.target.value)}
-              className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
-            >
-              <option value="all">All Vehicles</option>
-              {vehicles.map(v => (
-                <option key={v.id} value={v.id}>{v.name} ({v.rego})</option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Funding Type</label>
-            <select 
-              value={selectedFundingType} onChange={e => setSelectedFundingType(e.target.value)}
-              className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all"
-            >
-              <option value="all">All Funding</option>
-              <option value="NDIS">NDIS</option>
-              <option value="HOME_CARE">Home Care</option>
-            </select>
-          </div>
-          
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
-            <CustomDatePicker selected={startDate} onDateChange={(date: Date | null) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
-          </div>
-          
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
-            <CustomDatePicker selected={endDate} onDateChange={(date: Date | null) => setEndDate(date)} placeholderText="End Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col gap-1.5 w-28">
+              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
+              <CustomDatePicker selected={startDate} onDateChange={(date: Date | null) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
+            </div>
+            
+            <div className="flex flex-col gap-1.5 w-28">
+              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
+              <CustomDatePicker selected={endDate} onDateChange={(date: Date | null) => setEndDate(date)} placeholderText="End Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
+            </div>
           </div>
         </div>
 
@@ -544,7 +548,7 @@ const expandedLogs = logs.map(log => {
                           </div>
                         </td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-center">
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-center gap-1">
                             <input 
                               type="number" 
                               defaultValue={log.odometer_start_reading !== null ? log.odometer_start_reading : ''} 
@@ -553,7 +557,7 @@ const expandedLogs = logs.map(log => {
                                     handleInlineSave(log, { odometer_start_reading: e.target.value });
                                  }
                               }}
-                              className="w-20 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
+                              className="w-16 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
                               placeholder="Start"
                             />
                             {log.odometer_start_photo && (
@@ -562,7 +566,7 @@ const expandedLogs = logs.map(log => {
                           </div>
                         </td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-center">
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-center gap-1">
                             <input 
                               type="number" 
                               defaultValue={log.odometer_end_reading !== null ? log.odometer_end_reading : ''} 
@@ -571,7 +575,7 @@ const expandedLogs = logs.map(log => {
                                     handleInlineSave(log, { odometer_end_reading: e.target.value });
                                  }
                               }}
-                              className="w-20 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
+                              className="w-16 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
                               placeholder="End"
                             />
                             {log.odometer_end_photo && (
