@@ -422,12 +422,12 @@ const expandedLogs = logs.map(log => {
           
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
-            <CustomDatePicker selected={startDate} onChange={(date: Date) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3]"  position="bottom" />
+            <CustomDatePicker selected={startDate} onDateChange={(date: Date | null) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3]"  position="bottom" />
           </div>
           
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
-            <CustomDatePicker selected={endDate} onChange={(date: Date) => setEndDate(date)} placeholderText="End Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3]"  position="bottom" />
+            <CustomDatePicker selected={endDate} onDateChange={(date: Date | null) => setEndDate(date)} placeholderText="End Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3]"  position="bottom" />
           </div>
         </div>
 
@@ -641,7 +641,7 @@ const expandedLogs = logs.map(log => {
 
       {showVehicles && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setShowVehicles(false)}>
-          <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden max-w-3xl w-full" onClick={e => e.stopPropagation()}>
+          <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden max-w-4xl w-full" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-brand-navy">
               <h3 className="text-lg font-semibold text-white">Vehicle Register</h3>
               <button onClick={() => setShowVehicles(false)} className="text-[#8B949E] hover:text-white text-xl leading-none">&times;</button>
@@ -731,16 +731,16 @@ const expandedLogs = logs.map(log => {
       {/* Photo Preview Modal */}
       {previewPhoto && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setPreviewPhoto(null)}>
-          <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden max-w-3xl w-full" onClick={e => e.stopPropagation()}>
+          <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden max-w-6xl w-full" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-brand-navy">
               <h3 className="text-lg font-semibold text-white">{previewPhoto.type} Odometer Photo</h3>
               <button onClick={() => setPreviewPhoto(null)} className="text-[#8B949E] hover:text-white text-xl leading-none">&times;</button>
             </div>
             <div className="p-6 flex justify-center bg-black/30">
                {previewPhoto.url.startsWith('data:') || previewPhoto.url.startsWith('blob:') ? (
-                 <img src={previewPhoto.url} alt="Odometer" className="max-w-full max-h-[70vh] rounded-lg shadow-xl" />
+                 <img src={previewPhoto.url} alt="Odometer" className="max-w-full max-h-[85vh] rounded-lg shadow-xl object-contain" />
                ) : (
-                 <img src={`/uploads/${previewPhoto.url}`} alt="Odometer" className="max-w-full max-h-[70vh] rounded-lg shadow-xl" />
+                 <img src={`/uploads/${previewPhoto.url}`} alt="Odometer" className="max-w-full max-h-[85vh] rounded-lg shadow-xl object-contain" />
                )}
             </div>
           </div>
