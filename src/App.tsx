@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import RosterCalendar from './components/Roster/RosterCalendar';
-import { Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare } from 'lucide-react';
+import { Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car} from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import QuickLinksDrawer from './components/QuickLinksDrawer';
 import Login from './components/Auth/Login';
@@ -31,6 +31,7 @@ import UniversalPWAInstall from './components/UniversalPWAInstall';
 import NotificationsDropdown from './components/NotificationsDropdown';
 import WallboardView from './components/Kiosk/WallboardView';
 import TasksView from './components/Tasks/TasksView';
+import TravelLogsView from './components/TravelLogsView';
 
 
 function DateTimer() {
@@ -260,6 +261,10 @@ function Layout({ children }: { children: React.ReactNode }) {
           <NavLink to="/roster" className={getNavClasses} title="Roster">
             <Calendar className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Roster' : ''}
           </NavLink>
+          
+          <NavLink to="/travel-logs" className={getNavClasses} title="Travel Logs">
+            <Car className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Travel Logs' : ''}
+          </NavLink>
           <NavLink to="/progress-notes" className={getNavClasses} title="Progress Notes">
             <ClipboardEdit className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Progress Notes' : ''}
           </NavLink>
@@ -405,6 +410,7 @@ export default function App() {
             <Route path="/kiosk/wallboard" element={<WallboardView />} />
             <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
             <Route path="/tasks" element={<ProtectedRoute adminOnly><Layout><TasksView /></Layout></ProtectedRoute>} />
+            <Route path="/travel-logs" element={<ProtectedRoute><Layout><TravelLogsView /></Layout></ProtectedRoute>} />
             <Route path="/roster" element={<ProtectedRoute><Layout><RosterCalendar /></Layout></ProtectedRoute>} />
             <Route path="/staff" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="STAFF" /></Layout></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="CLIENTS" /></Layout></ProtectedRoute>} />

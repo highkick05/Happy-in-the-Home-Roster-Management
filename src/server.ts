@@ -163,6 +163,13 @@ async function startServer() {
   try {
 
     db.exec(`
+      CREATE TABLE IF NOT EXISTS vehicles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        rego TEXT NOT NULL,
+        user_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         email TEXT UNIQUE NOT NULL,
@@ -501,6 +508,7 @@ try {
       ["odometer_end_photo", "TEXT"],
       ["odometer_start_reading", "REAL"],
       ["odometer_end_reading", "REAL"],
+      ["vehicle_id", "INTEGER"],
       ["merged_into_shift_id", "INTEGER"]
     ];
     for (const [colName, colType] of colsToAdd) {
@@ -3813,6 +3821,99 @@ app.get("/api/health", (req, res) => {
   });
 
   // --- Staff (Users) APIs ---
+  // --- Travel Logs API ---
+  app.get("/api/travel-logs", authenticateToken, (req, res) => {
+    try {
+      const { clientId, staffId, vehicleId, fundingType, startDate, endDate } = req.query;
+      
+      let query = `
+        WITH ShiftsWithLag AS (
+          SELECT s.*, 
+                 u.first_name as staff_first, u.last_name as staff_last,
+                 c.first_name as client_first, c.last_name as client_last,
+                 COALESCE(c.funding_type, 'NDIS') as funding_type,
+                 c.address as destination_address,
+                 COALESCE(LAG(c.address) OVER (PARTITION BY s.staff_id, DATE(s.start_time) ORDER BY s.start_time), u.address) as origin_address,
+                 CAST((strftime('%s', s.start_time) - strftime('%s', LAG(s.end_time) OVER (PARTITION BY s.staff_id, DATE(s.start_time) ORDER BY s.start_time))) / 60 AS INTEGER) as travel_minutes,
+                 v.name as vehicle_name, v.rego as vehicle_rego
+          FROM shifts s
+          JOIN users u ON s.staff_id = u.id
+          JOIN clients c ON s.client_id = c.id
+          LEFT JOIN vehicles v ON s.vehicle_id = v.id
+          WHERE (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
+        )
+        SELECT * FROM ShiftsWithLag WHERE 1=1
+      `;
+      
+      const params = [];
+      
+      if (req.user.role === 'staff') {
+        query += " AND staff_id = ?";
+        params.push(req.user.id);
+      } else if (staffId) {
+        query += " AND staff_id = ?";
+        params.push(staffId);
+      }
+      
+      if (clientId) {
+        query += " AND client_id = ?";
+        params.push(clientId);
+      }
+      
+      if (vehicleId) {
+        query += " AND vehicle_id = ?";
+        params.push(vehicleId);
+      }
+      
+      if (fundingType) {
+        query += " AND funding_type = ?";
+        params.push(fundingType);
+      }
+      
+      if (startDate) {
+        query += " AND DATE(start_time) >= DATE(?)";
+        params.push(startDate);
+      }
+      
+      if (endDate) {
+        query += " AND DATE(start_time) <= DATE(?)";
+        params.push(endDate);
+      }
+      
+      query += " ORDER BY start_time DESC";
+      
+      const logs = db.prepare(query).all(...params);
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching travel logs:", error);
+      res.status(500).json({ error: "Failed to fetch travel logs" });
+    }
+  });
+
+  app.put("/api/travel-logs/:id/odometer", authenticateToken, (req, res) => {
+    try {
+      const { odometer_start_reading, odometer_end_reading, vehicle_id } = req.body;
+      const shiftId = req.params.id;
+      
+      const shift = db.prepare("SELECT * FROM shifts WHERE id = ?").get(shiftId);
+      if (!shift) return res.status(404).json({ error: "Shift not found" });
+      
+      if (req.user.role === 'staff' && shift.staff_id !== req.user.id) {
+         return res.status(403).json({ error: "Forbidden" });
+      }
+      
+      db.prepare(
+        "UPDATE shifts SET odometer_start_reading = ?, odometer_end_reading = ?, vehicle_id = ? WHERE id = ?"
+      ).run(odometer_start_reading || null, odometer_end_reading || null, vehicle_id || null, shiftId);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating travel log odometer:", error);
+      res.status(500).json({ error: "Failed to update odometer" });
+    }
+  });
+  // --- End Travel Logs API ---
+
   app.get(
     "/api/admin/staff-compliance",
     authenticateToken,
@@ -4106,6 +4207,82 @@ app.get("/api/health", (req, res) => {
       res.status(500).json({ error: "Internal Server Error" });
     }
   });
+
+  // --- Vehicles API ---
+  app.get("/api/vehicles", authenticateToken, (req, res) => {
+    try {
+      let query = "SELECT * FROM vehicles";
+      let params = [];
+      if (req.user.role === "staff") {
+        query += " WHERE user_id = ?";
+        params.push(req.user.id);
+      }
+      query += " ORDER BY name ASC";
+      
+      const vehicles = db.prepare(query).all(...params);
+      res.json(vehicles);
+    } catch (error) {
+      console.error("Error fetching vehicles:", error);
+      res.status(500).json({ error: "Failed to fetch vehicles" });
+    }
+  });
+
+  app.get("/api/vehicles/all", authenticateToken, (req, res) => {
+    try {
+      const vehicles = db.prepare("SELECT * FROM vehicles ORDER BY name ASC").all();
+      res.json(vehicles);
+    } catch (error) {
+      console.error("Error fetching all vehicles:", error);
+      res.status(500).json({ error: "Failed to fetch vehicles" });
+    }
+  });
+
+  app.post("/api/vehicles", authenticateToken, (req, res) => {
+    try {
+      const { name, rego, user_id } = req.body;
+      const targetUserId = req.user.role === "staff" ? req.user.id : user_id || req.user.id;
+      const result = db.prepare("INSERT INTO vehicles (name, rego, user_id) VALUES (?, ?, ?)").run(name, rego, targetUserId);
+      res.json({ id: result.lastInsertRowid, name, rego, user_id: targetUserId });
+    } catch (error) {
+      console.error("Error creating vehicle:", error);
+      res.status(500).json({ error: "Failed to create vehicle" });
+    }
+  });
+
+  app.put("/api/vehicles/:id", authenticateToken, (req, res) => {
+    try {
+      const { name, rego, user_id } = req.body;
+      const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(req.params.id);
+      if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
+      if (req.user.role === "staff" && vehicle.user_id !== req.user.id) {
+         return res.status(403).json({ error: "Forbidden" });
+      }
+      
+      db.prepare("UPDATE vehicles SET name = ?, rego = ?, user_id = ? WHERE id = ?").run(
+        name, rego, req.user.role === "staff" ? req.user.id : (user_id || vehicle.user_id), req.params.id
+      );
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating vehicle:", error);
+      res.status(500).json({ error: "Failed to update vehicle" });
+    }
+  });
+
+  app.delete("/api/vehicles/:id", authenticateToken, (req, res) => {
+    try {
+      const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(req.params.id);
+      if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
+      if (req.user.role === "staff" && vehicle.user_id !== req.user.id) {
+         return res.status(403).json({ error: "Forbidden" });
+      }
+      db.prepare("DELETE FROM vehicles WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting vehicle:", error);
+      res.status(500).json({ error: "Failed to delete vehicle" });
+    }
+  });
+  // --- End Vehicles API ---
 
   // --- Clients APIs ---
   app.get("/api/clients", authenticateTokenOrWallboard, (req: any, res: any) => {
