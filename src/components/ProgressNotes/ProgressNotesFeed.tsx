@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Pencil, Plus, Save, X } from 'lucide-react';
 import EditorJSWrapper, { EditorJSRef } from './EditorJSWrapper';
 
@@ -48,6 +48,16 @@ export default function ProgressNotesFeed({
   const [editingNote, setEditingNote] = useState<{source: 'SHIFT'|'MANUAL', id: number} | null>(null);
   const [editTags, setEditTags] = useState('');
   const editEditorRef = useRef<EditorJSRef>(null);
+
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  
+  useEffect(() => {
+    setPage(1);
+  }, [selectedClientId]);
+  
+  const paginatedNotes = notes.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.ceil(notes.length / pageSize);
 
   const handleSubmit = async () => {
     if (!selectedClientId) return;
@@ -164,7 +174,7 @@ export default function ProgressNotesFeed({
             <div className="border border-border-subtle rounded-lg overflow-hidden bg-brand-bg text-white">
               <EditorJSWrapper 
                 ref={editorRef} 
-                minHeight={80} 
+                minHeight={40} 
                 toolbarRight={
                   <div className="flex items-center gap-3">
                     {userRole === 'ADMIN' && (
@@ -213,16 +223,16 @@ export default function ProgressNotesFeed({
         </div>
       )}
       {/* Feed */}
-      <div className="space-y-4">
+      <div className="columns-1 md:columns-2 gap-4">
         {loading ? (
-          <div className="text-center py-8 text-zinc-400">Loading notes...</div>
+          <div className="text-center py-8 text-zinc-400 col-span-1 md:col-span-2 w-full break-inside-avoid">Loading notes...</div>
         ) : notes.length === 0 ? (
-          <div className="text-center py-12 text-zinc-500 bg-brand-navy/80 rounded-xl border border-border-subtle">
+          <div className="text-center py-12 text-zinc-500 bg-brand-navy/80 rounded-xl border border-border-subtle col-span-1 md:col-span-2 w-full break-inside-avoid">
             No progress notes found for this client.
           </div>
         ) : (
-          notes.map((note, idx) => (
-            <div key={`${note.source}-${note.id}-${idx}`} className="bg-brand-navy rounded-xl border border-border-subtle p-3 shadow-sm">
+          paginatedNotes.map((note, idx) => (
+            <div key={`${note.source}-${note.id}-${idx}`} className="bg-brand-navy rounded-xl border border-border-subtle p-3 shadow-sm mb-4 break-inside-avoid">
                <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="text-[13px] text-zinc-300">
@@ -275,7 +285,7 @@ export default function ProgressNotesFeed({
                       <EditorJSWrapper 
                         ref={editEditorRef} 
                         initialData={note.notes as any} 
-                        minHeight={80} 
+                        minHeight={40} 
                       />
                     </div>
                     
