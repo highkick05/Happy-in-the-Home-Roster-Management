@@ -143,7 +143,7 @@ export default function VehiclesView() {
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
         
         <div className="flex items-center justify-between">
           <div>
@@ -160,20 +160,20 @@ export default function VehiclesView() {
         </div>
 
         <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden overflow-x-auto">
-          <table className="w-full text-left text-sm min-w-[1200px]">
+          <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-brand-navy border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] font-semibold">
               <tr>
-                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[200px]">Vehicle Make & Model</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[80px]">Year</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[120px]">Rego</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[150px]">Ownership</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30 text-center min-w-[80px]">Default</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[120px]">Rego Expiry</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[140px]">Insurance Type</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[140px]">Insurance Expiry</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[140px]">Roadside</th>
-                <th className="px-4 py-3 border-r border-border-subtle/30 min-w-[140px]">Roadside Expiry</th>
-                <th className="px-4 py-3 text-right min-w-[100px]">Actions</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30">Make & Model</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30">Year</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30">Rego</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30">Ownership</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30 text-center">Default</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30">Rego Expiry</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30">Insurance</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30">Ins. Expiry</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30">Roadside</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30">R/S Expiry</th>
+                <th className="px-3 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
@@ -184,63 +184,63 @@ export default function VehiclesView() {
               ) : (
                 vehicles.map(v => (
                   <tr key={v.id} className="hover:bg-brand-bg/50 transition-colors">
-                    <td className="px-4 py-3 border-r border-border-subtle/30 font-medium text-white">{v.name}</td>
-                    <td className="px-4 py-3 border-r border-border-subtle/30">{v.year}</td>
-                    <td className="px-4 py-3 border-r border-border-subtle/30">{v.rego}</td>
-                    <td className="px-4 py-3 border-r border-border-subtle/30">
-                      <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border ${v.ownership === 'COMPANY' ? 'bg-blue-900/10 border-blue-900/20 text-blue-400' : 'bg-purple-900/10 border-purple-900/20 text-purple-400'}`}>
+                    <td className="px-3 py-3 border-r border-border-subtle/30 font-medium text-white">{v.name}</td>
+                    <td className="px-3 py-3 border-r border-border-subtle/30">{v.year}</td>
+                    <td className="px-3 py-3 border-r border-border-subtle/30">{v.rego}</td>
+                    <td className="px-3 py-3 border-r border-border-subtle/30">
+                      <span className={`inline-flex px-2 py-1 rounded text-xs font-bold tracking-wide uppercase border ${v.ownership === 'COMPANY' ? 'bg-blue-900/10 border-blue-900/20 text-blue-400' : 'bg-purple-900/10 border-purple-900/20 text-purple-400'}`}>
                         {v.ownership === 'COMPANY' ? 'Company' : 'Private'}
                       </span>
                       {v.ownership === 'PRIVATE' && (
-                        <div className="text-xs text-[#8B949E] mt-1">
-                          Owner: {staff.find(s => s.id === v.user_id)?.first_name} {staff.find(s => s.id === v.user_id)?.last_name}
+                        <div className="text-[11px] text-[#8B949E] mt-1 font-medium">
+                          {staff.find(s => s.id === v.user_id)?.first_name} {staff.find(s => s.id === v.user_id)?.last_name}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 border-r border-border-subtle/30 text-center">
+                    <td className="px-3 py-3 border-r border-border-subtle/30 text-center">
                        {v.ownership === 'PRIVATE' && v.user_id === user?.id && (
                           <button onClick={() => handleSetPrimary(v)} className="text-brand-teal hover:text-white transition-colors" title="Set as default vehicle">
                             {v.is_primary ? <CheckCircle2 className="w-5 h-5 mx-auto text-brand-teal" /> : <Circle className="w-5 h-5 mx-auto text-[#8B949E]" />}
                           </button>
                        )}
                     </td>
-                    <td className="px-4 py-3 border-r border-border-subtle/30">
+                    <td className="px-3 py-3 border-r border-border-subtle/30">
                       {v.rego_expiry}
                       {v.rego_evidence_url && (
                         <a href={`/uploads/${v.rego_evidence_url}`} target="_blank" rel="noreferrer" className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
-                          <FileText className="w-3 h-3" /> View Document
+                          <FileText className="w-3 h-3" /> View Doc
                         </a>
                       )}
                     </td>
-                    <td className="px-4 py-3 border-r border-border-subtle/30">
-                      {v.insurance_type === 'COMPREHENSIVE' ? 'Comprehensive' : (v.insurance_type === 'THIRD_PARTY' ? 'Third Party' : '-')}
+                    <td className="px-3 py-3 border-r border-border-subtle/30">
+                      {v.insurance_type === 'COMPREHENSIVE' ? 'Comp.' : (v.insurance_type === 'THIRD_PARTY' ? '3rd Party' : '-')}
                       {v.insurance_provider && <div className="text-[10px] text-[#8B949E] uppercase tracking-wider">{v.insurance_provider}</div>}
                     </td>
-                    <td className="px-4 py-3 border-r border-border-subtle/30">
+                    <td className="px-3 py-3 border-r border-border-subtle/30">
                       {v.insurance_expiry}
                       {v.insurance_evidence_url && (
                         <a href={`/uploads/${v.insurance_evidence_url}`} target="_blank" rel="noreferrer" className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
-                          <FileText className="w-3 h-3" /> View Document
+                          <FileText className="w-3 h-3" /> View Doc
                         </a>
                       )}
                     </td>
-                    <td className="px-4 py-3 border-r border-border-subtle/30">
+                    <td className="px-3 py-3 border-r border-border-subtle/30">
                       {v.has_roadside ? (
                         <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border bg-green-900/10 border-green-900/20 text-green-400">Yes</span>
                       ) : (
                         <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border bg-red-900/10 border-red-900/20 text-red-400">No</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 border-r border-border-subtle/30">
+                    <td className="px-3 py-3 border-r border-border-subtle/30">
                       {v.roadside_expiry}
                       {v.roadside_provider && <div className="text-[10px] text-[#8B949E] uppercase tracking-wider">{v.roadside_provider}</div>}
                       {v.roadside_evidence_url && (
                         <a href={`/uploads/${v.roadside_evidence_url}`} target="_blank" rel="noreferrer" className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
-                          <FileText className="w-3 h-3" /> View Document
+                          <FileText className="w-3 h-3" /> View Doc
                         </a>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-3 text-right">
                       <button onClick={() => openEditModal(v)} className="text-brand-teal hover:text-white px-2 py-1 text-xs transition-colors">Edit</button>
                       {user?.role === 'ADMIN' && (
                         <button onClick={() => handleDeleteVehicle(v.id.toString())} className="text-red-500 hover:text-red-400 px-2 py-1 text-xs transition-colors">Delete</button>
