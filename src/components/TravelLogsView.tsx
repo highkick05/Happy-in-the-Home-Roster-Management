@@ -350,13 +350,13 @@ const expandedLogs = logs.map(log => {
 
   return (
     <div className="flex flex-col h-full bg-brand-bg relative min-h-screen">
-      <div className="flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-brand-navy overflow-hidden">
+      <div className="flex items-center justify-between px-6 py-1 border-b border-border-subtle bg-brand-navy overflow-hidden">
         <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <FileText className="w-5 h-5 text-brand-teal" />
             Travel Logs
         </h1>
         <div className="flex items-center gap-6 relative">
-          <img src={carImage} alt="Luxury Vehicle" className="h-[60px] w-auto object-contain pointer-events-none" style={{ mixBlendMode: "screen", filter: "contrast(1.2) brightness(1.2)" }} />
+          <img src={carImage} alt="Luxury Vehicle" className="h-[44px] w-auto object-contain pointer-events-none" style={{ mixBlendMode: "screen", filter: "contrast(1.2) brightness(1.2)" }} />
           <button 
             onClick={() => setShowVehicles(true)}
             className="bg-brand-teal text-white px-3 py-1.5 rounded font-medium text-xs hover:bg-brand-teal/90 transition-colors h-fit whitespace-nowrap"

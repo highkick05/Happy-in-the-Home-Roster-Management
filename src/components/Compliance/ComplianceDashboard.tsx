@@ -139,6 +139,7 @@ const ONBOARDING_STEP_LABELS: Record<string, string> = {
 
 export default function ComplianceDashboard() {
   const { token, user, settings } = useAuth();
+  const [previewPhoto, setPreviewPhoto] = useState<{url: string, type: string} | null>(null);
 
   const getLocalizedDateString = (isoString?: string) => {
     if (!isoString) return 'N/A';
@@ -1054,15 +1055,9 @@ export default function ComplianceDashboard() {
                                  <span>{row.odometer_start_reading ? Math.round(Number(row.odometer_start_reading)) : ''}</span>
                                  {row.odometer_start_photo && (
                                    <div className="relative group flex items-center">
-                                     <button onClick={() => window.open(row.odometer_start_photo, '_blank')} className="text-[#8B949E] hover:text-[#E6EDF3] transition-colors">
+                                     <button onClick={() => setPreviewPhoto({url: row.odometer_start_photo, type: 'Start'})} className="text-[#8B949E] hover:text-[#E6EDF3] transition-colors">
                                        <Camera className="w-3.5 h-3.5" />
                                      </button>
-                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50">
-                                       <div className="bg-[#121214] border border-border-subtle rounded-md shadow-xl p-1 w-48">
-                                         <img src={row.odometer_start_photo} alt="Start Odometer" className="w-full h-auto rounded object-cover" />
-                                       </div>
-                                       <div className="w-2 h-2 bg-[#121214] border-r border-b border-border-subtle transform rotate-45 absolute -bottom-1 left-1/2 -translate-x-1/2"></div>
-                                     </div>
                                    </div>
                                  )}
                                </div>
@@ -1072,15 +1067,9 @@ export default function ComplianceDashboard() {
                                  <span>{row.odometer_end_reading ? Math.round(Number(row.odometer_end_reading)) : ''}</span>
                                  {row.odometer_end_photo && (
                                    <div className="relative group flex items-center">
-                                     <button onClick={() => window.open(row.odometer_end_photo, '_blank')} className="text-[#8B949E] hover:text-[#E6EDF3] transition-colors">
+                                     <button onClick={() => setPreviewPhoto({url: row.odometer_end_photo, type: 'End'})} className="text-[#8B949E] hover:text-[#E6EDF3] transition-colors">
                                        <Camera className="w-3.5 h-3.5" />
                                      </button>
-                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50">
-                                       <div className="bg-[#121214] border border-border-subtle rounded-md shadow-xl p-1 w-48">
-                                         <img src={row.odometer_end_photo} alt="End Odometer" className="w-full h-auto rounded object-cover" />
-                                       </div>
-                                       <div className="w-2 h-2 bg-[#121214] border-r border-b border-border-subtle transform rotate-45 absolute -bottom-1 left-1/2 -translate-x-1/2"></div>
-                                     </div>
                                    </div>
                                  )}
                                </div>
@@ -1495,6 +1484,24 @@ export default function ComplianceDashboard() {
                 </p>
               </div>
               <OnboardingView targetUserId={manageStaffId} />
+            </div>
+          </div>
+        </div>
+      )}
+    
+      {previewPhoto && (
+        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setPreviewPhoto(null)}>
+          <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden max-w-6xl w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-brand-navy">
+              <h3 className="text-lg font-semibold text-white">{previewPhoto.type} Odometer Photo</h3>
+              <button onClick={() => setPreviewPhoto(null)} className="text-[#8B949E] hover:text-white text-xl leading-none">&times;</button>
+            </div>
+            <div className="p-6 flex justify-center bg-black/30">
+               {previewPhoto.url.startsWith('data:') || previewPhoto.url.startsWith('blob:') ? (
+                 <img src={previewPhoto.url} alt="Odometer" className="max-w-full max-h-[85vh] rounded-lg shadow-xl object-contain" />
+               ) : (
+                 <img src={`/uploads/${previewPhoto.url}`} alt="Odometer" className="max-w-full max-h-[85vh] rounded-lg shadow-xl object-contain" />
+               )}
             </div>
           </div>
         </div>
