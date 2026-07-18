@@ -168,6 +168,7 @@ async function startServer() {
         name TEXT NOT NULL,
         rego TEXT NOT NULL,
         user_id INTEGER,
+        is_primary INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
       CREATE TABLE IF NOT EXISTS users (
@@ -4209,7 +4210,7 @@ app.get("/api/health", (req, res) => {
   });
 
   // --- Vehicles API ---
-  app.get("/api/vehicles", authenticateToken, (req, res) => {
+  app.get("/api/vehicles", authenticateToken, (req: any, res: any) => {
     try {
       let query = "SELECT * FROM vehicles";
       let params = [];
@@ -4227,7 +4228,7 @@ app.get("/api/health", (req, res) => {
     }
   });
 
-  app.get("/api/vehicles/all", authenticateToken, (req, res) => {
+  app.get("/api/vehicles/all", authenticateToken, (req: any, res: any) => {
     try {
       const vehicles = db.prepare("SELECT * FROM vehicles ORDER BY name ASC").all();
       res.json(vehicles);
@@ -4237,19 +4238,32 @@ app.get("/api/health", (req, res) => {
     }
   });
 
-  app.post("/api/vehicles", authenticateToken, (req, res) => {
+  app.post("/api/vehicles", authenticateToken, (req: any, res: any) => {
     try {
-      const { name, rego, user_id } = req.body;
+      const { name, rego, user_id, is_primary } = req.body;
       const targetUserId = req.user.role === "staff" ? req.user.id : user_id || req.user.id;
-      const result = db.prepare("INSERT INTO vehicles (name, rego, user_id) VALUES (?, ?, ?)").run(name, rego, targetUserId);
-      res.json({ id: result.lastInsertRowid, name, rego, user_id: targetUserId });
+      
+      const existing = db.prepare("SELECT COUNT(*) as c FROM vehicles WHERE user_id = ?").get(targetUserId) as {c: number};
+      const willBePrimary = existing.c === 0 || is_primary ? 1 : 0;
+      
+      if (willBePrimary === 1) {
+         db.prepare("UPDATE vehicles SET is_primary = 0 WHERE user_id = ?").run(targetUserId);
+      }
+      
+      const result = db.prepare("INSERT INTO vehicles (name, rego, user_id, is_primary) VALUES (?, ?, ?, ?)").run(name, rego, targetUserId, willBePrimary);
+      
+      // Auto-assign to unassigned shifts if it's the primary vehicle
+      if (willBePrimary === 1) {
+         db.prepare("UPDATE shifts SET vehicle_id = ? WHERE staff_id = ? AND (vehicle_id IS NULL OR vehicle_id = '')").run(result.lastInsertRowid, targetUserId);
+      }
+      res.json({ id: result.lastInsertRowid, name, rego, user_id: targetUserId, is_primary: willBePrimary });
     } catch (error) {
       console.error("Error creating vehicle:", error);
       res.status(500).json({ error: "Failed to create vehicle" });
     }
   });
 
-  app.put("/api/vehicles/:id", authenticateToken, (req, res) => {
+  app.put("/api/vehicles/:id", authenticateToken, (req: any, res: any) => {
     try {
       const { name, rego, user_id } = req.body;
       const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(req.params.id);
@@ -4268,7 +4282,7 @@ app.get("/api/health", (req, res) => {
     }
   });
 
-  app.delete("/api/vehicles/:id", authenticateToken, (req, res) => {
+  app.delete("/api/vehicles/:id", authenticateToken, (req: any, res: any) => {
     try {
       const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(req.params.id);
       if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
@@ -7873,7 +7887,7 @@ app.get("/api/health", (req, res) => {
         .get(clientId) as any;
       const fType = clientQ?.funding_type || "NDIS";
       const stmt = db.prepare(
-        "INSERT INTO shifts (staff_id, client_id, service_id, start_time, end_time, status, notes, services_json, is_abt_approved, funding_type, is_historical) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO shifts (staff_id, client_id, service_id, start_time, end_time, status, notes, services_json, is_abt_approved, funding_type, is_historical, vehicle_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
       
       const isHist = Boolean(is_historical);
@@ -7921,6 +7935,9 @@ app.get("/api/health", (req, res) => {
         let shiftIds = [];
         db.transaction((shiftsArray) => {
           shiftIds = shiftsArray.map((shift) => {
+            
+            const primaryVehicle = db.prepare("SELECT id FROM vehicles WHERE user_id = ? AND is_primary = 1 LIMIT 1").get(shift.staffId) as {id: number} | undefined;
+            const vehicleIdToAssign = primaryVehicle ? primaryVehicle.id : null;
             const info = stmt.run(
               shift.staffId,
               clientId,
@@ -7932,7 +7949,8 @@ app.get("/api/health", (req, res) => {
               shift.servicesJson,
               shift.isAbtApproved ? 1 : 0,
               fType,
-              isHist ? 1 : 0
+              isHist ? 1 : 0,
+              vehicleIdToAssign
             );
             insertHistoricalData(info.lastInsertRowid, shift);
             return info.lastInsertRowid;
@@ -7952,6 +7970,9 @@ app.get("/api/health", (req, res) => {
         const single = processedStaffShifts[0];
         let sid = 0;
         db.transaction(() => {
+          
+          const primaryVehicle = db.prepare("SELECT id FROM vehicles WHERE user_id = ? AND is_primary = 1 LIMIT 1").get(single.staffId) as {id: number} | undefined;
+          const vehicleIdToAssign = primaryVehicle ? primaryVehicle.id : null;
           const info = stmt.run(
             single.staffId,
             clientId,
@@ -7963,7 +7984,8 @@ app.get("/api/health", (req, res) => {
             single.servicesJson,
             single.isAbtApproved ? 1 : 0,
             fType,
-            isHist ? 1 : 0
+            isHist ? 1 : 0,
+            vehicleIdToAssign
           );
           sid = Number(info.lastInsertRowid);
           insertHistoricalData(sid, single);
