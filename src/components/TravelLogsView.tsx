@@ -381,12 +381,12 @@ const expandedLogs = logs.map(log => {
           
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
-            <CustomDatePicker selected={startDate} onChange={(date: Date) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3]" />
+            <CustomDatePicker selected={startDate} onChange={(date: Date) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3]"  position="bottom" />
           </div>
           
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
-            <CustomDatePicker selected={endDate} onChange={(date: Date) => setEndDate(date)} placeholderText="End Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3]" />
+            <CustomDatePicker selected={endDate} onChange={(date: Date) => setEndDate(date)} placeholderText="End Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3]"  position="bottom" />
           </div>
         </div>
 
@@ -402,6 +402,7 @@ const expandedLogs = logs.map(log => {
                   <th className="px-4 py-3 border-r border-border-subtle/30">Client</th>
                   <th className="px-4 py-3 border-r border-border-subtle/30">Category</th>
                   <th className="px-4 py-3 border-r border-border-subtle/30">Travel Route</th>
+                  <th className="px-4 py-3 border-r border-border-subtle/30">Transport KM</th>
                   <th className="px-4 py-3 border-r border-border-subtle/30">Start Odometer</th>
                   <th className="px-4 py-3 border-r border-border-subtle/30">End Odometer</th>
                   <th className="px-4 py-3 border-r border-border-subtle/30">Vehicle</th>
@@ -410,14 +411,14 @@ const expandedLogs = logs.map(log => {
               <tbody className="divide-y divide-border-subtle text-sm text-[#E6EDF3]">
                 {loading ? (
                   <tr>
-                    <td colSpan={12} className="px-4 py-12 text-center text-[#8B949E]">
+                    <td colSpan={13} className="px-4 py-12 text-center text-[#8B949E]">
                        <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2" />
                        Loading travel logs...
                     </td>
                   </tr>
                 ) : logs.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="px-4 py-12 text-center text-[#8B949E]">
+                    <td colSpan={13} className="px-4 py-12 text-center text-[#8B949E]">
                        No travel logs found for the selected filters.
                     </td>
                   </tr>
@@ -441,6 +442,27 @@ const expandedLogs = logs.map(log => {
                         </td>
                         <td className="px-4 py-3 border-r border-border-subtle/30 max-w-sm truncate" title={log._route}>
                           {log._route}
+                        </td>
+                        <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
+                          <div className="flex flex-col text-[11px] leading-tight gap-0.5">
+                            {Number(log.provider_travel_km) > 0 && (
+                              <span className="text-[#8B949E]">
+                                PT: {Number(log.provider_travel_km).toFixed(3)} km (${Number(log.provider_travel_cost || 0).toFixed(2)})
+                              </span>
+                            )}
+                            {Number(log.abt_km) > 0 && (
+                              <span className="text-[#8B949E]">
+                                ABT: {Number(log.abt_km).toFixed(3)} km (${Number(log.abt_cost || 0).toFixed(2)})
+                              </span>
+                            )}
+                            {(Number(log.provider_travel_km) > 0 || Number(log.abt_km) > 0) ? (
+                              <span className="text-[#E6EDF3] font-semibold mt-1">
+                                Total: {((Number(log.provider_travel_km) || 0) + (Number(log.abt_km) || 0)).toFixed(3)} km
+                              </span>
+                            ) : (
+                              <span className="text-[#8B949E] italic text-xs">0 km</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
                           <div className="flex items-center gap-2">
@@ -618,7 +640,7 @@ const expandedLogs = logs.map(log => {
                   </thead>
                   <tbody className="divide-y divide-border-subtle bg-brand-navy/30">
                     {vehicles.length === 0 ? (
-                      <tr><td colSpan={12} className="px-4 py-8 text-center text-[#8B949E] text-sm">No vehicles registered yet.</td></tr>
+                      <tr><td colSpan={13} className="px-4 py-8 text-center text-[#8B949E] text-sm">No vehicles registered yet.</td></tr>
                     ) : vehicles.map(v => (
                       <tr key={v.id}>
                         <td className="px-4 py-3 text-sm text-white font-medium border-r border-border-subtle/30">{v.name}</td>
