@@ -119,6 +119,27 @@ export default function TravelLogsView() {
     }
   };
 
+  const handleInlineSave = async (log: any, updates: any) => {
+    try {
+      const payload = {
+        odometer_start_reading: updates.odometer_start_reading !== undefined ? (updates.odometer_start_reading || null) : log.odometer_start_reading,
+        odometer_end_reading: updates.odometer_end_reading !== undefined ? (updates.odometer_end_reading || null) : log.odometer_end_reading,
+        vehicle_id: updates.vehicle_id !== undefined ? (updates.vehicle_id || null) : log.vehicle_id
+      };
+      
+      const res = await fetch(`/api/travel-logs/${log.id}/odometer`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        fetchLogs();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleSaveOdo = async (id: string) => {
     try {
       const res = await fetch(`/api/travel-logs/${id}/odometer`, {
@@ -150,121 +171,43 @@ export default function TravelLogsView() {
     }
   };
   
-  const formatRouteLog = (logStr: string | null, row?: any): string | null => {
-    if (!logStr) return null;
-    if (logStr === 'No route logged') return 'No route logged';
-    if (!logStr.startsWith('{')) return logStr;
-      
-    const fallbackOrigin = row?.origin_address || 'Unknown';
-    const fallbackDest = row?.destination_address || 'Unknown';
-    const cleanLocationStr = (val: string, fallback: string) => {
-        if (!val || val.trim().toLowerCase() === 'location' || val.trim().toLowerCase() === 'unknown' || val.trim() === '') {
-            return fallback;
-        }
-        return val;
-    };
-    
-    try {
-      const parsed = JSON.parse(logStr);
-      let out = [];
-      if (parsed.homeCareTravel && parsed.homeCareTravel.legs) {
-        const hcLegs = parsed.homeCareTravel.legs.map((l: any, idx: number) => {
-           if (l.description && l.description.includes('Private Commute')) {
-              return 'Private Commute';
-           }
-           const start = l.startAddress ? extractAddress(l.startAddress) : null;
-           const end = l.endAddress ? extractAddress(l.endAddress) : null;
-           if (!start && !end) return `Leg ${idx+1} ${l.distanceText || ''}`;
-           return `${cleanLocationStr(start || '', fallbackOrigin)} → ${cleanLocationStr(end || '', fallbackDest)}`;
-        });
-        if (hcLegs.length) out.push(hcLegs.join(', '));
-      } else {
-         if (parsed.providerTravel && parsed.providerTravel.distanceValue > 0) {
-            const start = parsed.providerTravel.startAddress ? extractAddress(parsed.providerTravel.startAddress) : null;
-            const end = parsed.providerTravel.endAddress ? extractAddress(parsed.providerTravel.endAddress) : null;
-            out.push(`PT: ${cleanLocationStr(start || '', fallbackOrigin)} → ${cleanLocationStr(end || '', fallbackDest)}`);
-         }
-         if (parsed.activityBasedTransport && parsed.activityBasedTransport.distanceValue > 0) {
-            const start = parsed.activityBasedTransport.startAddress ? extractAddress(parsed.activityBasedTransport.startAddress) : null;
-            const end = parsed.activityBasedTransport.endAddress ? extractAddress(parsed.activityBasedTransport.endAddress) : null;
-            out.push(`ABT: ${cleanLocationStr(start || '', fallbackDest)} → ${cleanLocationStr(end || '', fallbackDest)}`);
-         }
-      }
-      return out.join(' | ') || 'No route details';
-    } catch(e) {
-       return logStr;
-    }
-  };
+  
 
-  const expandedLogs = [];
-  logs.forEach(log => {
+  const expandedLogs = logs.map(log => {
     let parsed: any = {};
-    try {
-      if (log.services_json && log.services_json.startsWith('{')) {
-        parsed = JSON.parse(log.services_json);
-      }
-    } catch (e) {}
+    if (log.transport_route_log && log.transport_route_log.startsWith('{')) {
+      try { parsed = JSON.parse(log.transport_route_log); } catch(e){}
+    }
 
-    const fallbackOrigin = log.origin_address || 'Unknown';
-    const fallbackDest = log.destination_address || 'Unknown';
-    const cleanLocationStr = (val: string, fallback: string) => {
-        if (!val || val.trim().toLowerCase() === 'location' || val.trim().toLowerCase() === 'unknown' || val.trim() === '') {
-            return fallback;
-        }
-        return val;
+    const isHC = log.funding_type === 'HOME_CARE' || log.funding_type === 'Home Care' || log.funding_type === 'HCP';
+    
+    let category = 'Other Travel';
+    let hasPT = false;
+    let hasABT = false;
+    
+    if (parsed.providerTravel && (parsed.providerTravel.distance > 0 || (parsed.providerTravel.legs && parsed.providerTravel.legs.length > 0))) {
+        hasPT = true;
+    }
+    if (parsed.abt && (parsed.abt.distance > 0 || (parsed.abt.legs && parsed.abt.legs.length > 0))) {
+        hasABT = true;
+    }
+
+    if (isHC) {
+       category = 'Home Care Travel';
+    } else if (hasPT && hasABT) {
+       category = 'PT & ABT';
+    } else if (hasPT) {
+       category = 'Provider Travel';
+    } else if (hasABT) {
+       category = 'Activity Based Transport';
+    }
+    
+    return {
+       ...log,
+       _rowId: log.id.toString(),
+       _category: category,
+       _route: formatRouteLog(log.transport_route_log, log) || 'No route logged'
     };
-
-    let hasTravel = false;
-
-    if (parsed.homeCareTravel && parsed.homeCareTravel.legs && parsed.homeCareTravel.legs.length > 0) {
-      hasTravel = true;
-      const hcLegs = parsed.homeCareTravel.legs.map((l: any, idx: number) => {
-         if (l.description && l.description.includes('Private Commute')) return 'Private Commute';
-         const start = l.startAddress ? extractAddress(l.startAddress) : null;
-         const end = l.endAddress ? extractAddress(l.endAddress) : null;
-         if (!start && !end) return `Leg ${idx+1} ${l.distanceText || ''}`;
-         return `${cleanLocationStr(start || '', fallbackOrigin)} → ${cleanLocationStr(end || '', fallbackDest)}`;
-      });
-      expandedLogs.push({
-        ...log,
-        _rowId: log.id + '_hc',
-        _category: 'Home Care Travel',
-        _route: hcLegs.join(', ')
-      });
-    } else {
-      if (parsed.providerTravel && parsed.providerTravel.distanceValue > 0) {
-        hasTravel = true;
-        const start = parsed.providerTravel.startAddress ? extractAddress(parsed.providerTravel.startAddress) : null;
-        const end = parsed.providerTravel.endAddress ? extractAddress(parsed.providerTravel.endAddress) : null;
-        expandedLogs.push({
-          ...log,
-          _rowId: log.id + '_pt',
-          _category: 'Provider Travel',
-          _route: `${cleanLocationStr(start || '', fallbackOrigin)} → ${cleanLocationStr(end || '', fallbackDest)}`
-        });
-      }
-      if (parsed.activityBasedTransport && parsed.activityBasedTransport.distanceValue > 0) {
-        hasTravel = true;
-        const start = parsed.activityBasedTransport.startAddress ? extractAddress(parsed.activityBasedTransport.startAddress) : null;
-        const end = parsed.activityBasedTransport.endAddress ? extractAddress(parsed.activityBasedTransport.endAddress) : null;
-        expandedLogs.push({
-          ...log,
-          _rowId: log.id + '_abt',
-          _category: 'Activity Based Transport',
-          _route: `${cleanLocationStr(start || '', fallbackDest)} → ${cleanLocationStr(end || '', fallbackDest)}`
-        });
-      }
-    }
-
-    if (!hasTravel) {
-       // If no specific parsed travel data but maybe odometers exist, still show one row.
-       expandedLogs.push({
-          ...log,
-          _rowId: log.id + '_none',
-          _category: 'Other Travel',
-          _route: log.services_json === 'No route logged' ? 'No route logged' : 'No route details'
-       });
-    }
   });
 
   return (
@@ -369,20 +312,20 @@ export default function TravelLogsView() {
                   <th className="px-4 py-3 border-r border-border-subtle/30">Travel Route</th>
                   <th className="px-4 py-3 border-r border-border-subtle/30">Start Odometer</th>
                   <th className="px-4 py-3 border-r border-border-subtle/30">End Odometer</th>
-                  <th className="px-4 py-3">Actions</th>
+                  <th className="px-4 py-3 border-r border-border-subtle/30">Vehicle</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle text-sm text-[#E6EDF3]">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-[#8B949E]">
+                    <td colSpan={9} className="px-4 py-12 text-center text-[#8B949E]">
                        <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2" />
                        Loading travel logs...
                     </td>
                   </tr>
                 ) : logs.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-[#8B949E]">
+                    <td colSpan={9} className="px-4 py-12 text-center text-[#8B949E]">
                        No travel logs found for the selected filters.
                     </td>
                   </tr>
@@ -408,77 +351,56 @@ export default function TravelLogsView() {
                           {log._route}
                         </td>
                         <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
-                          {isEditing ? (
+                          <div className="flex items-center gap-2">
                             <input 
                               type="number" 
-                              value={editOdoStart} 
-                              onChange={e => setEditOdoStart(e.target.value)}
-                              className="w-24 bg-black border border-border-subtle rounded px-2 py-1 text-xs"
+                              defaultValue={log.odometer_start_reading !== null ? log.odometer_start_reading : ''} 
+                              onBlur={(e) => {
+                                 if (e.target.value !== (log.odometer_start_reading !== null ? log.odometer_start_reading.toString() : '')) {
+                                    handleInlineSave(log, { odometer_start_reading: e.target.value });
+                                 }
+                              }}
+                              className="w-24 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-2 py-1 text-xs transition-colors"
                               placeholder="Start"
                             />
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              {log.odometer_start_reading !== null ? log.odometer_start_reading : '-'}
-                              {log.odometer_start_photo && (
-                                <button onClick={() => setPreviewPhoto({url: log.odometer_start_photo, type: 'Start'})} className="text-brand-teal hover:text-white transition-colors">
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          )}
+                            {log.odometer_start_photo && (
+                              <button onClick={() => setPreviewPhoto({url: log.odometer_start_photo, type: 'Start'})} className="text-brand-teal hover:text-white transition-colors">
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
-                          {isEditing ? (
+                          <div className="flex items-center gap-2">
                             <input 
                               type="number" 
-                              value={editOdoEnd} 
-                              onChange={e => setEditOdoEnd(e.target.value)}
-                              className="w-24 bg-black border border-border-subtle rounded px-2 py-1 text-xs"
+                              defaultValue={log.odometer_end_reading !== null ? log.odometer_end_reading : ''} 
+                              onBlur={(e) => {
+                                 if (e.target.value !== (log.odometer_end_reading !== null ? log.odometer_end_reading.toString() : '')) {
+                                    handleInlineSave(log, { odometer_end_reading: e.target.value });
+                                 }
+                              }}
+                              className="w-24 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-2 py-1 text-xs transition-colors"
                               placeholder="End"
                             />
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              {log.odometer_end_reading !== null ? log.odometer_end_reading : '-'}
-                              {log.odometer_end_photo && (
-                                <button onClick={() => setPreviewPhoto({url: log.odometer_end_photo, type: 'End'})} className="text-brand-teal hover:text-white transition-colors">
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          )}
+                            {log.odometer_end_photo && (
+                              <button onClick={() => setPreviewPhoto({url: log.odometer_end_photo, type: 'End'})} className="text-brand-teal hover:text-white transition-colors">
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          {isEditing ? (
-                            <div className="flex items-center gap-2">
-                              <select 
-                                value={editVehicleId}
-                                onChange={e => setEditVehicleId(e.target.value)}
-                                className="bg-black border border-border-subtle rounded px-2 py-1 text-xs"
-                              >
-                                <option value="">No Vehicle</option>
-                                {vehicles.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                              </select>
-                              <button onClick={() => handleSaveOdo(log.id.toString())} className="text-green-500 hover:text-green-400">
-                                <CheckCircle className="w-4 h-4" />
-                              </button>
-                              <button onClick={() => setIsEditingOdo(null)} className="text-zinc-500 hover:text-zinc-400 text-xs">Cancel</button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-between w-full">
-                              <span className="text-xs text-[#8B949E] mr-2">{log.vehicle_name ? `(${log.vehicle_name})` : ''}</span>
-                              <button 
-                                onClick={() => {
-                                  setIsEditingOdo(log.id.toString());
-                                  setEditOdoStart(log.odometer_start_reading !== null ? log.odometer_start_reading.toString() : '');
-                                  setEditOdoEnd(log.odometer_end_reading !== null ? log.odometer_end_reading.toString() : '');
-                                  setEditVehicleId(log.vehicle_id !== null ? log.vehicle_id.toString() : '');
-                                }} 
-                                className="text-[#8B949E] hover:text-white transition-colors"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          )}
+                          <select 
+                            defaultValue={log.vehicle_id !== null ? log.vehicle_id : ''}
+                            onChange={(e) => {
+                               handleInlineSave(log, { vehicle_id: e.target.value });
+                            }}
+                            className="bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-2 py-1 text-xs transition-colors"
+                          >
+                            <option value="">No Vehicle</option>
+                            {vehicles.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                          </select>
                         </td>
                       </tr>
                     )
