@@ -247,14 +247,25 @@ export default function ProgressNotesFeed({
             const allItems = [];
             
             if (notes.length === 0) {
-              allItems.push(
+              allItems.push({
+                h: 200,
+                el: (
                 <div key="empty" className="text-center py-12 text-zinc-500 bg-brand-navy/80 rounded-xl border border-border-subtle w-full mb-4">
                   No progress notes found for this client.
                 </div>
-              );
+                )
+              });
             } else {
               paginatedNotes.forEach((note, idx) => {
-                allItems.push(
+                let estH = 140;
+                if (editingNote?.source === note.source && editingNote?.id === note.id) {
+                   estH = 400;
+                } else if (note.notes) {
+                   const str = typeof note.notes === 'string' ? note.notes : JSON.stringify(note.notes || '');
+                   estH += Math.ceil(str.length / 80) * 20;
+                }
+                if (note.tags) estH += 30;
+                allItems.push({ h: estH, el: (
             <div key={`${note.source}-${note.id}-${idx}`} className="bg-brand-navy rounded-xl border border-border-subtle p-3 shadow-sm mb-4 break-inside-avoid">
                <div className="flex items-start justify-between mb-3">
                   <div>
@@ -340,15 +351,26 @@ export default function ProgressNotesFeed({
                  </div>
                )}
             </div>
-                );
+                ) });
               });
             }
 
             const columns = Array.from({ length: colsCount }, () => []);
+            const colHeights = Array.from({ length: colsCount }, () => 0);
             
-            // Flow from left to right, Row 1, Row 2, etc...
-            allItems.forEach((item, index) => {
-              columns[index % colsCount].push(item);
+            const totalHeight = allItems.reduce((sum, item) => sum + item.h, 0);
+            const availableHeight = typeof window !== 'undefined' ? Math.max(window.innerHeight - 200, 400) : 800;
+            const targetColHeight = Math.max(availableHeight, Math.ceil(totalHeight / colsCount));
+
+            let currentColumn = 0;
+
+            allItems.forEach((item) => {
+              if (currentColumn < colsCount - 1 && colHeights[currentColumn] + item.h > targetColHeight && colHeights[currentColumn] > 0) {
+                 currentColumn++;
+              }
+              
+              columns[currentColumn].push(item.el);
+              colHeights[currentColumn] += item.h + 16;
             });
 
             return columns.map((colItems, colIdx) => (
