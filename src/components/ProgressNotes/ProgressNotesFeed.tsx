@@ -245,17 +245,28 @@ export default function ProgressNotesFeed({
             ) : null;
 
             const allItems = [];
-            if (addNoteWidget) allItems.push(addNoteWidget);
+            if (addNoteWidget) allItems.push({ el: addNoteWidget, h: 320 });
             
             if (notes.length === 0) {
-              allItems.push(
+              allItems.push({
+                h: 200,
+                el: (
                 <div key="empty" className="text-center py-12 text-zinc-500 bg-brand-navy/80 rounded-xl border border-border-subtle w-full mb-4">
                   No progress notes found for this client.
                 </div>
-              );
+                )
+              });
             } else {
               paginatedNotes.forEach((note, idx) => {
-                allItems.push(
+                let estH = 140;
+                if (editingNote?.source === note.source && editingNote?.id === note.id) {
+                   estH = 400;
+                } else if (note.notes) {
+                   const str = typeof note.notes === 'string' ? note.notes : JSON.stringify(note.notes || '');
+                   estH += Math.ceil(str.length / 80) * 20;
+                }
+                if (note.tags) estH += 30;
+                allItems.push({ h: estH, el: (
             <div key={`${note.source}-${note.id}-${idx}`} className="bg-brand-navy rounded-xl border border-border-subtle p-3 shadow-sm mb-4 break-inside-avoid">
                <div className="flex items-start justify-between mb-3">
                   <div>
@@ -341,20 +352,38 @@ export default function ProgressNotesFeed({
                  </div>
                )}
             </div>
-                );
+                ) });
               });
             }
 
             const columns = Array.from({ length: colsCount }, () => []);
-            
-            // Fill the first column up to maxItems before spilling over
-            const maxItemsPerColumn = Math.max(5, Math.ceil(allItems.length / colsCount));
-            allItems.forEach((item, index) => {
-              let colIndex = colsCount > 1 ? Math.floor(index / maxItemsPerColumn) : 0;
-              if (colIndex >= colsCount) {
-                 colIndex = colsCount - 1;
+            const colHeights = Array.from({ length: colsCount }, () => 0);
+            const availableHeight = typeof window !== 'undefined' ? Math.max(window.innerHeight - 200, 400) : 800;
+
+            let currentColumn = 0;
+
+            allItems.forEach((item) => {
+              if (currentColumn < colsCount) {
+                if (colHeights[currentColumn] + item.h > availableHeight && colHeights[currentColumn] > 0) {
+                   currentColumn++;
+                }
               }
-              columns[colIndex].push(item);
+              
+              if (currentColumn < colsCount) {
+                columns[currentColumn].push(item.el);
+                colHeights[currentColumn] += item.h + 16;
+              } else {
+                let shortestCol = 0;
+                let minH = colHeights[0];
+                for (let i = 1; i < colsCount; i++) {
+                  if (colHeights[i] < minH) {
+                    minH = colHeights[i];
+                    shortestCol = i;
+                  }
+                }
+                columns[shortestCol].push(item.el);
+                colHeights[shortestCol] += item.h + 16;
+              }
             });
 
             return columns.map((colItems, colIdx) => (
