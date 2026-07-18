@@ -369,7 +369,19 @@ const expandedLogs = logs.map(log => {
       <div className="p-2 pb-16 max-w-full overflow-x-auto space-y-2">
         
         {/* Filters */}
-        <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-start gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col gap-1.5 w-32">
+              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
+              <CustomDatePicker selected={startDate} onDateChange={(date: Date | null) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
+            </div>
+            
+            <div className="flex flex-col gap-1.5 w-32">
+              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
+              <CustomDatePicker selected={endDate} onDateChange={(date: Date | null) => setEndDate(date)} placeholderText="End Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
+            </div>
+          </div>
+          
           <div className="flex flex-wrap items-center gap-3">
             {user?.role === 'ADMIN' && (
               <div className="flex flex-col gap-1.5 w-36">
@@ -422,18 +434,6 @@ const expandedLogs = logs.map(log => {
                 <option value="NDIS">NDIS</option>
                 <option value="HOME_CARE">Home Care</option>
               </select>
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex flex-col gap-1.5 w-28">
-              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
-              <CustomDatePicker selected={startDate} onDateChange={(date: Date | null) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
-            </div>
-            
-            <div className="flex flex-col gap-1.5 w-28">
-              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
-              <CustomDatePicker selected={endDate} onDateChange={(date: Date | null) => setEndDate(date)} placeholderText="End Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
             </div>
           </div>
         </div>
@@ -548,7 +548,7 @@ const expandedLogs = logs.map(log => {
                           </div>
                         </td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-center">
-                          <div className="flex items-center justify-center gap-1">
+                          <div className="flex items-center justify-between gap-1 w-full min-w-[90px]">
                             <input 
                               type="number" 
                               defaultValue={log.odometer_start_reading !== null ? log.odometer_start_reading : ''} 
@@ -557,16 +557,18 @@ const expandedLogs = logs.map(log => {
                                     handleInlineSave(log, { odometer_start_reading: e.target.value });
                                  }
                               }}
-                              className="w-16 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
+                              className="w-full flex-1 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
                               placeholder="Start"
                             />
                             {log.odometer_start_photo && (
-                              <OdometerPhotoIcon url={log.odometer_start_photo} type="Start" onClick={() => setPreviewPhoto({url: log.odometer_start_photo, type: 'Start'})} />
+                              <div className="shrink-0">
+                                <OdometerPhotoIcon url={log.odometer_start_photo} type="Start" onClick={() => setPreviewPhoto({url: log.odometer_start_photo, type: 'Start'})} />
+                              </div>
                             )}
                           </div>
                         </td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-center">
-                          <div className="flex items-center justify-center gap-1">
+                          <div className="flex items-center justify-between gap-1 w-full min-w-[90px]">
                             <input 
                               type="number" 
                               defaultValue={log.odometer_end_reading !== null ? log.odometer_end_reading : ''} 
@@ -575,11 +577,13 @@ const expandedLogs = logs.map(log => {
                                     handleInlineSave(log, { odometer_end_reading: e.target.value });
                                  }
                               }}
-                              className="w-16 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
+                              className="w-full flex-1 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
                               placeholder="End"
                             />
                             {log.odometer_end_photo && (
-                              <OdometerPhotoIcon url={log.odometer_end_photo} type="End" onClick={() => setPreviewPhoto({url: log.odometer_end_photo, type: 'End'})} />
+                              <div className="shrink-0">
+                                <OdometerPhotoIcon url={log.odometer_end_photo} type="End" onClick={() => setPreviewPhoto({url: log.odometer_end_photo, type: 'End'})} />
+                              </div>
                             )}
                           </div>
                         </td>
