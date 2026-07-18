@@ -181,6 +181,10 @@ export default function TravelLogsView() {
     }
   };
 
+  const getLocalizedTimeString = (dt: string) => {
+    if (!dt) return '';
+    return format(new Date(dt), 'h:mm a');
+  };
   const getLocalizedDateString = (dt: string) => {
     if (!dt) return '';
     try {
@@ -351,14 +355,14 @@ const expandedLogs = logs.map(log => {
             <FileText className="w-5 h-5 text-brand-teal" />
             Travel Logs
         </h1>
-        <div className="flex items-center gap-3 relative">
+        <div className="flex items-center gap-6 relative">
+          <img src={carImage} alt="Luxury Vehicle" className="h-[60px] w-auto object-contain pointer-events-none" style={{ mixBlendMode: "screen", filter: "contrast(1.2) brightness(1.2)" }} />
           <button 
             onClick={() => setShowVehicles(true)}
-            className="bg-brand-teal text-white px-3 py-1.5 rounded font-medium text-xs hover:bg-brand-teal/90 transition-colors h-fit relative z-10 mr-[100px]"
+            className="bg-brand-teal text-white px-3 py-1.5 rounded font-medium text-xs hover:bg-brand-teal/90 transition-colors h-fit whitespace-nowrap"
           >
             Vehicle Register
           </button>
-          <img src={carImage} alt="Luxury Vehicle" className="h-[60px] w-auto object-contain absolute right-[-5px] top-1/2 -translate-y-1/2 pointer-events-none" style={{ mixBlendMode: "screen", filter: "contrast(1.2) brightness(1.2)" }} />
         </div>
       </div>
       
@@ -439,6 +443,7 @@ const expandedLogs = logs.map(log => {
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Shift ID</th>
                   {user?.role === 'ADMIN' && <th className="px-2 py-1.5 border-r border-border-subtle/30">Staff Name</th>}
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Service Date</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30">Shift Times</th>
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Care Type</th>
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Client</th>
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Category</th>
@@ -452,14 +457,14 @@ const expandedLogs = logs.map(log => {
               <tbody className="divide-y divide-border-subtle text-sm text-[#E6EDF3]">
                 {loading ? (
                   <tr>
-                    <td colSpan={14} className="px-2 py-6 text-center text-[#8B949E]">
+                    <td colSpan={15} className="px-2 py-6 text-center text-[#8B949E]">
                        <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2" />
                        Loading travel logs...
                     </td>
                   </tr>
                 ) : logs.length === 0 ? (
                   <tr>
-                    <td colSpan={14} className="px-2 py-6 text-center text-[#8B949E]">
+                    <td colSpan={15} className="px-2 py-6 text-center text-[#8B949E]">
                        No travel logs found for the selected filters.
                     </td>
                   </tr>
@@ -471,6 +476,7 @@ const expandedLogs = logs.map(log => {
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs text-[#8B949E]">#{log.id}</td>
                         {user?.role === 'ADMIN' && <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">{log.staff_first} {log.staff_last}</td>}
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">{getLocalizedDateString(log.start_time)}</td>
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-xs text-[#8B949E]">{getLocalizedTimeString(log.start_time)} - {getLocalizedTimeString(log.end_time)}</td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">
                           <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border ${log.funding_type === 'HOME_CARE' || log.funding_type === 'Home Care' || log.funding_type === 'HCP' ? 'bg-purple-900/10 border-purple-900/20 text-purple-400' : 'bg-blue-900/10 border-blue-900/20 text-blue-400'}`}>
                             {log.funding_type === 'HOME_CARE' || log.funding_type === 'Home Care' || log.funding_type === 'HCP' ? 'Home Care' : 'NDIS'}
@@ -479,7 +485,7 @@ const expandedLogs = logs.map(log => {
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">{log.client_first} {log.client_last}</td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">
                           {log._category === 'Provider Travel & Activity Based Transport' ? (
-                            <div className="flex flex-col gap-1 w-fit">
+                            <div className="flex flex-col items-start gap-1 w-fit">
                               <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border bg-blue-900/10 border-blue-900/20 text-blue-400">
                                 Provider Travel
                               </span>
