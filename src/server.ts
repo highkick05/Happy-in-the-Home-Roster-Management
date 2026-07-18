@@ -4249,7 +4249,7 @@ app.get("/api/health", (req, res) => {
     try {
       let query = "SELECT * FROM vehicles";
       let params = [];
-      if (req.user.role === "staff") {
+      if (req.user.role !== "ADMIN") {
         query += " WHERE user_id = ? OR ownership = 'COMPANY' OR user_id IS NULL OR user_id = ''";
         params.push(req.user.id);
       }
@@ -4276,7 +4276,7 @@ app.get("/api/health", (req, res) => {
   app.post("/api/vehicles", authenticateToken, (req: any, res: any) => {
     try {
       const { name, rego, user_id, is_primary, ownership, rego_expiry, rego_evidence_url, insurance_type, insurance_provider, insurance_expiry, insurance_evidence_url, roadside_provider, roadside_expiry, roadside_evidence_url, year, has_roadside } = req.body;
-      const targetUserId = req.user.role === "staff" ? req.user.id : user_id || req.user.id;
+      const targetUserId = req.user.role !== "ADMIN" ? req.user.id : user_id || req.user.id;
       
       const existing = db.prepare("SELECT COUNT(*) as c FROM vehicles WHERE user_id = ?").get(targetUserId) as {c: number};
       const willBePrimary = existing.c === 0 || is_primary ? 1 : 0;
@@ -4303,12 +4303,29 @@ app.get("/api/health", (req, res) => {
       const { name, rego, user_id, ownership, rego_expiry, rego_evidence_url, insurance_type, insurance_provider, insurance_expiry, insurance_evidence_url, roadside_provider, roadside_expiry, roadside_evidence_url, year, has_roadside } = req.body;
       const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(req.params.id) as any;
       if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
-      if (req.user.role === "staff" && vehicle.user_id !== req.user.id) {
+      if (req.user.role !== "ADMIN" && vehicle.user_id !== req.user.id) {
          return res.status(403).json({ error: "Forbidden" });
       }
       
+      const targetUserId = req.user.role !== "ADMIN" ? req.user.id : (user_id !== undefined ? user_id : vehicle.user_id);
+      
       db.prepare("UPDATE vehicles SET name = ?, rego = ?, user_id = ?, ownership = ?, rego_expiry = ?, rego_evidence_url = ?, insurance_type = ?, insurance_provider = ?, insurance_expiry = ?, insurance_evidence_url = ?, roadside_provider = ?, roadside_expiry = ?, roadside_evidence_url = ?, year = ?, has_roadside = ? WHERE id = ?").run(
-        name, rego, req.user.role === "staff" ? req.user.id : (user_id || vehicle.user_id), ownership || vehicle.ownership, rego_expiry || vehicle.rego_expiry, rego_evidence_url || vehicle.rego_evidence_url, insurance_type || vehicle.insurance_type, insurance_provider || vehicle.insurance_provider, insurance_expiry || vehicle.insurance_expiry, insurance_evidence_url || vehicle.insurance_evidence_url, roadside_provider || vehicle.roadside_provider, roadside_expiry || vehicle.roadside_expiry, roadside_evidence_url || vehicle.roadside_evidence_url, year || vehicle.year, has_roadside !== undefined ? (has_roadside ? 1 : 0) : vehicle.has_roadside, req.params.id
+        name !== undefined ? name : vehicle.name,
+        rego !== undefined ? rego : vehicle.rego,
+        targetUserId,
+        ownership !== undefined ? ownership : vehicle.ownership,
+        rego_expiry !== undefined ? rego_expiry : vehicle.rego_expiry,
+        rego_evidence_url !== undefined ? rego_evidence_url : vehicle.rego_evidence_url,
+        insurance_type !== undefined ? insurance_type : vehicle.insurance_type,
+        insurance_provider !== undefined ? insurance_provider : vehicle.insurance_provider,
+        insurance_expiry !== undefined ? insurance_expiry : vehicle.insurance_expiry,
+        insurance_evidence_url !== undefined ? insurance_evidence_url : vehicle.insurance_evidence_url,
+        roadside_provider !== undefined ? roadside_provider : vehicle.roadside_provider,
+        roadside_expiry !== undefined ? roadside_expiry : vehicle.roadside_expiry,
+        roadside_evidence_url !== undefined ? roadside_evidence_url : vehicle.roadside_evidence_url,
+        year !== undefined ? year : vehicle.year,
+        has_roadside !== undefined ? (has_roadside ? 1 : 0) : vehicle.has_roadside,
+        req.params.id
       );
       res.json({ success: true });
     } catch (error) {
@@ -4321,7 +4338,7 @@ app.get("/api/health", (req, res) => {
     try {
       const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(req.params.id) as any;
       if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
-      if (req.user.role === "staff" && vehicle.user_id !== req.user.id) {
+      if (req.user.role !== "ADMIN" && vehicle.user_id !== req.user.id) {
          return res.status(403).json({ error: "Forbidden" });
       }
       db.prepare("DELETE FROM vehicles WHERE id = ?").run(req.params.id);

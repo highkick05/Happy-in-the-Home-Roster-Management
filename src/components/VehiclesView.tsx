@@ -208,11 +208,6 @@ export default function VehiclesView() {
                       <span className={`inline-flex px-2 py-1 rounded text-xs font-bold tracking-wide uppercase border ${v.ownership === 'COMPANY' ? 'bg-blue-900/10 border-blue-900/20 text-blue-400' : 'bg-purple-900/10 border-purple-900/20 text-purple-400'}`}>
                         {v.ownership === 'COMPANY' ? 'Company' : 'Private'}
                       </span>
-                      {v.ownership === 'PRIVATE' && (
-                        <div className="text-[11px] text-[#8B949E] mt-1 font-medium">
-                          {staff.find(s => s.id === v.user_id)?.first_name} {staff.find(s => s.id === v.user_id)?.last_name}
-                        </div>
-                      )}
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30 text-center">
                        {v.ownership === 'PRIVATE' && v.user_id === user?.id && (
