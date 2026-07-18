@@ -110,7 +110,10 @@ export default function TravelLogsView() {
   }, [selectedStaff, selectedClient, selectedVehicle, selectedFundingType, startDate, endDate]);
 
   const handleAddVehicle = async () => {
-    if (!newVehicle.name || !newVehicle.rego) return;
+    if (!newVehicle.name || !newVehicle.rego) {
+      alert("Please enter a vehicle make/model and registration.");
+      return;
+    }
     try {
       const res = await fetch('/api/vehicles', {
         method: 'POST',
@@ -476,15 +479,20 @@ const expandedLogs = logs.map(log => {
                         <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
                           {log._category === 'Provider Travel & Activity Based Transport' ? (
                             <div className="flex flex-col gap-1 w-fit">
-                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border bg-brand-bg border-border-subtle text-[#E6EDF3]">
+                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border bg-blue-900/10 border-blue-900/20 text-blue-400">
                                 Provider Travel
                               </span>
-                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border bg-brand-bg border-border-subtle text-[#E6EDF3]">
+                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border bg-brand-teal/10 border-brand-teal/20 text-brand-teal">
                                 Activity Based Transport
                               </span>
                             </div>
                           ) : (
-                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border bg-brand-bg border-border-subtle text-[#E6EDF3]">
+                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border ${
+                              log._category === 'Provider Travel' ? 'bg-blue-900/10 border-blue-900/20 text-blue-400' :
+                              log._category === 'Activity Based Transport' ? 'bg-brand-teal/10 border-brand-teal/20 text-brand-teal' :
+                              log._category === 'Home Care Travel' ? 'bg-purple-900/10 border-purple-900/20 text-purple-400' :
+                              'bg-brand-bg border-border-subtle text-[#E6EDF3]'
+                            }`}>
                               {log._category}
                             </span>
                           )}
@@ -585,32 +593,7 @@ const expandedLogs = logs.map(log => {
                   })
                 )}
                             </tbody>
-              <tfoot className="bg-brand-navy border-t-2 border-border-subtle font-semibold">
-                <tr>
-                  <td colSpan={user?.role === 'ADMIN' ? 6 : 5} className="px-4 py-3 text-right text-[#E6EDF3] border-r border-border-subtle/30">
-                    Grand Total
-                  </td>
-                  <td className="px-4 py-3 border-r border-border-subtle/30 whitespace-nowrap">
-                    <div className="flex flex-col text-[11px] leading-tight gap-0.5">
-                      {totalPTKm > 0 && (
-                        <span className="text-[#8B949E]">
-                          PT: {totalPTKm.toFixed(3)} km
-                        </span>
-                      )}
-                      {totalABTKm > 0 && (
-                        <span className="text-[#8B949E]">
-                          ABT: {totalABTKm.toFixed(3)} km
-                        </span>
-                      )}
-                      <span className="text-brand-teal font-bold mt-1 border-t border-border-subtle/50 pt-1">
-                        Total: {grandTotalKm.toFixed(3)} km
-                      </span>
-                    </div>
-                  </td>
-                  <td colSpan={3} className="px-4 py-3 border-r border-border-subtle/30"></td>
-                </tr>
-              </tfoot>
-            </table>
+              </table>
           </div>
           
           {expandedLogs.length > 0 && (

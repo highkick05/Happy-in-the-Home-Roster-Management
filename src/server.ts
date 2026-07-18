@@ -1212,6 +1212,14 @@ try {
     }
   }
 
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(vehicles)").all();
+    const hasIsPrimary = (tableInfo as any[]).some((col: any) => col.name === 'is_primary');
+    if (!hasIsPrimary) {
+      db.exec("ALTER TABLE vehicles ADD COLUMN is_primary INTEGER DEFAULT 0");
+    }
+  } catch(e) {}
+
   // Data consistency sync for old templates
   try {
     db.prepare(
