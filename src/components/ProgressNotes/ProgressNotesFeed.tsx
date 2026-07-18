@@ -184,89 +184,77 @@ export default function ProgressNotesFeed({
       {loading ? (
         <div className="text-center py-8 text-zinc-400 w-full">Loading notes...</div>
       ) : (
-        <div className="flex gap-4 w-full">
-          {(() => {
-            const addNoteWidget = selectedClientId ? (
-              <div key="add-note" className="bg-brand-navy rounded-xl border border-border-subtle shadow-sm flex flex-col mb-4">
-                <div className="px-3 py-2 border-b border-border-subtle bg-black/10">
-                  <h3 className="text-[14px] font-semibold text-white">Add New Progress Note</h3>
-                </div>
-                <div className="p-3">
-                  <div className="border border-border-subtle rounded-lg overflow-hidden bg-brand-bg text-white">
-                    <EditorJSWrapper 
-                      ref={editorRef} 
-                      minHeight={40} 
-                      toolbarRight={
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {userRole === 'ADMIN' && (
-                            <div className="flex items-center space-x-2 text-[11px] w-full">
-                              <span className="text-zinc-500">Author:</span>
-                              <select 
-                                value={newNoteAuthorId}
-                                onChange={(e) => setNewNoteAuthorId(e.target.value)}
-                                className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none flex-1"
-                              >
-                                <option value="" className="bg-brand-navy text-white">(Self)</option>
-                                {staffList?.filter(s => s.role === 'STAFF').map(s => (
-                                  <option key={s.id} value={s.id} className="bg-brand-navy text-white">{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-                          <div className="flex items-center space-x-2 text-[11px] w-full mt-2">
-                            <span className="text-zinc-500">Tag:</span>
-                            <div className="bg-brand-navy border border-[#0B0C0E] rounded flex overflow-hidden flex-1">
-                              {['Activity', 'Behavioural', 'Incident'].map(tag => (
-                                <button
-                                  key={tag}
-                                  onClick={() => setNewNoteTags(tag)}
-                                  className={`flex-1 px-1 py-1 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-brand-navy'}`}
-                                >
-                                  {tag}
-                                </button>
+        <>
+          {selectedClientId && (
+            <div key="add-note" className="bg-brand-navy rounded-xl border border-border-subtle shadow-sm flex flex-col mb-6">
+              <div className="px-3 py-2 border-b border-border-subtle bg-black/10">
+                <h3 className="text-[14px] font-semibold text-white">Add New Progress Note</h3>
+              </div>
+              <div className="p-3">
+                <div className="border border-border-subtle rounded-lg overflow-hidden bg-brand-bg text-white">
+                  <EditorJSWrapper 
+                    ref={editorRef} 
+                    minHeight={40} 
+                    toolbarRight={
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {userRole === 'ADMIN' && (
+                          <div className="flex items-center space-x-2 text-[11px] w-full">
+                            <span className="text-zinc-500">Author:</span>
+                            <select 
+                              value={newNoteAuthorId}
+                              onChange={(e) => setNewNoteAuthorId(e.target.value)}
+                              className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none flex-1"
+                            >
+                              <option value="" className="bg-brand-navy text-white">(Self)</option>
+                              {staffList?.filter(s => s.role === 'STAFF').map(s => (
+                                <option key={s.id} value={s.id} className="bg-brand-navy text-white">{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
                               ))}
-                            </div>
+                            </select>
+                          </div>
+                        )}
+                        <div className="flex items-center space-x-2 text-[11px] w-full mt-2">
+                          <span className="text-zinc-500">Tag:</span>
+                          <div className="bg-brand-navy border border-[#0B0C0E] rounded flex overflow-hidden flex-1">
+                            {['Activity', 'Behavioural', 'Incident'].map(tag => (
+                              <button
+                                key={tag}
+                                onClick={() => setNewNoteTags(tag)}
+                                className={`flex-1 px-1 py-1 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-brand-navy'}`}
+                              >
+                                {tag}
+                              </button>
+                            ))}
                           </div>
                         </div>
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end px-3 py-2 border-t border-border-subtle bg-black/10">
-                  <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="bg-brand-green/20 text-brand-green border border-brand-green/30 px-3 py-1.5 rounded text-[12px] font-medium hover:bg-brand-green/30 transition-colors disabled:opacity-50 flex items-center leading-none shadow-sm"
-                  >
-                    Submit Note
-                  </button>
+                      </div>
+                    }
+                  />
                 </div>
               </div>
-            ) : null;
-
+              <div className="flex justify-end px-3 py-2 border-t border-border-subtle bg-black/10">
+                <button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className="bg-brand-green/20 text-brand-green border border-brand-green/30 px-3 py-1.5 rounded text-[12px] font-medium hover:bg-brand-green/30 transition-colors disabled:opacity-50 flex items-center leading-none shadow-sm"
+                >
+                  Submit Note
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="flex gap-4 w-full">
+          {(() => {
             const allItems = [];
-            if (addNoteWidget) allItems.push({ el: addNoteWidget, h: 320 });
             
             if (notes.length === 0) {
-              allItems.push({
-                h: 200,
-                el: (
+              allItems.push(
                 <div key="empty" className="text-center py-12 text-zinc-500 bg-brand-navy/80 rounded-xl border border-border-subtle w-full mb-4">
                   No progress notes found for this client.
                 </div>
-                )
-              });
+              );
             } else {
               paginatedNotes.forEach((note, idx) => {
-                let estH = 140;
-                if (editingNote?.source === note.source && editingNote?.id === note.id) {
-                   estH = 400;
-                } else if (note.notes) {
-                   const str = typeof note.notes === 'string' ? note.notes : JSON.stringify(note.notes || '');
-                   estH += Math.ceil(str.length / 80) * 20;
-                }
-                if (note.tags) estH += 30;
-                allItems.push({ h: estH, el: (
+                allItems.push(
             <div key={`${note.source}-${note.id}-${idx}`} className="bg-brand-navy rounded-xl border border-border-subtle p-3 shadow-sm mb-4 break-inside-avoid">
                <div className="flex items-start justify-between mb-3">
                   <div>
@@ -352,38 +340,15 @@ export default function ProgressNotesFeed({
                  </div>
                )}
             </div>
-                ) });
+                );
               });
             }
 
             const columns = Array.from({ length: colsCount }, () => []);
-            const colHeights = Array.from({ length: colsCount }, () => 0);
-            const availableHeight = typeof window !== 'undefined' ? Math.max(window.innerHeight - 200, 400) : 800;
-
-            let currentColumn = 0;
-
-            allItems.forEach((item) => {
-              if (currentColumn < colsCount) {
-                if (colHeights[currentColumn] + item.h > availableHeight && colHeights[currentColumn] > 0) {
-                   currentColumn++;
-                }
-              }
-              
-              if (currentColumn < colsCount) {
-                columns[currentColumn].push(item.el);
-                colHeights[currentColumn] += item.h + 16;
-              } else {
-                let shortestCol = 0;
-                let minH = colHeights[0];
-                for (let i = 1; i < colsCount; i++) {
-                  if (colHeights[i] < minH) {
-                    minH = colHeights[i];
-                    shortestCol = i;
-                  }
-                }
-                columns[shortestCol].push(item.el);
-                colHeights[shortestCol] += item.h + 16;
-              }
+            
+            // Flow from left to right, Row 1, Row 2, etc...
+            allItems.forEach((item, index) => {
+              columns[index % colsCount].push(item);
             });
 
             return columns.map((colItems, colIdx) => (
@@ -393,6 +358,7 @@ export default function ProgressNotesFeed({
             ));
           })()}
         </div>
+        </>
       )}
       
       {totalPages > 1 && (
