@@ -66,7 +66,7 @@ export default function ProgressNotesFeed({
   const editEditorRef = useRef<EditorJSRef>(null);
 
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = 14;
   
   useEffect(() => {
     setPage(1);
@@ -347,20 +347,15 @@ export default function ProgressNotesFeed({
 
             const columns = Array.from({ length: colsCount }, () => []);
             
-            // Distribute items vertically down columns (like CSS columns)
-            const baseCount = Math.floor(allItems.length / colsCount);
-            const extraCount = allItems.length % colsCount;
-            
-            let currentItemIndex = 0;
-            for (let i = 0; i < colsCount; i++) {
-              const countForThisCol = baseCount + (i < extraCount ? 1 : 0);
-              for (let j = 0; j < countForThisCol; j++) {
-                if (currentItemIndex < allItems.length) {
-                  columns[i].push(allItems[currentItemIndex]);
-                  currentItemIndex++;
-                }
+            // Fill the first column up to maxItems before spilling over
+            const maxItemsPerColumn = Math.max(5, Math.ceil(allItems.length / colsCount));
+            allItems.forEach((item, index) => {
+              let colIndex = colsCount > 1 ? Math.floor(index / maxItemsPerColumn) : 0;
+              if (colIndex >= colsCount) {
+                 colIndex = colsCount - 1;
               }
-            }
+              columns[colIndex].push(item);
+            });
 
             return columns.map((colItems, colIdx) => (
               <div key={colIdx} className="flex flex-col gap-4 flex-1 min-w-0">
