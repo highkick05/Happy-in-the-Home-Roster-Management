@@ -164,70 +164,71 @@ export default function ProgressNotesFeed({
     <div className="space-y-3 w-full">
       
 
-      {/* Add New Note */}
-      {selectedClientId && (
-        <div className="bg-brand-navy rounded-xl border border-border-subtle shadow-sm flex flex-col">
-          <div className="px-3 py-2 border-b border-border-subtle bg-black/10">
-            <h3 className="text-[14px] font-semibold text-white">Add New Progress Note</h3>
-          </div>
-          <div className="p-3">
-            <div className="border border-border-subtle rounded-lg overflow-hidden bg-brand-bg text-white">
-              <EditorJSWrapper 
-                ref={editorRef} 
-                minHeight={40} 
-                toolbarRight={
-                  <div className="flex items-center gap-3">
-                    {userRole === 'ADMIN' && (
-                      <div className="flex items-center space-x-2 text-[11px]">
-                        <span className="text-zinc-500">Author:</span>
-                        <select 
-                          value={newNoteAuthorId}
-                          onChange={(e) => setNewNoteAuthorId(e.target.value)}
-                          className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none min-w-[100px]"
-                        >
-                          <option value="" className="bg-brand-navy text-white">(Self)</option>
-                          {staffList?.filter(s => s.role === 'STAFF').map(s => (
-                            <option key={s.id} value={s.id} className="bg-brand-navy text-white">{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    <div className="flex items-center space-x-2 text-[11px]">
-                      <span className="text-zinc-500">Tag:</span>
-                      <div className="bg-brand-navy border border-[#0B0C0E] rounded flex overflow-hidden">
-                        {['Activity', 'Behavioural', 'Incident'].map(tag => (
-                          <button
-                            key={tag}
-                            onClick={() => setNewNoteTags(tag)}
-                            className={`px-3 py-1 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-brand-navy'}`}
+      <div className="columns-1 md:columns-2 xl:columns-3 gap-4">
+        {/* Add New Note */}
+        {selectedClientId && (
+          <div className="bg-brand-navy rounded-xl border border-border-subtle shadow-sm flex flex-col mb-4 break-inside-avoid">
+            <div className="px-3 py-2 border-b border-border-subtle bg-black/10">
+              <h3 className="text-[14px] font-semibold text-white">Add New Progress Note</h3>
+            </div>
+            <div className="p-3">
+              <div className="border border-border-subtle rounded-lg overflow-hidden bg-brand-bg text-white">
+                <EditorJSWrapper 
+                  ref={editorRef} 
+                  minHeight={40} 
+                  toolbarRight={
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {userRole === 'ADMIN' && (
+                        <div className="flex items-center space-x-2 text-[11px] w-full">
+                          <span className="text-zinc-500">Author:</span>
+                          <select 
+                            value={newNoteAuthorId}
+                            onChange={(e) => setNewNoteAuthorId(e.target.value)}
+                            className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none flex-1"
                           >
-                            {tag}
-                          </button>
-                        ))}
+                            <option value="" className="bg-brand-navy text-white">(Self)</option>
+                            {staffList?.filter(s => s.role === 'STAFF').map(s => (
+                              <option key={s.id} value={s.id} className="bg-brand-navy text-white">{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <div className="flex items-center space-x-2 text-[11px] w-full mt-2">
+                        <span className="text-zinc-500">Tag:</span>
+                        <div className="bg-brand-navy border border-[#0B0C0E] rounded flex overflow-hidden flex-1">
+                          {['Activity', 'Behavioural', 'Incident'].map(tag => (
+                            <button
+                              key={tag}
+                              onClick={() => setNewNoteTags(tag)}
+                              className={`flex-1 px-1 py-1 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-brand-navy'}`}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                }
-              />
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex justify-end px-3 py-2 border-t border-border-subtle bg-black/10">
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="bg-brand-green/20 text-brand-green border border-brand-green/30 px-3 py-1.5 rounded text-[12px] font-medium hover:bg-brand-green/30 transition-colors disabled:opacity-50 flex items-center leading-none shadow-sm"
+              >
+                Submit Note
+              </button>
             </div>
           </div>
-          <div className="flex justify-end px-3 py-2 border-t border-border-subtle bg-black/10">
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="bg-brand-green/20 text-brand-green border border-brand-green/30 px-3 py-1.5 rounded text-[12px] font-medium hover:bg-brand-green/30 transition-colors disabled:opacity-50 flex items-center leading-none shadow-sm"
-            >
-              Submit Note
-            </button>
-          </div>
-        </div>
-      )}
-      {/* Feed */}
-      <div className="columns-1 md:columns-2 gap-4">
+        )}
+
+        {/* Feed */}
         {loading ? (
-          <div className="text-center py-8 text-zinc-400 col-span-1 md:col-span-2 w-full break-inside-avoid">Loading notes...</div>
+          <div className="text-center py-8 text-zinc-400 w-full break-inside-avoid">Loading notes...</div>
         ) : notes.length === 0 ? (
-          <div className="text-center py-12 text-zinc-500 bg-brand-navy/80 rounded-xl border border-border-subtle col-span-1 md:col-span-2 w-full break-inside-avoid">
+          <div className="text-center py-12 text-zinc-500 bg-brand-navy/80 rounded-xl border border-border-subtle w-full break-inside-avoid">
             No progress notes found for this client.
           </div>
         ) : (
