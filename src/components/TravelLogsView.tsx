@@ -346,19 +346,19 @@ const expandedLogs = logs.map(log => {
 
   return (
     <div className="flex flex-col h-full bg-brand-bg relative min-h-screen">
-      <div className="flex items-center justify-between px-3 py-1 border-b border-border-subtle bg-brand-navy">
-        <h1 className="text-base font-bold text-white flex items-center gap-2">
-            <FileText className="w-4 h-4 text-brand-teal" />
+      <div className="flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-brand-navy overflow-hidden">
+        <h1 className="text-xl font-bold text-white flex items-center gap-2">
+            <FileText className="w-5 h-5 text-brand-teal" />
             Travel Logs
         </h1>
         <div className="flex items-center gap-3 relative">
           <button 
             onClick={() => setShowVehicles(true)}
-            className="bg-brand-teal text-white px-3 py-1.5 rounded font-medium text-xs hover:bg-brand-teal/90 transition-colors h-fit relative z-10 mr-[120px]"
+            className="bg-brand-teal text-white px-3 py-1.5 rounded font-medium text-xs hover:bg-brand-teal/90 transition-colors h-fit relative z-10 mr-[100px]"
           >
             Vehicle Register
           </button>
-          <img src={carImage} alt="Luxury Vehicle" className="h-[80px] w-auto object-contain absolute right-[-10px] top-1/2 -translate-y-1/2 pointer-events-none" style={{ mixBlendMode: "screen", filter: "contrast(1.2) brightness(1.2)", transform: "translateY(-50%) scale(1.4)", transformOrigin: "right center" }} />
+          <img src={carImage} alt="Luxury Vehicle" className="h-[60px] w-auto object-contain absolute right-[-5px] top-1/2 -translate-y-1/2 pointer-events-none" style={{ mixBlendMode: "screen", filter: "contrast(1.2) brightness(1.2)" }} />
         </div>
       </div>
       
@@ -444,9 +444,9 @@ const expandedLogs = logs.map(log => {
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Category</th>
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Travel Route</th>
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Transport KM</th>
-                  <th className="px-2 py-1.5 border-r border-border-subtle/30">Start Odometer</th>
-                  <th className="px-2 py-1.5 border-r border-border-subtle/30">End Odometer</th>
-                  <th className="px-2 py-1.5 border-r border-border-subtle/30">Vehicle</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30 text-center">Start Odometer</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30 text-center">End Odometer</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30 text-center">Vehicle</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle text-sm text-[#E6EDF3]">
@@ -541,8 +541,8 @@ const expandedLogs = logs.map(log => {
                             )}
                           </div>
                         </td>
-                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-center">
+                          <div className="flex items-center justify-center gap-2">
                             <input 
                               type="number" 
                               defaultValue={log.odometer_start_reading !== null ? log.odometer_start_reading : ''} 
@@ -551,7 +551,7 @@ const expandedLogs = logs.map(log => {
                                     handleInlineSave(log, { odometer_start_reading: e.target.value });
                                  }
                               }}
-                              className="w-20 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-[9px] transition-colors"
+                              className="w-20 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
                               placeholder="Start"
                             />
                             {log.odometer_start_photo && (
@@ -559,8 +559,8 @@ const expandedLogs = logs.map(log => {
                             )}
                           </div>
                         </td>
-                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-center">
+                          <div className="flex items-center justify-center gap-2">
                             <input 
                               type="number" 
                               defaultValue={log.odometer_end_reading !== null ? log.odometer_end_reading : ''} 
@@ -569,7 +569,7 @@ const expandedLogs = logs.map(log => {
                                     handleInlineSave(log, { odometer_end_reading: e.target.value });
                                  }
                               }}
-                              className="w-20 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-[9px] transition-colors"
+                              className="w-20 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
                               placeholder="End"
                             />
                             {log.odometer_end_photo && (
@@ -577,13 +577,13 @@ const expandedLogs = logs.map(log => {
                             )}
                           </div>
                         </td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-center">
                           <select 
                             defaultValue={log.vehicle_id !== null ? log.vehicle_id : ''}
                             onChange={(e) => {
                                handleInlineSave(log, { vehicle_id: e.target.value });
                             }}
-                            className="bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-[9px] transition-colors"
+                            className="bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
                           >
                             <option value="">No Vehicle</option>
                             {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.rego})</option>)}
