@@ -192,43 +192,41 @@ export default function ProgressNotesFeed({
                   <h3 className="text-[14px] font-semibold text-white">Add New Progress Note</h3>
                 </div>
                 <div className="p-3">
+                  <div className="flex items-center justify-between gap-4 mb-3">
+                    {userRole === 'ADMIN' ? (
+                      <div className="flex items-center space-x-2 text-[12px] flex-1">
+                        <span className="text-zinc-400">Author:</span>
+                        <select 
+                          value={newNoteAuthorId}
+                          onChange={(e) => setNewNoteAuthorId(e.target.value)}
+                          className="bg-brand-navy border border-border-subtle rounded px-2 py-1.5 text-white outline-none w-48 shadow-sm"
+                        >
+                          <option value="" className="bg-brand-navy text-white">(Self)</option>
+                          {staffList?.filter(s => s.role === 'STAFF').map(s => (
+                            <option key={s.id} value={s.id} className="bg-brand-navy text-white">{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : <div className="flex-1" />}
+                    <div className="flex items-center space-x-2 text-[12px]">
+                      <span className="text-zinc-400">Tag:</span>
+                      <div className="bg-brand-navy border border-border-subtle rounded flex overflow-hidden shadow-sm">
+                        {['Activity', 'Behavioural', 'Incident'].map(tag => (
+                          <button
+                            key={tag}
+                            onClick={() => setNewNoteTags(tag)}
+                            className={`px-3 py-1.5 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-brand-navy/60'}`}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                   <div className="border border-border-subtle rounded-lg overflow-hidden bg-brand-bg text-white">
                     <EditorJSWrapper 
                       ref={editorRef} 
                       minHeight={40} 
-                      toolbarRight={
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {userRole === 'ADMIN' && (
-                            <div className="flex items-center space-x-2 text-[11px] w-full">
-                              <span className="text-zinc-500">Author:</span>
-                              <select 
-                                value={newNoteAuthorId}
-                                onChange={(e) => setNewNoteAuthorId(e.target.value)}
-                                className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none flex-1"
-                              >
-                                <option value="" className="bg-brand-navy text-white">(Self)</option>
-                                {staffList?.filter(s => s.role === 'STAFF').map(s => (
-                                  <option key={s.id} value={s.id} className="bg-brand-navy text-white">{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-                          <div className="flex items-center space-x-2 text-[11px] w-full mt-2">
-                            <span className="text-zinc-500">Tag:</span>
-                            <div className="bg-brand-navy border border-[#0B0C0E] rounded flex overflow-hidden flex-1">
-                              {['Activity', 'Behavioural', 'Incident'].map(tag => (
-                                <button
-                                  key={tag}
-                                  onClick={() => setNewNoteTags(tag)}
-                                  className={`flex-1 px-1 py-1 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-brand-navy'}`}
-                                >
-                                  {tag}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      }
                     />
                   </div>
                 </div>
@@ -258,14 +256,14 @@ export default function ProgressNotesFeed({
               });
             } else {
               paginatedNotes.forEach((note, idx) => {
-                let estH = 140;
+                let estH = 110;
                 if (editingNote?.source === note.source && editingNote?.id === note.id) {
-                   estH = 400;
+                   estH = 320;
                 } else if (note.notes) {
                    const str = typeof note.notes === 'string' ? note.notes : JSON.stringify(note.notes || '');
-                   estH += Math.ceil(str.length / 80) * 20;
+                   estH += Math.ceil(str.length / 100) * 20;
                 }
-                if (note.tags) estH += 30;
+                if (note.tags) estH += 28;
                 allItems.push({ h: estH, el: (
             <div key={`${note.source}-${note.id}-${idx}`} className="bg-brand-navy rounded-xl border border-border-subtle p-3 shadow-sm mb-4 break-inside-avoid">
                <div className="flex items-start justify-between mb-3">
@@ -360,7 +358,7 @@ export default function ProgressNotesFeed({
             const colHeights = Array.from({ length: colsCount }, () => 0);
             
             const totalHeight = allItems.reduce((sum, item) => sum + item.h, 0);
-            const availableHeight = typeof window !== 'undefined' ? Math.max(window.innerHeight - 200, 400) : 800;
+            const availableHeight = typeof window !== 'undefined' ? Math.max(window.innerHeight - 120, 400) : 800;
             const targetColHeight = Math.max(availableHeight, Math.ceil(totalHeight / colsCount));
 
             let currentColumn = 0;
