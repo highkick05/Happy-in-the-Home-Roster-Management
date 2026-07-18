@@ -27,6 +27,22 @@ interface ProgressNotesFeedProps {
   currentUserId?: number;
 }
 
+
+const useBreakpoint = () => {
+  const [cols, setCols] = useState(1);
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1280) setCols(3);
+      else if (window.innerWidth >= 768) setCols(2);
+      else setCols(1);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  return cols;
+};
+
 export default function ProgressNotesFeed({
   userRole,
   availableClients,
@@ -58,6 +74,7 @@ export default function ProgressNotesFeed({
   
   const paginatedNotes = notes.slice((page - 1) * pageSize, page * pageSize);
   const totalPages = Math.ceil(notes.length / pageSize);
+  const colsCount = useBreakpoint();
 
   const handleSubmit = async () => {
     if (!selectedClientId) return;
@@ -164,75 +181,81 @@ export default function ProgressNotesFeed({
     <div className="space-y-3 w-full">
       
 
-      <div className="columns-1 md:columns-2 xl:columns-3 gap-4">
-        {/* Add New Note */}
-        {selectedClientId && (
-          <div className="bg-brand-navy rounded-xl border border-border-subtle shadow-sm flex flex-col mb-4 break-inside-avoid">
-            <div className="px-3 py-2 border-b border-border-subtle bg-black/10">
-              <h3 className="text-[14px] font-semibold text-white">Add New Progress Note</h3>
-            </div>
-            <div className="p-3">
-              <div className="border border-border-subtle rounded-lg overflow-hidden bg-brand-bg text-white">
-                <EditorJSWrapper 
-                  ref={editorRef} 
-                  minHeight={40} 
-                  toolbarRight={
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {userRole === 'ADMIN' && (
-                        <div className="flex items-center space-x-2 text-[11px] w-full">
-                          <span className="text-zinc-500">Author:</span>
-                          <select 
-                            value={newNoteAuthorId}
-                            onChange={(e) => setNewNoteAuthorId(e.target.value)}
-                            className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none flex-1"
-                          >
-                            <option value="" className="bg-brand-navy text-white">(Self)</option>
-                            {staffList?.filter(s => s.role === 'STAFF').map(s => (
-                              <option key={s.id} value={s.id} className="bg-brand-navy text-white">{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
-                            ))}
-                          </select>
+      {loading ? (
+        <div className="text-center py-8 text-zinc-400 w-full">Loading notes...</div>
+      ) : (
+        <div className="flex gap-4 w-full">
+          {(() => {
+            const addNoteWidget = selectedClientId ? (
+              <div key="add-note" className="bg-brand-navy rounded-xl border border-border-subtle shadow-sm flex flex-col mb-4">
+                <div className="px-3 py-2 border-b border-border-subtle bg-black/10">
+                  <h3 className="text-[14px] font-semibold text-white">Add New Progress Note</h3>
+                </div>
+                <div className="p-3">
+                  <div className="border border-border-subtle rounded-lg overflow-hidden bg-brand-bg text-white">
+                    <EditorJSWrapper 
+                      ref={editorRef} 
+                      minHeight={40} 
+                      toolbarRight={
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {userRole === 'ADMIN' && (
+                            <div className="flex items-center space-x-2 text-[11px] w-full">
+                              <span className="text-zinc-500">Author:</span>
+                              <select 
+                                value={newNoteAuthorId}
+                                onChange={(e) => setNewNoteAuthorId(e.target.value)}
+                                className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none flex-1"
+                              >
+                                <option value="" className="bg-brand-navy text-white">(Self)</option>
+                                {staffList?.filter(s => s.role === 'STAFF').map(s => (
+                                  <option key={s.id} value={s.id} className="bg-brand-navy text-white">{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                          <div className="flex items-center space-x-2 text-[11px] w-full mt-2">
+                            <span className="text-zinc-500">Tag:</span>
+                            <div className="bg-brand-navy border border-[#0B0C0E] rounded flex overflow-hidden flex-1">
+                              {['Activity', 'Behavioural', 'Incident'].map(tag => (
+                                <button
+                                  key={tag}
+                                  onClick={() => setNewNoteTags(tag)}
+                                  className={`flex-1 px-1 py-1 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-brand-navy'}`}
+                                >
+                                  {tag}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                      <div className="flex items-center space-x-2 text-[11px] w-full mt-2">
-                        <span className="text-zinc-500">Tag:</span>
-                        <div className="bg-brand-navy border border-[#0B0C0E] rounded flex overflow-hidden flex-1">
-                          {['Activity', 'Behavioural', 'Incident'].map(tag => (
-                            <button
-                              key={tag}
-                              onClick={() => setNewNoteTags(tag)}
-                              className={`flex-1 px-1 py-1 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-brand-navy'}`}
-                            >
-                              {tag}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  }
-                />
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end px-3 py-2 border-t border-border-subtle bg-black/10">
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="bg-brand-green/20 text-brand-green border border-brand-green/30 px-3 py-1.5 rounded text-[12px] font-medium hover:bg-brand-green/30 transition-colors disabled:opacity-50 flex items-center leading-none shadow-sm"
+                  >
+                    Submit Note
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="flex justify-end px-3 py-2 border-t border-border-subtle bg-black/10">
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="bg-brand-green/20 text-brand-green border border-brand-green/30 px-3 py-1.5 rounded text-[12px] font-medium hover:bg-brand-green/30 transition-colors disabled:opacity-50 flex items-center leading-none shadow-sm"
-              >
-                Submit Note
-              </button>
-            </div>
-          </div>
-        )}
+            ) : null;
 
-        {/* Feed */}
-        {loading ? (
-          <div className="text-center py-8 text-zinc-400 w-full break-inside-avoid">Loading notes...</div>
-        ) : notes.length === 0 ? (
-          <div className="text-center py-12 text-zinc-500 bg-brand-navy/80 rounded-xl border border-border-subtle w-full break-inside-avoid">
-            No progress notes found for this client.
-          </div>
-        ) : (
-          paginatedNotes.map((note, idx) => (
+            const allItems = [];
+            if (addNoteWidget) allItems.push(addNoteWidget);
+            
+            if (notes.length === 0) {
+              allItems.push(
+                <div key="empty" className="text-center py-12 text-zinc-500 bg-brand-navy/80 rounded-xl border border-border-subtle w-full mb-4">
+                  No progress notes found for this client.
+                </div>
+              );
+            } else {
+              paginatedNotes.forEach((note, idx) => {
+                allItems.push(
             <div key={`${note.source}-${note.id}-${idx}`} className="bg-brand-navy rounded-xl border border-border-subtle p-3 shadow-sm mb-4 break-inside-avoid">
                <div className="flex items-start justify-between mb-3">
                   <div>
@@ -318,9 +341,55 @@ export default function ProgressNotesFeed({
                  </div>
                )}
             </div>
-          ))
-        )}
-      </div>
+                );
+              });
+            }
+
+            const columns = Array.from({ length: colsCount }, () => []);
+            
+            // Distribute items vertically down columns (like CSS columns)
+            const baseCount = Math.floor(allItems.length / colsCount);
+            const extraCount = allItems.length % colsCount;
+            
+            let currentItemIndex = 0;
+            for (let i = 0; i < colsCount; i++) {
+              const countForThisCol = baseCount + (i < extraCount ? 1 : 0);
+              for (let j = 0; j < countForThisCol; j++) {
+                if (currentItemIndex < allItems.length) {
+                  columns[i].push(allItems[currentItemIndex]);
+                  currentItemIndex++;
+                }
+              }
+            }
+
+            return columns.map((colItems, colIdx) => (
+              <div key={colIdx} className="flex flex-col gap-4 flex-1 min-w-0">
+                {colItems}
+              </div>
+            ));
+          })()}
+        </div>
+      )}
+      
+      {totalPages > 1 && (
+        <div className="flex items-center justify-end gap-3 pt-2">
+           <button 
+             onClick={() => setPage(Math.max(1, page - 1))}
+             disabled={page === 1}
+             className="px-2 py-1 bg-brand-navy border border-border-subtle rounded text-xs text-white disabled:opacity-50"
+           >
+             Prev
+           </button>
+           <span className="text-xs text-zinc-400">Page {page} of {totalPages}</span>
+           <button 
+             onClick={() => setPage(Math.min(totalPages, page + 1))}
+             disabled={page === totalPages}
+             className="px-2 py-1 bg-brand-navy border border-border-subtle rounded text-xs text-white disabled:opacity-50"
+           >
+             Next
+           </button>
+        </div>
+      )}
     </div>
   );
 }
