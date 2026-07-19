@@ -372,7 +372,7 @@ export default function VehiclesView() {
         </div>
 
         <div className="bg-brand-navy rounded-xl border border-border-subtle flex-1 flex flex-col min-h-0">
-          <div className="overflow-auto flex-1 relative">
+          <div className="overflow-auto flex-1 relative hide-scrollbar-y">
           <table className="w-full text-left text-[11px] whitespace-nowrap">
             <thead className="bg-brand-navy border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold sticky top-0 z-10">
               <tr>

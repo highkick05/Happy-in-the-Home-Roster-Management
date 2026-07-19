@@ -539,3 +539,25 @@ it might be cut off if padding is not sufficient */
   font-weight: 600 !important;
   padding: 4px 0 !important;
 }
+
+/* Hide vertical scrollbar but keep horizontal */
+.hide-scrollbar-y {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar-y::-webkit-scrollbar:vertical {
+  display: none;
+}
+.hide-scrollbar-y::-webkit-scrollbar:horizontal {
+  height: 8px;
+}
+.hide-scrollbar-y::-webkit-scrollbar-track:horizontal {
+  background: transparent;
+}
+.hide-scrollbar-y::-webkit-scrollbar-thumb:horizontal {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+.hide-scrollbar-y::-webkit-scrollbar-thumb:horizontal:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
