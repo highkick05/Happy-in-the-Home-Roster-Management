@@ -335,7 +335,7 @@ const expandedLogs = logs.map(log => {
         </div>
       </div>
       
-      <div className="p-2 pb-16 max-w-full overflow-x-auto space-y-2">
+      <div className="p-2 pb-16 flex flex-col flex-1 space-y-2 w-full">
         
         {/* Filters */}
         <div className="flex flex-wrap items-center justify-start gap-2">
