@@ -24,6 +24,7 @@ export default function StaffActivityReport() {
 
   const [showColumnDropdown, setShowColumnDropdown] = useState(false);
   const [visibleColumns, setVisibleColumns] = useLocalStorage<string[]>('activity_visible_columns', [
+    'shiftId',
     'dateAndDay',
     'time',
     'staffMember',
@@ -38,6 +39,7 @@ export default function StaffActivityReport() {
   ]);
 
   const columnsList = [
+    { id: 'shiftId', label: 'Shift ID' },
     { id: 'dateAndDay', label: 'Date & Day' },
     { id: 'time', label: 'Time' },
     { id: 'staffMember', label: 'Staff Member' },
@@ -48,7 +50,7 @@ export default function StaffActivityReport() {
     { id: 'shiftDuration', label: 'Shift Duration (Hrs)' },
     { id: 'travelKm', label: 'Travel (Km)' },
     { id: 'travelHrs', label: 'Travel (Hrs)' },
-    { id: 'travelReimbursement', label: 'Travel Reimbursement ($)' },
+    { id: 'travelReimbursement', label: 'REIMB ($)' },
   ];
 
   const toggleColumn = (id: string) => {
@@ -218,6 +220,7 @@ export default function StaffActivityReport() {
           <table className="w-full text-left text-xs text-[#8B949E] relative">
             <thead className="text-[10px] uppercase bg-brand-bg text-[#8B949E] sticky top-0 z-10 font-medium border-b border-border-subtle">
               <tr>
+                {visibleColumns.includes('shiftId') && <th className="px-3 py-2 min-w-[80px]">Shift ID</th>}
                 {visibleColumns.includes('dateAndDay') && <th className="px-3 py-2 min-w-[150px]">Date & Day</th>}
                 {visibleColumns.includes('time') && <th className="px-3 py-2 min-w-[150px]">Time</th>}
                 {visibleColumns.includes('staffMember') && <th className="px-3 py-2">Staff Member</th>}
@@ -228,7 +231,7 @@ export default function StaffActivityReport() {
                 {visibleColumns.includes('shiftDuration') && <th className="px-3 py-2 text-right">Shift Duration</th>}
                 {visibleColumns.includes('travelKm') && <th className="px-3 py-2 text-right">Travel (Km)</th>}
                 {visibleColumns.includes('travelHrs') && <th className="px-3 py-2 text-right">Travel (Hrs)</th>}
-                {visibleColumns.includes('travelReimbursement') && <th className="px-3 py-2 text-right">Travel Reimbursement ($)</th>}
+                {visibleColumns.includes('travelReimbursement') && <th className="px-3 py-2 text-right">REIMB ($)</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -248,6 +251,9 @@ export default function StaffActivityReport() {
               ) : (
                 reportData?.log.map((row: any) => (
                   <tr key={row.id} className="hover:bg-brand-bg/50 transition-colors">
+                {visibleColumns.includes('shiftId') && (
+                      <td className="px-3 py-2 whitespace-nowrap text-[#8B949E] text-xs font-mono">#{row.shiftId}</td>
+                    )}
                     {visibleColumns.includes('dateAndDay') && (
                       <td className="px-3 py-2 whitespace-nowrap text-[#E6EDF3] font-medium">{row.dateAndDay}</td>
                     )}

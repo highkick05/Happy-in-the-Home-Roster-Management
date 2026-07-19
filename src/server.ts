@@ -10143,6 +10143,7 @@ app.get("/api/health", (req, res) => {
 
           rows.push({
             id: shift.id + "_base",
+            shiftId: shift.id,
             dateAndDay: dayStr,
             timeString: timeStr,
             serviceProvided: serviceProvided,
@@ -10165,6 +10166,7 @@ app.get("/api/health", (req, res) => {
           if (!isHomeCare && prov_km > 0 && hasProviderTravelService) {
             rows.push({
               id: shift.id + "_prov",
+              shiftId: shift.id,
               dateAndDay: dayStr,
               timeString: "-", // Secondary travel item
               serviceProvided: "Provider Travel",
@@ -10186,6 +10188,7 @@ app.get("/api/health", (req, res) => {
           if (!isHomeCare && abt_km > 0 && hasABTService) {
             rows.push({
               id: shift.id + "_abt",
+              shiftId: shift.id,
               dateAndDay: dayStr,
               timeString: "-", // Secondary transport item
               serviceProvided: "Activity Based Transport",
