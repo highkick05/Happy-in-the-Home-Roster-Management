@@ -232,9 +232,13 @@ export default function ClientDashboardView() {
           <div className="xl:col-span-1 space-y-6">
             <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm">
               <div className="flex items-center space-x-4 mb-6">
-                <div className="w-16 h-16 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green flex items-center justify-center text-2xl font-semibold shrink-0">
-                  {initials || '?'}
-                </div>
+                {client.avatar_url ? (
+                  <img src={getAvatarUrl(client.avatar_url)} alt={`${client.first_name}`} className="w-16 h-16 rounded-full border border-white/[0.08] bg-[#151515] shrink-0 object-cover" />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green flex items-center justify-center text-2xl font-semibold shrink-0">
+                    {initials || '?'}
+                  </div>
+                )}
                 <div>
                   <h3 className="text-lg font-medium text-[#E6EDF3]">{client.first_name} {client.last_name}</h3>
                   <div className="text-sm font-mono text-brand-teal mt-1">

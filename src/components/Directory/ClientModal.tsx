@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Check, Calendar } from 'lucide-react';
 import ClientRosterTemplates from './ClientRosterTemplates';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import { getAvatarUrl } from '../../utils/avatar';
 
 interface ClientModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
     historicalMonthlyCap: 0,
     assessedIndependencePct: 0,
     assessedEverydayLivingPct: 0,
+    avatarUrl: getAvatarUrl(Math.random().toString(36).substring(7)),
   });
 
   useEffect(() => {
@@ -104,6 +106,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         // // ndisAgreementStartDate: client.ndis_agreement_start_date || '',
         // ndisAgreementEndDate: client.ndis_agreement_end_date || '',
         // ndisAgreementBudget: client.ndis_agreement_budget !== undefined && client.ndis_agreement_budget !== null ? client.ndis_agreement_budget : 0,
+        avatarUrl: getAvatarUrl(client.avatar_url || client.first_name || 'Client'),
       });
     } else {
       setFormData({
@@ -133,6 +136,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         // // ndisAgreementStartDate: '',
         // ndisAgreementEndDate: '',
         // ndisAgreementBudget: 0,
+    avatarUrl: getAvatarUrl(Math.random().toString(36).substring(7)),
       });
     }
   }, [client, isOpen]);

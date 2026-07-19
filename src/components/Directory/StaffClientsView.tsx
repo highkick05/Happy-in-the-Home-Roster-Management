@@ -272,9 +272,13 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                   <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${c.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green flex items-center justify-center text-[11px] font-semibold shrink-0">
-                          {initials || '?'}
-                        </div>
+                        {c.avatar_url ? (
+                          <img src={getAvatarUrl(c.avatar_url)} alt={`${c.first_name}`} className="w-7 h-7 rounded-full border border-white/[0.08] bg-[#151515] shrink-0 object-cover" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green flex items-center justify-center text-[11px] font-semibold shrink-0">
+                            {initials || '?'}
+                          </div>
+                        )}
                         <div>
                           <div className="font-medium text-[#E6EDF3] flex items-center">
                             {c.first_name} {c.last_name}
