@@ -60,18 +60,18 @@ export default function DatabaseSettings() {
   const totalSize = backups.reduce((acc, curr) => acc + curr.size, 0);
 
   if (user?.role !== 'ADMIN') {
-    return <div className="p-4 text-white">Access denied. Admins only.</div>;
+    return <div className="p-3 text-white">Access denied. Admins only.</div>;
   }
 
   return (
-    <div className="p-4 max-w-5xl">
-      <div className="mb-8 p-4 bg-brand-bg border border-border-subtle rounded-xl flex items-center justify-between">
+    <div className="p-3 max-w-5xl">
+      <div className="mb-8 p-3 bg-brand-bg border border-border-subtle rounded-xl flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-0.5">
             <Database className="w-5 h-5 text-brand-teal" />
             Manual Database Access
           </h3>
-          <p className="text-sm text-[#8B949E] max-w-2xl">
+          <p className="text-xs text-[#8B949E] max-w-2xl">
             <span className="font-semibold text-red-400">Required:</span> Perform this manual download before every system update or code push. This packages the live SQLite database file.
           </p>
         </div>
@@ -84,22 +84,22 @@ export default function DatabaseSettings() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <div className="p-5 bg-brand-bg border border-border-subtle rounded-xl flex items-center gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-0.5">
+        <div className="p-5 bg-brand-bg border border-border-subtle rounded-xl flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-brand-teal/10 flex items-center justify-center">
             <HardDrive className="w-6 h-6 text-brand-teal" />
           </div>
           <div>
-            <div className="text-sm text-[#8B949E] mb-1">Total Storage Used</div>
+            <div className="text-xs text-[#8B949E] mb-0.5">Total Storage Used</div>
             <div className="text-2xl font-bold text-white tracking-tight">{formatBytes(totalSize)}</div>
           </div>
         </div>
-        <div className="p-5 bg-brand-bg border border-border-subtle rounded-xl flex items-center gap-4">
+        <div className="p-5 bg-brand-bg border border-border-subtle rounded-xl flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center">
             <RefreshCw className="w-6 h-6 text-blue-500" />
           </div>
           <div>
-            <div className="text-sm text-[#8B949E] mb-1">Last Successful Backup</div>
+            <div className="text-xs text-[#8B949E] mb-0.5">Last Successful Backup</div>
             <div className="text-xl font-bold text-white tracking-tight">
               {backups.length > 0 ? new Date(backups[0].date).toLocaleString() : 'Never'}
             </div>
@@ -114,9 +114,9 @@ export default function DatabaseSettings() {
         </div>
         
         {loading ? (
-          <div className="p-4 text-center text-[#8B949E]">Loading...</div>
+          <div className="p-3 text-center text-[#8B949E]">Loading...</div>
         ) : backups.length === 0 ? (
-          <div className="p-4 text-center text-[#8B949E]">No automated backups found. Note: Backup system runs at 2:00 AM daily.</div>
+          <div className="p-3 text-center text-[#8B949E]">No automated backups found. Note: Backup system runs at 2:00 AM daily.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -134,10 +134,10 @@ export default function DatabaseSettings() {
                     <td className="px-6 py-4 text-sm text-[#E6EDF3] whitespace-nowrap">
                       {bkp.name}
                     </td>
-                    <td className="px-6 py-4 text-sm text-[#8B949E] whitespace-nowrap">
+                    <td className="px-6 py-4 text-xs text-[#8B949E] whitespace-nowrap">
                       {new Date(bkp.date).toLocaleString()}
                     </td>
-                    <td className="px-6 py-4 text-sm text-[#8B949E] whitespace-nowrap">
+                    <td className="px-6 py-4 text-xs text-[#8B949E] whitespace-nowrap">
                       {formatBytes(bkp.size)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">

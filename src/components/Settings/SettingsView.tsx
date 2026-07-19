@@ -578,37 +578,37 @@ export default function SettingsView() {
   return (
     <div className="h-full flex flex-col space-y-3">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight mb-2 md:mb-0">System Settings</h2>
+        <h2 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0">System Settings</h2>
       </div>
 
       <div className="flex space-x-1 bg-brand-navy border border-border-subtle p-1 rounded-lg w-fit max-w-full overflow-x-auto overflow-y-hidden shadow-sm hidden-scrollbar">
         <button
           onClick={() => setActiveTab('GENERAL')}
-          className={`px-3 py-1.5 text-[13px] rounded-md transition-colors ${activeTab === 'GENERAL' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider ${activeTab === 'GENERAL' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
           General
         </button>
         <button
           onClick={() => setActiveTab('BILLING')}
-          className={`px-3 py-1.5 text-[13px] rounded-md transition-colors ${activeTab === 'BILLING' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider ${activeTab === 'BILLING' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
           Billing & Finance
         </button>
         <button
           onClick={() => setActiveTab('NDIS')}
-          className={`px-3 py-1.5 text-[13px] rounded-md transition-colors ${activeTab === 'NDIS' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider ${activeTab === 'NDIS' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
           NDIS Pricing
         </button>
         <button
           onClick={() => setActiveTab('HOME_CARE')}
-          className={`px-3 py-1.5 text-[13px] rounded-md transition-colors ${activeTab === 'HOME_CARE' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider ${activeTab === 'HOME_CARE' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
           Home Care
         </button>
         <button
           onClick={() => setActiveTab('BRANDING')}
-          className={`px-3 py-1.5 text-[13px] rounded-md transition-colors ${activeTab === 'BRANDING' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider ${activeTab === 'BRANDING' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
           Branding
         </button>
@@ -616,14 +616,14 @@ export default function SettingsView() {
           <>
             <button
               onClick={() => setActiveTab('TESTING')}
-              className={`px-3 py-1.5 text-[13px] rounded-md transition-colors flex items-center gap-2 ${activeTab === 'TESTING' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
+              className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider flex items-center gap-2 ${activeTab === 'TESTING' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
             >
               <CheckSquare className="w-3.5 h-3.5" />
               Testing Checklist
             </button>
             <button
               onClick={() => setActiveTab('DATABASE')}
-              className={`px-3 py-1.5 text-[13px] rounded-md transition-colors flex items-center gap-2 ${activeTab === 'DATABASE' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
+              className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider flex items-center gap-2 ${activeTab === 'DATABASE' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
             >
               <Database className="w-3.5 h-3.5" />
               Database
@@ -638,14 +638,14 @@ export default function SettingsView() {
         {activeTab === 'GENERAL' && (
           <div className="p-4 max-w-4xl">
             <div className="mb-4">
-              <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">General Settings</h3>
-              <p className="text-sm text-[#8B949E] mt-1">Configure business details, global preferences, and timezone.</p>
+              <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">General Settings</h3>
+              <p className="text-xs text-[#8B949E] mt-0">Configure business details, global preferences, and timezone.</p>
             </div>
             
             <form onSubmit={handleSaveSettings} className="space-y-3">
               {successMsg && <div className="p-3 bg-brand-green/20 text-brand-green border border-brand-green/50 rounded-md text-sm">{successMsg}</div>}
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-medium text-[#8B949E] mb-2">Business Name</label>
                   <input type="text" value={settings.businessName} onChange={e => setSettings({...settings, businessName: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
@@ -698,7 +698,7 @@ export default function SettingsView() {
               <div className="col-span-2 border-t border-border-subtle pt-6 mt-6">
                  <h4 className="text-md font-medium text-[#E6EDF3] mb-4">Kiosk & Monitoring Display</h4>
                  <div className="bg-brand-navy border border-border-subtle rounded-xl p-5 relative">
-                    <p className="text-sm text-[#8B949E] mb-4">Use these URLs to configure standalone, wall-mounted monitoring displays in Kiosk mode. It dynamically auto-refreshes every 30 seconds.</p>
+                    <p className="text-xs text-[#8B949E] mb-4">Use these URLs to configure standalone, wall-mounted monitoring displays in Kiosk mode. It dynamically auto-refreshes every 30 seconds.</p>
                     
                     <div className="space-y-4">
                       <div className="flex flex-col gap-2">
@@ -712,7 +712,7 @@ export default function SettingsView() {
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <div className="flex flex-col gap-2">
                           <label className="text-xs font-medium text-[#8B949E]">Force Landscape</label>
                           <div className="flex items-center gap-3">
@@ -761,14 +761,14 @@ export default function SettingsView() {
         {activeTab === 'BILLING' && (
           <div className="p-4 max-w-4xl">
             <div className="mb-4">
-              <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">Billing & Finance</h3>
-              <p className="text-sm text-[#8B949E] mt-1">Configure business bank details and invoicing cycles.</p>
+              <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">Billing & Finance</h3>
+              <p className="text-xs text-[#8B949E] mt-0">Configure business bank details and invoicing cycles.</p>
             </div>
             
             <form onSubmit={handleSaveSettings} className="space-y-3">
               {successMsg && <div className="p-3 bg-brand-green/20 text-brand-green border border-brand-green/50 rounded-md text-sm">{successMsg}</div>}
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="col-span-2 border-b border-border-subtle pb-4 mb-2">
                   <h4 className="text-md font-medium text-[#E6EDF3]">Business Bank Account</h4>
                 </div>
@@ -868,14 +868,14 @@ export default function SettingsView() {
         {activeTab === 'BRANDING' && (
           <div className="p-4 max-w-4xl">
             <div className="mb-4">
-              <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">Branding</h3>
-              <p className="text-sm text-[#8B949E] mt-1">Upload your logos for the application interface and generated invoices.</p>
+              <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">Branding</h3>
+              <p className="text-xs text-[#8B949E] mt-0">Upload your logos for the application interface and generated invoices.</p>
             </div>
             
             <form onSubmit={handleSaveSettings} className="space-y-4">
               {successMsg && <div className="p-3 bg-brand-green/20 text-brand-green border border-brand-green/50 rounded-md text-sm">{successMsg}</div>}
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {/* Website Logo */}
                 <div className="bg-brand-navy border-t border-border-subtle rounded-xl p-4 shadow-sm relative overflow-hidden ring-1 ring-border-subtle/50">
                   <div className="mb-4">
@@ -894,7 +894,7 @@ export default function SettingsView() {
                     ) : (
                       <div className="text-center">
                         <Upload className="w-8 h-8 text-[#8B949E] mx-auto mb-2" />
-                        <p className="text-sm text-[#8B949E]">Click to upload image</p>
+                        <p className="text-xs text-[#8B949E]">Click to upload image</p>
                       </div>
                     )}
                     <input 
@@ -924,7 +924,7 @@ export default function SettingsView() {
                     ) : (
                       <div className="text-center">
                         <Upload className="w-8 h-8 text-[#8B949E] mx-auto mb-2" />
-                        <p className="text-sm text-[#8B949E]">Click to upload image</p>
+                        <p className="text-xs text-[#8B949E]">Click to upload image</p>
                       </div>
                     )}
                     <input 
@@ -953,7 +953,7 @@ export default function SettingsView() {
                     ) : (
                       <div className="text-center">
                         <Upload className="w-8 h-8 text-[#8B949E] mx-auto mb-2" />
-                        <p className="text-sm text-[#8B949E]">Click to upload image</p>
+                        <p className="text-xs text-[#8B949E]">Click to upload image</p>
                       </div>
                     )}
                     <input 
@@ -983,7 +983,7 @@ export default function SettingsView() {
                     ) : (
                       <div className="text-center">
                         <Upload className="w-8 h-8 text-[#8B949E] mx-auto mb-2" />
-                        <p className="text-sm text-[#8B949E]">Click to upload image</p>
+                        <p className="text-xs text-[#8B949E]">Click to upload image</p>
                       </div>
                     )}
                     <input 
@@ -1008,11 +1008,11 @@ export default function SettingsView() {
 
         {activeTab === 'NDIS' && (
           <div className="flex flex-col h-full bg-brand-navy">
-            <div className="p-4 border-b border-border-subtle bg-brand-bg relative shrink-0">
+            <div className="p-3 border-b border-border-subtle bg-brand-bg relative shrink-0">
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <h3 className="text-lg font-medium text-[#E6EDF3] mb-1 font-sans">NDIS Price Lists</h3>
-                  <p className="text-sm text-[#8B949E]">Manage multiple price schedules and set the active Master Price List.</p>
+                  <h3 className="text-sm font-medium text-[#E6EDF3] mb-0.5 font-sans">NDIS Price Lists</h3>
+                  <p className="text-xs text-[#8B949E]">Manage multiple price schedules and set the active Master Price List.</p>
                 </div>
                 <div className="flex space-x-2 items-center">
                   <button 
@@ -1101,10 +1101,10 @@ export default function SettingsView() {
               </div>
             </div>
 
-            <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg relative shrink-0">
+            <div className="p-3 border-b border-border-subtle flex justify-between items-center bg-brand-bg relative shrink-0">
               <div>
-                <h3 className="text-lg font-medium text-[#E6EDF3] mb-1 font-sans">Current Master NDIS Items</h3>
-                <p className="text-sm text-[#8B949E]">These are the active NDIS rates used across the system.</p>
+                <h3 className="text-sm font-medium text-[#E6EDF3] mb-0.5 font-sans">Current Master NDIS Items</h3>
+                <p className="text-xs text-[#8B949E]">These are the active NDIS rates used across the system.</p>
               </div>
               <div className="flex space-x-2 items-center">
                 <input
@@ -1236,10 +1236,10 @@ export default function SettingsView() {
 
               {homeCareSubTab === 'PRICING' && (
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                  <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg relative shrink-0">
+                  <div className="p-3 border-b border-border-subtle flex justify-between items-center bg-brand-bg relative shrink-0">
                     <div>
-                      <h3 className="text-lg font-medium text-[#E6EDF3] mb-1 font-sans">Home Care Line Items</h3>
-                      <p className="text-sm text-[#8B949E]">Import Home Care rates from an Excel (.xlsx) file.</p>
+                      <h3 className="text-sm font-medium text-[#E6EDF3] mb-0.5 font-sans">Home Care Line Items</h3>
+                      <p className="text-xs text-[#8B949E]">Import Home Care rates from an Excel (.xlsx) file.</p>
                     </div>
                     <div className="flex space-x-2 items-center">
                       <input 
@@ -1413,7 +1413,7 @@ export default function SettingsView() {
       {showAddServiceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center p-4 border-b border-border-subtle">
+            <div className="flex justify-between items-center p-3 border-b border-border-subtle">
               <h2 className="text-xl font-semibold text-[#E6EDF3]">Add Custom Service</h2>
               <button 
                 onClick={() => setShowAddServiceModal(false)}
@@ -1437,7 +1437,7 @@ export default function SettingsView() {
                   />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-xs font-medium text-[#8B949E] mb-1.5">Category *</label>
                     <select
@@ -1469,7 +1469,7 @@ export default function SettingsView() {
                   <div className="space-y-3">
                     {['Weekday', 'Weekday (Non-Standard)', 'Saturday', 'Sunday', 'Public Holiday'].map(rateKey => (
                       <div key={rateKey} className="flex items-center justify-between">
-                        <label className="text-sm text-[#8B949E]">{rateKey}</label>
+                        <label className="text-xs text-[#8B949E]">{rateKey}</label>
                         <div className="relative w-32">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <span className="text-[#8B949E] text-sm">$</span>
@@ -1524,7 +1524,7 @@ export default function SettingsView() {
       {showEditPriceListModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-lg shadow-2xl flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b border-border-subtle">
+            <div className="flex justify-between items-center p-3 border-b border-border-subtle">
               <h2 className="text-xl font-semibold text-[#E6EDF3]">Edit NDIS Price List</h2>
               <button 
                 onClick={() => {
@@ -1604,7 +1604,7 @@ export default function SettingsView() {
       {showPriceListModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-brand-navy border border-border-subtle rounded-xl w-full max-w-lg shadow-2xl flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b border-border-subtle">
+            <div className="flex justify-between items-center p-3 border-b border-border-subtle">
               <h2 className="text-xl font-semibold text-[#E6EDF3]">Import NDIS Price List</h2>
               <button 
                 onClick={() => setShowPriceListModal(false)}
@@ -1635,7 +1635,7 @@ export default function SettingsView() {
                     accept=".xlsx, .xls, .csv"
                     required
                     onChange={(e) => setPriceListFile(e.target.files?.[0] || null)}
-                    className="w-full text-sm text-[#8B949E] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-zinc-800 file:text-zinc-200 hover:file:bg-zinc-700 transition-colors"
+                    className="w-full text-xs text-[#8B949E] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-zinc-800 file:text-zinc-200 hover:file:bg-zinc-700 transition-colors"
                   />
                 </div>
 

@@ -151,10 +151,10 @@ export default function FundingTypesSettings() {
 
   return (
     <div className="flex flex-col h-full bg-brand-navy overflow-hidden">
-      <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg">
+      <div className="p-3 border-b border-border-subtle flex justify-between items-center bg-brand-bg">
         <div>
-          <h3 className="text-lg font-medium text-[#E6EDF3] mb-1">Funding Types & Levels</h3>
-          <p className="text-sm text-[#8B949E]">Configure default funding levels and amounts for HCP and Support at Home (SaH).</p>
+          <h3 className="text-sm font-medium text-[#E6EDF3] mb-0.5">Funding Types & Levels</h3>
+          <p className="text-xs text-[#8B949E]">Configure default funding levels and amounts for HCP and Support at Home (SaH).</p>
         </div>
       </div>
       
@@ -177,15 +177,15 @@ export default function FundingTypesSettings() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-3">
         {successMsg && (
-          <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-md text-sm">
+          <div className="mb-6 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-md text-sm">
             {successMsg}
           </div>
         )}
         
         {loading ? (
-          <div className="flex items-center justify-center p-4 text-[#8B949E]">
+          <div className="flex items-center justify-center p-3 text-[#8B949E]">
             <RefreshCw className="w-5 h-5 animate-spin mr-2" />
             Loading funding settings...
           </div>
@@ -193,13 +193,13 @@ export default function FundingTypesSettings() {
           <form id="fundingTypesForm" onSubmit={handleSave} className="space-y-3 max-w-6xl font-sans">
             {activeTab === 'HCP' && (
               <div className="space-y-4">
-                <div className="grid grid-cols-12 gap-4 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
+                <div className="grid grid-cols-12 gap-3 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
                   <div className="col-span-2">Level</div>
                   <div className="col-span-7">Description</div>
                   <div className="col-span-3 text-right">Daily Funding Rate ($)</div>
                 </div>
                 {hcpLevels.map((lvl, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-4 items-center">
+                  <div key={idx} className="grid grid-cols-12 gap-3 items-center">
                     <div className="col-span-2">
                       <input
                         type="text"
@@ -238,13 +238,13 @@ export default function FundingTypesSettings() {
             
             {activeTab === 'SAH' && (
               <div className="space-y-4">
-                <div className="grid grid-cols-12 gap-4 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
+                <div className="grid grid-cols-12 gap-3 pb-2 border-b border-border-subtle text-xs font-semibold uppercase tracking-wider text-[#8B949E]">
                   <div className="col-span-2">Class Level</div>
                   <div className="col-span-7">Description</div>
                   <div className="col-span-3 text-right">Daily Funding Rate ($)</div>
                 </div>
                 {sahLevels.map((lvl, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-4 items-center">
+                  <div key={idx} className="grid grid-cols-12 gap-3 items-center">
                     <div className="col-span-2">
                       <input
                         type="text"
@@ -284,7 +284,7 @@ export default function FundingTypesSettings() {
         )}
       </div>
 
-      <div className="p-4 border-t border-border-subtle bg-brand-navy flex justify-end">
+      <div className="p-3 border-t border-border-subtle bg-brand-navy flex justify-end">
         <button
           type="submit"
           form="fundingTypesForm"

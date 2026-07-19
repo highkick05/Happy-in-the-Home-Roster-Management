@@ -110,16 +110,16 @@ export default function TestingChecklist() {
   const percent = Math.round((completedCount / totalCount) * 100);
 
   return (
-    <div className="p-4 max-w-4xl">
-      <div className="flex justify-between items-end mb-4">
+    <div className="p-3 max-w-4xl">
+      <div className="flex justify-between items-end mb-0.5">
         <div>
-          <h3 className="text-lg font-medium text-[#E6EDF3] mb-2">Pre-Launch Testing Checklist</h3>
-          <p className="text-sm text-[#8B949E]">
+          <h3 className="text-sm font-medium text-[#E6EDF3] mb-0.5">Pre-Launch Testing Checklist</h3>
+          <p className="text-xs text-[#8B949E]">
             Verify critical system functionalities before going live. Your progress is saved automatically.
           </p>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-semibold text-brand-teal mb-1">{percent}% Complete</div>
+          <div className="text-2xl font-semibold text-brand-teal mb-0.5">{percent}% Complete</div>
           <div className="text-xs text-[#8B949E]">{completedCount} of {totalCount} tasks passed</div>
         </div>
       </div>
@@ -140,7 +140,7 @@ export default function TestingChecklist() {
                 return (
                   <div 
                     key={item.id} 
-                    className={`px-6 py-4 flex items-start gap-4 transition-colors ${isChecked ? 'bg-brand-bg/30' : 'hover:bg-brand-bg/50 cursor-pointer'}`}
+                    className={`px-6 py-4 flex items-start gap-3 transition-colors ${isChecked ? 'bg-brand-bg/30' : 'hover:bg-brand-bg/50 cursor-pointer'}`}
                     onClick={() => handleToggle(item.id)}
                   >
                     <button 
