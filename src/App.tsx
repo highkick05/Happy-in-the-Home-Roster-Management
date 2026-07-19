@@ -99,7 +99,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   };
   
   const getNavClasses = ({ isActive }: { isActive: boolean }) => {
-    return `flex items-center px-3 py-1 text-[11px] font-semibold tracking-wide transition-all duration-200 rounded-lg ${
+    return `flex items-center px-3 py-1 text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg ${
       isActive 
         ? "bg-brand-green/10 text-white [&>svg]:text-brand-green shadow-[inset_2px_0_0_0_var(--color-brand-green)]"
         : "text-[#8B949E] hover:text-white hover:bg-white/[0.03] [&>svg]:text-[#8B949E] hover:[&>svg]:text-brand-teal"
@@ -250,7 +250,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         
         <nav className="flex-1 px-3 mt-0 overflow-hidden z-10 relative flex flex-col">
           
-          <div className={`text-[9px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Operations</div>
+          <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Operations</div>
           <div className="space-y-0.5">
             {user?.role === 'ADMIN' && (
               <NavLink to="/tasks" className={getNavClasses} title="Tasks">
@@ -265,7 +265,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             </NavLink>
           </div>
 
-          <div className={`text-[9px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Logistics</div>
+          <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Logistics</div>
           <div className="space-y-0.5">
             <NavLink to="/travel-logs" className={getNavClasses} title="Travel Logs">
               <Map className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Travel Logs' : ''}
@@ -277,7 +277,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
           {user?.role === 'ADMIN' && (
             <>
-              <div className={`text-[9px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Directory</div>
+              <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Directory</div>
               <div className="space-y-0.5">
                 <NavLink to="/clients" className={getNavClasses} title="Clients">
                   <Heart className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Clients' : ''}
@@ -290,7 +290,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                 </NavLink>
               </div>
 
-              <div className={`text-[9px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Admin & Finance</div>
+              <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Admin & Finance</div>
               <div className="space-y-0.5">
             {user?.role === 'ADMIN' && (
               <NavLink to="/activity" className={getNavClasses} title="Staff Activity">
@@ -307,7 +307,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             </>
           )}
 
-          <div className={`text-[9px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Resources</div>
+          <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Resources</div>
           <div className="space-y-0.5">
             <NavLink to="/files" className={getNavClasses} title="Files">
               <FolderOpen className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Files' : ''}
@@ -321,7 +321,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
           {user?.role === 'ADMIN' && (
             <>
-              <div className={`text-[9px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>System</div>
+              <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>System</div>
               <div className="space-y-0.5">
                 <NavLink to="/settings" className={getNavClasses} title="Settings">
                   <Settings className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Settings' : ''}
@@ -336,13 +336,13 @@ function Layout({ children }: { children: React.ReactNode }) {
 
         <div className={`p-3 border-t border-border-subtle space-y-1 shrink-0 z-10 relative bg-brand-navy ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '!px-2' : ''}`}>
           {!isDesktopSidebarCollapsed || isMobileMenuOpen ? (
-            <div className="mb-1 px-2 text-[10px] text-brand-teal font-medium tracking-wide truncate">Logged in as {user?.firstName}</div>
+            <div className="mb-1 px-2 text-[11px] text-brand-teal font-medium tracking-wide truncate">Logged in as {user?.firstName}</div>
           ) : null}
           {user?.canSwitchAdmin && (
             <div className="flex px-2 pb-1">
               <button 
                 onClick={() => switchRole(user.role === 'ADMIN' ? 'STAFF' : 'ADMIN')}
-                className="w-full flex items-center justify-center px-3 py-1 text-[10px] font-semibold tracking-wide bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 border border-brand-teal/30 rounded-md transition-colors"
+                className="w-full flex items-center justify-center px-3 py-1 text-[11px] font-semibold tracking-wide bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 border border-brand-teal/30 rounded-md transition-colors"
               >
                 <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> 
                 {!isDesktopSidebarCollapsed || isMobileMenuOpen ? (user.role === 'ADMIN' ? 'Switch to Staff' : 'Switch to Admin') : ''}
@@ -357,7 +357,7 @@ function Layout({ children }: { children: React.ReactNode }) {
               <RefreshCw className="w-4 h-4" />
             </button>
           </div>
-          <button onClick={logout} className={`flex items-center px-3 py-1 text-[11px] font-semibold tracking-wide transition-all duration-200 rounded-lg text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.03] [&>svg]:text-[#8B949E] hover:[&>svg]:text-white w-full ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? "justify-center !px-2" : ""}`} title="Sign Out">
+          <button onClick={logout} className={`flex items-center px-3 py-1 text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.03] [&>svg]:text-[#8B949E] hover:[&>svg]:text-white w-full ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? "justify-center !px-2" : ""}`} title="Sign Out">
             <LogOut className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Sign Out' : ''}
           </button>
         </div>
