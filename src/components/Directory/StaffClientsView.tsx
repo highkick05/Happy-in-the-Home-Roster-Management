@@ -8,6 +8,7 @@ import ClientRosterModal from './ClientRosterModal';
 import ProviderModal from './ProviderModal';
 import EmploymentContractModal from './EmploymentContractModal';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { getAvatarUrl } from '../../utils/avatar';
 
 export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 'CLIENTS' | 'PROVIDERS' }) {
   const { token, user } = useAuth();
