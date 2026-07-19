@@ -161,6 +161,8 @@ input:-webkit-autofill:active {
   background-color: #18181b !important;
 }
 .rbc-toolbar button {
+  font-size: 11px !important;
+  padding: 4px 10px !important;
   color: #d4d4d8 !important;
   border-color: #3f3f46 !important;
 }
@@ -294,6 +296,7 @@ input:-webkit-autofill:active {
     gap: 12px;
   }
   .rbc-toolbar .rbc-toolbar-label {
+  font-size: 14px !important;
     margin: 8px 0;
     font-size: 16px;
     font-weight: bold;
@@ -511,4 +514,28 @@ it might be cut off if padding is not sufficient */
 .editorjs-wrapper .image-tool__caption,
 .editorjs-wrapper .cdx-input.image-tool__caption {
   display: none !important;
+}
+
+.rbc-event, .rbc-event-content {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.025em !important;
+}
+
+.rbc-event-label {
+  font-size: 9px !important;
+  font-weight: 500 !important;
+  opacity: 0.9;
+}
+
+.rbc-time-slot {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: #a1a1aa !important;
+}
+
+.rbc-time-header-cell .rbc-header {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 4px 0 !important;
 }

@@ -802,9 +802,9 @@ export default function RosterCalendar() {
         >
           <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-6 w-full">
             {/* Time Column */}
-            <div className="text-zinc-300 font-mono text-sm md:text-lg whitespace-nowrap shrink-0 min-w-[160px] flex items-center gap-1.5">
+            <div className="text-zinc-300 font-mono text-xs whitespace-nowrap shrink-0 min-w-[160px] flex items-center gap-1.5">
               {event.isRespiteWrapper ? (
-                <span className="text-brand-teal/80 font-medium text-[12px] bg-indigo-500/5 px-2 py-0.5 rounded border border-brand-teal/10">Multi-day</span>
+                <span className="text-brand-teal/80 font-medium text-[10px] bg-indigo-500/5 px-2 py-0.5 rounded border border-brand-teal/10">Multi-day</span>
               ) : (
                 <>
                   {startText} <span className="text-zinc-600 font-bold">–</span> {endText}
@@ -814,17 +814,17 @@ export default function RosterCalendar() {
             
             {/* Wording in middle, unmodified logic but formatted horizontally */}
             <div className="flex flex-col gap-1 flex-1 min-w-0 px-0 md:px-4 md:border-l md:border-zinc-700/50">
-              <span className="font-bold text-zinc-100 text-base md:text-xl leading-tight tracking-wide truncate">
+              <span className="font-semibold text-zinc-100 text-[11px] leading-tight tracking-wide truncate">
                 {event.title}
               </span>
               
               <div className="flex flex-col lg:flex-row lg:items-center gap-1.5 lg:gap-3 w-full min-w-0">
                 {event.isRespiteWrapper ? (
-                  <span className="text-violet-400 font-medium text-sm">STA / Respite</span>
+                  <span className="text-violet-400 font-medium text-[10px]">STA / Respite</span>
                 ) : (
                   <>
                     <div className="flex items-center gap-1 shrink-0 min-w-0">
-                      <span className="text-zinc-400 font-medium text-sm md:text-base lg:text-lg truncate">
+                      <span className="text-zinc-400 font-medium text-xs truncate">
                         👨‍💼 {event.staffName || 'Unassigned'}
                       </span>
                     </div>
@@ -834,7 +834,7 @@ export default function RosterCalendar() {
                           const srv = servicesList.find((s: any) => String(s.id) === String(sd.serviceId));
                           const srvName = srv ? srv.name : (sd.serviceName || (idx === 0 ? event.serviceName : 'Unknown Service'));
                           return (
-                            <span key={idx} className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-xs md:text-sm lg:text-base max-w-full truncate" title={srvName}>
+                            <span key={idx} className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-[10px] max-w-full truncate" title={srvName}>
                               {srvName}
                             </span>
                           );
@@ -843,7 +843,7 @@ export default function RosterCalendar() {
                     ) : (
                       event.serviceName && (
                         <div className="flex flex-wrap gap-1 min-w-0">
-                          <span className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-xs md:text-sm lg:text-base max-w-full truncate" title={event.serviceName}>
+                          <span className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-[10px] max-w-full truncate" title={event.serviceName}>
                             {event.serviceName}
                           </span>
                         </div>
@@ -856,7 +856,7 @@ export default function RosterCalendar() {
 
             {/* Badge on right */}
             <div className="flex items-center justify-start md:justify-end whitespace-nowrap shrink-0 mt-3 md:mt-0 md:ml-auto md:pl-2">
-              <span className={`text-[10px] md:text-xs font-bold uppercase tracking-wider px-3 py-1 mr-4 md:mr-0 inline-flex rounded-full border ${badgeClass}`}>
+              <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 mr-4 md:mr-0 inline-flex rounded-full border ${badgeClass}`}>
                 {badgeLabel}
               </span>
             </div>
@@ -867,16 +867,16 @@ export default function RosterCalendar() {
 
     const AgendaTime = ({ event }: any) => {
       if (event.isRespiteWrapper) {
-        return <div className="flex items-center h-full"><span className="text-brand-teal/80 font-medium text-[12px] bg-indigo-500/5 px-2 py-0.5 rounded border border-brand-teal/10">Multi-day</span></div>;
+        return <div className="flex items-center h-full"><span className="text-brand-teal/80 font-medium text-[10px] bg-indigo-500/5 px-2 py-0.5 rounded border border-brand-teal/10">Multi-day</span></div>;
       }
       const start = event.start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
       const end = event.end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
-      return <div className="flex items-center h-full"><span className="text-zinc-300 font-medium text-[13px] whitespace-nowrap tracking-wide flex items-center gap-1.5">{start} <span className="text-zinc-600 font-bold">→</span> {end}</span></div>;
+      return <div className="flex items-center h-full"><span className="text-zinc-300 font-medium text-[10px] whitespace-nowrap tracking-wide flex items-center gap-1.5">{start} <span className="text-zinc-600 font-bold">→</span> {end}</span></div>;
     };
 
     const AgendaDate = ({ day }: any) => {
       const formatted = day.toLocaleDateString('default', { weekday: 'short', month: 'short', day: 'numeric' });
-      return <div className="font-bold text-brand-teal text-[14px] md:text-[15px] tracking-wide flex items-start h-full">{formatted}</div>;
+      return <div className="font-bold text-brand-teal text-xs tracking-wide flex items-start h-full">{formatted}</div>;
     };
 
     const MonthDateHeader = ({ date, label }: any) => {
@@ -884,7 +884,7 @@ export default function RosterCalendar() {
       const holiday = holidays.find(h => h.date.startsWith(dateStr));
       return (
         <div className="flex flex-col items-end pr-1 pt-1 h-full pointer-events-none">
-          <span className="text-zinc-300 font-medium">{label}</span>
+          <span className="text-zinc-300 text-xs font-semibold">{label}</span>
           {holiday && <span className="text-[9px] font-bold text-amber-500 mt-0.5 truncate max-w-full pointer-events-auto bg-amber-500/10 px-1 rounded">{holiday.name}</span>}
         </div>
       );
@@ -895,7 +895,7 @@ export default function RosterCalendar() {
       const holiday = holidays.find(h => h.date.startsWith(dateStr));
       return (
         <div className="flex flex-col items-center py-1">
-          <span className="text-sm font-medium">{label}</span>
+          <span className="text-xs font-semibold">{label}</span>
           {holiday && <span className="text-[9px] font-bold text-amber-500 truncate max-w-full bg-amber-500/10 px-1 mt-0.5 rounded">{holiday.name}</span>}
         </div>
       );
@@ -953,7 +953,7 @@ export default function RosterCalendar() {
   return (
     <div className={`flex flex-col space-y-4 p-2 md:p-5 text-zinc-100 ${isFullScreen ? 'fixed inset-0 z-[100] bg-brand-bg pb-20 md:pb-4' : 'h-full bg-brand-navy border-0 md:border md:border-border-subtle rounded-xl'}`}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0 px-2 md:px-0 mt-2 md:mt-0">
-        <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight mb-6 md:mb-0">Roster Management</h2>
+        <h2 className="text-lg font-sans font-semibold text-[#E6EDF3] tracking-tight mb-6 md:mb-0">Roster Management</h2>
         
         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
           {user?.role === 'ADMIN' && (
@@ -963,7 +963,7 @@ export default function RosterCalendar() {
                 <select
                   value={groupBy}
                   onChange={(e) => setGroupBy(e.target.value as 'STAFF' | 'CLIENT')}
-                  className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[13px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
+                  className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[11px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
                 >
                   <option value="STAFF">Group by Staff</option>
                   <option value="CLIENT">Group by Client</option>
@@ -972,7 +972,7 @@ export default function RosterCalendar() {
                 <select
                   value={clientFilter}
                   onChange={(e) => setClientFilter(e.target.value)}
-                  className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[13px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
+                  className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[11px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
                 >
                   <option value="">All Clients</option>
                   {clientList.map(c => (
@@ -983,7 +983,7 @@ export default function RosterCalendar() {
                 <select
                   value={staffFilter}
                   onChange={(e) => setStaffFilter(e.target.value)}
-                  className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[13px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
+                  className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[11px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
                 >
                   <option value="">All Staff</option>
                   <option value="unassigned">Unassigned Staff</option>
@@ -1020,13 +1020,13 @@ export default function RosterCalendar() {
                     <div className="flex items-center gap-2">
                       <button 
                         onClick={() => setMultiSelectMode(true)}
-                        className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[13px] font-medium rounded-md transition-colors w-full sm:w-auto"
+                        className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto"
                       >
                         Select Mode
                       </button>
                       <button 
                         onClick={handlePublishDrafts}
-                        className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[13px] font-medium rounded-md transition-colors w-full sm:w-auto"
+                        className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto"
                       >
                         Publish Drafts
                       </button>
@@ -1038,21 +1038,21 @@ export default function RosterCalendar() {
                     <div className="flex items-center gap-2">
                       <button 
                         onClick={handleAddShift}
-                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-[170px]"
+                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[11px] font-medium rounded-md transition-all shadow-sm w-full sm:w-[170px]"
                       >
                         <Plus className="w-4 h-4 mr-1.5" />
                         Add Shift
                       </button>
                       <button 
                         onClick={handleAddRespiteBooking}
-                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-[170px]"
+                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[11px] font-medium rounded-md transition-all shadow-sm w-full sm:w-[170px]"
                       >
                         <Bed className="w-4 h-4 mr-1.5" />
                         Add Respite / STA
                       </button>
                       <button 
                         onClick={handleAddHistShift}
-                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-all shadow-sm w-full sm:w-[170px]"
+                        className="flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[11px] font-medium rounded-md transition-all shadow-sm w-full sm:w-[170px]"
                       >
                         <Plus className="w-4 h-4 mr-1.5" />
                         Add Historical Shift
