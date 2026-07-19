@@ -483,6 +483,7 @@ try {
   }
   try {
     db.exec("ALTER TABLE shifts ADD COLUMN custom_staff_name TEXT");
+    try { db.exec("ALTER TABLE shifts ADD COLUMN tags TEXT"); } catch (e) {}
     console.log("[DEBUG] Completed custom_staff_name column check.");
   } catch (e: any) {
     if (e.message && !e.message.includes("duplicate column")) {
@@ -6428,7 +6429,7 @@ app.get("/api/health", (req, res) => {
           c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
           u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
           srv.name as service_name, srv.type as service_type,
-          NULL as tags, s.staff_id as author_id
+          s.tags as tags, s.staff_id as author_id
         FROM shifts s
         LEFT JOIN clients c ON s.client_id = c.id
         LEFT JOIN users u ON s.staff_id = u.id
@@ -8576,6 +8577,7 @@ app.get("/api/health", (req, res) => {
         abtCoordinates,
         odometer_end_reading,
         odometer_end_photo,
+        is_incident,
       } = req.body;
 
       try {
@@ -8718,6 +8720,7 @@ app.get("/api/health", (req, res) => {
         UPDATE shifts SET 
           actual_finish_time = ?, 
           notes = ?, 
+          tags = ?,
           status = 'COMPLETED',
           provider_travel_km = ?,
           provider_travel_cost = ?,
@@ -8733,6 +8736,7 @@ app.get("/api/health", (req, res) => {
         const updateParams = [
           actual_finish_time || new Date().toISOString(),
           notes || shift.notes,
+          is_incident ? 'Incident' : (shift.tags || null),
           finalProviderKm,
           finalProviderCost,
           hcTravel.distance,
