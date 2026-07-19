@@ -447,7 +447,7 @@ export default function VehiclesView() {
                             placeholder="Make & Model"
                           />
                         </div>
-                        <div className="text-xs text-[#8B949E] w-12">
+                        <div className="text-xs text-[#8B949E] w-20">
                           <InlineInput
                             value={v.year}
                             onChange={(val: string) =>
@@ -641,27 +641,7 @@ export default function VehiclesView() {
                             </option>
                           </select>
                         </div>
-                        <div className="w-24">
-                          <InlineInput
-                            value={v.insurance_provider}
-                            onChange={(val: string) =>
-                              setVehicles((prev) =>
-                                prev.map((x) =>
-                                  x.id === v.id
-                                    ? { ...x, insurance_provider: val }
-                                    : x,
-                                ),
-                              )
-                            }
-                            onBlur={() =>
-                              handleUpdateRow(v.id, {
-                                insurance_provider: v.insurance_provider,
-                              })
-                            }
-                            placeholder="Provider"
-                            className="text-xs text-[#8B949E] uppercase tracking-wider"
-                          />
-                        </div>
+                        
                       </div>
                     </td>
                     <td className="px-3 py-2 border-r border-border-subtle/30 align-middle">
@@ -736,27 +716,7 @@ export default function VehiclesView() {
                             className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-sm [color-scheme:dark]"
                           />
                         </div>
-                        <div className="w-24">
-                          <InlineInput
-                            value={v.roadside_provider}
-                            onChange={(val: string) =>
-                              setVehicles((prev) =>
-                                prev.map((x) =>
-                                  x.id === v.id
-                                    ? { ...x, roadside_provider: val }
-                                    : x,
-                                ),
-                              )
-                            }
-                            onBlur={() =>
-                              handleUpdateRow(v.id, {
-                                roadside_provider: v.roadside_provider,
-                              })
-                            }
-                            placeholder="Provider"
-                            className="text-xs text-[#8B949E] uppercase tracking-wider"
-                          />
-                        </div>
+                        
                         <div className="flex items-center gap-1 shrink-0">
                           {v.roadside_evidence_url && (
                             <a
