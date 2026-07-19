@@ -432,7 +432,7 @@ export default function VehiclesView() {
                   >
                     <td className="px-3 py-2 border-r border-border-subtle/30 group">
                       <div className="flex items-center gap-2">
-                        <div className="font-medium text-white min-w-[200px] w-full">
+                        <div className="font-medium text-white min-w-[120px] w-full">
                           <InlineInput
                             value={v.name}
                             onChange={(val: string) =>
@@ -518,7 +518,7 @@ export default function VehiclesView() {
                               ownership: newOwnership,
                             });
                           }}
-                          className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:border-border-subtle focus:ring-1 focus:ring-brand-teal rounded appearance-none text-[#8B949E] text-sm"
+                          className="min-w-[140px] w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:border-border-subtle focus:ring-1 focus:ring-brand-teal rounded appearance-none text-[#8B949E] text-sm"
                         >
                           <option className="bg-brand-navy text-white" value="">
                             Company
