@@ -240,35 +240,63 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
             {/* Left Column: Client Form Details */}
               <div className="w-full lg:w-[30%] p-4 overflow-y-auto custom-scrollbar min-h-0">
                         <form id="client-form" onSubmit={handleSubmit} className="space-y-6 pb-64">
-                            {/* Client Avatar Selection */}
+                                          {/* Client Avatar Selection */}
               <div className="bg-[#1C2128] border border-[#30363D] rounded-xl p-4 shadow-sm space-y-3 mb-6">
                 <h2 className="text-sm font-semibold text-[#E6EDF3] tracking-tight">Client Avatar</h2>
                 <div className="flex items-center gap-4">
                   <img src={getAvatarUrl(formData.avatarUrl)} alt="Selected Avatar" className="w-16 h-16 rounded-full bg-[#151515] border border-white/[0.08] object-cover" />
                   <div className="flex-1 overflow-x-auto custom-scrollbar pb-2 pt-1 flex gap-2">
                     {[
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Child1",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Child2",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Child3",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Child4",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Child5",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Elder1",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Elder2",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Elder3",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Elder4",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Elder5",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Grandpa",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Grandma",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Boy1",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Girl1",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Kid1",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Senior1",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Senior2",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Senior3",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=HappyKid",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Wise",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Gentle",
-                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Sweet"
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=James&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Mary&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Robert&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Patricia&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=John&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Jennifer&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Michael&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Linda&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=David&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Elizabeth&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=William&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Barbara&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Richard&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Susan&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Joseph&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Jessica&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Thomas&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Sarah&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Charles&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Karen&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Christopher&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Lisa&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Daniel&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Nancy&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Matthew&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Betty&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Anthony&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Margaret&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Mark&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Sandra&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Donald&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Ashley&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Steven&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Kimberly&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Paul&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Emily&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Andrew&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Donna&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Joshua&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Michelle&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Kenneth&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Carol&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Kevin&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Amanda&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Brian&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Melissa&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=George&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Deborah&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Edward&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
+                      "https://api.dicebear.com/9.x/avataaars/svg?seed=Stephanie&mouth=smile,twinkle&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf"
                     ].map(url => {
                       return (
                         <img 
