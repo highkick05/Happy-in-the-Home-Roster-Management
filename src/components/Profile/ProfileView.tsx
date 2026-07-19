@@ -115,20 +115,70 @@ export default function ProfileView() {
 
       <form onSubmit={handleSave} className="space-y-4">
 
-        {/* Profile Avatar Selection */}
+                {/* Profile Avatar Selection */}
         <div className="bg-brand-navy border border-border-subtle rounded-xl p-4 md:p-5 shadow-sm space-y-3">
           <h2 className="text-sm font-semibold text-[#E6EDF3] tracking-tight">Profile Avatar</h2>
           <div className="flex items-center gap-4">
-            <img src={getAvatarUrl(formData.avatarUrl || 'Staff')} alt="Selected Avatar" className="w-16 h-16 rounded-full bg-[#151515] border border-white/[0.08]" />
+            <img src={getAvatarUrl(formData.avatarUrl || 'Staff')} alt="Selected Avatar" className="w-16 h-16 rounded-full bg-[#151515] border border-white/[0.08] object-cover" />
             <div className="flex-1 overflow-x-auto custom-scrollbar pb-2 pt-1 flex gap-2">
-              {["Doctor", "Nurse", "Medic", "Healer", "Therapist", "Surgeon", "Caregiver", "Health", "Pulse", "Life", "Smile", "Happy", "Joy", "Laugh", "Grin", "Beam", "Cheer", "Delight", "Glad", "Merry", "Sunny", "Warm", "Kind", "Gentle", "Caring", "Support", "Help", "Aid", "Cure", "Mend"].map(seed => {
-                const url = getAvatarUrl(seed);
+              {[
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=James",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Mary",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Robert",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Patricia",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=John",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Jennifer",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Michael",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Linda",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=David",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Elizabeth",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=William",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Barbara",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Richard",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Susan",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Joseph",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Jessica",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Thomas",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Sarah",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Charles",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Karen",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Christopher",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Lisa",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Daniel",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Nancy",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Matthew",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Betty",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Anthony",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Margaret",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Mark",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Sandra",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Donald",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Ashley",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Steven",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Kimberly",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Paul",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Emily",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Andrew",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Donna",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Joshua",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Michelle",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Kenneth",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Carol",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Kevin",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Amanda",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Brian",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Melissa",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=George",
+                "https://api.dicebear.com/9.x/pixel-art/svg?seed=Deborah",
+                "https://api.dicebear.com/9.x/big-ears/svg?seed=Edward",
+                "https://api.dicebear.com/9.x/adventurer/svg?seed=Stephanie"
+              ].map(url => {
                 return (
                   <img 
-                    key={seed} 
+                    key={url} 
                     src={url} 
-                    alt={seed}
-                    className={`w-12 h-12 rounded-full cursor-pointer shrink-0 transition-all ${formData.avatarUrl === url ? 'ring-2 ring-brand-teal scale-110' : 'opacity-60 hover:opacity-100 hover:scale-105'}`}
+                    alt="avatar option"
+                    className={`w-12 h-12 rounded-full cursor-pointer shrink-0 transition-all object-cover ${formData.avatarUrl === url ? 'ring-2 ring-brand-teal scale-110' : 'opacity-60 hover:opacity-100 hover:scale-105'}`}
                     onClick={() => setFormData(prev => ({ ...prev, avatarUrl: url }))}
                   />
                 );
