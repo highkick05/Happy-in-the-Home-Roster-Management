@@ -1,12 +1,12 @@
-import multiavatar from '@multiavatar/multiavatar';
-
 export function getAvatarUrl(seedOrUrl: string): string {
-  if (!seedOrUrl) return `data:image/svg+xml;utf8,${encodeURIComponent(multiavatar('Staff'))}`;
+  const defaultUrl = `https://api.dicebear.com/9.x/avataaars/svg?seed=Staff&mouth=smile,twinkle,teeth&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
   
-  // If it's already a data URI, just return it
-  if (seedOrUrl.startsWith('data:')) return seedOrUrl;
-
-  // If it's an api.multiavatar.com URL, extract the seed
+  if (!seedOrUrl) return defaultUrl;
+  
+  if (seedOrUrl.startsWith('data:')) {
+    return seedOrUrl;
+  }
+  
   let seed = seedOrUrl;
   if (seedOrUrl.includes('api.multiavatar.com')) {
     const match = seedOrUrl.match(/api\.multiavatar\.com\/(.+?)\.svg/);
@@ -18,8 +18,9 @@ export function getAvatarUrl(seedOrUrl: string): string {
     if (match && match[1]) {
       seed = decodeURIComponent(match[1]);
     }
+  } else if (seedOrUrl.startsWith('http')) {
+     return seedOrUrl;
   }
 
-  const svgCode = multiavatar(seed);
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svgCode)}`;
+  return `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(seed)}&mouth=smile,twinkle,teeth,default&accessories=prescription01,prescription02,default&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
 }

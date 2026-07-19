@@ -121,7 +121,7 @@ export default function ProfileView() {
           <div className="flex items-center gap-4">
             <img src={getAvatarUrl(formData.avatarUrl || 'Staff')} alt="Selected Avatar" className="w-16 h-16 rounded-full bg-[#151515] border border-white/[0.08]" />
             <div className="flex-1 overflow-x-auto custom-scrollbar pb-2 pt-1 flex gap-2">
-              {["Doctor", "Nurse", "Medic", "Healer", "Therapist", "Surgeon", "Caregiver", "Health", "Pulse", "Life", "Trippy", "Neon", "Cosmic", "Quantum", "Psychedelic", "Aura", "Vibe", "Zen", "Mind", "Soul", "Cyborg", "Nexus", "Synth", "Bio", "Nano", "Glitch", "Echo", "Flux", "Nova", "Apex"].map(seed => {
+              {["Doctor", "Nurse", "Medic", "Healer", "Therapist", "Surgeon", "Caregiver", "Health", "Pulse", "Life", "Smile", "Happy", "Joy", "Laugh", "Grin", "Beam", "Cheer", "Delight", "Glad", "Merry", "Sunny", "Warm", "Kind", "Gentle", "Caring", "Support", "Help", "Aid", "Cure", "Mend"].map(seed => {
                 const url = getAvatarUrl(seed);
                 return (
                   <img 
