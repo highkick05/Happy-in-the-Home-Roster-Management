@@ -261,7 +261,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
   if (loading) return <div className="text-center py-12 text-zinc-500">Loading form options...</div>;
 
   return (
-    <form onSubmit={handleSubmit} className="p-5 space-y-4">
+    <form onSubmit={handleSubmit} className="p-5 space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Client</label>
@@ -356,7 +356,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
             const subtotal = qty * rate;
 
             return (
-              <div key={idx} className="w-full relative bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+              <div key={idx} className="w-full relative bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
                 <div className="flex items-center space-x-2 mb-1.5 pr-8">
                   <div className="flex-1 min-w-0">
                     <select
@@ -382,7 +382,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                 </button>
                 {row.serviceId && (
                   <div className="flex md:items-center justify-between text-[11px] bg-[#09090b]/50 p-1.5 rounded border border-white/[0.08]/50 mt-1">
-                    <div className="flex items-center justify-between w-full flex-wrap xl:flex-nowrap gap-4">
+                    <div className="flex items-center justify-between w-full flex-wrap xl:flex-nowrap gap-2">
                       <div className="flex items-center gap-3">
                         <div className="flex items-center">
                           <span className="text-zinc-500 font-medium mr-1.5">Date</span>
@@ -750,7 +750,7 @@ export default function QuotesView() {
 
   const renderSortableHeader = (field: string, label: string) => (
     <th 
-      className="px-3 py-2 font-semibold cursor-pointer select-none hover:bg-brand-bg/50 transition-colors"
+      className="px-3 py-1.5 font-semibold text-[10px] cursor-pointer select-none hover:bg-brand-bg/50 transition-colors"
       onClick={() => {
         if (sortField === field) {
           setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -770,24 +770,24 @@ export default function QuotesView() {
     </th>
   );
   return (
-    <div className="flex-1 flex flex-col space-y-4">
+    <div className="flex-1 flex flex-col space-y-3">
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
           <div className="bg-[#121214] border border-white/[0.08] rounded-xl shadow-2xl max-w-3xl w-full flex flex-col">
             <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#18181b] rounded-t-xl shrink-0">
-              <h2 className="text-lg font-bold text-white tracking-tight">Upload Historical Quote</h2>
+              <h2 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0">Upload Historical Quote</h2>
               <button onClick={() => setShowUploadModal(false)} className="text-zinc-500 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleUploadSubmit} className="p-5 space-y-4 bg-[#09090b]">
+            <form onSubmit={handleUploadSubmit} className="p-5 space-y-3 bg-[#09090b]">
               <div>
-                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Client</label>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Client</label>
                 <select
                   required
                   value={uploadClientId}
                   onChange={e => setUploadClientId(e.target.value)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-xs text-white outline-none focus:border-brand-blue transition-colors"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors"
                 >
                   <option value="">Select Client</option>
                   {allDbClients.map(c => (
@@ -796,41 +796,41 @@ export default function QuotesView() {
                 </select>
               </div>
               <div>
-                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Historical Date</label>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Historical Date</label>
                 <input
                   type="date"
                   required
                   value={uploadDate}
                   onChange={e => setUploadDate(e.target.value)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-xs text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
                 />
               </div>
               <div>
-                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Activity Name (Optional)</label>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Activity Name (Optional)</label>
                 <input
                   type="text"
                   placeholder="e.g. Historical Quote"
                   value={uploadActivity}
                   onChange={e => setUploadActivity(e.target.value)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder:text-zinc-600"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder:text-zinc-600"
                 />
               </div>
               <div>
-                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Quote PDF</label>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Quote PDF</label>
                 <HistoricalDropzone uploadFile={uploadFile} setUploadFile={setUploadFile} />
               </div>
               <div className="pt-4 border-t border-white/[0.08] flex justify-end space-x-2">
                 <button
                   type="button"
                   onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:text-white transition-colors"
+                  className="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isUploading}
-                  className="px-4 py-2 bg-amber-500/20 text-amber-500 border border-amber-500/30 hover:bg-amber-500/30 text-[13px] font-medium rounded-md transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 bg-amber-500/20 text-amber-500 border border-amber-500/30 hover:bg-amber-500/30 text-xs font-medium rounded-md h-7 transition-colors disabled:opacity-50"
                 >
                   {isUploading ? 'Uploading...' : 'Upload'}
                 </button>
@@ -845,8 +845,8 @@ export default function QuotesView() {
           <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-[1400px] flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg shrink-0">
               <div>
-                <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">{editingQuote ? 'Edit Service Quote' : 'Generate Service Quote'}</h3>
-                <p className="text-sm text-[#8B949E] mt-1">Configure service and cost details for a new quote.</p>
+                <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">{editingQuote ? 'Edit Service Quote' : 'Generate Service Quote'}</h3>
+                <p className="text-xs text-[#8B949E] mt-0">Configure service and cost details for a new quote.</p>
               </div>
               <button onClick={() => setShowGenerateModal(false)} className="w-10 h-10 flex items-center justify-center bg-brand-navy border border-border-subtle hover:border-brand-blue rounded-md text-[#E6EDF3] transition-colors">
                 ×
@@ -860,14 +860,14 @@ export default function QuotesView() {
         </div>
       )}
 
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           {selectedIds.length > 0 && (
             <button
               onClick={handleDeleteBulk}
               className="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center shadow-sm h-7"
             >
-              <Trash2 className="w-4 h-4 mr-1.5" />
+              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
               Delete ({selectedIds.length})
             </button>
           )}
@@ -877,21 +877,21 @@ export default function QuotesView() {
               placeholder="Search quotes..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-8 py-1.5 bg-brand-navy border border-border-subtle rounded-md text-[13px] text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal w-64 transition-colors h-9"
+              className="pl-7 pr-7 py-1 bg-brand-navy border border-border-subtle rounded-md text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal w-56 transition-colors h-7"
             />
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#8B949E]" />
+            <Search className="w-3.5 h-3.5 absolute left-2 top-1.5 text-[#8B949E]" />
             {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-2 top-1.5 text-[#8B949E] hover:text-[#E6EDF3] transition-colors">&times;</button>}
           </div>
           <button
             onClick={() => setShowUploadModal(true)}
-            className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white border-0 text-[13px] font-medium rounded-md transition-colors shadow-sm w-full sm:w-auto h-9 whitespace-nowrap"
+            className="flex items-center px-2.5 py-1 bg-gradient-to-r from-brand-teal to-brand-green text-white border-0 text-xs font-medium rounded-md transition-colors shadow-sm w-full sm:w-auto h-7 whitespace-nowrap"
           >
-            <Upload className="w-4 h-4 mr-1.5" />
+            <Upload className="w-3.5 h-3.5 mr-1.5" />
             Upload Historical
           </button>
           <button
             onClick={() => { setEditingQuote(null); setShowGenerateModal(true); }}
-            className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white border-0 text-[13px] font-medium rounded-md transition-colors shadow-sm w-full sm:w-auto h-9"
+            className="flex items-center px-2.5 py-1 bg-gradient-to-r from-brand-teal to-brand-green text-white border-0 text-xs font-medium rounded-md transition-colors shadow-sm w-full sm:w-auto h-7"
           >
             Generate Quote
           </button>
@@ -902,10 +902,10 @@ export default function QuotesView() {
           {loading ? (
             <div className="p-8 text-center text-[#8B949E]">Loading quotes...</div>
           ) : (
-            <table className="w-full text-left border-collapse text-xs md:text-sm">
+            <table className="w-full text-left border-collapse text-xs">
                             <thead>
                 <tr className="bg-brand-bg border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] sticky top-0 z-10 transition-colors">
-                  <th className="px-3 py-2 font-semibold w-12">
+                  <th className="px-3 py-1.5 font-semibold text-[10px] w-12">
                     <input type="checkbox" className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-navy" checked={selectedIds.length === paginatedQuotes.length && paginatedQuotes.length > 0} onChange={toggleAll} />
                   </th>
                   {renderSortableHeader('date', 'Date')}
@@ -914,7 +914,7 @@ export default function QuotesView() {
                   {renderSortableHeader('activity', 'Activity')}
                   {renderSortableHeader('amount', 'Amount')}
                   {renderSortableHeader('status', 'Status')}
-                  <th className="px-3 py-2 font-semibold text-right">Actions</th>
+                  <th className="px-3 py-1.5 font-semibold text-[10px] text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
@@ -922,10 +922,10 @@ export default function QuotesView() {
                   <tr><td colSpan={8} className="p-8 text-center text-[#8B949E]">No quotes found.</td></tr>
                 ) : paginatedQuotes.map(q => (
                   <tr key={q.id} className="hover:bg-brand-bg/50 transition-colors group">
-                    <td className="px-3 py-2 whitespace-nowrap">
+                    <td className="px-3 py-1.5 whitespace-nowrap">
                       <input type="checkbox" className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-navy" checked={selectedIds.includes(q.id)} onChange={() => toggleSelection(q.id)} />
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-[#E6EDF3]">
+                    <td className="px-3 py-1.5 whitespace-nowrap text-[#E6EDF3]">
                       {(() => {
                         const d = new Date(q.activity_date || q.created_at);
                         const day = String(d.getDate()).padStart(2, '0');
@@ -934,7 +934,7 @@ export default function QuotesView() {
                         return `${day}-${month}-${year}`;
                       })()}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap font-medium text-[#E6EDF3]">
+                    <td className="px-3 py-1.5 whitespace-nowrap font-medium text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>{q.quote_number}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(q.quote_number); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
@@ -942,7 +942,7 @@ export default function QuotesView() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-[#E6EDF3]">
+                    <td className="px-3 py-1.5 text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>{q.client_first_name} {q.client_last_name}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(`${q.client_first_name || ''} ${q.client_last_name || ''}`.trim()); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
@@ -950,8 +950,8 @@ export default function QuotesView() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-[#E6EDF3]">{q.activity_name}</td>
-                    <td className="px-3 py-2 font-medium text-[#E6EDF3]">
+                    <td className="px-3 py-1.5 text-[#E6EDF3]">{q.activity_name}</td>
+                    <td className="px-3 py-1.5 font-medium text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>${Number(q.amount).toFixed(2)}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(`$${Number(q.amount).toFixed(2)}`); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
@@ -959,10 +959,10 @@ export default function QuotesView() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-1.5">
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-brand-bg text-[#8B949E] border border-border-subtle">{q.status}</span>
                     </td>
-                    <td className="px-3 py-2 text-right flex items-center justify-end space-x-1">
+                    <td className="px-3 py-1.5 text-right flex items-center justify-end space-x-1">
                       <button title="Edit Quote" onClick={() => { setEditingQuote(q); setShowGenerateModal(true); }} className="p-1.5 text-zinc-400 hover:text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors"><Edit2 className="w-4 h-4" /></button>
                       <button title="Download PDF" onClick={() => downloadPDF(q.id, q.quote_number)} className="p-1.5 text-zinc-400 hover:text-brand-teal hover:bg-brand-teal/10 rounded-md transition-colors"><Download className="w-4 h-4" /></button>
                       <button title="Delete Quote" onClick={() => handleDeleteSingle(q.id)} className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
@@ -977,7 +977,7 @@ export default function QuotesView() {
         
         {/* Pagination Controls */}
         {!loading && sortedQuotes.length > 0 && (
-          <div className="flex items-center justify-between px-3 py-2 border-t border-border-subtle bg-brand-bg">
+          <div className="flex items-center justify-between px-3 py-1.5 border-t border-border-subtle bg-brand-bg">
             <div className="flex items-center space-x-2 text-sm text-[#8B949E]">
               <span>Rows per page:</span>
               <select 

@@ -227,7 +227,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
   if (loading) return <div className="text-center py-12 text-zinc-500">Loading form options...</div>;
 
   return (
-    <form onSubmit={handleSubmit} className="p-5 space-y-4">
+    <form onSubmit={handleSubmit} className="p-5 space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Client</label>
@@ -363,7 +363,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
 
             const isCustom = row.isCustom;
             return (
-              <div key={idx} className="relative w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+              <div key={idx} className="relative w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-bold text-brand-teal uppercase tracking-widest">
                     {isCustom ? "🔧 Custom (One-Off) Service item" : "📋 Catalog Service selection"}
@@ -562,7 +562,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:text-white transition-colors"
+            className="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-white transition-colors"
           >
             Cancel
           </button>
@@ -618,7 +618,7 @@ function HistoricalDropzone({ uploadFile, setUploadFile }: { uploadFile: File | 
         ) : (
           <>
             <span className="text-[14px] text-zinc-300 font-medium">Click or drag PDF here</span>
-            <span className="text-[12px] text-zinc-500">Maximum file size 10MB</span>
+            <span className="text-[11px] text-zinc-500">Maximum file size 10MB</span>
           </>
         )}
       </div>
@@ -998,7 +998,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
 
   const renderSortableHeader = (field: string, label: string) => (
     <th 
-      className="px-3 py-2 font-semibold cursor-pointer select-none hover:bg-brand-bg/50 transition-colors"
+      className="px-3 py-1.5 font-semibold text-[10px] cursor-pointer select-none hover:bg-brand-bg/50 transition-colors"
       onClick={() => {
         if (sortField === field) {
           setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -1048,25 +1048,25 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
       {tab === 'quotes' ? (
         <QuotesView />
       ) : (
-        <div className="flex-1 flex flex-col space-y-4">
+        <div className="flex-1 flex flex-col space-y-3">
           
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
           <div className="bg-[#121214] border border-white/[0.08] rounded-xl shadow-2xl max-w-3xl w-full flex flex-col">
             <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#18181b] rounded-t-xl shrink-0">
-              <h2 className="text-lg font-bold text-white tracking-tight">Upload Historical Invoice</h2>
+              <h2 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0">Upload Historical Invoice</h2>
               <button onClick={() => setShowUploadModal(false)} className="text-zinc-500 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleUploadSubmit} className="p-5 space-y-4 bg-[#09090b]">
+            <form onSubmit={handleUploadSubmit} className="p-5 space-y-3 bg-[#09090b]">
               <div>
-                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Client</label>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Client</label>
                 <select
                   required
                   value={uploadClientId}
                   onChange={e => setUploadClientId(e.target.value)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors"
                 >
                   <option value="">Select Client</option>
                   {allDbClients.map(c => (
@@ -1075,31 +1075,31 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                 </select>
               </div>
               <div>
-                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Historical Date</label>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Historical Date</label>
                 <input
                   type="date"
                   required
                   value={uploadDate}
                   onChange={e => setUploadDate(e.target.value)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
                 />
               </div>
               <div>
-                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Invoice PDF</label>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Invoice PDF</label>
                 <HistoricalDropzone uploadFile={uploadFile} setUploadFile={setUploadFile} />
               </div>
               <div className="pt-4 border-t border-white/[0.08] flex justify-end space-x-2">
                 <button
                   type="button"
                   onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:text-white transition-colors"
+                  className="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isUploading}
-                  className="px-4 py-2 bg-amber-500/20 text-amber-500 border border-amber-500/30 hover:bg-amber-500/30 text-[13px] font-medium rounded-md transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 bg-amber-500/20 text-amber-500 border border-amber-500/30 hover:bg-amber-500/30 text-xs font-medium rounded-md h-7 transition-colors disabled:opacity-50"
                 >
                   {isUploading ? 'Uploading...' : 'Upload'}
                 </button>
@@ -1113,8 +1113,8 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
           <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-4xl flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg shrink-0">
               <div>
-                <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">Manual Invoice Generation</h3>
-                <p className="text-xs text-[#8B949E] mt-1">Configure service and timing details for a standalone invoice.</p>
+                <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">Manual Invoice Generation</h3>
+                <p className="text-xs text-[#8B949E] mt-0">Configure service and timing details for a standalone invoice.</p>
               </div>
               <button 
                 onClick={() => setShowManualModal(false)}
@@ -1174,7 +1174,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
             <button
               onClick={handleMergeInvoices}
               disabled={isMerging}
-              className="bg-gradient-to-r from-brand-teal to-brand-green text-white px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors disabled:opacity-50 flex items-center shadow-sm whitespace-nowrap h-9"
+              className="bg-gradient-to-r from-brand-teal to-brand-green text-white px-2.5 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-50 flex items-center shadow-sm whitespace-nowrap h-7"
             >
               {isMerging ? 'Merging...' : `Merge (${selectedInvoiceIds.length})`}
             </button>
@@ -1230,10 +1230,10 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
           {loading ? (
             <div className="p-8 text-center text-[#8B949E]">Loading invoices...</div>
           ) : (
-            <table className="w-full text-left border-collapse text-xs md:text-sm">
+            <table className="w-full text-left border-collapse text-xs">
                             <thead>
                 <tr className="bg-brand-bg border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] sticky top-0 z-10 transition-colors">
-                  <th className="px-3 py-2 font-semibold w-12">
+                  <th className="px-3 py-1.5 font-semibold text-[10px] w-12">
                     <input type="checkbox" className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-navy" checked={selectedInvoiceIds.length === filteredInvoices.length && filteredInvoices.length > 0} onChange={toggleAllInvoices} />
                   </th>
                   {renderSortableHeader('date', 'Date')}
@@ -1242,7 +1242,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                   {renderSortableHeader('staff', 'Staff Member')}
                   {renderSortableHeader('amount', 'Amount')}
                   {renderSortableHeader('status', 'Status')}
-                  <th className="px-3 py-2 font-semibold text-right">Actions</th>
+                  <th className="px-3 py-1.5 font-semibold text-[10px] text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
@@ -1253,7 +1253,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                   
                   return (
                   <tr key={i.id} className={`transition-colors group ${i.status === 'SENT' ? 'bg-brand-green/10 hover:bg-brand-green/20' : 'hover:bg-brand-bg/50'} ${isDisabled ? 'opacity-50' : ''}`}>
-                    <td className="px-3 py-2 whitespace-nowrap">
+                    <td className="px-3 py-1.5 whitespace-nowrap">
                       <input
                         type="checkbox"
                         disabled={!!isDisabled}
@@ -1263,7 +1263,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         onChange={() => toggleInvoiceSelection(i.id)}
                       />
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-[#E6EDF3]">
+                    <td className="px-3 py-1.5 whitespace-nowrap text-[#E6EDF3]">
                       {(() => {
                         const d = new Date(i.start_time || i.created_at);
                         const day = String(d.getDate()).padStart(2, '0');
@@ -1272,7 +1272,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         return `${day}-${month}-${year}`;
                       })()}
                     </td>
-                    <td className="px-3 py-2 text-[#E6EDF3]">
+                    <td className="px-3 py-1.5 text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>{i.client_first_name} {i.client_last_name}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(`${i.client_first_name || ''} ${i.client_last_name || ''}`.trim()); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
@@ -1280,7 +1280,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap font-medium text-[#E6EDF3]">
+                    <td className="px-3 py-1.5 whitespace-nowrap font-medium text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>{getFallbackInvoiceNumber(i)}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(getFallbackInvoiceNumber(i)); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
@@ -1288,7 +1288,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-[#E6EDF3]">
+                    <td className="px-3 py-1.5 text-[#E6EDF3]">
                       {i.staff_first_name ? (
                         <div className="flex items-center space-x-2 group/copy">
                           <span>{i.staff_first_name} {i.staff_last_name}</span>
@@ -1298,7 +1298,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         </div>
                       ) : <span className="text-[#8B949E]">N/A</span>}
                     </td>
-                    <td className="px-3 py-2 font-medium text-[#E6EDF3]">
+                    <td className="px-3 py-1.5 font-medium text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>${Number(i.amount).toFixed(2)}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(`$${Number(i.amount).toFixed(2)}`); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
@@ -1306,7 +1306,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-1.5">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
                         i.status === 'PAID' ? 'bg-brand-green/20 text-brand-green border border-brand-green/30' : 
                         'bg-brand-bg text-[#8B949E] border border-border-subtle'
@@ -1314,7 +1314,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         {i.status}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-right flex items-center justify-end space-x-1">
+                    <td className="px-3 py-1.5 text-right flex items-center justify-end space-x-1">
                        {subTab === 'active' && (
                          <button
                            title="Lock & Send"
@@ -1425,7 +1425,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
         
         {/* Pagination Controls */}
         {!loading && sortedInvoices.length > 0 && (
-          <div className="flex items-center justify-between px-3 py-2 border-t border-border-subtle bg-brand-bg">
+          <div className="flex items-center justify-between px-3 py-1.5 border-t border-border-subtle bg-brand-bg">
             <div className="flex items-center space-x-2 text-xs text-[#8B949E]">
               <span>Rows per page:</span>
               <select 
@@ -1465,7 +1465,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
 
 
         {/* Statistics Footer */}
-        <div className="border-t border-[#30363D] bg-brand-navy px-4 py-3 rounded-b-xl flex flex-col sm:flex-row justify-between items-center gap-4 text-xs sm:text-sm">
+        <div className="border-t border-[#30363D] bg-brand-navy px-4 py-3 rounded-b-xl flex flex-col sm:flex-row justify-between items-center gap-2 text-xs sm:text-sm">
           {selectedCount > 0 ? (
             <div className="bg-brand-teal/10 border border-brand-teal/30 px-4 py-2 rounded-lg flex items-center space-x-3 text-brand-teal self-start sm:self-center">
               <div className="w-2 h-2 rounded-full bg-brand-teal animate-pulse" />
