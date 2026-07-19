@@ -275,7 +275,7 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
         </div>
       )}
       <div 
-        className={`text-[15px] text-[#E6EDF3] leading-[1.4] [&>div]:mb-0 [&>div]:last:mb-0 block editorjs-wrapper bg-brand-bg px-6 py-2 rounded-b-none min-h-[140px]`}
+        className={`text-[11px] text-[#E6EDF3] leading-[1.4] [&>div]:mb-0 [&>div]:last:mb-0 block editorjs-wrapper bg-brand-bg px-6 py-2 rounded-b-none min-h-[100px]`}
         ref={editorContainerRef} 
       />
     </div>

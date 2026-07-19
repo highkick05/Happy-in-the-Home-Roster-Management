@@ -951,9 +951,9 @@ export default function RosterCalendar() {
   }));
 
   return (
-    <div className={`flex flex-col space-y-2 p-2 md:p-3 text-zinc-100 ${isFullScreen ? 'fixed inset-0 z-[100] bg-brand-bg pb-20 md:pb-4' : 'h-full bg-brand-navy border-0 md:border md:border-border-subtle rounded-xl'}`}>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-2 md:space-y-0 px-2 md:px-0 mt-1 md:mt-0">
-        <h2 className="text-lg font-sans font-semibold text-[#E6EDF3] tracking-tight mb-2 md:mb-0">Roster Management</h2>
+    <div className={`flex flex-col space-y-1 p-1 md:p-2 text-zinc-100 ${isFullScreen ? 'fixed inset-0 z-[100] bg-brand-bg pb-20 md:pb-4' : 'h-full bg-brand-navy border-0 md:border md:border-border-subtle rounded-xl'}`}>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-1 md:space-y-0 px-1 md:px-0 mt-0">
+        <h2 className="text-lg font-sans font-semibold text-[#E6EDF3] tracking-tight mb-1 md:mb-0">Roster Management</h2>
         
         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
           {user?.role === 'ADMIN' && (
@@ -1075,7 +1075,7 @@ export default function RosterCalendar() {
         </div>
       </div>
       
-      <div className="flex-1 bg-brand-bg p-0 md:p-4 rounded-lg md:border border-border-subtle overflow-y-auto min-h-0 scrollbar-hide">
+      <div className="flex-1 bg-brand-bg p-0 md:p-2 rounded-lg md:border border-border-subtle overflow-y-auto min-h-0 scrollbar-hide">
         {activeView !== Views.AGENDA ? (
           <DnDCalendar
             localizer={localizer}

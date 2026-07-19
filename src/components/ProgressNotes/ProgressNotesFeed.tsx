@@ -144,7 +144,7 @@ export default function ProgressNotesFeed({
       const data = JSON.parse(contentStr);
       if (data && data.blocks) {
         return (
-          <div className="text-[14px] leading-[1.4] text-[#E6EDF3] block [&>p]:mb-1 [&>p]:last:mb-0 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1">
+          <div className="text-[10px] leading-[1.4] text-[#E6EDF3] block [&>p]:mb-1 [&>p]:last:mb-0 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1">
             {data.blocks.map((block: any, idx: number) => {
               if (block.type === 'paragraph') return <p key={idx} dangerouslySetInnerHTML={{__html: block.data.text}} />;
               if (block.type === 'header') {
@@ -174,7 +174,7 @@ export default function ProgressNotesFeed({
     } catch (e) {
       // Fallback if not valid JSON (e.g. plain text old notes)
     }
-    return <div className="text-[14px] text-[#E6EDF3] leading-[1.4] whitespace-pre-wrap block">{contentStr}</div>;
+    return <div className="text-[10px] text-[#E6EDF3] leading-[1.4] whitespace-pre-wrap block">{contentStr}</div>;
   };
 
   return (
@@ -189,12 +189,12 @@ export default function ProgressNotesFeed({
             const addNoteWidget = selectedClientId ? (
               <div key="add-note" className="bg-brand-navy rounded-xl border border-border-subtle shadow-sm flex flex-col mb-4">
                 <div className="px-3 py-2 border-b border-border-subtle bg-black/10">
-                  <h3 className="text-[14px] font-semibold text-white">Add New Progress Note</h3>
+                  <h3 className="text-[10px] font-semibold text-white">Add New Progress Note</h3>
                 </div>
                 <div className="p-3">
                   <div className="flex items-center justify-between gap-4 mb-3">
                     {userRole === 'ADMIN' ? (
-                      <div className="flex items-center space-x-2 text-[12px] flex-1">
+                      <div className="flex items-center space-x-2 text-[10px] flex-1">
                         <span className="text-zinc-400">Author:</span>
                         <select 
                           value={newNoteAuthorId}
@@ -208,7 +208,7 @@ export default function ProgressNotesFeed({
                         </select>
                       </div>
                     ) : <div className="flex-1" />}
-                    <div className="flex items-center space-x-2 text-[12px]">
+                    <div className="flex items-center space-x-2 text-[10px]">
                       <span className="text-zinc-400">Tag:</span>
                       <div className="bg-brand-navy border border-border-subtle rounded flex overflow-hidden shadow-sm">
                         {['Activity', 'Behavioural', 'Incident'].map(tag => (
@@ -234,7 +234,7 @@ export default function ProgressNotesFeed({
                   <button
                     onClick={handleSubmit}
                     disabled={isSubmitting}
-                    className="bg-brand-green/20 text-brand-green border border-brand-green/30 px-3 py-1.5 rounded text-[12px] font-medium hover:bg-brand-green/30 transition-colors disabled:opacity-50 flex items-center leading-none shadow-sm"
+                    className="bg-brand-green/20 text-brand-green border border-brand-green/30 px-3 py-1.5 rounded text-[10px] font-medium hover:bg-brand-green/30 transition-colors disabled:opacity-50 flex items-center leading-none shadow-sm"
                   >
                     Submit Note
                   </button>
@@ -268,10 +268,10 @@ export default function ProgressNotesFeed({
             <div key={`${note.source}-${note.id}-${idx}`} className={`rounded-xl border p-3 shadow-sm mb-4 break-inside-avoid ${note.tags?.includes('Incident') ? 'bg-red-500/10 border-red-500/50' : 'bg-brand-navy border-border-subtle'}`}>
                <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className="text-[13px] text-zinc-300">
+                    <div className="text-[10px] text-zinc-300">
                       Date: {formatDate(note.start_time)}
                     </div>
-                    <div className="text-[13px] text-zinc-400">
+                    <div className="text-[10px] text-zinc-400">
                       Staff: {note.staff_first_name} {note.staff_last_name}
                       {note.source === 'SHIFT' && ' (Shift)'}
                     </div>
@@ -280,7 +280,7 @@ export default function ProgressNotesFeed({
                   <div className="flex items-center space-x-4">
                      <button 
                        onClick={() => handleStartEdit(note)}
-                       className="text-zinc-400 hover:text-white flex items-center text-[12px] transition-colors"
+                       className="text-zinc-400 hover:text-white flex items-center text-[10px] transition-colors"
                      >
                        <Pencil className="w-3.5 h-3.5 mr-1.5" />
                        Edit
@@ -288,7 +288,7 @@ export default function ProgressNotesFeed({
                      {(userRole === 'ADMIN' || currentUserId === note.author_id) && (
                        <button 
                          onClick={() => onDeleteNote && onDeleteNote(note.source, note.id)}
-                         className="text-red-400/80 hover:text-red-400 flex items-center text-[12px] transition-colors"
+                         className="text-red-400/80 hover:text-red-400 flex items-center text-[10px] transition-colors"
                        >
                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
                          Delete
@@ -300,7 +300,7 @@ export default function ProgressNotesFeed({
                {editingNote?.source === note.source && editingNote?.id === note.id ? (
                  <div className="space-y-3 bg-black/20 p-4 rounded-lg border border-border-subtle">
                     {note.source === 'MANUAL' && (
-                      <div className="flex items-center space-x-2 text-xs mb-2">
+                      <div className="flex items-center space-x-2 text-[10px] mb-2">
                         <span className="text-zinc-400">Tag:</span>
                         <select 
                           value={editTags}
@@ -325,13 +325,13 @@ export default function ProgressNotesFeed({
                     <div className="flex justify-end space-x-2 pt-2">
                       <button 
                         onClick={() => setEditingNote(null)}
-                        className="px-3 py-1.5 text-[12px] text-zinc-400 hover:text-white transition-colors flex items-center"
+                        className="px-3 py-1.5 text-[10px] text-zinc-400 hover:text-white transition-colors flex items-center"
                       >
                         <X className="w-3.5 h-3.5 mr-1" /> Cancel
                       </button>
                       <button 
                         onClick={handleSaveEdit}
-                        className="px-3 py-1.5 bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 rounded text-[12px] hover:bg-[#3A422F] transition-colors flex items-center"
+                        className="px-3 py-1.5 bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 rounded text-[10px] hover:bg-[#3A422F] transition-colors flex items-center"
                       >
                         <Save className="w-3.5 h-3.5 mr-1" /> Save
                       </button>
@@ -342,7 +342,7 @@ export default function ProgressNotesFeed({
                    {renderNoteContent(note.notes)}
                    {note.tags && (
                      <div className="mt-3 block pt-2">
-                       <span className={`inline-block border px-2 py-1 rounded text-[11px] shadow-sm ${note.tags?.includes('Incident') ? 'bg-red-500/20 border-red-500/30 text-red-400 font-medium' : 'bg-brand-navy border-border-subtle text-zinc-400'}`}>
+                       <span className={`inline-block border px-2 py-1 rounded text-[10px] shadow-sm ${note.tags?.includes('Incident') ? 'bg-red-500/20 border-red-500/30 text-red-400 font-medium' : 'bg-brand-navy border-border-subtle text-zinc-400'}`}>
                          Tag: {note.tags}
                        </span>
                      </div>
@@ -386,15 +386,15 @@ export default function ProgressNotesFeed({
            <button 
              onClick={() => setPage(Math.max(1, page - 1))}
              disabled={page === 1}
-             className="px-2 py-1 bg-brand-navy border border-border-subtle rounded text-xs text-white disabled:opacity-50"
+             className="px-2 py-1 bg-brand-navy border border-border-subtle rounded text-[10px] text-white disabled:opacity-50"
            >
              Prev
            </button>
-           <span className="text-xs text-zinc-400">Page {page} of {totalPages}</span>
+           <span className="text-[10px] text-zinc-400">Page {page} of {totalPages}</span>
            <button 
              onClick={() => setPage(Math.min(totalPages, page + 1))}
              disabled={page === totalPages}
-             className="px-2 py-1 bg-brand-navy border border-border-subtle rounded text-xs text-white disabled:opacity-50"
+             className="px-2 py-1 bg-brand-navy border border-border-subtle rounded text-[10px] text-white disabled:opacity-50"
            >
              Next
            </button>

@@ -124,18 +124,18 @@ export default function ProgressNotesView() {
 
   return (
     <div className="w-full">
-       <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+       <div className="mb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
          <div>
-           <h1 className="text-lg font-bold text-white mb-0.5">Progress Notes</h1>
-           <p className="text-[12px] text-zinc-400">View and manage chronological progress notes.</p>
+           <h1 className="text-sm font-semibold text-white mb-0">Progress Notes</h1>
+           <p className="text-[10px] text-zinc-400">View and manage chronological progress notes.</p>
          </div>
          <div className="flex items-center gap-3">
-            <div className="flex items-center space-x-2 h-9 bg-brand-navy px-3 rounded-lg border border-white/[0.05]">
-              <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Client</span>
+            <div className="flex items-center space-x-2 h-7 bg-brand-navy px-2 rounded-lg border border-white/[0.05]">
+              <span className="text-[9px] font-medium text-zinc-500 uppercase tracking-wider">Client</span>
               <select
                 value={selectedClientId}
                 onChange={(e) => setSelectedClientId(e.target.value)}
-                className="bg-transparent text-[13px] text-white outline-none min-w-[150px] [color-scheme:dark]"
+                className="bg-transparent text-[11px] text-white outline-none min-w-[150px] [color-scheme:dark]"
               >
                 {clients.length === 0 && <option value="" className="bg-brand-navy text-white">No clients available</option>}
                 {clients.map(c => (
@@ -144,18 +144,18 @@ export default function ProgressNotesView() {
               </select>
             </div>
             
-            <div className="flex items-center space-x-2 h-9 bg-brand-navy px-3 rounded-lg border border-white/[0.05]">
-              <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">From</span>
-              <div className="w-[120px]">
-                <CustomDatePicker selected={fromDate} onDateChange={(d) => setFromDate(d)} position="bottom" className="bg-transparent text-[13px] text-white outline-none w-full border-none p-0 focus:ring-0" />
+            <div className="flex items-center space-x-2 h-7 bg-brand-navy px-2 rounded-lg border border-white/[0.05]">
+              <span className="text-[9px] font-medium text-zinc-500 uppercase tracking-wider">From</span>
+              <div className="w-[90px]">
+                <CustomDatePicker selected={fromDate} onDateChange={(d) => setFromDate(d)} position="bottom" className="bg-transparent text-[11px] text-white outline-none w-full border-none p-0 focus:ring-0" />
               </div>
-              <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider ml-2">To</span>
-              <div className="w-[120px]">
-                <CustomDatePicker selected={toDate} onDateChange={(d) => setToDate(d)} position="bottom" className="bg-transparent text-[13px] text-white outline-none w-full border-none p-0 focus:ring-0" />
+              <span className="text-[9px] font-medium text-zinc-500 uppercase tracking-wider ml-2">To</span>
+              <div className="w-[90px]">
+                <CustomDatePicker selected={toDate} onDateChange={(d) => setToDate(d)} position="bottom" className="bg-transparent text-[11px] text-white outline-none w-full border-none p-0 focus:ring-0" />
               </div>
             </div>
             
-            <button className="bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 px-3 h-9 rounded-lg text-[12px] font-medium hover:bg-[#3A422F] transition-colors flex items-center justify-center">
+            <button className="bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 px-2 h-7 rounded-md text-[11px] font-medium hover:bg-[#3A422F] transition-colors flex items-center justify-center">
               Time Critical Alert
             </button>
          </div>
