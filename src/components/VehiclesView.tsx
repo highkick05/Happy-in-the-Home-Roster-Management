@@ -649,7 +649,7 @@ export default function VehiclesView() {
                     <td className="px-2 py-1.5 border-r border-border-subtle/30 align-middle">
                       <div className="flex items-center gap-2">
                         <div className="w-[130px]">
-                          <CustomDatePicker
+                          <CustomDatePicker align="right"
                             position="bottom"
                             value={v.insurance_expiry || ""}
                             onChange={(e: any) =>
@@ -709,7 +709,7 @@ export default function VehiclesView() {
                     <td className="px-2 py-1.5 border-r border-border-subtle/30 align-middle">
                       <div className="flex items-center gap-2">
                         <div className="w-[130px]">
-                          <CustomDatePicker
+                          <CustomDatePicker align="right"
                             position="bottom"
                             value={v.roadside_expiry || ""}
                             onChange={(e: any) =>
