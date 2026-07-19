@@ -998,7 +998,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
 
   const renderSortableHeader = (field: string, label: string) => (
     <th 
-      className="px-4 py-4 font-semibold cursor-pointer select-none hover:bg-brand-bg/50 transition-colors"
+      className="px-3 py-2 font-semibold cursor-pointer select-none hover:bg-brand-bg/50 transition-colors"
       onClick={() => {
         if (sortField === field) {
           setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -1018,18 +1018,18 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
     </th>
   );
   return (
-    <div className="h-full flex flex-col space-y-6">
+    <div className="h-full flex flex-col space-y-3">
       <div className="flex border-b border-white/[0.08] justify-between items-center">
         <div className="flex space-x-6">
           <button 
             onClick={() => setTab('invoices')} 
-            className={`pb-3 border-b-2 font-medium text-sm transition-colors ${tab === 'invoices' ? 'border-brand-teal text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+            className={`pb-2 border-b-2 font-medium text-[11px] transition-colors uppercase tracking-wider ${tab === 'invoices' ? 'border-brand-teal text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
           >
             Invoices
           </button>
           <button 
             onClick={() => setTab('quotes')} 
-            className={`pb-3 border-b-2 font-medium text-sm transition-colors ${tab === 'quotes' ? 'border-brand-teal text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+            className={`pb-2 border-b-2 font-medium text-[11px] transition-colors uppercase tracking-wider ${tab === 'quotes' ? 'border-brand-teal text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
           >
             Quotes
           </button>
@@ -1114,7 +1114,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
             <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg shrink-0">
               <div>
                 <h3 className="text-lg font-medium text-[#E6EDF3] mb-4">Manual Invoice Generation</h3>
-                <p className="text-sm text-[#8B949E] mt-1">Configure service and timing details for a standalone invoice.</p>
+                <p className="text-xs text-[#8B949E] mt-1">Configure service and timing details for a standalone invoice.</p>
               </div>
               <button 
                 onClick={() => setShowManualModal(false)}
@@ -1135,25 +1135,25 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-6">
-          <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight mb-6 md:mb-0">Invoices</h2>
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+          <h2 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-2 md:mb-0">Invoices</h2>
           <div className="flex bg-brand-navy rounded border border-border-subtle p-0.5">
             <button
               onClick={() => setSubTab('active')}
-              className={`px-4 py-1.5 rounded-sm text-sm font-medium transition-colors ${subTab === 'active' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+              className={`px-3 py-1 rounded-sm text-xs font-medium transition-colors ${subTab === 'active' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
             >
               Active
             </button>
             <button
               onClick={() => setSubTab('sent')}
-              className={`px-4 py-1.5 rounded-sm text-sm font-medium transition-colors ${subTab === 'sent' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+              className={`px-3 py-1 rounded-sm text-xs font-medium transition-colors ${subTab === 'sent' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
             >
               Sent
             </button>
             <button
               onClick={() => setSubTab('paid')}
-              className={`px-4 py-1.5 rounded-sm text-sm font-medium transition-colors ${subTab === 'paid' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+              className={`px-3 py-1 rounded-sm text-xs font-medium transition-colors ${subTab === 'paid' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
             >
               Paid
             </button>
@@ -1164,9 +1164,9 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
           {selectedInvoiceIds.length > 0 && (
             <button
               onClick={handleDeleteBulk}
-              className="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors flex items-center shadow-sm h-9"
+              className="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 px-2 py-1 rounded-md text-xs font-medium transition-colors flex items-center shadow-sm h-7"
             >
-              <Trash2 className="w-4 h-4 mr-1.5" />
+              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
               Delete ({selectedInvoiceIds.length})
             </button>
           )}
@@ -1183,7 +1183,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
           <select
             value={filterClient}
             onChange={(e) => setFilterClient(e.target.value)}
-            className="pl-3 pr-8 py-1.5 bg-brand-navy border border-border-subtle rounded-md text-[13px] text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal w-40 transition-colors h-9"
+            className="pl-2 pr-6 py-1 bg-brand-navy border border-border-subtle rounded-md text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal w-40 transition-colors h-7"
           >
             <option value="">All Clients</option>
             {clientsList.map((client, idx) => (
@@ -1194,7 +1194,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
           <select
             value={filterStaff}
             onChange={(e) => setFilterStaff(e.target.value)}
-            className="pl-3 pr-8 py-1.5 bg-brand-navy border border-border-subtle rounded-md text-[13px] text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal w-40 transition-colors h-9"
+            className="pl-2 pr-6 py-1 bg-brand-navy border border-border-subtle rounded-md text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal w-40 transition-colors h-7"
           >
             <option value="">All Staff</option>
             {staffList.map((staff, idx) => (
@@ -1204,7 +1204,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
 
           <button
             onClick={() => setShowManualModal(true)}
-            className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white shadow-sm text-[13px] font-medium rounded-md transition-colors h-9 whitespace-nowrap"
+            className="flex items-center px-2 py-1 bg-gradient-to-r from-brand-teal to-brand-green text-white shadow-sm text-xs font-medium rounded-md transition-colors h-7 whitespace-nowrap"
           >
             Generate Invoice
           </button>
@@ -1212,9 +1212,9 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
           {subTab === 'paid' && (
             <button
               onClick={() => setShowUploadModal(true)}
-              className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green text-white shadow-sm text-[13px] font-medium rounded-md transition-colors h-9 whitespace-nowrap"
+              className="flex items-center px-2 py-1 bg-gradient-to-r from-brand-teal to-brand-green text-white shadow-sm text-xs font-medium rounded-md transition-colors h-7 whitespace-nowrap"
             >
-              <Upload className="w-4 h-4 mr-1.5" />
+              <Upload className="w-3.5 h-3.5 mr-1.5" />
               Upload Historical
             </button>
           )}
@@ -1233,7 +1233,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
             <table className="w-full text-left border-collapse text-xs md:text-sm">
                             <thead>
                 <tr className="bg-brand-bg border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] sticky top-0 z-10 transition-colors">
-                  <th className="px-4 py-4 font-semibold w-12">
+                  <th className="px-3 py-2 font-semibold w-12">
                     <input type="checkbox" className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-navy" checked={selectedInvoiceIds.length === filteredInvoices.length && filteredInvoices.length > 0} onChange={toggleAllInvoices} />
                   </th>
                   {renderSortableHeader('date', 'Date')}
@@ -1242,7 +1242,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                   {renderSortableHeader('staff', 'Staff Member')}
                   {renderSortableHeader('amount', 'Amount')}
                   {renderSortableHeader('status', 'Status')}
-                  <th className="px-4 py-4 font-semibold text-right">Actions</th>
+                  <th className="px-3 py-2 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
@@ -1253,7 +1253,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                   
                   return (
                   <tr key={i.id} className={`transition-colors group ${i.status === 'SENT' ? 'bg-brand-green/10 hover:bg-brand-green/20' : 'hover:bg-brand-bg/50'} ${isDisabled ? 'opacity-50' : ''}`}>
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       <input
                         type="checkbox"
                         disabled={!!isDisabled}
@@ -1263,7 +1263,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         onChange={() => toggleInvoiceSelection(i.id)}
                       />
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-[#E6EDF3]">
+                    <td className="px-3 py-2 whitespace-nowrap text-[#E6EDF3]">
                       {(() => {
                         const d = new Date(i.start_time || i.created_at);
                         const day = String(d.getDate()).padStart(2, '0');
@@ -1272,7 +1272,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         return `${day}-${month}-${year}`;
                       })()}
                     </td>
-                    <td className="px-4 py-4 text-[#E6EDF3]">
+                    <td className="px-3 py-2 text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>{i.client_first_name} {i.client_last_name}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(`${i.client_first_name || ''} ${i.client_last_name || ''}`.trim()); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
@@ -1280,7 +1280,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         </button>
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap font-medium text-[#E6EDF3]">
+                    <td className="px-3 py-2 whitespace-nowrap font-medium text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>{getFallbackInvoiceNumber(i)}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(getFallbackInvoiceNumber(i)); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
@@ -1288,7 +1288,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         </button>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-[#E6EDF3]">
+                    <td className="px-3 py-2 text-[#E6EDF3]">
                       {i.staff_first_name ? (
                         <div className="flex items-center space-x-2 group/copy">
                           <span>{i.staff_first_name} {i.staff_last_name}</span>
@@ -1298,7 +1298,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         </div>
                       ) : <span className="text-[#8B949E]">N/A</span>}
                     </td>
-                    <td className="px-4 py-4 font-medium text-[#E6EDF3]">
+                    <td className="px-3 py-2 font-medium text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>${Number(i.amount).toFixed(2)}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(`$${Number(i.amount).toFixed(2)}`); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
@@ -1306,7 +1306,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         </button>
                       </div>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-2">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
                         i.status === 'PAID' ? 'bg-brand-green/20 text-brand-green border border-brand-green/30' : 
                         'bg-brand-bg text-[#8B949E] border border-border-subtle'
@@ -1314,7 +1314,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         {i.status}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-right flex items-center justify-end space-x-1">
+                    <td className="px-3 py-2 text-right flex items-center justify-end space-x-1">
                        {subTab === 'active' && (
                          <button
                            title="Lock & Send"
@@ -1404,7 +1404,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                 })}
                 {filteredInvoices.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-sm">
+                    <td colSpan={7} className="px-3 py-10 text-center text-sm">
                       <div className="flex flex-col items-center justify-center space-y-3">
                         <div className="p-3 bg-[#121214] rounded-full border border-white/[0.08]">
                           <FileText className="w-6 h-6 text-zinc-500" />
@@ -1425,8 +1425,8 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
         
         {/* Pagination Controls */}
         {!loading && sortedInvoices.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border-subtle bg-brand-bg">
-            <div className="flex items-center space-x-2 text-sm text-[#8B949E]">
+          <div className="flex items-center justify-between px-3 py-2 border-t border-border-subtle bg-brand-bg">
+            <div className="flex items-center space-x-2 text-xs text-[#8B949E]">
               <span>Rows per page:</span>
               <select 
                 value={pageSize} 
@@ -1439,7 +1439,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                 <option value={200}>200</option>
               </select>
             </div>
-            <div className="flex items-center space-x-4 text-sm text-[#8B949E]">
+            <div className="flex items-center space-x-4 text-xs text-[#8B949E]">
               <span>
                 {((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, sortedInvoices.length)} of {sortedInvoices.length}
               </span>
@@ -1465,7 +1465,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
 
 
         {/* Statistics Footer */}
-        <div className="border-t border-[#30363D] bg-brand-navy px-6 py-4 rounded-b-xl flex flex-col sm:flex-row justify-between items-center gap-4 text-xs sm:text-sm">
+        <div className="border-t border-[#30363D] bg-brand-navy px-4 py-3 rounded-b-xl flex flex-col sm:flex-row justify-between items-center gap-4 text-xs sm:text-sm">
           {selectedCount > 0 ? (
             <div className="bg-brand-teal/10 border border-brand-teal/30 px-4 py-2 rounded-lg flex items-center space-x-3 text-brand-teal self-start sm:self-center">
               <div className="w-2 h-2 rounded-full bg-brand-teal animate-pulse" />
