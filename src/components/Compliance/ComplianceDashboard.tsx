@@ -220,6 +220,10 @@ export default function ComplianceDashboard() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   // Pagination states
+  
+  const [evidenceSearchTerm, setEvidenceSearchTerm] = useState('');
+  const [staffSearchTerm, setStaffSearchTerm] = useState('');
+  const [auditSearchTerm, setAuditSearchTerm] = useState('');
   const [evidencePage, setEvidencePage] = useState(1);
   const [evidencePageSize, setEvidencePageSize] = useState(50);
   const [staffPage, setStaffPage] = useState(1);
@@ -466,6 +470,36 @@ export default function ComplianceDashboard() {
     }
   };
 
+  
+  const filteredEvidenceMatrix = evidenceMatrix.filter(row => {
+      if (!evidenceSearchTerm) return true;
+      const term = evidenceSearchTerm.toLowerCase();
+      const idMatch = String(row.shift_id || '').toLowerCase().includes(term);
+      const route = formatRouteLog(row.transport_route_log, row) || 'No route logged';
+      const routeMatch = route.toLowerCase().includes(term);
+      return idMatch || routeMatch;
+  });
+
+  const filteredStaffMatrix = staffMatrix.filter(row => {
+      if (!staffSearchTerm) return true;
+      const term = staffSearchTerm.toLowerCase();
+      const idMatch = String(row.shift_id || '').toLowerCase().includes(term);
+      const route = formatRouteLog(row.transport_route_log, row) || 'No route logged';
+      const routeMatch = route.toLowerCase().includes(term);
+      return idMatch || routeMatch;
+  });
+
+  const filteredAuditLogs = auditLogs.filter(log => {
+      if (!auditSearchTerm) return true;
+      const term = auditSearchTerm.toLowerCase();
+      const idMatch = String(log.entity_id || '').toLowerCase().includes(term);
+      const oldV = JSON.parse(log.old_value || '{}');
+      const newV = JSON.parse(log.new_value || '{}');
+      const changedKeys = Object.keys(newV).filter(k => newV[k] !== oldV[k] && k !== 'actual_finish_time' && k !== 'notes');
+      const deltaStr = changedKeys.map(k => `${k}: ${oldV[k]} -> ${newV[k]}`).join(', ').toLowerCase();
+      return idMatch || deltaStr.includes(term);
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -531,9 +565,25 @@ export default function ComplianceDashboard() {
              </button>
            </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 md:p-6 border-b border-border-subtle bg-brand-bg/50">
+           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 md:p-6 border-b border-border-subtle bg-brand-bg/50">
+              <div className="space-y-1.5 md:col-span-1">
+                <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Search</label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B949E]" />
+                  <input 
+                    type="text"
+                    placeholder="Shift ID or Route..."
+                    value={evidenceSearchTerm}
+                    onChange={e => {
+                      setEvidenceSearchTerm(e.target.value);
+                      setEvidencePage(1);
+                    }}
+                    className="w-full bg-brand-navy border border-border-subtle rounded-md pl-8 pr-2 p-2.5 text-sm text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all placeholder:text-[#8B949E]/50"
+                  />
+                </div>
+              </div>
               <div className="space-y-1.5 md:col-span-2">
-                 <label className="text-sm font-medium text-[#8B949E]">Filter by Client</label>
+                 <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Filter by Client</label>
                  <select 
                    value={selectedClient} 
                    onChange={e => setSelectedClient(e.target.value)}
@@ -546,7 +596,7 @@ export default function ComplianceDashboard() {
                  </select>
               </div>
               <div className="space-y-1.5">
-                 <label className="text-sm font-medium text-[#8B949E]">Start Date</label>
+                 <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
                  <CustomDatePicker 
                     position="bottom"
                    value={clientStartDate} 
@@ -555,7 +605,7 @@ export default function ComplianceDashboard() {
                  />
               </div>
               <div className="space-y-1.5">
-                 <label className="text-sm font-medium text-[#8B949E]">End Date</label>
+                 <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
                  <CustomDatePicker 
                     position="bottom"
                    value={clientEndDate} 
@@ -588,12 +638,12 @@ export default function ComplianceDashboard() {
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
-                     {evidenceMatrix.length === 0 ? (
+                     {filteredEvidenceMatrix.length === 0 ? (
                        <tr>
                          <td colSpan={10} className="px-4 py-8 text-center text-[#8B949E]">No evidence records available.</td>
                        </tr>
                      ) : (
-                       evidenceMatrix.slice((evidencePage - 1) * evidencePageSize, evidencePage * evidencePageSize).map((row, idx) => {
+                       filteredEvidenceMatrix.slice((evidencePage - 1) * evidencePageSize, evidencePage * evidencePageSize).map((row, idx) => {
                          const startString = row.actual_start_time ? getLocalizedTimeString(row.actual_start_time) : (row.start_time ? getLocalizedTimeString(row.start_time) : 'N/A');
                          const endString = row.actual_finish_time ? getLocalizedTimeString(row.actual_finish_time) : (row.end_time ? getLocalizedTimeString(row.end_time) : 'N/A');
                          
@@ -756,10 +806,10 @@ export default function ComplianceDashboard() {
                  </table>
              )}
              
-             {!loadingMatrix && evidenceMatrix.length > 0 && (
+             {!loadingMatrix && filteredEvidenceMatrix.length > 0 && (
                 <div className="flex items-center justify-between p-4 border-t border-border-subtle bg-brand-bg/50 mt-4 rounded-b-xl">
                     <div className="text-sm text-[#8B949E]">
-                        Showing {Math.min((evidencePage - 1) * evidencePageSize + 1, evidenceMatrix.length)} to {Math.min(evidencePage * evidencePageSize, evidenceMatrix.length)} of {evidenceMatrix.length} entries
+                        Showing {Math.min((evidencePage - 1) * evidencePageSize + 1, filteredEvidenceMatrix.length)} to {Math.min(evidencePage * evidencePageSize, filteredEvidenceMatrix.length)} of {filteredEvidenceMatrix.length} entries
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
@@ -783,10 +833,10 @@ export default function ComplianceDashboard() {
                             >
                                 &lt;
                             </button>
-                            <span className="text-sm text-[#E6EDF3] px-2">{evidencePage} / {Math.ceil(evidenceMatrix.length / evidencePageSize) || 1}</span>
+                            <span className="text-sm text-[#E6EDF3] px-2">{evidencePage} / {Math.ceil(filteredEvidenceMatrix.length / evidencePageSize) || 1}</span>
                             <button
-                                onClick={() => setEvidencePage(Math.min(Math.ceil(evidenceMatrix.length / evidencePageSize), evidencePage + 1))}
-                                disabled={evidencePage >= Math.ceil(evidenceMatrix.length / evidencePageSize)}
+                                onClick={() => setEvidencePage(Math.min(Math.ceil(filteredEvidenceMatrix.length / evidencePageSize), evidencePage + 1))}
+                                disabled={evidencePage >= Math.ceil(filteredEvidenceMatrix.length / evidencePageSize)}
                                 className="p-1 rounded hover:bg-white/5 disabled:opacity-50 text-[#8B949E] hover:text-[#E6EDF3]"
                             >
                                 &gt;
@@ -828,9 +878,25 @@ export default function ComplianceDashboard() {
              </button>
            </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 md:p-6 border-b border-border-subtle bg-brand-bg/50">
+           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 md:p-6 border-b border-border-subtle bg-brand-bg/50">
+              <div className="space-y-1.5 md:col-span-1">
+                <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Search</label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B949E]" />
+                  <input 
+                    type="text"
+                    placeholder="Shift ID or Route..."
+                    value={staffSearchTerm}
+                    onChange={e => {
+                      setStaffSearchTerm(e.target.value);
+                      setStaffPage(1);
+                    }}
+                    className="w-full bg-brand-navy border border-border-subtle rounded-md pl-8 pr-2 p-2.5 text-sm text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all placeholder:text-[#8B949E]/50"
+                  />
+                </div>
+              </div>
               <div className="space-y-1.5 md:col-span-2">
-                 <label className="text-sm font-medium text-[#8B949E]">Select Staff</label>
+                 <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Select Staff</label>
                  <select 
                    value={selectedStaff} 
                    onChange={e => setSelectedStaff(e.target.value)}
@@ -843,7 +909,7 @@ export default function ComplianceDashboard() {
                  </select>
               </div>
               <div className="space-y-1.5">
-                 <label className="text-sm font-medium text-[#8B949E]">Start Date</label>
+                 <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
                  <CustomDatePicker 
                     position="bottom"
                    value={staffStartDate} 
@@ -852,7 +918,7 @@ export default function ComplianceDashboard() {
                  />
               </div>
               <div className="space-y-1.5">
-                 <label className="text-sm font-medium text-[#8B949E]">End Date</label>
+                 <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
                  <CustomDatePicker 
                     position="bottom"
                    value={staffEndDate} 
@@ -889,12 +955,12 @@ export default function ComplianceDashboard() {
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
-                     {staffMatrix.length === 0 ? (
+                     {filteredStaffMatrix.length === 0 ? (
                        <tr>
                          <td colSpan={14} className="px-4 py-8 text-center text-[#8B949E]">No staff records available.</td>
                        </tr>
                      ) : (
-                       staffMatrix.slice((staffPage - 1) * staffPageSize, staffPage * staffPageSize).map((row, idx) => {
+                       filteredStaffMatrix.slice((staffPage - 1) * staffPageSize, staffPage * staffPageSize).map((row, idx) => {
                          const startString = row.actual_start_time ? getLocalizedTimeString(row.actual_start_time) : (row.start_time ? getLocalizedTimeString(row.start_time) : 'N/A');
                          const endString = row.actual_finish_time ? getLocalizedTimeString(row.actual_finish_time) : (row.end_time ? getLocalizedTimeString(row.end_time) : 'N/A');
                          
@@ -1099,10 +1165,10 @@ export default function ComplianceDashboard() {
                  </table>
              )}
              
-             {!loadingStaffMatrix && staffMatrix.length > 0 && (
+             {!loadingStaffMatrix && filteredStaffMatrix.length > 0 && (
                 <div className="flex items-center justify-between p-4 border-t border-border-subtle bg-brand-bg/50 mt-4 rounded-b-xl">
                     <div className="text-sm text-[#8B949E]">
-                        Showing {Math.min((staffPage - 1) * staffPageSize + 1, staffMatrix.length)} to {Math.min(staffPage * staffPageSize, staffMatrix.length)} of {staffMatrix.length} entries
+                        Showing {Math.min((staffPage - 1) * staffPageSize + 1, filteredStaffMatrix.length)} to {Math.min(staffPage * staffPageSize, filteredStaffMatrix.length)} of {filteredStaffMatrix.length} entries
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
@@ -1126,10 +1192,10 @@ export default function ComplianceDashboard() {
                             >
                                 &lt;
                             </button>
-                            <span className="text-sm text-[#E6EDF3] px-2">{staffPage} / {Math.ceil(staffMatrix.length / staffPageSize) || 1}</span>
+                            <span className="text-sm text-[#E6EDF3] px-2">{staffPage} / {Math.ceil(filteredStaffMatrix.length / staffPageSize) || 1}</span>
                             <button
-                                onClick={() => setStaffPage(Math.min(Math.ceil(staffMatrix.length / staffPageSize), staffPage + 1))}
-                                disabled={staffPage >= Math.ceil(staffMatrix.length / staffPageSize)}
+                                onClick={() => setStaffPage(Math.min(Math.ceil(filteredStaffMatrix.length / staffPageSize), staffPage + 1))}
+                                disabled={staffPage >= Math.ceil(filteredStaffMatrix.length / staffPageSize)}
                                 className="p-1 rounded hover:bg-white/5 disabled:opacity-50 text-[#8B949E] hover:text-[#E6EDF3]"
                             >
                                 &gt;
@@ -1402,12 +1468,30 @@ export default function ComplianceDashboard() {
            </h3>
            <span className="text-xs text-brand-teal bg-brand-teal/10 px-2 py-1 rounded-sm font-medium border border-brand-teal/20">Tamper-Proof</span>
         </div>
+        <div className="p-4 md:p-6 border-b border-border-subtle bg-brand-bg/50 flex flex-wrap items-center justify-start gap-4">
+            <div className="flex flex-col gap-1.5 w-64">
+              <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Search</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B949E]" />
+                <input 
+                  type="text"
+                  placeholder="Shift ID or Delta..."
+                  value={auditSearchTerm}
+                  onChange={e => {
+                    setAuditSearchTerm(e.target.value);
+                    setLogsPage(1);
+                  }}
+                  className="w-full bg-brand-navy border border-border-subtle rounded-md pl-8 pr-2 p-2 text-sm text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all placeholder:text-[#8B949E]/50"
+                />
+              </div>
+            </div>
+        </div>
         <div className="p-5">
            <p className="text-sm text-[#8B949E] mb-4">
              This table securely records any manual administrative edits made to a shift after completion. It cannot be altered via the UI.
            </p>
            <div className="bg-brand-navy rounded-lg border border-border-subtle overflow-x-auto min-h-[150px]">
-             {auditLogs.length > 0 ? (
+             {filteredAuditLogs.length > 0 ? (
                <table className="w-full text-left text-sm text-zinc-300">
                  <thead className="text-xs text-[#8B949E] uppercase tracking-wider bg-brand-bg border-b border-border-subtle">
                    <tr>
@@ -1418,7 +1502,7 @@ export default function ComplianceDashboard() {
                    </tr>
                  </thead>
                  <tbody className="divide-y divide-border-subtle">
-                   {auditLogs.map((log) => {
+                   {filteredAuditLogs.slice((logsPage - 1) * logsPageSize, logsPage * logsPageSize).map((log) => {
                      const oldV = JSON.parse(log.old_value || '{}');
                      const newV = JSON.parse(log.new_value || '{}');
                      const changedKeys = Object.keys(newV).filter(k => newV[k] !== oldV[k] && k !== 'actual_finish_time' && k !== 'notes');
@@ -1441,7 +1525,7 @@ export default function ComplianceDashboard() {
                               <div className="flex items-center justify-center p-8">                 <p className="text-[#8B949E] text-sm">No manual modifications found for completed records.</p>               </div>             )}           </div>
         <div className="flex items-center justify-between p-4 border-t border-border-subtle bg-brand-bg/50">
             <div className="text-sm text-[#8B949E]">
-                Showing {Math.min((logsPage - 1) * logsPageSize + (auditLogs.length > 0 ? 1 : 0), auditLogs.length)} to {Math.min(logsPage * logsPageSize, auditLogs.length)} of {auditLogs.length} entries
+                Showing {Math.min((logsPage - 1) * logsPageSize + (filteredAuditLogs.length > 0 ? 1 : 0), filteredAuditLogs.length)} to {Math.min(logsPage * logsPageSize, filteredAuditLogs.length)} of {filteredAuditLogs.length} entries
             </div>
             <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
@@ -1465,10 +1549,10 @@ export default function ComplianceDashboard() {
                     >
                         &lt;
                     </button>
-                    <span className="text-sm text-[#E6EDF3] px-2">{logsPage} / {Math.ceil(auditLogs.length / logsPageSize) || 1}</span>
+                    <span className="text-sm text-[#E6EDF3] px-2">{logsPage} / {Math.ceil(filteredAuditLogs.length / logsPageSize) || 1}</span>
                     <button
-                        onClick={() => setLogsPage(Math.min(Math.ceil(auditLogs.length / logsPageSize), logsPage + 1))}
-                        disabled={logsPage >= Math.ceil(auditLogs.length / logsPageSize)}
+                        onClick={() => setLogsPage(Math.min(Math.ceil(filteredAuditLogs.length / logsPageSize), logsPage + 1))}
+                        disabled={logsPage >= Math.ceil(filteredAuditLogs.length / logsPageSize)}
                         className="p-1 rounded hover:bg-white/5 disabled:opacity-50 text-[#8B949E] hover:text-[#E6EDF3]"
                     >
                         &gt;

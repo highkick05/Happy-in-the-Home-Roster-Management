@@ -46,6 +46,7 @@ export default function TravelLogsView() {
   const [selectedFundingType, setSelectedFundingType] = useState('all');
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   
   const [isEditingOdo, setIsEditingOdo] = useState<string | null>(null);
   const [editOdoStart, setEditOdoStart] = useState('');
@@ -304,10 +305,21 @@ const expandedLogs = logs.map(log => {
   });
 
   
-  const totalPTKm = expandedLogs.reduce((acc, log) => acc + (Number(log.provider_travel_km) || 0), 0);
-  const totalPTCost = expandedLogs.reduce((acc, log) => acc + (Number(log.provider_travel_cost) || 0), 0);
-  const totalABTKm = expandedLogs.reduce((acc, log) => acc + (Number(log.abt_km) || 0), 0);
-  const totalABTCost = expandedLogs.reduce((acc, log) => acc + (Number(log.abt_cost) || 0), 0);
+
+  const filteredExpandedLogs = expandedLogs.filter(log => {
+      if (!searchTerm) return true;
+      const lowerTerm = searchTerm.toLowerCase();
+      
+      const idMatch = log.id.toString().toLowerCase().includes(lowerTerm);
+      const routeMatch = (log._route || '').toLowerCase().includes(lowerTerm);
+      
+      return idMatch || routeMatch;
+  });
+
+  const totalPTKm = filteredExpandedLogs.reduce((acc, log) => acc + (Number(log.provider_travel_km) || 0), 0);
+  const totalPTCost = filteredExpandedLogs.reduce((acc, log) => acc + (Number(log.provider_travel_cost) || 0), 0);
+  const totalABTKm = filteredExpandedLogs.reduce((acc, log) => acc + (Number(log.abt_km) || 0), 0);
+  const totalABTCost = filteredExpandedLogs.reduce((acc, log) => acc + (Number(log.abt_cost) || 0), 0);
   const grandTotalKm = totalPTKm + totalABTKm;
   const grandTotalCost = totalPTCost + totalABTCost;
 
@@ -328,6 +340,22 @@ const expandedLogs = logs.map(log => {
         {/* Filters */}
         <div className="flex flex-wrap items-center justify-start gap-4">
           <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col gap-1.5 w-48">
+              <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Search</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B949E]" />
+                <input 
+                  type="text"
+                  placeholder="Search Shift ID or Route..."
+                  value={searchTerm}
+                  onChange={e => {
+                    setSearchTerm(e.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full bg-brand-navy border border-border-subtle rounded-md pl-8 pr-2 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all placeholder:text-[#8B949E]/50"
+                />
+              </div>
+            </div>
             {user?.role === 'ADMIN' && (
               <div className="flex flex-col gap-1.5 w-36">
                 <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Staff</label>
@@ -423,14 +451,14 @@ const expandedLogs = logs.map(log => {
                        Loading travel logs...
                     </td>
                   </tr>
-                ) : logs.length === 0 ? (
+                ) : filteredExpandedLogs.length === 0 ? (
                   <tr>
                     <td colSpan={15} className="px-2 py-6 text-center text-[#8B949E]">
                        No travel logs found for the selected filters.
                     </td>
                   </tr>
                 ) : (
-                  expandedLogs.slice((page - 1) * pageSize, page * pageSize).map(log => {
+                  filteredExpandedLogs.slice((page - 1) * pageSize, page * pageSize).map(log => {
                     const isEditing = isEditingOdo === log.id.toString();
                     return (
                       <tr key={log._rowId} className="hover:bg-brand-bg/50 transition-colors group">
@@ -582,11 +610,11 @@ const expandedLogs = logs.map(log => {
               </table>
           </div>
           
-          {expandedLogs.length > 0 && (
+          {filteredExpandedLogs.length > 0 && (
             <div className="flex items-center justify-between p-2 border-t border-border-subtle bg-brand-navy">
               <div className="flex items-center gap-4">
                 <span className="text-sm text-[#8B949E]">
-                  Showing {Math.min((page - 1) * pageSize + 1, expandedLogs.length)} to {Math.min(page * pageSize, expandedLogs.length)} of {expandedLogs.length} entries
+                  Showing {Math.min((page - 1) * pageSize + 1, filteredExpandedLogs.length)} to {Math.min(page * pageSize, filteredExpandedLogs.length)} of {filteredExpandedLogs.length} entries
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-[#8B949E]">Show</span>
@@ -614,8 +642,8 @@ const expandedLogs = logs.map(log => {
                   Previous
                 </button>
                 <button 
-                  onClick={() => setPage(p => Math.min(Math.ceil(expandedLogs.length / pageSize), p + 1))}
-                  disabled={page === Math.ceil(expandedLogs.length / pageSize)}
+                  onClick={() => setPage(p => Math.min(Math.ceil(filteredExpandedLogs.length / pageSize), p + 1))}
+                  disabled={page === Math.ceil(filteredExpandedLogs.length / pageSize)}
                   className="px-3 py-1 bg-brand-navy border border-border-subtle text-[#E6EDF3] rounded text-sm disabled:opacity-50"
                 >
                   Next
