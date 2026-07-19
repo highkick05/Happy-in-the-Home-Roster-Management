@@ -425,7 +425,7 @@ const expandedLogs = logs.map(log => {
 
         {/* Table */}
         <div className="bg-brand-navy/50 rounded-xl border border-border-subtle flex-1 flex flex-col min-h-0">
-          <div className="overflow-auto flex-1 hide-scrollbar-y">
+          <div className="overflow-auto flex-1 ">
             <table className="w-full text-left text-[11px] border-collapse min-w-max">
               <thead>
                 <tr className="bg-brand-navy border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold sticky top-0 z-10">
