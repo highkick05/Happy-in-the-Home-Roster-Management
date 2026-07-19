@@ -202,6 +202,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
             <thead>
               <tr className="bg-brand-bg border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E]">
                 <th className="px-4 py-2 font-semibold">{activeTab === 'PROVIDERS' ? 'Company Name' : 'Name'}</th>
+                {activeTab === 'PROVIDERS' && <th className="px-4 py-2 font-semibold">Type</th>}
                 {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Provider & Services</th>}
                 {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Funding</th>}
                 <th className="px-4 py-2 font-semibold">{activeTab === 'STAFF' ? 'Email/Role' : activeTab === 'CLIENTS' ? 'Contact Info' : 'Contact Info'}</th>
@@ -347,17 +348,19 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                             )}
                           </div>
                           <div className="text-[#8B949E] text-xs mt-0.5">Joined {new Date(p.created_at).toLocaleDateString()}</div>
-                          <div className="flex gap-2 items-center mt-1">
-                            <span className="px-1.5 py-0.2 rounded text-[10px] uppercase font-bold tracking-wider bg-[#1d1f23] text-brand-teal border border-brand-teal/20">
-                              {p.provider_type || 'NDIS'}
-                            </span>
-                            {(p.provider_type === 'Home Care' && p.management_fee !== undefined) && (
-                              <span className="text-[10px] text-[#8B949E]">
-                                {p.management_fee}% Fee
-                              </span>
-                            )}
-                          </div>
                         </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="flex gap-2 items-center">
+                        <span className="px-1.5 py-0.2 rounded text-[10px] uppercase font-bold tracking-wider bg-[#1d1f23] text-brand-teal border border-brand-teal/20">
+                          {p.provider_type || 'NDIS'}
+                        </span>
+                        {(p.provider_type === 'Home Care' && p.management_fee !== undefined) && (
+                          <span className="text-[10px] text-[#8B949E]">
+                            {p.management_fee}% Fee
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-2">
@@ -387,7 +390,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No clients found in this category.</td></tr>
               )}
               {(activeTab === 'PROVIDERS' && providers.length === 0) && (
-                <tr><td colSpan={3} className="px-4 py-6 text-center text-[#8B949E]">No providers found.</td></tr>
+                <tr><td colSpan={4} className="px-4 py-6 text-center text-[#8B949E]">No providers found.</td></tr>
               )}
             </tbody>
           </table>
