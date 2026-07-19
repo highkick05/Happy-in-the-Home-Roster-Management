@@ -427,7 +427,7 @@ export default function FilesView() {
                 )}
               </div>
             ) : viewMode === 'list' ? (
-              <table className="w-full text-left text-sm whitespace-nowrap">
+              <table className="w-full text-left text-xs whitespace-nowrap">
                 <thead className="bg-[#0a0a0a] border-b border-white/[0.05] sticky top-0 z-10 backdrop-blur-md">
                   <tr>
                     <th className="px-6 py-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Name</th>
@@ -473,7 +473,7 @@ export default function FilesView() {
                         <span className="font-medium text-zinc-300 group-hover:text-white transition-colors">{f.original_name}</span>
                       </td>
                       <td className="px-6 py-4 text-zinc-500 font-mono text-xs">{(f.size / 1024).toFixed(1)} KB</td>
-                      <td className="px-6 py-4 text-zinc-500 text-sm">
+                      <td className="px-6 py-4 text-zinc-500 text-xs">
                         {new Date(f.created_at).toLocaleDateString()} <span className="opacity-50 mx-1">•</span> {new Date(f.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </td>
                       <td className="px-6 py-4 text-right">
