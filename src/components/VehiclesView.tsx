@@ -372,37 +372,37 @@ export default function VehiclesView() {
         </div>
 
         <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-x-auto min-h-[450px]">
-          <table className="w-full text-left text-sm whitespace-nowrap">
+          <table className="w-full text-left text-[11px] whitespace-nowrap">
             <thead className="bg-brand-navy border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold">
               <tr>
-                <th className="px-3 py-2 border-r border-border-subtle/30">
+                <th className="px-2 py-1.5 border-r border-border-subtle/30">
                   Car Details
                 </th>
-                <th className="px-3 py-2 border-r border-border-subtle/30 text-center">
+                <th className="px-2 py-1.5 border-r border-border-subtle/30 text-center">
                   Default
                 </th>
-                <th className="px-3 py-2 border-r border-border-subtle/30">
+                <th className="px-2 py-1.5 border-r border-border-subtle/30">
                   Owner
                 </th>
-                <th className="px-3 py-2 border-r border-border-subtle/30">
+                <th className="px-2 py-1.5 border-r border-border-subtle/30">
                   Ownership
                 </th>
-                <th className="px-3 py-2 border-r border-border-subtle/30">
+                <th className="px-2 py-1.5 border-r border-border-subtle/30">
                   Rego Expiry
                 </th>
-                <th className="px-3 py-2 border-r border-border-subtle/30">
+                <th className="px-2 py-1.5 border-r border-border-subtle/30">
                   Insurance
                 </th>
-                <th className="px-3 py-2 border-r border-border-subtle/30">
+                <th className="px-2 py-1.5 border-r border-border-subtle/30">
                   Ins. Expiry
                 </th>
-                <th className="px-3 py-2 border-r border-border-subtle/30">
+                <th className="px-2 py-1.5 border-r border-border-subtle/30">
                   Roadside
                 </th>
-                <th className="px-3 py-2 border-r border-border-subtle/30">
+                <th className="px-2 py-1.5 border-r border-border-subtle/30">
                   Roadside Expiry
                 </th>
-                <th className="px-3 py-3 text-right">Actions</th>
+                <th className="px-2 py-1.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
@@ -430,7 +430,7 @@ export default function VehiclesView() {
                     key={v.id}
                     className="hover:bg-brand-bg/50 transition-colors whitespace-nowrap"
                   >
-                    <td className="px-3 py-2 border-r border-border-subtle/30 group">
+                    <td className="px-2 py-1.5 border-r border-border-subtle/30 group">
                       <div className="flex items-center gap-2">
                         <div className="font-medium text-white min-w-[120px] w-full">
                           <InlineInput
@@ -448,7 +448,7 @@ export default function VehiclesView() {
                             placeholder="Make & Model"
                           />
                         </div>
-                        <div className="text-xs text-[#8B949E] w-20">
+                        <div className="text-[11px] text-[#8B949E] w-20">
                           <InlineInput
                             value={v.year}
                             onChange={(val: string) =>
@@ -464,7 +464,7 @@ export default function VehiclesView() {
                             placeholder="Year"
                           />
                         </div>
-                        <div className="text-xs text-[#8B949E] uppercase tracking-wider w-24">
+                        <div className="text-[11px] text-[#8B949E] uppercase tracking-wider w-24">
                           <InlineInput
                             value={v.rego}
                             onChange={(val: string) =>
@@ -483,7 +483,7 @@ export default function VehiclesView() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 border-r border-border-subtle/30 text-center align-middle">
+                    <td className="px-2 py-1.5 border-r border-border-subtle/30 text-center align-middle">
                       {user?.role === "ADMIN" || v.user_id === user?.id ? (
                         <button
                           onClick={() => handleSetPrimary(v)}
@@ -502,7 +502,7 @@ export default function VehiclesView() {
                         <Circle className="w-4 h-4 mx-auto text-[#8B949E]" />
                       )}
                     </td>
-                    <td className="px-3 py-2 border-r border-border-subtle/30 font-medium group relative align-middle">
+                    <td className="px-2 py-1.5 border-r border-border-subtle/30 font-medium group relative align-middle">
                       {user?.role === "ADMIN" ? (
                         <select
                           value={
@@ -518,7 +518,7 @@ export default function VehiclesView() {
                               ownership: newOwnership,
                             });
                           }}
-                          className="min-w-[140px] w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:border-border-subtle focus:ring-1 focus:ring-brand-teal rounded appearance-none text-[#8B949E] text-sm"
+                          className="min-w-[140px] w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:border-border-subtle focus:ring-1 focus:ring-brand-teal rounded appearance-none text-[#8B949E] text-xs"
                         >
                           <option className="bg-brand-navy text-white" value="">
                             Company
@@ -534,7 +534,7 @@ export default function VehiclesView() {
                           ))}
                         </select>
                       ) : (
-                        <span className="text-sm text-[#8B949E]">
+                        <span className="text-xs text-[#8B949E]">
                           {v.ownership === "COMPANY"
                             ? "Company"
                             : v.user_id === user?.id
@@ -543,14 +543,14 @@ export default function VehiclesView() {
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 border-r border-border-subtle/30 align-middle">
+                    <td className="px-2 py-1.5 border-r border-border-subtle/30 align-middle">
                       {user?.role === "ADMIN" ? (
                         <select
                           value={v.ownership || "COMPANY"}
                           onChange={(e) =>
                             handleUpdateRow(v.id, { ownership: e.target.value })
                           }
-                          className={`inline-flex px-1 py-1 rounded text-xs font-bold tracking-wide uppercase border outline-none cursor-pointer appearance-none ${v.ownership === "COMPANY" ? "bg-blue-900/10 border-blue-900/20 text-blue-400" : "bg-purple-900/10 border-purple-900/20 text-purple-400"}`}
+                          className={`inline-flex px-1 py-1 rounded text-[11px] font-bold tracking-wide uppercase border outline-none cursor-pointer appearance-none ${v.ownership === "COMPANY" ? "bg-blue-900/10 border-blue-900/20 text-blue-400" : "bg-purple-900/10 border-purple-900/20 text-purple-400"}`}
                         >
                           <option
                             className="bg-brand-navy text-white"
@@ -567,13 +567,13 @@ export default function VehiclesView() {
                         </select>
                       ) : (
                         <span
-                          className={`inline-flex px-2 py-1 rounded text-xs font-bold tracking-wide uppercase border ${v.ownership === "COMPANY" ? "bg-blue-900/10 border-blue-900/20 text-blue-400" : "bg-purple-900/10 border-purple-900/20 text-purple-400"}`}
+                          className={`inline-flex px-2 py-1 rounded text-[11px] font-bold tracking-wide uppercase border ${v.ownership === "COMPANY" ? "bg-blue-900/10 border-blue-900/20 text-blue-400" : "bg-purple-900/10 border-purple-900/20 text-purple-400"}`}
                         >
                           {v.ownership === "COMPANY" ? "Company" : "Private"}
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 border-r border-border-subtle/30 align-middle">
+                    <td className="px-2 py-1.5 border-r border-border-subtle/30 align-middle">
                       <div className="flex items-center gap-2">
                         <div className="w-[130px]">
                           <CustomDatePicker
@@ -582,7 +582,7 @@ export default function VehiclesView() {
                             onChange={(e: any) =>
                               handleUpdateRow(v.id, { rego_expiry: e.target.value })
                             }
-                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-sm"
+                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-xs"
                           />
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
@@ -616,7 +616,7 @@ export default function VehiclesView() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 border-r border-border-subtle/30 align-middle">
+                    <td className="px-2 py-1.5 border-r border-border-subtle/30 align-middle">
                       <div className="flex items-center gap-2">
                         <div className="w-[125px]">
                           <select
@@ -626,7 +626,7 @@ export default function VehiclesView() {
                                 insurance_type: e.target.value,
                               })
                             }
-                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] appearance-none text-sm"
+                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] appearance-none text-xs"
                           >
                             <option
                               className="bg-brand-navy text-white"
@@ -645,7 +645,7 @@ export default function VehiclesView() {
                         
                       </div>
                     </td>
-                    <td className="px-3 py-2 border-r border-border-subtle/30 align-middle">
+                    <td className="px-2 py-1.5 border-r border-border-subtle/30 align-middle">
                       <div className="flex items-center gap-2">
                         <div className="w-[130px]">
                           <CustomDatePicker
@@ -654,7 +654,7 @@ export default function VehiclesView() {
                             onChange={(e: any) =>
                               handleUpdateRow(v.id, { insurance_expiry: e.target.value })
                             }
-                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-sm"
+                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-xs"
                           />
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
@@ -688,14 +688,14 @@ export default function VehiclesView() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 border-r border-border-subtle/30 text-center align-middle">
+                    <td className="px-2 py-1.5 border-r border-border-subtle/30 text-center align-middle">
                       <button
                         onClick={() =>
                           handleUpdateRow(v.id, {
                             has_roadside: !v.has_roadside,
                           })
                         }
-                        className="inline-flex px-2 py-1 rounded text-xs font-bold tracking-wide uppercase border bg-transparent hover:bg-white/5 border-border-subtle text-white transition-colors"
+                        className="inline-flex px-2 py-1 rounded text-[11px] font-bold tracking-wide uppercase border bg-transparent hover:bg-white/5 border-border-subtle text-white transition-colors"
                         title="Toggle Roadside"
                       >
                         {v.has_roadside ? (
@@ -705,7 +705,7 @@ export default function VehiclesView() {
                         )}
                       </button>
                     </td>
-                    <td className="px-3 py-2 border-r border-border-subtle/30 align-middle">
+                    <td className="px-2 py-1.5 border-r border-border-subtle/30 align-middle">
                       <div className="flex items-center gap-2">
                         <div className="w-[130px]">
                           <CustomDatePicker
@@ -714,7 +714,7 @@ export default function VehiclesView() {
                             onChange={(e: any) =>
                               handleUpdateRow(v.id, { roadside_expiry: e.target.value })
                             }
-                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-sm"
+                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-xs"
                           />
                         </div>
                         
@@ -749,7 +749,7 @@ export default function VehiclesView() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right align-middle">
+                    <td className="px-2 py-1.5 text-right align-middle">
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => openEditModal(v)}
@@ -786,7 +786,7 @@ export default function VehiclesView() {
             className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden w-full max-w-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-brand-navy">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle bg-brand-navy">
               <h3 className="text-lg font-semibold text-white">
                 {selectedVehicle ? "Edit Vehicle" : "Add Vehicle"}
               </h3>
@@ -798,8 +798,8 @@ export default function VehiclesView() {
               </button>
             </div>
 
-            <div className="p-6 space-y-3 max-h-[75vh] overflow-y-auto custom-scrollbar">
-              <div className="grid grid-cols-3 gap-4">
+            <div className="p-4 space-y-3 max-h-[75vh] overflow-y-auto custom-scrollbar">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
                   <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">
                     Vehicle Make & Model
@@ -828,7 +828,7 @@ export default function VehiclesView() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">
                     Registration (Rego)
@@ -934,7 +934,7 @@ export default function VehiclesView() {
                 <h4 className="text-sm font-semibold text-white mb-4">
                   Registration Details
                 </h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">
                       Rego Expiry Date
@@ -981,7 +981,7 @@ export default function VehiclesView() {
                 <h4 className="text-sm font-semibold text-white mb-4">
                   Insurance Details
                 </h4>
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-2 gap-3 mb-4">
                   <div>
                     <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">
                       Insurance Type
@@ -1028,7 +1028,7 @@ export default function VehiclesView() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">
                       Insurance Expiry Date
@@ -1096,7 +1096,7 @@ export default function VehiclesView() {
 
                 {newVehicle.has_roadside && (
                   <>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="grid grid-cols-2 gap-3 mb-4">
                       <div className="col-span-2">
                         <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">
                           Roadside Provider
@@ -1115,7 +1115,7 @@ export default function VehiclesView() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-[#8B949E] mb-1 uppercase tracking-wider">
                           Roadside Expiry Date
@@ -1161,7 +1161,7 @@ export default function VehiclesView() {
               </div>
             </div>
 
-            <div className="p-6 border-t border-border-subtle bg-black/30 flex justify-end gap-3">
+            <div className="p-4 border-t border-border-subtle bg-black/30 flex justify-end gap-3">
               <button
                 onClick={() => setShowAddModal(false)}
                 className="px-4 py-2 text-sm font-medium text-[#E6EDF3] hover:text-white hover:bg-white/5 rounded-md transition-colors"

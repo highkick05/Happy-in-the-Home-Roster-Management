@@ -325,7 +325,7 @@ const expandedLogs = logs.map(log => {
 
   return (
     <div className="flex flex-col h-full bg-brand-bg relative min-h-screen">
-      <div className="flex items-center justify-between px-6 py-1 border-b border-border-subtle bg-brand-navy overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-1 border-b border-border-subtle bg-brand-navy overflow-hidden">
         <h1 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0 flex items-center gap-2">
             <FileText className="w-4 h-4 text-brand-teal" />
             Travel Logs
@@ -426,9 +426,9 @@ const expandedLogs = logs.map(log => {
         {/* Table */}
         <div className="bg-brand-navy/50 rounded-xl border border-border-subtle overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse min-w-max">
+            <table className="w-full text-left text-[11px] border-collapse min-w-max">
               <thead>
-                <tr className="bg-brand-navy border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] font-semibold">
+                <tr className="bg-brand-navy border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold">
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Shift ID</th>
                   <th className="px-2 py-1.5 border-r border-border-subtle/30 text-center">Vehicle</th>
                   {user?.role === 'ADMIN' && <th className="px-2 py-1.5 border-r border-border-subtle/30">Staff Name</th>}
@@ -443,7 +443,7 @@ const expandedLogs = logs.map(log => {
                   <th className="px-2 py-1.5 text-center">End Odometer</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-subtle text-sm text-[#E6EDF3]">
+              <tbody className="divide-y divide-border-subtle text-[11px] text-[#E6EDF3]">
                 {loading ? (
                   <tr>
                     <td colSpan={15} className="px-2 py-6 text-center text-[#8B949E]">
@@ -462,14 +462,14 @@ const expandedLogs = logs.map(log => {
                     const isEditing = isEditingOdo === log.id.toString();
                     return (
                       <tr key={log._rowId} className="hover:bg-brand-bg/50 transition-colors group">
-                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs text-[#8B949E]">#{log.id}</td>
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap font-mono text-[11px] text-[#8B949E]">#{log.id}</td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-center">
                           <select 
                             defaultValue={log.vehicle_id !== null ? log.vehicle_id : ''}
                             onChange={(e) => {
                                handleInlineSave(log, { vehicle_id: e.target.value });
                             }}
-                            className="bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
+                            className="bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-[11px] text-center transition-colors"
                           >
                             <option value="">No Vehicle</option>
                             {vehicles.map(v => <option key={v.id} value={v.id}>{v.name} ({v.rego})</option>)}
@@ -477,7 +477,7 @@ const expandedLogs = logs.map(log => {
                         </td>
                         {user?.role === 'ADMIN' && <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">{log.staff_first} {log.staff_last}</td>}
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">{getLocalizedDateString(log.start_time)}</td>
-                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-xs text-[#8B949E]">{getLocalizedTimeString(log.start_time)} - {getLocalizedTimeString(log.end_time)}</td>
+                        <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-[11px] text-[#8B949E]">{getLocalizedTimeString(log.start_time)} - {getLocalizedTimeString(log.end_time)}</td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap">
                           <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border ${log.funding_type === 'HOME_CARE' || log.funding_type === 'Home Care' || log.funding_type === 'HCP' ? 'bg-purple-900/10 border-purple-900/20 text-purple-400' : 'bg-blue-900/10 border-blue-900/20 text-blue-400'}`}>
                             {log.funding_type === 'HOME_CARE' || log.funding_type === 'Home Care' || log.funding_type === 'HCP' ? 'Home Care' : 'NDIS'}
@@ -522,7 +522,7 @@ const expandedLogs = logs.map(log => {
                                     </span>
                                   </>
                                 ) : (
-                                  <span className="text-[#8B949E] italic text-xs">0 km</span>
+                                  <span className="text-[#8B949E] italic text-[11px]">0 km</span>
                                 )}
                               </>
                             ) : (
@@ -538,7 +538,7 @@ const expandedLogs = logs.map(log => {
                                     Total: {((Number(log.provider_travel_km) || 0) + (Number(log.abt_km) || 0)).toFixed(3)} km
                                   </span>
                                 ) : (
-                                  <span className="text-[#8B949E] italic text-xs">0 km</span>
+                                  <span className="text-[#8B949E] italic text-[11px]">0 km</span>
                                 )}
                               </>
                             )}
@@ -554,7 +554,7 @@ const expandedLogs = logs.map(log => {
                                     handleInlineSave(log, { odometer_start_reading: e.target.value });
                                  }
                               }}
-                              className="w-full flex-1 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
+                              className="w-full flex-1 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-[11px] text-center transition-colors"
                               placeholder="Start"
                             />
                             {log.odometer_start_photo && (
@@ -583,7 +583,7 @@ const expandedLogs = logs.map(log => {
                                     handleInlineSave(log, { odometer_end_reading: e.target.value });
                                  }
                               }}
-                              className="w-full flex-1 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-xs text-center transition-colors"
+                              className="w-full flex-1 bg-transparent hover:bg-black focus:bg-black border border-transparent hover:border-border-subtle focus:border-brand-teal rounded px-1 py-0.5 text-[11px] text-center transition-colors"
                               placeholder="End"
                             />
                             {log.odometer_end_photo && (
@@ -624,7 +624,7 @@ const expandedLogs = logs.map(log => {
                       setPageSize(Number(e.target.value));
                       setPage(1);
                     }}
-                    className="bg-black border border-border-subtle rounded px-2 py-1 text-sm text-[#E6EDF3] outline-none focus:border-brand-teal"
+                    className="bg-black border border-border-subtle rounded px-2 py-1 text-xs text-[#E6EDF3] outline-none focus:border-brand-teal"
                   >
                     <option value={10}>10</option>
                     <option value={20}>20</option>
@@ -673,7 +673,7 @@ const expandedLogs = logs.map(log => {
       {previewPhoto && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setPreviewPhoto(null)}>
           <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden max-w-6xl w-full" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-brand-navy">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle bg-brand-navy">
               <h3 className="text-lg font-semibold text-white">{previewPhoto.type} Odometer Photo</h3>
               <button onClick={() => setPreviewPhoto(null)} className="text-[#8B949E] hover:text-white text-xl leading-none">&times;</button>
             </div>
