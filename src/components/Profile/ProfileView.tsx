@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Save, RefreshCw } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import { getAvatarUrl } from '../../utils/avatar';
 
 export default function ProfileView() {
   const { token, user, updateUser } = useAuth();
@@ -42,7 +43,7 @@ export default function ProfileView() {
           ...prev,
           ...data,
           password: '', // never set password from server
-          avatarUrl: data.avatarUrl || `https://api.multiavatar.com/${data.firstName || 'Staff'}.svg`
+          avatarUrl: getAvatarUrl(data.avatarUrl || data.firstName || 'Staff')
         }));
       }
     } catch (e) {
@@ -118,10 +119,10 @@ export default function ProfileView() {
         <div className="bg-brand-navy border border-border-subtle rounded-xl p-4 md:p-5 shadow-sm space-y-3">
           <h2 className="text-sm font-semibold text-[#E6EDF3] tracking-tight">Profile Avatar</h2>
           <div className="flex items-center gap-4">
-            <img src={formData.avatarUrl || `https://api.multiavatar.com/Staff.svg`} alt="Selected Avatar" className="w-16 h-16 rounded-full bg-[#151515] border border-white/[0.08]" />
+            <img src={getAvatarUrl(formData.avatarUrl || 'Staff')} alt="Selected Avatar" className="w-16 h-16 rounded-full bg-[#151515] border border-white/[0.08]" />
             <div className="flex-1 overflow-x-auto custom-scrollbar pb-2 pt-1 flex gap-2">
               {["Doctor", "Nurse", "Medic", "Healer", "Therapist", "Surgeon", "Caregiver", "Health", "Pulse", "Life", "Trippy", "Neon", "Cosmic", "Quantum", "Psychedelic", "Aura", "Vibe", "Zen", "Mind", "Soul", "Cyborg", "Nexus", "Synth", "Bio", "Nano", "Glitch", "Echo", "Flux", "Nova", "Apex"].map(seed => {
-                const url = `https://api.multiavatar.com/${seed}.svg`;
+                const url = getAvatarUrl(seed);
                 return (
                   <img 
                     key={seed} 

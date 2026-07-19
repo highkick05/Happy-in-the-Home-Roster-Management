@@ -217,7 +217,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
                         {s.avatar_url ? (
-                          <img src={s.avatar_url} alt={`${s.first_name}`} className="w-7 h-7 rounded-full border border-white/[0.08] bg-[#151515] shrink-0 object-cover" />
+                          <img src={getAvatarUrl(s.avatar_url)} alt={`${s.first_name}`} className="w-7 h-7 rounded-full border border-white/[0.08] bg-[#151515] shrink-0 object-cover" />
                         ) : (
                           <div className="w-7 h-7 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal flex items-center justify-center text-[11px] font-semibold shrink-0">
                             {initials || '?'}

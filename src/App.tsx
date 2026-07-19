@@ -33,6 +33,7 @@ import WallboardView from './components/Kiosk/WallboardView';
 import TasksView from './components/Tasks/TasksView';
 import TravelLogsView from './components/TravelLogsView';
 import VehiclesView from './components/VehiclesView';
+import { getAvatarUrl } from './utils/avatar';
 
 
 function DateTimer() {
@@ -338,7 +339,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           {!isDesktopSidebarCollapsed || isMobileMenuOpen ? (
             <div className="mb-2 px-2 flex items-center gap-2 text-[11px] text-brand-teal font-medium tracking-wide truncate">
               {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt={user.firstName} className="w-5 h-5 rounded-full object-cover shrink-0 bg-[#151515] border border-brand-teal/20" />
+                <img src={getAvatarUrl(user.avatarUrl)} alt={user.firstName} className="w-5 h-5 rounded-full object-cover shrink-0 bg-[#151515] border border-brand-teal/20" />
               ) : (
                 <div className="w-5 h-5 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal flex items-center justify-center shrink-0 text-[9px] font-bold">
                   {user?.firstName?.charAt(0) || '?'}

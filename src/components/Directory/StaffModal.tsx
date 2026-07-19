@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import { getAvatarUrl } from '../../utils/avatar';
 
 interface StaffModalProps {
   isOpen: boolean;
@@ -29,7 +30,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
     superFundName: '',
     superMemberNumber: staff?.super_member_number || '',
     canSwitchAdmin: staff ? !!staff.can_switch_admin : false,
-    avatarUrl: staff?.avatar_url || `https://api.dicebear.com/9.x/micah/svg?seed=${Math.random().toString(36).substring(7)}`,
+    avatarUrl: getAvatarUrl(staff?.avatar_url || Math.random().toString(36).substring(7)),
   });
 
   useEffect(() => {
@@ -52,7 +53,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         superFundName: staff.super_fund_name || '',
         superMemberNumber: staff?.super_member_number || '',
         canSwitchAdmin: !!staff.can_switch_admin,
-        avatarUrl: staff.avatar_url || `https://api.dicebear.com/9.x/micah/svg?seed=${staff.first_name || 'Staff'}`,
+        avatarUrl: getAvatarUrl(staff.avatar_url || staff.first_name || 'Staff'),
       });
     } else {
       setFormData({
@@ -73,7 +74,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         superFundName: '',
         superMemberNumber: staff?.super_member_number || '',
     canSwitchAdmin: staff ? !!staff.can_switch_admin : false,
-        avatarUrl: `https://api.dicebear.com/9.x/micah/svg?seed=${Math.random().toString(36).substring(7)}`,
+        avatarUrl: getAvatarUrl(Math.random().toString(36).substring(7)),
       });
     }
   }, [staff, isOpen]);
@@ -133,10 +134,10 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
             <div className="space-y-3">
               <label className="block text-xs font-medium text-zinc-400">Profile Avatar</label>
               <div className="flex items-center gap-4">
-                <img src={formData.avatarUrl} alt="Selected Avatar" className="w-16 h-16 rounded-full bg-[#151515] border border-white/[0.08]" />
+                <img src={getAvatarUrl(formData.avatarUrl)} alt="Selected Avatar" className="w-16 h-16 rounded-full bg-[#151515] border border-white/[0.08]" />
                 <div className="flex-1 overflow-x-auto custom-scrollbar pb-2 pt-1 flex gap-2">
-                  {Array.from({ length: 30 }, (_, i) => `Avatar${i + 1}`).map(seed => {
-                    const url = `https://api.dicebear.com/9.x/micah/svg?seed=${seed}&backgroundColor=c0aede,b6e3f4,d1d4f9,ffd5dc,ffdfbf`;
+                  {["Doctor", "Nurse", "Medic", "Healer", "Therapist", "Surgeon", "Caregiver", "Health", "Pulse", "Life", "Trippy", "Neon", "Cosmic", "Quantum", "Psychedelic", "Aura", "Vibe", "Zen", "Mind", "Soul", "Cyborg", "Nexus", "Synth", "Bio", "Nano", "Glitch", "Echo", "Flux", "Nova", "Apex"].map(seed => {
+                    const url = getAvatarUrl(seed);
                     return (
                       <img 
                         key={seed} 
