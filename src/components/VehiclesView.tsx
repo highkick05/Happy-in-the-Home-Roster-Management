@@ -351,9 +351,9 @@ export default function VehiclesView() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="w-full space-y-3">
-        <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full bg-brand-bg relative overflow-hidden">
+      <div className="flex flex-col flex-1 p-4 space-y-3 min-h-0">
+        <div className="flex items-center justify-between shrink-0">
           <div>
             <h1 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0">
               Vehicles
@@ -371,9 +371,10 @@ export default function VehiclesView() {
           </button>
         </div>
 
-        <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-x-auto min-h-[450px]">
+        <div className="bg-brand-navy rounded-xl border border-border-subtle flex-1 flex flex-col min-h-0">
+          <div className="overflow-auto flex-1 relative">
           <table className="w-full text-left text-[11px] whitespace-nowrap">
-            <thead className="bg-brand-navy border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold">
+            <thead className="bg-brand-navy border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold sticky top-0 z-10">
               <tr>
                 <th className="px-2 py-1.5 border-r border-border-subtle/30">
                   Car Details
@@ -774,6 +775,7 @@ export default function VehiclesView() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 

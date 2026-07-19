@@ -324,7 +324,7 @@ const expandedLogs = logs.map(log => {
   const grandTotalCost = totalPTCost + totalABTCost;
 
   return (
-    <div className="flex flex-col h-full bg-brand-bg relative min-h-screen">
+    <div className="flex flex-col h-full bg-brand-bg relative overflow-hidden">
       <div className="flex items-center justify-between px-4 py-1 border-b border-border-subtle bg-brand-navy overflow-hidden">
         <h1 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0 flex items-center gap-2">
             <FileText className="w-4 h-4 text-brand-teal" />
@@ -335,10 +335,10 @@ const expandedLogs = logs.map(log => {
         </div>
       </div>
       
-      <div className="p-2 pb-16 flex flex-col flex-1 space-y-2 w-full">
+      <div className="p-2 pb-6 flex flex-col flex-1 space-y-2 w-full overflow-hidden">
         
         {/* Filters */}
-        <div className="flex flex-wrap items-center justify-start gap-2">
+        <div className="flex flex-wrap items-center justify-start gap-2 shrink-0">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-col gap-1.5 w-48">
               <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Search</label>
@@ -424,11 +424,11 @@ const expandedLogs = logs.map(log => {
         </div>
 
         {/* Table */}
-        <div className="bg-brand-navy/50 rounded-xl border border-border-subtle overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-brand-navy/50 rounded-xl border border-border-subtle flex-1 flex flex-col min-h-0">
+          <div className="overflow-auto flex-1">
             <table className="w-full text-left text-[11px] border-collapse min-w-max">
               <thead>
-                <tr className="bg-brand-navy border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold">
+                <tr className="bg-brand-navy border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold sticky top-0 z-10">
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Shift ID</th>
                   <th className="px-2 py-1.5 border-r border-border-subtle/30 text-center">Vehicle</th>
                   {user?.role === 'ADMIN' && <th className="px-2 py-1.5 border-r border-border-subtle/30">Staff Name</th>}
