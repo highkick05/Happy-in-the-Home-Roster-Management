@@ -13625,8 +13625,8 @@ function resolveFilePath(systemName) {
                       }
                   } catch(e) {}
               }
-              if (actualDriveMins <= 0 && s.travel_minutes) {
-                  actualDriveMins = s.travel_minutes;
+              if (actualDriveMins <= 0 && s.provider_travel_minutes) {
+                  actualDriveMins = s.provider_travel_minutes;
               }
               if (actualDriveMins < 0) actualDriveMins = 0;
               travelCategoryCell = `Inter-Shift Travel (${Math.round(actualDriveMins)} mins)`;

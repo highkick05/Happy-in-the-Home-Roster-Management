@@ -707,8 +707,8 @@ export default function ComplianceDashboard() {
                                    }
                                 } catch(e) {}
                              }
-                             if (actualDriveMins <= 0 && row.travel_minutes) {
-                                actualDriveMins = row.travel_minutes;
+                             if (actualDriveMins <= 0 && row.provider_travel_minutes) {
+                                actualDriveMins = row.provider_travel_minutes;
                              }
                              if (actualDriveMins < 0) actualDriveMins = 0;
                              travelCategoryCell = <span className="text-[#E6EDF3] text-xs font-medium">Inter-Shift Travel ({Math.round(actualDriveMins)} mins)</span>;
@@ -758,8 +758,8 @@ export default function ComplianceDashboard() {
                                    }
                                 } catch(e) {}
                              }
-                             if (actualDriveMins <= 0 && row.travel_minutes) {
-                                actualDriveMins = row.travel_minutes;
+                             if (actualDriveMins <= 0 && row.provider_travel_minutes) {
+                                actualDriveMins = row.provider_travel_minutes;
                              }
                              if (actualDriveMins < 0) actualDriveMins = 0;
                              const decHrs = actualDriveMins / 60;
@@ -1024,8 +1024,8 @@ export default function ComplianceDashboard() {
                                    }
                                 } catch(e) {}
                              }
-                             if (actualDriveMins <= 0 && row.travel_minutes) {
-                                actualDriveMins = row.travel_minutes;
+                             if (actualDriveMins <= 0 && row.provider_travel_minutes) {
+                                actualDriveMins = row.provider_travel_minutes;
                              }
                              if (actualDriveMins < 0) actualDriveMins = 0;
                              travelCategoryCell = <span className="text-[#E6EDF3] text-xs font-medium">Inter-Shift Travel ({Math.round(actualDriveMins)} mins)</span>;
@@ -1075,8 +1075,8 @@ export default function ComplianceDashboard() {
                                    }
                                 } catch(e) {}
                              }
-                             if (actualDriveMins <= 0 && row.travel_minutes) {
-                                actualDriveMins = row.travel_minutes;
+                             if (actualDriveMins <= 0 && row.provider_travel_minutes) {
+                                actualDriveMins = row.provider_travel_minutes;
                              }
                              if (actualDriveMins < 0) actualDriveMins = 0;
                              const decHrs = actualDriveMins / 60;
