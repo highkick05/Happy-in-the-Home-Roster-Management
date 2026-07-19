@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { ArrowLeft, Phone, Mail, FileText, Calendar, Building, Home, CheckCircle2, Edit2, ClipboardEdit, Calculator } from 'lucide-react';
 import ClientModal from './ClientModal';
 import ClientRosterModal from './ClientRosterModal';
+import { getAvatarUrl } from '../../utils/avatar';
 
 export default function ClientDashboardView() {
   // Helper to extract text from EditorJS JSON
