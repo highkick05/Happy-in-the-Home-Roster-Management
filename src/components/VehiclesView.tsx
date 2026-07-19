@@ -188,10 +188,9 @@ export default function VehiclesView() {
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-brand-navy border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] font-semibold">
               <tr>
-                <th className="px-3 py-3 border-r border-border-subtle/30">Make & Model</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30">Car Details</th>
                 <th className="px-3 py-3 border-r border-border-subtle/30 text-center">Default</th>
-                <th className="px-3 py-3 border-r border-border-subtle/30">Year</th>
-                <th className="px-3 py-3 border-r border-border-subtle/30">Rego</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30">Owner</th>
                 <th className="px-3 py-3 border-r border-border-subtle/30">Ownership</th>
                 <th className="px-3 py-3 border-r border-border-subtle/30">Rego Expiry</th>
                 <th className="px-3 py-3 border-r border-border-subtle/30">Insurance</th>
@@ -203,13 +202,20 @@ export default function VehiclesView() {
             </thead>
             <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
               {loading ? (
-                <tr><td colSpan={11} className="px-4 py-8 text-center text-[#8B949E]">Loading vehicles...</td></tr>
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-[#8B949E]">Loading vehicles...</td></tr>
               ) : vehicles.length === 0 ? (
-                <tr><td colSpan={11} className="px-4 py-8 text-center text-[#8B949E]">No vehicles found.</td></tr>
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-[#8B949E]">No vehicles found.</td></tr>
               ) : (
                 vehicles.map(v => (
                   <tr key={v.id} className="hover:bg-brand-bg/50 transition-colors">
-                    <td className="px-3 py-3 border-r border-border-subtle/30 font-medium text-white">{v.name}</td>
+                    <td className="px-3 py-3 border-r border-border-subtle/30">
+                      <div className="font-medium text-white">{v.name}</div>
+                      <div className="text-xs text-[#8B949E] flex items-center gap-2 mt-0.5">
+                        <span>{v.year}</span>
+                        <span className="w-1 h-1 rounded-full bg-[#8B949E]/50"></span>
+                        <span className="uppercase tracking-wider">{v.rego}</span>
+                      </div>
+                    </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30 text-center">
                        {(user?.role === 'ADMIN' || v.user_id === user?.id) ? (
                           <button onClick={() => handleSetPrimary(v)} className="text-brand-teal hover:text-white transition-colors" title="Set as default vehicle">
@@ -219,8 +225,12 @@ export default function VehiclesView() {
                           v.is_primary ? <CheckCircle2 className="w-5 h-5 mx-auto text-brand-teal" /> : <Circle className="w-5 h-5 mx-auto text-[#8B949E]" />
                        )}
                     </td>
-                    <td className="px-3 py-3 border-r border-border-subtle/30">{v.year}</td>
-                    <td className="px-3 py-3 border-r border-border-subtle/30">{v.rego}</td>
+                    <td className="px-3 py-3 border-r border-border-subtle/30 font-medium">
+                      {v.ownership === 'COMPANY' ? 'Company' : (
+                         v.user_id === user?.id ? (user?.first_name ? `${user.first_name} ${user.last_name || ''}` : 'Me') : 
+                         (staff.find(s => s.id === v.user_id) ? `${staff.find(s => s.id === v.user_id)?.first_name} ${staff.find(s => s.id === v.user_id)?.last_name || ''}` : 'Unknown Staff')
+                      )}
+                    </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">
                       <span className={`inline-flex px-2 py-1 rounded text-xs font-bold tracking-wide uppercase border ${v.ownership === 'COMPANY' ? 'bg-blue-900/10 border-blue-900/20 text-blue-400' : 'bg-purple-900/10 border-purple-900/20 text-purple-400'}`}>
                         {v.ownership === 'COMPANY' ? 'Company' : 'Private'}
