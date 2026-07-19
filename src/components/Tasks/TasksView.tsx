@@ -280,13 +280,13 @@ export default function TasksView() {
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                   <div className="w-2 h-2 rounded-none" style={{ backgroundColor: col.color_hex }}></div>
-                                  <h2 className="font-bold text-[14px] text-white tracking-widest uppercase font-sans drop-shadow-sm">{col.name}</h2>
+                                  <h2 className="font-bold text-[10px] text-zinc-400 tracking-wider uppercase font-sans drop-shadow-sm">{col.name}</h2>
                                   <span className="text-[10px] font-bold bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-none text-[#8B949E]">
                                     {colTasks.length}
                                   </span>
                                 </div>
                               </div>
-                              <button onClick={() => { setEditingTask({ category_id: col.id }); setIsModalOpen(true); }} className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] font-medium text-[#8B949E] bg-white/[0.02] hover:bg-white/[0.05] border border-transparent hover:border-white/[0.05] rounded-none transition-colors">
+                              <button onClick={() => { setEditingTask({ category_id: col.id }); setIsModalOpen(true); }} className="flex items-center gap-2 w-full px-2 py-1.5 text-[11px] font-medium text-[#8B949E] bg-white/[0.02] hover:bg-white/[0.05] border border-transparent hover:border-white/[0.05] rounded-none transition-colors">
                                 <Plus className="w-3 h-3" />
                                 Add task
                               </button>

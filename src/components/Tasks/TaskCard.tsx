@@ -75,14 +75,14 @@ export function TaskCard({
                   {task.category_name}
                 </span>
               )}
-              <span className={`font-bold text-xl truncate ${task.status === 'Done' ? 'text-zinc-500 line-through' : 'text-[#E6EDF3]'}`}>
+              <span className={`font-semibold text-xs truncate tracking-wide ${task.status === 'Done' ? 'text-zinc-500 line-through' : 'text-[#E6EDF3]'}`}>
                 {task.title}
               </span>
             </div>
             {task.description && (
               <>
                 <span className="hidden sm:inline text-zinc-600 shrink-0">•</span>
-                <span className="text-lg flex items-center gap-2 text-[#8B949E] min-w-0 overflow-hidden">
+                <span className="text-[11px] flex items-center gap-2 text-[#8B949E] min-w-0 overflow-hidden">
                   <span className="truncate">{task.description}</span>
                 </span>
               </>
@@ -92,14 +92,14 @@ export function TaskCard({
             {(safeStaff.length > 0 || safeClients.length > 0) && (
               <div className="flex gap-2 mr-4">
                  {safeStaff.map((s: any) => (
-                   <span key={s.id} className="flex items-center justify-center w-8 h-8 rounded-full bg-brand-teal/20 text-brand-teal text-xs font-bold ring-2 ring-brand-navy shadow-sm" title={s.name}>
+                   <span key={s.id} className="flex items-center justify-center w-8 h-8 rounded-full bg-brand-teal/20 text-brand-teal text-[10px] font-bold ring-1 ring-brand-navy shadow-sm" title={s.name}>
                      {s.name.substring(0,2).toUpperCase()}
                    </span>
                  ))}
               </div>
             )}
             {task.due_date && !isChecked && (
-              <div className={`flex items-center text-lg font-medium tracking-tight px-3 py-1 rounded-none border ${
+              <div className={`flex items-center text-[10px] font-medium tracking-wide px-2 py-1 rounded-none border ${
                 isOverdue ? 'text-red-400 border-red-400/30 bg-red-400/10' :
                 isNearDue ? 'text-amber-400 border-amber-400/30 bg-amber-400/10' :
                 'text-[#8B949E] border-white/[0.05] bg-white/[0.02]'
@@ -174,11 +174,11 @@ export function TaskCard({
           {isChecked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
         </button>
         <div className="flex-1 min-w-0">
-          <h3 className={`text-[14px] font-medium leading-snug ${isChecked ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
+          <h3 className={`text-xs font-semibold leading-snug tracking-wide ${isChecked ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
             {task.title}
           </h3>
                   {task.description && (
-            <p className="text-[12px] text-[#8B949E] line-clamp-2 mt-1 leading-tight">
+            <p className="text-[11px] text-[#8B949E] line-clamp-2 mt-0.5 leading-tight">
               {task.description}
             </p>
           )}
@@ -198,7 +198,7 @@ export function TaskCard({
                   {st.completed ? <CheckSquare className="w-2.5 h-2.5 text-brand-teal" /> : null}
                 </div>
               </div>
-              <span className={`text-[11px] leading-tight ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]/90'}`}>
+              <span className={`text-[10px] leading-tight ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]/90'}`}>
                 {st.title}
               </span>
             </div>
@@ -238,7 +238,7 @@ export function TaskCard({
         </div>
         
         {task.due_date && !isChecked && (
-          <div className={`flex items-center text-[11px] font-medium px-2 py-1 rounded-none border ${
+          <div className={`flex items-center text-[10px] font-medium px-2 py-1 rounded-none border ${
             isOverdue ? 'text-red-400 border-red-400/30 bg-red-400/10' :
             isNearDue ? 'text-amber-400 border-amber-400/30 bg-amber-400/10' :
             'text-[#8B949E] border-white/[0.05] bg-white/[0.02]'
@@ -373,7 +373,7 @@ export function TaskModal({
     <div className="fixed inset-0 bg-brand-bg/90 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
       <div className="bg-brand-navy border border-border-subtle rounded-none w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-sm">
         <div className="flex items-center justify-between p-3 border-b border-border-subtle shrink-0 bg-black/20">
-          <h2 className="text-xl font-bold text-white">{task ? 'Edit Task' : 'New Task'}</h2>
+          <h2 className="text-sm font-bold text-white tracking-wide">{task ? 'Edit Task' : 'New Task'}</h2>
           <div className="flex items-center gap-3">
             {task && onDelete && (
               <button type="button" onClick={onDelete} className="text-red-400 hover:bg-red-400/10 p-2 rounded-none transition-colors flex items-center text-sm font-medium">
@@ -394,7 +394,7 @@ export function TaskModal({
                 type="text"
                 value={formData.title}
                 onChange={e => setFormData({...formData, title: e.target.value})}
-                className="w-full bg-transparent border-none text-2xl font-bold text-white placeholder:text-[#8B949E]/50 focus:ring-0 outline-none px-0"
+                className="w-full bg-transparent border-none text-base font-bold text-white placeholder:text-[#8B949E]/50 focus:ring-0 outline-none px-0"
                 placeholder="Task Title"
               />
             </div>
@@ -403,7 +403,7 @@ export function TaskModal({
               <select
                 value={formData.status}
                 onChange={e => setFormData({...formData, status: e.target.value})}
-                className="bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none"
+                className="bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-[11px] font-medium text-white focus:border-brand-teal outline-none"
               >
                 <option value="To Do">To Do</option>
                 <option value="In Progress">In Progress</option>
@@ -414,7 +414,7 @@ export function TaskModal({
                 <select
                   value={formData.category_id}
                   onChange={e => setFormData({...formData, category_id: e.target.value})}
-                  className="bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none"
+                  className="bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-[11px] font-medium text-white focus:border-brand-teal outline-none"
                 >
                   {categories?.map((c: any) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
@@ -434,7 +434,7 @@ export function TaskModal({
                 type="datetime-local"
                 value={formData.due_date}
                 onChange={e => setFormData({...formData, due_date: e.target.value})}
-                className="bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none"
+                className="bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-[11px] font-medium text-white focus:border-brand-teal outline-none"
               />
             </div>
             
@@ -459,7 +459,7 @@ export function TaskModal({
                     <button type="button" onClick={() => toggleSubtask(st.id)} className="shrink-0">
                       <AnimatedCheckbox checked={!!st.completed} className="w-5 h-5" />
                     </button>
-                    <span className={`flex-1 text-sm ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
+                    <span className={`flex-1 text-[11px] ${st.completed ? 'text-[#8B949E] line-through' : 'text-[#E6EDF3]'}`}>
                       {st.title}
                     </span>
                     <button type="button" onClick={() => removeSubtask(st.id)} className="text-[#8B949E] opacity-0 group-hover:opacity-100 hover:text-red-400 p-1">
@@ -528,7 +528,7 @@ export function TaskModal({
               <select
                 value={formData.assigned_to_id || ''}
                 onChange={e => setFormData({...formData, assigned_to_id: e.target.value ? parseInt(e.target.value) : ''})}
-                className="w-full bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-sm font-medium text-white focus:border-brand-teal outline-none mb-4"
+                className="w-full bg-black/20 border border-border-subtle rounded-none px-3 py-1.5 text-[11px] font-medium text-white focus:border-brand-teal outline-none mb-4"
               >
                 <option value="">-- Select Staff --</option>
                 {staffList?.map((staff: any) => (
