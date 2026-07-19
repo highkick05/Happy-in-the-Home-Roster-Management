@@ -1315,21 +1315,20 @@ export default function ComplianceDashboard() {
                         {/* Staff Header Row */}
                         <div 
                           onClick={() => setExpandedStaffId(isExpanded ? null : staff.id)}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between p-5 cursor-pointer select-none gap-2"
+                          className="flex items-center justify-between px-4 py-2 cursor-pointer select-none gap-4"
                         >
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-[#E6EDF3] font-medium text-15px flex items-center gap-2">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="text-[#E6EDF3] font-medium text-[13px] whitespace-nowrap flex items-center gap-1.5 shrink-0">
                               <span>{staff.first_name} {staff.last_name}</span>
-                              <span className="text-xs text-[#8B949E] font-normal">({staff.email})</span>
-                            </h4>
-                            <p className="text-xs text-[#8B949E] mt-1 flex items-center gap-2">
+                              <span className="text-[11px] text-[#8B949E] font-normal">({staff.email})</span>
+                            </div>
+                            <div className="text-[11px] text-[#8B949E] flex items-center gap-2 border-l border-white/10 pl-3 m-0 whitespace-nowrap overflow-hidden text-ellipsis">
                               <span>Compliance Stats: <strong className="text-[#E6EDF3] font-medium">{stats.totalUploaded} of {Object.keys(ONBOARDING_STEP_LABELS).length}</strong> items uploaded</span>
                               <span>•</span>
                               <span>Missing: <strong className="text-[#E6EDF3] font-medium">{stats.missing}</strong> items</span>
-                            </p>
+                            </div>
                           </div>
-
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 shrink-0">
                             {stats.expired === 0 && stats.expiring === 0 && stats.missing === 0 && (
                               <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold border bg-brand-green/10 border-brand-green/20 text-brand-green">
                                 Fully Compliant
