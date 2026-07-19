@@ -330,37 +330,37 @@ export default function FilesView() {
 
   return (
     <div className="h-full flex flex-col flex-1 pb-6">
-      <div className="flex justify-between items-start lg:items-center px-6 pt-4 pb-4 flex-col lg:flex-row gap-4">
+      <div className="flex justify-between items-start lg:items-center px-6 pt-0 pb-3 flex-col lg:flex-row gap-2">
         <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">Files</h2>
-          <p className="text-zinc-400 text-sm mt-1">Manage documents, uploads, and media.</p>
+          <h2 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0">Files</h2>
+          <p className="text-zinc-400 text-xs mt-0">Manage documents, uploads, and media.</p>
         </div>
-        <div className="flex items-center gap-4">
-          <button onClick={open} className="flex items-center px-4 py-2 bg-brand-teal hover:bg-teal-400 text-black text-sm font-semibold rounded-lg transition-colors shadow-sm cursor-pointer">
-            <UploadCloud className="w-4 h-4 mr-2" />
+        <div className="flex items-center gap-2">
+          <button onClick={open} className="flex items-center px-3 py-1.5 bg-brand-teal hover:bg-teal-400 text-black text-xs font-semibold rounded-md transition-colors shadow-sm cursor-pointer h-7">
+            <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
             Upload File
           </button>
           <div className="flex items-center bg-black/40 border border-white/10 rounded-lg p-1">
           <button 
             onClick={() => setViewMode('list')}
-            className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
+            className={`p-1 rounded-md transition-colors ${viewMode === 'list' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
             title="List View"
           >
-            <LayoutList className="w-4 h-4" />
+            <LayoutList className="w-3.5 h-3.5" />
           </button>
           <button 
             onClick={() => setViewMode('grid')}
-            className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
+            className={`p-1 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
             title="Grid View"
           >
-            <LayoutGrid className="w-4 h-4" />
+            <LayoutGrid className="w-3.5 h-3.5" />
           </button>
           <button 
             onClick={() => setViewMode('column')}
-            className={`p-1.5 rounded-md transition-colors ${viewMode === 'column' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
+            className={`p-1 rounded-md transition-colors ${viewMode === 'column' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
             title="Column View"
           >
-            <Columns className="w-4 h-4" />
+            <Columns className="w-3.5 h-3.5" />
           </button>
           </div>
         </div>
@@ -373,7 +373,7 @@ export default function FilesView() {
              <div className="p-5 bg-brand-teal text-black rounded-full shadow-[0_0_20px_rgba(20,184,166,0.3)] animate-pulse mb-6">
                <UploadCloud className="w-10 h-10" />
              </div>
-             <h3 className="text-2xl font-bold text-white tracking-tight drop-shadow-md">Drop files to upload</h3>
+             <h3 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0 drop-shadow-md">Drop files to upload</h3>
              <p className="text-brand-teal mt-2">Uploading to: {currentPath}</p>
           </div>
         )}
@@ -382,12 +382,12 @@ export default function FilesView() {
           <div className="px-5 py-3 border-b border-white/[0.08] flex items-center justify-between bg-[#151515]">
             <div className="flex items-center text-sm font-medium text-zinc-400">
               <button onClick={() => setCurrentPath(staffRoot)} className="hover:text-brand-teal transition-colors flex items-center pr-2">
-                <Folder className="w-4 h-4 text-brand-teal mr-2 fill-brand-teal/20" />
+                <Folder className="w-3.5 h-3.5 text-brand-teal mr-2 fill-brand-teal/20" />
                 {user?.role === 'ADMIN' ? 'Root Directory' : 'My Files'}
               </button>
               {currentPath.substring(staffRoot === '/' ? 0 : staffRoot.length).split('/').filter(Boolean).map((part, i, arr) => (
                 <React.Fragment key={i}>
-                  <ChevronRight className="w-4 h-4 mx-1 text-zinc-600" />
+                  <ChevronRight className="w-3.5 h-3.5 mx-1 text-zinc-600" />
                   <button 
                     onClick={() => setCurrentPath(staffRoot === '/' ? '/' + arr.slice(0, i + 1).join('/') : staffRoot + '/' + arr.slice(0, i + 1).join('/'))}
                     className={`transition-colors pl-1 ${i === arr.length - 1 ? "text-white" : "hover:text-white"}`}
@@ -421,7 +421,7 @@ export default function FilesView() {
                     onClick={navigateUp}
                     className="flex items-center px-5 py-2.5 bg-zinc-800/80 border border-white/[0.12] hover:bg-zinc-700 text-white text-sm font-medium rounded-lg transition-colors"
                   >
-                    <CornerLeftUp className="w-4 h-4 mr-2 text-brand-teal" />
+                    <CornerLeftUp className="w-3.5 h-3.5 mr-1.5 text-brand-teal" />
                     Go back
                   </button>
                 )}
@@ -430,10 +430,10 @@ export default function FilesView() {
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-[#0a0a0a] border-b border-white/[0.05] sticky top-0 z-10 backdrop-blur-md">
                   <tr>
-                    <th className="px-6 py-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider w-32">Size</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider w-48">Date Modified</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider w-24 text-right">Actions</th>
+                    <th className="px-6 py-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider w-32">Size</th>
+                    <th className="px-6 py-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider w-48">Date Modified</th>
+                    <th className="px-6 py-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider w-24 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.05]">
@@ -479,11 +479,11 @@ export default function FilesView() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={(e) => { e.stopPropagation(); downloadFile(f.id, f.original_name); }} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-700/50 rounded-lg transition-all border border-transparent hover:border-white/10" title="Download File">
-                            <Download className="w-4 h-4" />
+                            <Download className="w-3.5 h-3.5" />
                           </button>
                           {(user?.role === 'ADMIN' || f.uploaded_by === user?.id) && (
                             <button onClick={(e) => { e.stopPropagation(); deleteFile(f.id); }} className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all border border-transparent hover:border-red-500/20" title="Delete File">
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
@@ -493,7 +493,7 @@ export default function FilesView() {
                 </tbody>
               </table>
             ) : viewMode === 'grid' ? (
-              <div className="p-4 grid gap-4 grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 2xl:grid-cols-14">
+              <div className="p-4 grid gap-2 grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 2xl:grid-cols-14">
                 {currentPath !== '/' && (
                   <div onClick={navigateUp} className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 hover:bg-zinc-800 hover:border-zinc-500/50 cursor-pointer transition-all flex flex-col items-center justify-center p-4 group aspect-square">
                      <div className="p-2 bg-zinc-800/80 rounded-full group-hover:bg-brand-teal group-hover:text-white transition-colors duration-300 mb-2">
@@ -533,7 +533,7 @@ export default function FilesView() {
                   <ul className="flex-1 overflow-y-auto py-2">
                     {currentPath !== '/' && (
                       <li onClick={navigateUp} className="px-4 py-2 hover:bg-zinc-800/50 cursor-pointer flex items-center text-sm font-medium text-zinc-400 group">
-                        <CornerLeftUp className="w-4 h-4 mr-3 group-hover:text-white" />
+                        <CornerLeftUp className="w-3.5 h-3.5 mr-3 group-hover:text-white" />
                         <span className="group-hover:text-white">..</span>
                       </li>
                     )}
@@ -541,7 +541,7 @@ export default function FilesView() {
                       <li key={folder} onClick={() => { navigateTo(folder); setSelectedFileId(null); }} className="px-4 py-2 hover:bg-zinc-800/50 cursor-pointer flex items-center text-sm font-medium text-zinc-200 group">
                         <FileThumbnail isFolder size="sm" />
                         <span className="ml-3 truncate">{folder}</span>
-                        <ChevronRight className="w-4 h-4 ml-auto text-zinc-600 opacity-0 group-hover:opacity-100" />
+                        <ChevronRight className="w-3.5 h-3.5 ml-auto text-zinc-600 opacity-0 group-hover:opacity-100" />
                       </li>
                     ))}
                     {currentFolderFiles.map(f => (
@@ -603,11 +603,11 @@ export default function FilesView() {
                             </div>
                             <div className="flex items-center space-x-3 ml-4">
                               <button onClick={() => downloadFile(file.id, file.original_name)} className="px-5 flex items-center justify-center py-2 bg-brand-teal hover:bg-teal-400 text-black text-sm font-semibold rounded-lg transition-colors shadow-sm">
-                                <Download className="w-4 h-4 mr-2" /> Download
+                                <Download className="w-3.5 h-3.5 mr-1.5" /> Download
                               </button>
                               {(user?.role === 'ADMIN' || file.uploaded_by === user?.id) && (
                                 <button onClick={() => deleteFile(file.id)} className="px-5 flex items-center justify-center py-2 bg-zinc-800 hover:bg-red-500 hover:text-white text-zinc-300 text-sm font-semibold rounded-lg transition-colors">
-                                  <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                  <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete
                                 </button>
                               )}
                             </div>
@@ -672,11 +672,11 @@ export default function FilesView() {
                     </div>
                     <div className="flex items-center space-x-3 ml-4">
                       <button onClick={() => downloadFile(file.id, file.original_name)} className="px-5 flex items-center justify-center py-2 bg-brand-teal hover:bg-teal-400 text-black text-sm font-semibold rounded-lg transition-colors shadow-sm cursor-pointer">
-                        <Download className="w-4 h-4 mr-2" /> Download
+                        <Download className="w-3.5 h-3.5 mr-1.5" /> Download
                       </button>
                       {(user?.role === 'ADMIN' || file.uploaded_by === user?.id) && (
                         <button onClick={() => { deleteFile(file.id); setSelectedFileId(null); }} className="px-5 flex items-center justify-center py-2 bg-zinc-800 hover:bg-red-500 hover:text-white text-zinc-300 text-sm font-semibold rounded-lg transition-colors cursor-pointer">
-                          <Trash2 className="w-4 h-4 mr-2" /> Delete
+                          <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete
                         </button>
                       )}
                     </div>
