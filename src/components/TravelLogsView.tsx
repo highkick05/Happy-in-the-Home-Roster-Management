@@ -281,8 +281,8 @@ const expandedLogs = logs.map(log => {
        } else if (parsed && parsed.homeCareTravel && parsed.homeCareTravel.legs) {
            hc_drive_mins = parsed.homeCareTravel.legs.reduce((sum, l) => sum + (l.durationMins || 0), 0);
        }
-       if (hc_drive_mins <= 0 && log.provider_travel_minutes) {
-           hc_drive_mins = log.provider_travel_minutes;
+       if (hc_drive_mins <= 0 && log.travel_minutes) {
+           hc_drive_mins = log.travel_minutes;
        }
        if (hc_drive_mins < 0) hc_drive_mins = 0;
 
