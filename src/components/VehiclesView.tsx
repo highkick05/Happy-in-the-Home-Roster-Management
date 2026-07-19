@@ -111,7 +111,7 @@ export default function VehiclesView() {
       await fetch(`/api/vehicles/${vehicle.id}`, {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...vehicle, is_primary: 1 })
+        body: JSON.stringify({ ...vehicle, is_primary: vehicle.is_primary ? 0 : 1 })
       });
       fetchVehicles();
     } catch (e) {
@@ -257,7 +257,7 @@ export default function VehiclesView() {
           </button>
         </div>
 
-        <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-hidden overflow-x-auto">
+        <div className="bg-brand-navy rounded-xl border border-border-subtle overflow-x-auto min-h-[450px]">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-brand-navy border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] font-semibold">
               <tr>
@@ -269,7 +269,7 @@ export default function VehiclesView() {
                 <th className="px-3 py-3 border-r border-border-subtle/30">Insurance</th>
                 <th className="px-3 py-3 border-r border-border-subtle/30">Ins. Expiry</th>
                 <th className="px-3 py-3 border-r border-border-subtle/30">Roadside</th>
-                <th className="px-3 py-3 border-r border-border-subtle/30">R/S Expiry</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30">Roadside Expiry</th>
                 <th className="px-3 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -283,7 +283,7 @@ export default function VehiclesView() {
                   <tr key={v.id} className="hover:bg-brand-bg/50 transition-colors whitespace-nowrap">
                     <td className="px-3 py-2 border-r border-border-subtle/30 group">
                       <div className="flex items-center gap-2">
-                         <div className="font-medium text-white w-32"><InlineInput value={v.name} onChange={(val: string) => setVehicles(prev => prev.map(x => x.id === v.id ? {...x, name: val} : x))} onBlur={() => handleUpdateRow(v.id, {name: v.name})} placeholder="Make & Model" /></div>
+                         <div className="font-medium text-white w-48"><InlineInput value={v.name} onChange={(val: string) => setVehicles(prev => prev.map(x => x.id === v.id ? {...x, name: val} : x))} onBlur={() => handleUpdateRow(v.id, {name: v.name})} placeholder="Make & Model" /></div>
                          <div className="text-xs text-[#8B949E] w-12"><InlineInput value={v.year} onChange={(val: string) => setVehicles(prev => prev.map(x => x.id === v.id ? {...x, year: val} : x))} onBlur={() => handleUpdateRow(v.id, {year: v.year})} placeholder="Year" /></div>
                          <div className="text-xs text-[#8B949E] uppercase tracking-wider w-20"><InlineInput value={v.rego} onChange={(val: string) => setVehicles(prev => prev.map(x => x.id === v.id ? {...x, rego: val} : x))} onBlur={() => handleUpdateRow(v.id, {rego: v.rego})} placeholder="Rego" className="uppercase" /></div>
                       </div>
@@ -304,8 +304,8 @@ export default function VehiclesView() {
                                const newOwnership = uid ? 'PRIVATE' : 'COMPANY';
                                handleUpdateRow(v.id, { user_id: uid, ownership: newOwnership });
                             }} className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:border-border-subtle focus:ring-1 focus:ring-brand-teal rounded appearance-none text-[#8B949E] text-sm">
-                              <option value="">Company</option>
-                              {staff.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                              <option className="bg-brand-navy text-white" value="">Company</option>
+                              {staff.map(s => <option className="bg-brand-navy text-white" key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
                             </select>
                          ) : (
                             <span className="text-sm text-[#8B949E]">
@@ -316,8 +316,8 @@ export default function VehiclesView() {
                     <td className="px-3 py-2 border-r border-border-subtle/30 align-middle">
                         {user?.role === 'ADMIN' ? (
                           <select value={v.ownership || 'COMPANY'} onChange={e => handleUpdateRow(v.id, { ownership: e.target.value })} className={`inline-flex px-1 py-1 rounded text-xs font-bold tracking-wide uppercase border outline-none cursor-pointer appearance-none ${v.ownership === 'COMPANY' ? 'bg-blue-900/10 border-blue-900/20 text-blue-400' : 'bg-purple-900/10 border-purple-900/20 text-purple-400'}`}>
-                            <option value="COMPANY">Company</option>
-                            <option value="PRIVATE">Private</option>
+                            <option className="bg-brand-navy text-white" value="COMPANY">Company</option>
+                            <option className="bg-brand-navy text-white" value="PRIVATE">Private</option>
                           </select>
                         ) : (
                           <span className={`inline-flex px-2 py-1 rounded text-xs font-bold tracking-wide uppercase border ${v.ownership === 'COMPANY' ? 'bg-blue-900/10 border-blue-900/20 text-blue-400' : 'bg-purple-900/10 border-purple-900/20 text-purple-400'}`}>
@@ -347,8 +347,8 @@ export default function VehiclesView() {
                         <div className="flex items-center gap-2">
                           <div className="w-20">
                             <select value={v.insurance_type || ''} onChange={e => handleUpdateRow(v.id, {insurance_type: e.target.value})} className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] appearance-none text-sm">
-                              <option value="THIRD_PARTY">3rd Party</option>
-                              <option value="COMPREHENSIVE">Comp.</option>
+                              <option className="bg-brand-navy text-white" value="THIRD_PARTY">3rd Party</option>
+                              <option className="bg-brand-navy text-white" value="COMPREHENSIVE">Comp.</option>
                             </select>
                           </div>
                           <div className="w-20">
@@ -468,8 +468,8 @@ export default function VehiclesView() {
                       disabled={user?.role !== 'ADMIN'}
                       className={`w-full bg-black/50 border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none ${user?.role !== 'ADMIN' ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      {(user?.role === 'ADMIN' || newVehicle.ownership === 'COMPANY') && <option value="COMPANY">Company Vehicle</option>}
-                      <option value="PRIVATE">Private (Staff Owned)</option>
+                      {(user?.role === 'ADMIN' || newVehicle.ownership === 'COMPANY') && <option className="bg-brand-navy text-white" value="COMPANY">Company Vehicle</option>}
+                      <option className="bg-brand-navy text-white" value="PRIVATE">Private (Staff Owned)</option>
                     </select>
                   </div>
                   
@@ -481,8 +481,8 @@ export default function VehiclesView() {
                         onChange={e => setNewVehicle({...newVehicle, user_id: e.target.value})}
                         className="w-full bg-black/50 border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none"
                       >
-                        <option value="">Select Staff</option>
-                        {staff.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                        <option className="bg-brand-navy text-white" value="">Select Staff</option>
+                        {staff.map(s => <option className="bg-brand-navy text-white" key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
                       </select>
                     </div>
                   )}
@@ -538,8 +538,8 @@ export default function VehiclesView() {
                         onChange={e => setNewVehicle({...newVehicle, insurance_type: e.target.value})}
                         className="w-full bg-black/50 border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal outline-none"
                       >
-                        <option value="THIRD_PARTY">Third Party</option>
-                        <option value="COMPREHENSIVE">Comprehensive</option>
+                        <option className="bg-brand-navy text-white" value="THIRD_PARTY">Third Party</option>
+                        <option className="bg-brand-navy text-white" value="COMPREHENSIVE">Comprehensive</option>
                       </select>
                    </div>
                    <div>
