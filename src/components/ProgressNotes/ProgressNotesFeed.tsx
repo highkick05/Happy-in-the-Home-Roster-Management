@@ -265,7 +265,7 @@ export default function ProgressNotesFeed({
                 }
                 if (note.tags) estH += 28;
                 allItems.push({ h: estH, el: (
-            <div key={`${note.source}-${note.id}-${idx}`} className="bg-brand-navy rounded-xl border border-border-subtle p-3 shadow-sm mb-4 break-inside-avoid">
+            <div key={`${note.source}-${note.id}-${idx}`} className={`rounded-xl border p-3 shadow-sm mb-4 break-inside-avoid ${note.tags?.includes('Incident') ? 'bg-red-500/10 border-red-500/50' : 'bg-brand-navy border-border-subtle'}`}>
                <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="text-[13px] text-zinc-300">
@@ -342,7 +342,7 @@ export default function ProgressNotesFeed({
                    {renderNoteContent(note.notes)}
                    {note.tags && (
                      <div className="mt-3 block pt-2">
-                       <span className="inline-block bg-brand-navy border border-border-subtle px-2 py-1 rounded text-[11px] text-zinc-400 shadow-sm">
+                       <span className={`inline-block border px-2 py-1 rounded text-[11px] shadow-sm ${note.tags?.includes('Incident') ? 'bg-red-500/20 border-red-500/30 text-red-400 font-medium' : 'bg-brand-navy border-border-subtle text-zinc-400'}`}>
                          Tag: {note.tags}
                        </span>
                      </div>
