@@ -979,7 +979,6 @@ try {
       CREATE TABLE IF NOT EXISTS files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         original_name TEXT NOT NULL,
-        sort_order INTEGER DEFAULT 0,
         system_name TEXT NOT NULL,
         sort_order INTEGER DEFAULT 0,
         size INTEGER,
@@ -4300,7 +4299,7 @@ app.get("/api/health", (req, res) => {
 
   app.put("/api/vehicles/:id", authenticateToken, (req: any, res: any) => {
     try {
-      const { name, rego, user_id, ownership, rego_expiry, rego_evidence_url, insurance_type, insurance_provider, insurance_expiry, insurance_evidence_url, roadside_provider, roadside_expiry, roadside_evidence_url, year, has_roadside } = req.body;
+      const { name, rego, user_id, ownership, rego_expiry, rego_evidence_url, insurance_type, insurance_provider, insurance_expiry, insurance_evidence_url, roadside_provider, roadside_expiry, roadside_evidence_url, year, has_roadside, is_primary } = req.body;
       const vehicle = db.prepare("SELECT * FROM vehicles WHERE id = ?").get(req.params.id) as any;
       if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
       if (req.user.role !== "ADMIN" && vehicle.user_id !== req.user.id) {
@@ -4309,7 +4308,12 @@ app.get("/api/health", (req, res) => {
       
       const targetUserId = req.user.role !== "ADMIN" ? req.user.id : (user_id !== undefined ? user_id : vehicle.user_id);
       
-      db.prepare("UPDATE vehicles SET name = ?, rego = ?, user_id = ?, ownership = ?, rego_expiry = ?, rego_evidence_url = ?, insurance_type = ?, insurance_provider = ?, insurance_expiry = ?, insurance_evidence_url = ?, roadside_provider = ?, roadside_expiry = ?, roadside_evidence_url = ?, year = ?, has_roadside = ? WHERE id = ?").run(
+      const willBePrimary = is_primary !== undefined ? (is_primary ? 1 : 0) : vehicle.is_primary;
+      if (willBePrimary === 1 && targetUserId) {
+         db.prepare("UPDATE vehicles SET is_primary = 0 WHERE user_id = ?").run(targetUserId);
+      }
+
+      db.prepare("UPDATE vehicles SET name = ?, rego = ?, user_id = ?, ownership = ?, rego_expiry = ?, rego_evidence_url = ?, insurance_type = ?, insurance_provider = ?, insurance_expiry = ?, insurance_evidence_url = ?, roadside_provider = ?, roadside_expiry = ?, roadside_evidence_url = ?, year = ?, has_roadside = ?, is_primary = ? WHERE id = ?").run(
         name !== undefined ? name : vehicle.name,
         rego !== undefined ? rego : vehicle.rego,
         targetUserId,
@@ -4325,6 +4329,7 @@ app.get("/api/health", (req, res) => {
         roadside_evidence_url !== undefined ? roadside_evidence_url : vehicle.roadside_evidence_url,
         year !== undefined ? year : vehicle.year,
         has_roadside !== undefined ? (has_roadside ? 1 : 0) : vehicle.has_roadside,
+        willBePrimary,
         req.params.id
       );
       res.json({ success: true });

@@ -227,7 +227,7 @@ export default function VehiclesView() {
                     <td className="px-3 py-3 border-r border-border-subtle/30">
                       {v.rego_expiry}
                       {v.rego_evidence_url && (
-                        <a href={`/uploads/${v.rego_evidence_url}`} target="_blank" rel="noreferrer" className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
+                        <a href={`/uploads/${v.rego_evidence_url}`} download className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
                           <FileText className="w-3 h-3" /> View Doc
                         </a>
                       )}
@@ -239,23 +239,23 @@ export default function VehiclesView() {
                     <td className="px-3 py-3 border-r border-border-subtle/30">
                       {v.insurance_expiry}
                       {v.insurance_evidence_url && (
-                        <a href={`/uploads/${v.insurance_evidence_url}`} target="_blank" rel="noreferrer" className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
+                        <a href={`/uploads/${v.insurance_evidence_url}`} download className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
                           <FileText className="w-3 h-3" /> View Doc
                         </a>
                       )}
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">
                       {v.has_roadside ? (
-                        <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border bg-green-900/10 border-green-900/20 text-green-400">Yes</span>
+                        <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-semibold tracking-wide uppercase border bg-green-900/10 border-green-900/20 text-green-400">Yes</span>
                       ) : (
-                        <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border bg-red-900/10 border-red-900/20 text-red-400">No</span>
+                        <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-semibold tracking-wide uppercase border bg-red-900/10 border-red-900/20 text-red-400">No</span>
                       )}
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">
                       {v.roadside_expiry}
                       {v.roadside_provider && <div className="text-[10px] text-[#8B949E] uppercase tracking-wider">{v.roadside_provider}</div>}
                       {v.roadside_evidence_url && (
-                        <a href={`/uploads/${v.roadside_evidence_url}`} target="_blank" rel="noreferrer" className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
+                        <a href={`/uploads/${v.roadside_evidence_url}`} download className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
                           <FileText className="w-3 h-3" /> View Doc
                         </a>
                       )}
@@ -338,6 +338,20 @@ export default function VehiclesView() {
                         <option value="">Select Staff</option>
                         {staff.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
                       </select>
+                    </div>
+                  )}
+                  {newVehicle.ownership === 'PRIVATE' && (
+                    <div className="flex items-center gap-2 mt-6">
+                       <input 
+                         type="checkbox"
+                         id="is_primary"
+                         checked={newVehicle.is_primary}
+                         onChange={e => setNewVehicle({...newVehicle, is_primary: e.target.checked})}
+                         className="w-4 h-4 rounded border-border-subtle bg-black/50 text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-navy cursor-pointer"
+                       />
+                       <label htmlFor="is_primary" className="text-sm font-medium text-[#E6EDF3] cursor-pointer">
+                         Set as Default Vehicle
+                       </label>
                     </div>
                   )}
                </div>
