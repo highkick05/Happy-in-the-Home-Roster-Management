@@ -216,9 +216,13 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                   <tr key={s.id} onClick={() => handleEditStaff(s)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${s.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal flex items-center justify-center text-[11px] font-semibold shrink-0">
-                          {initials || '?'}
-                        </div>
+                        {s.avatar_url ? (
+                          <img src={s.avatar_url} alt={`${s.first_name}`} className="w-7 h-7 rounded-full border border-white/[0.08] bg-[#151515] shrink-0 object-cover" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal flex items-center justify-center text-[11px] font-semibold shrink-0">
+                            {initials || '?'}
+                          </div>
+                        )}
                         <div>
                           <div className="font-medium text-[#E6EDF3] flex items-center">
                             {s.first_name} {s.last_name}

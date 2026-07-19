@@ -7,6 +7,7 @@ export interface User {
   firstName: string;
   lastName: string;
   canSwitchAdmin?: boolean;
+  avatarUrl?: string;
 }
 
 interface AuthContextType {

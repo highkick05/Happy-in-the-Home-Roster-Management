@@ -553,6 +553,9 @@ try {
     if (!usersCols.some(c => c.name === 'last_active_role')) {
       db.exec("ALTER TABLE users ADD COLUMN last_active_role TEXT");
     }
+    if (!usersCols.some(c => c.name === 'avatar_url')) {
+      db.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT");
+    }
   } catch(e) {
     console.error("Migration error for users table:", e.message);
   }
@@ -2765,6 +2768,7 @@ try {
         firstName: user.first_name,
         lastName: user.last_name,
         canSwitchAdmin: !!user.can_switch_admin,
+        avatarUrl: user.avatar_url,
       },
     });
   });
@@ -2811,6 +2815,7 @@ try {
         firstName: user.first_name,
         lastName: user.last_name,
         canSwitchAdmin: !!user.can_switch_admin,
+        avatarUrl: user.avatar_url,
       },
       settings,
     });
@@ -2984,7 +2989,7 @@ try {
   app.get("/api/me", authenticateToken, (req: any, res: any) => {
     const user = db
       .prepare(
-        "SELECT id, email, role, first_name, last_name, can_switch_admin FROM users WHERE id = ?"
+        "SELECT id, email, role, first_name, last_name, can_switch_admin, avatar_url FROM users WHERE id = ?"
       )
       .get(req.user.id) as any;
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -3006,6 +3011,7 @@ try {
         firstName: user.first_name,
         lastName: user.last_name,
         canSwitchAdmin: !!user.can_switch_admin,
+        avatarUrl: user.avatar_url,
       },
       settings,
     });
@@ -3022,7 +3028,7 @@ try {
         emergency_contact_phone as emergencyContactPhone, 
         bank_name as bankName, bank_bsb as bankBsb, bank_acc as bankAcc, 
         tax_number as taxNumber, super_fund_name as superFundName, 
-        super_member_number as superMemberNumber 
+        super_member_number as superMemberNumber, avatar_url as avatarUrl 
       FROM users WHERE id = ?
     `,
       )
@@ -3046,6 +3052,7 @@ try {
       taxNumber,
       superFundName,
       superMemberNumber,
+      avatarUrl,
       password,
     } = req.body;
 
@@ -3054,7 +3061,7 @@ try {
         first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, 
         emergency_contact_name = ?, emergency_contact_phone = ?, 
         bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, 
-        super_fund_name = ?, super_member_number = ?
+        super_fund_name = ?, super_member_number = ?, avatar_url = ?
     `;
     const params: any[] = [
       firstName,
@@ -3070,6 +3077,7 @@ try {
       taxNumber,
       superFundName,
       superMemberNumber,
+      avatarUrl || null,
     ];
 
     if (password) {
@@ -4090,6 +4098,7 @@ app.get("/api/health", (req, res) => {
       superFundName,
       superMemberNumber,
       canSwitchAdmin,
+      avatarUrl,
     } = req.body;
     try {
       const hash = bcrypt.hashSync(password, 10);
@@ -4114,6 +4123,7 @@ app.get("/api/health", (req, res) => {
         superFundName,
         superMemberNumber,
         canSwitchAdmin ? 1 : 0,
+      avatarUrl || null,
       );
       res.json({
         id: info.lastInsertRowid,
@@ -4161,11 +4171,12 @@ app.get("/api/health", (req, res) => {
       superFundName,
       superMemberNumber,
       canSwitchAdmin,
+      avatarUrl,
     } = req.body;
     const { id } = req.params;
     try {
       const stmt = db.prepare(
-        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ? WHERE id = ?",
+        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, avatar_url = ?, can_switch_admin = ?, avatar_url = ? WHERE id = ?",
       );
       stmt.run(
         email,
@@ -4184,6 +4195,7 @@ app.get("/api/health", (req, res) => {
         superFundName,
         superMemberNumber,
         canSwitchAdmin ? 1 : 0,
+        avatarUrl || null,
         id,
       );
       res.json({
