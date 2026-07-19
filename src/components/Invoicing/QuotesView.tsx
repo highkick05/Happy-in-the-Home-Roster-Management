@@ -356,7 +356,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
             const subtotal = qty * rate;
 
             return (
-              <div key={idx} className="w-full relative bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+              <div key={idx} className="w-full relative bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
                 <div className="flex items-center space-x-2 mb-1.5 pr-8">
                   <div className="flex-1 min-w-0">
                     <select
@@ -750,7 +750,7 @@ export default function QuotesView() {
 
   const renderSortableHeader = (field: string, label: string) => (
     <th 
-      className="px-4 py-4 font-semibold cursor-pointer select-none hover:bg-brand-bg/50 transition-colors"
+      className="px-3 py-2 font-semibold cursor-pointer select-none hover:bg-brand-bg/50 transition-colors"
       onClick={() => {
         if (sortField === field) {
           setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -787,7 +787,7 @@ export default function QuotesView() {
                   required
                   value={uploadClientId}
                   onChange={e => setUploadClientId(e.target.value)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-xs text-white outline-none focus:border-brand-blue transition-colors"
                 >
                   <option value="">Select Client</option>
                   {allDbClients.map(c => (
@@ -802,7 +802,7 @@ export default function QuotesView() {
                   required
                   value={uploadDate}
                   onChange={e => setUploadDate(e.target.value)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-xs text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
                 />
               </div>
               <div>
@@ -812,7 +812,7 @@ export default function QuotesView() {
                   placeholder="e.g. Historical Quote"
                   value={uploadActivity}
                   onChange={e => setUploadActivity(e.target.value)}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder:text-zinc-600"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder:text-zinc-600"
                 />
               </div>
               <div>
@@ -865,7 +865,7 @@ export default function QuotesView() {
           {selectedIds.length > 0 && (
             <button
               onClick={handleDeleteBulk}
-              className="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors flex items-center shadow-sm h-9"
+              className="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center shadow-sm h-7"
             >
               <Trash2 className="w-4 h-4 mr-1.5" />
               Delete ({selectedIds.length})
@@ -905,7 +905,7 @@ export default function QuotesView() {
             <table className="w-full text-left border-collapse text-xs md:text-sm">
                             <thead>
                 <tr className="bg-brand-bg border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] sticky top-0 z-10 transition-colors">
-                  <th className="px-4 py-4 font-semibold w-12">
+                  <th className="px-3 py-2 font-semibold w-12">
                     <input type="checkbox" className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-navy" checked={selectedIds.length === paginatedQuotes.length && paginatedQuotes.length > 0} onChange={toggleAll} />
                   </th>
                   {renderSortableHeader('date', 'Date')}
@@ -914,7 +914,7 @@ export default function QuotesView() {
                   {renderSortableHeader('activity', 'Activity')}
                   {renderSortableHeader('amount', 'Amount')}
                   {renderSortableHeader('status', 'Status')}
-                  <th className="px-4 py-4 font-semibold text-right">Actions</th>
+                  <th className="px-3 py-2 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
@@ -922,10 +922,10 @@ export default function QuotesView() {
                   <tr><td colSpan={8} className="p-8 text-center text-[#8B949E]">No quotes found.</td></tr>
                 ) : paginatedQuotes.map(q => (
                   <tr key={q.id} className="hover:bg-brand-bg/50 transition-colors group">
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       <input type="checkbox" className="rounded border-border-subtle bg-brand-navy text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-navy" checked={selectedIds.includes(q.id)} onChange={() => toggleSelection(q.id)} />
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-[#E6EDF3]">
+                    <td className="px-3 py-2 whitespace-nowrap text-[#E6EDF3]">
                       {(() => {
                         const d = new Date(q.activity_date || q.created_at);
                         const day = String(d.getDate()).padStart(2, '0');
@@ -934,7 +934,7 @@ export default function QuotesView() {
                         return `${day}-${month}-${year}`;
                       })()}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap font-medium text-[#E6EDF3]">
+                    <td className="px-3 py-2 whitespace-nowrap font-medium text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>{q.quote_number}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(q.quote_number); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
@@ -942,7 +942,7 @@ export default function QuotesView() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-[#E6EDF3]">
+                    <td className="px-3 py-2 text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>{q.client_first_name} {q.client_last_name}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(`${q.client_first_name || ''} ${q.client_last_name || ''}`.trim()); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
@@ -950,8 +950,8 @@ export default function QuotesView() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-[#E6EDF3]">{q.activity_name}</td>
-                    <td className="px-4 py-4 font-medium text-[#E6EDF3]">
+                    <td className="px-3 py-2 text-[#E6EDF3]">{q.activity_name}</td>
+                    <td className="px-3 py-2 font-medium text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>${Number(q.amount).toFixed(2)}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(`$${Number(q.amount).toFixed(2)}`); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
@@ -959,10 +959,10 @@ export default function QuotesView() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-2">
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-brand-bg text-[#8B949E] border border-border-subtle">{q.status}</span>
                     </td>
-                    <td className="px-4 py-4 text-right flex items-center justify-end space-x-1">
+                    <td className="px-3 py-2 text-right flex items-center justify-end space-x-1">
                       <button title="Edit Quote" onClick={() => { setEditingQuote(q); setShowGenerateModal(true); }} className="p-1.5 text-zinc-400 hover:text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors"><Edit2 className="w-4 h-4" /></button>
                       <button title="Download PDF" onClick={() => downloadPDF(q.id, q.quote_number)} className="p-1.5 text-zinc-400 hover:text-brand-teal hover:bg-brand-teal/10 rounded-md transition-colors"><Download className="w-4 h-4" /></button>
                       <button title="Delete Quote" onClick={() => handleDeleteSingle(q.id)} className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
@@ -977,7 +977,7 @@ export default function QuotesView() {
         
         {/* Pagination Controls */}
         {!loading && sortedQuotes.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border-subtle bg-brand-bg">
+          <div className="flex items-center justify-between px-3 py-2 border-t border-border-subtle bg-brand-bg">
             <div className="flex items-center space-x-2 text-sm text-[#8B949E]">
               <span>Rows per page:</span>
               <select 

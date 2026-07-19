@@ -501,46 +501,46 @@ export default function ComplianceDashboard() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-3">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
         <div>
-           <h2 className="text-2xl font-sans font-semibold text-[#E6EDF3] tracking-tight mb-2">Compliance & Audit</h2>
-           <p className="text-[#8B949E] text-sm mt-1">Immutable evidence generation and audit-ready data extraction.</p>
+           <h2 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0">Compliance & Audit</h2>
+           <p className="text-[#8B949E] text-xs mt-0">Immutable evidence generation and audit-ready data extraction.</p>
         </div>
       </div>
 
       <div className="flex space-x-1 bg-brand-navy shadow-sm p-1 rounded-lg w-fit border border-border-subtle">
         <button
           onClick={() => setActiveTab('evidence')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors flex items-center ${activeTab === 'evidence' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center ${activeTab === 'evidence' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
-          <Briefcase className="w-4 h-4 mr-2" /> Client Evidence Pack
+          <Briefcase className="w-3.5 h-3.5 mr-2" /> Client Evidence Pack
         </button>
         <button
           onClick={() => setActiveTab('staff')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors flex items-center ${activeTab === 'staff' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center ${activeTab === 'staff' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
-          <Users className="w-4 h-4 mr-2" /> Workforce Compliance
+          <Users className="w-3.5 h-3.5 mr-2" /> Workforce Compliance
         </button>
         <button
           onClick={() => setActiveTab('mandatory_documents')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors flex items-center ${activeTab === 'mandatory_documents' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center ${activeTab === 'mandatory_documents' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
-          <ClipboardList className="w-4 h-4 mr-2" /> Mandatory Documents
+          <ClipboardList className="w-3.5 h-3.5 mr-2" /> Mandatory Documents
         </button>
         <button
           onClick={() => setActiveTab('system_logs')}
-          className={`px-4 py-2 text-[13px] rounded-md transition-colors flex items-center ml-auto ${activeTab === 'system_logs' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+          className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center ml-auto ${activeTab === 'system_logs' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
-          <Search className="w-4 h-4 mr-2" /> Immutable System Logs
+          <Search className="w-3.5 h-3.5 mr-2" /> Immutable System Logs
         </button>
       </div>
 
       {activeTab === 'evidence' && (
         <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-visible flex flex-col items-stretch">
-           <div className="p-4 border-b border-border-subtle flex flex-col gap-3 relative">
+           <div className="p-3 border-b border-border-subtle flex flex-col gap-2 relative">
              <div>
-               <h3 className="text-base font-medium text-[#E6EDF3] flex items-center mb-1"><FileCheck className="w-4 h-4 mr-2 text-brand-teal" /> Global Evidence Ledger</h3>
+               <h3 className="text-sm font-medium text-[#E6EDF3] flex items-center mb-0.5"><FileCheck className="w-3.5 h-3.5 mr-2 text-brand-teal" /> Global Evidence Ledger</h3>
                <p className="text-xs text-[#8B949E]">
                  Comprehensive log of all completed shifts, compliance statuses, and un-redacted tracking data for NDIA or Home Care auditors.
                </p>
@@ -553,7 +553,7 @@ export default function ComplianceDashboard() {
              
              <div className="flex flex-wrap items-end gap-3 mt-1">
                 <div className="flex flex-col gap-1 w-48 shrink-0">
-                  <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Search</label>
+                  <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Search</label>
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B949E]" />
                     <input 
@@ -564,16 +564,16 @@ export default function ComplianceDashboard() {
                         setEvidenceSearchTerm(e.target.value);
                         setEvidencePage(1);
                       }}
-                      className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1.5 pl-8 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all placeholder:text-[#8B949E]/50"
+                      className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1 pl-7 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all placeholder:text-[#8B949E]/50"
                     />
                   </div>
                 </div>
                 <div className="flex flex-col gap-1 w-56 shrink-0">
-                   <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Filter by Client</label>
+                   <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Filter by Client</label>
                    <select 
                      value={selectedClient} 
                      onChange={e => setSelectedClient(e.target.value)}
-                     className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1.5 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal transition-colors outline-none"
+                     className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal transition-colors outline-none"
                    >
                      <option value="">All Clients (Global Ledger)</option>
                      {clients.map(c => (
@@ -582,28 +582,28 @@ export default function ComplianceDashboard() {
                    </select>
                 </div>
                 <div className="flex flex-col gap-1 w-32 shrink-0">
-                   <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
+                   <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
                    <CustomDatePicker 
                       position="bottom"
                      value={clientStartDate} 
                      onChange={e => setClientStartDate(e.target.value)}
-                     className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1.5 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal min-h-[30px] transition-colors outline-none" 
+                     className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal min-h-[26px] transition-colors outline-none" 
                    />
                 </div>
                 <div className="flex flex-col gap-1 w-32 shrink-0">
-                   <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
+                   <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
                    <CustomDatePicker 
                       position="bottom"
                      value={clientEndDate} 
                      onChange={e => setClientEndDate(e.target.value)}
-                     className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1.5 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal min-h-[30px] transition-colors outline-none" 
+                     className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal min-h-[26px] transition-colors outline-none" 
                    />
                 </div>
                 <div className="ml-auto">
                    <button
                      onClick={downloadEvidencePack}
                      disabled={isGeneratingEvidence || loadingMatrix}
-                     className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green disabled:opacity-50 text-white rounded text-xs font-medium shadow-sm transition-all h-[30px]"
+                     className="flex items-center px-2.5 py-1 bg-gradient-to-r from-brand-teal to-brand-green disabled:opacity-50 text-white rounded text-xs font-medium shadow-sm transition-all h-[26px]"
                    >
                      {isGeneratingEvidence ? (
                         <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5"/>
@@ -622,25 +622,25 @@ export default function ComplianceDashboard() {
                    <p className="text-[#8B949E] text-sm">Loading ledger...</p>
                  </div>
              ) : (
-                 <table className="w-full text-left text-sm border-collapse">
-                   <thead className="text-xs text-[#E6EDF3] uppercase tracking-wider bg-zinc-800 border-b border-border-subtle font-bold">
+                 <table className="w-full text-left text-xs border-collapse">
+                   <thead className="text-[10px] text-[#8B949E] uppercase tracking-wider bg-zinc-800 font-semibold border-b border-border-subtle font-bold">
                      <tr>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Shift ID</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Client Name</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Service Date</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Shift Timestamps</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Care Type</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Logged Care Hrs</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Progress Note Status</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Travel Category & Time</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Travel Route</th>
-                       <th className="px-4 py-3 whitespace-nowrap">Claimable Travel</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Shift ID</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Client Name</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Service Date</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Shift Timestamps</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Care Type</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Logged Care Hrs</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Progress Note Status</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Travel Category & Time</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Travel Route</th>
+                       <th className="px-3 py-2 whitespace-nowrap">Claimable Travel</th>
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
                      {filteredEvidenceMatrix.length === 0 ? (
                        <tr>
-                         <td colSpan={10} className="px-4 py-8 text-center text-[#8B949E]">No evidence records available.</td>
+                         <td colSpan={10} className="px-3 py-6 text-center text-[#8B949E]">No evidence records available.</td>
                        </tr>
                      ) : (
                        filteredEvidenceMatrix.slice((evidencePage - 1) * evidencePageSize, evidencePage * evidencePageSize).map((row, idx) => {
@@ -808,12 +808,12 @@ export default function ComplianceDashboard() {
              
              {!loadingMatrix && filteredEvidenceMatrix.length > 0 && (
                 <div className="flex items-center justify-between p-4 border-t border-border-subtle bg-brand-bg/50 mt-4 rounded-b-xl">
-                    <div className="text-sm text-[#8B949E]">
+                    <div className="text-xs text-[#8B949E]">
                         Showing {Math.min((evidencePage - 1) * evidencePageSize + 1, filteredEvidenceMatrix.length)} to {Math.min(evidencePage * evidencePageSize, filteredEvidenceMatrix.length)} of {filteredEvidenceMatrix.length} entries
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-[#8B949E]">Rows per page:</span>
+                            <span className="text-xs text-[#8B949E]">Rows per page:</span>
                             <select
                                 value={evidencePageSize}
                                 onChange={(e) => {setEvidencePageSize(Number(e.target.value)); setEvidencePage(1);}}
@@ -851,9 +851,9 @@ export default function ComplianceDashboard() {
 
       {activeTab === 'staff' && (
          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-visible flex flex-col items-stretch">
-           <div className="p-4 border-b border-border-subtle flex flex-col gap-3 relative">
+           <div className="p-3 border-b border-border-subtle flex flex-col gap-2 relative">
              <div>
-               <h3 className="text-base font-medium text-[#E6EDF3] flex items-center mb-1"><FileText className="w-4 h-4 mr-2 text-brand-green" /> Staff Logbook (Workforce Compliance)</h3>
+               <h3 className="text-sm font-medium text-[#E6EDF3] flex items-center mb-0.5"><FileText className="w-3.5 h-3.5 mr-2 text-brand-green" /> Staff Logbook (Workforce Compliance)</h3>
                <p className="text-xs text-[#8B949E]">
                  Produces an Hours Worked Report and a Vehicle Usage Statement showing precise times, shift statuses, and claimed distance.
                </p>
@@ -866,7 +866,7 @@ export default function ComplianceDashboard() {
              
              <div className="flex flex-wrap items-end gap-3 mt-1">
                 <div className="flex flex-col gap-1 w-48 shrink-0">
-                  <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Search</label>
+                  <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Search</label>
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B949E]" />
                     <input 
@@ -877,16 +877,16 @@ export default function ComplianceDashboard() {
                         setStaffSearchTerm(e.target.value);
                         setStaffPage(1);
                       }}
-                      className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1.5 pl-8 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all placeholder:text-[#8B949E]/50"
+                      className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1 pl-7 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all placeholder:text-[#8B949E]/50"
                     />
                   </div>
                 </div>
                 <div className="flex flex-col gap-1 w-56 shrink-0">
-                   <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Select Staff</label>
+                   <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Select Staff</label>
                    <select 
                      value={selectedStaff} 
                      onChange={e => setSelectedStaff(e.target.value)}
-                     className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1.5 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal transition-colors outline-none"
+                     className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal transition-colors outline-none"
                    >
                      <option value="">All Staff (Global Ledger)</option>
                      {staffList.filter(s => s.role === 'STAFF').map(s => (
@@ -895,28 +895,28 @@ export default function ComplianceDashboard() {
                    </select>
                 </div>
                 <div className="flex flex-col gap-1 w-32 shrink-0">
-                   <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
+                   <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
                    <CustomDatePicker 
                       position="bottom"
                      value={staffStartDate} 
                      onChange={e => setStaffStartDate(e.target.value)}
-                     className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1.5 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal min-h-[30px] transition-colors outline-none" 
+                     className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal min-h-[26px] transition-colors outline-none" 
                    />
                 </div>
                 <div className="flex flex-col gap-1 w-32 shrink-0">
-                   <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
+                   <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">End Date</label>
                    <CustomDatePicker 
                       position="bottom"
                      value={staffEndDate} 
                      onChange={e => setStaffEndDate(e.target.value)}
-                     className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1.5 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal min-h-[30px] transition-colors outline-none" 
+                     className="w-full bg-brand-bg border border-border-subtle rounded px-2.5 py-1 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal min-h-[26px] transition-colors outline-none" 
                    />
                 </div>
                 <div className="ml-auto">
                    <button
                      onClick={downloadStaffLedger}
                      disabled={isGeneratingLogbook || loadingStaffMatrix}
-                     className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green disabled:opacity-50 text-white rounded text-xs font-medium shadow-sm transition-all h-[30px]"
+                     className="flex items-center px-2.5 py-1 bg-gradient-to-r from-brand-teal to-brand-green disabled:opacity-50 text-white rounded text-xs font-medium shadow-sm transition-all h-[26px]"
                    >
                      {isGeneratingLogbook ? (
                         <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1.5"/>
@@ -935,29 +935,29 @@ export default function ComplianceDashboard() {
                    <p className="text-[#8B949E] text-sm">Loading logbook...</p>
                  </div>
              ) : (
-                 <table className="w-full text-left text-sm border-collapse">
-                   <thead className="text-xs text-[#E6EDF3] uppercase tracking-wider bg-zinc-800 border-b border-border-subtle font-bold">
+                 <table className="w-full text-left text-xs border-collapse">
+                   <thead className="text-[10px] text-[#8B949E] uppercase tracking-wider bg-zinc-800 font-semibold border-b border-border-subtle font-bold">
                      <tr>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Shift ID</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Staff Name</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Service Date</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Shift Timestamps</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Care Type</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Client</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Logged Hrs</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Progress Note Status</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Travel Category & Time</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Travel Route</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Claimable Travel</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Transport KM</th>
-                       <th className="px-4 py-3 whitespace-nowrap border-r border-border-subtle/50">Start Odometer</th>
-                       <th className="px-4 py-3 whitespace-nowrap">End Odometer</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Shift ID</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Staff Name</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Service Date</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Shift Timestamps</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Care Type</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Client</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Logged Hrs</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Progress Note Status</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Travel Category & Time</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Travel Route</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Claimable Travel</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Transport KM</th>
+                       <th className="px-3 py-2 whitespace-nowrap border-r border-border-subtle/50">Start Odometer</th>
+                       <th className="px-3 py-2 whitespace-nowrap">End Odometer</th>
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-border-subtle text-[#E6EDF3]">
                      {filteredStaffMatrix.length === 0 ? (
                        <tr>
-                         <td colSpan={14} className="px-4 py-8 text-center text-[#8B949E]">No staff records available.</td>
+                         <td colSpan={14} className="px-3 py-6 text-center text-[#8B949E]">No staff records available.</td>
                        </tr>
                      ) : (
                        filteredStaffMatrix.slice((staffPage - 1) * staffPageSize, staffPage * staffPageSize).map((row, idx) => {
@@ -1167,12 +1167,12 @@ export default function ComplianceDashboard() {
              
              {!loadingStaffMatrix && filteredStaffMatrix.length > 0 && (
                 <div className="flex items-center justify-between p-4 border-t border-border-subtle bg-brand-bg/50 mt-4 rounded-b-xl">
-                    <div className="text-sm text-[#8B949E]">
+                    <div className="text-xs text-[#8B949E]">
                         Showing {Math.min((staffPage - 1) * staffPageSize + 1, filteredStaffMatrix.length)} to {Math.min(staffPage * staffPageSize, filteredStaffMatrix.length)} of {filteredStaffMatrix.length} entries
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-[#8B949E]">Rows per page:</span>
+                            <span className="text-xs text-[#8B949E]">Rows per page:</span>
                             <select
                                 value={staffPageSize}
                                 onChange={(e) => {setStaffPageSize(Number(e.target.value)); setStaffPage(1);}}
@@ -1210,9 +1210,9 @@ export default function ComplianceDashboard() {
 
       {activeTab === 'mandatory_documents' && (
         <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-hidden p-0">
-          <div className="p-4 border-b border-border-subtle flex flex-col gap-3 relative bg-brand-bg">
+          <div className="p-3 border-b border-border-subtle flex flex-col gap-2 relative bg-brand-bg">
              <div>
-               <h3 className="text-base font-medium text-[#E6EDF3] flex items-center mb-1"><ClipboardList className="w-4 h-4 mr-2 text-brand-teal" /> Staff Compliance Matrix</h3>
+               <h3 className="text-sm font-medium text-[#E6EDF3] flex items-center mb-0.5"><ClipboardList className="w-3.5 h-3.5 mr-2 text-brand-teal" /> Staff Compliance Matrix</h3>
                <p className="text-xs text-[#8B949E]">
                  Summary list of all flat matrix mandatory compliance items for active personnel. Staff members receive automatic daily reminders for expiring credentials.
                </p>
@@ -1220,7 +1220,7 @@ export default function ComplianceDashboard() {
              
              <div className="flex flex-wrap items-end justify-between gap-3 mt-1">
                 <div className="flex flex-col gap-1 w-64 shrink-0">
-                  <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Search Staff</label>
+                  <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Search Staff</label>
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B949E]" />
                     <input
@@ -1228,7 +1228,7 @@ export default function ComplianceDashboard() {
                       placeholder="Search by name or email..."
                       value={complianceSearch}
                       onChange={e => setComplianceSearch(e.target.value)}
-                      className="w-full bg-brand-navy border border-border-subtle rounded px-2.5 py-1.5 pl-8 text-xs text-[#E6EDF3] placeholder:text-[#8B949E]/50 focus:ring-1 focus:ring-brand-teal focus:border-brand-teal transition-all outline-none"
+                      className="w-full bg-brand-navy border border-border-subtle rounded px-2.5 py-1 pl-7 text-xs text-[#E6EDF3] placeholder:text-[#8B949E]/50 focus:ring-1 focus:ring-brand-teal focus:border-brand-teal transition-all outline-none"
                     />
                   </div>
                 </div>
@@ -1237,7 +1237,7 @@ export default function ComplianceDashboard() {
                     <button
                       onClick={fetchComplianceData}
                       disabled={loadingCompliance}
-                      className="flex items-center px-3 py-1.5 text-xs text-[#E6EDF3] bg-brand-navy hover:bg-white/5 border border-border-subtle rounded transition-colors h-[30px]"
+                      className="flex items-center px-3 py-1.5 text-xs text-[#E6EDF3] bg-brand-navy hover:bg-white/5 border border-border-subtle rounded transition-colors h-[26px]"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loadingCompliance ? 'animate-spin' : ''}`} />
                       Refresh Data
@@ -1248,7 +1248,7 @@ export default function ComplianceDashboard() {
                         alert("Export not implemented for matrix view");
                       }}
                       disabled={loadingCompliance}
-                      className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green disabled:opacity-50 text-white rounded text-xs font-medium shadow-sm transition-all h-[30px]"
+                      className="flex items-center px-2.5 py-1 bg-gradient-to-r from-brand-teal to-brand-green disabled:opacity-50 text-white rounded text-xs font-medium shadow-sm transition-all h-[26px]"
                     >
                        <Download className="w-3.5 h-3.5 mr-1.5" />
                       Export Matrix
@@ -1315,14 +1315,14 @@ export default function ComplianceDashboard() {
                         {/* Staff Header Row */}
                         <div 
                           onClick={() => setExpandedStaffId(isExpanded ? null : staff.id)}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between p-5 cursor-pointer select-none gap-4"
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-5 cursor-pointer select-none gap-2"
                         >
                           <div className="flex-1 min-w-0">
                             <h4 className="text-[#E6EDF3] font-medium text-15px flex items-center gap-2">
                               <span>{staff.first_name} {staff.last_name}</span>
                               <span className="text-xs text-[#8B949E] font-normal">({staff.email})</span>
                             </h4>
-                            <p className="text-xs text-[#8B949E] mt-1 flex items-center gap-4">
+                            <p className="text-xs text-[#8B949E] mt-1 flex items-center gap-2">
                               <span>Compliance Stats: <strong className="text-[#E6EDF3] font-medium">{stats.totalUploaded} of {Object.keys(ONBOARDING_STEP_LABELS).length}</strong> items uploaded</span>
                               <span>•</span>
                               <span>Missing: <strong className="text-[#E6EDF3] font-medium">{stats.missing}</strong> items</span>
@@ -1380,7 +1380,7 @@ export default function ComplianceDashboard() {
                               </p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                               {Object.entries(ONBOARDING_STEP_LABELS).map(([key, label]) => {
                                 const item = (staff.compliance || {})[key] || { status: 'MISSING', expiry: null, issued: null, fileName: null, fileId: null };
                                 
@@ -1480,13 +1480,13 @@ export default function ComplianceDashboard() {
       <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm overflow-x-auto">
         <div className="p-4 border-b border-border-subtle bg-brand-bg flex flex-col gap-3 relative">
            <div className="flex justify-between items-center">
-               <h3 className="text-base font-medium text-[#E6EDF3] flex items-center"><Search className="w-4 h-4 mr-2 text-brand-teal" /> Immutable System Logs</h3>
+               <h3 className="text-sm font-medium text-[#E6EDF3] flex items-center"><Search className="w-3.5 h-3.5 mr-2 text-brand-teal" /> Immutable System Logs</h3>
                <span className="text-[10px] text-brand-teal bg-brand-teal/10 px-2 py-1 rounded font-semibold tracking-wider uppercase border border-brand-teal/20">Tamper-Proof</span>
            </div>
            
            <div className="flex flex-wrap items-end gap-3 mt-1">
                <div className="flex flex-col gap-1 w-64 shrink-0">
-                 <label className="text-[10px] font-semibold text-[#8B949E] uppercase tracking-wider">Search System Logs</label>
+                 <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Search System Logs</label>
                  <div className="relative">
                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8B949E]" />
                    <input 
@@ -1497,14 +1497,14 @@ export default function ComplianceDashboard() {
                        setAuditSearchTerm(e.target.value);
                        setLogsPage(1);
                      }}
-                     className="w-full bg-brand-navy border border-border-subtle rounded px-2.5 py-1.5 pl-8 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all placeholder:text-[#8B949E]/50"
+                     className="w-full bg-brand-navy border border-border-subtle rounded px-2.5 py-1 pl-7 text-xs text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-all placeholder:text-[#8B949E]/50"
                    />
                  </div>
                </div>
            </div>
         </div>
         <div className="p-5">
-           <p className="text-sm text-[#8B949E] mb-4">
+           <p className="text-xs text-[#8B949E] mb-4">
              This table securely records any manual administrative edits made to a shift after completion. It cannot be altered via the UI.
            </p>
            <div className="bg-brand-navy rounded-lg border border-border-subtle overflow-x-auto min-h-[150px]">
@@ -1512,10 +1512,10 @@ export default function ComplianceDashboard() {
                <table className="w-full text-left text-sm text-zinc-300">
                  <thead className="text-xs text-[#8B949E] uppercase tracking-wider bg-brand-bg border-b border-border-subtle">
                    <tr>
-                     <th className="px-4 py-3 font-semibold">Timestamp</th>
-                     <th className="px-4 py-3 font-semibold">Entity</th>
-                     <th className="px-4 py-3 font-semibold">Changed By</th>
-                     <th className="px-4 py-3 font-semibold">Delta</th>
+                     <th className="px-3 py-2 font-semibold">Timestamp</th>
+                     <th className="px-3 py-2 font-semibold">Entity</th>
+                     <th className="px-3 py-2 font-semibold">Changed By</th>
+                     <th className="px-3 py-2 font-semibold">Delta</th>
                    </tr>
                  </thead>
                  <tbody className="divide-y divide-border-subtle">
@@ -1525,10 +1525,10 @@ export default function ComplianceDashboard() {
                      const changedKeys = Object.keys(newV).filter(k => newV[k] !== oldV[k] && k !== 'actual_finish_time' && k !== 'notes');
                      return (
                        <tr key={log.id} className="hover:bg-brand-bg/50 transition-colors">
-                         <td className="px-4 py-3 whitespace-nowrap text-[#E6EDF3]">{new Date(log.timestamp).toLocaleString()}</td>
-                         <td className="px-4 py-3 capitalize text-[#E6EDF3]">{log.entity_type} #{log.entity_id}</td>
-                         <td className="px-4 py-3 text-[#E6EDF3]">{log.first_name} {log.last_name}</td>
-                         <td className="px-4 py-3 text-xs max-w-4xl text-[#E6EDF3] truncate" title={changedKeys.map(k => `${k}: ${oldV[k]} -> ${newV[k]}`).join(', ')}>
+                         <td className="px-3 py-2 whitespace-nowrap text-[#E6EDF3]">{new Date(log.timestamp).toLocaleString()}</td>
+                         <td className="px-3 py-2 capitalize text-[#E6EDF3]">{log.entity_type} #{log.entity_id}</td>
+                         <td className="px-3 py-2 text-[#E6EDF3]">{log.first_name} {log.last_name}</td>
+                         <td className="px-3 py-2 text-xs max-w-4xl text-[#E6EDF3] truncate" title={changedKeys.map(k => `${k}: ${oldV[k]} -> ${newV[k]}`).join(', ')}>
                            {changedKeys.length > 0 
                              ? changedKeys.map(k => `${k}: ${oldV[k]} -> ${newV[k]}`).join(', ')
                              : 'No significant changes'}
@@ -1541,12 +1541,12 @@ export default function ComplianceDashboard() {
              ) : (
                               <div className="flex items-center justify-center p-8">                 <p className="text-[#8B949E] text-sm">No manual modifications found for completed records.</p>               </div>             )}           </div>
         <div className="flex items-center justify-between p-4 border-t border-border-subtle bg-brand-bg/50">
-            <div className="text-sm text-[#8B949E]">
+            <div className="text-xs text-[#8B949E]">
                 Showing {Math.min((logsPage - 1) * logsPageSize + (filteredAuditLogs.length > 0 ? 1 : 0), filteredAuditLogs.length)} to {Math.min(logsPage * logsPageSize, filteredAuditLogs.length)} of {filteredAuditLogs.length} entries
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm text-[#8B949E]">Rows per page:</span>
+                    <span className="text-xs text-[#8B949E]">Rows per page:</span>
                     <select
                         value={logsPageSize}
                         onChange={(e) => {setLogsPageSize(Number(e.target.value)); setLogsPage(1);}}
@@ -1595,7 +1595,7 @@ export default function ComplianceDashboard() {
             </div>
             
             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-[#09090b]">
-              <div className="bg-brand-teal/10 border border-brand-teal/20 text-brand-teal px-4 py-3 rounded-lg mb-6 text-sm flex items-start gap-2">
+              <div className="bg-brand-teal/10 border border-brand-teal/20 text-brand-teal px-3 py-2 rounded-lg mb-6 text-sm flex items-start gap-2">
                 <AlertTriangle className="w-5 h-5 shrink-0" />
                 <p>
                   You are viewing this staff member's Onboarding & Compliance portal as an Administrator. You can upload documents and override dates on their behalf.
