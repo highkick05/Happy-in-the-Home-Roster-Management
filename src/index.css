@@ -293,11 +293,11 @@ input:-webkit-autofill:active {
   .rbc-toolbar {
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 12px;
+    gap: 8px;
   }
   .rbc-toolbar .rbc-toolbar-label {
   font-size: 14px !important;
-    margin: 8px 0;
+    margin: 4px 0;
     font-size: 16px;
     font-weight: bold;
   }
