@@ -483,13 +483,14 @@ try {
   }
   try {
     db.exec("ALTER TABLE shifts ADD COLUMN custom_staff_name TEXT");
-    try { db.exec("ALTER TABLE shifts ADD COLUMN tags TEXT"); } catch (e) {}
-    console.log("[DEBUG] Completed custom_staff_name column check.");
   } catch (e: any) {
     if (e.message && !e.message.includes("duplicate column")) {
       console.warn("Migration warning:", e.message);
     }
   }
+  try {
+    db.exec("ALTER TABLE shifts ADD COLUMN tags TEXT");
+  } catch (e: any) {}
 
   try {
     db.exec("ALTER TABLE shifts ADD COLUMN provider_travel_minutes REAL DEFAULT 0");
@@ -8763,6 +8764,30 @@ app.get("/api/health", (req, res) => {
 
         const stmt = db.prepare(updateQueryStr);
         stmt.run(...updateParams);
+
+        if (is_incident) {
+           const alertClient = db.prepare("SELECT first_name, last_name FROM clients WHERE id = ?").get(shift.client_id) as any;
+           const alertStaff = db.prepare("SELECT first_name, last_name FROM users WHERE id = ?").get(shift.staff_id) as any;
+           
+           if (alertClient && alertStaff) {
+              const staffName = `${alertStaff.first_name || ''} ${alertStaff.last_name || ''}`.trim();
+              const clientName = `${alertClient.first_name || ''} ${alertClient.last_name || ''}`.trim();
+              
+              const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN'").all() as any[];
+              const insertNotification = db.prepare(`
+                INSERT INTO notifications (user_id, type, title, message, link)
+                VALUES (?, 'ALERT', 'Incident Reported', ?, ?)
+              `);
+              
+              for (const admin of admins) {
+                 insertNotification.run(
+                   admin.id,
+                   `ALERT! ${staffName} has submitted an Incident for ${clientName}`,
+                   `/clients/${shift.client_id}/progress-notes`
+                 );
+              }
+           }
+        }
 
         console.log(
           `[DEBUG TRIGGER] Shift ${id} completed. Triggering cascade engine.`,
