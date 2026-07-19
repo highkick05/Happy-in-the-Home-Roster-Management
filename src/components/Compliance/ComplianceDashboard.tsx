@@ -1510,8 +1510,8 @@ export default function ComplianceDashboard() {
         <div className="p-4">
            <div className="bg-brand-navy rounded-lg border border-border-subtle overflow-x-auto min-h-[150px]">
              {filteredAuditLogs.length > 0 ? (
-               <table className="w-full text-left text-sm text-zinc-300">
-                 <thead className="text-xs text-[#8B949E] uppercase tracking-wider bg-brand-bg border-b border-border-subtle">
+               <table className="w-full text-left text-xs text-zinc-300">
+                 <thead className="text-[11px] text-[#8B949E] uppercase tracking-wider bg-brand-bg border-b border-border-subtle">
                    <tr>
                      <th className="px-3 py-2 font-semibold">Timestamp</th>
                      <th className="px-3 py-2 font-semibold">Entity</th>
@@ -1529,7 +1529,7 @@ export default function ComplianceDashboard() {
                          <td className="px-3 py-2 whitespace-nowrap text-[#E6EDF3]">{new Date(log.timestamp).toLocaleString()}</td>
                          <td className="px-3 py-2 capitalize text-[#E6EDF3]">{log.entity_type} #{log.entity_id}</td>
                          <td className="px-3 py-2 text-[#E6EDF3]">{log.first_name} {log.last_name}</td>
-                         <td className="px-3 py-2 text-xs max-w-4xl text-[#E6EDF3] truncate" title={changedKeys.map(k => `${k}: ${oldV[k]} -> ${newV[k]}`).join(', ')}>
+                         <td className="px-3 py-2 text-[11px] max-w-4xl text-[#E6EDF3] truncate" title={changedKeys.map(k => `${k}: ${oldV[k]} -> ${newV[k]}`).join(', ')}>
                            {changedKeys.length > 0 
                              ? changedKeys.map(k => `${k}: ${oldV[k]} -> ${newV[k]}`).join(', ')
                              : 'No significant changes'}
