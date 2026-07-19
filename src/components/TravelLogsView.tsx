@@ -326,8 +326,8 @@ const expandedLogs = logs.map(log => {
   return (
     <div className="flex flex-col h-full bg-brand-bg relative min-h-screen">
       <div className="flex items-center justify-between px-6 py-1 border-b border-border-subtle bg-brand-navy overflow-hidden">
-        <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <FileText className="w-5 h-5 text-brand-teal" />
+        <h1 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0 flex items-center gap-2">
+            <FileText className="w-4 h-4 text-brand-teal" />
             Travel Logs
         </h1>
         <div className="flex items-center gap-6 relative">
@@ -338,8 +338,8 @@ const expandedLogs = logs.map(log => {
       <div className="p-2 pb-16 max-w-full overflow-x-auto space-y-2">
         
         {/* Filters */}
-        <div className="flex flex-wrap items-center justify-start gap-4">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center justify-start gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-col gap-1.5 w-48">
               <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Search</label>
               <div className="relative">
@@ -410,7 +410,7 @@ const expandedLogs = logs.map(log => {
             </div>
           </div>
           
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-col gap-1.5 w-32">
               <label className="text-[9px] font-semibold text-[#8B949E] uppercase tracking-wider">Start Date</label>
               <CustomDatePicker selected={startDate} onDateChange={(date: Date | null) => setStartDate(date)} placeholderText="Start Date" className="w-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3]"  position="bottom" />
@@ -612,7 +612,7 @@ const expandedLogs = logs.map(log => {
           
           {filteredExpandedLogs.length > 0 && (
             <div className="flex items-center justify-between p-2 border-t border-border-subtle bg-brand-navy">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
                 <span className="text-sm text-[#8B949E]">
                   Showing {Math.min((page - 1) * pageSize + 1, filteredExpandedLogs.length)} to {Math.min(page * pageSize, filteredExpandedLogs.length)} of {filteredExpandedLogs.length} entries
                 </span>
