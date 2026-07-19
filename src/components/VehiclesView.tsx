@@ -189,10 +189,10 @@ export default function VehiclesView() {
             <thead className="bg-brand-navy border-b border-border-subtle text-xs uppercase tracking-wider text-[#8B949E] font-semibold">
               <tr>
                 <th className="px-3 py-3 border-r border-border-subtle/30">Make & Model</th>
+                <th className="px-3 py-3 border-r border-border-subtle/30 text-center">Default</th>
                 <th className="px-3 py-3 border-r border-border-subtle/30">Year</th>
                 <th className="px-3 py-3 border-r border-border-subtle/30">Rego</th>
                 <th className="px-3 py-3 border-r border-border-subtle/30">Ownership</th>
-                <th className="px-3 py-3 border-r border-border-subtle/30 text-center">Default</th>
                 <th className="px-3 py-3 border-r border-border-subtle/30">Rego Expiry</th>
                 <th className="px-3 py-3 border-r border-border-subtle/30">Insurance</th>
                 <th className="px-3 py-3 border-r border-border-subtle/30">Ins. Expiry</th>
@@ -210,19 +210,21 @@ export default function VehiclesView() {
                 vehicles.map(v => (
                   <tr key={v.id} className="hover:bg-brand-bg/50 transition-colors">
                     <td className="px-3 py-3 border-r border-border-subtle/30 font-medium text-white">{v.name}</td>
+                    <td className="px-3 py-3 border-r border-border-subtle/30 text-center">
+                       {(user?.role === 'ADMIN' || v.user_id === user?.id) ? (
+                          <button onClick={() => handleSetPrimary(v)} className="text-brand-teal hover:text-white transition-colors" title="Set as default vehicle">
+                            {v.is_primary ? <CheckCircle2 className="w-5 h-5 mx-auto text-brand-teal" /> : <Circle className="w-5 h-5 mx-auto text-[#8B949E]" />}
+                          </button>
+                       ) : (
+                          v.is_primary ? <CheckCircle2 className="w-5 h-5 mx-auto text-brand-teal" /> : <Circle className="w-5 h-5 mx-auto text-[#8B949E]" />
+                       )}
+                    </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">{v.year}</td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">{v.rego}</td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">
                       <span className={`inline-flex px-2 py-1 rounded text-xs font-bold tracking-wide uppercase border ${v.ownership === 'COMPANY' ? 'bg-blue-900/10 border-blue-900/20 text-blue-400' : 'bg-purple-900/10 border-purple-900/20 text-purple-400'}`}>
                         {v.ownership === 'COMPANY' ? 'Company' : 'Private'}
                       </span>
-                    </td>
-                    <td className="px-3 py-3 border-r border-border-subtle/30 text-center">
-                       {v.ownership === 'PRIVATE' && v.user_id === user?.id && (
-                          <button onClick={() => handleSetPrimary(v)} className="text-brand-teal hover:text-white transition-colors" title="Set as default vehicle">
-                            {v.is_primary ? <CheckCircle2 className="w-5 h-5 mx-auto text-brand-teal" /> : <Circle className="w-5 h-5 mx-auto text-[#8B949E]" />}
-                          </button>
-                       )}
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">
                       {v.rego_expiry}
@@ -246,9 +248,9 @@ export default function VehiclesView() {
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">
                       {v.has_roadside ? (
-                        <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-semibold tracking-wide uppercase border bg-green-900/10 border-green-900/20 text-green-400">Yes</span>
+                        <span className="inline-flex px-2 py-1 rounded text-sm font-bold tracking-wide uppercase border bg-green-900/10 border-green-900/20 text-green-400">Yes</span>
                       ) : (
-                        <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-semibold tracking-wide uppercase border bg-red-900/10 border-red-900/20 text-red-400">No</span>
+                        <span className="inline-flex px-2 py-1 rounded text-sm font-bold tracking-wide uppercase border bg-red-900/10 border-red-900/20 text-red-400">No</span>
                       )}
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">
@@ -341,7 +343,7 @@ export default function VehiclesView() {
                     </div>
                   )}
                   {newVehicle.ownership === 'PRIVATE' && (
-                    <div className="flex items-center gap-2 mt-6">
+                    <div className="flex items-center gap-2 mt-6 col-span-full">
                        <input 
                          type="checkbox"
                          id="is_primary"
