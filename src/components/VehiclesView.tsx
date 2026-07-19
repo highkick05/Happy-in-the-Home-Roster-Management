@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Trash2, CheckCircle2, Circle, Upload, FileText, Download } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, Circle, Upload, FileText, Download, Edit2, X, Save } from 'lucide-react';
+import CustomDatePicker from './ui/CustomDatePicker';
 
 export default function VehiclesView() {
   const { user, token } = useAuth();
@@ -11,6 +12,9 @@ export default function VehiclesView() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
+  
+  const [editingRowId, setEditingRowId] = useState<number | string | null>(null);
+  const [editVehicleData, setEditVehicleData] = useState<any>(null);
   
   const [newVehicle, setNewVehicle] = useState({
     name: '', rego: '', user_id: '', ownership: 'COMPANY', 
@@ -129,18 +133,72 @@ export default function VehiclesView() {
     }
   };
 
-  const openEditModal = (v: any) => {
-    setSelectedVehicle(v);
-    setNewVehicle({
-      name: v.name, rego: v.rego, user_id: v.user_id || '', ownership: v.ownership || 'COMPANY',
-      rego_expiry: v.rego_expiry || '', rego_evidence_url: v.rego_evidence_url || '',
-      insurance_type: v.insurance_type || 'THIRD_PARTY', insurance_provider: v.insurance_provider || '', 
-      insurance_expiry: v.insurance_expiry || '', insurance_evidence_url: v.insurance_evidence_url || '',
-      roadside_provider: v.roadside_provider || '', roadside_expiry: v.roadside_expiry || '', roadside_evidence_url: v.roadside_evidence_url || '',
-      year: v.year || '', has_roadside: !!v.has_roadside,
-      is_primary: !!v.is_primary
-    });
-    setShowAddModal(true);
+  const startEditingRow = (v: any) => {
+    setEditingRowId(v.id);
+    setEditVehicleData({ ...v });
+  };
+
+  const cancelEditingRow = () => {
+    setEditingRowId(null);
+    setEditVehicleData(null);
+  };
+
+  const saveEditingRow = async () => {
+    try {
+      const res = await fetch(`/api/vehicles/${editVehicleData.id}`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(editVehicleData)
+      });
+      if (res.ok) {
+        setEditingRowId(null);
+        setEditVehicleData(null);
+        fetchVehicles();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleFileUploadRow = async (e: React.ChangeEvent<HTMLInputElement>, vehicleId: number, field: string) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const originalVehicle = vehicles.find(v => v.id === vehicleId) || editVehicleData;
+    if (!originalVehicle) return;
+
+    let url = '/api/files';
+    if (originalVehicle.ownership === 'COMPANY') {
+      url = '/api/files?folderPath=/Company%20Vehicles';
+    } else {
+      formData.append('context', 'STAFF_VEHICLES');
+      formData.append('targetUserId', String(originalVehicle.user_id || user?.id || ''));
+    }
+    
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (editingRowId === vehicleId) {
+          setEditVehicleData({ ...editVehicleData, [field]: data.system_name });
+        } else {
+          await fetch(`/api/vehicles/${vehicleId}`, {
+            method: 'PUT',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...originalVehicle, [field]: data.system_name })
+          });
+          fetchVehicles();
+        }
+      }
+    } catch (err) {
+      console.error("Upload failed", err);
+    }
   };
 
   const openAddModal = () => {
@@ -206,18 +264,39 @@ export default function VehiclesView() {
               ) : vehicles.length === 0 ? (
                 <tr><td colSpan={10} className="px-4 py-8 text-center text-[#8B949E]">No vehicles found.</td></tr>
               ) : (
-                vehicles.map(v => (
+                vehicles.map(v => {
+                  const isEditing = editingRowId === v.id;
+                  const data = isEditing ? editVehicleData : v;
+                  const setField = (f, val) => setEditVehicleData({...editVehicleData, [f]: val});
+
+                  return (
                   <tr key={v.id} className="hover:bg-brand-bg/50 transition-colors">
                     <td className="px-3 py-3 border-r border-border-subtle/30">
-                      <div className="font-medium text-white">{v.name}</div>
-                      <div className="text-xs text-[#8B949E] flex items-center gap-2 mt-0.5">
-                        <span>{v.year}</span>
-                        <span className="w-1 h-1 rounded-full bg-[#8B949E]/50"></span>
-                        <span className="uppercase tracking-wider">{v.rego}</span>
-                      </div>
+                      {isEditing ? (
+                        <div className="space-y-1">
+                          <input type="text" value={data.name || ''} onChange={e => setField('name', e.target.value)} placeholder="Make & Model" className="w-full bg-black/50 border border-border-subtle rounded px-2 py-1 text-xs text-white" />
+                          <div className="flex gap-1">
+                            <input type="text" value={data.year || ''} onChange={e => setField('year', e.target.value)} placeholder="Year" className="w-1/3 bg-black/50 border border-border-subtle rounded px-2 py-1 text-xs text-white" />
+                            <input type="text" value={data.rego || ''} onChange={e => setField('rego', e.target.value)} placeholder="Rego" className="w-2/3 bg-black/50 border border-border-subtle rounded px-2 py-1 text-xs text-white uppercase" />
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="font-medium text-white">{v.name}</div>
+                          <div className="text-xs text-[#8B949E] flex items-center gap-2 mt-0.5">
+                            <span>{v.year}</span>
+                            <span className="w-1 h-1 rounded-full bg-[#8B949E]/50"></span>
+                            <span className="uppercase tracking-wider">{v.rego}</span>
+                          </div>
+                        </>
+                      )}
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30 text-center">
-                       {(user?.role === 'ADMIN' || v.user_id === user?.id) ? (
+                       {isEditing ? (
+                          <button onClick={() => setField('is_primary', !data.is_primary)} className="text-brand-teal hover:text-white transition-colors" title="Set as default vehicle">
+                            {data.is_primary ? <CheckCircle2 className="w-5 h-5 mx-auto text-brand-teal" /> : <Circle className="w-5 h-5 mx-auto text-[#8B949E]" />}
+                          </button>
+                       ) : (user?.role === 'ADMIN' || v.user_id === user?.id) ? (
                           <button onClick={() => handleSetPrimary(v)} className="text-brand-teal hover:text-white transition-colors" title="Set as default vehicle">
                             {v.is_primary ? <CheckCircle2 className="w-5 h-5 mx-auto text-brand-teal" /> : <Circle className="w-5 h-5 mx-auto text-[#8B949E]" />}
                           </button>
@@ -226,61 +305,150 @@ export default function VehiclesView() {
                        )}
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30 font-medium">
-                      {v.ownership === 'COMPANY' ? 'Company' : (
-                         v.user_id === user?.id ? (user?.first_name ? `${user.first_name} ${user.last_name || ''}` : 'Me') : 
-                         (staff.find(s => s.id === v.user_id) ? `${staff.find(s => s.id === v.user_id)?.first_name} ${staff.find(s => s.id === v.user_id)?.last_name || ''}` : 'Unknown Staff')
+                      {isEditing ? (
+                         data.ownership === 'PRIVATE' && user?.role === 'ADMIN' ? (
+                            <select value={data.user_id || ''} onChange={e => setField('user_id', e.target.value)} className="w-full bg-black/50 border border-border-subtle rounded px-2 py-1 text-xs text-white">
+                              <option value="">Select Staff</option>
+                              {staff.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                            </select>
+                         ) : (
+                            <span className="text-xs text-[#8B949E]">
+                              {data.ownership === 'COMPANY' ? 'Company' : (data.user_id === user?.id ? 'Me' : 'Staff')}
+                            </span>
+                         )
+                      ) : (
+                         v.ownership === 'COMPANY' ? 'Company' : (
+                           v.user_id === user?.id ? (user?.first_name ? `${user.first_name} ${user.last_name || ''}` : 'Me') : 
+                           (staff.find(s => s.id === v.user_id) ? `${staff.find(s => s.id === v.user_id)?.first_name} ${staff.find(s => s.id === v.user_id)?.last_name || ''}` : 'Unknown Staff')
+                         )
                       )}
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">
-                      <span className={`inline-flex px-2 py-1 rounded text-xs font-bold tracking-wide uppercase border ${v.ownership === 'COMPANY' ? 'bg-blue-900/10 border-blue-900/20 text-blue-400' : 'bg-purple-900/10 border-purple-900/20 text-purple-400'}`}>
-                        {v.ownership === 'COMPANY' ? 'Company' : 'Private'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 border-r border-border-subtle/30">
-                      {v.rego_expiry}
-                      {v.rego_evidence_url && (
-                        <a href={`/uploads/${v.rego_evidence_url}`} download className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
-                          <FileText className="w-3 h-3" /> View Doc
-                        </a>
+                      {isEditing && user?.role === 'ADMIN' ? (
+                        <select value={data.ownership || 'COMPANY'} onChange={e => setField('ownership', e.target.value)} className="w-full bg-black/50 border border-border-subtle rounded px-2 py-1 text-xs text-white">
+                          <option value="COMPANY">Company</option>
+                          <option value="PRIVATE">Private</option>
+                        </select>
+                      ) : (
+                        <span className={`inline-flex px-2 py-1 rounded text-xs font-bold tracking-wide uppercase border ${v.ownership === 'COMPANY' ? 'bg-blue-900/10 border-blue-900/20 text-blue-400' : 'bg-purple-900/10 border-purple-900/20 text-purple-400'}`}>
+                          {v.ownership === 'COMPANY' ? 'Company' : 'Private'}
+                        </span>
                       )}
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">
-                      {v.insurance_type === 'COMPREHENSIVE' ? 'Comp.' : (v.insurance_type === 'THIRD_PARTY' ? '3rd Party' : '-')}
-                      {v.insurance_provider && <div className="text-[10px] text-[#8B949E] uppercase tracking-wider">{v.insurance_provider}</div>}
+                      {isEditing ? (
+                        <CustomDatePicker position="bottom" value={data.rego_expiry || ''} onChange={e => setField('rego_expiry', e.target.value)} className="w-full bg-black/50 border border-border-subtle rounded px-2 py-1 text-xs text-white" />
+                      ) : (
+                        v.rego_expiry
+                      )}
+                      <div className="flex items-center gap-2 mt-1">
+                        {data.rego_evidence_url && (
+                          <a href={`/uploads/${data.rego_evidence_url}`} download className="text-brand-teal hover:text-teal-400" title="View Document">
+                            <FileText className="w-4 h-4" />
+                          </a>
+                        )}
+                        <label className="cursor-pointer text-[#8B949E] hover:text-white" title="Upload Document">
+                          <Upload className="w-4 h-4" />
+                          <input type="file" className="hidden" onChange={(e) => handleFileUploadRow(e, v.id, 'rego_evidence_url')} />
+                        </label>
+                      </div>
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">
-                      {v.insurance_expiry}
-                      {v.insurance_evidence_url && (
-                        <a href={`/uploads/${v.insurance_evidence_url}`} download className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
-                          <FileText className="w-3 h-3" /> View Doc
-                        </a>
+                      {isEditing ? (
+                        <div className="space-y-1">
+                          <select value={data.insurance_type || ''} onChange={e => setField('insurance_type', e.target.value)} className="w-full bg-black/50 border border-border-subtle rounded px-2 py-1 text-xs text-white">
+                            <option value="THIRD_PARTY">3rd Party</option>
+                            <option value="COMPREHENSIVE">Comp.</option>
+                          </select>
+                          <input type="text" value={data.insurance_provider || ''} onChange={e => setField('insurance_provider', e.target.value)} placeholder="Provider" className="w-full bg-black/50 border border-border-subtle rounded px-2 py-1 text-xs text-white" />
+                        </div>
+                      ) : (
+                        <>
+                          {v.insurance_type === 'COMPREHENSIVE' ? 'Comp.' : (v.insurance_type === 'THIRD_PARTY' ? '3rd Party' : '-')}
+                          {v.insurance_provider && <div className="text-[10px] text-[#8B949E] uppercase tracking-wider">{v.insurance_provider}</div>}
+                        </>
                       )}
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">
-                      {v.has_roadside ? (
+                      {isEditing ? (
+                        <CustomDatePicker position="bottom" value={data.insurance_expiry || ''} onChange={e => setField('insurance_expiry', e.target.value)} className="w-full bg-black/50 border border-border-subtle rounded px-2 py-1 text-xs text-white" />
+                      ) : (
+                        v.insurance_expiry
+                      )}
+                      <div className="flex items-center gap-2 mt-1">
+                        {data.insurance_evidence_url && (
+                          <a href={`/uploads/${data.insurance_evidence_url}`} download className="text-brand-teal hover:text-teal-400" title="View Document">
+                            <FileText className="w-4 h-4" />
+                          </a>
+                        )}
+                        <label className="cursor-pointer text-[#8B949E] hover:text-white" title="Upload Document">
+                          <Upload className="w-4 h-4" />
+                          <input type="file" className="hidden" onChange={(e) => handleFileUploadRow(e, v.id, 'insurance_evidence_url')} />
+                        </label>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 border-r border-border-subtle/30">
+                      {isEditing ? (
+                        <button onClick={() => setField('has_roadside', !data.has_roadside)} className="inline-flex px-2 py-1 rounded text-sm font-bold tracking-wide uppercase border bg-black/50 border-border-subtle text-white transition-colors" title="Toggle Roadside">
+                          {data.has_roadside ? 'Yes' : 'No'}
+                        </button>
+                      ) : v.has_roadside ? (
                         <span className="inline-flex px-2 py-1 rounded text-sm font-bold tracking-wide uppercase border bg-green-900/10 border-green-900/20 text-green-400">Yes</span>
                       ) : (
                         <span className="inline-flex px-2 py-1 rounded text-sm font-bold tracking-wide uppercase border bg-red-900/10 border-red-900/20 text-red-400">No</span>
                       )}
                     </td>
                     <td className="px-3 py-3 border-r border-border-subtle/30">
-                      {v.roadside_expiry}
-                      {v.roadside_provider && <div className="text-[10px] text-[#8B949E] uppercase tracking-wider">{v.roadside_provider}</div>}
-                      {v.roadside_evidence_url && (
-                        <a href={`/uploads/${v.roadside_evidence_url}`} download className="block mt-1 text-xs text-brand-teal hover:underline flex items-center gap-1">
-                          <FileText className="w-3 h-3" /> View Doc
-                        </a>
+                      {isEditing ? (
+                        <div className="space-y-1">
+                          <CustomDatePicker position="bottom" value={data.roadside_expiry || ''} onChange={e => setField('roadside_expiry', e.target.value)} className="w-full bg-black/50 border border-border-subtle rounded px-2 py-1 text-xs text-white" />
+                          <input type="text" value={data.roadside_provider || ''} onChange={e => setField('roadside_provider', e.target.value)} placeholder="Provider" className="w-full bg-black/50 border border-border-subtle rounded px-2 py-1 text-xs text-white" />
+                        </div>
+                      ) : (
+                        <>
+                          {v.roadside_expiry}
+                          {v.roadside_provider && <div className="text-[10px] text-[#8B949E] uppercase tracking-wider">{v.roadside_provider}</div>}
+                        </>
                       )}
+                      <div className="flex items-center gap-2 mt-1">
+                        {data.roadside_evidence_url && (
+                          <a href={`/uploads/${data.roadside_evidence_url}`} download className="text-brand-teal hover:text-teal-400" title="View Document">
+                            <FileText className="w-4 h-4" />
+                          </a>
+                        )}
+                        <label className="cursor-pointer text-[#8B949E] hover:text-white" title="Upload Document">
+                          <Upload className="w-4 h-4" />
+                          <input type="file" className="hidden" onChange={(e) => handleFileUploadRow(e, v.id, 'roadside_evidence_url')} />
+                        </label>
+                      </div>
                     </td>
                     <td className="px-3 py-3 text-right">
-                      <button onClick={() => openEditModal(v)} className="text-brand-teal hover:text-white px-2 py-1 text-xs transition-colors">Edit</button>
-                      {user?.role === 'ADMIN' && (
-                        <button onClick={() => handleDeleteVehicle(v.id.toString())} className="text-red-500 hover:text-red-400 px-2 py-1 text-xs transition-colors">Delete</button>
+                      {isEditing ? (
+                        <div className="flex justify-end gap-2">
+                          <button onClick={saveEditingRow} className="text-green-500 hover:text-green-400 p-1" title="Save">
+                            <Save className="w-4 h-4" />
+                          </button>
+                          <button onClick={cancelEditingRow} className="text-[#8B949E] hover:text-white p-1" title="Cancel">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => startEditingRow(v)} className="text-brand-teal hover:text-white p-1" title="Edit">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          {user?.role === 'ADMIN' && (
+                            <button onClick={() => handleDeleteVehicle(v.id.toString())} className="text-red-500 hover:text-red-400 p-1" title="Delete">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
-                ))
-              )}
+                );
+              })
+            )}
             </tbody>
           </table>
         </div>
