@@ -350,7 +350,7 @@ export default function VehiclesView() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
       <div className="w-full space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -617,7 +617,7 @@ export default function VehiclesView() {
                     </td>
                     <td className="px-3 py-2 border-r border-border-subtle/30 align-middle">
                       <div className="flex items-center gap-2">
-                        <div className="w-40">
+                        <div className="w-32">
                           <select
                             value={v.insurance_type || ""}
                             onChange={(e) =>
