@@ -4543,6 +4543,7 @@ app.get("/api/health", (req, res) => {
           ndisAgreementBudget !== undefined
             ? parseFloat(ndisAgreementBudget)
             : 0.0,
+          avatarUrl || null,
         );
 
         const clientId = info.lastInsertRowid;
@@ -4636,6 +4637,7 @@ app.get("/api/health", (req, res) => {
           ndisAgreementBudget !== undefined
             ? parseFloat(ndisAgreementBudget)
             : 0.0,
+          avatarUrl || null,
           paramId,
         );
 
