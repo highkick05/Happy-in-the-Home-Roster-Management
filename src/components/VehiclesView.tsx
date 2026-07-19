@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 import { useAuth } from "../context/AuthContext";
+import CustomDatePicker from "./ui/CustomDatePicker";
 
 
 import {
@@ -574,14 +575,14 @@ export default function VehiclesView() {
                     </td>
                     <td className="px-3 py-2 border-r border-border-subtle/30 align-middle">
                       <div className="flex items-center gap-2">
-                        <div className="w-24">
-                          <input
-                            type="date"
+                        <div className="w-[130px]">
+                          <CustomDatePicker
+                            position="bottom"
                             value={v.rego_expiry || ""}
-                            onChange={(e) =>
+                            onChange={(e: any) =>
                               handleUpdateRow(v.id, { rego_expiry: e.target.value })
                             }
-                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-sm [color-scheme:dark]"
+                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-sm"
                           />
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
@@ -617,7 +618,7 @@ export default function VehiclesView() {
                     </td>
                     <td className="px-3 py-2 border-r border-border-subtle/30 align-middle">
                       <div className="flex items-center gap-2">
-                        <div className="w-40">
+                        <div className="w-[125px]">
                           <select
                             value={v.insurance_type || ""}
                             onChange={(e) =>
@@ -646,14 +647,14 @@ export default function VehiclesView() {
                     </td>
                     <td className="px-3 py-2 border-r border-border-subtle/30 align-middle">
                       <div className="flex items-center gap-2">
-                        <div className="w-24">
-                          <input
-                            type="date"
+                        <div className="w-[130px]">
+                          <CustomDatePicker
+                            position="bottom"
                             value={v.insurance_expiry || ""}
-                            onChange={(e) =>
+                            onChange={(e: any) =>
                               handleUpdateRow(v.id, { insurance_expiry: e.target.value })
                             }
-                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-sm [color-scheme:dark]"
+                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-sm"
                           />
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
@@ -706,14 +707,14 @@ export default function VehiclesView() {
                     </td>
                     <td className="px-3 py-2 border-r border-border-subtle/30 align-middle">
                       <div className="flex items-center gap-2">
-                        <div className="w-24">
-                          <input
-                            type="date"
+                        <div className="w-[130px]">
+                          <CustomDatePicker
+                            position="bottom"
                             value={v.roadside_expiry || ""}
-                            onChange={(e) =>
+                            onChange={(e: any) =>
                               handleUpdateRow(v.id, { roadside_expiry: e.target.value })
                             }
-                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-sm [color-scheme:dark]"
+                            className="w-full bg-transparent outline-none focus:bg-brand-bg/50 focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 text-[#8B949E] text-sm"
                           />
                         </div>
                         
