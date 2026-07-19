@@ -18,6 +18,7 @@ interface AuthContextType {
   logout: () => void;
   switchRole: (targetRole: "ADMIN" | "STAFF") => Promise<void>;
   updateSettings: (newSettings: any) => void;
+  updateUser: (user: User) => void;
   isLoading: boolean;
 }
 
@@ -117,12 +118,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUser = (newUser: User) => {
+    setUser(newUser);
+  };
+
   const updateSettings = (newSettings: any) => {
     setSettings(newSettings);
   };
 
   return (
-    <AuthContext.Provider value={{ user, settings, token, login, logout, switchRole, updateSettings, isLoading }}>
+    <AuthContext.Provider value={{ user, settings, token, login, logout, switchRole, updateSettings, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

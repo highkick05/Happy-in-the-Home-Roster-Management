@@ -29,7 +29,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
     superFundName: '',
     superMemberNumber: staff?.super_member_number || '',
     canSwitchAdmin: staff ? !!staff.can_switch_admin : false,
-    avatarUrl: staff?.avatar_url || `https://api.dicebear.com/9.x/avataaars/svg?seed=${Math.random().toString(36).substring(7)}`,
+    avatarUrl: staff?.avatar_url || `https://api.dicebear.com/9.x/micah/svg?seed=${Math.random().toString(36).substring(7)}`,
   });
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         superFundName: staff.super_fund_name || '',
         superMemberNumber: staff?.super_member_number || '',
         canSwitchAdmin: !!staff.can_switch_admin,
-        avatarUrl: staff.avatar_url || `https://api.dicebear.com/9.x/avataaars/svg?seed=${staff.first_name || 'Staff'}`,
+        avatarUrl: staff.avatar_url || `https://api.dicebear.com/9.x/micah/svg?seed=${staff.first_name || 'Staff'}`,
       });
     } else {
       setFormData({
@@ -73,7 +73,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         superFundName: '',
         superMemberNumber: staff?.super_member_number || '',
     canSwitchAdmin: staff ? !!staff.can_switch_admin : false,
-        avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${Math.random().toString(36).substring(7)}`,
+        avatarUrl: `https://api.dicebear.com/9.x/micah/svg?seed=${Math.random().toString(36).substring(7)}`,
       });
     }
   }, [staff, isOpen]);
@@ -135,12 +135,8 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
               <div className="flex items-center gap-4">
                 <img src={formData.avatarUrl} alt="Selected Avatar" className="w-16 h-16 rounded-full bg-[#151515] border border-white/[0.08]" />
                 <div className="flex-1 overflow-x-auto custom-scrollbar pb-2 pt-1 flex gap-2">
-                  {[
-                    "Florence", "Clara", "Alexander", "Louis", "Marie", "Edward", "Joseph", 
-                    "Rene", "Virginia", "Elizabeth", "Dorothea", "Mary", "Helen", "Sigmund", 
-                    "William", "John", "Thomas", "Charles", "Paul", "Robert"
-                  ].map(seed => {
-                    const url = `https://api.dicebear.com/9.x/avataaars/svg?seed=${seed}&backgroundColor=c0aede,b6e3f4,d1d4f9,ffd5dc,ffdfbf`;
+                  {Array.from({ length: 30 }, (_, i) => `Avatar${i + 1}`).map(seed => {
+                    const url = `https://api.dicebear.com/9.x/micah/svg?seed=${seed}&backgroundColor=c0aede,b6e3f4,d1d4f9,ffd5dc,ffdfbf`;
                     return (
                       <img 
                         key={seed} 
