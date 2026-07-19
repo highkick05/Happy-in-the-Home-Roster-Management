@@ -1,7 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Trash2, CheckCircle2, Circle, Upload, FileText, Download, Edit2, X, Save } from 'lucide-react';
-import CustomDatePicker from './ui/CustomDatePicker';
+
+
+
+function InlineInput({ value, onChange, onBlur, className, placeholder }: any) {
+  return (
+    <input 
+      type="text" 
+      value={value || ''} 
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      placeholder={placeholder}
+      className={`bg-transparent outline-none focus:bg-brand-bg/50 focus:border-border-subtle focus:ring-1 focus:ring-brand-teal rounded px-1 -ml-1 transition-all w-full text-inherit ${className || ''}`}
+    />
+  );
+}
 
 export default function VehiclesView() {
   const { user, token } = useAuth();
@@ -13,8 +27,8 @@ export default function VehiclesView() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
   
-  const [editingRowId, setEditingRowId] = useState<number | string | null>(null);
-  const [editVehicleData, setEditVehicleData] = useState<any>(null);
+  
+  
   
   const [newVehicle, setNewVehicle] = useState({
     name: '', rego: '', user_id: '', ownership: 'COMPANY', 
@@ -133,31 +147,18 @@ export default function VehiclesView() {
     }
   };
 
-  const startEditingRow = (v: any) => {
-    setEditingRowId(v.id);
-    setEditVehicleData({ ...v });
-  };
-
-  const cancelEditingRow = () => {
-    setEditingRowId(null);
-    setEditVehicleData(null);
-  };
-
-  const saveEditingRow = async () => {
-    try {
-      const res = await fetch(`/api/vehicles/${editVehicleData.id}`, {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(editVehicleData)
-      });
-      if (res.ok) {
-        setEditingRowId(null);
-        setEditVehicleData(null);
-        fetchVehicles();
-      }
-    } catch (e) {
-      console.error(e);
-    }
+  const openEditModal = (v: any) => {
+    setSelectedVehicle(v);
+    setNewVehicle({
+      name: v.name, rego: v.rego, user_id: v.user_id || '', ownership: v.ownership || 'COMPANY',
+      rego_expiry: v.rego_expiry || '', rego_evidence_url: v.rego_evidence_url || '',
+      insurance_type: v.insurance_type || 'THIRD_PARTY', insurance_provider: v.insurance_provider || '', 
+      insurance_expiry: v.insurance_expiry || '', insurance_evidence_url: v.insurance_evidence_url || '',
+      roadside_provider: v.roadside_provider || '', roadside_expiry: v.roadside_expiry || '', roadside_evidence_url: v.roadside_evidence_url || '',
+      year: v.year || '', has_roadside: !!v.has_roadside,
+      is_primary: !!v.is_primary
+    });
+    setShowAddModal(true);
   };
 
   const handleFileUploadRow = async (e: React.ChangeEvent<HTMLInputElement>, vehicleId: number, field: string) => {
@@ -198,6 +199,23 @@ export default function VehiclesView() {
       }
     } catch (err) {
       console.error("Upload failed", err);
+    }
+  };
+
+
+  const handleUpdateRow = async (id: number, updates: any) => {
+    setVehicles(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
+    try {
+      const v = vehicles.find(x => x.id === id);
+      if (!v) return;
+      await fetch(`/api/vehicles/${id}`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...v, ...updates })
+      });
+    } catch (e) {
+      console.error(e);
+      fetchVehicles();
     }
   };
 
