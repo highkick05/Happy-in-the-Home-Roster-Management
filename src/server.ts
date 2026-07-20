@@ -3969,6 +3969,7 @@ app.get("/api/health", (req, res) => {
           JOIN clients c ON s.client_id = c.id
           LEFT JOIN vehicles v ON s.vehicle_id = v.id
           WHERE (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
+            AND s.status IN ('COMPLETED', 'CANCELLED')
         )
         SELECT * FROM ShiftsWithLag WHERE 1=1
       `;
@@ -5731,6 +5732,9 @@ app.get("/api/health", (req, res) => {
     "/api/respite-bookings",
     authenticateTokenOrWallboard,
     (req: any, res: any) => {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       const isAdmin = req.user.role === "ADMIN";
 
       let bookingsQuery = `
@@ -7804,6 +7808,9 @@ app.get("/api/health", (req, res) => {
   );
 
   app.get("/api/shifts", authenticateTokenOrWallboard, (req: any, res: any) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     let query = `
       SELECT s.*, 
              u.first_name as staff_first_name, u.last_name as staff_last_name,
