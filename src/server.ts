@@ -274,6 +274,7 @@ async function startServer() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         staff_id INTEGER,
         client_id INTEGER NOT NULL,
+        staff_id INTEGER,
         service_id INTEGER,
         respite_booking_id INTEGER,
         start_time TEXT NOT NULL,
@@ -295,6 +296,7 @@ async function startServer() {
         invoice_number TEXT NOT NULL,
         respite_booking_id INTEGER,
         client_id INTEGER NOT NULL,
+        staff_id INTEGER,
         shift_id INTEGER,
         amount REAL NOT NULL,
         file_path TEXT,
@@ -319,6 +321,7 @@ async function startServer() {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           staff_id INTEGER,
           client_id INTEGER NOT NULL,
+        staff_id INTEGER,
           service_id INTEGER,
           respite_booking_id INTEGER,
           start_time DATETIME NOT NULL,
@@ -586,6 +589,12 @@ try {
   }
 
   try {
+  try {
+    db.exec("ALTER TABLE invoices ADD COLUMN staff_id INTEGER");
+    console.log("[DEBUG] Completed invoices.staff_id column check.");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) console.warn("Migration warning:", e.message);
+  }
     db.exec("ALTER TABLE invoices ADD COLUMN merged_into_invoice_id INTEGER");
     console.log(
       "[DEBUG] Completed invoices.merged_into_invoice_id column check.",
@@ -776,6 +785,7 @@ try {
       CREATE TABLE IF NOT EXISTS progress_notes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
+        staff_id INTEGER,
         author_id INTEGER NOT NULL,
         content TEXT NOT NULL,
         tags TEXT,
@@ -802,6 +812,7 @@ try {
       CREATE TABLE IF NOT EXISTS task_clients (
         task_id INTEGER NOT NULL,
         client_id INTEGER NOT NULL,
+        staff_id INTEGER,
         PRIMARY KEY (task_id, client_id),
         FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
         FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
@@ -839,6 +850,7 @@ try {
       CREATE TABLE IF NOT EXISTS ndis_service_agreements (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
+        staff_id INTEGER,
         name TEXT NOT NULL,
         sort_order INTEGER DEFAULT 0,
         start_date TEXT,
@@ -919,6 +931,7 @@ try {
       CREATE TABLE IF NOT EXISTS client_budgets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
+        staff_id INTEGER,
         cycle_start_date TEXT,
         cycle_end_date TEXT,
         historical_internal_consumptions REAL DEFAULT 0,
@@ -959,6 +972,7 @@ try {
       CREATE TABLE IF NOT EXISTS client_ledger_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
+        staff_id INTEGER,
         date TEXT NOT NULL,
         service_name TEXT NOT NULL,
         sort_order INTEGER DEFAULT 0,
@@ -10291,14 +10305,15 @@ app.get("/api/health", (req, res) => {
              COALESCE(s.end_time, rb.end_time) as end_time, 
              COALESCE(s.notes, rb.notes) as shift_notes,
              c.first_name as client_first_name, c.last_name as client_last_name,
-             COALESCE(s.custom_staff_name, u.first_name) as staff_first_name, 
-             COALESCE(CASE WHEN s.custom_staff_name IS NOT NULL THEN '' ELSE u.last_name END, '') as staff_last_name,
+             COALESCE(s.custom_staff_name, u.first_name, ui.first_name) as staff_first_name, 
+             COALESCE(CASE WHEN s.custom_staff_name IS NOT NULL THEN '' ELSE u.last_name END, ui.last_name, '') as staff_last_name,
              (((SELECT COUNT(*) FROM invoices sub WHERE sub.merged_into_shift_id = s.id OR sub.merged_into_invoice_id = i.id) > 0) OR i.services_json IS NOT NULL) as is_merged
       FROM invoices i
       LEFT JOIN shifts s ON i.shift_id = s.id
       LEFT JOIN respite_bookings rb ON i.respite_booking_id = rb.id
       LEFT JOIN clients c ON i.client_id = c.id
       LEFT JOIN users u ON s.staff_id = u.id
+      LEFT JOIN users ui ON i.staff_id = ui.id
       WHERE i.merged_into_shift_id IS NULL AND i.merged_into_invoice_id IS NULL AND i.status != 'VOID'
       ORDER BY i.created_at DESC
     `;
@@ -10440,7 +10455,7 @@ app.get("/api/health", (req, res) => {
     requireAdmin,
     upload.single("file"),
     (req, res) => {
-      const { clientId, date, activity } = req.body;
+      const { clientId, date, activity, staffId } = req.body;
       const file = req.file;
 
       if (!clientId || !date || !file) {
@@ -10502,10 +10517,11 @@ app.get("/api/health", (req, res) => {
         const createdAt = `${date} 12:00:00`;
 
         db.prepare(
-          "INSERT INTO invoices (invoice_number, client_id, amount, file_path, status, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+          "INSERT INTO invoices (invoice_number, client_id, staff_id, amount, file_path, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
         ).run(
           invoiceNum,
           parseInt(clientId),
+          staffId ? parseInt(staffId) : null,
           0,
           newFileName,
           "PAID",
@@ -10526,7 +10542,7 @@ app.get("/api/health", (req, res) => {
     requireAdmin,
     upload.single("file"),
     (req, res) => {
-      const { clientId, date, activity } = req.body;
+      const { clientId, date, activity, staffId } = req.body;
       const file = req.file;
 
       if (!clientId || !date || !file) {

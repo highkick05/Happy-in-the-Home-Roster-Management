@@ -654,6 +654,7 @@ export default function InvoicingView() {
 
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadClientId, setUploadClientId] = useState('');
+  const [uploadStaffId, setUploadStaffId] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [uploadDate, setUploadDate] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -787,6 +788,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
     setIsUploading(true);
     const formData = new FormData();
     formData.append('clientId', uploadClientId);
+    if (uploadStaffId) formData.append('staffId', uploadStaffId);
     formData.append('date', uploadDate);
     formData.append('file', uploadFile);
 
@@ -801,6 +803,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
       if (!res.ok) throw new Error('Failed to upload historical invoice');
       setShowUploadModal(false);
       setUploadClientId('');
+      setUploadStaffId('');
       setUploadDate('');
       setUploadFile(null);
       fetchInvoices();
@@ -1071,6 +1074,19 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                   <option value="">Select Client</option>
                   {allDbClients.map(c => (
                     <option key={c.id} value={c.id}>{c.first_name || c.firstName} {c.last_name || c.lastName}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Staff (Optional)</label>
+                <select
+                  value={uploadStaffId}
+                  onChange={e => setUploadStaffId(e.target.value)}
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors"
+                >
+                  <option value="">Select Staff</option>
+                  {allDbStaff.map(s => (
+                    <option key={s.id} value={s.id}>{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
                   ))}
                 </select>
               </div>
