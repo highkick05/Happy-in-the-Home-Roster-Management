@@ -303,7 +303,8 @@ async function startServer() {
         status TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         services_json TEXT,
-        merged_into_invoice_id INTEGER
+        merged_into_invoice_id INTEGER,
+        custom_staff_name TEXT
       );
     `);
 
@@ -592,6 +593,13 @@ try {
   try {
     db.exec("ALTER TABLE invoices ADD COLUMN staff_id INTEGER");
     console.log("[DEBUG] Completed invoices.staff_id column check.");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) console.warn("Migration warning:", e.message);
+  }
+  
+  try {
+    db.exec("ALTER TABLE invoices ADD COLUMN custom_staff_name TEXT");
+    console.log("[DEBUG] Completed invoices.custom_staff_name column check.");
   } catch (e: any) {
     if (e.message && !e.message.includes("duplicate column")) console.warn("Migration warning:", e.message);
   }
@@ -10455,11 +10463,30 @@ app.get("/api/health", (req, res) => {
     requireAdmin,
     upload.single("file"),
     (req, res) => {
-      const { clientId, date, activity, staffId } = req.body;
+      const { clientId, date, activity, staffIds } = req.body;
       const file = req.file;
 
       if (!clientId || !date || !file) {
         return res.status(400).json({ error: "Missing required fields or file" });
+      }
+      
+      let customStaffName = null;
+      let primaryStaffId = null;
+      try {
+        if (staffIds) {
+          const ids = JSON.parse(staffIds);
+          if (Array.isArray(ids) && ids.length > 0) {
+            primaryStaffId = ids[0];
+            const placeholders = ids.map(() => '?').join(',');
+            const staffs = db.prepare(`SELECT first_name, last_name FROM users WHERE id IN (${placeholders})`).all(...ids);
+            const names = staffs.map((s: any) => `${s.first_name || ""} ${s.last_name || ""}`.trim()).filter(Boolean);
+            if (names.length > 0) {
+              customStaffName = names.join(", ");
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error parsing staffIds", err);
       }
 
       try {
@@ -10517,11 +10544,12 @@ app.get("/api/health", (req, res) => {
         const createdAt = `${date} 12:00:00`;
 
         db.prepare(
-          "INSERT INTO invoices (invoice_number, client_id, staff_id, amount, file_path, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          "INSERT INTO invoices (invoice_number, client_id, staff_id, custom_staff_name, amount, file_path, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         ).run(
           invoiceNum,
           parseInt(clientId),
-          staffId ? parseInt(staffId) : null,
+          primaryStaffId ? parseInt(primaryStaffId) : null,
+          customStaffName,
           0,
           newFileName,
           "PAID",
