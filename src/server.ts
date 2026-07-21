@@ -10463,10 +10463,10 @@ app.get("/api/health", (req, res) => {
     requireAdmin,
     upload.single("file"),
     (req, res) => {
-      const { clientId, date, activity, staffIds } = req.body;
+      const { clientId, date, activity, staffIds, amount } = req.body;
       const file = req.file;
 
-      if (!clientId || !date || !file) {
+      if (!clientId || !date || !file || !amount) {
         return res.status(400).json({ error: "Missing required fields or file" });
       }
       
@@ -10550,7 +10550,7 @@ app.get("/api/health", (req, res) => {
           parseInt(clientId),
           primaryStaffId ? parseInt(primaryStaffId) : null,
           customStaffName,
-          0,
+          parseFloat(amount) || 0,
           newFileName,
           "PAID",
           createdAt

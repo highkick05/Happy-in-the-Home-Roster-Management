@@ -657,6 +657,7 @@ export default function InvoicingView() {
   const [uploadStaffIds, setUploadStaffIds] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadDate, setUploadDate] = useState('');
+  const [uploadAmount, setUploadAmount] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -780,7 +781,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadClientId || !uploadDate || !uploadFile) {
+    if (!uploadClientId || !uploadDate || !uploadFile || !uploadAmount) {
       alert("Please fill all fields and select a file.");
       return;
     }
@@ -790,6 +791,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
     formData.append('clientId', uploadClientId);
     if (uploadStaffIds.length > 0) formData.append('staffIds', JSON.stringify(uploadStaffIds));
     formData.append('date', uploadDate);
+    formData.append('amount', uploadAmount);
     formData.append('file', uploadFile);
 
     try {
@@ -805,6 +807,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
       setUploadClientId('');
       setUploadStaffIds([]);
       setUploadDate('');
+      setUploadAmount('');
       setUploadFile(null);
       fetchInvoices();
     } catch (err) {
@@ -1104,6 +1107,21 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                   onChange={e => setUploadDate(e.target.value)}
                   className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors [color-scheme:dark]"
                 />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Amount ($)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={uploadAmount}
+                    onChange={e => setUploadAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-md pl-6 pr-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Invoice PDF</label>
