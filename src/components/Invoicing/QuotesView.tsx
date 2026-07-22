@@ -491,7 +491,14 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
              return acc + (qty * rate);
           }, 0);
           
-          const computedGst = formData.gstType === '10%' ? computedSubtotal * 0.1 : 0;
+          const computedGst = formData.gstType === '10%' ? selectedServices.reduce((acc, s) => {
+             let { rate, unit, name } = getServiceDetails(s.serviceId);
+             if (s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== '') {
+                rate = Number(s.rateOverride);
+             }
+             let effectiveQty = s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : 1;
+             return acc + (Math.round((effectiveQty * rate) * 0.1 * 100) / 100);
+          }, 0) : 0;
           const computedTotal = computedSubtotal + computedGst;
 
           return (

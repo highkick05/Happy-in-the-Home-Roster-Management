@@ -266,10 +266,10 @@ const expandedLogs = logs.map(log => {
     let hasPT = false;
     let hasABT = false;
     
-    if (parsed.providerTravel && (parsed.providerTravel.distance > 0 || (parsed.providerTravel.legs && parsed.providerTravel.legs.length > 0))) {
+    if ((parsed.providerTravel && (parsed.providerTravel.distance > 0 || (parsed.providerTravel.legs && parsed.providerTravel.legs.length > 0))) || Number(log.provider_travel_km) > 0) {
         hasPT = true;
     }
-    if (parsed.abt && (parsed.abt.distance > 0 || (parsed.abt.legs && parsed.abt.legs.length > 0))) {
+    if ((parsed.abt && (parsed.abt.distance > 0 || (parsed.abt.legs && parsed.abt.legs.length > 0))) || Number(log.abt_km) > 0) {
         hasABT = true;
     }
 
@@ -294,11 +294,23 @@ const expandedLogs = logs.map(log => {
        category = 'Activity Based Transport';
     }
     
+    let computedRoute = formatRouteLog(log.transport_route_log, log);
+    if (!computedRoute) {
+        if (hasPT || hasABT) {
+            let parts = [];
+            const origin = log.origin_address || 'Unknown';
+            const dest = log.destination_address || 'Unknown';
+            if (hasPT) parts.push(`PT: ${origin} ➡️ ${dest} | ${dest} ➡️ ${origin}`);
+            if (hasABT) parts.push(`ABT: No route logged`);
+            computedRoute = parts.join(' ; ');
+        }
+    }
+
     return {
        ...log,
        _rowId: log.id.toString(),
        _category: category,
-       _route: formatRouteLog(log.transport_route_log, log) || 'No route logged',
+       _route: computedRoute || 'No route logged',
        _isHC: isHC,
        _hc_drive_mins: hc_drive_mins
     };

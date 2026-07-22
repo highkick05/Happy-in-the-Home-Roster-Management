@@ -1885,7 +1885,7 @@ try {
       shift.funding_type === "HCP" ||
       shift.funding_type === "Home Care" ||
       shift.funding_type === "HOME_CARE";
-    const gstAmount = isHomeCare ? subtotal * 0.1 : 0;
+    const gstAmount = isHomeCare ? lineItems.reduce((acc: number, curr: any) => acc + (Math.round((curr.amount || 0) * 0.1 * 100) / 100), 0) : 0;
     const totalAmount = subtotal + gstAmount;
 
     return {
@@ -2212,10 +2212,11 @@ try {
       shift.funding_type === "HOME_CARE";
 
     let gstAmount = 0;
+    const computedGst = lineItems.reduce((acc: number, curr: any) => acc + (Math.round((curr.amount || 0) * 0.1 * 100) / 100), 0);
     if (manualGstType) {
-      gstAmount = manualGstType === "10%" ? subtotal * 0.1 : 0;
+      gstAmount = manualGstType === "10%" ? computedGst : 0;
     } else {
-      gstAmount = isHomeCare ? subtotal * 0.1 : 0;
+      gstAmount = isHomeCare ? computedGst : 0;
     }
 
     const totalAmount = subtotal + gstAmount;
@@ -2561,7 +2562,7 @@ try {
       rb.funding_type === "HCP" ||
       rb.funding_type === "Home Care" ||
       rb.funding_type === "HOME_CARE";
-    const gstAmount = isHomeCare ? subtotal * 0.1 : 0;
+    const gstAmount = isHomeCare ? allLineItems.reduce((acc: number, curr: any) => acc + (Math.round((curr.amount || 0) * 0.1 * 100) / 100), 0) : 0;
     const totalAmount = subtotal + gstAmount;
 
     return {
@@ -10948,7 +10949,19 @@ app.get("/api/health", (req, res) => {
           clientFundingType === "HCP" ||
           clientFundingType === "Home Care" ||
           clientFundingType === "HOME_CARE";
-        const gstAmount = isHomeCare ? subtotal * 0.1 : 0;
+        let calculatedGst = 0;
+        for (const sd of allMergedServices) {
+          let srv = null;
+          if (sd.isCustom || (sd.serviceId && String(sd.serviceId).startsWith("custom-"))) {
+            srv = { rate: Number(sd.customRate || 0) };
+          } else if (sd.serviceId) {
+            srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
+          }
+          let finalRate = sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== "" ? Number(sd.rateOverride) : Number(srv?.rate || 0);
+          let qty = sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== "" ? Number(sd.qtyOverride) : 1;
+          calculatedGst += Math.round((qty * finalRate) * 0.1 * 100) / 100;
+        }
+        const gstAmount = isHomeCare ? calculatedGst : 0;
         const totalAmount = subtotal + gstAmount;
 
         db.transaction(() => {
@@ -11320,7 +11333,7 @@ app.get("/api/health", (req, res) => {
       data.gstAmount !== undefined
         ? data.gstAmount
         : isHomeCare
-          ? subtotal * 0.1
+          ? lineItems.reduce((acc: number, curr: any) => acc + (Math.round((curr.amount || 0) * 0.1 * 100) / 100), 0)
           : 0;
     const totalAmount =
       data.totalAmount !== undefined ? data.totalAmount : subtotal + gstAmount;
@@ -11888,7 +11901,27 @@ function resolveFilePath(systemName) {
         }
 
         if (req.body.gstType === "10%") {
-          calculatedAmount = calculatedAmount * 1.1; // Add GST
+          let calcGst = 0;
+          if (servicesData.length > 0) {
+            servicesData.forEach((sd: any) => {
+              const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
+              if (srv) {
+                let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
+                let finalRate = Number(srv.rate || 0);
+                if (srv.type === "HOME_CARE" && srv.rates_json) {
+                  try {
+                    const rates = JSON.parse(srv.rates_json);
+                    if (rates["Weekday"]) finalRate = Number(rates["Weekday"]);
+                  } catch (e) {}
+                }
+                if (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== "") {
+                  finalRate = Number(sd.rateOverride);
+                }
+                calcGst += Math.round((qty * finalRate) * 0.1 * 100) / 100;
+              }
+            });
+          }
+          calculatedAmount += calcGst;
         }
 
         const stmt = db.prepare(`
@@ -12011,7 +12044,27 @@ function resolveFilePath(systemName) {
         }
         
         if (req.body.gstType === "10%") {
-          calculatedAmount = calculatedAmount * 1.1; // Add GST
+          let calcGst = 0;
+          if (servicesData.length > 0) {
+            servicesData.forEach((sd: any) => {
+              const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
+              if (srv) {
+                let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
+                let finalRate = Number(srv.rate || 0);
+                if (srv.type === "HOME_CARE" && srv.rates_json) {
+                  try {
+                    const rates = JSON.parse(srv.rates_json);
+                    if (rates["Weekday"]) finalRate = Number(rates["Weekday"]);
+                  } catch (e) {}
+                }
+                if (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== "") {
+                  finalRate = Number(sd.rateOverride);
+                }
+                calcGst += Math.round((qty * finalRate) * 0.1 * 100) / 100;
+              }
+            });
+          }
+          calculatedAmount += calcGst;
         }
 
         const stmt = db.prepare(`
@@ -12250,7 +12303,7 @@ function resolveFilePath(systemName) {
 
         let gstAmount = 0;
         if (gstTypeFromMeta === "10%") {
-          gstAmount = subtotal * 0.1;
+          gstAmount = lineItems.reduce((acc: number, curr: any) => acc + (Math.round((curr.amount || 0) * 0.1 * 100) / 100), 0);
         }
         const totalAmount = subtotal + gstAmount;
 

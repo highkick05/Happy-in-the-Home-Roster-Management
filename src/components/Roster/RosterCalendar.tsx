@@ -153,8 +153,8 @@ export default function RosterCalendar() {
     if (!token) return;
     try {
       const [shiftsRes, respiteRes, staffRes, clientsRes, servicesRes] = await Promise.all([
-        fetch(`/api/shifts`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`/api/respite-bookings`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/shifts`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
+        fetch(`/api/respite-bookings`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
         fetch(`/api/staff`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/clients`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/services`, { headers: { Authorization: `Bearer ${token}` } })

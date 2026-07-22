@@ -308,10 +308,21 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         notes: notes,
-        servicesData: servicesData.map(s => ({
-            ...s,
-            serviceId: s.serviceId ? parseInt(s.serviceId, 10) : null
-        })),
+        servicesData: servicesData.map(s => {
+            const { rate, unit, name } = getServiceDetails(s.serviceId);
+            const isProviderTravel = name.toLowerCase().includes('provider travel');
+            const isABT = name.toLowerCase().includes('activity based transport');
+            const isTravelOrTransport = isProviderTravel || isABT;
+            const isHistorical = false;
+            const effectiveQty = (isTravelOrTransport && !isHistorical) ? 0 : (s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1));
+            const effectiveRate = (s.rateOverride !== undefined && s.rateOverride !== '') ? Number(s.rateOverride) : rate;
+            return {
+                ...s,
+                serviceId: s.serviceId ? parseInt(s.serviceId, 10) : null,
+                qtyOverride: effectiveQty,
+                rateOverride: effectiveRate
+            };
+        }),
         ignoreConflicts
       };
 

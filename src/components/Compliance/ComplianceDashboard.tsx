@@ -730,7 +730,8 @@ export default function ComplianceDashboard() {
                              const hcRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
                              travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={hcRoute || 'No route logged'}>{hcRoute || 'No route logged'}</div>;
                          } else if (isBoth) {
-                             const fullRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
+                             const fallbackRoute = `PT: ${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'} | ${row.destination_address || 'Unknown'} ➡️ ${row.origin_address || 'Unknown'} ; ABT: No route logged`;
+                             const fullRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : fallbackRoute;
                              const routes = (fullRoute || 'No route logged').split(' ; ');
                              travelRouteCell = (
                                  <div className="flex flex-col gap-1 text-xs text-[#E6EDF3] max-w-[200px]">
@@ -738,10 +739,10 @@ export default function ComplianceDashboard() {
                                  </div>
                              );
                          } else if (hasPT) {
-                             const ptRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
+                             const ptRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `PT: ${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'} | ${row.destination_address || 'Unknown'} ➡️ ${row.origin_address || 'Unknown'}`;
                              travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={ptRoute || 'No route logged'}>{ptRoute || 'No route logged'}</div>;
                          } else if (hasABT) {
-                             const abtRoute = formatRouteLog(row.transport_route_log, row);
+                             const abtRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `ABT: No route logged`;
                              travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={abtRoute || 'No route logged'}>{abtRoute || 'No route logged'}</div>;
                          }
                          
@@ -1047,7 +1048,8 @@ export default function ComplianceDashboard() {
                              const hcRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
                              travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={hcRoute || 'No route logged'}>{hcRoute || 'No route logged'}</div>;
                          } else if (isBoth) {
-                             const fullRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
+                             const fallbackRoute = `PT: ${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'} | ${row.destination_address || 'Unknown'} ➡️ ${row.origin_address || 'Unknown'} ; ABT: No route logged`;
+                             const fullRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : fallbackRoute;
                              const routes = (fullRoute || 'No route logged').split(' ; ');
                              travelRouteCell = (
                                  <div className="flex flex-col gap-1 text-xs text-[#E6EDF3] max-w-[200px]">
@@ -1055,10 +1057,10 @@ export default function ComplianceDashboard() {
                                  </div>
                              );
                          } else if (hasPT) {
-                             const ptRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'}`;
+                             const ptRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `PT: ${row.origin_address || 'Unknown'} ➡️ ${row.destination_address || 'Unknown'} | ${row.destination_address || 'Unknown'} ➡️ ${row.origin_address || 'Unknown'}`;
                              travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={ptRoute || 'No route logged'}>{ptRoute || 'No route logged'}</div>;
                          } else if (hasABT) {
-                             const abtRoute = formatRouteLog(row.transport_route_log, row);
+                             const abtRoute = row.transport_route_log ? formatRouteLog(row.transport_route_log, row) : `ABT: No route logged`;
                              travelRouteCell = <div className="text-xs text-[#E6EDF3] max-w-[200px] truncate" title={abtRoute || 'No route logged'}>{abtRoute || 'No route logged'}</div>;
                          }
                          

@@ -13,7 +13,7 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
              c.address as client_address
       FROM shifts s
       LEFT JOIN clients c ON s.client_id = c.id
-      WHERE s.staff_id = ? AND s.start_time >= ? AND s.start_time <= ? AND s.status NOT IN ('CANCELLED', 'DELETED', 'deleted') AND (s.notes IS NULL OR s.notes NOT LIKE '%[HISTORICAL]%')
+      WHERE s.staff_id = ? AND s.start_time >= ? AND s.start_time <= ? AND s.status NOT IN ('CANCELLED', 'DELETED', 'deleted') 
       ORDER BY s.start_time ASC
     `).all(staffId, startTimeRangeStart, startTimeRangeEnd) as any[];
 
@@ -27,10 +27,7 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
     for (let i = 0; i < shifts.length; i++) {
       const currentShift = shifts[i];
 
-      if (currentShift.is_historical === 1) {
-        console.log(`[DEBUG CASCADE] Skipping recalculation for historical shift ${currentShift.id}`);
-        continue;
-      }
+
       
       const isHomeCare = (currentShift.funding_type === 'HCP' || currentShift.funding_type === 'Home Care' || currentShift.funding_type === 'HOME_CARE');
       
@@ -44,11 +41,15 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
 
       console.log(`[DEBUG CASCADE] Shift ${currentShift.id}: prevShiftID? ${prevShift?.id}, gapToPrev: ${gapToPrev.toFixed(1)} mins, isHomeCare: ${isHomeCare}`);
 
+      if (!isHomeCare && currentShift.is_historical === 1) {
+         console.log(`[DEBUG CASCADE] Skipping recalculation for historical NDIS shift ${currentShift.id}`);
+         continue;
+      }
       if (isHomeCare) {
          const nextShift = shifts[i + 1] || null;
 
          let prevCoords = null;
-         if (prevShift) {
+         if (prevShift && prevShift.is_historical !== 1) {
             const prevAddress = db.prepare('SELECT address FROM clients WHERE id = ?').get(prevShift.client_id) as any;
             let rawPrevCoords = await getRecordCoordinates('clients', prevShift.client_id, prevAddress?.address);
             prevCoords = rawPrevCoords ? [Number(rawPrevCoords[0]), Number(rawPrevCoords[1])] : [0,0];
@@ -113,7 +114,7 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
          const nextShift = shifts[i + 1] || null;
 
          let prevCoords = null;
-         if (prevShift) {
+         if (prevShift && prevShift.is_historical !== 1) {
             const prevAddress = db.prepare('SELECT address FROM clients WHERE id = ?').get(prevShift.client_id) as any;
             let rawPrevCoords = await getRecordCoordinates('clients', prevShift.client_id, prevAddress?.address);
             prevCoords = rawPrevCoords ? [Number(rawPrevCoords[0]), Number(rawPrevCoords[1])] : [0,0];
@@ -163,11 +164,15 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
          }
 
          console.log(`[DEBUG CASCADE] NDIS writing totalDistance: ${pTravel.distance} to shift ${currentShift.id}.`);
+         let update_pt_km = currentShift.is_historical === 1 ? currentShift.provider_travel_km : pTravel.distance;
+         let update_pt_mins = currentShift.is_historical === 1 ? currentShift.provider_travel_minutes : pTravel.minutes;
+         let update_pt_cost = currentShift.is_historical === 1 ? currentShift.provider_travel_cost : pTravel.cost;
+
          db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, provider_travel_cost = ?, travel_breakdown = ?, transport_route_log = ?, services_json = ? WHERE id = ?').run(
-            pTravel.distance, pTravel.minutes, pTravel.cost, JSON.stringify(travelBreakdown), transportRouteLogStr, JSON.stringify(servicesData), currentShift.id
+            update_pt_km, update_pt_mins, update_pt_cost, JSON.stringify(travelBreakdown), transportRouteLogStr, JSON.stringify(servicesData), currentShift.id
          );
 
-         if (prevShift) {
+         if (prevShift && prevShift.is_historical !== 1) {
              console.log(`[NDIS Sync] Retroactively updating preceding shift: ${prevShift.id}`);
              const prevPTravel = await calculateProviderTravel(prevShift);
              let prevRouteLog: any = {};
@@ -186,7 +191,7 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
              );
          }
 
-         if (nextShift) {
+         if (nextShift && nextShift.is_historical !== 1) {
              console.log(`[NDIS Sync] Retroactively updating succeeding shift: ${nextShift.id}`);
              const nextPTravel = await calculateProviderTravel(nextShift);
              let nextRouteLog: any = {};

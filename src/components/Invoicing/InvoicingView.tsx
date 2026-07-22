@@ -538,7 +538,22 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
              return acc + (effectiveQty * rate);
           }, 0);
           
-          const computedGst = formData.gstType === '10%' ? computedSubtotal * 0.1 : 0;
+          const computedGst = formData.gstType === '10%' ? selectedServices.reduce((acc, s) => {
+             let { rate, unit, name } = getServiceDetails(s.serviceId);
+             if (s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== '') {
+                rate = Number(s.rateOverride);
+             }
+             const isProviderTravel = name?.toLowerCase().includes('provider travel') || false;
+             const isABT = name?.toLowerCase().includes('activity based transport') || false;
+             const isTravelOrTransport = isProviderTravel || isABT;
+             let effectiveQty = 0;
+             if (s.qtyOverride !== undefined && s.qtyOverride !== '') {
+               effectiveQty = Number(s.qtyOverride);
+             } else {
+               effectiveQty = isTravelOrTransport ? 0 : (unit === 'Hour' ? shiftHours : 1);
+             }
+             return acc + (Math.round((effectiveQty * rate) * 0.1 * 100) / 100);
+          }, 0) : 0;
           const computedTotal = computedSubtotal + computedGst;
 
           return (
