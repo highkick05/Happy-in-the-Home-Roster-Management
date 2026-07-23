@@ -3991,7 +3991,7 @@ app.get("/api/health", (req, res) => {
           JOIN users u ON s.staff_id = u.id
           JOIN clients c ON s.client_id = c.id
           LEFT JOIN vehicles v ON s.vehicle_id = v.id
-          WHERE (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
+          WHERE (s.status IN ('COMPLETED', 'CANCELLED', 'HISTORICAL') OR s.notes LIKE '%[HISTORICAL]%') AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
         )
         SELECT * FROM ShiftsWithLag WHERE 1=1
       `;

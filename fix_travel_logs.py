@@ -1,14 +1,15 @@
 import re
 
-def fix_file(file_path):
-    with open(file_path, 'r') as f:
-        text = f.read()
+with open("src/server.ts", "r") as f:
+    content = f.read()
 
-    # Title
-    text = text.replace('text-xl font-bold text-white flex items-center gap-2', 'text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0 flex items-center gap-2')
-    text = text.replace('w-5 h-5 text-brand-teal', 'w-4 h-4 text-brand-teal')
-    
-    with open(file_path, 'w') as f:
-        f.write(text)
+target = "          WHERE (s.notes != 'Manually generated invoice' OR s.notes IS NULL)"
+replacement = "          WHERE (s.status IN ('COMPLETED', 'CANCELLED', 'HISTORICAL') OR s.notes LIKE '%[HISTORICAL]%') AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL)"
 
-fix_file('src/components/TravelLogsView.tsx')
+if target in content:
+    content = content.replace(target, replacement)
+    with open("src/server.ts", "w") as f:
+        f.write(content)
+    print("Fixed travel logs CTE.")
+else:
+    print("Target not found.")
