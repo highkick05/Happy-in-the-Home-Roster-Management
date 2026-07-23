@@ -3,13 +3,5 @@ import re
 with open("src/server.ts", "r") as f:
     content = f.read()
 
-target = "          WHERE (s.notes != 'Manually generated invoice' OR s.notes IS NULL)"
-replacement = "          WHERE (s.status IN ('COMPLETED', 'CANCELLED', 'HISTORICAL') OR s.notes LIKE '%[HISTORICAL]%') AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL)"
-
-if target in content:
-    content = content.replace(target, replacement)
-    with open("src/server.ts", "w") as f:
-        f.write(content)
-    print("Fixed travel logs CTE.")
-else:
-    print("Target not found.")
+# Let's see if we should revert it just to be safe, or wait for them.
+# I will wait for their response.

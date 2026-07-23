@@ -3,7 +3,7 @@ import re
 with open("src/server.ts", "r") as f:
     content = f.read()
 
-content = content.replace("        last_name TEXT NOT NULL,\n        sort_order INTEGER DEFAULT 0,", "        last_name TEXT NOT NULL,")
+content = content.replace("        client_id INTEGER NOT NULL,\n        staff_id INTEGER,", "        client_id INTEGER NOT NULL,")
 
 with open("src/server.ts", "w") as f:
     f.write(content)

@@ -1,9 +1,12 @@
 import db from './db.js';
-try {
-  const rows = db.prepare(`
-    WITH ShiftsWithLag AS (
-          SELECT s.*,
-                  u.first_name as staff_first, u.last_name as staff_last,
+db.exec("INSERT INTO users (first_name, last_name, email, password, role) VALUES ('Test', 'Staff', 'test@test.com', '123', 'staff')");
+db.exec("INSERT INTO clients (first_name, last_name, avatar_url, contact_email, contact_phone, ndis_number, care_plan_details) VALUES ('Test', 'Client', '', '', '', '', '')");
+db.exec("INSERT INTO shifts (staff_id, client_id, start_time, end_time, status) VALUES (1, 1, '2026-07-23 10:00', '2026-07-23 12:00', 'COMPLETED')");
+
+const query = `
+        WITH ShiftsWithLag AS (
+          SELECT s.*, 
+                 u.first_name as staff_first, u.last_name as staff_last,
                  c.first_name as client_first, c.last_name as client_last,
                  COALESCE(c.funding_type, 'NDIS') as funding_type,
                  c.address as destination_address,
@@ -17,8 +20,5 @@ try {
           WHERE (s.status IN ('COMPLETED', 'CANCELLED', 'HISTORICAL') OR s.notes LIKE '%[HISTORICAL]%') AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
         )
         SELECT * FROM ShiftsWithLag WHERE 1=1
-  `).all();
-  console.log("Success");
-} catch(e) {
-  console.log("Error:", e.message);
-}
+      `;
+console.log(db.prepare(query).all().length);

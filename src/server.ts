@@ -221,7 +221,6 @@ async function startServer() {
         first_name TEXT NOT NULL,
         sort_order INTEGER DEFAULT 0,
         last_name TEXT NOT NULL,
-        sort_order INTEGER DEFAULT 0,
         ndis_number TEXT,
         care_plan_details TEXT,
         contact_email TEXT,
@@ -274,7 +273,6 @@ async function startServer() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         staff_id INTEGER,
         client_id INTEGER NOT NULL,
-        staff_id INTEGER,
         service_id INTEGER,
         respite_booking_id INTEGER,
         start_time TEXT NOT NULL,
@@ -296,7 +294,6 @@ async function startServer() {
         invoice_number TEXT NOT NULL,
         respite_booking_id INTEGER,
         client_id INTEGER NOT NULL,
-        staff_id INTEGER,
         shift_id INTEGER,
         amount REAL NOT NULL,
         file_path TEXT,
@@ -322,7 +319,6 @@ async function startServer() {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           staff_id INTEGER,
           client_id INTEGER NOT NULL,
-        staff_id INTEGER,
           service_id INTEGER,
           respite_booking_id INTEGER,
           start_time DATETIME NOT NULL,
@@ -793,7 +789,6 @@ try {
       CREATE TABLE IF NOT EXISTS progress_notes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
-        staff_id INTEGER,
         author_id INTEGER NOT NULL,
         content TEXT NOT NULL,
         tags TEXT,
@@ -820,7 +815,6 @@ try {
       CREATE TABLE IF NOT EXISTS task_clients (
         task_id INTEGER NOT NULL,
         client_id INTEGER NOT NULL,
-        staff_id INTEGER,
         PRIMARY KEY (task_id, client_id),
         FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
         FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
@@ -858,7 +852,6 @@ try {
       CREATE TABLE IF NOT EXISTS ndis_service_agreements (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
-        staff_id INTEGER,
         name TEXT NOT NULL,
         sort_order INTEGER DEFAULT 0,
         start_date TEXT,
@@ -939,7 +932,6 @@ try {
       CREATE TABLE IF NOT EXISTS client_budgets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
-        staff_id INTEGER,
         cycle_start_date TEXT,
         cycle_end_date TEXT,
         historical_internal_consumptions REAL DEFAULT 0,
@@ -980,7 +972,6 @@ try {
       CREATE TABLE IF NOT EXISTS client_ledger_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER NOT NULL,
-        staff_id INTEGER,
         date TEXT NOT NULL,
         service_name TEXT NOT NULL,
         sort_order INTEGER DEFAULT 0,
@@ -3991,7 +3982,7 @@ app.get("/api/health", (req, res) => {
           JOIN users u ON s.staff_id = u.id
           JOIN clients c ON s.client_id = c.id
           LEFT JOIN vehicles v ON s.vehicle_id = v.id
-          WHERE (s.status IN ('COMPLETED', 'CANCELLED') OR s.is_historical = 1 OR s.notes LIKE '%[HISTORICAL]%') AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
+          WHERE (UPPER(s.status) IN ('COMPLETED', 'CANCELLED', 'HISTORICAL') OR s.notes LIKE '%[HISTORICAL]%') AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
         )
         SELECT * FROM ShiftsWithLag WHERE 1=1
       `;

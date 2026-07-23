@@ -1,6 +1,6 @@
 import db from './db.js';
 try {
-  const rows = db.prepare(`
+  db.prepare(`
     WITH ShiftsWithLag AS (
           SELECT s.*,
                   u.first_name as staff_first, u.last_name as staff_last,

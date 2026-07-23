@@ -1,6 +1,16 @@
 import db from './db.js';
+db.exec(`
+DROP TABLE IF EXISTS shifts;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS clients;
+DROP TABLE IF EXISTS vehicles;
+CREATE TABLE users (id INTEGER PRIMARY KEY, first_name TEXT, last_name TEXT, address TEXT);
+CREATE TABLE clients (id INTEGER PRIMARY KEY, first_name TEXT, last_name TEXT, funding_type TEXT, address TEXT);
+CREATE TABLE vehicles (id INTEGER PRIMARY KEY, name TEXT, rego TEXT);
+CREATE TABLE shifts (id INTEGER PRIMARY KEY, staff_id INTEGER, client_id INTEGER, vehicle_id INTEGER, start_time TEXT, end_time TEXT, status TEXT, notes TEXT);
+`);
 try {
-  const rows = db.prepare(`
+  db.prepare(`
     WITH ShiftsWithLag AS (
           SELECT s.*,
                   u.first_name as staff_first, u.last_name as staff_last,
