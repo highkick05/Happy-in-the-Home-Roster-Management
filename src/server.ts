@@ -13346,6 +13346,7 @@ function resolveFilePath(systemName) {
           FROM shifts s
           JOIN users u ON s.staff_id = u.id
           JOIN clients c ON s.client_id = c.id
+          WHERE (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
         )
         SELECT * FROM ShiftsWithLag
         WHERE status = 'COMPLETED'
@@ -13405,6 +13406,7 @@ function resolveFilePath(systemName) {
           FROM shifts s
           JOIN users u ON s.staff_id = u.id
           JOIN clients c ON s.client_id = c.id
+          WHERE (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
         )
         SELECT * FROM ShiftsWithLag
         WHERE status = 'COMPLETED'
@@ -13901,7 +13903,7 @@ function resolveFilePath(systemName) {
         SELECT s.*, u.first_name as staff_first, u.last_name as staff_last
         FROM shifts s
         JOIN users u ON s.staff_id = u.id
-        WHERE s.client_id = ? AND s.status = 'COMPLETED'
+        WHERE s.client_id = ? AND s.status = 'COMPLETED' AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
         AND s.start_time >= ? AND s.end_time <= ?
         ORDER BY s.start_time ASC
       `,
@@ -14369,7 +14371,7 @@ function resolveFilePath(systemName) {
         SELECT s.*, c.first_name as client_first, c.last_name as client_last
         FROM shifts s
         JOIN clients c ON s.client_id = c.id
-        WHERE s.staff_id = ? AND s.status = 'COMPLETED'
+        WHERE s.staff_id = ? AND s.status = 'COMPLETED' AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
         AND s.start_time >= ? AND s.end_time <= ?
         ORDER BY s.start_time ASC
       `,
