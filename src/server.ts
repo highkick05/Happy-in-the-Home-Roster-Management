@@ -7960,10 +7960,11 @@ app.get("/api/health", (req, res) => {
 
       }
 
-      const mainServiceId =
+      let mainServiceId =
         (servicesData && servicesData.length > 0
           ? servicesData[0].serviceId
           : serviceId);
+      if (mainServiceId === 'custom') mainServiceId = null;
 
       // Conflict Checking
       if (!ignoreConflicts && status !== 'CANCELLED') {
@@ -8451,10 +8452,11 @@ app.get("/api/health", (req, res) => {
         const servicesJson = servicesData
           ? JSON.stringify(processedServicesData)
           : existing.services_json;
-        const mainServiceId =
+        let mainServiceId =
           (processedServicesData && processedServicesData.length > 0
             ? processedServicesData[0].serviceId
             : serviceId || existing.service_id);
+        if (mainServiceId === 'custom') mainServiceId = null;
 
         const finalFundingType =
           fundingType ||
