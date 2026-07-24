@@ -21,6 +21,7 @@ interface ServiceFormEntry {
   serviceId: string;
   qtyOverride?: number | string;
   rateOverride?: number | string;
+  customName?: string;
 }
 
 export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staffList, clientList, servicesList, initialData, holidays = [] }: AddHistoricalShiftModalProps) {
@@ -116,8 +117,15 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
     return Math.max(0, diff / (1000 * 60 * 60));
   }, [startTime, endTime, startDate, endDate]);
 
-  const getServiceDetails = (serviceId: string) => {
-    const service = servicesList.find(x => String(x.id) === serviceId);
+  const getServiceDetails = (s: ServiceFormEntry) => {
+    if (s.serviceId === 'custom') {
+      return { 
+        rate: s.rateOverride !== undefined && s.rateOverride !== '' ? Number(s.rateOverride) : 0, 
+        unit: 'Hour', 
+        name: s.customName || 'Custom Service' 
+      };
+    }
+    const service = servicesList.find(x => String(x.id) === s.serviceId);
     if (!service) return { rate: 0, unit: 'Hour', name: '' };
     
     let baseRate = Number(service.rate);
@@ -309,7 +317,7 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
         endTime: end.toISOString(),
         notes: notes,
         servicesData: servicesData.map(s => {
-            const { rate, unit, name } = getServiceDetails(s.serviceId);
+            const { rate, unit, name } = getServiceDetails(s);
             const isProviderTravel = name.toLowerCase().includes('provider travel');
             const isABT = name.toLowerCase().includes('activity based transport');
             const isTravelOrTransport = isProviderTravel || isABT;
@@ -317,7 +325,7 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
             const effectiveRate = (s.rateOverride !== undefined && s.rateOverride !== '') ? Number(s.rateOverride) : rate;
             return {
                 ...s,
-                serviceId: s.serviceId ? parseInt(s.serviceId, 10) : null,
+                serviceId: s.serviceId === 'custom' ? 'custom' : (s.serviceId ? parseInt(s.serviceId, 10) : null),
                 qtyOverride: effectiveQty,
                 rateOverride: effectiveRate
             };
@@ -554,7 +562,7 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
 
               <div className="space-y-3">
                 {servicesData.map((s, index) => {
-                  const { rate, unit, name } = getServiceDetails(s.serviceId);
+                  const { rate, unit, name } = getServiceDetails(s);
                   
                   const isProviderTravel = name.toLowerCase().includes('provider travel');
                   const isABT = name.toLowerCase().includes('activity based transport');
@@ -584,10 +592,24 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
                           className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
                         >
                           <option value="">-- Choose Personalised Service --</option>
+                          <option value="custom">-- Custom Service --</option>
                           {clientPersonalisedServices.map(cs => (
                             <option key={cs.id} value={String(cs.id)}>{cs.name} ({cs.code})</option>
                           ))}
                         </select>
+                        {s.serviceId === 'custom' && (
+                          <div className="mt-2">
+                            <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Custom Service Name *</label>
+                            <input
+                              type="text"
+                              required
+                              value={s.customName || ''}
+                              onChange={(e) => updateServiceEntry(index, 'customName', e.target.value)}
+                              placeholder="e.g. Manual Claim (2025)"
+                              className="w-full bg-[#09090b] border border-white/[0.12] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-teal transition-colors placeholder-zinc-600"
+                            />
+                          </div>
+                        )}
                         {clientId && selectedClient?.service_ids?.length === 0 && (
                           <p className="text-xs text-amber-500 mt-1">Showing all services (no personalised services set up).</p>
                         )}
@@ -657,7 +679,7 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
           <div className="pt-4 border-t border-white/[0.08] flex justify-between items-center space-x-2 mt-auto">
             <div className="text-lg font-medium text-white mb-4">
               Total Amount: <span className="text-brand-teal">${servicesData.reduce((acc, s) => {
-                const { rate, unit, name } = getServiceDetails(s.serviceId);
+                const { rate, unit, name } = getServiceDetails(s);
                 const isProviderTravel = name.toLowerCase().includes('provider travel');
                 const isABT = name.toLowerCase().includes('activity based transport');
                 if ((isProviderTravel || isABT) && !isHistorical) return acc;
