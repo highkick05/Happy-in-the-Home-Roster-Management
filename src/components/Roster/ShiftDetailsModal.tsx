@@ -689,7 +689,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                     {sData.map((sd: any, idx: number) => {
                       const sIdStr = String(sd.serviceId);
                       const fullService = servicesList.find(s => String(s.id) === sIdStr);
-                      const serviceName = fullService ? fullService.name : (sd.serviceName || (idx === 0 ? shift.serviceName : 'Unknown Service'));
+                      const serviceName = fullService ? fullService.name : (sd.serviceName || sd.customName || sd.name || (idx === 0 ? shift.serviceName : 'Unknown Service'));
                       const unit = fullService ? (fullService.unit || 'Hour') : (sd.serviceUnit || shift.serviceUnit || 'Hour');
                       const serviceType = (sd.serviceType || shift.serviceType) || (fullService ? fullService.type : 'Unknown');
                       const ratesJson = (sd.serviceRatesJson || shift.serviceRatesJson) || (fullService ? fullService.rates_json : null);

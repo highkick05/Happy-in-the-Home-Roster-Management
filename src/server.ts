@@ -1998,12 +1998,13 @@ try {
         let srv = null;
         if (
           sd.isCustom ||
-          (sd.serviceId && String(sd.serviceId).startsWith("custom-"))
+          (sd.serviceId && String(sd.serviceId).startsWith("custom")) ||
+          sd.serviceId === null
         ) {
           srv = {
-            id: sd.serviceId,
-            name: sd.customName || "Custom Service",
-            rate: Number(sd.customRate || 0),
+            id: sd.serviceId || 'custom',
+            name: sd.customName || sd.name || "Custom Service",
+            rate: Number(sd.rateOverride || sd.customRate || 0),
             unit: sd.customUnit || "Hour",
             code: sd.customCode || "CUSTOM",
             type: "CUSTOM",
