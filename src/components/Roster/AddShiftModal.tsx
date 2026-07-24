@@ -578,8 +578,6 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                               <span className="text-zinc-500 text-xs block">Qty</span>
                               {isTravelOrTransport && !isHistorical ? (
                                 <span className="text-zinc-500 italic">Auto</span>
-                              ) : (unit === 'Hour' && !isTravelOrTransport) ? (
-                                <span className="text-zinc-300">{effectiveQty.toFixed(2)}</span>
                               ) : (
                                 <input 
                                   type="number"
@@ -587,7 +585,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                                   step="0.01"
                                   value={s.qtyOverride !== undefined && s.qtyOverride !== null ? s.qtyOverride : ''}
                                   onChange={(e) => updateServiceEntry(index, 'qtyOverride', e.target.value)}
-                                  placeholder={String(effectiveQty)}
+                                  placeholder={effectiveQty.toFixed(2)}
                                   className="w-16 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
                                 />
                               )}
