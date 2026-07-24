@@ -10068,24 +10068,34 @@ app.get("/api/health", (req, res) => {
 
           if (servicesArray.length > 0) {
             for (const sData of servicesArray) {
-              const srv = db
-                .prepare("SELECT name FROM services WHERE id = ?")
-                .get(sData.serviceId) as any;
-              if (srv && srv.name) {
-                const nameLower = srv.name.toLowerCase();
+              let serviceName = '';
+              if (sData.isCustom || sData.serviceId === null || sData.serviceId === 'custom' || (String(sData.serviceId).startsWith('custom'))) {
+                serviceName = sData.customName || sData.name || "Custom Service";
+              } else {
+                const srv = db
+                  .prepare("SELECT name FROM services WHERE id = ?")
+                  .get(sData.serviceId) as any;
+                if (srv && srv.name) {
+                  serviceName = srv.name;
+                }
+              }
+
+              if (serviceName) {
+                const nameLower = serviceName.toLowerCase();
                 if (nameLower.includes("provider travel")) {
                   hasProviderTravelService = true;
                 }
                 if (nameLower.includes("activity based transport")) {
                   hasABTService = true;
                 }
+
                 // Do not list Provider Travel or ABT here; they get their own dedicated rows
                 if (
                   !nameLower.includes("provider travel") &&
                   !nameLower.includes("activity based transport")
                 ) {
-                  if (!serviceNamesList.includes(srv.name)) {
-                    serviceNamesList.push(srv.name);
+                  if (!serviceNamesList.includes(serviceName)) {
+                    serviceNamesList.push(serviceName);
                   }
                   if (
                     primaryQtyOverride === null &&
@@ -10128,8 +10138,11 @@ app.get("/api/health", (req, res) => {
           if (serviceNamesList.length > 0) {
             serviceProvided = serviceNamesList.join(", ");
           } else if (servicesArray.length > 0) {
-            const primaryId = servicesArray[0]?.serviceId;
-            if (primaryId && primaryId !== shift.service_id) {
+            const primarySData = servicesArray[0];
+            const primaryId = primarySData?.serviceId;
+            if (primarySData?.isCustom || primaryId === null || primaryId === 'custom' || String(primaryId).startsWith('custom')) {
+                serviceProvided = primarySData?.customName || primarySData?.name || "Custom Service";
+            } else if (primaryId && primaryId !== shift.service_id) {
               const mainSrv = db
                 .prepare("SELECT name FROM services WHERE id = ?")
                 .get(primaryId) as any;
