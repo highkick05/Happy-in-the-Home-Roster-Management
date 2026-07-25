@@ -16599,14 +16599,44 @@ function resolveFilePath(systemName) {
     try {
       let certificatePath = null;
       if (file) {
-        const folderPath = path.join(UPLOADS_DIR, "TrainingCertificates");
+        
+        const targetUser = db.prepare("SELECT first_name, last_name FROM users WHERE id = ?").get(targetStaffId);
+        let staffName = "Unknown_Staff";
+        if (targetUser) {
+          staffName = [targetUser.first_name, targetUser.last_name].filter(Boolean).join(" ");
+        }
+        const staffNameSafe = staffName.replace(/[\/\\]/g, "");
+        const folderPath = path.join(UPLOADS_DIR, "Staff", staffNameSafe, "Training");
         if (!fs.existsSync(folderPath)) {
           fs.mkdirSync(folderPath, { recursive: true });
         }
+
         const newFileName = `${Date.now()}-${file.originalname}`;
         const destPath = path.join(folderPath, newFileName);
+        
         fs.renameSync(file.path, destPath);
-        certificatePath = `/TrainingCertificates/${newFileName}`;
+        const folderPathDb = `/Staff/${staffNameSafe}/Training`;
+        const systemName = path.posix.join("Staff", staffNameSafe, "Training", newFileName);
+        const stats = fs.statSync(destPath);
+        
+        try {
+          db.prepare(
+            "INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path, date_issued, date_expires) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          ).run(
+            file.originalname,
+            systemName,
+            stats.size,
+            targetStaffId,
+            folderPathDb,
+            completion_date,
+            expiry_date || null
+          );
+        } catch (fileErr) {
+          console.error("Failed to insert file record for training cert", fileErr);
+        }
+        
+        certificatePath = `/api/files/download/${db.prepare('SELECT last_insert_rowid() as id').get().id}`;
+
       }
 
       // Check if record exists
