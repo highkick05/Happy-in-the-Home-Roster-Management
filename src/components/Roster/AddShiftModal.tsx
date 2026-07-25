@@ -14,6 +14,7 @@ interface AddShiftModalProps {
   servicesList: any[];
   initialData?: any;
   holidays?: any[];
+  onToggleHistorical?: () => void;
 }
 
 interface ServiceFormEntry {
@@ -24,7 +25,7 @@ interface ServiceFormEntry {
   customName?: string;
 }
 
-export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clientList, servicesList, initialData, holidays = [] }: AddShiftModalProps) {
+export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clientList, servicesList, initialData, holidays = [], onToggleHistorical }: AddShiftModalProps) {
   const { token, settings } = useAuth();
   
   const [staffId, setStaffId] = useState('');
@@ -639,18 +640,41 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
           </div>
 
           <div className="pt-4 border-t border-white/[0.08] flex justify-between items-center space-x-2 mt-auto">
-            <div className="text-lg font-medium text-white mb-4">
-              Total Amount: <span className="text-brand-teal">${servicesData.reduce((acc, s) => {
-                const { rate, unit, name } = getServiceDetails(s);
-                const isProviderTravel = name.toLowerCase().includes('provider travel');
-                const isABT = name.toLowerCase().includes('activity based transport');
-                if ((isProviderTravel || isABT) && !isHistorical) return acc;
-                const effectiveQty = s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1);
-                const effectiveRate = s.rateOverride !== undefined && s.rateOverride !== '' ? Number(s.rateOverride) : rate;
-                return acc + (effectiveQty * effectiveRate);
-              }, 0).toFixed(2)}</span>
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-6">
+              <div className="text-lg font-medium text-white">
+                Total Amount: <span className="text-brand-teal">${servicesData.reduce((acc, s) => {
+                  const { rate, unit, name } = getServiceDetails(s);
+                  const isProviderTravel = name.toLowerCase().includes('provider travel');
+                  const isABT = name.toLowerCase().includes('activity based transport');
+                  if ((isProviderTravel || isABT) && !isHistorical) return acc;
+                  const effectiveQty = s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1);
+                  const effectiveRate = s.rateOverride !== undefined && s.rateOverride !== '' ? Number(s.rateOverride) : rate;
+                  return acc + (effectiveQty * effectiveRate);
+                }, 0).toFixed(2)}</span>
+              </div>
+              {onToggleHistorical && (
+                <label className="flex items-center cursor-pointer group">
+                  <div className="relative flex items-center">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only" 
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          onToggleHistorical();
+                        }
+                      }} 
+                      checked={false} 
+                    />
+                    <div className="block bg-zinc-800 w-10 h-6 rounded-full border border-white/10 group-hover:border-white/20 transition-colors"></div>
+                    <div className="dot absolute left-1 top-1 bg-zinc-400 w-4 h-4 rounded-full transition transform translate-x-0 group-hover:bg-white"></div>
+                  </div>
+                  <div className="ml-3 text-[13px] font-medium text-zinc-400 group-hover:text-white transition-colors">
+                    Historical Shift
+                  </div>
+                </label>
+              )}
             </div>
-            <div className="flex space-x-2">
+            <div className="flex space-x-2 shrink-0">
               <button
                 type="button"
                 onClick={onClose}

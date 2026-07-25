@@ -1139,6 +1139,10 @@ export default function RosterCalendar() {
         clientList={clientList}
         servicesList={servicesList}
         holidays={holidays}
+        onToggleStandard={() => {
+          setIsHistShiftModalOpen(false);
+          setIsShiftModalOpen(true);
+        }}
       />
       <AddShiftModal 
         isOpen={isShiftModalOpen}
@@ -1149,6 +1153,10 @@ export default function RosterCalendar() {
         servicesList={servicesList}
         initialData={initialShiftData}
         holidays={holidays}
+        onToggleHistorical={() => {
+          setIsShiftModalOpen(false);
+          setIsHistShiftModalOpen(true);
+        }}
       />
 
       <AddRespiteBookingModal
