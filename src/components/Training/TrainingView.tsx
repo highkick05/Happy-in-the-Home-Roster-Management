@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { FileText, Plus, Trash2, Edit, ExternalLink, Calendar, CheckCircle, Upload, X } from 'lucide-react';
+import { FileText, Plus, Trash2, Edit, ExternalLink, Calendar, CheckCircle, Upload, X, GraduationCap } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 
 export default function TrainingView() {
