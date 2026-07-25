@@ -221,27 +221,27 @@ export default function TrainingView() {
                   {modules.filter(m => (m.title + ' ' + (m.tags || '')).toLowerCase().includes(searchQuery.toLowerCase())).map(mod => {
                     const record = !isAdmin ? getStaffStatus(mod.id) : null;
                     return (
-                      <div key={mod.id} className="bg-brand-navy border border-white/[0.08] rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between group hover:bg-white/[0.02] transition-colors gap-3">
+                      <div key={mod.id} className="bg-brand-navy border border-white/[0.08] rounded-lg p-4 flex flex-col sm:flex-row sm:items-start justify-between group hover:bg-white/[0.02] transition-colors gap-4">
                         
-                        <div className="flex items-start sm:items-center space-x-3 flex-1 min-w-0">
-                          <div className="p-1.5 bg-brand-teal/10 rounded-md shrink-0">
-                            <GraduationCap className="w-4 h-4 text-brand-teal" />
+                        <div className="flex items-start space-x-4 flex-1 min-w-0">
+                          <div className="p-2 bg-brand-teal/10 rounded-lg shrink-0 mt-0.5">
+                            <GraduationCap className="w-5 h-5 text-brand-teal" />
                           </div>
                           <div className="flex-1 min-w-0 pr-2">
-                            <div className="flex items-center space-x-2">
+                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
                               {mod.tags && (
                                 <span className="text-[11px] font-semibold text-brand-teal whitespace-nowrap px-2 py-0.5 bg-brand-teal/20 rounded border border-brand-teal/30">
                                   {mod.tags}
                                 </span>
                               )}
-                              <h3 className="text-[14px] font-medium text-white truncate">{mod.title}</h3>
-                              {mod.expiry_months > 0 && <span className="text-[11px] text-zinc-500 whitespace-nowrap px-1.5 py-0.5 bg-black/20 rounded">Expires {mod.expiry_months} mo</span>}
+                              <h3 className="text-[14px] font-medium text-white">{mod.title}</h3>
+                              {mod.expiry_months > 0 && <span className="text-[11px] text-zinc-500 whitespace-nowrap px-2 py-0.5 bg-black/20 rounded">Expires {mod.expiry_months} mo</span>}
                             </div>
-                            {mod.description && <p className="text-[12px] text-zinc-400 line-clamp-2 mt-0.5">{mod.description}</p>}
+                            {mod.description && <p className="text-[12px] text-zinc-400 line-clamp-2 leading-relaxed">{mod.description}</p>}
                           </div>
                         </div>
                         
-                        <div className="flex items-center space-x-3 shrink-0">
+                        <div className="flex items-center space-x-3 shrink-0 pt-0.5">
                           <a href={mod.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-[11px] font-medium text-brand-blue hover:text-brand-blue/80 transition-colors bg-brand-blue/10 px-2 py-1 rounded">
                             <ExternalLink className="w-3 h-3 mr-1.5" />
                             Open Link
