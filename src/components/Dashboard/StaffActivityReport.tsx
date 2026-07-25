@@ -269,7 +269,9 @@ export default function StaffActivityReport() {
                     {visibleColumns.includes('serviceProvided') && (
                       <td className="px-3 py-2 font-medium col_service_provided">
                         <span className={
-                          /nurs|medic/i.test(row.serviceProvided || '')
+                          row.isCustomService
+                            ? 'text-purple-400'
+                            : /nurs|medic/i.test(row.serviceProvided || '')
                             ? 'text-pink-400'
                             : 'text-brand-teal'
                         }>

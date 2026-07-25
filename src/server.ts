@@ -10065,12 +10065,14 @@ app.get("/api/health", (req, res) => {
           let serviceNamesList: string[] = [];
           let hasProviderTravelService = false;
           let hasABTService = false;
+          let isCustomService = false;
 
           if (servicesArray.length > 0) {
             for (const sData of servicesArray) {
               let serviceName = '';
               if (sData.isCustom || sData.serviceId === null || sData.serviceId === 'custom' || (String(sData.serviceId).startsWith('custom'))) {
                 serviceName = sData.customName || sData.name || "Custom Service";
+                isCustomService = true;
               } else {
                 const srv = db
                   .prepare("SELECT name FROM services WHERE id = ?")
@@ -10227,6 +10229,7 @@ app.get("/api/health", (req, res) => {
             dateAndDay: dayStr,
             timeString: timeStr,
             serviceProvided: serviceProvided,
+            isCustomService: isCustomService,
             hoursWorked: parseFloat(hours.toFixed(2)),
             shiftDuration: parseFloat(scheduledHrs.toFixed(2)),
             dayCategory: dayCategory,
