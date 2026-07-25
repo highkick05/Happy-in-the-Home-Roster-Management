@@ -142,30 +142,11 @@ export default function TrainingView() {
   return (
     <div className="flex flex-col h-full bg-brand-bg relative p-4 md:p-6 space-y-4 overflow-y-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-xl font-semibold text-[#E6EDF3] tracking-tight">Training</h1>
-            <p className="text-[13px] text-zinc-400 mt-1">Manage and track staff training modules.</p>
-          </div>
-          {isAdmin && (
-            <button
-              onClick={() => {
-                setEditingModule(null);
-                setTitle('');
-                setUrl('');
-                setDescription('');
-                setTags('');
-                setExpiryMonths(0);
-                setShowModuleModal(true);
-              }}
-              className="hidden sm:flex items-center px-3 py-1.5 bg-brand-teal/20 text-brand-teal hover:bg-brand-teal/30 border border-brand-teal/30 text-[13px] font-medium rounded transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5 mr-1.5" />
-              Add Module
-            </button>
-          )}
+        <div>
+          <h1 className="text-xl font-semibold text-[#E6EDF3] tracking-tight">Training</h1>
+          <p className="text-[13px] text-zinc-400 mt-1">Manage and track staff training modules.</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <input
             type="text"
             placeholder="Search training..."
@@ -188,6 +169,23 @@ export default function TrainingView() {
                 Staff Completion
               </button>
             </div>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setEditingModule(null);
+                setTitle('');
+                setUrl('');
+                setDescription('');
+                setTags('');
+                setExpiryMonths(0);
+                setShowModuleModal(true);
+              }}
+              className="hidden sm:flex items-center px-3 py-1.5 bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 border border-brand-teal/20 text-[13px] font-medium rounded transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Add Module
+            </button>
           )}
         </div>
       </div>
