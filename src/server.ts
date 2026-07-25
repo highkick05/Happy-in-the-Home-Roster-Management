@@ -1026,9 +1026,15 @@ try {
         title TEXT NOT NULL,
         url TEXT NOT NULL,
         description TEXT,
+        tags TEXT,
         expiry_months INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
+      try {
+        db.prepare("ALTER TABLE training_modules ADD COLUMN tags TEXT").run();
+      } catch (e) {
+        // Column likely exists
+      }
 
       CREATE TABLE IF NOT EXISTS staff_training (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16535,10 +16541,10 @@ function resolveFilePath(systemName) {
   });
 
   app.post("/api/training/modules", authenticateToken, requireAdmin, (req, res) => {
-    const { title, url, description, expiry_months } = req.body;
+    const { title, url, description, expiry_months, tags } = req.body;
     if (!title || !url) return res.status(400).json({ error: "Missing required fields" });
     try {
-      db.prepare("INSERT INTO training_modules (title, url, description, expiry_months) VALUES (?, ?, ?, ?)").run(title, url, description, expiry_months || 0);
+      db.prepare("INSERT INTO training_modules (title, url, description, expiry_months, tags) VALUES (?, ?, ?, ?, ?)").run(title, url, description, expiry_months || 0, tags || '');
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ error: "Failed to create module" });
@@ -16546,10 +16552,10 @@ function resolveFilePath(systemName) {
   });
 
   app.put("/api/training/modules/:id", authenticateToken, requireAdmin, (req, res) => {
-    const { title, url, description, expiry_months } = req.body;
+    const { title, url, description, expiry_months, tags } = req.body;
     if (!title || !url) return res.status(400).json({ error: "Missing required fields" });
     try {
-      db.prepare("UPDATE training_modules SET title = ?, url = ?, description = ?, expiry_months = ? WHERE id = ?").run(title, url, description, expiry_months || 0, req.params.id);
+      db.prepare("UPDATE training_modules SET title = ?, url = ?, description = ?, expiry_months = ?, tags = ? WHERE id = ?").run(title, url, description, expiry_months || 0, tags || '', req.params.id);
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ error: "Failed to update module" });

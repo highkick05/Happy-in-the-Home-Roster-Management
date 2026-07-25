@@ -18,7 +18,10 @@ export default function TrainingView() {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [description, setDescription] = useState('');
+  const [tags, setTags] = useState('');
   const [expiryMonths, setExpiryMonths] = useState(0);
+  
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadModuleId, setUploadModuleId] = useState<number | null>(null);
@@ -58,7 +61,7 @@ export default function TrainingView() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ title, url, description, expiry_months: expiryMonths })
+        body: JSON.stringify({ title, url, description, expiry_months: expiryMonths, tags })
       });
       if (res.ok) {
         setShowModuleModal(false);
@@ -139,26 +142,54 @@ export default function TrainingView() {
   return (
     <div className="flex flex-col h-full bg-brand-bg relative p-4 md:p-6 space-y-4 overflow-y-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-[#E6EDF3] tracking-tight">Training</h1>
-          <p className="text-[13px] text-zinc-400 mt-1">Manage and track staff training modules.</p>
-        </div>
-        {isAdmin && (
-          <div className="flex bg-black/20 p-0.5 rounded border border-white/[0.05] w-fit">
-            <button
-              onClick={() => setActiveTab('modules')}
-              className={`px-3 py-1 text-[13px] font-medium rounded transition-colors ${activeTab === 'modules' ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-white'}`}
-            >
-              Modules
-            </button>
-            <button
-              onClick={() => setActiveTab('staff')}
-              className={`px-3 py-1 text-[13px] font-medium rounded transition-colors ${activeTab === 'staff' ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-white'}`}
-            >
-              Staff Completion
-            </button>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-[#E6EDF3] tracking-tight">Training</h1>
+            <p className="text-[13px] text-zinc-400 mt-1">Manage and track staff training modules.</p>
           </div>
-        )}
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setEditingModule(null);
+                setTitle('');
+                setUrl('');
+                setDescription('');
+                setTags('');
+                setExpiryMonths(0);
+                setShowModuleModal(true);
+              }}
+              className="hidden sm:flex items-center px-3 py-1.5 bg-brand-teal/20 text-brand-teal hover:bg-brand-teal/30 border border-brand-teal/30 text-[13px] font-medium rounded transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Add Module
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          <input
+            type="text"
+            placeholder="Search training..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-48 bg-black/40 border border-white/[0.08] rounded px-3 py-1.5 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
+          />
+          {isAdmin && (
+            <div className="flex bg-black/20 p-0.5 rounded border border-white/[0.05] w-fit">
+              <button
+                onClick={() => setActiveTab('modules')}
+                className={`px-3 py-1 text-[13px] font-medium rounded transition-colors ${activeTab === 'modules' ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-white'}`}
+              >
+                Modules
+              </button>
+              <button
+                onClick={() => setActiveTab('staff')}
+                className={`px-3 py-1 text-[13px] font-medium rounded transition-colors ${activeTab === 'staff' ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-white'}`}
+              >
+                Staff Completion
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 bg-[#121214] border border-white/[0.08] rounded-xl overflow-hidden shadow-sm flex flex-col">
@@ -169,13 +200,14 @@ export default function TrainingView() {
             {(!isAdmin || activeTab === 'modules') && (
               <div className="space-y-3">
                 {isAdmin && (
-                  <div className="flex justify-end mb-2">
+                  <div className="sm:hidden flex justify-end mb-2">
                     <button
                       onClick={() => {
                         setEditingModule(null);
                         setTitle('');
                         setUrl('');
                         setDescription('');
+                        setTags('');
                         setExpiryMonths(0);
                         setShowModuleModal(true);
                       }}
@@ -188,7 +220,7 @@ export default function TrainingView() {
                 )}
                 
                 <div className="flex flex-col space-y-2">
-                  {modules.map(mod => {
+                  {modules.filter(m => (m.title + ' ' + (m.tags || '')).toLowerCase().includes(searchQuery.toLowerCase())).map(mod => {
                     const record = !isAdmin ? getStaffStatus(mod.id) : null;
                     return (
                       <div key={mod.id} className="bg-brand-navy border border-white/[0.08] rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between group hover:bg-white/[0.02] transition-colors gap-3">
@@ -201,6 +233,11 @@ export default function TrainingView() {
                             <div className="flex items-center space-x-2">
                               <h3 className="text-[13px] font-medium text-white truncate">{mod.title}</h3>
                               {mod.expiry_months > 0 && <span className="text-[10px] text-zinc-500 whitespace-nowrap px-1.5 py-0.5 bg-black/20 rounded">Expires {mod.expiry_months} mo</span>}
+                              {mod.tags && (
+                                <span className="text-[10px] text-brand-teal/90 whitespace-nowrap px-1.5 py-0.5 bg-brand-teal/10 rounded border border-brand-teal/20">
+                                  {mod.tags}
+                                </span>
+                              )}
                             </div>
                             {mod.description && <p className="text-[11px] text-zinc-400 line-clamp-1 mt-0.5">{mod.description}</p>}
                           </div>
@@ -271,6 +308,7 @@ export default function TrainingView() {
                                 setTitle(mod.title);
                                 setUrl(mod.url);
                                 setDescription(mod.description || '');
+                                setTags(mod.tags || '');
                                 setExpiryMonths(mod.expiry_months || 0);
                                 setShowModuleModal(true);
                               }} className="p-1.5 text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 rounded transition-colors">
@@ -307,7 +345,7 @@ export default function TrainingView() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/[0.04]">
-                    {staffTraining.map(r => (
+                    {staffTraining.filter(r => (r.title + ' ' + r.first_name + ' ' + r.last_name).toLowerCase().includes(searchQuery.toLowerCase())).map(r => (
                       <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
                         <td className="px-4 py-2.5 text-[13px] text-white">{r.first_name} {r.last_name}</td>
                         <td className="px-4 py-2.5 text-[13px] text-zinc-300">{r.title}</td>
@@ -383,6 +421,16 @@ export default function TrainingView() {
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   rows={3}
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Tags (Optional, e.g. Epilepsy)</label>
+                <input
+                  type="text"
+                  value={tags}
+                  onChange={e => setTags(e.target.value)}
+                  placeholder="e.g. Epilepsy, NDIS"
                   className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
                 />
               </div>
