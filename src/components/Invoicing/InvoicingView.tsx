@@ -1164,7 +1164,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                   disabled={isUploading}
                   className="px-3 py-1.5 bg-amber-500/20 text-amber-500 border border-amber-500/30 hover:bg-amber-500/30 text-xs font-medium rounded-md h-7 transition-colors disabled:opacity-50"
                 >
-                  {isUploading ? 'Uploading...' : 'Upload'}
+                  {isUploading ? 'Saving...' : editingHistoricalInvoiceId ? 'Save Changes' : 'Upload'}
                 </button>
               </div>
             </form>

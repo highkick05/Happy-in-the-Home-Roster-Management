@@ -10485,7 +10485,7 @@ app.get("/api/health", (req, res) => {
       let primaryStaffId = null;
       try {
         if (staffIds) {
-          const ids = JSON.parse(staffIds);
+          const ids = JSON.parse(staffIds).map((id: any) => parseInt(id, 10));
           if (Array.isArray(ids) && ids.length > 0) {
             primaryStaffId = ids[0];
             const placeholders = ids.map(() => '?').join(',');
@@ -10593,7 +10593,7 @@ app.get("/api/health", (req, res) => {
       let primaryStaffId = null;
       try {
         if (staffIds) {
-          const ids = JSON.parse(staffIds);
+          const ids = JSON.parse(staffIds).map((id: any) => parseInt(id, 10));
           if (Array.isArray(ids) && ids.length > 0) {
             primaryStaffId = ids[0];
             const placeholders = ids.map(() => '?').join(',');
