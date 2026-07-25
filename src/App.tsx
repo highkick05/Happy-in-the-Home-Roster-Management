@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import RosterCalendar from './components/Roster/RosterCalendar';
-import { Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car} from 'lucide-react';
+import { Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car, GraduationCap } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import QuickLinksDrawer from './components/QuickLinksDrawer';
 import Login from './components/Auth/Login';
@@ -22,6 +22,7 @@ import ProgressNotesView from './components/ProgressNotes/ProgressNotesView';
 import SettingsView from './components/Settings/SettingsView';
 import InvoicingView from './components/Invoicing/InvoicingView';
 import FilesView from './components/Files/FilesView';
+import TrainingView from './components/Training/TrainingView';
 import StaffActivityReport from './components/Dashboard/StaffActivityReport';
 import ProfileView from './components/Profile/ProfileView';
 import ComplianceDashboard from './components/Compliance/ComplianceDashboard';
@@ -313,6 +314,9 @@ function Layout({ children }: { children: React.ReactNode }) {
             <NavLink to="/files" className={getNavClasses} title="Files">
               <FolderOpen className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Files' : ''}
             </NavLink>
+            <NavLink to="/training" className={getNavClasses} title="Training">
+              <GraduationCap className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Training' : ''}
+            </NavLink>
             {user?.role === 'STAFF' && (
               <NavLink to="/onboarding" className={getNavClasses} title="Onboarding Hub">
                 <FileCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
@@ -460,6 +464,7 @@ export default function App() {
             <Route path="/progress-notes" element={<ProtectedRoute><Layout><ProgressNotesView /></Layout></ProtectedRoute>} />
             <Route path="/compliance" element={<ProtectedRoute adminOnly><Layout><ComplianceDashboard /></Layout></ProtectedRoute>} />
             <Route path="/files" element={<ProtectedRoute><Layout><FilesView /></Layout></ProtectedRoute>} />
+            <Route path="/training" element={<ProtectedRoute><Layout><TrainingView /></Layout></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute staffOnly><Layout><OnboardingView /></Layout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute adminOnly><Layout><SettingsView /></Layout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfileView /></Layout></ProtectedRoute>} />

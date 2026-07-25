@@ -1021,6 +1021,28 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS training_modules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        url TEXT NOT NULL,
+        description TEXT,
+        expiry_months INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_training (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        staff_id INTEGER NOT NULL,
+        training_module_id INTEGER NOT NULL,
+        status TEXT DEFAULT 'PENDING',
+        completion_date TEXT,
+        expiry_date TEXT,
+        certificate_file_path TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (training_module_id) REFERENCES training_modules(id) ON DELETE CASCADE
+      );
+
       CREATE TABLE IF NOT EXISTS price_list_items (
 
 
@@ -16500,6 +16522,112 @@ function resolveFilePath(systemName) {
     // Serve static files in production
     app.use(express.static(distPath));
   }
+
+  
+  // --- Training Modules API ---
+  app.get("/api/training/modules", authenticateToken, (req, res) => {
+    try {
+      const modules = db.prepare("SELECT * FROM training_modules ORDER BY created_at DESC").all();
+      res.json(modules);
+    } catch (e) {
+      res.status(500).json({ error: "Failed to fetch training modules" });
+    }
+  });
+
+  app.post("/api/training/modules", authenticateToken, requireAdmin, (req, res) => {
+    const { title, url, description, expiry_months } = req.body;
+    if (!title || !url) return res.status(400).json({ error: "Missing required fields" });
+    try {
+      db.prepare("INSERT INTO training_modules (title, url, description, expiry_months) VALUES (?, ?, ?, ?)").run(title, url, description, expiry_months || 0);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: "Failed to create module" });
+    }
+  });
+
+  app.put("/api/training/modules/:id", authenticateToken, requireAdmin, (req, res) => {
+    const { title, url, description, expiry_months } = req.body;
+    if (!title || !url) return res.status(400).json({ error: "Missing required fields" });
+    try {
+      db.prepare("UPDATE training_modules SET title = ?, url = ?, description = ?, expiry_months = ? WHERE id = ?").run(title, url, description, expiry_months || 0, req.params.id);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: "Failed to update module" });
+    }
+  });
+
+  app.delete("/api/training/modules/:id", authenticateToken, requireAdmin, (req, res) => {
+    try {
+      db.prepare("DELETE FROM training_modules WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: "Failed to delete module" });
+    }
+  });
+
+  app.get("/api/training/staff", authenticateToken, (req, res) => {
+    try {
+      let query = `
+        SELECT st.*, tm.title, tm.url, tm.description, u.first_name, u.last_name 
+        FROM staff_training st
+        JOIN training_modules tm ON st.training_module_id = tm.id
+        JOIN users u ON st.staff_id = u.id
+      `;
+      
+      let records;
+      if (req.user.role === "ADMIN") {
+        records = db.prepare(query + " ORDER BY st.created_at DESC").all();
+      } else {
+        query += " WHERE st.staff_id = ? ORDER BY st.created_at DESC";
+        records = db.prepare(query).all(req.user.id);
+      }
+      res.json(records);
+    } catch (e) {
+      res.status(500).json({ error: "Failed to fetch staff training" });
+    }
+  });
+
+  app.post("/api/training/staff/upload", authenticateToken, upload.single("certificate"), (req, res) => {
+    const { training_module_id, completion_date, expiry_date, staff_id } = req.body;
+    const file = req.file;
+    const targetStaffId = req.user.role === "ADMIN" && staff_id ? staff_id : req.user.id;
+
+    if (!training_module_id || !completion_date) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    try {
+      let certificatePath = null;
+      if (file) {
+        const folderPath = path.join(UPLOADS_DIR, "TrainingCertificates");
+        if (!fs.existsSync(folderPath)) {
+          fs.mkdirSync(folderPath, { recursive: true });
+        }
+        const newFileName = `${Date.now()}-${file.originalname}`;
+        const destPath = path.join(folderPath, newFileName);
+        fs.renameSync(file.path, destPath);
+        certificatePath = `/TrainingCertificates/${newFileName}`;
+      }
+
+      // Check if record exists
+      const existing = db.prepare("SELECT * FROM staff_training WHERE staff_id = ? AND training_module_id = ?").get(targetStaffId, training_module_id);
+
+      if (existing) {
+        if (certificatePath) {
+          db.prepare("UPDATE staff_training SET status = 'COMPLETED', completion_date = ?, expiry_date = ?, certificate_file_path = ? WHERE staff_id = ? AND training_module_id = ?").run(completion_date, expiry_date || null, certificatePath, targetStaffId, training_module_id);
+        } else {
+          db.prepare("UPDATE staff_training SET status = 'COMPLETED', completion_date = ?, expiry_date = ? WHERE staff_id = ? AND training_module_id = ?").run(completion_date, expiry_date || null, targetStaffId, training_module_id);
+        }
+      } else {
+        db.prepare("INSERT INTO staff_training (staff_id, training_module_id, status, completion_date, expiry_date, certificate_file_path) VALUES (?, ?, 'COMPLETED', ?, ?, ?)").run(targetStaffId, training_module_id, completion_date, expiry_date || null, certificatePath);
+      }
+      res.json({ success: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Failed to update training record" });
+    }
+  });
+
 
   // Universal fallback for SPA routing
   app.use((req, res, next) => {
