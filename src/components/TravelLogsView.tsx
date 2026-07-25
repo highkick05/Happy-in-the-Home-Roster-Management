@@ -451,8 +451,8 @@ const expandedLogs = logs.map(log => {
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Category</th>
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Travel Route</th>
                   <th className="px-2 py-1.5 border-r border-border-subtle/30">Transport KM</th>
-                  <th className="px-2 py-1.5 border-r border-border-subtle/30 text-center">Start Odometer</th>
-                  <th className="px-2 py-1.5 text-center">End Odometer</th>
+                  <th className="px-2 py-1.5 border-r border-border-subtle/30 text-center">Start Odo</th>
+                  <th className="px-2 py-1.5 text-center">End Odo</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle text-[11px] text-[#E6EDF3]">
@@ -557,7 +557,7 @@ const expandedLogs = logs.map(log => {
                           </div>
                         </td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-center">
-                          <div className="flex items-center justify-between gap-1 w-full min-w-[90px]">
+                          <div className="flex items-center justify-between gap-1.5 w-full min-w-[70px] max-w-[85px] mx-auto">
                             <input 
                               type="number" 
                               defaultValue={log.odometer_start_reading !== null ? log.odometer_start_reading : ''} 
@@ -586,7 +586,7 @@ const expandedLogs = logs.map(log => {
                           </div>
                         </td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-center">
-                          <div className="flex items-center justify-between gap-1 w-full min-w-[90px]">
+                          <div className="flex items-center justify-between gap-1.5 w-full min-w-[70px] max-w-[85px] mx-auto">
                             <input 
                               type="number" 
                               defaultValue={log.odometer_end_reading !== null ? log.odometer_end_reading : ''} 
