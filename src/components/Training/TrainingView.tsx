@@ -229,13 +229,13 @@ export default function TrainingView() {
                           </div>
                           <div className="flex-1 min-w-0 pr-2">
                             <div className="flex items-center space-x-2">
-                              <h3 className="text-[13px] font-medium text-white truncate">{mod.title}</h3>
-                              {mod.expiry_months > 0 && <span className="text-[10px] text-zinc-500 whitespace-nowrap px-1.5 py-0.5 bg-black/20 rounded">Expires {mod.expiry_months} mo</span>}
                               {mod.tags && (
                                 <span className="text-[10px] text-brand-teal/90 whitespace-nowrap px-1.5 py-0.5 bg-brand-teal/10 rounded border border-brand-teal/20">
                                   {mod.tags}
                                 </span>
                               )}
+                              <h3 className="text-[13px] font-medium text-white truncate">{mod.title}</h3>
+                              {mod.expiry_months > 0 && <span className="text-[10px] text-zinc-500 whitespace-nowrap px-1.5 py-0.5 bg-black/20 rounded">Expires {mod.expiry_months} mo</span>}
                             </div>
                             {mod.description && <p className="text-[11px] text-zinc-400 line-clamp-1 mt-0.5">{mod.description}</p>}
                           </div>
