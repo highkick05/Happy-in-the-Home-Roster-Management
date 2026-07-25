@@ -4024,7 +4024,7 @@ app.get("/api/health", (req, res) => {
       
       const params = [];
       
-      if (req.user.role === 'staff') {
+      if (req.user.role === 'STAFF') {
         query += " AND staff_id = ?";
         params.push(req.user.id);
       } else if (staffId) {
@@ -4075,7 +4075,7 @@ app.get("/api/health", (req, res) => {
       const shift = db.prepare("SELECT * FROM shifts WHERE id = ?").get(shiftId) as any;
       if (!shift) return res.status(404).json({ error: "Shift not found" });
       
-      if (req.user.role === 'staff' && shift.staff_id !== req.user.id) {
+      if (req.user.role === 'STAFF' && shift.staff_id !== req.user.id) {
          return res.status(403).json({ error: "Forbidden" });
       }
       
