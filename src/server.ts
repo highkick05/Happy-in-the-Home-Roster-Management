@@ -10324,8 +10324,8 @@ app.get("/api/health", (req, res) => {
              COALESCE(s.end_time, rb.end_time) as end_time, 
              COALESCE(s.notes, rb.notes) as shift_notes,
              c.first_name as client_first_name, c.last_name as client_last_name,
-             COALESCE(s.custom_staff_name, u.first_name, ui.first_name) as staff_first_name, 
-             COALESCE(CASE WHEN s.custom_staff_name IS NOT NULL THEN '' ELSE u.last_name END, ui.last_name, '') as staff_last_name,
+             COALESCE(i.custom_staff_name, s.custom_staff_name, u.first_name, ui.first_name) as staff_first_name, 
+             CASE WHEN i.custom_staff_name IS NOT NULL OR s.custom_staff_name IS NOT NULL THEN '' ELSE COALESCE(u.last_name, ui.last_name, '') END as staff_last_name,
              (((SELECT COUNT(*) FROM invoices sub WHERE sub.merged_into_shift_id = s.id OR sub.merged_into_invoice_id = i.id) > 0) OR i.services_json IS NOT NULL) as is_merged
       FROM invoices i
       LEFT JOIN shifts s ON i.shift_id = s.id
@@ -10565,6 +10565,110 @@ app.get("/api/health", (req, res) => {
           newFileName,
           "PAID",
           createdAt
+        );
+
+        res.json({ success: true });
+      } catch (e) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    }
+  );
+
+  app.put(
+    "/api/invoices/historical/:id",
+    authenticateToken,
+    requireAdmin,
+    upload.single("file"),
+    (req, res) => {
+      const invoiceId = parseInt(req.params.id);
+      const { clientId, date, staffIds, amount } = req.body;
+      const file = req.file;
+
+      if (!clientId || !date || !amount) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      let customStaffName = null;
+      let primaryStaffId = null;
+      try {
+        if (staffIds) {
+          const ids = JSON.parse(staffIds);
+          if (Array.isArray(ids) && ids.length > 0) {
+            primaryStaffId = ids[0];
+            const placeholders = ids.map(() => '?').join(',');
+            const staffs = db.prepare(`SELECT first_name, last_name FROM users WHERE id IN (${placeholders})`).all(...ids);
+            const names = staffs.map((s: any) => `${s.first_name || ""} ${s.last_name || ""}`.trim()).filter(Boolean);
+            if (names.length > 0) {
+              customStaffName = names.join(", ");
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error parsing staffIds", err);
+      }
+
+      try {
+        const client = db.prepare("SELECT first_name, last_name FROM clients WHERE id = ?").get(parseInt(clientId)) as any;
+        if (!client) {
+          return res.status(404).json({ error: "Client not found" });
+        }
+
+        const existingInvoice = db.prepare("SELECT * FROM invoices WHERE id = ?").get(invoiceId) as any;
+        if (!existingInvoice) {
+          return res.status(404).json({ error: "Invoice not found" });
+        }
+
+        const createdAt = `${date} 12:00:00`;
+        let newFileName = existingInvoice.file_path;
+
+        if (file) {
+          const clientNameSafe = `${client.first_name || ""} ${client.last_name || ""}`.trim().replace(/[\/\\]/g, "");
+          const folderPath = path.join(UPLOADS_DIR, "Clients", clientNameSafe, "Invoices");
+          
+          if (!fs.existsSync(folderPath)) {
+            fs.mkdirSync(folderPath, { recursive: true });
+          }
+          
+          const originalName = file.originalname || "historical-invoice.pdf";
+          let destFileName = originalName;
+          
+          const destPath = path.join(folderPath, destFileName);
+          fs.renameSync(file.path, destPath);
+          newFileName = destFileName;
+          
+          const folderPathDb = `/Clients/${clientNameSafe}/Invoices`;
+          let subfolder = folderPathDb.replace(/^(\.\.[\\/\\])+/, "");
+          if (subfolder.startsWith("/")) {
+            subfolder = subfolder.substring(1);
+          }
+          const systemName = path.posix.join(subfolder, destFileName);
+          const stats = fs.statSync(destPath);
+          try {
+            db.prepare(
+              "INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path) VALUES (?, ?, ?, ?, ?)"
+            ).run(
+              destFileName,
+              systemName,
+              stats.size,
+              (req as any).user?.id || 1,
+              folderPathDb
+            );
+          } catch (fileErr) {
+            console.error("Failed to insert file record for updated historical invoice", fileErr);
+          }
+        }
+
+        db.prepare(
+          "UPDATE invoices SET client_id = ?, staff_id = ?, custom_staff_name = ?, amount = ?, file_path = ?, created_at = ? WHERE id = ?"
+        ).run(
+          parseInt(clientId),
+          primaryStaffId ? parseInt(primaryStaffId) : null,
+          customStaffName,
+          parseFloat(amount) || 0,
+          newFileName,
+          createdAt,
+          invoiceId
         );
 
         res.json({ success: true });

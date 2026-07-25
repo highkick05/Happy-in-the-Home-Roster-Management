@@ -1,7 +1,7 @@
 import { useDropzone } from 'react-dropzone';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { FileText, Copy, ChevronUp, ChevronDown, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle, X, Upload } from 'lucide-react';
+import { FileText, Copy, ChevronUp, ChevronDown, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle, X, Upload, Edit } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
 import { RefreshCw, Search } from 'lucide-react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -609,7 +609,7 @@ import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
 
 
-function HistoricalDropzone({ uploadFile, setUploadFile }: { uploadFile: File | null, setUploadFile: (f: File | null) => void }) {
+function HistoricalDropzone({ uploadFile, setUploadFile, isEditing }: { uploadFile: File | null, setUploadFile: (f: File | null) => void, isEditing?: boolean }) {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { 'application/pdf': ['.pdf'] },
     maxFiles: 1,
@@ -625,7 +625,7 @@ function HistoricalDropzone({ uploadFile, setUploadFile }: { uploadFile: File | 
       {...getRootProps()}
       className={`w-full bg-black/40 border-2 border-dashed ${isDragActive ? 'border-brand-teal bg-brand-teal/10' : 'border-white/[0.08] hover:border-white/20'} rounded-lg p-12 flex flex-col items-center justify-center transition-colors cursor-pointer`}
     >
-      <input {...getInputProps()} required={!uploadFile} />
+      <input {...getInputProps()} required={!uploadFile && !isEditing} />
       <div className="flex flex-col items-center space-y-3 pointer-events-none">
         <FileText className={`w-10 h-10 ${uploadFile ? 'text-brand-teal' : 'text-zinc-500'}`} />
         {uploadFile ? (
@@ -673,6 +673,7 @@ export default function InvoicingView() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadDate, setUploadDate] = useState('');
   const [uploadAmount, setUploadAmount] = useState('');
+  const [editingHistoricalInvoiceId, setEditingHistoricalInvoiceId] = useState<number | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -796,7 +797,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadClientId || !uploadDate || !uploadFile || !uploadAmount) {
+    if (!uploadClientId || !uploadDate || (!uploadFile && !editingHistoricalInvoiceId) || !uploadAmount) {
       alert("Please fill all fields and select a file.");
       return;
     }
@@ -807,11 +808,16 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
     if (uploadStaffIds.length > 0) formData.append('staffIds', JSON.stringify(uploadStaffIds));
     formData.append('date', uploadDate);
     formData.append('amount', uploadAmount);
-    formData.append('file', uploadFile);
+    if (uploadFile) {
+      formData.append('file', uploadFile);
+    }
+
+    const method = editingHistoricalInvoiceId ? 'PUT' : 'POST';
+    const url = editingHistoricalInvoiceId ? `/api/invoices/historical/${editingHistoricalInvoiceId}` : '/api/invoices/historical';
 
     try {
-      const res = await fetch('/api/invoices/historical', {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: {
           Authorization: `Bearer ${token}`
         },
@@ -824,6 +830,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
       setUploadDate('');
       setUploadAmount('');
       setUploadFile(null);
+      setEditingHistoricalInvoiceId(null);
       fetchInvoices();
     } catch (err) {
       console.error(err);
@@ -1075,8 +1082,10 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
           <div className="bg-[#121214] border border-white/[0.08] rounded-xl shadow-2xl max-w-3xl w-full flex flex-col">
             <div className="p-5 border-b border-white/[0.08] flex justify-between items-center bg-[#18181b] rounded-t-xl shrink-0">
-              <h2 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0">Upload Historical Invoice</h2>
-              <button onClick={() => setShowUploadModal(false)} className="text-zinc-500 hover:text-white transition-colors">
+              <h2 className="text-base font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0">
+                {editingHistoricalInvoiceId ? 'Edit Historical Invoice' : 'Upload Historical Invoice'}
+              </h2>
+              <button onClick={() => { setShowUploadModal(false); setEditingHistoricalInvoiceId(null); setUploadFile(null); }} className="text-zinc-500 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1140,12 +1149,12 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Invoice PDF</label>
-                <HistoricalDropzone uploadFile={uploadFile} setUploadFile={setUploadFile} />
+                <HistoricalDropzone uploadFile={uploadFile} setUploadFile={setUploadFile} isEditing={!!editingHistoricalInvoiceId} />
               </div>
               <div className="pt-4 border-t border-white/[0.08] flex justify-end space-x-2">
                 <button
                   type="button"
-                  onClick={() => setShowUploadModal(false)}
+                  onClick={() => { setShowUploadModal(false); setEditingHistoricalInvoiceId(null); setUploadFile(null); }}
                   className="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-white transition-colors"
                 >
                   Cancel
@@ -1423,6 +1432,36 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                            <Undo className="w-4 h-4" />
                          </button>
                        )}
+                      {(!i.shift_id && !i.services_json && !i.respite_booking_id && i.status === 'PAID') && (
+                        <button
+                          title="Edit Historical Invoice"
+                          onClick={() => {
+                            setEditingHistoricalInvoiceId(i.id);
+                            setUploadClientId(String(i.client_id));
+                            setUploadAmount(String(i.amount));
+                            setUploadDate(i.created_at ? i.created_at.split(' ')[0] : '');
+                            
+                            if (i.custom_staff_name) {
+                              const names = i.custom_staff_name.split(',').map((n: string) => n.trim().toLowerCase());
+                              const matchedIds = allDbStaff.filter(s => {
+                                const fullName = `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase();
+                                return names.includes(fullName);
+                              }).map(s => String(s.id));
+                              setUploadStaffIds(matchedIds);
+                            } else if (i.staff_id) {
+                              setUploadStaffIds([String(i.staff_id)]);
+                            } else {
+                              setUploadStaffIds([]);
+                            }
+                            
+                            setUploadFile(null);
+                            setShowUploadModal(true);
+                          }}
+                          className="p-1.5 text-zinc-400 hover:text-brand-blue hover:bg-brand-blue/10 rounded-md transition-colors"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      )}
                        {(i.shift_id || i.services_json || i.is_merged) && (
                          <button
                            title="Preview Invoice"
