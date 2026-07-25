@@ -557,7 +557,7 @@ const expandedLogs = logs.map(log => {
                           </div>
                         </td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-center">
-                          <div className="flex items-center justify-between gap-1.5 w-full min-w-[70px] max-w-[85px] mx-auto">
+                          <div className="flex items-center justify-between gap-1.5 w-full min-w-[80px] max-w-[100px] mx-auto">
                             <input 
                               type="number" 
                               defaultValue={log.odometer_start_reading !== null ? log.odometer_start_reading : ''} 
@@ -586,7 +586,7 @@ const expandedLogs = logs.map(log => {
                           </div>
                         </td>
                         <td className="px-2 py-1.5 border-r border-border-subtle/30 whitespace-nowrap text-center">
-                          <div className="flex items-center justify-between gap-1.5 w-full min-w-[70px] max-w-[85px] mx-auto">
+                          <div className="flex items-center justify-between gap-1.5 w-full min-w-[80px] max-w-[100px] mx-auto">
                             <input 
                               type="number" 
                               defaultValue={log.odometer_end_reading !== null ? log.odometer_end_reading : ''} 
