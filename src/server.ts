@@ -1030,11 +1030,6 @@ try {
         expiry_months INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
-      try {
-        db.prepare("ALTER TABLE training_modules ADD COLUMN tags TEXT").run();
-      } catch (e) {
-        // Column likely exists
-      }
 
       CREATE TABLE IF NOT EXISTS staff_training (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1301,6 +1296,17 @@ try {
     }
   } catch (err) {
     console.error("Migration error avatar_url clients:", err);
+  }
+
+  // Add tags to training_modules
+  try {
+    const tableInfoTraining = db.prepare("PRAGMA table_info(training_modules)").all() as any[];
+    if (!tableInfoTraining.some(col => col.name === 'tags')) {
+      db.exec("ALTER TABLE training_modules ADD COLUMN tags TEXT");
+      console.log("[DEBUG] Added tags to training_modules table.");
+    }
+  } catch (err) {
+    console.error("Migration error tags training_modules:", err);
   }
 
   // Auto-assign avatars if missing

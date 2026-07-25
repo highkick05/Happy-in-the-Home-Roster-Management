@@ -181,7 +181,7 @@ export default function TrainingView() {
                 setExpiryMonths(0);
                 setShowModuleModal(true);
               }}
-              className="hidden sm:flex items-center px-3 py-1.5 bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 border border-brand-teal/20 text-[13px] font-medium rounded transition-colors"
+              className="hidden sm:flex items-center px-3 py-1 bg-brand-teal/10 hover:bg-brand-teal/20 text-brand-teal text-[13px] font-medium rounded transition-colors"
             >
               <Plus className="w-3.5 h-3.5 mr-1.5" />
               Add Module
