@@ -311,17 +311,17 @@ function Layout({ children }: { children: React.ReactNode }) {
 
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Resources</div>
           <div className="space-y-0.5">
-            <NavLink to="/files" className={getNavClasses} title="Files">
-              <FolderOpen className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Files' : ''}
-            </NavLink>
-            <NavLink to="/training" className={getNavClasses} title="Training">
-              <GraduationCap className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Training' : ''}
-            </NavLink>
             {user?.role === 'STAFF' && (
               <NavLink to="/onboarding" className={getNavClasses} title="Onboarding Hub">
                 <FileCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
               </NavLink>
             )}
+            <NavLink to="/training" className={getNavClasses} title="Training">
+              <GraduationCap className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Training' : ''}
+            </NavLink>
+            <NavLink to="/files" className={getNavClasses} title="Files">
+              <FolderOpen className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Files' : ''}
+            </NavLink>
           </div>
 
           {user?.role === 'ADMIN' && (
