@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Trash2, CheckCircle, Edit, Cast, Undo2, ArrowDown, FileText } from 'lucide-react';
+import { X, Trash2, CheckCircle, Edit, Cast, Undo2, ArrowDown, FileText, Copy } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ShiftEvent } from './types';
 
@@ -9,11 +9,12 @@ interface ShiftDetailsModalProps {
   onSave: () => void;
   shift: ShiftEvent | null;
   onEdit?: (shift: ShiftEvent) => void;
+  onCopy?: (shift: ShiftEvent) => void;
   servicesList?: any[];
   holidays?: any[];
 }
 
-export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEdit, servicesList = [], holidays }: ShiftDetailsModalProps) {
+export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEdit, onCopy, servicesList = [], holidays }: ShiftDetailsModalProps) {
   const { token, user, settings } = useAuth();
   const [showCancelPrompt, setShowCancelPrompt] = React.useState(false);
   const [showProgressNotePrompt, setShowProgressNotePrompt] = React.useState(false);
@@ -871,6 +872,19 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                 >
                   <Edit className="w-5 h-5 mr-2 text-zinc-400" />
                   {shift.isRespiteWrapper ? "Edit Booking" : "Edit Shift"}
+                </button>
+              )}
+
+              {isAdmin && (
+                <button 
+                  onClick={() => {
+                     onClose();
+                     if (onCopy) onCopy(shift);
+                  }}
+                  className="w-full flex items-center justify-center px-4 py-3 bg-brand-teal/10 hover:bg-brand-teal/20 border border-brand-teal/30 text-brand-teal rounded-xl text-sm md:text-base font-bold transition-all shadow-sm active:scale-95"
+                >
+                  <Copy className="w-5 h-5 mr-2 text-brand-teal/70" />
+                  {shift.isRespiteWrapper ? "Copy Booking" : "Copy Shift"}
                 </button>
               )}
               

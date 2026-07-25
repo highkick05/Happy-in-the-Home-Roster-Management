@@ -8,7 +8,7 @@ import { getDay } from 'date-fns/getDay';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
-import { Plus, Maximize, Minimize, Bed, Star } from 'lucide-react';
+import { Plus, Maximize, Minimize, Bed, Star, Copy } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
 import AddHistoricalShiftModal from './AddHistoricalShiftModal';
@@ -98,6 +98,7 @@ export default function RosterCalendar() {
   const [isRespiteModalOpen, setIsRespiteModalOpen] = useState(false);
   const [initialShiftData, setInitialShiftData] = useState<any>(null);
   const [selectedShift, setSelectedShift] = useState<ShiftEvent | null>(null);
+  const [copiedShift, setCopiedShift] = useState<ShiftEvent | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   // Filters and Grouping
@@ -532,6 +533,34 @@ export default function RosterCalendar() {
     const dateStr = start.toLocaleDateString('en-CA'); // 'YYYY-MM-DD' natively
     const startTimeStr = start.toTimeString().slice(0, 5); // 'HH:mm'
     const endTimeStr = end.toTimeString().slice(0, 5);
+
+    if (copiedShift) {
+       const copyStart = new Date(copiedShift.start);
+       const copyEnd = new Date(copiedShift.end);
+       const durationMs = copyEnd.getTime() - copyStart.getTime();
+       const newEnd = new Date(start.getTime() + durationMs);
+       
+       const pasteInitialData: any = {
+          staffId: copiedShift.staffId ? String(copiedShift.staffId) : '',
+          clientId: String(copiedShift.clientId),
+          date: dateStr,
+          startDate: dateStr,
+          endDate: newEnd.toLocaleDateString('en-CA'),
+          startTime: startTimeStr,
+          endTime: newEnd.toTimeString().slice(0, 5),
+          notes: copiedShift.notes,
+          progressNote: copiedShift.progressNote,
+          servicesData: copiedShift.servicesData,
+          isHistorical: copiedShift.isHistorical,
+       };
+       setInitialShiftData(pasteInitialData);
+       if (copiedShift.isHistorical) {
+          setIsHistShiftModalOpen(true);
+       } else {
+          setIsShiftModalOpen(true);
+       }
+       return;
+    }
     
     // We can pass this initial info to the AddShiftModal
     const initialData: any = {
@@ -1075,7 +1104,25 @@ export default function RosterCalendar() {
         </div>
       </div>
       
-      <div className="flex-1 bg-brand-bg p-0 md:p-2 rounded-lg md:border border-border-subtle overflow-y-auto min-h-0 scrollbar-hide">
+      {copiedShift && (
+        <div className="bg-brand-teal/20 border border-brand-teal/40 text-brand-teal px-4 py-2.5 rounded-lg flex items-center justify-between mx-1 shadow-sm mt-1 animate-in slide-in-from-top-2">
+          <div className="text-[13px] md:text-sm font-medium flex items-center">
+             <Copy className="w-4 h-4 mr-2 opacity-80" />
+             <span>
+               <span className="font-bold mr-1">Paste Mode Active:</span> 
+               Click any empty slot to paste shift for <span className="text-white font-semibold">{copiedShift.staffName || 'Unassigned'}</span> ({copiedShift.clientName}).
+             </span>
+          </div>
+          <button 
+             onClick={() => setCopiedShift(null)} 
+             className="text-white hover:text-red-400 px-3 py-1 bg-black/20 hover:bg-black/40 rounded transition-colors text-xs font-bold uppercase tracking-wider ml-4 shrink-0"
+          >
+             Cancel
+          </button>
+        </div>
+      )}
+      
+      <div className="flex-1 bg-brand-bg p-0 md:p-2 rounded-lg md:border border-border-subtle overflow-y-auto min-h-0 scrollbar-hide mt-1">
         {activeView !== Views.AGENDA ? (
           <DnDCalendar
             localizer={localizer}
@@ -1176,6 +1223,7 @@ export default function RosterCalendar() {
         shift={selectedShift}
         servicesList={servicesList}
         holidays={holidays}
+        onCopy={(shift) => setCopiedShift(shift)}
         onEdit={(shift) => {
           if (shift.isRespiteWrapper) {
             setInitialRespiteData(shift.respiteData);
