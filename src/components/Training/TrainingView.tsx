@@ -263,7 +263,7 @@ export default function TrainingView() {
                                     )}
                                   </div>
                                   {record.certificate_file_path && (
-                                    <a href={record.certificate_file_path} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 rounded transition-colors" title="View Certificate">
+                                    <a href={`${record.certificate_file_path}${record.certificate_file_path.includes('?') ? '&' : '?'}token=${token}`} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 rounded transition-colors" title="Download Certificate">
                                       <FileText className="w-3.5 h-3.5" />
                                     </a>
                                   )}
@@ -357,8 +357,8 @@ export default function TrainingView() {
                         </td>
                         <td className="px-4 py-2.5 text-[13px]">
                           {r.certificate_file_path ? (
-                            <a href={r.certificate_file_path} target="_blank" rel="noopener noreferrer" className="flex items-center text-brand-teal hover:text-brand-teal/80 transition-colors">
-                              <FileText className="w-3.5 h-3.5 mr-1.5" /> View
+                            <a href={`${r.certificate_file_path}${r.certificate_file_path.includes('?') ? '&' : '?'}token=${token}`} target="_blank" rel="noopener noreferrer" className="flex items-center text-brand-teal hover:text-brand-teal/80 transition-colors">
+                              <FileText className="w-3.5 h-3.5 mr-1.5" /> Download
                             </a>
                           ) : <span className="text-zinc-600">-</span>}
                         </td>
