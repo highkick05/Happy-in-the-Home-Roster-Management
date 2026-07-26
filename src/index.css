@@ -578,3 +578,13 @@ it might be cut off if padding is not sufficient */
     background: rgba(255, 255, 255, 0.2);
   }
 }
+
+/* Force selection color in EditorJS */
+.editorjs-wrapper ::selection {
+  background: rgba(137, 197, 64, 0.4) !important; /* brand-green with opacity */
+  color: #ffffff !important;
+}
+.editorjs-wrapper *::selection {
+  background: rgba(137, 197, 64, 0.4) !important;
+  color: #ffffff !important;
+}
