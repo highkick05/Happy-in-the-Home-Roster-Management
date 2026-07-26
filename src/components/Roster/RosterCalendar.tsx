@@ -607,7 +607,8 @@ export default function RosterCalendar() {
           startDate: date.toISOString(),
           view: activeView,
           shifts: mappedEvents,
-          groupBy
+          groupBy,
+          filterName: clientFilter ? clientList.find(c => c.id.toString() === clientFilter)?.first_name + ' ' + clientList.find(c => c.id.toString() === clientFilter)?.last_name : staffFilter && staffFilter !== 'unassigned' ? staffList.find(s => s.id.toString() === staffFilter)?.first_name + ' ' + staffList.find(s => s.id.toString() === staffFilter)?.last_name : staffFilter === 'unassigned' ? 'Unassigned Staff' : ''
         })
       });
 
