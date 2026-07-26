@@ -7490,8 +7490,19 @@ app.get("/api/health", (req, res) => {
         drawHeader();
         
         const shiftsByDay = Array(7).fill(null).map(() => []);
-        
-        (shifts || []).forEach(shift => {
+
+        const mondayStart = new Date(monday);
+        mondayStart.setHours(0,0,0,0);
+        const sundayEnd = new Date(monday);
+        sundayEnd.setDate(sundayEnd.getDate() + 6);
+        sundayEnd.setHours(23,59,59,999);
+
+        const thisWeekShifts = (shifts || []).filter(s => {
+           const sDate = new Date(s.start);
+           return sDate >= mondayStart && sDate <= sundayEnd;
+        });
+
+        thisWeekShifts.forEach(shift => {
           const shiftDate = new Date(shift.start);
           let d = shiftDate.getDay();
           d = d === 0 ? 6 : d - 1; // Mon=0, Sun=6
@@ -7522,8 +7533,8 @@ app.get("/api/health", (req, res) => {
                   ? `${shift.clientName || 'Unassigned'} (${shift.staffName || 'Unassigned'})` 
                   : `${shift.staffName || 'Unassigned'} (${shift.clientName || 'Unassigned'})`;
                 
-                if (shift.title) {
-                   namesText = shift.title; // Fallback for things like Respite
+                if (shift.title && (shift.isRespiteWrapper || shift.title.includes('Respite') || shift.title.includes('STA'))) {
+                   namesText = shift.title;
                 }
 
                 doc.fontSize(8);
@@ -7554,7 +7565,7 @@ app.get("/api/health", (req, res) => {
                   ? `${shift.clientName || 'Unassigned'} (${shift.staffName || 'Unassigned'})` 
                   : `${shift.staffName || 'Unassigned'} (${shift.clientName || 'Unassigned'})`;
 
-                if (shift.title) {
+                if (shift.title && (shift.isRespiteWrapper || shift.title.includes('Respite') || shift.title.includes('STA'))) {
                    namesText = shift.title;
                 }
                 
