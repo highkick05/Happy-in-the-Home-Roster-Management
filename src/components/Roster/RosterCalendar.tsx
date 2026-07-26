@@ -4,6 +4,7 @@ import withDragAndDrop, { withDragAndDropProps } from 'react-big-calendar/lib/ad
 import { format } from 'date-fns/format';
 import { parse } from 'date-fns/parse';
 import { startOfWeek } from 'date-fns/startOfWeek';
+import { endOfWeek } from 'date-fns/endOfWeek';
 import { getDay } from 'date-fns/getDay';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -597,6 +598,14 @@ export default function RosterCalendar() {
 
   const handlePrintPdf = async () => {
     try {
+      const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
+      
+      const currentWeekShifts = mappedEvents.filter(shift => {
+        const sDate = new Date(shift.start);
+        return sDate >= weekStart && sDate <= weekEnd;
+      });
+
       const res = await fetch('/api/roster/print', {
         method: 'POST',
         headers: {
@@ -604,9 +613,11 @@ export default function RosterCalendar() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          startDate: date.toISOString(),
+          startDate: weekStart.toISOString(),
+          endDate: weekEnd.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           view: activeView,
-          shifts: mappedEvents,
+          shifts: currentWeekShifts,
           groupBy,
           filterName: clientFilter ? clientList.find(c => c.id.toString() === clientFilter)?.first_name + ' ' + clientList.find(c => c.id.toString() === clientFilter)?.last_name : staffFilter && staffFilter !== 'unassigned' ? staffList.find(s => s.id.toString() === staffFilter)?.first_name + ' ' + staffList.find(s => s.id.toString() === staffFilter)?.last_name : staffFilter === 'unassigned' ? 'Unassigned Staff' : ''
         })

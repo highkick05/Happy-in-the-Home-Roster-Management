@@ -7457,7 +7457,8 @@ app.get("/api/health", (req, res) => {
     requireAdmin,
     (req, res) => {
       try {
-        const { startDate, view, shifts, groupBy, filterName } = req.body;
+        const { startDate, endDate, timeZone, view, shifts, groupBy, filterName } = req.body;
+        const tz = timeZone || 'Australia/Sydney';
         
         const PDFDocument = require("pdfkit");
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
@@ -7466,24 +7467,18 @@ app.get("/api/health", (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename="Roster.pdf"`);
         doc.pipe(res);
 
-        const startDt = new Date(startDate);
-        const day = startDt.getDay();
-        const diff = startDt.getDate() - day + (day === 0 ? -6 : 1);
-        const monday = new Date(startDt.setDate(diff));
-        
-        const sundayEnd = new Date(monday);
-        sundayEnd.setDate(sundayEnd.getDate() + 6);
-        sundayEnd.setHours(23,59,59,999);
-
-        const formatDate = (date) => {
-           const d = date.getDate().toString().padStart(2, '0');
-           const m = (date.getMonth() + 1).toString().padStart(2, '0');
-           const y = date.getFullYear();
-           return `${d}/${m}/${y}`;
+        const formatDate = (dateString) => {
+           const d = new Date(dateString);
+           return new Intl.DateTimeFormat('en-AU', { 
+               timeZone: tz, 
+               day: '2-digit', 
+               month: '2-digit', 
+               year: 'numeric' 
+           }).format(d);
         };
 
         const titleText = filterName ? `${filterName} - Roster` : `Roster`;
-        const subTitleText = `${formatDate(monday)} to ${formatDate(sundayEnd)}`;
+        const subTitleText = `${formatDate(startDate)} to ${formatDate(endDate || startDate)}`;
         
         doc.fontSize(16).fillColor('#000000').text(titleText, { align: 'center' });
         doc.fontSize(12).fillColor('#555555').text(subTitleText, { align: 'center' });
@@ -7505,19 +7500,15 @@ app.get("/api/health", (req, res) => {
         drawHeader();
         
         const shiftsByDay = Array(7).fill(null).map(() => []);
-
-        const mondayStart = new Date(monday);
-        mondayStart.setHours(0,0,0,0);
-
-        const thisWeekShifts = (shifts || []).filter(s => {
-           const sDate = new Date(s.start);
-           return sDate >= mondayStart && sDate <= sundayEnd;
-        });
+        
+        const thisWeekShifts = shifts || [];
 
         thisWeekShifts.forEach(shift => {
           const shiftDate = new Date(shift.start);
-          let d = shiftDate.getDay();
-          d = d === 0 ? 6 : d - 1; // Mon=0, Sun=6
+          const weekdayStr = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(shiftDate);
+          const daysMap = { 'Mon': 0, 'Tue': 1, 'Wed': 2, 'Thu': 3, 'Fri': 4, 'Sat': 5, 'Sun': 6 };
+          let d = daysMap[weekdayStr];
+          
           if (d >= 0 && d <= 6) {
              shiftsByDay[d].push(shift);
           }
@@ -7537,8 +7528,8 @@ app.get("/api/health", (req, res) => {
            for (let d = 0; d < 7; d++) {
              const shift = shiftsByDay[d][i];
              if (shift) {
-                const sStart = new Date(shift.start).toLocaleTimeString(['en-US', 'en-AU'], { hour: '2-digit', minute: '2-digit' });
-                const sEnd = new Date(shift.end).toLocaleTimeString(['en-US', 'en-AU'], { hour: '2-digit', minute: '2-digit' });
+                const sStart = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(shift.start));
+                const sEnd = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(shift.end));
                 const timeText = `${sStart} - ${sEnd}`;
                 
                 let namesText = groupBy === 'STAFF' 
@@ -7569,8 +7560,8 @@ app.get("/api/health", (req, res) => {
            for (let d = 0; d < 7; d++) {
              const shift = shiftsByDay[d][i];
              if (shift) {
-                const sStart = new Date(shift.start).toLocaleTimeString(['en-US', 'en-AU'], { hour: '2-digit', minute: '2-digit' });
-                const sEnd = new Date(shift.end).toLocaleTimeString(['en-US', 'en-AU'], { hour: '2-digit', minute: '2-digit' });
+                const sStart = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(shift.start));
+                const sEnd = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(shift.end));
                 const timeText = `${sStart} - ${sEnd}`;
                 
                 let namesText = groupBy === 'STAFF' 
@@ -7582,12 +7573,13 @@ app.get("/api/health", (req, res) => {
                 }
                 
                 // Color mapping like frontend
-                let bgColor = '#0ea5e9'; // brand-blue
-                if (shift.id && typeof shift.id === 'string' && shift.id.startsWith('rb_')) bgColor = '#f59e0b';
-                else if (shift.status === 'PUBLISHED') bgColor = '#10b981';
-                else if (shift.status === 'COMPLETED') bgColor = '#6366f1';
-                else if (shift.status === 'CANCELLED') bgColor = '#ef4444';
-                else if (shift.status === 'IN_PROGRESS') bgColor = '#3b82f6';
+                let bgColor = '#0ea5e9'; // PUBLISHED
+                if (shift.status === 'DRAFT') bgColor = '#52525b';
+                if (shift.status === 'COMPLETED') bgColor = '#a3e635';
+                if (shift.status === 'IN_PROGRESS') bgColor = '#38bdf8';
+                if (shift.status === 'PENDING_SYNC') bgColor = '#f59e0b';
+                if (shift.status === 'CANCELLED') bgColor = '#ef4444';
+                if (shift.isRespiteWrapper) bgColor = '#8b5cf6';
                 
                 doc.fillColor(bgColor).rect(30 + d * colWidth + 2, currentY, colWidth - 4, rowMaxHeight).fill();
                 doc.fillColor('#ffffff').fontSize(8);
