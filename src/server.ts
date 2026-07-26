@@ -7508,9 +7508,6 @@ app.get("/api/health", (req, res) => {
 
         const mondayStart = new Date(monday);
         mondayStart.setHours(0,0,0,0);
-        const sundayEnd = new Date(monday);
-        sundayEnd.setDate(sundayEnd.getDate() + 6);
-        sundayEnd.setHours(23,59,59,999);
 
         const thisWeekShifts = (shifts || []).filter(s => {
            const sDate = new Date(s.start);
