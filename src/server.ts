@@ -1027,6 +1027,9 @@ try {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         content TEXT NOT NULL,
+        file_url TEXT,
+        file_name TEXT,
+        file_type TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
@@ -16918,9 +16921,9 @@ function resolveFilePath(systemName) {
 
     socket.on("send_message", (msg, callback) => {
       try {
-        if (!msg.user_id || !msg.content) return;
-        const stmt = db.prepare("INSERT INTO chat_messages (user_id, content) VALUES (?, ?)");
-        const info = stmt.run(msg.user_id, msg.content);
+        if (!msg.user_id || (!msg.content && !msg.file_url)) return;
+        const stmt = db.prepare("INSERT INTO chat_messages (user_id, content, file_url, file_name, file_type) VALUES (?, ?, ?, ?, ?)");
+        const info = stmt.run(msg.user_id, msg.content || '', msg.file_url || null, msg.file_name || null, msg.file_type || null);
         
         const newMsg = db.prepare(`
           SELECT c.*, u.first_name, u.last_name, u.avatar_url 
