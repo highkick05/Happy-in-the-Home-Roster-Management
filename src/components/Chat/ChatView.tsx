@@ -88,10 +88,10 @@ export default function ChatView() {
                         <img 
                           src={msg.avatar_url.startsWith('http') ? msg.avatar_url : `${window.location.origin}${msg.avatar_url}`} 
                           alt={msg.first_name} 
-                          className="w-8 h-8 rounded-full object-cover bg-brand-bg border border-border-subtle" 
+                          className="w-6 h-6 rounded-full object-cover bg-brand-navy border border-border-subtle" 
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-brand-teal/20 text-brand-teal flex items-center justify-center font-bold text-xs border border-brand-teal/30">
+                        <div className="w-6 h-6 rounded-full bg-brand-teal/20 text-brand-teal flex items-center justify-center font-bold text-xs border border-brand-teal/30">
                           {msg.first_name?.charAt(0) || <UserIcon className="w-4 h-4" />}
                         </div>
                       )}
@@ -109,10 +109,10 @@ export default function ChatView() {
                       </div>
                       
                       <div 
-                        className={`px-4 py-2 rounded-2xl text-sm break-words \${
+                        className={`px-4 py-2 rounded-lg text-xs font-semibold tracking-wide break-words \${
                           isOwnMessage 
-                            ? 'bg-brand-blue text-white rounded-tr-none' 
-                            : 'bg-brand-bg text-zinc-200 border border-border-subtle rounded-tl-none'
+                            ? 'bg-brand-teal/10 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-none' 
+                            : 'bg-brand-navy text-[#8B949E] border border-border-subtle rounded-tl-none'
                         }`}
                       >
                         {msg.content}
@@ -135,14 +135,14 @@ export default function ChatView() {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="Type your message..."
-              className="flex-1 bg-brand-bg border border-border-subtle rounded-full px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
+              className="flex-1 bg-brand-navy border border-border-subtle rounded-lg px-3 py-2 text-xs font-semibold tracking-wide text-[#E6EDF3] focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal"
             />
             <button
               type="submit"
               disabled={!newMessage.trim()}
-              className="bg-brand-blue hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full p-2.5 flex-shrink-0 transition-colors flex items-center justify-center"
+              className="flex items-center px-3 py-1 text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg text-[#E6EDF3] bg-brand-teal/10 border border-brand-teal/30 hover:bg-brand-teal/20 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             >
-              <Send className="w-5 h-5" />
+              <Send className="w-4 h-4 mr-2" /> Send
             </button>
           </form>
         </div>
