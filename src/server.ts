@@ -3127,6 +3127,23 @@ try {
     }
   });
 
+  
+  app.get("/api/chat/messages", authenticateToken, (req, res) => {
+    try {
+      const messages = db.prepare(`
+        SELECT c.*, u.first_name, u.last_name, u.avatar_url 
+        FROM chat_messages c 
+        JOIN users u ON c.user_id = u.id 
+        ORDER BY c.created_at ASC 
+        LIMIT 100
+      `).all();
+      res.json(messages);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Failed to load messages" });
+    }
+  });
+
   app.get("/api/me", authenticateToken, (req: any, res: any) => {
     const user = db
       .prepare(
@@ -16899,7 +16916,7 @@ function resolveFilePath(systemName) {
       console.error(e);
     }
 
-    socket.on("send_message", (msg) => {
+    socket.on("send_message", (msg, callback) => {
       try {
         if (!msg.user_id || !msg.content) return;
         const stmt = db.prepare("INSERT INTO chat_messages (user_id, content) VALUES (?, ?)");
@@ -16912,7 +16929,10 @@ function resolveFilePath(systemName) {
           WHERE c.id = ?
         `).get(info.lastInsertRowid);
         
-        io.emit("new_message", newMsg);
+        socket.broadcast.emit("new_message", newMsg);
+        if (typeof callback === "function") {
+          callback(newMsg);
+        }
       } catch (e) {
         console.error(e);
       }

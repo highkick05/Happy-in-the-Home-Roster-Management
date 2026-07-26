@@ -22,6 +22,21 @@ export default function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Fetch initial messages instantly
+    fetch('/api/chat/messages', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setMessages(data);
+          scrollToBottom();
+        }
+      })
+      .catch(err => console.error("Failed to load messages", err));
+
     // Initialize socket connection
     const newSocket = io({
       path: '/socket.io',
@@ -29,20 +44,18 @@ export default function ChatView() {
     
     setSocket(newSocket);
 
-    newSocket.on('initial_messages', (initialMessages: ChatMessage[]) => {
-      setMessages(initialMessages);
-      scrollToBottom();
-    });
-
     newSocket.on('new_message', (msg: ChatMessage) => {
-      setMessages((prev) => [...prev, msg]);
+      setMessages((prev) => {
+        if (prev.some(m => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
       scrollToBottom();
     });
 
     return () => {
       newSocket.disconnect();
     };
-  }, []);
+  }, [token]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -54,20 +67,36 @@ export default function ChatView() {
     e.preventDefault();
     if (!newMessage.trim() || !socket || !user) return;
 
+    const content = newMessage.trim();
+    setNewMessage('');
+
+    // Optimistic UI update
+    const tempId = Date.now();
+    const tempMessage: ChatMessage = {
+      id: tempId,
+      user_id: user.id,
+      content,
+      created_at: new Date().toISOString(),
+      first_name: user.firstName,
+      last_name: user.lastName,
+      avatar_url: user.avatarUrl || null,
+    };
+
+    setMessages(prev => [...prev, tempMessage]);
+    scrollToBottom();
+
     socket.emit('send_message', {
       user_id: user.id,
-      content: newMessage.trim()
+      content
+    }, (realMsg: ChatMessage) => {
+       // Replace temp message with realMsg containing actual ID from DB
+       setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
     });
-
-    setNewMessage('');
   };
 
   return (
     <div className="flex flex-col h-[calc(100vh-80px)]">
-      <div className="flex-none mb-4">
-        <h1 className="text-2xl font-bold text-white mb-1">Live Chat</h1>
-        <p className="text-zinc-400">Communicate with your team in real-time.</p>
-      </div>
+      
 
       <div className="flex-1 bg-brand-navy rounded-lg border border-border-subtle flex flex-col overflow-hidden">
         {/* Messages Area */}

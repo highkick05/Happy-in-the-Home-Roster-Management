@@ -1,148 +1,61 @@
 const fs = require('fs');
+let code = fs.readFileSync('src/server.ts', 'utf8');
 
-const serverFile = 'src/server.ts';
-let code = fs.readFileSync(serverFile, 'utf8');
+const getChatApi = `
+  app.get("/api/chat/messages", authenticateToken, (req, res) => {
+    try {
+      const messages = db.prepare(\`
+        SELECT c.*, u.first_name, u.last_name, u.avatar_url 
+        FROM chat_messages c 
+        JOIN users u ON c.user_id = u.id 
+        ORDER BY c.created_at ASC 
+        LIMIT 100
+      \`).all();
+      res.json(messages);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Failed to load messages" });
+    }
+  });
 
-const injectionPoint = '// Get shifts by batch id';
+  app.get("/api/me"`;
 
-const newRoute = `
-  app.post(
-    "/api/roster/print",
-    authenticateToken,
-    requireAdmin,
-    (req, res) => {
+code = code.replace(/app\.get\("\/api\/me"/, getChatApi);
+
+// Now patch the socket
+const oldSocketHandler = /socket\.on\("send_message", \(msg\) => \{\n\s*try \{\n\s*if \(!msg\.user_id \|\| !msg\.content\) return;\n\s*const stmt = db\.prepare\("INSERT INTO chat_messages \(user_id, content\) VALUES \(\?, \?\)"\);\n\s*const info = stmt\.run\(msg\.user_id, msg\.content\);\n\s*const newMsg = db\.prepare\(\`\n\s*SELECT c\.\*, u\.first_name, u\.last_name, u\.avatar_url \n\s*FROM chat_messages c \n\s*JOIN users u ON c\.user_id = u\.id \n\s*WHERE c\.id = \?\n\s*\`\)\.get\(info\.lastInsertRowid\);\n\s*io\.emit\("new_message", newMsg\);\n\s*\} catch \(e\) \{\n\s*console\.error\(e\);\n\s*\}\n\s*\}\);/;
+
+const newSocketHandler = `socket.on("send_message", (msg, callback) => {
       try {
-        const { startDate, view, shifts, groupBy } = req.body;
+        if (!msg.user_id || !msg.content) return;
+        const stmt = db.prepare("INSERT INTO chat_messages (user_id, content) VALUES (?, ?)");
+        const info = stmt.run(msg.user_id, msg.content);
         
-        const PDFDocument = require("pdfkit");
-        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
+        const newMsg = db.prepare(\`
+          SELECT c.*, u.first_name, u.last_name, u.avatar_url 
+          FROM chat_messages c 
+          JOIN users u ON c.user_id = u.id 
+          WHERE c.id = ?
+        \`).get(info.lastInsertRowid);
         
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', \`attachment; filename="Roster.pdf"\`);
-        doc.pipe(res);
-
-        const startDt = new Date(startDate);
-        const day = startDt.getDay();
-        const diff = startDt.getDate() - day + (day === 0 ? -6 : 1);
-        const monday = new Date(startDt.setDate(diff));
-        
-        doc.fontSize(16).fillColor('#000000').text(\`Roster - Week of \${monday.toLocaleDateString()}\`, { align: 'center' });
-        doc.moveDown(1);
-        
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        const colWidth = (doc.page.width - 60) / 7;
-        let startY = doc.y;
-        
-        const drawHeader = () => {
-          doc.fillColor('#000000').fontSize(11);
-          days.forEach((d, i) => {
-            doc.text(d, 30 + i * colWidth, startY, { width: colWidth, align: 'center' });
-          });
-          doc.moveTo(30, startY + 15).lineTo(doc.page.width - 30, startY + 15).strokeColor('#cccccc').stroke();
-          startY += 20;
-        };
-        
-        drawHeader();
-        
-        const shiftsByDay = Array(7).fill(null).map(() => []);
-        
-        (shifts || []).forEach(shift => {
-          const shiftDate = new Date(shift.start);
-          let d = shiftDate.getDay();
-          d = d === 0 ? 6 : d - 1; // Mon=0, Sun=6
-          if (d >= 0 && d <= 6) {
-             shiftsByDay[d].push(shift);
-          }
-        });
-        
-        shiftsByDay.forEach(dayShifts => {
-           dayShifts.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-        });
-        
-        const maxShifts = Math.max(...shiftsByDay.map(d => d.length));
-        let currentY = startY;
-        
-        for (let i = 0; i < maxShifts; i++) {
-           let rowMaxHeight = 0;
-           
-           // Calculate max height for this row
-           for (let d = 0; d < 7; d++) {
-             const shift = shiftsByDay[d][i];
-             if (shift) {
-                const sStart = new Date(shift.start).toLocaleTimeString(['en-US', 'en-AU'], { hour: '2-digit', minute: '2-digit' });
-                const sEnd = new Date(shift.end).toLocaleTimeString(['en-US', 'en-AU'], { hour: '2-digit', minute: '2-digit' });
-                const timeText = \`\${sStart} - \${sEnd}\`;
-                
-                let namesText = groupBy === 'STAFF' 
-                  ? \`\${shift.clientName || 'Unassigned'} (\${shift.staffName || 'Unassigned'})\` 
-                  : \`\${shift.staffName || 'Unassigned'} (\${shift.clientName || 'Unassigned'})\`;
-                
-                if (shift.title) {
-                   namesText = shift.title; // Fallback for things like Respite
-                }
-
-                doc.fontSize(8);
-                const tHeight = doc.heightOfString(timeText, { width: colWidth - 8 });
-                const nHeight = doc.heightOfString(namesText, { width: colWidth - 8 });
-                const boxH = tHeight + nHeight + 12;
-                if (boxH > rowMaxHeight) rowMaxHeight = boxH;
-             }
-           }
-           
-           if (rowMaxHeight === 0) continue;
-           
-           if (currentY + rowMaxHeight > doc.page.height - 30) {
-              doc.addPage();
-              startY = 30;
-              drawHeader();
-              currentY = startY;
-           }
-           
-           for (let d = 0; d < 7; d++) {
-             const shift = shiftsByDay[d][i];
-             if (shift) {
-                const sStart = new Date(shift.start).toLocaleTimeString(['en-US', 'en-AU'], { hour: '2-digit', minute: '2-digit' });
-                const sEnd = new Date(shift.end).toLocaleTimeString(['en-US', 'en-AU'], { hour: '2-digit', minute: '2-digit' });
-                const timeText = \`\${sStart} - \${sEnd}\`;
-                
-                let namesText = groupBy === 'STAFF' 
-                  ? \`\${shift.clientName || 'Unassigned'} (\${shift.staffName || 'Unassigned'})\` 
-                  : \`\${shift.staffName || 'Unassigned'} (\${shift.clientName || 'Unassigned'})\`;
-
-                if (shift.title) {
-                   namesText = shift.title;
-                }
-                
-                // Color mapping like frontend
-                let bgColor = '#0ea5e9'; // brand-blue
-                if (shift.id && typeof shift.id === 'string' && shift.id.startsWith('rb_')) bgColor = '#f59e0b';
-                else if (shift.status === 'PUBLISHED') bgColor = '#10b981';
-                else if (shift.status === 'COMPLETED') bgColor = '#6366f1';
-                else if (shift.status === 'CANCELLED') bgColor = '#ef4444';
-                else if (shift.status === 'IN_PROGRESS') bgColor = '#3b82f6';
-                
-                doc.fillColor(bgColor).rect(30 + d * colWidth + 2, currentY, colWidth - 4, rowMaxHeight).fill();
-                doc.fillColor('#ffffff').fontSize(8);
-                doc.text(timeText, 30 + d * colWidth + 4, currentY + 4, { width: colWidth - 8 });
-                doc.text(namesText, 30 + d * colWidth + 4, currentY + 4 + doc.heightOfString(timeText, { width: colWidth - 8 }), { width: colWidth - 8 });
-             }
-           }
-           
-           currentY += rowMaxHeight + 4;
+        socket.broadcast.emit("new_message", newMsg);
+        if (typeof callback === "function") {
+          callback(newMsg);
         }
-        
-        doc.end();
       } catch (e) {
-        console.error(\`API Error: \${e}\`);
-        if (!res.headersSent) {
-          res.status(500).json({ error: "Internal Server Error" });
-        }
+        console.error(e);
       }
-    },
-  );
+    });`;
 
-`;
+if (code.match(oldSocketHandler)) {
+    code = code.replace(oldSocketHandler, newSocketHandler);
+    console.log("Socket handler patched via regex");
+} else {
+    // manual fallback
+    console.log("Regex failed, trying manual");
+    code = code.replace('io.emit("new_message", newMsg);', 'socket.broadcast.emit("new_message", newMsg);\n        if (typeof callback === "function") {\n          callback(newMsg);\n        }');
+    code = code.replace('socket.on("send_message", (msg) => {', 'socket.on("send_message", (msg, callback) => {');
+}
 
-code = code.replace(injectionPoint, newRoute + '\n  ' + injectionPoint);
-fs.writeFileSync(serverFile, code);
-console.log('Patched server.ts successfully.');
+fs.writeFileSync('src/server.ts', code);
+console.log('Done');
