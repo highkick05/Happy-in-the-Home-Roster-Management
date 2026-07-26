@@ -1,5 +1,7 @@
 import "express-async-errors";
 import express from "express";
+import { Server as SocketIOServer } from "socket.io";
+import http from "http";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -1021,6 +1023,13 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
       CREATE TABLE IF NOT EXISTS training_modules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -16871,7 +16880,46 @@ function resolveFilePath(systemName) {
   
 
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const httpServer = http.createServer(app);
+  const io = new SocketIOServer(httpServer, {
+    cors: { origin: "*" }
+  });
+
+  io.on("connection", (socket) => {
+    try {
+      const messages = db.prepare(`
+        SELECT c.*, u.first_name, u.last_name, u.avatar_url 
+        FROM chat_messages c 
+        JOIN users u ON c.user_id = u.id 
+        ORDER BY c.created_at ASC 
+        LIMIT 100
+      `).all();
+      socket.emit("initial_messages", messages);
+    } catch (e) {
+      console.error(e);
+    }
+
+    socket.on("send_message", (msg) => {
+      try {
+        if (!msg.user_id || !msg.content) return;
+        const stmt = db.prepare("INSERT INTO chat_messages (user_id, content) VALUES (?, ?)");
+        const info = stmt.run(msg.user_id, msg.content);
+        
+        const newMsg = db.prepare(`
+          SELECT c.*, u.first_name, u.last_name, u.avatar_url 
+          FROM chat_messages c 
+          JOIN users u ON c.user_id = u.id 
+          WHERE c.id = ?
+        `).get(info.lastInsertRowid);
+        
+        io.emit("new_message", newMsg);
+      } catch (e) {
+        console.error(e);
+      }
+    });
+  });
+
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

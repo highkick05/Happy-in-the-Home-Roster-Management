@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import RosterCalendar from './components/Roster/RosterCalendar';
-import { Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car, GraduationCap } from 'lucide-react';
+import { MessageCircle,  Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car, GraduationCap  } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import QuickLinksDrawer from './components/QuickLinksDrawer';
 import Login from './components/Auth/Login';
@@ -33,6 +33,7 @@ import NotificationsDropdown from './components/NotificationsDropdown';
 import WallboardView from './components/Kiosk/WallboardView';
 import TasksView from './components/Tasks/TasksView';
 import TravelLogsView from './components/TravelLogsView';
+import ChatView from './components/Chat/ChatView';
 import VehiclesView from './components/VehiclesView';
 import { getAvatarUrl } from './utils/avatar';
 
@@ -252,6 +253,13 @@ function Layout({ children }: { children: React.ReactNode }) {
         
         <nav className="flex-1 px-3 mt-0 overflow-hidden z-10 relative flex flex-col">
           
+          <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Communication</div>
+          <div className="space-y-0.5 mb-2">
+            <NavLink to="/chat" className={getNavClasses} title="Live Chat">
+              <MessageCircle className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Live Chat' : ''}
+            </NavLink>
+          </div>
+          
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Operations</div>
           <div className="space-y-0.5">
             {user?.role === 'ADMIN' && (
@@ -450,6 +458,7 @@ export default function App() {
             <Route path="/kiosk/wallboard" element={<WallboardView />} />
             <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
             <Route path="/tasks" element={<ProtectedRoute adminOnly><Layout><TasksView /></Layout></ProtectedRoute>} />
+            <Route path="/chat" element={<ProtectedRoute><Layout><ChatView /></Layout></ProtectedRoute>} />
             <Route path="/travel-logs" element={<ProtectedRoute><Layout><TravelLogsView /></Layout></ProtectedRoute>} />
             <Route path="/vehicles" element={<ProtectedRoute><Layout><VehiclesView /></Layout></ProtectedRoute>} />
             <Route path="/roster" element={<ProtectedRoute><Layout><RosterCalendar /></Layout></ProtectedRoute>} />
