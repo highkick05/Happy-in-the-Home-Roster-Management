@@ -869,21 +869,16 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                     className="w-24 bg-[#09090b] border border-white/[0.08] rounded px-1.5 py-1 text-sm text-zinc-200 focus:border-brand-teal outline-none"
                                   />
                                 </div>
-                                {unit !== 'Hour' && (
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Qty</span>
-                                    <input 
-                                      type="number" min="0.01" step="0.01"
-                                      value={s.qtyOverride || ''}
-                                      onChange={(e) => updateServiceEntry(index, 'qtyOverride', e.target.value)}
-                                      placeholder={String(effectiveQty)}
-                                      className="w-14 bg-[#09090b] border border-white/[0.08] rounded px-1.5 py-1 text-sm text-zinc-200 focus:border-brand-teal outline-none"
-                                    />
-                                  </div>
-                                )}
-                                {unit === 'Hour' && (
-                                  <span className="text-[10px] text-zinc-400 bg-[#09090b] px-1.5 py-1 rounded border border-white/[0.08]">{effectiveQty.toFixed(2)} Hrs</span>
-                                )}
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider">{unit === 'Hour' ? 'Hrs' : 'Qty'}</span>
+                                  <input 
+                                    type="number" min="0.01" step="0.01"
+                                    value={s.qtyOverride || ''}
+                                    onChange={(e) => updateServiceEntry(index, 'qtyOverride', e.target.value)}
+                                    placeholder={String(effectiveQty)}
+                                    className="w-14 bg-[#09090b] border border-white/[0.08] rounded px-1.5 py-1 text-sm text-zinc-200 focus:border-brand-teal outline-none"
+                                  />
+                                </div>
                               </div>
                               
                               <div className="flex items-center gap-3">
