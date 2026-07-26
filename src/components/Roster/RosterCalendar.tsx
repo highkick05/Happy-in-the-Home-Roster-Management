@@ -8,7 +8,7 @@ import { getDay } from 'date-fns/getDay';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
-import { Plus, Maximize, Minimize, Bed, Star, Copy } from 'lucide-react';
+import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
 import AddHistoricalShiftModal from './AddHistoricalShiftModal';
@@ -595,6 +595,40 @@ export default function RosterCalendar() {
     setIsRespiteModalOpen(true);
   };
 
+  const handlePrintPdf = async () => {
+    try {
+      const res = await fetch('/api/roster/print', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          startDate: date.toISOString(),
+          view: activeView,
+          shifts: mappedEvents,
+          groupBy
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `Roster_${format(date, 'yyyy-MM-dd')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(`Error printing PDF: ${e.message}`);
+    }
+  };
+
   const handlePublishDrafts = async () => {
     try {
       const res = await fetch('/api/shifts/publish-all', {
@@ -1047,6 +1081,15 @@ export default function RosterCalendar() {
                   <>
                     {/* Secondary Actions */}
                     <div className="flex items-center gap-2">
+                      {activeView === Views.WEEK && (
+                        <button 
+                          onClick={handlePrintPdf}
+                          className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto gap-1.5"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          Print Roster
+                        </button>
+                      )}
                       <button 
                         onClick={() => setMultiSelectMode(true)}
                         className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto"
