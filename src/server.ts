@@ -3147,11 +3147,14 @@ try {
   app.get("/api/chat/messages", authenticateToken, (req, res) => {
     try {
       const messages = db.prepare(`
-        SELECT c.*, u.first_name, u.last_name, u.avatar_url 
-        FROM chat_messages c 
-        JOIN users u ON c.user_id = u.id 
-        ORDER BY c.created_at ASC 
-        LIMIT 100
+        SELECT * FROM (
+          SELECT c.*, u.first_name, u.last_name, u.avatar_url 
+          FROM chat_messages c 
+          JOIN users u ON c.user_id = u.id 
+          ORDER BY c.created_at DESC 
+          LIMIT 100
+        ) sub
+        ORDER BY created_at ASC
       `).all();
       res.json(messages);
     } catch (e) {
@@ -16921,11 +16924,14 @@ function resolveFilePath(systemName) {
   io.on("connection", (socket) => {
     try {
       const messages = db.prepare(`
-        SELECT c.*, u.first_name, u.last_name, u.avatar_url 
-        FROM chat_messages c 
-        JOIN users u ON c.user_id = u.id 
-        ORDER BY c.created_at ASC 
-        LIMIT 100
+        SELECT * FROM (
+          SELECT c.*, u.first_name, u.last_name, u.avatar_url 
+          FROM chat_messages c 
+          JOIN users u ON c.user_id = u.id 
+          ORDER BY c.created_at DESC 
+          LIMIT 100
+        ) sub
+        ORDER BY created_at ASC
       `).all();
       socket.emit("initial_messages", messages);
     } catch (e) {
