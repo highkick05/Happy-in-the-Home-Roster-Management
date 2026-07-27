@@ -61,6 +61,11 @@ export default function ChatView() {
     });
 
     
+  return () => {
+      newSocket.disconnect();
+    };
+  }, [token]);
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -82,11 +87,6 @@ export default function ChatView() {
       setAttachment(e.dataTransfer.files[0]);
     }
   };
-
-  return () => {
-      newSocket.disconnect();
-    };
-  }, [token]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
