@@ -30,6 +30,12 @@ export default function SettingsView() {
     invoicePrefix: 'INV-',
     ndisInvoicePrefix: 'INV-',
     hcInvoicePrefix: 'HC-',
+    smtpHost: '',
+    smtpPort: '587',
+    smtpUser: '',
+    smtpPass: '',
+    smtpFrom: '',
+    smtpSecure: false,
     invoiceEmailSignature: `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; max-width: 450px;">
   <tbody><tr>
     <td style="padding-bottom: 20px;">
@@ -124,7 +130,7 @@ export default function SettingsView() {
   };
 
   useEffect(() => {
-    if (activeTab === 'GENERAL' || activeTab === 'BILLING' || activeTab === 'BRANDING') fetchSettings();
+    if (activeTab === 'GENERAL' || activeTab === 'BILLING' || activeTab === 'BRANDING' || activeTab === 'EMAIL') fetchSettings();
     if (activeTab === 'NDIS' || activeTab === 'HOME_CARE') fetchServices(activeTab);
     if (activeTab === 'NDIS') fetchPriceLists();
   }, [activeTab]);
@@ -638,6 +644,12 @@ export default function SettingsView() {
         >
           Branding
         </button>
+        <button
+          onClick={() => setActiveTab('EMAIL')}
+          className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider ${activeTab === 'EMAIL' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+        >
+          Email Settings
+        </button>
         {user?.role === 'ADMIN' && (
           <>
             <button
@@ -907,7 +919,61 @@ export default function SettingsView() {
           </div>
         )}
 
-        {activeTab === 'BRANDING' && (
+        
+        {activeTab === 'EMAIL' && (
+          <div className="p-4 max-w-4xl">
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">Email Settings</h3>
+              <p className="text-xs text-[#8B949E] mt-0">Configure your SMTP server settings for sending emails (password resets, invoices, compliance alerts).</p>
+            </div>
+            
+            <form onSubmit={handleSaveSettings} className="space-y-4">
+              {successMsg && <div className="p-3 bg-brand-green/20 text-brand-green border border-brand-green/50 rounded-md text-sm">{successMsg}</div>}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">SMTP Host</label>
+                  <input type="text" value={settings.smtpHost} onChange={e => setSettings({...settings, smtpHost: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="e.g. smtp.gmail.com" />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">SMTP Port</label>
+                  <input type="text" value={settings.smtpPort} onChange={e => setSettings({...settings, smtpPort: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="e.g. 587 or 465" />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">SMTP Username</label>
+                  <input type="text" value={settings.smtpUser} onChange={e => setSettings({...settings, smtpUser: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="Email address" />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">SMTP Password</label>
+                  <input type="password" value={settings.smtpPass} onChange={e => setSettings({...settings, smtpPass: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="Password or App Password" />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Send From Email</label>
+                  <input type="email" value={settings.smtpFrom} onChange={e => setSettings({...settings, smtpFrom: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="e.g. support@yourcompany.com" />
+                </div>
+                <div className="col-span-1 flex items-center mt-6">
+                  <input
+                    type="checkbox"
+                    id="smtpSecure"
+                    checked={settings.smtpSecure}
+                    onChange={(e) => setSettings({...settings, smtpSecure: e.target.checked})}
+                    className="mr-2 h-4 w-4 rounded border-[#30363d] bg-brand-navy text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-bg"
+                  />
+                  <label htmlFor="smtpSecure" className="text-xs font-medium text-[#8B949E]">Use Secure Connection (SSL/TLS)</label>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <button type="submit" disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
+                  <Save className="w-4 h-4 mr-2" />
+                  {generalLoading ? 'Saving...' : 'Save Settings'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+{activeTab === 'BRANDING' && (
           <div className="p-4 max-w-4xl">
             <div className="mb-4">
               <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">Branding</h3>

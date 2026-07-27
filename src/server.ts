@@ -3038,18 +3038,38 @@ try {
     },
   );
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.hostinger.com",
-    port: parseInt(process.env.SMTP_PORT || "465", 10),
-    secure: parseInt(process.env.SMTP_PORT || "465", 10) === 465,
-    tls: {
-      rejectUnauthorized: false,
-    },
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
+  const getSmtpSettings = () => {
+    const rows = db.prepare("SELECT key, value FROM settings").all() as any[];
+    const settings = rows.reduce(
+      (acc, row) => ({ ...acc, [row.key]: JSON.parse(row.value) }),
+      {} as any
+    );
+    
+    const host = settings.smtpHost || process.env.SMTP_HOST || "smtp.hostinger.com";
+    const port = parseInt(settings.smtpPort || process.env.SMTP_PORT || "465", 10);
+    const user = settings.smtpUser || process.env.SMTP_USER;
+    const pass = settings.smtpPass || process.env.SMTP_PASS;
+    const from = settings.smtpFrom || process.env.SMTP_FROM || "support@happyinthehome.com";
+    const secure = settings.smtpSecure !== undefined ? settings.smtpSecure : (port === 465);
+
+    return { host, port, user, pass, from, secure };
+  };
+
+  const getTransporter = () => {
+    const s = getSmtpSettings();
+    return nodemailer.createTransport({
+      host: s.host,
+      port: s.port,
+      secure: s.secure,
+      tls: {
+        rejectUnauthorized: false,
+      },
+      auth: {
+        user: s.user,
+        pass: s.pass,
+      },
+    });
+  };
 
   app.post("/api/auth/forgot-password", async (req, res) => {
     const { email } = req.body;
@@ -3081,7 +3101,7 @@ try {
       const resetLink = `${appUrl}/reset-password/${token}`;
 
       const mailOptions = {
-        from: process.env.SMTP_FROM || "support@happyinthehome.com",
+        from: s.from,
         to: email,
         subject: "Password Reset - Happy in the Home",
         text:
@@ -3092,7 +3112,7 @@ try {
           `Regards,\nHappy in the Home Team`,
       };
 
-      await transporter.sendMail(mailOptions);
+      await getTransporter().sendMail(mailOptions);
       res.json({
         success: true,
         message: "If that email exists, we have sent a reset link to it.",
@@ -12046,7 +12066,8 @@ app.get("/api/health", (req, res) => {
     const invoiceId = parseInt(req.params.id);
     if (!invoiceId) return res.status(400).json({ error: "Invalid invoiceId" });
 
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    const s = getSmtpSettings();
+    if (!s.user || !s.pass) {
       return res.status(400).json({ error: "SMTP settings are not configured on the server." });
     }
 
@@ -12147,7 +12168,7 @@ app.get("/api/health", (req, res) => {
       }
 
       const mailOptions = {
-        from: process.env.SMTP_FROM || "support@happyinthehome.com",
+        from: s.from,
         to: providerEmail,
         subject: `Invoice ${invoiceNumber} for ${clientName}`,
         html: `
@@ -12167,14 +12188,14 @@ app.get("/api/health", (req, res) => {
         ]
       };
 
-      await transporter.sendMail(mailOptions);
+      await getTransporter().sendMail(mailOptions);
 
       db.prepare("UPDATE invoices SET status = 'SENT' WHERE id = ?").run(invoiceId);
 
       res.json({ success: true, message: "Invoice emailed successfully and marked as SENT." });
     } catch (e: any) {
       console.error("Failed to email invoice:", e);
-      const smtpInfo = `Host: ${process.env.SMTP_HOST || "smtp.hostinger.com"}, Port: ${process.env.SMTP_PORT || "465"}, User: ${process.env.SMTP_USER}`;
+      const smtpInfo = `Host: ${s.host}, Port: ${s.port}, User: ${s.user}`;
       res.status(500).json({ error: `${e.message || "Failed to send email."} (SMTP Settings: ${smtpInfo})` });
     }
   });
@@ -15362,10 +15383,11 @@ function resolveFilePath(systemName) {
             );
 
             // Send Email reminder safely if SMTP is configured
-            if (process.env.SMTP_USER && process.env.SMTP_PASS && file.email) {
+            const s = getSmtpSettings();
+            if (s.user && s.pass && file.email) {
               try {
-                await transporter.sendMail({
-                  from: process.env.SMTP_FROM || "support@happyinthehome.com",
+                await getTransporter().sendMail({
+                  from: s.from,
                   to: file.email,
                   subject: `Action Required: Document Expired - Happy in the Home`,
                   text:
@@ -15430,10 +15452,11 @@ function resolveFilePath(systemName) {
             );
 
             // Send Email reminder safely if SMTP is configured
-            if (process.env.SMTP_USER && process.env.SMTP_PASS && file.email) {
+            const s = getSmtpSettings();
+            if (s.user && s.pass && file.email) {
               try {
-                await transporter.sendMail({
-                  from: process.env.SMTP_FROM || "support@happyinthehome.com",
+                await getTransporter().sendMail({
+                  from: s.from,
                   to: file.email,
                   subject: `Compliance Alert: Document Expiring Soon - Happy in the Home`,
                   text:
