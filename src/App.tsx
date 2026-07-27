@@ -56,7 +56,7 @@ function DateTimer() {
   
   return (
     <div className="flex items-center space-x-6">
-      <div className="text-4xl uppercase tracking-[0.15em] text-white" style={{ fontFamily: '"Bebas Neue", sans-serif', WebkitTextStroke: '1px currentColor', transform: 'translateY(2px)' }}>{dayName}</div>
+      <div className="text-[26px] font-sans font-bold uppercase tracking-wider text-white leading-none">{dayName}</div>
       <div className="flex items-center space-x-1">
         <LiveChatIcon />
         <NotificationsDropdown />
