@@ -154,7 +154,7 @@ export default function SettingsView() {
   };
 
   useEffect(() => {
-    if (activeTab === 'GENERAL' || activeTab === 'BILLING' || activeTab === 'BRANDING' || activeTab === 'EMAIL') fetchSettings();
+    if (activeTab === 'GENERAL' || activeTab === 'BILLING' || activeTab === 'BRANDING' || activeTab === 'EMAIL' || activeTab === 'CHAT') fetchSettings();
     if (activeTab === 'NDIS' || activeTab === 'HOME_CARE') fetchServices(activeTab);
     if (activeTab === 'NDIS') fetchPriceLists();
   }, [activeTab]);
