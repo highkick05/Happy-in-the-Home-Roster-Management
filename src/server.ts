@@ -17276,6 +17276,42 @@ function resolveFilePath(systemName) {
     });
   });
 
+  // --- Multi-Instance Chat Synchronization ---
+  // In a multi-instance environment (like Cloud Run), instances don't share WebSocket connections.
+  // We poll the shared SQLite DB for new messages and broadcast to local connected clients.
+  let lastPolledMessageId = 0;
+  try {
+    const row = db.prepare('SELECT MAX(id) as maxId FROM chat_messages').get();
+    lastPolledMessageId = row.maxId || 0;
+  } catch(e) {
+    console.error("Error initializing max message ID:", e);
+  }
+
+  setInterval(() => {
+    try {
+      const newMessages = db.prepare(`
+        SELECT c.*, u.first_name, u.last_name, u.avatar_url 
+        FROM chat_messages c 
+        JOIN users u ON c.user_id = u.id 
+        WHERE c.id > ?
+        ORDER BY c.created_at ASC
+      `).all(lastPolledMessageId);
+      
+      if (newMessages && newMessages.length > 0) {
+        const currentIo = app.get('io');
+        if (currentIo) {
+          newMessages.forEach(msg => {
+            currentIo.emit('new_message', msg);
+            lastPolledMessageId = Math.max(lastPolledMessageId, msg.id);
+          });
+        }
+      }
+    } catch(e) {
+      // Ignore DB busy errors during polling
+    }
+  }, 500);
+  // -------------------------------------------
+
   httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
