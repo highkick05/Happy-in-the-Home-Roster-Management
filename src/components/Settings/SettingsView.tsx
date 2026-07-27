@@ -841,16 +841,7 @@ export default function SettingsView() {
                     <option value="Monthly">Monthly</option>
                   </select>
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Invoice Email Signature (HTML)</label>
-                  <textarea
-                    value={settings.invoiceEmailSignature}
-                    onChange={e => setSettings({...settings, invoiceEmailSignature: e.target.value})}
-                    className="w-full h-48 bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E] font-mono"
-                    placeholder="Enter HTML signature..."
-                  />
-                  <p className="text-[10px] text-[#8B949E] mt-1">This signature is appended to the bottom of all invoice emails sent from the system.</p>
-                </div>
+
                 
                 <div>
                   <label className="block text-xs font-medium text-[#8B949E] mb-2">Invoicing Cycle Start Weekday</label>
@@ -889,6 +880,20 @@ export default function SettingsView() {
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-[#8B949E] mb-2">Payment Due By (Days)</label>
                   <input type="number" min="0" value={settings.paymentDueDays} onChange={e => setSettings({...settings, paymentDueDays: parseInt(e.target.value) || 0})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" />
+                </div>
+                
+                <div className="col-span-2 border-b border-border-subtle pb-4 mt-6 mb-2">
+                  <h4 className="text-md font-bold text-[#E6EDF3]">Invoice Emailing</h4>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Invoice Email Signature (HTML)</label>
+                  <textarea
+                    value={settings.invoiceEmailSignature}
+                    onChange={e => setSettings({...settings, invoiceEmailSignature: e.target.value})}
+                    className="w-full h-48 bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E] font-mono"
+                    placeholder="Enter HTML signature..."
+                  />
+                  <p className="text-[10px] text-[#8B949E] mt-1">This signature is appended to the bottom of all invoice emails sent from the system.</p>
                 </div>
               </div>
 
