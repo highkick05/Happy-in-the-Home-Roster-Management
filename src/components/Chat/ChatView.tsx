@@ -108,14 +108,14 @@ export default function ChatView() {
       try {
         const formData = new FormData();
         formData.append('file', attachment);
-        const res = await fetch('/api/files?folderPath=/Chat', {
+        const res = await fetch('/api/chat/upload', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: formData
         });
         const data = await res.json();
-        if (data.success && data.system_name) {
-          fileUrl = `/api/assets/${data.system_name}`;
+        if (data.success && data.fileUrl) {
+          fileUrl = data.fileUrl;
           fileName = attachment.name;
           fileType = attachment.type;
         }
@@ -129,6 +129,11 @@ export default function ChatView() {
 
     setNewMessage('');
 
+    if (!content && !fileUrl) {
+      // If there's no text and upload failed (fileUrl is null), don't send an empty bubble
+      return;
+    }
+    
     // Optimistic UI update
     const tempId = Date.now();
     const tempMessage: ChatMessage = {
@@ -222,6 +227,20 @@ export default function ChatView() {
                             : 'bg-brand-navy text-[#8B949E] border border-border-subtle rounded-tl-none'
                         }`}
                       >
+                        {msg.file_url && (
+                          <div className="mb-2">
+                            {msg.file_type?.startsWith('image/') ? (
+                              <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="text-left w-full">
+                                <img src={msg.file_url} alt="attachment" className="max-w-full max-h-[200px] rounded object-cover cursor-pointer hover:opacity-90 border border-black/20" />
+                              </button>
+                            ) : (
+                              <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="flex items-center space-x-2 p-2 bg-black/20 rounded cursor-pointer hover:bg-black/30 w-full text-left">
+                                <File className="w-4 h-4 flex-shrink-0" />
+                                <span className="underline truncate max-w-[150px]">{msg.file_name || 'Document'}</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
                         {msg.content}
                       </div>
                     </div>

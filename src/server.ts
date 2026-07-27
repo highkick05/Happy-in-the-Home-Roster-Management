@@ -1033,6 +1033,20 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
+      
+      // Auto-migrate chat_messages table to add file columns if missing
+      try {
+        const columns = db.prepare("PRAGMA table_info(chat_messages)").all();
+        const hasFileUrl = columns.some(c => c.name === 'file_url');
+        if (!hasFileUrl) {
+          db.prepare("ALTER TABLE chat_messages ADD COLUMN file_url TEXT").run();
+          db.prepare("ALTER TABLE chat_messages ADD COLUMN file_name TEXT").run();
+          db.prepare("ALTER TABLE chat_messages ADD COLUMN file_type TEXT").run();
+          console.log("Migrated chat_messages table to include file attachments");
+        }
+      } catch (e) {
+        console.error("Failed to migrate chat_messages table", e);
+      }
       CREATE TABLE IF NOT EXISTS training_modules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -3131,6 +3145,29 @@ try {
   });
 
   
+  
+  app.post("/api/chat/upload", authenticateToken, upload.single("file"), (req: any, res: any) => {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    try {
+      const persistentAssetsDir = path.join(process.cwd(), "uploads", "assets");
+      if (!fs.existsSync(persistentAssetsDir)) {
+        fs.mkdirSync(persistentAssetsDir, { recursive: true });
+      }
+      const fileName = Date.now() + "_" + req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_");
+      const destPath = path.join(persistentAssetsDir, fileName);
+      fs.renameSync(req.file.path, destPath);
+      
+      return res.json({
+        success: true,
+        fileUrl: `/api/assets/${fileName}`
+      });
+    } catch (e: any) {
+      console.error("Chat file upload failed", e);
+      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(500).json({ success: false, error: "Upload failed" });
+    }
+  });
+
   app.get("/api/chat/messages", authenticateToken, (req, res) => {
     try {
       const messages = db.prepare(`
