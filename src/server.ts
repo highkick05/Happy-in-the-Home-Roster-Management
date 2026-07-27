@@ -1051,6 +1051,8 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
+      ALTER TABLE users ADD COLUMN last_chat_read DATETIME;
+
       CREATE TABLE IF NOT EXISTS chat_messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -1338,6 +1340,17 @@ try {
     }
   } catch (err) {
     console.error("Migration error avatar_url clients:", err);
+  }
+
+  // Add last_chat_read to users
+  try {
+    const tableInfoUsers = db.prepare("PRAGMA table_info(users)").all() as any[];
+    if (!tableInfoUsers.some(col => col.name === 'last_chat_read')) {
+      db.exec("ALTER TABLE users ADD COLUMN last_chat_read DATETIME");
+      console.log("[DEBUG] Added last_chat_read to users table.");
+    }
+  } catch (err) {
+    console.error("Migration error last_chat_read users:", err);
   }
 
   // Add tags to training_modules
@@ -3306,6 +3319,11 @@ try {
       
       const io = req.app.get('io');
       if (io) {
+        locallyEmittedMessageIds.add(newMsg.id);
+        if (locallyEmittedMessageIds.size > 1000) {
+          const firstItem = locallyEmittedMessageIds.values().next().value;
+          locallyEmittedMessageIds.delete(firstItem);
+        }
         console.log("Emitting new_message to sockets:", newMsg);
         io.emit('new_message', newMsg);
       } else {
@@ -17312,6 +17330,7 @@ function resolveFilePath(systemName) {
   // In a multi-instance environment (like Cloud Run), instances don't share WebSocket connections.
   // We poll the shared SQLite DB for new messages and broadcast to local connected clients.
   let lastPolledMessageId = 0;
+  const locallyEmittedMessageIds = new Set<number>();
   try {
     const row = db.prepare('SELECT MAX(id) as maxId FROM chat_messages').get();
     lastPolledMessageId = row.maxId || 0;
@@ -17333,10 +17352,12 @@ function resolveFilePath(systemName) {
         const currentIo = app.get('io');
         if (currentIo) {
           newMessages.forEach(msg => {
-            if (msg.content === 'SYSTEM_CHAT_CLEARED') {
-              currentIo.emit('chat_cleared', msg);
-            } else {
-              currentIo.emit('new_message', msg);
+            if (!locallyEmittedMessageIds.has(msg.id)) {
+              if (msg.content === 'SYSTEM_CHAT_CLEARED') {
+                currentIo.emit('chat_cleared', msg);
+              } else {
+                currentIo.emit('new_message', msg);
+              }
             }
             lastPolledMessageId = Math.max(lastPolledMessageId, msg.id);
           });
