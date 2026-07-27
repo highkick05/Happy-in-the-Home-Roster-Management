@@ -118,6 +118,13 @@ export default function ChatView() {
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 240)}px`;
       scrollToBottom();
     }
+    if (socket && user) {
+      socket.emit('typing', { userId: user.id, userName: `${user.first_name} ${user.last_name}` });
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit('stop_typing', { userId: user.id, userName: `${user.first_name} ${user.last_name}` });
+      }, 3000);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -135,6 +142,8 @@ export default function ChatView() {
     return stripped.length === 0;
   };
 
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -190,6 +199,19 @@ export default function ChatView() {
     });
     
     setSocket(newSocket);
+
+    newSocket.on('typing', (data: { userId: number, userName: string }) => {
+      setTypingUsers((prev) => {
+        if (!prev.includes(data.userName)) {
+          return [...prev, data.userName];
+        }
+        return prev;
+      });
+    });
+
+    newSocket.on('stop_typing', (data: { userId: number, userName: string }) => {
+      setTypingUsers((prev) => prev.filter(name => name !== data.userName));
+    });
 
     newSocket.on('chat_cleared', () => {
       setMessages([]);
@@ -282,6 +304,10 @@ export default function ChatView() {
     }
 
     setNewMessage('');
+    if (socket && user) {
+      socket.emit('stop_typing', { userId: user.id, userName: `${user.first_name} ${user.last_name}` });
+    }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     if (!content && !fileUrl) {
       return;
@@ -496,6 +522,12 @@ export default function ChatView() {
                 </div>
               );
             })
+          )}
+          {typingUsers.length > 0 && (
+            <div className="flex items-center space-x-2 text-xs text-zinc-400 italic mt-4 pl-4 animate-pulse">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>{typingUsers.length === 1 ? `${typingUsers[0]} is typing...` : `${typingUsers.join(', ')} are typing...`}</span>
+            </div>
           )}
           <div ref={messagesEndRef} />
         </div>

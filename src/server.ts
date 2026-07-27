@@ -17346,6 +17346,13 @@ function resolveFilePath(systemName) {
       console.error(e);
     }
 
+    socket.on("typing", (data) => {
+      socket.broadcast.emit("typing", data);
+    });
+    socket.on("stop_typing", (data) => {
+      socket.broadcast.emit("stop_typing", data);
+    });
+    
     socket.on("send_message", (msg, callback) => {
       console.log("Received send_message event:", msg);
       try {
