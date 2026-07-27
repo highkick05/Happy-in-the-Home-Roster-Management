@@ -318,6 +318,12 @@ async function startServer() {
           db.prepare("ALTER TABLE chat_messages ADD COLUMN file_type TEXT").run();
           console.log("Migrated chat_messages table to include file attachments");
         }
+        
+        const hasReactions = columns.some(c => c.name === 'reactions');
+        if (!hasReactions) {
+          db.prepare("ALTER TABLE chat_messages ADD COLUMN reactions TEXT DEFAULT '{}'").run();
+          console.log("Migrated chat_messages table to include reactions");
+        }
       } catch (e) {
         console.error("Failed to migrate chat_messages table", e);
       }
@@ -3268,6 +3274,48 @@ try {
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: "Failed to load messages" });
+    }
+  });
+
+  app.post("/api/chat/messages/:id/react", authenticateToken, (req: any, res: any) => {
+    try {
+      const messageId = req.params.id;
+      const { emoji } = req.body;
+      const userId = req.user.id;
+
+      const msg = db.prepare("SELECT reactions FROM chat_messages WHERE id = ?").get(messageId) as any;
+      if (!msg) return res.status(404).json({ error: "Message not found" });
+
+      let reactions: any = {};
+      try {
+        reactions = JSON.parse(msg.reactions || '{}');
+      } catch (e) {}
+
+      if (!reactions[emoji]) {
+        reactions[emoji] = [];
+      }
+
+      const userIndex = reactions[emoji].indexOf(userId);
+      if (userIndex > -1) {
+        reactions[emoji].splice(userIndex, 1);
+        if (reactions[emoji].length === 0) {
+          delete reactions[emoji];
+        }
+      } else {
+        reactions[emoji].push(userId);
+      }
+
+      db.prepare("UPDATE chat_messages SET reactions = ? WHERE id = ?").run(JSON.stringify(reactions), messageId);
+
+      const io = req.app.get('io');
+      if (io) {
+         io.emit('message_reaction', { messageId: Number(messageId), reactions });
+      }
+
+      res.json({ success: true, reactions });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
     }
   });
 

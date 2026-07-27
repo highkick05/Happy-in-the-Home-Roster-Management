@@ -22,7 +22,8 @@ interface ChatMessage {
   avatar_url: string | null;
   file_url: string | null;
   file_name: string | null;
-  file_type: string | null;
+    file_type: string | null;
+  reactions?: string;
 }
 
 export default function ChatView() {
@@ -52,6 +53,7 @@ export default function ChatView() {
   
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const giphyPickerRef = useRef<HTMLDivElement>(null);
+  const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -77,6 +79,29 @@ export default function ChatView() {
   };
 
   const fetchGifs = (offset: number) => debouncedGifSearch ? gf.search(debouncedGifSearch, { offset, limit: 10 }) : gf.trending({ offset, limit: 10 });
+  const handleAddReaction = async (messageId: number, emoji: string) => {
+    try {
+      const res = await fetch(`/api/chat/messages/${messageId}/react`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ emoji })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessages(prev => prev.map(m => {
+          if (m.id === messageId) {
+            return { ...m, reactions: JSON.stringify(data.reactions) };
+          }
+          return m;
+        }));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -393,6 +418,45 @@ export default function ChatView() {
                             </span>
                           );
                         })()}
+                                              {hoveredMessageId === msg.id && (
+                        <div className={`absolute top-0 ${isOwnMessage ? 'right-full mr-2' : 'left-full ml-2'} -translate-y-1/2 bg-[#1c2128] border border-border-subtle rounded-full px-2 py-1 flex items-center space-x-1 shadow-lg z-10`}>
+                          <button onClick={() => handleAddReaction(msg.id, '👍')} className="hover:scale-125 transition-transform text-base">👍</button>
+                          <button onClick={() => handleAddReaction(msg.id, '❤️')} className="hover:scale-125 transition-transform text-base">❤️</button>
+                          <button onClick={() => handleAddReaction(msg.id, '😂')} className="hover:scale-125 transition-transform text-base">😂</button>
+                          <button onClick={() => handleAddReaction(msg.id, '😮')} className="hover:scale-125 transition-transform text-base">😮</button>
+                          <button onClick={() => handleAddReaction(msg.id, '😢')} className="hover:scale-125 transition-transform text-base">😢</button>
+                          <button onClick={() => handleAddReaction(msg.id, '🙏')} className="hover:scale-125 transition-transform text-base">🙏</button>
+                        </div>
+                      )}
+                      
+                      {(() => {
+                        try {
+                          const reactions = msg.reactions ? JSON.parse(msg.reactions) : {};
+                          const reactionEntries = Object.entries(reactions) as [string, number[]][];
+                          if (reactionEntries.length === 0) return null;
+                          
+                          return (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {reactionEntries.map(([emoji, users]) => {
+                                const hasReacted = users.includes(user?.id);
+                                return (
+                                  <button
+                                    key={emoji}
+                                    onClick={() => handleAddReaction(msg.id, emoji)}
+                                    className={`flex items-center space-x-1 px-1.5 py-0.5 rounded-full text-[10px] border ${hasReacted ? 'bg-brand-teal/20 border-brand-teal text-brand-teal' : 'bg-black/20 border-border-subtle text-zinc-400 hover:bg-black/40'}`}
+                                  >
+                                    <span>{emoji}</span>
+                                    <span>{users.length}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        } catch(e) {
+                          return null;
+                        }
+                      })()}
+
                       </div>
                     </div>
                     
