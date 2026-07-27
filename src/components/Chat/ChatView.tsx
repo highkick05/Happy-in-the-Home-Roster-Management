@@ -427,12 +427,12 @@ export default function ChatView() {
                 if (part.includes('\n')) {
                   return <span key={i} style={{ whiteSpace: 'pre-wrap' }}>{part}</span>;
                 }
-                return <React.Fragment key={i}>{part}</React.Fragment>;
+                return <span key={i}>{part}</span>;
               });
               
               return (
                 <div key={msg.id} className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`flex max-w-[70%] ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div className={`flex max-w-[85%] md:max-w-[70%] min-w-0 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}>
                     
                     {/* Avatar */}
                     <div className={`flex-shrink-0 ${isOwnMessage ? 'ml-3' : 'mr-3'}`}>
@@ -451,7 +451,7 @@ export default function ChatView() {
                     
                     {/* Message Bubble */}
                     <div 
-                      className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} relative`}
+                      className={`flex flex-col min-w-0 ${isOwnMessage ? 'items-end' : 'items-start'} relative`}
                       onMouseEnter={() => setHoveredMessageId(msg.id)}
                       onMouseLeave={() => setHoveredMessageId(null)}
                       onClick={() => setHoveredMessageId(msg.id)}
@@ -466,9 +466,9 @@ export default function ChatView() {
                       </div>
                       
                       <div 
-                        className={`rounded-lg font-semibold tracking-wide break-words ${
+                        className={`rounded-lg font-semibold tracking-wide break-words overflow-hidden ${
                           isEmojiOnly
-                            ? 'text-[8rem] leading-none'
+                            ? 'text-6xl md:text-[8rem] leading-none'
                             : `px-4 py-2 text-xs ${isOwnMessage 
                               ? 'bg-brand-teal/10 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-none' 
                               : 'bg-brand-navy text-[#8B949E] border border-border-subtle rounded-tl-none'}`
