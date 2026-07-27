@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { FileText, Copy, ChevronUp, ChevronDown, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle, X, Upload, Edit } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
-import { RefreshCw, Search } from 'lucide-react';
+import { RefreshCw, Search, Mail } from 'lucide-react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | null, onGenerated: () => void, onClose: () => void }) {
@@ -679,6 +679,7 @@ export default function InvoicingView() {
 
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<number[]>([]);
   const [isMerging, setIsMerging] = useState(false);
+  const [isEmailing, setIsEmailing] = useState<number | null>(null);
 
   const [allDbClients, setAllDbClients] = useState<any[]>([]);
   const [allDbStaff, setAllDbStaff] = useState<any[]>([]);
@@ -982,6 +983,30 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  
+  const handleEmailInvoice = async (invoiceId: number) => {
+    setIsEmailing(invoiceId);
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}/email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to email invoice');
+      }
+      alert(data.message || 'Invoice emailed successfully');
+      fetchInvoices();
+    } catch (error: any) {
+      alert(error.message || 'Failed to email invoice');
+      console.error(error);
+    } finally {
+      setIsEmailing(null);
     }
   };
 
@@ -1379,13 +1404,23 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                     </td>
                     <td className="px-3 py-1.5 text-right flex items-center justify-end space-x-1">
                        {subTab === 'active' && (
-                         <button
-                           title="Lock & Send"
-                           onClick={() => handleUpdateStatus(i.id, 'SENT')}
-                           className="p-1.5 text-zinc-400 hover:text-brand-blue hover:bg-brand-blue/10 rounded-md transition-colors"
-                         >
-                           <Send className="w-4 h-4" />
-                         </button>
+                         <>
+                           <button
+                             title="Email Invoice"
+                             onClick={() => handleEmailInvoice(i.id)}
+                             disabled={isEmailing === i.id}
+                             className={`p-1.5 rounded-md transition-colors ${isEmailing === i.id ? 'text-brand-blue opacity-50' : 'text-zinc-400 hover:text-brand-blue hover:bg-brand-blue/10'}`}
+                           >
+                             {isEmailing === i.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                           </button>
+                           <button
+                             title="Sent"
+                             onClick={() => handleUpdateStatus(i.id, 'SENT')}
+                             className="p-1.5 text-zinc-400 hover:text-brand-blue hover:bg-brand-blue/10 rounded-md transition-colors"
+                           >
+                             <CheckCircle className="w-4 h-4" />
+                           </button>
+                         </>
                        )}
                        {subTab === 'sent' && (
                          <>
