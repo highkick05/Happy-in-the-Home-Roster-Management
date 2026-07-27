@@ -57,8 +57,10 @@ function DateTimer() {
   return (
     <div className="flex items-center space-x-6">
       <div className="text-2xl font-sans uppercase tracking-wide text-white">{dayName}</div>
-      <LiveChatIcon />
-          <NotificationsDropdown />
+      <div className="flex items-center space-x-1">
+        <LiveChatIcon />
+        <NotificationsDropdown />
+      </div>
       <div className="flex flex-col text-right">
         <div className="text-xs font-semibold uppercase text-[#8B949E] tracking-wider">{dateStr}</div>
         <div className="text-xs font-sans text-brand-teal uppercase mt-0.5 tracking-wider">{timeStr}</div>
