@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
-import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker } from 'lucide-react';
+// @ts-ignore
+import data from '@emoji-mart/data';
+// @ts-ignore
+import Picker from '@emoji-mart/react';
+import { Grid } from '@giphy/react-components';
+import { GiphyFetch } from '@giphy/js-fetch-api';
+
+
 
 
 interface ChatMessage {
@@ -19,12 +27,48 @@ interface ChatMessage {
 
 export default function ChatView() {
   const { user, token, settings } = useAuth();
+
+  const gf = React.useMemo(() => {
+    const apiKey = settings?.giphyApiKey || '1DZoHBs8dDry795Nu0JqbYMYXuhcmrRo';
+    return new GiphyFetch(apiKey);
+  }, [settings?.giphyApiKey]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [attachment, setAttachment] = useState<globalThis.File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<{url: string, type: string, name: string} | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGiphyPicker, setShowGiphyPicker] = useState(false);
+  
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const giphyPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+      if (giphyPickerRef.current && !giphyPickerRef.current.contains(event.target as Node)) {
+        setShowGiphyPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const onEmojiClick = (emojiObject: any) => {
+    setNewMessage(prev => prev + emojiObject.native);
+  };
+
+  const onGifClick = (gif: any, e: React.SyntheticEvent<HTMLElement, Event>) => {
+    e.preventDefault();
+    setNewMessage(prev => prev + ' ' + gif.images.fixed_height.url + ' ');
+    setShowGiphyPicker(false);
+  };
+
+  const fetchGifs = (offset: number) => gf.trending({ offset, limit: 10 });
+
   const [isDragging, setIsDragging] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -296,7 +340,12 @@ export default function ChatView() {
                             )}
                           </div>
                         )}
-                        {msg.content}
+                        {msg.content.split(' ').map((word, i) => {
+                          if (word.startsWith('http') && (word.includes('giphy.com') || word.match(/\.(gif|jpe?g|png)$/i))) {
+                            return <img key={i} src={word} alt="gif" className="max-w-[200px] rounded my-1" />;
+                          }
+                          return word + ' ';
+                        })}
                       </div>
                     </div>
                     
@@ -324,31 +373,71 @@ export default function ChatView() {
                 </button>
               </div>
             )}
-            <form onSubmit={handleSendMessage} className="flex space-x-2">
+            <form onSubmit={handleSendMessage} className="flex space-x-2 items-center">
             <input 
               type="file" 
               className="hidden" 
               ref={fileInputRef} 
               onChange={e => e.target.files && setAttachment(e.target.files[0])} 
             />
-            <button 
-              type="button" 
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center justify-center p-2 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-lg transition-colors border border-transparent hover:border-border-subtle"
-            >
-              <Paperclip className="w-4 h-4" />
-            </button>
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Type your message..."
-              className="flex-1 bg-brand-navy border border-border-subtle rounded-lg px-3 py-2 text-xs font-semibold tracking-wide text-[#E6EDF3] focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal"
-            />
+            
+            <div className="relative flex-1 flex items-center bg-brand-navy border border-border-subtle rounded-lg focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal">
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="flex-1 bg-transparent px-3 py-2 text-xs font-semibold tracking-wide text-[#E6EDF3] focus:outline-none border-none"
+              />
+              
+              <div className="flex items-center space-x-1 pr-2">
+                <div className="relative" ref={giphyPickerRef}>
+                  <button 
+                    type="button" 
+                    onClick={() => { setShowGiphyPicker(!showGiphyPicker); setShowEmojiPicker(false); }}
+                    className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                    title="GIFs"
+                  >
+                    <Sticker className="w-4 h-4" />
+                  </button>
+                  {showGiphyPicker && (
+                    <div className="absolute bottom-10 right-0 z-50 bg-brand-navy border border-border-subtle rounded-lg shadow-xl overflow-hidden p-2" style={{ width: 300, height: 400, overflowY: 'auto' }}>
+                      <Grid width={280} columns={2} fetchGifs={fetchGifs} onGifClick={onGifClick} />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="relative" ref={emojiPickerRef}>
+                  <button 
+                    type="button" 
+                    onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGiphyPicker(false); }}
+                    className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                    title="Emojis"
+                  >
+                    <Smile className="w-4 h-4" />
+                  </button>
+                  {showEmojiPicker && (
+                    <div className="absolute bottom-10 right-0 z-50 shadow-xl">
+                      <Picker data={data} onEmojiSelect={onEmojiClick} theme="dark" />
+                    </div>
+                  )}
+                </div>
+                
+                <button 
+                  type="button" 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                  title="Attach File"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
             <button
               type="submit"
               disabled={(!newMessage.trim() && !attachment) || isUploading}
-              className="flex items-center px-3 py-1 text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg text-[#E6EDF3] bg-brand-teal/10 border border-brand-teal/30 hover:bg-brand-teal/20 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              className="flex items-center justify-center px-4 py-2 text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg text-white bg-brand-teal/20 border border-brand-teal/40 hover:bg-brand-teal hover:text-[#0d1117] disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             >
               {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />} {isUploading ? 'Sending...' : 'Send'}
             </button>

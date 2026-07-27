@@ -8,7 +8,7 @@ import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 export default function SettingsView() {
   const { token, user, updateSettings } = useAuth();
-  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'FUNDING_TYPES' | 'DATABASE' | 'TESTING'>('settings_active_tab', 'GENERAL');
+  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'CHAT' | 'EMAIL' | 'FUNDING_TYPES' | 'DATABASE' | 'TESTING'>('settings_active_tab', 'GENERAL');
   const [services, setServices] = useState<any[]>([]);
   const [priceLists, setPriceLists] = useState<any[]>([]);
   const [showPriceListModal, setShowPriceListModal] = useState(false);
@@ -97,6 +97,7 @@ export default function SettingsView() {
     paymentDueDays: 7,
     max_early_clockin_minutes: 180,
     ndisRegion: 'NSW',
+    giphyApiKey: '1DZoHBs8dDry795Nu0JqbYMYXuhcmrRo',
     state: 'WA',
     websiteLogo: '',
     letterheadLogo: '',
@@ -666,6 +667,12 @@ export default function SettingsView() {
           className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider ${activeTab === 'BRANDING' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
         >
           Branding
+        </button>
+        <button
+          onClick={() => setActiveTab('CHAT')}
+          className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider ${activeTab === 'CHAT' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+        >
+          Chat Settings
         </button>
         <button
           onClick={() => setActiveTab('EMAIL')}
