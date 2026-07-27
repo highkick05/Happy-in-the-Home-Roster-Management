@@ -12172,9 +12172,10 @@ app.get("/api/health", (req, res) => {
       db.prepare("UPDATE invoices SET status = 'SENT' WHERE id = ?").run(invoiceId);
 
       res.json({ success: true, message: "Invoice emailed successfully and marked as SENT." });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to email invoice:", e);
-      res.status(500).json({ error: e.message || "Failed to send email." });
+      const smtpInfo = `Host: ${process.env.SMTP_HOST || "smtp.hostinger.com"}, Port: ${process.env.SMTP_PORT || "465"}, User: ${process.env.SMTP_USER}`;
+      res.status(500).json({ error: `${e.message || "Failed to send email."} (SMTP Settings: ${smtpInfo})` });
     }
   });
 
