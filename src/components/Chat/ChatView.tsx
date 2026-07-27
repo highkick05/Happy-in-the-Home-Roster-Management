@@ -416,12 +416,12 @@ export default function ChatView() {
                       </div>
                       
                       <div 
-                        className={`px-4 py-2 rounded-lg text-xs font-semibold tracking-wide break-words \${
+                        className={`rounded-lg font-semibold tracking-wide break-words ${
                           isEmojiOnly
                             ? 'text-[8rem] leading-none'
-                            : isOwnMessage 
+                            : `px-4 py-2 text-xs ${isOwnMessage 
                               ? 'bg-brand-teal/10 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-none' 
-                              : 'bg-brand-navy text-[#8B949E] border border-border-subtle rounded-tl-none'
+                              : 'bg-brand-navy text-[#8B949E] border border-border-subtle rounded-tl-none'}`
                         }`}
                       >
                         {msg.file_url && (
