@@ -3144,30 +3144,6 @@ try {
     }
   });
 
-  
-  
-  app.post("/api/chat/upload", authenticateToken, upload.single("file"), (req: any, res: any) => {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    try {
-      const persistentAssetsDir = path.join(process.cwd(), "uploads", "assets");
-      if (!fs.existsSync(persistentAssetsDir)) {
-        fs.mkdirSync(persistentAssetsDir, { recursive: true });
-      }
-      const fileName = Date.now() + "_" + req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_");
-      const destPath = path.join(persistentAssetsDir, fileName);
-      fs.renameSync(req.file.path, destPath);
-      
-      return res.json({
-        success: true,
-        fileUrl: `/api/assets/${fileName}`
-      });
-    } catch (e: any) {
-      console.error("Chat file upload failed", e);
-      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-      return res.status(500).json({ success: false, error: "Upload failed" });
-    }
-  });
-
   app.get("/api/chat/messages", authenticateToken, (req, res) => {
     try {
       const messages = db.prepare(`
@@ -13127,8 +13103,8 @@ function resolveFilePath(systemName) {
           .get(id) as any;
         if (!file) return res.status(404).json({ error: "File not found" });
 
-        // Basic security for non-admins
-        if (req.user.role !== "ADMIN" && file.uploaded_by !== req.user.id) {
+        // Basic security for non-admins (allow chat files to be accessed by any authenticated user)
+        if (req.user.role !== "ADMIN" && file.uploaded_by !== req.user.id && !file.folder_path?.startsWith('/Chat')) {
           return res.status(403).json({ error: "Forbidden" });
         }
 

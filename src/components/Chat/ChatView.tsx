@@ -108,14 +108,14 @@ export default function ChatView() {
       try {
         const formData = new FormData();
         formData.append('file', attachment);
-        const res = await fetch('/api/chat/upload', {
+        const res = await fetch('/api/files?folderPath=/Chat', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: formData
         });
         const data = await res.json();
-        if (data.success && data.fileUrl) {
-          fileUrl = data.fileUrl;
+        if (data.success && data.id) {
+          fileUrl = `/api/files/download/${data.id}?preview=true`;
           fileName = attachment.name;
           fileType = attachment.type;
         }
@@ -231,7 +231,7 @@ export default function ChatView() {
                           <div className="mb-2">
                             {msg.file_type?.startsWith('image/') ? (
                               <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="text-left w-full">
-                                <img src={msg.file_url} alt="attachment" className="max-w-full max-h-[200px] rounded object-cover cursor-pointer hover:opacity-90 border border-black/20" />
+                                <img src={`${msg.file_url}&token=${token}`} alt="attachment" className="max-w-full max-h-[200px] rounded object-cover cursor-pointer hover:opacity-90 border border-black/20" />
                               </button>
                             ) : (
                               <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="flex items-center space-x-2 p-2 bg-black/20 rounded cursor-pointer hover:bg-black/30 w-full text-left">
@@ -315,14 +315,14 @@ export default function ChatView() {
           </div>
           <div className="flex-1 overflow-auto bg-[#0d1117] p-2 md:p-8 flex items-center justify-center min-h-0">
             {previewFile.type?.startsWith('image/') ? (
-              <img src={previewFile.url} alt={previewFile.name} className="max-w-full max-h-full object-contain drop-shadow-2xl rounded" />
+              <img src={`${previewFile.url}&token=${token}`} alt={previewFile.name} className="max-w-full max-h-full object-contain drop-shadow-2xl rounded" />
             ) : (
-              <iframe src={previewFile.url} title={previewFile.name} className="w-full h-full bg-white rounded-lg shadow-2xl" />
+              <iframe src={`${previewFile.url}&token=${token}`} title={previewFile.name} className="w-full h-full bg-white rounded-lg shadow-2xl" />
             )}
           </div>
           <div className="p-4 border-t border-border-subtle shrink-0 bg-[#1c2128] flex justify-end">
             <a 
-              href={previewFile.url} 
+              href={`${previewFile.url}&token=${token}`} 
               download={previewFile.name}
               target="_blank" rel="noreferrer"
               className="flex items-center px-6 py-2.5 text-sm font-bold tracking-wide transition-all duration-200 rounded-lg text-white bg-brand-teal/20 border border-brand-teal/40 hover:bg-brand-teal hover:text-[#0d1117]"
