@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import ShiftDetailsModal from '../Roster/ShiftDetailsModal';
 import { ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { TaskCard } from '../Tasks/TaskCard';
+
 
 export interface ShiftEvent {
   id: number | string;
@@ -28,11 +28,7 @@ export interface ShiftEvent {
 export default function WallboardView() {
   const { token, settings } = useAuth();
   const [events, setEvents] = useState<ShiftEvent[]>([]);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [staffList, setStaffList] = useState<any[]>([]);
-  const [clientList, setClientList] = useState<any[]>([]);
-  const [activeView, setActiveView] = useState<'shifts' | 'tasks'>('shifts');
-  const [date, setDate] = useState(() => subDays(new Date(), 1));
+      const [date, setDate] = useState(() => subDays(new Date(), 1));
   
   const [selectedShift, setSelectedShift] = useState<ShiftEvent | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -186,10 +182,7 @@ export default function WallboardView() {
       ]);
 
       if (shiftsRes.ok && respiteRes.ok) {
-        if (tasksRes?.ok) {
-          const tData = await tasksRes.json();
-          setTasks(tData);
-        }
+
         if (staffRes?.ok) {
           const sData = await staffRes.json();
           setStaffList(sData);
@@ -271,7 +264,6 @@ export default function WallboardView() {
         // Keep moving the 'window' forward so yesterday's shifts fall off 24 hours later
         setDate(subDays(new Date(), 1));
       }
-      setActiveView(prev => prev === 'shifts' ? 'tasks' : 'shifts');
     }, 30000);
     return () => clearInterval(interval);
   }, [token, manualMode]);
@@ -385,16 +377,7 @@ export default function WallboardView() {
 
         <div className="flex-1 w-full flex flex-col p-4 md:p-8 overflow-auto">
           <div style={{ zoom: zoomLevel } as any} className="flex-1 w-full max-w-7xl mx-auto flex flex-col gap-8 pb-32">
-            <AnimatePresence mode="wait">
-              {activeView === 'shifts' ? (
-                <motion.div
-                  key="shifts"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ duration: 0.5 }}
-                  className="w-full flex flex-col gap-8"
-                >
+            <div className="w-full flex flex-col gap-8">
                   {groupedEvents.length === 0 ? (
                     <div className="flex items-center justify-center h-48 text-zinc-500 font-medium">
                       No shifts found starting from {format(date, 'd MMM yyyy')}.
@@ -491,87 +474,7 @@ export default function WallboardView() {
                       </div>
                     ))
                   )}
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="tasks"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.5 }}
-                  className="w-full flex flex-col gap-2"
-                >
-                  <h2 className="text-2xl font-bold tracking-tight text-brand-teal uppercase border-b border-zinc-800 pb-2 mb-2 sticky top-0 bg-zinc-950/80 backdrop-blur-sm z-10">
-                    Active Tasks
-                  </h2>
-                  {tasks.filter((t: any) => (t.status === 'To Do' || t.status === 'In Progress')).length === 0 ? (
-                    <div className="flex items-center justify-center h-48 text-zinc-500 font-medium">
-                      No active tasks.
-                    </div>
-                  ) : (
-                    tasks.filter((t: any) => (t.status === 'To Do' || t.status === 'In Progress')).sort((a: any, b: any) => {
-                      if (a.is_important !== b.is_important) {
-                        return (b.is_important || 0) - (a.is_important || 0);
-                      }
-                      if (a.sort_order !== b.sort_order) {
-                        return (a.sort_order || 0) - (b.sort_order || 0);
-                      }
-                      return b.id - a.id;
-                    }).map((task: any) => (
-                      <TaskCard
-                        wallboardMode={true}
-                        key={task.id}
-                        task={task}
-                        onEdit={() => {}}
-                        onDelete={() => {}}
-                        staffList={staffList}
-                        clientList={clientList}
-                        onToggleComplete={async () => {
-                           try {
-                             await fetch(`/api/tasks/${task.id}/complete?wallboard=true`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {} });
-                             fetchData();
-                           } catch (e) {}
-                        }}
-                        onToggleSubTask={async (taskId, subTaskId) => {
-                           try {
-                             await fetch(`/api/tasks/${taskId}/subtasks/${subTaskId}/toggle?wallboard=true`, {
-                               method: 'PUT',
-                               headers: token ? { Authorization: `Bearer ${token}` } : {}
-                             });
-                             fetchData();
-                           } catch (e) {}
-                        }}
-                        onAddSubTask={async (taskId, title) => {
-                           try {
-                             await fetch(`/api/tasks/${taskId}/subtasks?wallboard=true`, {
-                               method: 'POST',
-                               headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                               body: JSON.stringify({ title, completed: 0 })
-                             });
-                             fetchData();
-                           } catch (e) {}
-                        }}
-                        onDeleteSubTask={async (taskId, subTaskId) => {
-                           try {
-                             await fetch(`/api/tasks/${taskId}/subtasks/${subTaskId}?wallboard=true`, {
-                               method: 'DELETE',
-                               headers: token ? { Authorization: `Bearer ${token}` } : {}
-                             });
-                             fetchData();
-                           } catch (e) {}
-                        }}
-                        onToggleImportant={async () => {
-                           try {
-                             await fetch(`/api/tasks/${task.id}/important?wallboard=true`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {} });
-                             fetchData();
-                           } catch (e) {}
-                        }}
-                      />
-                    ))
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>          </div>
+                </div>          </div>
         </div>
 
         {/* Footer with Quote */}

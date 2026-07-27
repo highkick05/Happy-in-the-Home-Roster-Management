@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
 import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon } from 'lucide-react';
-import { format } from 'date-fns';
+
 
 interface ChatMessage {
   id: number;
@@ -18,7 +18,7 @@ interface ChatMessage {
 }
 
 export default function ChatView() {
-  const { user, token } = useAuth();
+  const { user, token, settings } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [attachment, setAttachment] = useState<globalThis.File | null>(null);
@@ -271,7 +271,7 @@ export default function ChatView() {
                           {msg.first_name} {msg.last_name}
                         </span>
                         <span className="text-[10px] text-zinc-500">
-                          {format(new Date(msg.created_at), 'h:mm a')}
+                          {new Intl.DateTimeFormat('en-US', { timeZone: settings?.timezone || 'Australia/Perth', hour: 'numeric', minute: 'numeric', hour12: true }).format(new Date(msg.created_at.includes('T') ? msg.created_at : msg.created_at.replace(' ', 'T') + 'Z'))}
                         </span>
                       </div>
                       
