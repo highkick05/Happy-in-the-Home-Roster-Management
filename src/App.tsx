@@ -30,6 +30,7 @@ import ActiveShiftModal from './components/Roster/ActiveShiftModal';
 import OnboardingView from './components/Onboarding/OnboardingView';
 import UniversalPWAInstall from './components/UniversalPWAInstall';
 import NotificationsDropdown from './components/NotificationsDropdown';
+import LiveChatIcon from './components/LiveChatIcon';
 import WallboardView from './components/Kiosk/WallboardView';
 import TasksView from './components/Tasks/TasksView';
 import TravelLogsView from './components/TravelLogsView';
@@ -56,7 +57,8 @@ function DateTimer() {
   return (
     <div className="flex items-center space-x-6">
       <div className="text-2xl font-sans uppercase tracking-wide text-white">{dayName}</div>
-      <NotificationsDropdown />
+      <LiveChatIcon />
+          <NotificationsDropdown />
       <div className="flex flex-col text-right">
         <div className="text-xs font-semibold uppercase text-[#8B949E] tracking-wider">{dateStr}</div>
         <div className="text-xs font-sans text-brand-teal uppercase mt-0.5 tracking-wider">{timeStr}</div>
@@ -208,6 +210,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           )}
         </div>
         <div className="flex items-center space-x-1">
+          <LiveChatIcon />
           <NotificationsDropdown />
           <button 
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}

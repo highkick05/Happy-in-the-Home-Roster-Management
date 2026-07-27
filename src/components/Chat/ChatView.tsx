@@ -52,7 +52,14 @@ export default function ChatView() {
     
     setSocket(newSocket);
 
+    // Mark as read immediately and on new message
+    const markRead = () => {
+      fetch('/api/chat/read', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }).catch(console.error);
+    };
+    markRead();
+
     newSocket.on('new_message', (msg: ChatMessage) => {
+      markRead();
       setMessages((prev) => {
         if (prev.some(m => m.id === msg.id)) return prev;
         return [...prev, msg];

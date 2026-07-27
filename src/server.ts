@@ -3167,6 +3167,30 @@ try {
     }
   });
 
+  app.get("/api/chat/unread", authenticateToken, (req, res) => {
+    try {
+      const userRow = db.prepare("SELECT last_chat_read FROM users WHERE id = ?").get(req.user.id) as any;
+      let count = 0;
+      if (!userRow?.last_chat_read) {
+        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages").get() as any).count;
+      } else {
+        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE created_at > ?").get(userRow.last_chat_read) as any).count;
+      }
+      res.json({ count });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/chat/read", authenticateToken, (req, res) => {
+    try {
+      db.prepare("UPDATE users SET last_chat_read = datetime('now') WHERE id = ?").run(req.user.id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.get("/api/chat/messages", authenticateToken, (req, res) => {
     try {
       const messages = db.prepare(`
