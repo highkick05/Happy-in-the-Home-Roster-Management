@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { MessageSquare } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { io } from 'socket.io-client';
 
 export default function LiveChatIcon() {
   const [unreadCount, setUnreadCount] = useState(0);
   const { token } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const fetchUnread = async () => {
     if (!token) return;
@@ -22,6 +24,12 @@ export default function LiveChatIcon() {
       console.error("Failed to fetch unread chat count", e);
     }
   };
+
+  useEffect(() => {
+    if (location.pathname.includes('/chat')) {
+      setUnreadCount(0);
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     fetchUnread();

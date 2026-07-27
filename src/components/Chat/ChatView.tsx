@@ -74,6 +74,11 @@ export default function ChatView() {
     
     setSocket(newSocket);
 
+    newSocket.on('chat_cleared', () => {
+      setMessages([]);
+      markRead();
+    });
+
     newSocket.on('new_message', (msg: ChatMessage) => {
       markRead();
       setMessages((prev) => {
@@ -165,21 +170,23 @@ export default function ChatView() {
     
     // Optimistic UI update
     const tempId = Date.now();
-    const tempMessage: ChatMessage = {
-      id: tempId,
-      user_id: user.id,
-      content,
-      created_at: new Date().toISOString(),
-      first_name: user.firstName,
-      last_name: user.lastName,
-      avatar_url: user.avatarUrl || null,
-      file_url: fileUrl,
-      file_name: fileName,
-      file_type: fileType,
-    };
+    if (content !== '/clear') {
+      const tempMessage: ChatMessage = {
+        id: tempId,
+        user_id: user.id,
+        content,
+        created_at: new Date().toISOString(),
+        first_name: user.firstName,
+        last_name: user.lastName,
+        avatar_url: user.avatarUrl || null,
+        file_url: fileUrl,
+        file_name: fileName,
+        file_type: fileType,
+      };
 
-    setMessages(prev => [...prev, tempMessage]);
-    setTimeout(scrollToBottom, 50);
+      setMessages(prev => [...prev, tempMessage]);
+      setTimeout(scrollToBottom, 50);
+    }
 
     try {
       const res = await fetch('/api/chat/messages', {
@@ -197,7 +204,14 @@ export default function ChatView() {
       });
       if (res.ok) {
         const realMsg = await res.json();
-        setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
+        if (content !== '/clear') {
+          setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
+        }
+      } else {
+        const errData = await res.json().catch(() => null);
+        if (errData && errData.error) {
+          alert(errData.error);
+        }
       }
     } catch (e) {
       console.error("Failed to send message via API", e);

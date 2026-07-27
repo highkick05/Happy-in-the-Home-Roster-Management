@@ -3215,9 +3215,9 @@ try {
       const userRow = db.prepare("SELECT last_chat_read FROM users WHERE id = ?").get(req.user.id) as any;
       let count = 0;
       if (!userRow?.last_chat_read) {
-        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages").get() as any).count;
+        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED'").get() as any).count;
       } else {
-        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE created_at > ?").get(userRow.last_chat_read) as any).count;
+        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE created_at > ? AND content != 'SYSTEM_CHAT_CLEARED'").get(userRow.last_chat_read) as any).count;
       }
       res.json({ count });
     } catch (e: any) {
@@ -3244,6 +3244,7 @@ try {
           SELECT c.*, u.first_name, u.last_name, u.avatar_url 
           FROM chat_messages c 
           JOIN users u ON c.user_id = u.id 
+          WHERE c.content != 'SYSTEM_CHAT_CLEARED'
           ORDER BY c.created_at DESC 
           LIMIT 100
         ) sub
@@ -3263,6 +3264,35 @@ try {
       if (!user_id || (!content && !file_url)) {
         return res.status(400).json({ error: "Validation failed" });
       }
+      if (content === '/clear') {
+        if ((req as any).user.role !== 'admin') {
+          return res.status(403).json({ error: "Only admins can clear the chat" });
+        }
+        db.prepare("DELETE FROM chat_messages").run();
+        
+        // Reset sqlite autoincrement for clean ids (optional but good)
+        try {
+          db.prepare("DELETE FROM sqlite_sequence WHERE name='chat_messages'").run();
+        } catch(e) {}
+        
+        const stmt = db.prepare("INSERT INTO chat_messages (user_id, content) VALUES (?, ?)");
+        const info = stmt.run(user_id, 'SYSTEM_CHAT_CLEARED');
+        
+        const newMsg = db.prepare(`
+          SELECT c.*, u.first_name, u.last_name, u.avatar_url 
+          FROM chat_messages c 
+          JOIN users u ON c.user_id = u.id 
+          WHERE c.id = ?
+        `).get(info.lastInsertRowid);
+        
+        const io = req.app.get('io');
+        if (io) {
+          io.emit('chat_cleared', newMsg);
+        }
+        
+        return res.json(newMsg);
+      }
+
       const stmt = db.prepare("INSERT INTO chat_messages (user_id, content, file_url, file_name, file_type) VALUES (?, ?, ?, ?, ?)");
       const info = stmt.run(user_id, content || '', file_url || null, file_name || null, file_type || null);
       
@@ -17238,6 +17268,7 @@ function resolveFilePath(systemName) {
           SELECT c.*, u.first_name, u.last_name, u.avatar_url 
           FROM chat_messages c 
           JOIN users u ON c.user_id = u.id 
+          WHERE c.content != 'SYSTEM_CHAT_CLEARED'
           ORDER BY c.created_at DESC 
           LIMIT 100
         ) sub
@@ -17301,7 +17332,11 @@ function resolveFilePath(systemName) {
         const currentIo = app.get('io');
         if (currentIo) {
           newMessages.forEach(msg => {
-            currentIo.emit('new_message', msg);
+            if (msg.content === 'SYSTEM_CHAT_CLEARED') {
+              currentIo.emit('chat_cleared', msg);
+            } else {
+              currentIo.emit('new_message', msg);
+            }
             lastPolledMessageId = Math.max(lastPolledMessageId, msg.id);
           });
         }
