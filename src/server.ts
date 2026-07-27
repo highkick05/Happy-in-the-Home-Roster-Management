@@ -3275,7 +3275,10 @@ try {
       
       const io = req.app.get('io');
       if (io) {
+        console.log("Emitting new_message to sockets:", newMsg);
         io.emit('new_message', newMsg);
+      } else {
+        console.error("No io instance found on app!");
       }
       
       res.json(newMsg);
@@ -17227,6 +17230,8 @@ function resolveFilePath(systemName) {
   app.set('io', io);
 
   io.on("connection", (socket) => {
+    console.log("New socket connection established:", socket.id);
+    socket.on("disconnect", (reason) => console.log("Socket disconnected:", socket.id, reason));
     try {
       const messages = db.prepare(`
         SELECT * FROM (

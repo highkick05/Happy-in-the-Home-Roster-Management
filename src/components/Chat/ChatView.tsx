@@ -61,15 +61,10 @@ export default function ChatView() {
     };
     markRead();
 
-    // Poll every 3 seconds for robust real-time updates
-    const interval = setInterval(() => {
-      fetchMessages();
-      markRead();
-    }, 3000);
-
     // Keep socket connection as a fast path
-    const newSocket = io({
+    const newSocket = io(window.location.origin, {
       path: '/socket.io',
+      transports: ['websocket']
     });
     
     setSocket(newSocket);
@@ -86,11 +81,10 @@ export default function ChatView() {
         
         return [...prev, msg];
       });
-      scrollToBottom();
+      setTimeout(scrollToBottom, 100);
     });
 
     return () => {
-      clearInterval(interval);
       newSocket.disconnect();
     };
   }, [token]);
@@ -179,7 +173,7 @@ export default function ChatView() {
     };
 
     setMessages(prev => [...prev, tempMessage]);
-    scrollToBottom();
+    setTimeout(scrollToBottom, 50);
 
     try {
       const res = await fetch('/api/chat/messages', {
