@@ -751,6 +751,26 @@ export default function InvoicingView() {
     if (filterClient && clientName !== filterClient) return false;
     if (filterStaff && staffName !== filterStaff) return false;
 
+    if (filterStartDate || filterEndDate) {
+      const iDateStr = i.start_time || i.created_at;
+      if (iDateStr) {
+        const iDate = new Date(iDateStr);
+        iDate.setHours(0, 0, 0, 0);
+
+        if (filterStartDate) {
+          const start = new Date(filterStartDate);
+          start.setHours(0, 0, 0, 0);
+          if (iDate < start) return false;
+        }
+
+        if (filterEndDate) {
+          const end = new Date(filterEndDate);
+          end.setHours(23, 59, 59, 999);
+          if (iDate > end) return false;
+        }
+      }
+    }
+
     return true;
   });
 
