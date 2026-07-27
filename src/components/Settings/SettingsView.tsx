@@ -1164,6 +1164,45 @@ export default function SettingsView() {
           </div>
         )}
 
+        {activeTab === 'CHAT' && (
+          <div className="p-4 max-w-4xl">
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">Chat Settings</h3>
+              <p className="text-xs text-[#8B949E] mt-0">Configure settings for the chat application, including API keys for external services like Giphy.</p>
+            </div>
+
+            <form onSubmit={handleSettingsSubmit} className="space-y-6 max-w-2xl bg-brand-bg rounded-lg border border-border-subtle p-6">
+              {successMsg && (
+                <div className="p-3 bg-brand-teal/10 border border-brand-teal/30 text-brand-teal rounded-md text-xs mb-4 flex items-start">
+                  <CheckSquare className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" />
+                  {successMsg}
+                </div>
+              )}
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-[#E6EDF3] mb-1">Giphy API Key</label>
+                  <p className="text-[10px] text-[#8B949E] mb-2">Required to enable the GIF picker in the chat.</p>
+                  <input
+                    type="password"
+                    value={settings.giphyApiKey || ''}
+                    onChange={(e) => setSettings({ ...settings, giphyApiKey: e.target.value })}
+                    className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-colors"
+                    placeholder="Enter Giphy API Key"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-border-subtle flex justify-end">
+                <button type="submit" disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
+                  <Save className="w-4 h-4 mr-2" />
+                  {generalLoading ? 'Saving...' : 'Save Settings'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
         {activeTab === 'NDIS' && (
           <div className="flex flex-col h-full bg-brand-navy">
             <div className="p-3 border-b border-border-subtle bg-brand-bg relative shrink-0">
