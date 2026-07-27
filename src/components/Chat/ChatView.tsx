@@ -123,9 +123,14 @@ export default function ChatView() {
   };
   
   const isOnlyEmojis = (text: string) => {
-    if (!text) return false;
-    const textWithoutEmojis = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F\u200D\s\u{1F3FB}-\u{1F3FF}]/gu, '');
-    return textWithoutEmojis.length === 0 && text.trim().length > 0;
+    if (!text || text.trim().length === 0) return false;
+    if (/[a-zA-Z0-9\.,!\?'"\(\)\[\]\{\};:@#\$%\^&\*\-_=\+\/\\]/.test(text)) {
+      return false;
+    }
+    const cleaned = text.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+    if (cleaned.length === 0) return false;
+    const emojiRegex = /^[\p{Emoji}\uFE0F\u200D\u{1F3FB}-\u{1F3FF}]+$/gu;
+    return emojiRegex.test(cleaned);
   };
 
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -411,7 +416,7 @@ export default function ChatView() {
                       <div 
                         className={`px-4 py-2 rounded-lg text-xs font-semibold tracking-wide break-words \${
                           isEmojiOnly
-                            ? 'text-[4rem] leading-none'
+                            ? 'text-[6rem] leading-none'
                             : isOwnMessage 
                               ? 'bg-brand-teal/10 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-none' 
                               : 'bg-brand-navy text-[#8B949E] border border-border-subtle rounded-tl-none'
