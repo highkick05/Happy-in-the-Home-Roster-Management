@@ -665,6 +665,8 @@ export default function InvoicingView() {
 
   const [filterClient, setFilterClient] = useLocalStorage('invoicing_filter_client', '');
   const [filterStaff, setFilterStaff] = useLocalStorage('invoicing_filter_staff', '');
+  const [filterStartDate, setFilterStartDate] = useState<Date | null>(null);
+  const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
   const [showManualModal, setShowManualModal] = useState(false);
 
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -1268,6 +1270,21 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
             </button>
           )}
           
+          <CustomDatePicker
+            selected={filterStartDate}
+            onDateChange={(date) => setFilterStartDate(date)}
+            placeholderText="Start Date"
+            className="w-28 bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal transition-colors h-7"
+            position="bottom"
+          />
+          <CustomDatePicker
+            selected={filterEndDate}
+            onDateChange={(date) => setFilterEndDate(date)}
+            placeholderText="End Date"
+            className="w-28 bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal transition-colors h-7"
+            position="bottom"
+          />
+
           <select
             value={filterClient}
             onChange={(e) => setFilterClient(e.target.value)}
