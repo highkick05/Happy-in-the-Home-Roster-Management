@@ -3219,6 +3219,7 @@ try {
       } else {
         count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE created_at > ? AND content != 'SYSTEM_CHAT_CLEARED' AND user_id != ?").get(userRow.last_chat_read, req.user.id) as any).count;
       }
+      console.log("Unread count for user", req.user.id, "is", count, "last_read", userRow?.last_chat_read);
       res.json({ count });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
