@@ -6,7 +6,7 @@ import { io } from 'socket.io-client';
 
 export default function LiveChatIcon() {
   const [unreadCount, setUnreadCount] = useState(0);
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -35,10 +35,28 @@ export default function LiveChatIcon() {
     fetchUnread();
     const interval = setInterval(fetchUnread, 10000); // Poll every 10 seconds
 
+    const socket = io(window.location.origin, {
+      path: '/socket.io'
+    });
+
+    socket.on('new_message', (msg: any) => {
+      // Only increment if we aren't on the chat page and the message isn't ours
+      if (!window.location.pathname.includes('/chat')) {
+        if (!user || msg.user_id !== user.id) {
+          setUnreadCount(prev => prev + 1);
+        }
+      }
+    });
+
+    socket.on('chat_cleared', () => {
+      setUnreadCount(0);
+    });
+
     return () => {
       clearInterval(interval);
+      socket.disconnect();
     };
-  }, [token]);
+  }, [token, user]);
 
   return (
     <button 

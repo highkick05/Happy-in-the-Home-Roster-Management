@@ -3215,9 +3215,9 @@ try {
       const userRow = db.prepare("SELECT last_chat_read FROM users WHERE id = ?").get(req.user.id) as any;
       let count = 0;
       if (!userRow?.last_chat_read) {
-        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED'").get() as any).count;
+        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED' AND user_id != ?").get(req.user.id) as any).count;
       } else {
-        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE created_at > ? AND content != 'SYSTEM_CHAT_CLEARED'").get(userRow.last_chat_read) as any).count;
+        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE created_at > ? AND content != 'SYSTEM_CHAT_CLEARED' AND user_id != ?").get(userRow.last_chat_read, req.user.id) as any).count;
       }
       res.json({ count });
     } catch (e: any) {
