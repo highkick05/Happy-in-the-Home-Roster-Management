@@ -1171,7 +1171,7 @@ export default function SettingsView() {
               <p className="text-xs text-[#8B949E] mt-0">Configure settings for the chat application, including API keys for external services like Giphy.</p>
             </div>
 
-            <form onSubmit={handleSettingsSubmit} className="space-y-6 max-w-2xl bg-brand-bg rounded-lg border border-border-subtle p-6">
+            <form onSubmit={handleSaveSettings} className="space-y-6 max-w-2xl bg-brand-bg rounded-lg border border-border-subtle p-6">
               {successMsg && (
                 <div className="p-3 bg-brand-teal/10 border border-brand-teal/30 text-brand-teal rounded-md text-xs mb-4 flex items-start">
                   <CheckSquare className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" />

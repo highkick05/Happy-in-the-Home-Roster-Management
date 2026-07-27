@@ -132,6 +132,14 @@ export default function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (selectedGif || attachment) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [selectedGif, attachment]);
+
+  useEffect(() => {
     const fetchMessages = () => {
       fetch('/api/chat/messages', {
         headers: {
