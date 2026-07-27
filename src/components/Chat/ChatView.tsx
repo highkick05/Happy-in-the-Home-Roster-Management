@@ -61,10 +61,15 @@ export default function ChatView() {
     };
     markRead();
 
+    // Poll every 3 seconds as a bulletproof fallback in case websockets are blocked by proxy
+    const interval = setInterval(() => {
+      fetchMessages();
+      markRead();
+    }, 3000);
+
     // Keep socket connection as a fast path
     const newSocket = io(window.location.origin, {
-      path: '/socket.io',
-      transports: ['websocket']
+      path: '/socket.io'
     });
     
     setSocket(newSocket);
@@ -85,6 +90,7 @@ export default function ChatView() {
     });
 
     return () => {
+      clearInterval(interval);
       newSocket.disconnect();
     };
   }, [token]);
