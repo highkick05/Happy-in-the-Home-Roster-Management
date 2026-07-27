@@ -368,6 +368,17 @@ export default function ChatView() {
     }
   };
 
+  // Helper to safely parse SQLite datetime strings to UTC
+  const parseChatDate = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    let safeStr = dateStr;
+    if (!safeStr.includes('T')) safeStr = safeStr.replace(' ', 'T');
+    if (!safeStr.endsWith('Z') && !safeStr.match(/[+-]\d{2}:?\d{2}$/)) {
+      safeStr += 'Z';
+    }
+    return new Date(safeStr);
+  };
+
   return (
     <div 
       className="flex flex-col flex-1 h-full min-h-0 p-2 md:p-6 pb-20 md:pb-6 relative"
@@ -460,8 +471,8 @@ export default function ChatView() {
                         <span className="text-xs font-medium text-zinc-300">
                           {msg.first_name} {msg.last_name}
                         </span>
-                        <span className="text-[10px] text-zinc-500">
-                          {new Intl.DateTimeFormat('en-US', { timeZone: settings?.timezone || 'Australia/Perth', hour: 'numeric', minute: 'numeric', hour12: true }).format(new Date(msg.created_at.includes('T') ? msg.created_at : msg.created_at.replace(' ', 'T') + 'Z'))}
+                        <span className="text-[10px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis">
+                          {new Intl.DateTimeFormat('en-US', { timeZone: settings?.timezone || 'Australia/Perth', hour: 'numeric', minute: 'numeric', hour12: true }).format(parseChatDate(msg.created_at))}
                         </span>
                       </div>
                       
