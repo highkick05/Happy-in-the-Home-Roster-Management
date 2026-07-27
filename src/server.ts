@@ -5875,6 +5875,7 @@ app.get("/api/health", (req, res) => {
       address,
       providerType,
       managementFee,
+      canEmailInvoices,
     } = req.body;
     const { id } = req.params;
     try {
