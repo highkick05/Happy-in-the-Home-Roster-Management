@@ -386,9 +386,33 @@ export default function ChatView() {
       )}
       
 
-      <div className="flex-1 bg-brand-navy rounded-lg border border-border-subtle flex flex-col overflow-hidden min-h-0">
+      <div 
+        className="flex-1 rounded-lg border border-border-subtle flex flex-col overflow-hidden min-h-0 relative"
+        style={{ backgroundColor: settings?.chatBackgroundTint || '#11161d' }}
+      >
+        {/* Chat Background Media */}
+        {settings?.chatBackgroundImage && (
+          <div className="absolute inset-0 z-0 pointer-events-none">
+            {settings.chatBackgroundImage.match(/\.(mp4|webm|ogg)$/i) ? (
+              <video 
+                src={settings.chatBackgroundImage} 
+                className="w-full h-full object-cover" 
+                autoPlay loop muted playsInline 
+                style={{ opacity: (parseInt(settings.chatBackgroundOpacity || '100') / 100) }}
+              />
+            ) : (
+              <img 
+                src={settings.chatBackgroundImage} 
+                alt="Chat Background" 
+                className="w-full h-full object-cover"
+                style={{ opacity: (parseInt(settings.chatBackgroundOpacity || '100') / 100) }}
+              />
+            )}
+          </div>
+        )}
+
         {/* Messages Area */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 relative z-10">
           {messages.length === 0 ? (
             <div className="text-center text-zinc-500 mt-10">No messages yet. Start the conversation!</div>
           ) : (
@@ -533,7 +557,7 @@ export default function ChatView() {
         </div>
 
         {/* Input Area */}
-        <div className="p-4 bg-[#11161d] border-t border-border-subtle shrink-0">
+        <div className="p-4 bg-[#11161d]/90 backdrop-blur-md border-t border-border-subtle shrink-0 relative z-10">
           <div className="flex flex-col space-y-2">
             {attachment && (
               <div className="flex items-center space-x-2 bg-brand-navy p-2 rounded-lg border border-border-subtle max-w-sm">

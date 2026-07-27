@@ -102,7 +102,10 @@ export default function SettingsView() {
     websiteLogo: '',
     letterheadLogo: '',
     pwaIcon192: '',
-    pwaIcon512: ''
+    pwaIcon512: '',
+    chatBackgroundImage: '',
+    chatBackgroundOpacity: '100',
+    chatBackgroundTint: '#000000'
   });
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -584,7 +587,7 @@ export default function SettingsView() {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, key: 'websiteLogo' | 'letterheadLogo' | 'pwaIcon192' | 'pwaIcon512') => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, key: 'websiteLogo' | 'letterheadLogo' | 'pwaIcon192' | 'pwaIcon512' | 'chatBackgroundImage') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -1190,6 +1193,66 @@ export default function SettingsView() {
                     className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-sm text-[#E6EDF3] focus:border-brand-teal focus:ring-1 focus:ring-brand-teal outline-none transition-colors"
                     placeholder="Enter Giphy API Key"
                   />
+                </div>
+
+                <div className="pt-4 border-t border-border-subtle">
+                  <h4 className="text-md font-medium text-[#E6EDF3] mb-4">Chat Appearance</h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-xs font-medium text-[#E6EDF3] mb-1">Background Tint Color</label>
+                      <input
+                        type="color"
+                        value={settings.chatBackgroundTint || '#000000'}
+                        onChange={(e) => setSettings({ ...settings, chatBackgroundTint: e.target.value })}
+                        className="w-full h-10 bg-brand-navy border border-border-subtle rounded-md px-2 py-1 cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[#E6EDF3] mb-1">Background Image Opacity ({settings.chatBackgroundOpacity || '100'}%)</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={settings.chatBackgroundOpacity || '100'}
+                        onChange={(e) => setSettings({ ...settings, chatBackgroundOpacity: e.target.value })}
+                        className="w-full h-10 accent-brand-teal"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-brand-navy border border-border-subtle rounded-xl p-4 shadow-sm relative overflow-hidden">
+                    <div className="mb-4">
+                      <h4 className="text-sm font-medium text-[#E6EDF3]">Chat Background Media</h4>
+                      <p className="text-[10px] text-[#8B949E] mt-1">Upload an image or video to use as the chat background.</p>
+                    </div>
+                    
+                    <div className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-border-subtle rounded-lg bg-brand-bg hover:bg-brand-navy transition-colors relative group">
+                      {settings.chatBackgroundImage ? (
+                        <div className="relative w-full h-32 flex items-center justify-center">
+                          {settings.chatBackgroundImage.match(/\.(mp4|webm)$/i) ? (
+                             <video src={settings.chatBackgroundImage} className="max-h-full max-w-full object-contain" autoPlay loop muted playsInline />
+                          ) : (
+                             <img src={settings.chatBackgroundImage} alt="Chat Background" className="max-h-full max-w-full object-contain" />
+                          )}
+                          <button type="button" onClick={() => setSettings({...settings, chatBackgroundImage: ''})} className="absolute top-2 right-2 p-2 bg-black/60 text-[#8B949E] hover:text-[#E6EDF3] transition-colors rounded-md hover:bg-black/80 z-10">
+                            <X className="w-3 h-3" strokeWidth={3} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <Upload className="w-8 h-8 text-[#8B949E] mx-auto mb-2" />
+                          <p className="text-xs text-[#8B949E]">Click to upload image or video</p>
+                        </div>
+                      )}
+                      <input 
+                        type="file" 
+                        accept="image/*,video/*" 
+                        onChange={(e) => handleImageUpload(e, 'chatBackgroundImage')} 
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
