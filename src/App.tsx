@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import RosterCalendar from './components/Roster/RosterCalendar';
-import { MessageCircle,  Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car, GraduationCap  } from 'lucide-react';
+import { MessageSquare,  Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car, GraduationCap  } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import QuickLinksDrawer from './components/QuickLinksDrawer';
 import Login from './components/Auth/Login';
@@ -261,7 +261,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Communication</div>
           <div className="space-y-0.5 mb-2">
             <NavLink to="/chat" className={getNavClasses} title="Live Chat">
-              <MessageCircle className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Live Chat' : ''}
+              <MessageSquare className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Live Chat' : ''}
             </NavLink>
           </div>
           
