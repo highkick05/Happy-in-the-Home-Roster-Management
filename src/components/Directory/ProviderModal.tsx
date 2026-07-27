@@ -17,7 +17,8 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
     phone: '',
     address: '',
     providerType: 'NDIS',
-    managementFee: 10.00
+    managementFee: 10.00,
+    canEmailInvoices: true
   });
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
         address: provider.address || '',
         providerType: provider.provider_type || 'NDIS',
         managementFee: provider.management_fee !== undefined && provider.management_fee !== null ? provider.management_fee : 10.00,
+        canEmailInvoices: provider.can_email_invoices !== 0,
       });
     } else {
       setFormData({
@@ -40,12 +42,15 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
         address: '',
         providerType: 'NDIS',
         managementFee: 10.00,
+        canEmailInvoices: true,
       });
     }
   }, [provider, isOpen]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value }));
+    const target = e.target as HTMLInputElement;
+    const value = target.type === 'checkbox' ? target.checked : target.type === 'number' ? parseFloat(target.value) || 0 : target.value;
+    setFormData(prev => ({ ...prev, [target.name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

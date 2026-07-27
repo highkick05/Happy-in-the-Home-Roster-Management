@@ -1406,10 +1406,10 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                        {subTab === 'active' && (
                          <>
                            <button
-                             title="Email Invoice"
+                             title={i.can_email_invoices === 0 ? "Email Invoice Disabled for this Provider" : "Email Invoice"}
                              onClick={() => handleEmailInvoice(i.id)}
-                             disabled={isEmailing === i.id}
-                             className={`p-1.5 rounded-md transition-colors ${isEmailing === i.id ? 'text-brand-blue opacity-50' : 'text-zinc-400 hover:text-brand-blue hover:bg-brand-blue/10'}`}
+                             disabled={isEmailing === i.id || i.can_email_invoices === 0}
+                             className={`p-1.5 rounded-md transition-colors ${(isEmailing === i.id || i.can_email_invoices === 0) ? 'text-brand-blue opacity-30 cursor-not-allowed' : 'text-zinc-400 hover:text-brand-blue hover:bg-brand-blue/10'}`}
                            >
                              {isEmailing === i.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
                            </button>

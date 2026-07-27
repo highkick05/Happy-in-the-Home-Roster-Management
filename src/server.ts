@@ -214,7 +214,8 @@ async function startServer() {
         phone TEXT,
         address TEXT,
         provider_type TEXT,
-        management_fee REAL DEFAULT 0
+        management_fee REAL DEFAULT 0,
+        can_email_invoices INTEGER DEFAULT 1
       );
 
       CREATE TABLE IF NOT EXISTS clients (
@@ -477,6 +478,18 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
       "ALTER TABLE providers ADD COLUMN management_fee REAL DEFAULT 10.00",
     );
     console.log("[DEBUG] Completed management_fee column check.");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  // add can_email_invoices to providers
+  try {
+    db.exec(
+      "ALTER TABLE providers ADD COLUMN can_email_invoices INTEGER DEFAULT 1",
+    );
+    console.log("[DEBUG] Completed can_email_invoices column check.");
   } catch (e: any) {
     if (e.message && !e.message.includes("duplicate column")) {
       console.warn("Migration warning:", e.message);
@@ -5821,10 +5834,11 @@ app.get("/api/health", (req, res) => {
       address,
       providerType,
       managementFee,
+      canEmailInvoices,
     } = req.body;
     try {
       const stmt = db.prepare(
-        "INSERT INTO providers (company_name, contact_name, email, phone, address, provider_type, management_fee) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO providers (company_name, contact_name, email, phone, address, provider_type, management_fee, can_email_invoices) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       );
       const info = stmt.run(
         companyName,
@@ -5834,6 +5848,7 @@ app.get("/api/health", (req, res) => {
         address,
         providerType || "NDIS",
         managementFee === undefined ? 10.0 : managementFee,
+        canEmailInvoices === false ? 0 : 1,
       );
       res.json({
         id: info.lastInsertRowid,
@@ -5864,7 +5879,7 @@ app.get("/api/health", (req, res) => {
     const { id } = req.params;
     try {
       const stmt = db.prepare(
-        "UPDATE providers SET company_name = ?, contact_name = ?, email = ?, phone = ?, address = ?, provider_type = ?, management_fee = ? WHERE id = ?",
+        "UPDATE providers SET company_name = ?, contact_name = ?, email = ?, phone = ?, address = ?, provider_type = ?, management_fee = ?, can_email_invoices = ? WHERE id = ?",
       );
       stmt.run(
         companyName,
@@ -5874,6 +5889,7 @@ app.get("/api/health", (req, res) => {
         address,
         providerType || "NDIS",
         managementFee === undefined ? 10.0 : managementFee,
+        canEmailInvoices === false ? 0 : 1,
         id,
       );
       res.json({
@@ -10668,11 +10684,13 @@ app.get("/api/health", (req, res) => {
              c.first_name as client_first_name, c.last_name as client_last_name,
              COALESCE(i.custom_staff_name, s.custom_staff_name, u.first_name, ui.first_name) as staff_first_name, 
              CASE WHEN i.custom_staff_name IS NOT NULL OR s.custom_staff_name IS NOT NULL THEN '' ELSE COALESCE(u.last_name, ui.last_name, '') END as staff_last_name,
-             (((SELECT COUNT(*) FROM invoices sub WHERE sub.merged_into_shift_id = s.id OR sub.merged_into_invoice_id = i.id) > 0) OR i.services_json IS NOT NULL) as is_merged
+             (((SELECT COUNT(*) FROM invoices sub WHERE sub.merged_into_shift_id = s.id OR sub.merged_into_invoice_id = i.id) > 0) OR i.services_json IS NOT NULL) as is_merged,
+             p.can_email_invoices
       FROM invoices i
       LEFT JOIN shifts s ON i.shift_id = s.id
       LEFT JOIN respite_bookings rb ON i.respite_booking_id = rb.id
       LEFT JOIN clients c ON i.client_id = c.id
+      LEFT JOIN providers p ON c.provider_id = p.id
       LEFT JOIN users u ON s.staff_id = u.id
       LEFT JOIN users ui ON i.staff_id = ui.id
       WHERE i.merged_into_shift_id IS NULL AND i.merged_into_invoice_id IS NULL AND i.status != 'VOID'
