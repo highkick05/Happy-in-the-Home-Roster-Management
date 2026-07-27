@@ -3652,14 +3652,20 @@ try {
       if (!s.user || !s.pass) {
         return res.status(400).json({ error: "SMTP Username or Password are not configured." });
       }
+      
+      const adminUser = db.prepare("SELECT email FROM users WHERE id = ?").get(req.user.id) as any;
+      if (!adminUser || !adminUser.email) {
+        return res.status(400).json({ error: "Could not find your email address." });
+      }
+
       const transporter = getTransporter();
       await transporter.sendMail({
         from: s.from,
-        to: req.user.email,
+        to: adminUser.email,
         subject: "Test Email from Happy in the Home",
         text: "This is a test email to verify your SMTP settings. If you received this, your email configuration is working correctly!",
       });
-      res.json({ success: true, message: "Test email sent successfully to " + req.user.email });
+      res.json({ success: true, message: "Test email sent successfully to " + adminUser.email });
     } catch (e: any) {
       const errorDetails = {
         message: e.message,
