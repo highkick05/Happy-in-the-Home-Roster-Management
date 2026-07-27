@@ -20,6 +20,29 @@ export default function SettingsView() {
   const [savedCategoryIds, setSavedCategoryIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [generalLoading, setGeneralLoading] = useState(false);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{success: boolean, message: string} | null>(null);
+
+  const handleTestEmail = async () => {
+    setTestingEmail(true);
+    setTestEmailResult(null);
+    try {
+      const res = await fetch('/api/settings/test-email', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTestEmailResult({ success: true, message: data.message });
+      } else {
+        setTestEmailResult({ success: false, message: data.error });
+      }
+    } catch (e: any) {
+      setTestEmailResult({ success: false, message: e.message || 'Network error occurred' });
+    } finally {
+      setTestingEmail(false);
+    }
+  };
   const [settings, setSettings] = useState({
     businessName: '',
     abn: '',
@@ -786,12 +809,23 @@ export default function SettingsView() {
                  </div>
               </div>
 
-              <div className="pt-6">
+              <div className="pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <button type="submit" disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
                   <Save className="w-4 h-4 mr-2" />
                   {generalLoading ? 'Saving...' : 'Save Settings'}
                 </button>
+                <button type="button" onClick={handleTestEmail} disabled={testingEmail || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-brand-navy border border-brand-teal/50 text-brand-teal hover:bg-brand-teal/10 text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  {testingEmail ? 'Sending Test...' : 'Test Email Settings'}
+                </button>
               </div>
+              {testEmailResult && (
+                <div className={`p-3 rounded-md text-sm ${testEmailResult.success ? 'bg-brand-green/20 text-brand-green border border-brand-green/50' : 'bg-red-500/10 text-red-400 border border-red-500/50'}`}>
+                  {testEmailResult.message}
+                </div>
+              )}
             </form>
           </div>
         )}
@@ -951,15 +985,19 @@ export default function SettingsView() {
                   <label className="block text-xs font-medium text-[#8B949E] mb-2">Send From Email</label>
                   <input type="email" value={settings.smtpFrom} onChange={e => setSettings({...settings, smtpFrom: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="e.g. support@yourcompany.com" />
                 </div>
-                <div className="col-span-1 flex items-center mt-6">
-                  <input
-                    type="checkbox"
-                    id="smtpSecure"
-                    checked={settings.smtpSecure}
-                    onChange={(e) => setSettings({...settings, smtpSecure: e.target.checked})}
-                    className="mr-2 h-4 w-4 rounded border-[#30363d] bg-brand-navy text-brand-teal focus:ring-brand-teal focus:ring-offset-brand-bg"
-                  />
-                  <label htmlFor="smtpSecure" className="text-xs font-medium text-[#8B949E]">Use Secure Connection (SSL/TLS)</label>
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">SMTP Security</label>
+                  <select 
+                    value={settings.smtpSecurity || (settings.smtpSecure === false ? 'STARTTLS' : 'SSL')} 
+                    onChange={e => setSettings({...settings, smtpSecurity: e.target.value})} 
+                    className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors"
+                  >
+                    <option value="STARTTLS">STARTTLS (Usually Port 587)</option>
+                    <option value="NOVERIFY">STARTTLS - No Verify (Allow Self-Signed)</option>
+                    <option value="SSL">SSL/TLS (Usually Port 465)</option>
+                    <option value="SSL_NOVERIFY">SSL/TLS - No Verify</option>
+                    <option value="NONE">None (Plain Text)</option>
+                  </select>
                 </div>
               </div>
 

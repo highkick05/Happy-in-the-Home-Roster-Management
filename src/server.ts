@@ -3050,19 +3050,47 @@ try {
     const user = settings.smtpUser || process.env.SMTP_USER;
     const pass = settings.smtpPass || process.env.SMTP_PASS;
     const from = settings.smtpFrom || process.env.SMTP_FROM || "support@happyinthehome.com";
-    const secure = settings.smtpSecure !== undefined ? settings.smtpSecure : (port === 465);
+    let security = settings.smtpSecurity;
+    if (!security) {
+      const isSecure = settings.smtpSecure !== undefined ? settings.smtpSecure : (port === 465);
+      security = isSecure ? 'SSL' : 'STARTTLS';
+    }
 
-    return { host, port, user, pass, from, secure };
+    return { host, port, user, pass, from, security };
   };
 
   const getTransporter = () => {
     const s = getSmtpSettings();
+    let secure = false;
+    let requireTLS = false;
+    let ignoreTLS = false;
+    let rejectUnauthorized = true;
+    
+    if (s.security === "SSL") {
+      secure = true;
+    } else if (s.security === "STARTTLS") {
+      secure = false;
+      requireTLS = true;
+    } else if (s.security === "NOVERIFY") {
+      secure = false;
+      requireTLS = true;
+      rejectUnauthorized = false;
+    } else if (s.security === "SSL_NOVERIFY") {
+      secure = true;
+      rejectUnauthorized = false;
+    } else if (s.security === "NONE") {
+      secure = false;
+      ignoreTLS = true;
+    }
+
     return nodemailer.createTransport({
       host: s.host,
       port: s.port,
-      secure: s.secure,
+      secure: secure,
+      requireTLS: requireTLS,
+      ignoreTLS: ignoreTLS,
       tls: {
-        rejectUnauthorized: false,
+        rejectUnauthorized: rejectUnauthorized,
       },
       auth: {
         user: s.user,
@@ -3614,6 +3642,26 @@ try {
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  
+  app.post("/api/settings/test-email", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const s = getSmtpSettings();
+      if (!s.user || !s.pass) {
+        return res.status(400).json({ error: "SMTP Username or Password are not configured." });
+      }
+      const transporter = getTransporter();
+      await transporter.sendMail({
+        from: s.from,
+        to: req.user.email,
+        subject: "Test Email from Happy in the Home",
+        text: "This is a test email to verify your SMTP settings. If you received this, your email configuration is working correctly!",
+      });
+      res.json({ success: true, message: "Test email sent successfully to " + req.user.email });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to send test email." });
     }
   });
 
