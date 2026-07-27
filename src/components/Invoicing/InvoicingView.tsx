@@ -1405,14 +1405,16 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                     <td className="px-3 py-1.5 text-right flex items-center justify-end space-x-1">
                        {subTab === 'active' && (
                          <>
-                           <button
-                             title={i.can_email_invoices === 0 ? "Email Invoice Disabled for this Provider" : "Email Invoice"}
-                             onClick={() => handleEmailInvoice(i.id)}
-                             disabled={isEmailing === i.id || i.can_email_invoices === 0}
-                             className={`p-1.5 rounded-md transition-colors ${(isEmailing === i.id || i.can_email_invoices === 0) ? 'text-brand-blue opacity-30 cursor-not-allowed' : 'text-zinc-400 hover:text-brand-blue hover:bg-brand-blue/10'}`}
-                           >
-                             {isEmailing === i.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-                           </button>
+                           {i.can_email_invoices !== 0 && (
+                             <button
+                               title="Email Invoice"
+                               onClick={() => handleEmailInvoice(i.id)}
+                               disabled={isEmailing === i.id}
+                               className={`p-1.5 rounded-md transition-colors ${isEmailing === i.id ? 'text-brand-blue opacity-30 cursor-not-allowed' : 'text-zinc-400 hover:text-brand-blue hover:bg-brand-blue/10'}`}
+                             >
+                               {isEmailing === i.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                             </button>
+                           )}
                            <button
                              title="Sent"
                              onClick={() => handleUpdateStatus(i.id, 'SENT')}
