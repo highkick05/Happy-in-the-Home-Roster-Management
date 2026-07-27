@@ -30,57 +30,67 @@ export default function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Fetch initial messages instantly
-    fetch('/api/chat/messages', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setMessages(data);
-          scrollToBottom();
+    const fetchMessages = () => {
+      fetch('/api/chat/messages', {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
       })
-      .catch(err => console.error("Failed to load messages", err));
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setMessages(prev => {
+              // Only update and scroll if the messages have actually changed
+              if (prev.length === 0 || JSON.stringify(prev) !== JSON.stringify(data)) {
+                setTimeout(scrollToBottom, 100);
+                return data;
+              }
+              return prev;
+            });
+          }
+        })
+        .catch(err => console.error("Failed to load messages", err));
+    };
 
-    // Initialize socket connection
+    // Fetch initial messages instantly
+    fetchMessages();
+
+    // Mark as read immediately
+    const markRead = () => {
+      fetch('/api/chat/read', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }).catch(console.error);
+    };
+    markRead();
+
+    // Poll every 3 seconds for robust real-time updates
+    const interval = setInterval(() => {
+      fetchMessages();
+      markRead();
+    }, 3000);
+
+    // Keep socket connection as a fast path
     const newSocket = io({
       path: '/socket.io',
     });
     
     setSocket(newSocket);
 
-    // Mark as read immediately and on new message
-    const markRead = () => {
-      fetch('/api/chat/read', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }).catch(console.error);
-    };
-    markRead();
-
     newSocket.on('new_message', (msg: ChatMessage) => {
       markRead();
       setMessages((prev) => {
-        // Find if we already have this message by ID
         if (prev.some(m => m.id === msg.id)) return prev;
-        // Or if it's the exact same content and file, sent by us recently (optimistic match)
-        // Actually, it's safer to just replace any optimistic messages that match the content/file
-        // But since POST is fast, we can just rely on ID deduplication during render, or just let POST handle it.
-        // If we want to be safe against the race condition, we can filter duplicates.
-        // Find if we have an optimistic message with the same content
+
         const hasOptimistic = prev.some(m => m.user_id === msg.user_id && m.content === msg.content && m.id > 1000000000000);
         if (hasOptimistic) {
-            // Replace the optimistic one with the real one
             return prev.map(m => (m.user_id === msg.user_id && m.content === msg.content && m.id > 1000000000000) ? msg : m);
         }
-        if (prev.some(m => m.id === msg.id)) return prev;
+        
         return [...prev, msg];
       });
       scrollToBottom();
     });
 
-    
-  return () => {
+    return () => {
+      clearInterval(interval);
       newSocket.disconnect();
     };
   }, [token]);
