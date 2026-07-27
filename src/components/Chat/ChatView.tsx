@@ -54,6 +54,21 @@ export default function ChatView() {
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const giphyPickerRef = useRef<HTMLDivElement>(null);
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
+  const [longPressMessageId, setLongPressMessageId] = useState<number | null>(null);
+  const pressTimer = useRef<NodeJS.Timeout | null>(null);
+  
+  const handlePressStart = (msgId: number) => {
+    pressTimer.current = setTimeout(() => {
+      setLongPressMessageId(msgId);
+    }, 500);
+  };
+  
+  const handlePressEnd = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -80,6 +95,8 @@ export default function ChatView() {
 
   const fetchGifs = (offset: number) => debouncedGifSearch ? gf.search(debouncedGifSearch, { offset, limit: 10 }) : gf.trending({ offset, limit: 10 });
   const handleAddReaction = async (messageId: number, emoji: string) => {
+    setLongPressMessageId(null);
+    setHoveredMessageId(null);
     try {
       const res = await fetch(`/api/chat/messages/${messageId}/react`, {
         method: 'POST',
@@ -354,7 +371,15 @@ export default function ChatView() {
               
               return (
                 <div key={msg.id} className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`flex max-w-[70%] ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div 
+                    className={`flex max-w-[70%] ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} relative`}
+                    onMouseEnter={() => setHoveredMessageId(msg.id)}
+                    onMouseLeave={() => { setHoveredMessageId(null); handlePressEnd(); }}
+                    onMouseDown={() => handlePressStart(msg.id)}
+                    onMouseUp={handlePressEnd}
+                    onTouchStart={() => handlePressStart(msg.id)}
+                    onTouchEnd={handlePressEnd}
+                  >
                     
                     {/* Avatar */}
                     <div className={`flex-shrink-0 ${isOwnMessage ? 'ml-3' : 'mr-3'}`}>
@@ -405,11 +430,14 @@ export default function ChatView() {
                         )}
                         {(() => {
                           const isEmojiOnly = isOnlyEmojis(msg.content);
-                          const contentToRender = msg.content.split(' ').map((word, i) => {
-                            if (word.startsWith('http') && (word.includes('giphy.com') || word.match(/\.(gif|jpe?g|png)$/i))) {
-                              return <img key={i} src={word} alt="gif" className="max-w-[200px] rounded my-1 block" />;
+                          const contentToRender = msg.content.split(/(\s+)/).map((part, i) => {
+                            if (part.startsWith('http') && (part.includes('giphy.com') || part.match(/\.(gif|jpe?g|png)$/i))) {
+                              return <img key={i} src={part.trim()} alt="gif" className="max-w-[200px] rounded my-1 block" />;
                             }
-                            return word + ' ';
+                            if (part.includes('\n')) {
+                              return <span key={i} style={{ whiteSpace: 'pre-wrap' }}>{part}</span>;
+                            }
+                            return <React.Fragment key={i}>{part}</React.Fragment>;
                           });
                           
                           return (
@@ -418,7 +446,7 @@ export default function ChatView() {
                             </span>
                           );
                         })()}
-                                              {hoveredMessageId === msg.id && (
+                                              {(hoveredMessageId === msg.id || longPressMessageId === msg.id) && (
                         <div className={`absolute top-0 ${isOwnMessage ? 'right-full mr-2' : 'left-full ml-2'} -translate-y-1/2 bg-[#1c2128] border border-border-subtle rounded-full px-2 py-1 flex items-center space-x-1 shadow-lg z-10`}>
                           <button onClick={() => handleAddReaction(msg.id, '👍')} className="hover:scale-125 transition-transform text-base">👍</button>
                           <button onClick={() => handleAddReaction(msg.id, '❤️')} className="hover:scale-125 transition-transform text-base">❤️</button>
