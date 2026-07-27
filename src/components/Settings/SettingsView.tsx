@@ -984,7 +984,7 @@ export default function SettingsView() {
                     <option value="STARTTLS">STARTTLS (Usually Port 587)</option>
                     <option value="NOVERIFY">STARTTLS - No Verify (Allow Self-Signed)</option>
                     <option value="SSL">SSL/TLS (Usually Port 465)</option>
-                    <option value="SSL_NOVERIFY">SSL/TLS - No Verify</option>
+                    <option value="SSL_NOVERIFY">SSL/TLS - No Verify (Allow Self-Signed)</option>
                     <option value="NONE">None (Plain Text)</option>
                   </select>
                 </div>
