@@ -61,6 +61,18 @@ export default function ChatView() {
     newSocket.on('new_message', (msg: ChatMessage) => {
       markRead();
       setMessages((prev) => {
+        // Find if we already have this message by ID
+        if (prev.some(m => m.id === msg.id)) return prev;
+        // Or if it's the exact same content and file, sent by us recently (optimistic match)
+        // Actually, it's safer to just replace any optimistic messages that match the content/file
+        // But since POST is fast, we can just rely on ID deduplication during render, or just let POST handle it.
+        // If we want to be safe against the race condition, we can filter duplicates.
+        // Find if we have an optimistic message with the same content
+        const hasOptimistic = prev.some(m => m.user_id === msg.user_id && m.content === msg.content && m.id > 1000000000000);
+        if (hasOptimistic) {
+            // Replace the optimistic one with the real one
+            return prev.map(m => (m.user_id === msg.user_id && m.content === msg.content && m.id > 1000000000000) ? msg : m);
+        }
         if (prev.some(m => m.id === msg.id)) return prev;
         return [...prev, msg];
       });
@@ -159,15 +171,27 @@ export default function ChatView() {
     setMessages(prev => [...prev, tempMessage]);
     scrollToBottom();
 
-    socket.emit('send_message', {
-      user_id: user.id,
-      content,
-      file_url: fileUrl,
-      file_name: fileName,
-      file_type: fileType
-    }, (realMsg: ChatMessage) => {
-       setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
-    });
+    try {
+      const res = await fetch('/api/chat/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          content,
+          file_url: fileUrl,
+          file_name: fileName,
+          file_type: fileType
+        })
+      });
+      if (res.ok) {
+        const realMsg = await res.json();
+        setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
+      }
+    } catch (e) {
+      console.error("Failed to send message via API", e);
+    }
   };
 
   return (

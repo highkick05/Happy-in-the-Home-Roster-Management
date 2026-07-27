@@ -3236,6 +3236,9 @@ try {
 
   app.get("/api/chat/messages", authenticateToken, (req, res) => {
     try {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
       const messages = db.prepare(`
         SELECT * FROM (
           SELECT c.*, u.first_name, u.last_name, u.avatar_url 
@@ -3250,6 +3253,35 @@ try {
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: "Failed to load messages" });
+    }
+  });
+
+  app.post("/api/chat/messages", authenticateToken, (req, res) => {
+    try {
+      const { content, file_url, file_name, file_type } = req.body;
+      const user_id = (req as any).user.id;
+      if (!user_id || (!content && !file_url)) {
+        return res.status(400).json({ error: "Validation failed" });
+      }
+      const stmt = db.prepare("INSERT INTO chat_messages (user_id, content, file_url, file_name, file_type) VALUES (?, ?, ?, ?, ?)");
+      const info = stmt.run(user_id, content || '', file_url || null, file_name || null, file_type || null);
+      
+      const newMsg = db.prepare(`
+        SELECT c.*, u.first_name, u.last_name, u.avatar_url 
+        FROM chat_messages c 
+        JOIN users u ON c.user_id = u.id 
+        WHERE c.id = ?
+      `).get(info.lastInsertRowid);
+      
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('new_message', newMsg);
+      }
+      
+      res.json(newMsg);
+    } catch (e) {
+      console.error("Error inserting chat message:", e);
+      res.status(500).json({ error: "Failed to send message" });
     }
   });
 
@@ -17192,6 +17224,7 @@ function resolveFilePath(systemName) {
   const io = new SocketIOServer(httpServer, {
     cors: { origin: "*" }
   });
+  app.set('io', io);
 
   io.on("connection", (socket) => {
     try {
