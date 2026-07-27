@@ -809,23 +809,12 @@ export default function SettingsView() {
                  </div>
               </div>
 
-              <div className="pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="pt-6">
                 <button type="submit" disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
                   <Save className="w-4 h-4 mr-2" />
                   {generalLoading ? 'Saving...' : 'Save Settings'}
                 </button>
-                <button type="button" onClick={handleTestEmail} disabled={testingEmail || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-brand-navy border border-brand-teal/50 text-brand-teal hover:bg-brand-teal/10 text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
-                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  {testingEmail ? 'Sending Test...' : 'Test Email Settings'}
-                </button>
               </div>
-              {testEmailResult && (
-                <div className={`p-3 rounded-md text-sm ${testEmailResult.success ? 'bg-brand-green/20 text-brand-green border border-brand-green/50' : 'bg-red-500/10 text-red-400 border border-red-500/50'}`}>
-                  {testEmailResult.message}
-                </div>
-              )}
             </form>
           </div>
         )}
@@ -1001,12 +990,23 @@ export default function SettingsView() {
                 </div>
               </div>
 
-              <div className="pt-6">
+              <div className="pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <button type="submit" disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
                   <Save className="w-4 h-4 mr-2" />
                   {generalLoading ? 'Saving...' : 'Save Settings'}
                 </button>
+                <button type="button" onClick={handleTestEmail} disabled={testingEmail || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-brand-navy border border-brand-teal/50 text-brand-teal hover:bg-brand-teal/10 text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  {testingEmail ? 'Sending Test...' : 'Test Email Settings'}
+                </button>
               </div>
+              {testEmailResult && (
+                <div className={`p-3 rounded-md text-sm ${testEmailResult.success ? 'bg-brand-green/20 text-brand-green border border-brand-green/50' : 'bg-red-500/10 text-red-400 border border-red-500/50'}`}>
+                  {testEmailResult.message}
+                </div>
+              )}
             </form>
           </div>
         )}
