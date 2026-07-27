@@ -303,34 +303,32 @@ export default function ChatView() {
       </div>
     
       {previewFile && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#1c2128] rounded-xl border border-border-subtle shadow-2xl flex flex-col w-full max-w-4xl max-h-full overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-border-subtle shrink-0 bg-[#22272e]">
-              <h3 className="text-sm font-semibold text-white truncate pr-4">{previewFile.name}</h3>
-              <button 
-                onClick={() => setPreviewFile(null)}
-                className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-1 rounded-md"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto bg-[#0d1117] p-4 flex items-center justify-center min-h-0">
-              {previewFile.type?.startsWith('image/') ? (
-                <img src={previewFile.url} alt={previewFile.name} className="max-w-full max-h-full object-contain drop-shadow-md rounded" />
-              ) : (
-                <iframe src={previewFile.url} title={previewFile.name} className="w-full h-full bg-white rounded" />
-              )}
-            </div>
-            <div className="p-4 border-t border-border-subtle shrink-0 bg-[#22272e] flex justify-end">
-              <a 
-                href={previewFile.url} 
-                download={previewFile.name}
-                target="_blank" rel="noreferrer"
-                className="flex items-center px-4 py-2 text-sm font-semibold tracking-wide transition-all duration-200 rounded-lg text-white bg-brand-blue hover:bg-blue-600"
-              >
-                Open / Download Original
-              </a>
-            </div>
+        <div className="fixed inset-0 z-[200] flex flex-col bg-black/95 backdrop-blur-md">
+          <div className="flex items-center justify-between p-4 border-b border-border-subtle shrink-0 bg-[#1c2128]">
+            <h3 className="text-sm font-semibold text-white truncate pr-4">{previewFile.name}</h3>
+            <button 
+              onClick={() => setPreviewFile(null)}
+              className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-1 rounded-md"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-auto bg-[#0d1117] p-2 md:p-8 flex items-center justify-center min-h-0">
+            {previewFile.type?.startsWith('image/') ? (
+              <img src={previewFile.url} alt={previewFile.name} className="max-w-full max-h-full object-contain drop-shadow-2xl rounded" />
+            ) : (
+              <iframe src={previewFile.url} title={previewFile.name} className="w-full h-full bg-white rounded-lg shadow-2xl" />
+            )}
+          </div>
+          <div className="p-4 border-t border-border-subtle shrink-0 bg-[#1c2128] flex justify-end">
+            <a 
+              href={previewFile.url} 
+              download={previewFile.name}
+              target="_blank" rel="noreferrer"
+              className="flex items-center px-6 py-2.5 text-sm font-bold tracking-wide transition-all duration-200 rounded-lg text-white bg-brand-teal/20 border border-brand-teal/40 hover:bg-brand-teal hover:text-[#0d1117]"
+            >
+              Open / Download Original
+            </a>
           </div>
         </div>
       )}
