@@ -3141,6 +3141,8 @@ try {
         process.env.APP_URL || process.env.BASE_URL || "http://localhost:3000";
       const resetLink = `${appUrl}/reset-password/${token}`;
 
+      const s = getSmtpSettings();
+
       const mailOptions = {
         from: s.from,
         to: email,
