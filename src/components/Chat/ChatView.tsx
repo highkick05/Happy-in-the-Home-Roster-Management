@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
-import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker } from 'lucide-react';
+import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal } from 'lucide-react';
 // @ts-ignore
 import data from '@emoji-mart/data';
 // @ts-ignore
@@ -54,6 +54,8 @@ export default function ChatView() {
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const giphyPickerRef = useRef<HTMLDivElement>(null);
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
+  const [reactionPickerMessageId, setReactionPickerMessageId] = useState<number | null>(null);
+  const reactionPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -62,6 +64,9 @@ export default function ChatView() {
       }
       if (giphyPickerRef.current && !giphyPickerRef.current.contains(event.target as Node)) {
         setShowGiphyPicker(false);
+      }
+      if (reactionPickerRef.current && !reactionPickerRef.current.contains(event.target as Node)) {
+        setReactionPickerMessageId(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -438,7 +443,7 @@ export default function ChatView() {
                         )}
                         <span>{contentToRender}</span>
                       
-                      {hoveredMessageId === msg.id && (
+                      {(hoveredMessageId === msg.id || reactionPickerMessageId === msg.id) && (
                         <div className={`absolute -top-4 ${isOwnMessage ? 'right-4' : 'left-4'} bg-[#1c2128] border border-border-subtle rounded-full px-2 py-1 flex items-center space-x-2 shadow-xl z-20`}>
                           <button onClick={() => handleAddReaction(msg.id, '👍')} className="hover:scale-125 transition-transform text-base">👍</button>
                           <button onClick={() => handleAddReaction(msg.id, '❤️')} className="hover:scale-125 transition-transform text-base">❤️</button>
@@ -446,6 +451,16 @@ export default function ChatView() {
                           <button onClick={() => handleAddReaction(msg.id, '😮')} className="hover:scale-125 transition-transform text-base">😮</button>
                           <button onClick={() => handleAddReaction(msg.id, '😢')} className="hover:scale-125 transition-transform text-base">😢</button>
                           <button onClick={() => handleAddReaction(msg.id, '🙏')} className="hover:scale-125 transition-transform text-base">🙏</button>
+                          <div className="relative" ref={reactionPickerRef}>
+                            <button onClick={(e) => { e.stopPropagation(); setReactionPickerMessageId(reactionPickerMessageId === msg.id ? null : msg.id); }} className="hover:scale-125 transition-transform text-zinc-400 bg-white/5 rounded-full w-5 h-5 flex items-center justify-center">
+                              <MoreHorizontal className="w-3 h-3" />
+                            </button>
+                            {reactionPickerMessageId === msg.id && (
+                              <div className="absolute top-8 right-0 z-[100] shadow-xl" onClick={e => e.stopPropagation()}>
+                                <Picker data={data} onEmojiSelect={(emoji: any) => { handleAddReaction(msg.id, emoji.native); setReactionPickerMessageId(null); }} theme="dark" />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                       
@@ -463,10 +478,10 @@ export default function ChatView() {
                                   <button
                                     key={emoji}
                                     onClick={() => handleAddReaction(msg.id, emoji)}
-                                    className={`flex items-center space-x-1 px-1.5 py-0.5 rounded-full text-[10px] border ${hasReacted ? 'bg-brand-teal/20 border-brand-teal text-brand-teal' : 'bg-black/20 border-border-subtle text-zinc-400 hover:bg-black/40'}`}
+                                    className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs border ${hasReacted ? 'bg-brand-teal/20 border-brand-teal text-brand-teal' : 'bg-black/20 border-border-subtle text-zinc-400 hover:bg-black/40'}`}
                                   >
-                                    <span>{emoji}</span>
-                                    <span>{users.length}</span>
+                                    <span className="text-[13px]">{emoji}</span>
+                                    <span className="text-[10px] font-semibold">{users.length}</span>
                                   </button>
                                 );
                               })}
