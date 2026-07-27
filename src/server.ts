@@ -16939,11 +16939,16 @@ function resolveFilePath(systemName) {
     }
 
     socket.on("send_message", (msg, callback) => {
+      console.log("Received send_message event:", msg);
       try {
-        if (!msg.user_id || (!msg.content && !msg.file_url)) return;
+        if (!msg.user_id || (!msg.content && !msg.file_url)) {
+          console.log("Validation failed, ignoring message.");
+          return;
+        }
         const stmt = db.prepare("INSERT INTO chat_messages (user_id, content, file_url, file_name, file_type) VALUES (?, ?, ?, ?, ?)");
         const info = stmt.run(msg.user_id, msg.content || '', msg.file_url || null, msg.file_name || null, msg.file_type || null);
         
+        console.log("Inserted message with ID:", info.lastInsertRowid);
         const newMsg = db.prepare(`
           SELECT c.*, u.first_name, u.last_name, u.avatar_url 
           FROM chat_messages c 
@@ -16956,7 +16961,7 @@ function resolveFilePath(systemName) {
           callback(newMsg);
         }
       } catch (e) {
-        console.error(e);
+        console.error("Error in send_message:", e);
       }
     });
   });
