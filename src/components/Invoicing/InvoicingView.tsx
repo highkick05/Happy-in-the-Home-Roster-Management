@@ -1270,20 +1270,24 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
             </button>
           )}
           
-          <CustomDatePicker
-            selected={filterStartDate}
-            onDateChange={(date) => setFilterStartDate(date)}
-            placeholderText="Start Date"
-            className="w-28 bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal transition-colors h-7"
-            position="bottom"
-          />
-          <CustomDatePicker
-            selected={filterEndDate}
-            onDateChange={(date) => setFilterEndDate(date)}
-            placeholderText="End Date"
-            className="w-28 bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal transition-colors h-7"
-            position="bottom"
-          />
+          <div className="w-28 h-7">
+            <CustomDatePicker
+              selected={filterStartDate}
+              onDateChange={(date) => setFilterStartDate(date)}
+              placeholderText="Start Date"
+              className="w-full h-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal transition-colors"
+              position="bottom"
+            />
+          </div>
+          <div className="w-28 h-7">
+            <CustomDatePicker
+              selected={filterEndDate}
+              onDateChange={(date) => setFilterEndDate(date)}
+              placeholderText="End Date"
+              className="w-full h-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal transition-colors"
+              position="bottom"
+            />
+          </div>
 
           <select
             value={filterClient}
