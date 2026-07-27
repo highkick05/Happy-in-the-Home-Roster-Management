@@ -21,7 +21,7 @@ export default function SettingsView() {
   const [loading, setLoading] = useState(false);
   const [generalLoading, setGeneralLoading] = useState(false);
   const [testingEmail, setTestingEmail] = useState(false);
-  const [testEmailResult, setTestEmailResult] = useState<{success: boolean, message: string} | null>(null);
+  const [testEmailResult, setTestEmailResult] = useState<{success: boolean, message: string, details?: string} | null>(null);
 
   const handleTestEmail = async () => {
     setTestingEmail(true);
@@ -35,7 +35,7 @@ export default function SettingsView() {
       if (res.ok) {
         setTestEmailResult({ success: true, message: data.message });
       } else {
-        setTestEmailResult({ success: false, message: data.error });
+        setTestEmailResult({ success: false, message: data.error, details: data.details });
       }
     } catch (e: any) {
       setTestEmailResult({ success: false, message: e.message || 'Network error occurred' });
@@ -1004,7 +1004,12 @@ export default function SettingsView() {
               </div>
               {testEmailResult && (
                 <div className={`p-3 rounded-md text-sm ${testEmailResult.success ? 'bg-brand-green/20 text-brand-green border border-brand-green/50' : 'bg-red-500/10 text-red-400 border border-red-500/50'}`}>
-                  {testEmailResult.message}
+                  <div className="font-semibold">{testEmailResult.message}</div>
+                  {!testEmailResult.success && testEmailResult.details && (
+                    <pre className="mt-2 text-xs bg-red-950/30 p-2 rounded border border-red-500/20 overflow-x-auto whitespace-pre-wrap font-mono">
+                      {testEmailResult.details}
+                    </pre>
+                  )}
                 </div>
               )}
             </form>

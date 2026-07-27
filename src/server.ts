@@ -3661,7 +3661,17 @@ try {
       });
       res.json({ success: true, message: "Test email sent successfully to " + req.user.email });
     } catch (e: any) {
-      res.status(500).json({ error: e.message || "Failed to send test email." });
+      const errorDetails = {
+        message: e.message,
+        code: e.code,
+        command: e.command,
+        response: e.response,
+        stack: e.stack
+      };
+      res.status(500).json({ 
+        error: e.message || "Failed to send test email.",
+        details: JSON.stringify(errorDetails, null, 2)
+      });
     }
   });
 
