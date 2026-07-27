@@ -54,21 +54,6 @@ export default function ChatView() {
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const giphyPickerRef = useRef<HTMLDivElement>(null);
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
-  const [longPressMessageId, setLongPressMessageId] = useState<number | null>(null);
-  const pressTimer = useRef<NodeJS.Timeout | null>(null);
-  
-  const handlePressStart = (msgId: number) => {
-    pressTimer.current = setTimeout(() => {
-      setLongPressMessageId(msgId);
-    }, 500);
-  };
-  
-  const handlePressEnd = () => {
-    if (pressTimer.current) {
-      clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -95,7 +80,6 @@ export default function ChatView() {
 
   const fetchGifs = (offset: number) => debouncedGifSearch ? gf.search(debouncedGifSearch, { offset, limit: 10 }) : gf.trending({ offset, limit: 10 });
   const handleAddReaction = async (messageId: number, emoji: string) => {
-    setLongPressMessageId(null);
     setHoveredMessageId(null);
     try {
       const res = await fetch(`/api/chat/messages/${messageId}/react`, {
@@ -140,7 +124,7 @@ export default function ChatView() {
   
   const isOnlyEmojis = (text: string) => {
     if (!text) return false;
-    const textWithoutEmojis = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]/gu, '');
+    const textWithoutEmojis = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F\u200D\s\u{1F3FB}-\u{1F3FF}]/gu, '');
     return textWithoutEmojis.length === 0 && text.trim().length > 0;
   };
 
@@ -369,18 +353,21 @@ export default function ChatView() {
           ) : (
             messages.map((msg) => {
               const isOwnMessage = user?.id === msg.user_id;
+              const isEmojiOnly = isOnlyEmojis(msg.content) && !msg.file_url;
+              
+              const contentToRender = msg.content.split(/(\s+)/).map((part, i) => {
+                if (part.startsWith('http') && (part.includes('giphy.com') || part.match(/\.(gif|jpe?g|png)$/i))) {
+                  return <img key={i} src={part.trim()} alt="gif" className="max-w-[200px] rounded my-1 block" />;
+                }
+                if (part.includes('\n')) {
+                  return <span key={i} style={{ whiteSpace: 'pre-wrap' }}>{part}</span>;
+                }
+                return <React.Fragment key={i}>{part}</React.Fragment>;
+              });
               
               return (
                 <div key={msg.id} className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                  <div 
-                    className={`flex max-w-[70%] ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} relative`}
-                    onMouseEnter={() => setHoveredMessageId(msg.id)}
-                    onMouseLeave={() => { setHoveredMessageId(null); handlePressEnd(); }}
-                    onMouseDown={() => handlePressStart(msg.id)}
-                    onMouseUp={handlePressEnd}
-                    onTouchStart={() => handlePressStart(msg.id)}
-                    onTouchEnd={handlePressEnd}
-                  >
+                  <div className={`flex max-w-[70%] ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}>
                     
                     {/* Avatar */}
                     <div className={`flex-shrink-0 ${isOwnMessage ? 'ml-3' : 'mr-3'}`}>
@@ -398,7 +385,12 @@ export default function ChatView() {
                     </div>
                     
                     {/* Message Bubble */}
-                    <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}>
+                    <div 
+                      className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} relative`}
+                      onMouseEnter={() => setHoveredMessageId(msg.id)}
+                      onMouseLeave={() => setHoveredMessageId(null)}
+                      onClick={() => setHoveredMessageId(msg.id)}
+                    >
                       <div className="flex items-baseline space-x-2 mb-1">
                         <span className="text-xs font-medium text-zinc-300">
                           {msg.first_name} {msg.last_name}
@@ -410,9 +402,11 @@ export default function ChatView() {
                       
                       <div 
                         className={`px-4 py-2 rounded-lg text-xs font-semibold tracking-wide break-words \${
-                          isOwnMessage 
-                            ? 'bg-brand-teal/10 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-none' 
-                            : 'bg-brand-navy text-[#8B949E] border border-border-subtle rounded-tl-none'
+                          isEmojiOnly
+                            ? 'text-[4rem] leading-none'
+                            : isOwnMessage 
+                              ? 'bg-brand-teal/10 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-none' 
+                              : 'bg-brand-navy text-[#8B949E] border border-border-subtle rounded-tl-none'
                         }`}
                       >
                         {msg.file_url && (
@@ -429,26 +423,10 @@ export default function ChatView() {
                             )}
                           </div>
                         )}
-                        {(() => {
-                          const isEmojiOnly = isOnlyEmojis(msg.content);
-                          const contentToRender = msg.content.split(/(\s+)/).map((part, i) => {
-                            if (part.startsWith('http') && (part.includes('giphy.com') || part.match(/\.(gif|jpe?g|png)$/i))) {
-                              return <img key={i} src={part.trim()} alt="gif" className="max-w-[200px] rounded my-1 block" />;
-                            }
-                            if (part.includes('\n')) {
-                              return <span key={i} style={{ whiteSpace: 'pre-wrap' }}>{part}</span>;
-                            }
-                            return <React.Fragment key={i}>{part}</React.Fragment>;
-                          });
-                          
-                          return (
-                            <span className={isEmojiOnly ? "text-5xl" : ""}>
-                              {contentToRender}
-                            </span>
-                          );
-                        })()}
-                                              {(hoveredMessageId === msg.id || longPressMessageId === msg.id) && (
-                        <div className={`absolute top-0 ${isOwnMessage ? 'right-full mr-2' : 'left-full ml-2'} -translate-y-1/2 bg-[#1c2128] border border-border-subtle rounded-full px-2 py-1 flex items-center space-x-1 shadow-lg z-10`}>
+                        <span>{contentToRender}</span>
+                      
+                      {hoveredMessageId === msg.id && (
+                        <div className={`absolute -top-4 ${isOwnMessage ? 'right-4' : 'left-4'} bg-[#1c2128] border border-border-subtle rounded-full px-2 py-1 flex items-center space-x-2 shadow-xl z-20`}>
                           <button onClick={() => handleAddReaction(msg.id, '👍')} className="hover:scale-125 transition-transform text-base">👍</button>
                           <button onClick={() => handleAddReaction(msg.id, '❤️')} className="hover:scale-125 transition-transform text-base">❤️</button>
                           <button onClick={() => handleAddReaction(msg.id, '😂')} className="hover:scale-125 transition-transform text-base">😂</button>
