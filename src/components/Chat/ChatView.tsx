@@ -25,6 +25,7 @@ export default function ChatView() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<{url: string, type: string, name: string} | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -59,7 +60,30 @@ export default function ChatView() {
       scrollToBottom();
     });
 
-    return () => {
+    
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setAttachment(e.dataTransfer.files[0]);
+    }
+  };
+
+  return () => {
       newSocket.disconnect();
     };
   }, [token]);
@@ -135,7 +159,21 @@ export default function ChatView() {
   };
 
   return (
-    <div className="flex flex-col h-full p-2 md:p-6 pb-20 md:pb-6">
+    <div 
+      className="flex flex-col h-full p-2 md:p-6 pb-20 md:pb-6 relative"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 z-50 bg-brand-teal/10 backdrop-blur-sm border-2 border-dashed border-brand-teal rounded-lg m-2 md:m-6 flex items-center justify-center pointer-events-none transition-all duration-200">
+          <div className="bg-brand-navy/90 text-brand-teal px-6 py-4 rounded-xl shadow-2xl flex flex-col items-center">
+            <File className="w-12 h-12 mb-3" />
+            <h3 className="text-lg font-bold tracking-wide">Drop file to attach</h3>
+            <p className="text-sm text-brand-teal/70 mt-1">Images or documents</p>
+          </div>
+        </div>
+      )}
       
 
       <div className="flex-1 bg-brand-navy rounded-lg border border-border-subtle flex flex-col overflow-hidden">
