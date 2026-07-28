@@ -506,7 +506,7 @@ export default function ChatView() {
                         <span>{contentToRender}</span>
                       
                       {(hoveredMessageId === msg.id || reactionPickerMessageId === msg.id) && (
-                        <div className={`absolute -bottom-5 ${isOwnMessage ? 'left-0' : 'left-0'} bg-[#1c2128] border border-border-subtle rounded-full px-2 py-1 flex items-center space-x-2 shadow-xl z-[60]`}>
+                        <div className={`absolute -bottom-5 ${isOwnMessage ? 'right-0' : 'left-0'} bg-[#1c2128] border border-border-subtle rounded-full px-2 py-1 flex items-center space-x-2 shadow-xl z-[60]`}>
                           <button onClick={() => handleAddReaction(msg.id, '👍')} className="hover:scale-125 transition-transform text-base">👍</button>
                           <button onClick={() => handleAddReaction(msg.id, '❤️')} className="hover:scale-125 transition-transform text-base">❤️</button>
                           <button onClick={() => handleAddReaction(msg.id, '😂')} className="hover:scale-125 transition-transform text-base">😂</button>
