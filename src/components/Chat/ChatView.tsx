@@ -443,7 +443,7 @@ export default function ChatView() {
               
               return (
                 <div key={msg.id} className={`flex w-full ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`flex max-w-[85%] md:max-w-[70%] min-w-0 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div className={`flex ${!msg.file_url ? 'w-full max-w-full' : 'max-w-[85%] md:max-w-[70%]'} min-w-0 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}>
                     
                     {/* Avatar */}
                     <div className={`flex-shrink-0 ${isOwnMessage ? 'ml-3' : 'mr-3'}`}>
@@ -462,7 +462,7 @@ export default function ChatView() {
                     
                     {/* Message Bubble */}
                     <div 
-                      className={`flex flex-col min-w-0 max-w-full ${isOwnMessage ? 'items-end' : 'items-start'} relative`}
+                      className={`flex flex-col min-w-0 ${!msg.file_url ? 'w-full max-w-full' : 'max-w-full'} ${isOwnMessage ? 'items-end' : 'items-start'} relative`}
                       onMouseEnter={() => setHoveredMessageId(msg.id)}
                       onMouseLeave={() => setHoveredMessageId(null)}
                       onClick={() => setHoveredMessageId(msg.id)}
