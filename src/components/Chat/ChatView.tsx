@@ -595,7 +595,7 @@ export default function ChatView() {
               onChange={e => e.target.files && setAttachment(e.target.files[0])} 
             />
             
-            <div className="relative flex-1 flex flex-col bg-brand-navy border border-border-subtle rounded-lg focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal p-1">
+            <div className="relative flex-1 flex flex-col bg-brand-navy border border-border-subtle rounded-lg focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal">
               
               {selectedGif && (
                 <div className="relative inline-block m-2 w-max">
@@ -613,12 +613,12 @@ export default function ChatView() {
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
                   placeholder="Type your message..."
-                  className="flex-1 bg-transparent px-2 py-1.5 text-xs font-semibold tracking-wide text-[#E6EDF3] focus:outline-none border-none resize-none"
+                  className="flex-1 bg-transparent px-3 py-2.5 text-xs font-semibold tracking-wide text-[#E6EDF3] focus:outline-none border-none resize-none"
                   rows={1}
                   style={{ minHeight: '36px', maxHeight: '240px' }}
                 />
                 
-                <div className="flex items-center space-x-1 pb-1 pr-1 flex-shrink-0">
+                <div className="flex items-center space-x-1 pb-0.5 pr-1 flex-shrink-0">
                   <div className="relative" ref={giphyPickerRef}>
                     <button 
                       type="button" 
@@ -675,7 +675,7 @@ export default function ChatView() {
             <button
               type="submit"
               disabled={(!newMessage.trim() && !attachment && !selectedGif) || isUploading}
-              className="flex items-center justify-center px-4 py-2 h-[36px] mb-1 text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg text-white bg-brand-teal/20 border border-brand-teal/40 hover:bg-brand-teal hover:text-[#0d1117] disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              className="flex items-center justify-center px-4 h-[36px] text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg text-white bg-brand-teal/20 border border-brand-teal/40 hover:bg-brand-teal hover:text-[#0d1117] disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             >
               {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />} {isUploading ? 'Sending...' : 'Send'}
             </button>
