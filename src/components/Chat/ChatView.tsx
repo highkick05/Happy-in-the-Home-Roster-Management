@@ -477,10 +477,10 @@ export default function ChatView() {
                       </div>
                       
                       <div 
-                        className={`rounded-lg font-semibold tracking-wide break-words overflow-hidden max-w-full ${
+                        className={`rounded-lg font-semibold tracking-wide break-words max-w-full ${
                           isEmojiOnly
-                            ? 'text-6xl md:text-[8rem] leading-none'
-                            : `px-4 py-2 text-xs ${isOwnMessage 
+                            ? 'text-5xl md:text-7xl py-1 leading-normal overflow-visible'
+                            : `px-4 py-2 text-xs overflow-hidden ${isOwnMessage 
                               ? 'bg-brand-teal/10 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-none' 
                               : 'bg-brand-navy text-[#8B949E] border border-border-subtle rounded-tl-none'}`
                         }`}
