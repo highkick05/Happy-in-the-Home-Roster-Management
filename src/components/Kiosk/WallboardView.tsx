@@ -181,7 +181,7 @@ export default function WallboardView() {
         fetch('/api/clients?wallboard=true', { headers })
       ]);
 
-      if (shiftsRes.ok && respiteRes.ok) {
+      if (shiftsRes.ok) {
 
         if (staffRes?.ok) {
           const sData = await staffRes.json();
@@ -193,15 +193,15 @@ export default function WallboardView() {
         }
 
         const shiftsData = await shiftsRes.json();
-        const respiteData = await respiteRes.json();
+        const respiteData = respiteRes.ok ? await respiteRes.json() : [];
         
         const individualShifts = shiftsData.filter((d: any) => !d.respite_booking_id);
 
         const mappedShifts = individualShifts.map((d: any) => ({
           id: d.id,
           title: `${d.client_first_name} ${d.client_last_name} (${d.staff_first_name || 'Unassigned'})`,
-          start: new Date(d.start_time),
-          end: new Date(d.end_time),
+          start: new Date(d.start_time.includes('T') ? d.start_time : d.start_time.replace(' ', 'T')),
+          end: new Date(d.end_time.includes('T') ? d.end_time : d.end_time.replace(' ', 'T')),
           staffId: d.staff_id,
           staffName: `${d.staff_first_name} ${d.staff_last_name}`.trim(),
           clientId: d.client_id,
@@ -219,8 +219,8 @@ export default function WallboardView() {
           mappedRespites.push({
             id: `rb_${d.id}`,
             title: `${d.client_first_name} ${d.client_last_name} (STA / Respite)`,
-            start: new Date(d.start_time),
-            end: new Date(d.end_time),
+            start: new Date(d.start_time.includes('T') ? d.start_time : d.start_time.replace(' ', 'T')),
+            end: new Date(d.end_time.includes('T') ? d.end_time : d.end_time.replace(' ', 'T')),
             clientId: d.client_id,
             clientName: `${d.client_first_name} ${d.client_last_name}`.trim(),
             status: d.status,
@@ -232,8 +232,8 @@ export default function WallboardView() {
               childShifts.push({
                 id: s.id,
                 title: `${d.client_first_name} ${d.client_last_name} (${s.staff_first_name || 'Unassigned'})`,
-                start: new Date(s.start_time),
-                end: new Date(s.end_time),
+                start: new Date(s.start_time.includes('T') ? s.start_time : s.start_time.replace(' ', 'T')),
+                end: new Date(s.end_time.includes('T') ? s.end_time : s.end_time.replace(' ', 'T')),
                 staffId: s.staff_id,
                 staffName: `${s.staff_first_name} ${s.staff_last_name}`.trim(),
                 clientId: d.client_id,

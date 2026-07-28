@@ -6146,7 +6146,33 @@ app.get("/api/health", (req, res) => {
         shiftsQuery += ` AND s.status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')`;
       }
 
-      const childShifts = db.prepare(shiftsQuery).all(...bookingIds);
+            
+      let childShifts = [];
+      try {
+        // Chunk bookingIds to avoid SQLite variable limit
+        const chunkSize = 500;
+        for (let i = 0; i < bookingIds.length; i += chunkSize) {
+          const chunk = bookingIds.slice(i, i + chunkSize);
+          const chunkPlaceholders = chunk.map(() => "?").join(",");
+          let chunkQuery = `
+            SELECT s.*, 
+                   u.first_name as staff_first_name, u.last_name as staff_last_name,
+                   srv.name as service_name, srv.code as service_code, srv.rate as service_rate, srv.unit as service_unit
+            FROM shifts s
+            LEFT JOIN users u ON s.staff_id = u.id
+            LEFT JOIN services srv ON s.service_id = srv.id
+            WHERE s.respite_booking_id IN (${chunkPlaceholders})
+          `;
+          if (!isAdmin) {
+            chunkQuery += ` AND s.status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')`;
+          }
+          const chunkShifts = db.prepare(chunkQuery).all(...chunk);
+          childShifts.push(...chunkShifts);
+        }
+      } catch (e) {
+        console.error("Error fetching child shifts:", e);
+      }
+
 
       const mappedBookings = bookings.map((b: any) => ({
         ...b,
