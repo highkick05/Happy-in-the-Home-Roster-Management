@@ -3327,7 +3327,7 @@ try {
         return res.status(400).json({ error: "Validation failed" });
       }
       if (content === '/clear') {
-        if ((req as any).user.role !== 'admin') {
+        if ((req as any).user.role !== 'ADMIN') {
           return res.status(403).json({ error: "Only admins can clear the chat" });
         }
         db.prepare("DELETE FROM chat_messages").run();

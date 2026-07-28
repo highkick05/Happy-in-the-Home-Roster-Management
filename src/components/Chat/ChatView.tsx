@@ -168,7 +168,7 @@ export default function ChatView() {
             setMessages(prev => {
               // Only update and scroll if the messages have actually changed
               if (prev.length === 0 || JSON.stringify(prev) !== JSON.stringify(data)) {
-                setTimeout(scrollToBottom, 100);
+                setTimeout(() => scrollToBottom(prev.length === 0), 10);
                 return data;
               }
               return prev;
@@ -261,10 +261,14 @@ export default function ChatView() {
     }
   };
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (instant = false) => {
     setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
     }, 100);
+    // Double check after images might have loaded
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
+    }, 500);
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -433,7 +437,7 @@ export default function ChatView() {
               
               const contentToRender = msg.content.split(/(\s+)/).map((part, i) => {
                 if (part.startsWith('http') && (part.includes('giphy.com') || part.match(/\.(gif|jpe?g|png)$/i))) {
-                  return <img key={i} src={part.trim()} alt="gif" className="max-w-[200px] rounded my-1 block" />;
+                  return <img key={i} src={part.trim()} alt="gif" className="max-w-[200px] rounded my-1 block" onLoad={() => scrollToBottom()} />;
                 }
                 if (part.includes('\n')) {
                   return <span key={i} className="break-all whitespace-pre-wrap">{part}</span>;
@@ -489,7 +493,7 @@ export default function ChatView() {
                           <div className="mb-2">
                             {msg.file_type?.startsWith('image/') ? (
                               <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="text-left w-full">
-                                <img src={`${msg.file_url}&token=${token}`} alt="attachment" className="max-w-full max-h-[200px] rounded object-cover cursor-pointer hover:opacity-90 border border-black/20" />
+                                <img src={`${msg.file_url}&token=${token}`} alt="attachment" className="max-w-full max-h-[200px] rounded object-cover cursor-pointer hover:opacity-90 border border-black/20" onLoad={() => scrollToBottom()} />
                               </button>
                             ) : (
                               <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="flex items-center space-x-2 p-2 bg-black/20 rounded cursor-pointer hover:bg-black/30 w-full text-left">
