@@ -28,7 +28,7 @@ export interface ShiftEvent {
 export default function WallboardView() {
   const { token, settings } = useAuth();
   const [events, setEvents] = useState<ShiftEvent[]>([]);
-      const [date, setDate] = useState(() => subDays(new Date(), 1));
+      const [date, setDate] = useState(() => subDays(new Date(), 7));
   
   const [selectedShift, setSelectedShift] = useState<ShiftEvent | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -263,7 +263,7 @@ export default function WallboardView() {
       fetchData();
       if (!manualMode) {
         // Keep moving the 'window' forward so yesterday's shifts fall off 24 hours later
-        setDate(subDays(new Date(), 1));
+        setDate(subDays(new Date(), 7));
       }
     }, 30000);
     return () => clearInterval(interval);
