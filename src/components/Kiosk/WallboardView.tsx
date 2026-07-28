@@ -28,7 +28,8 @@ export interface ShiftEvent {
 export default function WallboardView() {
   const { token, settings } = useAuth();
   const [events, setEvents] = useState<ShiftEvent[]>([]);
-      const [date, setDate] = useState(() => subDays(new Date(), 7));
+  const [fetchError, setFetchError] = useState<string | null>(null);
+      const [date, setDate] = useState(() => subDays(new Date(), 30));
   
   const [selectedShift, setSelectedShift] = useState<ShiftEvent | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -174,11 +175,11 @@ export default function WallboardView() {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const [shiftsRes, respiteRes, tasksRes, staffRes, clientsRes] = await Promise.all([
-        fetch('/api/shifts?wallboard=true', { headers }),
-        fetch('/api/respite-bookings?wallboard=true', { headers }),
-        fetch('/api/tasks?wallboard=true', { headers }),
-        fetch('/api/staff?wallboard=true', { headers }),
-        fetch('/api/clients?wallboard=true', { headers })
+        fetch('/api/shifts?wallboard=true&t=' + Date.now(), { headers }),
+        fetch('/api/respite-bookings?wallboard=true&t=' + Date.now(), { headers }),
+        fetch('/api/tasks?wallboard=true&t=' + Date.now(), { headers }),
+        fetch('/api/staff?wallboard=true&t=' + Date.now(), { headers }),
+        fetch('/api/clients?wallboard=true&t=' + Date.now(), { headers })
       ]);
 
       if (shiftsRes.ok) {
@@ -196,6 +197,10 @@ export default function WallboardView() {
         const respiteData = respiteRes.ok ? await respiteRes.json() : [];
         
         console.log("shiftsData", shiftsData);
+        if (!Array.isArray(shiftsData)) {
+          console.error("shiftsData is not an array", shiftsData);
+          return;
+        }
         const individualShifts = shiftsData.filter((d: any) => !d.respite_booking_id);
 
         const mappedShifts = individualShifts.map((d: any) => ({
@@ -250,10 +255,11 @@ export default function WallboardView() {
 
         // Filter out drafts / cancelled so wallboard stays clean if desired, or keep them to show status.
         // Wallboard shouldn't show deleted or cancelled usually, but we'll show what's passed.
-        setEvents([...mappedShifts, ...mappedRespites, ...childShifts].filter((e: any) => !e.status || ['PUBLISHED', 'IN_PROGRESS', 'COMPLETED', 'DRAFT', 'CANCELLED'].includes((e.status || '').toUpperCase())));
+        setEvents([...mappedShifts, ...mappedRespites, ...childShifts]);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("Wallboard fetch error:", e);
+      setFetchError(e.toString());
     }
   };
 
@@ -263,7 +269,7 @@ export default function WallboardView() {
       fetchData();
       if (!manualMode) {
         // Keep moving the 'window' forward so yesterday's shifts fall off 24 hours later
-        setDate(subDays(new Date(), 7));
+        setDate(subDays(new Date(), 30));
       }
     }, 30000);
     return () => clearInterval(interval);
@@ -379,7 +385,11 @@ export default function WallboardView() {
         <div className="flex-1 w-full flex flex-col p-4 md:p-8 overflow-auto">
           <div style={{ zoom: zoomLevel } as any} className="flex-1 w-full max-w-7xl mx-auto flex flex-col gap-8 pb-32">
             <div className="w-full flex flex-col gap-8">
-                  {groupedEvents.length === 0 ? (
+                  {fetchError ? (
+      <div className="flex items-center justify-center h-48 text-red-500 font-medium text-xl">
+        Error loading shifts: {fetchError}
+      </div>
+    ) : groupedEvents.length === 0 ? (
                     <div className="flex items-center justify-center h-48 text-zinc-500 font-medium">
                       No shifts found starting from {format(date, 'd MMM yyyy')}.
                     </div>
