@@ -473,6 +473,10 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                           src={msg.avatar_url.startsWith('http') ? msg.avatar_url : `${window.location.origin}${msg.avatar_url}`} 
                           alt={msg.first_name} 
                           className="w-6 h-6 rounded-full object-cover bg-brand-navy border border-border-subtle" 
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = `https://ui-avatars.com/api/?name=${msg.first_name}+${msg.last_name}&background=0D8B93&color=fff`;
+                          }}
                         />
                       ) : (
                         <div className="w-6 h-6 rounded-full bg-brand-teal/20 text-brand-teal flex items-center justify-center font-bold text-xs border border-brand-teal/30">
