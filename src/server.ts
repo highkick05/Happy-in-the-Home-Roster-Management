@@ -727,6 +727,19 @@ try {
 
   try {
     db.exec(
+      "ALTER TABLE roster_builds ADD COLUMN template_name TEXT DEFAULT 'Default Template'",
+    );
+    console.log(
+      "[DEBUG] Completed roster_builds.template_name column check.",
+    );
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
+    db.exec(
       "ALTER TABLE client_roster_templates ADD COLUMN template_name TEXT DEFAULT 'Default Template'",
     );
     console.log(
@@ -1109,6 +1122,16 @@ try {
         rates_json TEXT,
         unit TEXT,
         FOREIGN KEY (price_list_id) REFERENCES price_lists(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS roster_builds (
+        id TEXT PRIMARY KEY,
+        client_id INTEGER NOT NULL,
+        shift_count INTEGER NOT NULL,
+        date_range_start TEXT NOT NULL,
+        date_range_end TEXT NOT NULL,
+        template_name TEXT DEFAULT 'Default Template',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
     console.log("[DEBUG] Completed client_ledger_entries table setup.");
@@ -7434,7 +7457,7 @@ app.get("/api/health", (req, res) => {
             .json({ error: "Date range cannot exceed 12 months." });
         }
 
-        const templates = db
+        const templates = templateName === "All Templates" ? db.prepare("SELECT * FROM client_roster_templates WHERE client_id = ?").all(clientId) as any[] : db
           .prepare("SELECT * FROM client_roster_templates WHERE client_id = ? AND template_name = ?")
           .all(clientId, templateName) as any[];
         if (!templates.length)
@@ -7770,8 +7793,8 @@ app.get("/api/health", (req, res) => {
           if (!dryRun && shiftsCreated.length > 0 && generatedBatchId) {
             db.prepare(
               `
-            INSERT INTO roster_builds (id, client_id, shift_count, date_range_start, date_range_end)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO roster_builds (id, client_id, shift_count, date_range_start, date_range_end, template_name)
+            VALUES (?, ?, ?, ?, ?, ?)
           `,
             ).run(
               generatedBatchId,
@@ -7779,6 +7802,7 @@ app.get("/api/health", (req, res) => {
               shiftsCreated.length,
               start.toISOString().split("T")[0],
               end.toISOString().split("T")[0],
+              templateName
             );
           }
 

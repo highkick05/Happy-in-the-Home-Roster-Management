@@ -157,6 +157,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   const [showConflictsModal, setShowConflictsModal] = useState(false);
   const [showAddTemplateModal, setShowAddTemplateModal] = useState(false);
   const [showRunBuilderModal, setShowRunBuilderModal] = useState(false);
+  const [runBuilderTemplate, setRunBuilderTemplate] = useState(activeTemplateName);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [existingShiftsCount, setExistingShiftsCount] = useState(0);
   const [clearExisting, setClearExisting] = useState(false);
@@ -469,7 +470,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: activeTemplateName, clearExisting, frequency })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: runBuilderTemplate, clearExisting, frequency })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -500,7 +501,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: activeTemplateName, clearExisting, frequency })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: runBuilderTemplate, clearExisting, frequency })
       });
       const data = await res.json();
       
@@ -723,7 +724,10 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                   PDF
                 </a>
                 <button
-                  onClick={() => setShowRunBuilderModal(true)}
+                  onClick={() => {
+                    setRunBuilderTemplate(activeTemplateName);
+                    setShowRunBuilderModal(true);
+                  }}
                   className="px-3 py-1.5 bg-brand-green/80 hover:bg-brand-green text-white rounded-lg text-sm font-medium transition-colors flex items-center"
                 >
                   <Calendar className="w-4 h-4 mr-2" />
@@ -949,6 +953,20 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
             </div>
             
             <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-xs font-medium text-zinc-400 mb-2">Template to Build</label>
+                <select 
+                  value={runBuilderTemplate} 
+                  onChange={(e) => setRunBuilderTemplate(e.target.value)}
+                  className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors"
+                >
+                  <option value="All Templates">All Templates</option>
+                  {templateNames.map((name: string) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-zinc-400 mb-2">Shift Frequency</label>
                 <select 

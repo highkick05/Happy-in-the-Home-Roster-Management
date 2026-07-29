@@ -185,6 +185,9 @@ export default function ClientRosterBuildHistory({ clientId, isOpen, onClose, on
                         Build Date: {formatDateTimeLocal(build.created_at)}
                       </div>
                       <div className="text-xs text-zinc-400">
+                        Template: <span className="text-zinc-200">{build.template_name || 'Default Template'}</span>
+                      </div>
+                      <div className="text-xs text-zinc-400">
                         Target Date Range: {formatDateString(build.date_range_start)} to {formatDateString(build.date_range_end)}
                       </div>
                       <div className="text-xs text-brand-teal font-medium mt-1">
