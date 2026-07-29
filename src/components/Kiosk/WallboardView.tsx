@@ -174,24 +174,12 @@ export default function WallboardView() {
   const fetchData = async () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const [shiftsRes, respiteRes, tasksRes, staffRes, clientsRes] = await Promise.all([
+      const [shiftsRes, respiteRes] = await Promise.all([
         fetch('/api/shifts?wallboard=true&t=' + Date.now(), { headers }),
-        fetch('/api/respite-bookings?wallboard=true&t=' + Date.now(), { headers }),
-        fetch('/api/tasks?wallboard=true&t=' + Date.now(), { headers }),
-        fetch('/api/staff?wallboard=true&t=' + Date.now(), { headers }),
-        fetch('/api/clients?wallboard=true&t=' + Date.now(), { headers })
+        fetch('/api/respite-bookings?wallboard=true&t=' + Date.now(), { headers })
       ]);
 
       if (shiftsRes.ok) {
-
-        if (staffRes?.ok) {
-          const sData = await staffRes.json();
-          setStaffList(sData);
-        }
-        if (clientsRes?.ok) {
-          const cData = await clientsRes.json();
-          setClientList(cData);
-        }
 
         const shiftsData = await shiftsRes.json();
         const respiteData = respiteRes.ok ? await respiteRes.json() : [];
