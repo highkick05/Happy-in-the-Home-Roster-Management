@@ -52,9 +52,15 @@ export default function LiveChatIcon() {
       setUnreadCount(0);
     });
 
+    const handleChatRead = () => {
+      setUnreadCount(0);
+    };
+    window.addEventListener('chat_read', handleChatRead);
+
     return () => {
       clearInterval(interval);
       socket.disconnect();
+      window.removeEventListener('chat_read', handleChatRead);
     };
   }, [token, user]);
 

@@ -55,9 +55,15 @@ export default function FloatingChatIcon() {
       setUnreadCount(0);
     });
 
+    const handleChatRead = () => {
+      setUnreadCount(0);
+    };
+    window.addEventListener('chat_read', handleChatRead);
+
     return () => {
       clearInterval(interval);
       socket.disconnect();
+      window.removeEventListener('chat_read', handleChatRead);
     };
   }, [token, user]);
 
@@ -80,7 +86,7 @@ export default function FloatingChatIcon() {
   return (
     <>
       {isOpen && (
-        <div ref={popupRef} className="fixed bottom-0 right-0 w-[95vw] sm:w-[400px] h-[65vh] max-h-[600px] bg-brand-bg border-l border-t border-border-subtle rounded-tl-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 origin-bottom-right z-[9999] lg:hidden">
+        <div ref={popupRef} className="fixed bottom-0 right-0 w-full sm:w-[400px] h-[75vh] sm:h-[65vh] max-h-[700px] sm:max-h-[600px] bg-brand-bg border-l border-t border-border-subtle rounded-tl-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 origin-bottom-right z-[9999] lg:hidden">
           <div className="flex justify-between items-center p-3 bg-brand-navy border-b border-border-subtle shrink-0">
             <h3 className="font-bold text-white tracking-wide text-sm flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-brand-teal" /> Live Chat
