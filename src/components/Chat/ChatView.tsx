@@ -26,7 +26,7 @@ interface ChatMessage {
   reactions?: string;
 }
 
-export default function ChatView() {
+export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const { user, token, settings } = useAuth();
 
   const gf = React.useMemo(() => {
@@ -385,7 +385,7 @@ export default function ChatView() {
 
   return (
     <div 
-      className="flex flex-col flex-1 h-full min-h-0 p-2 md:p-6 pb-20 md:pb-6 relative"
+      className={`flex flex-col flex-1 h-full min-h-0 relative ${isMini ? 'p-0 pb-0' : 'p-2 md:p-6 pb-20 md:pb-6'}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
