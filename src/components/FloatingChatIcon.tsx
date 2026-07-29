@@ -100,22 +100,22 @@ export default function FloatingChatIcon() {
         </div>
       )}
       
-      <button 
-        onClick={() => {
-          setIsOpen(!isOpen);
-          if (!isOpen) {
+      {!isOpen && (
+        <button 
+          onClick={() => {
+            setIsOpen(true);
             setUnreadCount(0);
-          }
-        }}
-        className="p-4 bg-brand-teal text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.4)] hover:scale-105 active:scale-95 transition-all"
-      >
-        <MessageSquare className="w-6 h-6 text-white" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 text-xs font-black text-white bg-red-600 rounded-full border-2 border-brand-teal transform shadow-md">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
-      </button>
+          }}
+          className="p-4 bg-brand-teal text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.4)] hover:scale-105 active:scale-95 transition-all"
+        >
+          <MessageSquare className="w-6 h-6 text-white" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 text-xs font-black text-white bg-red-600 rounded-full border-2 border-brand-teal transform shadow-md">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
     </div>
   );
 }
