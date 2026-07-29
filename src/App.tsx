@@ -10,6 +10,7 @@ import RosterCalendar from './components/Roster/RosterCalendar';
 import { MessageSquare,  Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car, GraduationCap  } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import QuickLinksDrawer from './components/QuickLinksDrawer';
+import FloatingChatIcon from './components/FloatingChatIcon';
 import Login from './components/Auth/Login';
 import ForgotPasswordView from './components/Auth/ForgotPasswordView';
 import ResetPasswordView from './components/Auth/ResetPasswordView';
@@ -402,6 +403,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Quick Links Floating Hover Tab */}
       {user?.role === 'ADMIN' && <QuickLinksDrawer />}
+      <FloatingChatIcon />
     </div>
   );
 }
