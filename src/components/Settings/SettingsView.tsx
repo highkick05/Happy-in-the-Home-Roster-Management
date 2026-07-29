@@ -108,6 +108,7 @@ export default function SettingsView() {
     chatBackgroundTint: '#000000'
   });
   const [successMsg, setSuccessMsg] = useState('');
+  const [chatMediaFiles, setChatMediaFiles] = useState<any[]>([]);
 
   const REGIONS = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA', 'Remote', 'Very Remote'];
   const STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
@@ -158,6 +159,7 @@ export default function SettingsView() {
 
   useEffect(() => {
     if (activeTab === 'GENERAL' || activeTab === 'BILLING' || activeTab === 'BRANDING' || activeTab === 'EMAIL' || activeTab === 'CHAT') fetchSettings();
+    if (activeTab === 'CHAT') fetchChatMediaFiles();
     if (activeTab === 'NDIS' || activeTab === 'HOME_CARE') fetchServices(activeTab);
     if (activeTab === 'NDIS') fetchPriceLists();
   }, [activeTab]);
@@ -183,6 +185,20 @@ export default function SettingsView() {
       if (res.ok) {
         const data = await res.json();
         setSettings(prev => ({ ...prev, ...data }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const fetchChatMediaFiles = async () => {
+    try {
+      const res = await fetch('/api/files', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChatMediaFiles(data.filter((f: any) => f.folder_path === '/Settings/Chat'));
       }
     } catch (e) {
       console.error(e);
@@ -618,6 +634,62 @@ export default function SettingsView() {
       alert('Upload failed');
     }
     e.target.value = '';
+  };
+
+  const handleChatMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (user?.role !== 'ADMIN') {
+      alert("Only admins can update chat media.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folderPath', '/Settings/Chat');
+
+    try {
+      setGeneralLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/files?folderPath=${encodeURIComponent('/Settings/Chat')}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      
+      if (res.ok) {
+        await fetchChatMediaFiles();
+      } else {
+        alert('File upload failed');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Upload failed');
+    } finally {
+      setGeneralLoading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteChatMedia = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this media file?")) return;
+    try {
+      const res = await fetch(`/api/files/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        await fetchChatMediaFiles();
+        // If the deleted file was the background, clear it
+        const file = chatMediaFiles.find(f => f.id === id);
+        if (file && settings.chatBackgroundImage === `/api/files/download/${file.id}`) {
+           setSettings(s => ({ ...s, chatBackgroundImage: '' }));
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const filteredServices = services.filter(s => {
@@ -1223,35 +1295,64 @@ export default function SettingsView() {
 
                   <div className="bg-brand-navy border border-border-subtle rounded-xl p-4 shadow-sm relative overflow-hidden">
                     <div className="mb-4">
-                      <h4 className="text-sm font-medium text-[#E6EDF3]">Chat Background Media</h4>
-                      <p className="text-[10px] text-[#8B949E] mt-1">Upload an image or video to use as the chat background.</p>
+                      <h4 className="text-sm font-medium text-[#E6EDF3]">Chat Background Media Gallery</h4>
+                      <p className="text-[10px] text-[#8B949E] mt-1">Upload images or videos to your gallery and select one to use as the chat background. These files are stored in the File Manager under Settings/Chat.</p>
                     </div>
                     
-                    <div className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-border-subtle rounded-lg bg-brand-bg hover:bg-brand-navy transition-colors relative group">
-                      {settings.chatBackgroundImage ? (
-                        <div className="relative w-full h-32 flex items-center justify-center">
-                          {settings.chatBackgroundImage.match(/\.(mp4|webm)$/i) ? (
-                             <video src={settings.chatBackgroundImage} className="max-h-full max-w-full object-contain" autoPlay loop muted playsInline />
-                          ) : (
-                             <img src={settings.chatBackgroundImage} alt="Chat Background" className="max-h-full max-w-full object-contain" />
-                          )}
-                          <button type="button" onClick={() => setSettings({...settings, chatBackgroundImage: ''})} className="absolute top-2 right-2 p-2 bg-black/60 text-[#8B949E] hover:text-[#E6EDF3] transition-colors rounded-md hover:bg-black/80 z-10">
-                            <X className="w-3 h-3" strokeWidth={3} />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="text-center">
-                          <Upload className="w-8 h-8 text-[#8B949E] mx-auto mb-2" />
-                          <p className="text-xs text-[#8B949E]">Click to upload image or video</p>
-                        </div>
-                      )}
-                      <input 
-                        type="file" 
-                        accept="image/*,video/*" 
-                        onChange={(e) => handleImageUpload(e, 'chatBackgroundImage')} 
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                      />
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      {chatMediaFiles.map(f => {
+                        const fileUrl = `/api/files/download/${f.id}`;
+                        const renderUrl = `${fileUrl}?token=${token}`;
+                        const isSelected = settings.chatBackgroundImage === fileUrl;
+                        const isVideo = f.system_name?.match(/\.(mp4|webm|mov)$/i);
+                        return (
+                          <div key={f.id} className={`relative group border-2 rounded-lg overflow-hidden ${isSelected ? 'border-brand-teal' : 'border-transparent'} bg-black`}>
+                            <div className="aspect-video flex items-center justify-center cursor-pointer" onClick={() => setSettings({...settings, chatBackgroundImage: fileUrl})}>
+                              {isVideo ? (
+                                <video src={renderUrl} className="max-h-full max-w-full object-contain" muted playsInline />
+                              ) : (
+                                <img src={renderUrl} alt={f.original_name} className="max-h-full max-w-full object-contain" />
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteChatMedia(f.id)}
+                              className="absolute top-1 right-1 p-1 bg-red-500/80 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                            >
+                              <X className="w-3 h-3" strokeWidth={3} />
+                            </button>
+                            {isSelected && (
+                              <div className="absolute bottom-0 inset-x-0 bg-brand-teal/90 text-white text-[10px] py-1 text-center font-medium">
+                                Active Background
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      
+                      {/* Upload Button */}
+                      <div className="aspect-video flex flex-col items-center justify-center border-2 border-dashed border-border-subtle rounded-lg bg-brand-bg hover:bg-brand-navy transition-colors relative cursor-pointer">
+                        <Upload className="w-6 h-6 text-[#8B949E] mb-1" />
+                        <span className="text-[10px] text-[#8B949E]">Upload Media</span>
+                        <input 
+                          type="file" 
+                          accept="image/*,video/*" 
+                          onChange={handleChatMediaUpload} 
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                        />
+                      </div>
                     </div>
+                    {settings.chatBackgroundImage && (
+                      <div className="mt-2 flex justify-end">
+                        <button 
+                          type="button" 
+                          onClick={() => setSettings({...settings, chatBackgroundImage: ''})}
+                          className="text-xs text-brand-teal hover:text-brand-green transition-colors"
+                        >
+                          Clear Active Background
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

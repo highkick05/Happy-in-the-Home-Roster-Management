@@ -442,21 +442,26 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         {/* Chat Background Media */}
         {settings?.chatBackgroundImage && (
           <div className="absolute inset-0 z-0 pointer-events-none">
-            {settings.chatBackgroundImage.match(/\.(mp4|webm|ogg)$/i) ? (
-              <video 
-                src={settings.chatBackgroundImage} 
-                className="w-full h-full object-cover" 
-                autoPlay loop muted playsInline 
-                style={{ opacity: (parseInt(settings.chatBackgroundOpacity || '100') / 100) }}
-              />
-            ) : (
-              <img 
-                src={settings.chatBackgroundImage} 
-                alt="Chat Background" 
-                className="w-full h-full object-cover"
-                style={{ opacity: (parseInt(settings.chatBackgroundOpacity || '100') / 100) }}
-              />
-            )}
+            {(() => {
+              const srcWithToken = settings.chatBackgroundImage.startsWith('/api/files/download') 
+                ? `${settings.chatBackgroundImage}${settings.chatBackgroundImage.includes('?') ? '&' : '?'}token=${token}`
+                : settings.chatBackgroundImage;
+              return settings.chatBackgroundImage.match(/\.(mp4|webm|ogg)$/i) ? (
+                <video 
+                  src={srcWithToken} 
+                  className="w-full h-full object-cover" 
+                  autoPlay loop muted playsInline 
+                  style={{ opacity: (parseInt(settings.chatBackgroundOpacity || '100') / 100) }}
+                />
+              ) : (
+                <img 
+                  src={srcWithToken} 
+                  alt="Chat Background" 
+                  className="w-full h-full object-cover"
+                  style={{ opacity: (parseInt(settings.chatBackgroundOpacity || '100') / 100) }}
+                />
+              );
+            })()}
           </div>
         )}
 
