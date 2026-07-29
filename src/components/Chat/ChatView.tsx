@@ -125,13 +125,29 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 240)}px`;
       scrollToBottom();
     }
+    
+    // Send typing via API fallback (since socket.io is unreliable through the proxy)
+    fetch('/api/chat/typing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ isTyping: true })
+    }).catch(() => {});
+    
     if (socket && user) {
       socket.emit('typing', { userId: user.id, userName: `${user.firstName} ${user.lastName}` });
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => {
-        socket.emit('stop_typing', { userId: user.id, userName: `${user.firstName} ${user.lastName}` });
-      }, 3000);
     }
+    
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      fetch('/api/chat/typing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ isTyping: false })
+      }).catch(() => {});
+      if (socket && user) {
+        socket.emit('stop_typing', { userId: user.id, userName: `${user.firstName} ${user.lastName}` });
+      }
+    }, 3000);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -196,11 +212,23 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     };
     markRead();
 
+    const fetchTyping = () => {
+      fetch('/api/chat/typing', { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(res => res.json())
+        .then(data => {
+          if (data.typingUsers) {
+            setTypingUsers(data.typingUsers);
+          }
+        })
+        .catch(() => {});
+    };
+
     // Poll every 3 seconds as a bulletproof fallback in case websockets are blocked by proxy
     const interval = setInterval(() => {
       fetchMessages();
       markRead();
-    }, 3000);
+      fetchTyping();
+    }, 2000);
 
     // Keep socket connection as a fast path
     const newSocket = io(window.location.origin, {
