@@ -13676,8 +13676,8 @@ function resolveFilePath(systemName) {
           .get(id) as any;
         if (!file) return res.status(404).json({ error: "File not found" });
 
-        // Basic security for non-admins (allow chat files to be accessed by any authenticated user)
-        if (req.user.role !== "ADMIN" && file.uploaded_by !== req.user.id && !file.folder_path?.startsWith('/Chat')) {
+        // Basic security for non-admins (allow chat files and settings chat media to be accessed by any authenticated user)
+        if (req.user.role !== "ADMIN" && file.uploaded_by !== req.user.id && !file.folder_path?.startsWith('/Chat') && !file.folder_path?.startsWith('/Settings/Chat')) {
           return res.status(403).json({ error: "Forbidden" });
         }
 
