@@ -130,7 +130,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     fetch('/api/chat/typing', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ isTyping: true })
+      body: JSON.stringify({ isTyping: true, userName: `${user?.firstName} ${user?.lastName}`.trim() || 'User' })
     }).catch(() => {});
     
     if (socket && user) {
@@ -142,7 +142,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       fetch('/api/chat/typing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ isTyping: false })
+        body: JSON.stringify({ isTyping: false, userName: `${user?.firstName} ${user?.lastName}`.trim() || 'User' })
       }).catch(() => {});
       if (socket && user) {
         socket.emit('stop_typing', { userId: user.id, userName: `${user.firstName} ${user.lastName}` });
@@ -213,7 +213,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     markRead();
 
     const fetchTyping = () => {
-      fetch('/api/chat/typing', { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`/api/chat/typing?_t=${Date.now()}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json())
         .then(data => {
           if (data.typingUsers) {

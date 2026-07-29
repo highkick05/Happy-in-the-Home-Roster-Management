@@ -3254,6 +3254,44 @@ try {
     }
   });
 
+  const typingUsers = new Map<number, { userName: string, lastTyped: number }>();
+
+  app.post("/api/chat/typing", authenticateToken, (req: any, res: any) => {
+    try {
+      const { isTyping, userName } = req.body;
+      let finalUserName = userName || 'User';
+      
+      if (isTyping) {
+        typingUsers.set(req.user.id, { userName: finalUserName, lastTyped: Date.now() });
+      } else {
+        typingUsers.delete(req.user.id);
+      }
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/chat/typing", authenticateToken, (req: any, res: any) => {
+    try {
+      const now = Date.now();
+      const activeTyping = [];
+      for (const [userId, data] of typingUsers.entries()) {
+        if (now - data.lastTyped > 4000) {
+          typingUsers.delete(userId);
+        } else if (userId !== req.user.id) {
+          activeTyping.push(data.userName);
+        }
+      }
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.json({ typingUsers: activeTyping });
+    } catch (e) {
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
   app.get("/api/chat/messages", authenticateToken, (req, res) => {
     try {
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
