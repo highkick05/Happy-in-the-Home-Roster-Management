@@ -11,6 +11,7 @@ import { MessageSquare,  Map, Calendar, Users, FileText, Settings, Home, LogOut,
 import { AuthProvider, useAuth } from './context/AuthContext';
 import QuickLinksDrawer from './components/QuickLinksDrawer';
 import FloatingChatIcon from './components/FloatingChatIcon';
+import ReloadPrompt from './components/ReloadPrompt';
 import Login from './components/Auth/Login';
 import ForgotPasswordView from './components/Auth/ForgotPasswordView';
 import ResetPasswordView from './components/Auth/ResetPasswordView';
@@ -457,6 +458,7 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <BrowserRouter>
+      <ReloadPrompt />
           <UniversalPWAInstall />
           <Routes>
             <Route path="/login" element={<Login />} />
