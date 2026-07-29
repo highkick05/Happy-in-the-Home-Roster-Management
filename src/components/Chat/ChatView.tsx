@@ -209,6 +209,8 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     
     setSocket(newSocket);
 
+
+
     newSocket.on('typing', (data: { userId: number, userName: string }) => {
       setTypingUsers((prev) => {
         if (!prev.includes(data.userName)) {
@@ -269,6 +271,12 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       setAttachment(e.dataTransfer.files[0]);
     }
   };
+
+  useEffect(() => {
+    if (typingUsers.length > 0) {
+      scrollToBottom();
+    }
+  }, [typingUsers]);
 
   const scrollToBottom = (instant = false) => {
     setTimeout(() => {
@@ -572,7 +580,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
             })
           )}
           {typingUsers.length > 0 && (
-            <div className="flex items-center space-x-2 text-xs text-zinc-400 italic mt-4 pl-4 animate-pulse">
+            <div className="flex items-center space-x-2 text-xs text-brand-teal italic mt-4 pl-4 animate-pulse shrink-0">
               <Loader2 className="w-3 h-3 animate-spin" />
               <span>{typingUsers.length === 1 ? `${typingUsers[0]} is typing...` : `${typingUsers.join(', ')} are typing...`}</span>
             </div>
