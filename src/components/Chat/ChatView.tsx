@@ -52,6 +52,8 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const [showGiphyPicker, setShowGiphyPicker] = useState(false);
   
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const giphyButtonRef = useRef<HTMLButtonElement>(null);
   const giphyPickerRef = useRef<HTMLDivElement>(null);
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<number | null>(null);
@@ -59,10 +61,10 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node) && (!emojiButtonRef.current || !emojiButtonRef.current.contains(event.target as Node))) {
         setShowEmojiPicker(false);
       }
-      if (giphyPickerRef.current && !giphyPickerRef.current.contains(event.target as Node)) {
+      if (giphyPickerRef.current && !giphyPickerRef.current.contains(event.target as Node) && (!giphyButtonRef.current || !giphyButtonRef.current.contains(event.target as Node))) {
         setShowGiphyPicker(false);
       }
       if (reactionPickerRef.current && !reactionPickerRef.current.contains(event.target as Node)) {
@@ -621,46 +623,25 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                 />
                 
                 <div className="flex items-center space-x-1 pb-0.5 pr-1 flex-shrink-0">
-                  <div className="relative" ref={giphyPickerRef}>
-                    <button 
-                      type="button" 
-                      onClick={() => { setShowGiphyPicker(!showGiphyPicker); setShowEmojiPicker(false); }}
-                      className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                      title="GIFs"
-                    >
-                      <Sticker className="w-4 h-4" />
-                    </button>
-                    {showGiphyPicker && (
-                      <div className="absolute bottom-10 right-0 z-50 bg-brand-navy border border-border-subtle rounded-lg shadow-xl overflow-hidden p-2 flex flex-col" style={{ width: 300, height: 400 }}>
-                        <input 
-                          type="text" 
-                          placeholder="Search GIFs..." 
-                          value={gifSearch}
-                          onChange={(e) => setGifSearch(e.target.value)}
-                          className="w-full bg-black/20 border border-border-subtle rounded-md px-2 py-1.5 text-xs text-white mb-2 focus:outline-none focus:border-brand-teal"
-                        />
-                        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
-                          <Grid key={debouncedGifSearch} width={280} columns={2} fetchGifs={fetchGifs} onGifClick={onGifClick} />
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <button 
+                    ref={giphyButtonRef}
+                    type="button" 
+                    onClick={() => { setShowGiphyPicker(!showGiphyPicker); setShowEmojiPicker(false); }}
+                    className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                    title="GIFs"
+                  >
+                    <Sticker className="w-4 h-4" />
+                  </button>
                   
-                  <div className="relative" ref={emojiPickerRef}>
-                    <button 
-                      type="button" 
-                      onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGiphyPicker(false); }}
-                      className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                      title="Emojis"
-                    >
-                      <Smile className="w-4 h-4" />
-                    </button>
-                    {showEmojiPicker && (
-                      <div className="absolute bottom-10 right-0 z-50 shadow-xl">
-                        <Picker data={data} onEmojiSelect={onEmojiClick} theme="dark" />
-                      </div>
-                    )}
-                  </div>
+                  <button 
+                    ref={emojiButtonRef}
+                    type="button" 
+                    onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGiphyPicker(false); }}
+                    className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                    title="Emojis"
+                  >
+                    <Smile className="w-4 h-4" />
+                  </button>
                   
                   <button 
                     type="button" 
@@ -714,6 +695,29 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
               Open / Download Original
             </a>
           </div>
+        </div>
+      )}
+
+      {showGiphyPicker && (
+        <div ref={giphyPickerRef} className="absolute z-50 bg-brand-navy border border-border-subtle rounded-lg shadow-xl overflow-hidden p-2 flex flex-col bottom-[70px] left-2 right-2 sm:left-auto sm:right-6 sm:w-[320px] max-w-[400px]" style={{ height: 400 }}>
+          <input 
+            type="text" 
+            placeholder="Search GIFs..." 
+            value={gifSearch}
+            onChange={(e) => setGifSearch(e.target.value)}
+            className="w-full bg-black/20 border border-border-subtle rounded-md px-2 py-1.5 text-xs text-white mb-2 focus:outline-none focus:border-brand-teal shrink-0"
+          />
+          <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex justify-center">
+            <div className="w-full max-w-[280px]">
+              <Grid key={debouncedGifSearch} width={280} columns={2} fetchGifs={fetchGifs} onGifClick={onGifClick} />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {showEmojiPicker && (
+        <div ref={emojiPickerRef} className="absolute z-50 shadow-xl bottom-[70px] right-2 sm:right-6">
+          <Picker data={data} onEmojiSelect={onEmojiClick} theme="dark" />
         </div>
       )}
     </div>
