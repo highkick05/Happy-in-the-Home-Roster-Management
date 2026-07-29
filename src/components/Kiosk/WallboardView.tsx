@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns/format';
 import { subDays } from 'date-fns/subDays';
 import { startOfDay } from 'date-fns/startOfDay';
+import { endOfDay } from 'date-fns/endOfDay';
+import { addDays } from 'date-fns/addDays';
 import { compareAsc } from 'date-fns/compareAsc';
 import { useAuth } from '../../context/AuthContext';
 import ShiftDetailsModal from '../Roster/ShiftDetailsModal';
@@ -29,7 +31,7 @@ export default function WallboardView() {
   const { token, settings } = useAuth();
   const [events, setEvents] = useState<ShiftEvent[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
-      const [date, setDate] = useState(() => subDays(new Date(), 30));
+      const [date, setDate] = useState(() => subDays(new Date(), 1));
   
   const [selectedShift, setSelectedShift] = useState<ShiftEvent | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -243,7 +245,10 @@ export default function WallboardView() {
 
         // Filter out drafts / cancelled so wallboard stays clean if desired, or keep them to show status.
         // Wallboard shouldn't show deleted or cancelled usually, but we'll show what's passed.
-        setEvents([...mappedShifts, ...mappedRespites, ...childShifts]);
+        setEvents([...mappedShifts, ...mappedRespites, ...childShifts].filter((e: any) => {
+          if (!e.status) return true;
+          return ['PUBLISHED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(e.status.toUpperCase());
+        }));
       }
     } catch (e: any) {
       console.error("Wallboard fetch error:", e);
@@ -257,7 +262,7 @@ export default function WallboardView() {
       fetchData();
       if (!manualMode) {
         // Keep moving the 'window' forward so yesterday's shifts fall off 24 hours later
-        setDate(subDays(new Date(), 30));
+        setDate(subDays(new Date(), 1));
       }
     }, 30000);
     return () => clearInterval(interval);
@@ -287,9 +292,11 @@ export default function WallboardView() {
 
   // Group and sort events
   const groupedEvents = useMemo(() => {
-    const minDate = startOfDay(date);
-    // Filter events to only those > minDate (yesterday)
-    const activeEvents = events.filter(e => e.start >= minDate);
+    const minDate = startOfDay(subDays(new Date(), 1));
+    const maxDate = endOfDay(addDays(new Date(), 1));
+    
+    // Filter events to only those between yesterday and tomorrow
+    const activeEvents = events.filter(e => e.start >= minDate && e.start <= maxDate);
     
     // Sort chronologically
     activeEvents.sort((a, b) => compareAsc(a.start, b.start));
