@@ -88,6 +88,11 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const fetchGifs = (offset: number) => debouncedGifSearch ? gf.search(debouncedGifSearch, { offset, limit: 10 }) : gf.trending({ offset, limit: 10 });
   const handleAddReaction = async (messageId: number, emoji: string) => {
     setHoveredMessageId(null);
+    setReactionPickerMessageId(null);
+    setTimeout(() => {
+      setHoveredMessageId(null);
+      setReactionPickerMessageId(null);
+    }, 100);
     try {
       const res = await fetch(`/api/chat/messages/${messageId}/react`, {
         method: 'POST',
@@ -473,7 +478,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                       className={`flex flex-col min-w-0 ${!msg.file_url ? 'w-full max-w-full' : 'max-w-full'} ${isOwnMessage ? 'items-end' : 'items-start'} relative`}
                       onMouseEnter={() => setHoveredMessageId(msg.id)}
                       onMouseLeave={() => setHoveredMessageId(null)}
-                      onClick={() => setHoveredMessageId(msg.id)}
+                      onClick={() => setHoveredMessageId(prev => prev === msg.id ? null : msg.id)}
                     >
                       <div className="flex items-baseline space-x-2 mb-1">
                         <span className="text-xs font-medium text-zinc-300">
@@ -511,12 +516,12 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                       
                       {(hoveredMessageId === msg.id || reactionPickerMessageId === msg.id) && (
                         <div className={`absolute -bottom-5 ${isOwnMessage ? 'right-0' : 'left-0'} bg-[#1c2128] border border-border-subtle rounded-full px-2 py-1 flex items-center space-x-2 shadow-xl z-[60]`}>
-                          <button onClick={() => handleAddReaction(msg.id, '👍')} className="hover:scale-125 transition-transform text-base">👍</button>
-                          <button onClick={() => handleAddReaction(msg.id, '❤️')} className="hover:scale-125 transition-transform text-base">❤️</button>
-                          <button onClick={() => handleAddReaction(msg.id, '😂')} className="hover:scale-125 transition-transform text-base">😂</button>
-                          <button onClick={() => handleAddReaction(msg.id, '😮')} className="hover:scale-125 transition-transform text-base">😮</button>
-                          <button onClick={() => handleAddReaction(msg.id, '😢')} className="hover:scale-125 transition-transform text-base">😢</button>
-                          <button onClick={() => handleAddReaction(msg.id, '🙏')} className="hover:scale-125 transition-transform text-base">🙏</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '👍'); }} className="hover:scale-125 transition-transform text-base">👍</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '❤️'); }} className="hover:scale-125 transition-transform text-base">❤️</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '😂'); }} className="hover:scale-125 transition-transform text-base">😂</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '😮'); }} className="hover:scale-125 transition-transform text-base">😮</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '😢'); }} className="hover:scale-125 transition-transform text-base">😢</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '🙏'); }} className="hover:scale-125 transition-transform text-base">🙏</button>
                           <div className="relative" ref={reactionPickerRef}>
                             <button onClick={(e) => { e.stopPropagation(); setReactionPickerMessageId(reactionPickerMessageId === msg.id ? null : msg.id); }} className="hover:scale-125 transition-transform text-zinc-400 bg-white/5 rounded-full w-5 h-5 flex items-center justify-center">
                               <MoreHorizontal className="w-3 h-3" />
@@ -543,7 +548,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                                 return (
                                   <button
                                     key={emoji}
-                                    onClick={() => handleAddReaction(msg.id, emoji)}
+                                    onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, emoji); }}
                                     className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs border ${hasReacted ? 'bg-brand-teal/20 border-brand-teal text-brand-teal' : 'bg-black/20 border-border-subtle text-zinc-400 hover:bg-black/40'}`}
                                   >
                                     <span className="text-[13px]">{emoji}</span>
