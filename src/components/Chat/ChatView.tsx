@@ -204,7 +204,6 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
     // Keep socket connection as a fast path
     const newSocket = io(window.location.origin, {
-      transports: ['websocket'],
       path: '/socket.io'
     });
     
