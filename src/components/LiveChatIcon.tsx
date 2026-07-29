@@ -36,6 +36,7 @@ export default function LiveChatIcon() {
     const interval = setInterval(fetchUnread, 10000); // Poll every 10 seconds
 
     const socket = io(window.location.origin, {
+      transports: ['websocket'],
       path: '/socket.io'
     });
 
