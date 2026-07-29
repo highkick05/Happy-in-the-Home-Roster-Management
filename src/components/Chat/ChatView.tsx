@@ -118,6 +118,8 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
   const [isDragging, setIsDragging] = useState(false);
 
+  const typingThrottleRef = useRef<boolean>(false);
+  
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewMessage(e.target.value);
     if (textareaRef.current) {
@@ -126,15 +128,14 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       scrollToBottom();
     }
     
-    // Send typing via API fallback (since socket.io is unreliable through the proxy)
-    fetch('/api/chat/typing', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ isTyping: true, userName: `${user?.firstName} ${user?.lastName}`.trim() || 'User' })
-    }).catch(() => {});
-    
-    if (socket && user) {
-      socket.emit('typing', { userId: user.id, userName: `${user.firstName} ${user.lastName}` });
+    if (!typingThrottleRef.current) {
+      typingThrottleRef.current = true;
+      fetch('/api/chat/typing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ isTyping: true, userName: `${user?.firstName} ${user?.lastName}`.trim() || 'User' })
+      }).catch(() => {});
+      setTimeout(() => { typingThrottleRef.current = false; }, 1500);
     }
     
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -142,12 +143,9 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       fetch('/api/chat/typing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ isTyping: false, userName: `${user?.firstName} ${user?.lastName}`.trim() || 'User' })
+        body: JSON.stringify({ isTyping: false })
       }).catch(() => {});
-      if (socket && user) {
-        socket.emit('stop_typing', { userId: user.id, userName: `${user.firstName} ${user.lastName}` });
-      }
-    }, 3000);
+    }, 2000);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -239,18 +237,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
 
 
-    newSocket.on('typing', (data: { userId: number, userName: string }) => {
-      setTypingUsers((prev) => {
-        if (!prev.includes(data.userName)) {
-          return [...prev, data.userName];
-        }
-        return prev;
-      });
-    });
 
-    newSocket.on('stop_typing', (data: { userId: number, userName: string }) => {
-      setTypingUsers((prev) => prev.filter(name => name !== data.userName));
-    });
 
     newSocket.on('chat_cleared', () => {
       setMessages([]);
@@ -353,9 +340,11 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     }
 
     setNewMessage('');
-    if (socket && user) {
-      socket.emit('stop_typing', { userId: user.id, userName: `${user.firstName} ${user.lastName}` });
-    }
+    fetch('/api/chat/typing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ isTyping: false })
+    }).catch(() => {});
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     if (!content && !fileUrl) {
