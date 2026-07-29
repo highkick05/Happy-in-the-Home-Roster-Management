@@ -1070,8 +1070,6 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
-      ALTER TABLE users ADD COLUMN last_chat_read DATETIME;
-
       CREATE TABLE IF NOT EXISTS chat_messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,

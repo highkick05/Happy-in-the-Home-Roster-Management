@@ -752,6 +752,8 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     <option value="1 Monthly">1 Monthly</option>
                     <option value="2 Monthly">2 Monthly</option>
                     <option value="3 Monthly">3 Monthly</option>
+                    <option value="6 Monthly">6 Monthly</option>
+                    <option value="12 Monthly">12 Monthly</option>
                   </select>
                 </div>
                 <a
