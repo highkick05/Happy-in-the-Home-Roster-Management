@@ -126,10 +126,10 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       scrollToBottom();
     }
     if (socket && user) {
-      socket.emit('typing', { userId: user.id, userName: `${user.first_name} ${user.last_name}` });
+      socket.emit('typing', { userId: user.id, userName: `${user.firstName} ${user.lastName}` });
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
-        socket.emit('stop_typing', { userId: user.id, userName: `${user.first_name} ${user.last_name}` });
+        socket.emit('stop_typing', { userId: user.id, userName: `${user.firstName} ${user.lastName}` });
       }, 3000);
     }
   };
@@ -326,7 +326,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
     setNewMessage('');
     if (socket && user) {
-      socket.emit('stop_typing', { userId: user.id, userName: `${user.first_name} ${user.last_name}` });
+      socket.emit('stop_typing', { userId: user.id, userName: `${user.firstName} ${user.lastName}` });
     }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
@@ -579,14 +579,16 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
               );
             })
           )}
-          {typingUsers.length > 0 && (
-            <div className="flex items-center space-x-2 text-xs text-brand-teal italic mt-4 pl-4 animate-pulse shrink-0">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              <span>{typingUsers.length === 1 ? `${typingUsers[0]} is typing...` : `${typingUsers.join(', ')} are typing...`}</span>
-            </div>
-          )}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Typing Indicator */}
+        {typingUsers.length > 0 && (
+          <div className="px-4 pt-2 pb-1 bg-[#11161d]/90 backdrop-blur-md shrink-0 flex items-center space-x-2 text-xs text-brand-teal italic z-10 relative">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span className="animate-pulse">{typingUsers.length === 1 ? `${typingUsers[0]} is typing...` : `${typingUsers.join(', ')} are typing...`}</span>
+          </div>
+        )}
 
         {/* Input Area */}
         <div className="p-4 bg-[#11161d]/90 backdrop-blur-md border-t border-border-subtle shrink-0 relative z-10">
