@@ -1133,6 +1133,13 @@ try {
         template_name TEXT DEFAULT 'Default Template',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS client_template_settings (
+        client_id INTEGER NOT NULL,
+        template_name TEXT NOT NULL,
+        frequency TEXT DEFAULT 'Weekly',
+        PRIMARY KEY (client_id, template_name)
+      );
     `);
     console.log("[DEBUG] Completed client_ledger_entries table setup.");
 
@@ -7333,6 +7340,9 @@ app.get("/api/health", (req, res) => {
         db.prepare(
           "UPDATE client_roster_templates SET template_name = ? WHERE client_id = ? AND template_name = ?",
         ).run(newName, req.params.id, oldName);
+        db.prepare(
+          "UPDATE client_template_settings SET template_name = ? WHERE client_id = ? AND template_name = ?",
+        ).run(newName, req.params.id, oldName);
         res.json({ success: true });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -7350,6 +7360,9 @@ app.get("/api/health", (req, res) => {
         const { templateName = "Default Template" } = req.query;
         db.prepare(
           "DELETE FROM client_roster_templates WHERE client_id = ? AND template_name = ?",
+        ).run(req.params.id, templateName);
+        db.prepare(
+          "DELETE FROM client_template_settings WHERE client_id = ? AND template_name = ?",
         ).run(req.params.id, templateName);
         res.json({ success: true });
       } catch (e: any) {
@@ -7374,6 +7387,45 @@ app.get("/api/health", (req, res) => {
         res.status(500).json({ error: "Internal Server Error" });
       }
     },
+  );
+
+  app.get(
+    "/api/clients/:id/template-settings",
+    authenticateToken,
+    (req: any, res: any) => {
+      try {
+        const settings = db
+          .prepare("SELECT * FROM client_template_settings WHERE client_id = ?")
+          .all(req.params.id);
+        res.json(settings);
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    }
+  );
+
+  app.post(
+    "/api/clients/:id/template-settings",
+    authenticateToken,
+    requireAdmin,
+    (req: any, res: any) => {
+      try {
+        const { templateName, frequency } = req.body;
+        if (!templateName || !frequency) {
+          return res.status(400).json({ error: "templateName and frequency required" });
+        }
+        db.prepare(
+          `INSERT INTO client_template_settings (client_id, template_name, frequency) 
+           VALUES (?, ?, ?) 
+           ON CONFLICT(client_id, template_name) DO UPDATE SET frequency = excluded.frequency`
+        ).run(req.params.id, templateName, frequency);
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    }
   );
 
   function getUtcTimeFromLocal(
@@ -7465,41 +7517,52 @@ app.get("/api/health", (req, res) => {
             .status(400)
             .json({ error: "No templates found for this client." });
 
-        let validMondays: Set<string> | null = null;
-        if (frequency && frequency !== "Weekly") {
-          validMondays = new Set<string>();
-          const startDt = new Date(startDate + "T12:00:00Z");
-          
-          const getMondayStr = (d: Date) => {
-            const dCopy = new Date(d.getTime());
-            const day = dCopy.getUTCDay();
-            const diff = dCopy.getUTCDate() - day + (day === 0 ? -6 : 1);
-            dCopy.setUTCDate(diff);
-            return dCopy.toISOString().split("T")[0];
-          };
+        const settingsRowsDB = db.prepare("SELECT * FROM client_template_settings WHERE client_id = ?").all(clientId) as any[];
+        const freqMap = new Map<string, string>();
+        settingsRowsDB.forEach(s => freqMap.set(s.template_name, s.frequency));
 
-          if (frequency === "Fortnightly") {
-            let curr = new Date(getMondayStr(startDt) + "T12:00:00Z");
-            const endDt = new Date(endDate + "T12:00:00Z");
-            while (curr <= endDt || curr.getTime() <= startDt.getTime() + 14 * 86400000) {
-              validMondays.add(curr.toISOString().split("T")[0]);
-              curr.setUTCDate(curr.getUTCDate() + 14);
+        const validMondaysMap = new Map<string, Set<string> | null>();
+        const uniqueTemplatesToGenerate = new Set(templates.map((t: any) => t.template_name || "Default Template"));
+        const startDt = new Date(startDate + "T12:00:00Z");
+        
+        const getMondayStr = (d: Date) => {
+          const dCopy = new Date(d.getTime());
+          const day = dCopy.getUTCDay();
+          const diff = dCopy.getUTCDate() - day + (day === 0 ? -6 : 1);
+          dCopy.setUTCDate(diff);
+          return dCopy.toISOString().split("T")[0];
+        };
+
+        for (const tName of Array.from(uniqueTemplatesToGenerate)) {
+          const freq = freqMap.get(tName as string) || "Weekly";
+          if (freq !== "Weekly") {
+            const vm = new Set<string>();
+            if (freq === "Fortnightly") {
+              let curr = new Date(getMondayStr(startDt) + "T12:00:00Z");
+              const endDt = new Date(endDate + "T12:00:00Z");
+              while (curr <= endDt || curr.getTime() <= startDt.getTime() + 14 * 86400000) {
+                vm.add(curr.toISOString().split("T")[0]);
+                curr.setUTCDate(curr.getUTCDate() + 14);
+              }
+            } else if (freq === "3 Weekly") {
+              let curr = new Date(getMondayStr(startDt) + "T12:00:00Z");
+              const endDt = new Date(endDate + "T12:00:00Z");
+              while (curr <= endDt || curr.getTime() <= startDt.getTime() + 21 * 86400000) {
+                vm.add(curr.toISOString().split("T")[0]);
+                curr.setUTCDate(curr.getUTCDate() + 21);
+              }
+            } else if (freq.endsWith("Monthly")) {
+              const months = parseInt(freq.split(" ")[0]) || 1;
+              let curr = new Date(startDt.getTime());
+              const endDt = new Date(endDate + "T12:00:00Z");
+              while (curr <= endDt || curr.getTime() <= startDt.getTime() + 31 * 86400000) {
+                vm.add(getMondayStr(curr));
+                curr.setUTCMonth(curr.getUTCMonth() + months);
+              }
             }
-          } else if (frequency === "3 Weekly") {
-            let curr = new Date(getMondayStr(startDt) + "T12:00:00Z");
-            const endDt = new Date(endDate + "T12:00:00Z");
-            while (curr <= endDt || curr.getTime() <= startDt.getTime() + 21 * 86400000) {
-              validMondays.add(curr.toISOString().split("T")[0]);
-              curr.setUTCDate(curr.getUTCDate() + 21);
-            }
-          } else if (frequency.endsWith("Monthly")) {
-            const months = parseInt(frequency.split(" ")[0]) || 1;
-            let curr = new Date(startDt.getTime());
-            const endDt = new Date(endDate + "T12:00:00Z");
-            while (curr <= endDt || curr.getTime() <= startDt.getTime() + 31 * 86400000) {
-              validMondays.add(getMondayStr(curr));
-              curr.setUTCMonth(curr.getUTCMonth() + months);
-            }
+            validMondaysMap.set(tName as string, vm);
+          } else {
+            validMondaysMap.set(tName as string, null);
           }
         }
 
@@ -7593,24 +7656,30 @@ app.get("/api/health", (req, res) => {
             dt <= endDt;
             dt.setUTCDate(dt.getUTCDate() + 1)
           ) {
-            if (validMondays) {
-              const dCopy = new Date(dt.getTime());
-              const day = dCopy.getUTCDay();
-              const diff = dCopy.getUTCDate() - day + (day === 0 ? -6 : 1);
-              dCopy.setUTCDate(diff);
-              const weekMondayStr = dCopy.toISOString().split("T")[0];
-              if (!validMondays.has(weekMondayStr)) {
-                continue;
-              }
-            }
-
             const shiftDateStr = dt.toISOString().split("T")[0];
             const localNoon = new Date(`${shiftDateStr}T12:00:00Z`);
             const dayOfWeek = localNoon.getUTCDay(); // 0 is Sunday, 6 is Saturday
 
-            const todaysTemplates = templates.filter(
-              (t) => t.day_of_week === dayOfWeek,
+            // calculate weekMondayStr for this day
+            const dCopy = new Date(dt.getTime());
+            const day = dCopy.getUTCDay();
+            const diff = dCopy.getUTCDate() - day + (day === 0 ? -6 : 1);
+            dCopy.setUTCDate(diff);
+            const weekMondayStr = dCopy.toISOString().split("T")[0];
+
+            let todaysTemplates = templates.filter(
+              (t: any) => t.day_of_week === dayOfWeek,
             );
+
+            // Filter todaysTemplates based on their individual frequency settings
+            todaysTemplates = todaysTemplates.filter((t: any) => {
+              const tName = t.template_name || "Default Template";
+              const vm = validMondaysMap.get(tName);
+              if (vm) {
+                return vm.has(weekMondayStr);
+              }
+              return true;
+            });
 
             for (const tmpl of todaysTemplates) {
               // Create timestamps

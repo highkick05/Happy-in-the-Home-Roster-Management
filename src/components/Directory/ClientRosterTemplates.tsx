@@ -24,6 +24,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   const clientId = client?.id;
   const { token, user, settings } = useAuth();
   const [templates, setTemplates] = useState<any[]>([]);
+  const [templateSettings, setTemplateSettings] = useState<Record<string, string>>({});
   const [servicesList, setServicesList] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,7 +162,6 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [existingShiftsCount, setExistingShiftsCount] = useState(0);
   const [clearExisting, setClearExisting] = useState(false);
-  const [frequency, setFrequency] = useState('Weekly');
   const [clientConflictsList, setClientConflictsList] = useState<any[]>([]);
   const [selectedConflictsToOverwrite, setSelectedConflictsToOverwrite] = useState<Set<number>>(new Set());
   const [resolvingConflicts, setResolvingConflicts] = useState(false);
@@ -174,12 +174,19 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     if (!token) return;
     setLoading(true);
     try {
-      const [templatesRes, allServicesRes, staffRes] = await Promise.all([
+      const [templatesRes, allServicesRes, staffRes, settingsRes] = await Promise.all([
         fetch(`/api/clients/${clientId}/roster-templates`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/services', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/staff', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/staff', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/clients/${clientId}/template-settings`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
       if (templatesRes.ok) setTemplates(await templatesRes.json());
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        const settingsMap: Record<string, string> = {};
+        settingsData.forEach((s: any) => { settingsMap[s.template_name] = s.frequency; });
+        setTemplateSettings(settingsMap);
+      }
       if (allServicesRes.ok) setServicesList(await allServicesRes.json());
       if (staffRes.ok) {
         const staffData = await staffRes.json();
@@ -375,6 +382,24 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     }
   };
 
+  const handleFrequencyChange = async (newFrequency: string) => {
+    try {
+      const res = await fetch(`/api/clients/${clientId}/template-settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ templateName: activeTemplateName, frequency: newFrequency })
+      });
+      if (res.ok) {
+        setTemplateSettings(prev => ({ ...prev, [activeTemplateName]: newFrequency }));
+      } else {
+        alert('Failed to update template frequency.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error occurred.');
+    }
+  };
+
   const handleClearTemplate = async () => {
     if (!confirm(`Are you sure you want to clear all template shifts for "${activeTemplateName}"?`)) return;
     try {
@@ -470,7 +495,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: runBuilderTemplate, clearExisting, frequency })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: runBuilderTemplate, clearExisting })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -501,7 +526,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: runBuilderTemplate, clearExisting, frequency })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: false, overwriteConflicts: overwriteParam, templateName: runBuilderTemplate, clearExisting })
       });
       const data = await res.json();
       
@@ -714,6 +739,21 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
           <div className="flex items-center gap-2">
             {user?.role === 'ADMIN' && (
               <>
+                <div className="flex items-center gap-2 mr-2">
+                  <span className="text-sm text-zinc-400 font-medium">Frequency:</span>
+                  <select
+                    value={templateSettings[activeTemplateName] || 'Weekly'}
+                    onChange={(e) => handleFrequencyChange(e.target.value)}
+                    className="bg-[#121214] border border-white/[0.08] rounded-md px-2 py-1.5 text-sm text-white focus:border-brand-teal outline-none transition-colors"
+                  >
+                    <option value="Weekly">Weekly</option>
+                    <option value="Fortnightly">Fortnightly</option>
+                    <option value="3 Weekly">3 Weekly</option>
+                    <option value="1 Monthly">1 Monthly</option>
+                    <option value="2 Monthly">2 Monthly</option>
+                    <option value="3 Monthly">3 Monthly</option>
+                  </select>
+                </div>
                 <a
                   href={`/api/clients/${clientId}/roster-templates/pdf?token=${token}&templateName=${encodeURIComponent(activeTemplateName)}`}
                   target="_blank"
@@ -964,24 +1004,6 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                   {templateNames.map((name: string) => (
                     <option key={name} value={name}>{name}</option>
                   ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-2">Shift Frequency</label>
-                <select 
-                  value={frequency} 
-                  onChange={(e) => setFrequency(e.target.value)}
-                  className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors"
-                >
-                  <option value="Weekly">Weekly</option>
-                  <option value="Fortnightly">Fortnightly</option>
-                  <option value="3 Weekly">3 Weekly</option>
-                  <option value="1 Monthly">1 Monthly</option>
-                  <option value="2 Monthly">2 Monthly</option>
-                  <option value="3 Monthly">3 Monthly</option>
-                  <option value="6 Monthly">6 Monthly</option>
-                  <option value="12 Monthly">12 Monthly</option>
                 </select>
               </div>
 
