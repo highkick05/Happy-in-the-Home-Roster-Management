@@ -81,10 +81,7 @@ export default function FloatingChatIcon() {
     };
   }, [isOpen]);
 
-  if (location.pathname.includes('/chat')) return null;
-
-  
-  useEffect(() => {
+    useEffect(() => {
     if ('setAppBadge' in navigator) {
       if (unreadCount > 0) {
         // @ts-ignore
@@ -95,6 +92,11 @@ export default function FloatingChatIcon() {
       }
     }
   }, [unreadCount]);
+
+  if (location.pathname.includes('/chat')) return null;
+
+  
+
 return (
     <>
       {isOpen && (
