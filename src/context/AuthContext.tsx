@@ -25,8 +25,14 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [settings, setSettings] = useState<any>({});
+  const [user, setUser] = useState<User | null>(() => {
+    const cached = localStorage.getItem('user');
+    return cached ? JSON.parse(cached) : null;
+  });
+  const [settings, setSettings] = useState<any>(() => {
+    const cached = localStorage.getItem('settings');
+    return cached ? JSON.parse(cached) : {};
+  });
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [isLoading, setIsLoading] = useState(true);
 
@@ -40,7 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             logout();
             // Option to redirect to login if not already there, unless it's a kiosk view
             if (window.location.pathname !== '/login' && !window.location.pathname.startsWith('/kiosk')) {
-              window.location.href = '/login';
+              window.location.replace('/login');
             }
           }
           return response;
@@ -69,13 +75,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const res = await fetch('/api/me', {
             headers: { Authorization: `Bearer ${token}` }
           });
-          if (!res.ok) throw new Error('Invalid token');
-          const data = await res.json();
-          setUser(data.user);
-          if (data.settings) setSettings(data.settings);
+          
+          if (res.status === 401 || res.status === 403) {
+             logout();
+             return;
+          }
+          
+          if (res.ok) {
+            const data = await res.json();
+            setUser(data.user);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            if (data.settings) {
+              setSettings(data.settings);
+              localStorage.setItem('settings', JSON.stringify(data.settings));
+            }
+          } else {
+            // Server error or other issue, don't logout but maybe user is not loaded
+            console.error('Failed to fetch user:', res.status);
+            // We could optionally load user from localStorage if we cached it, but for now we just don't logout.
+          }
         } catch (error) {
-          console.error(error);
-          logout();
+          console.error('Network or fetch error during initAuth:', error);
+          // Don't logout on network errors (e.g. offline or cancelled fetch)
         }
       }
       setIsLoading(false);
@@ -85,13 +106,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = (newToken: string, userData: User, newSettings?: any) => {
     localStorage.setItem('token', newToken);
+    localStorage.setItem('user', JSON.stringify(userData));
     setToken(newToken);
     setUser(userData);
-    if (newSettings) setSettings(newSettings);
+    if (newSettings) {
+      setSettings(newSettings);
+      localStorage.setItem('settings', JSON.stringify(newSettings));
+    }
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('settings');
     setToken(null);
     setUser(null);
     setSettings({});
@@ -120,10 +147,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateUser = (newUser: User) => {
     setUser(newUser);
+    localStorage.setItem('user', JSON.stringify(newUser));
   };
 
   const updateSettings = (newSettings: any) => {
     setSettings(newSettings);
+    localStorage.setItem('settings', JSON.stringify(newSettings));
   };
 
   return (

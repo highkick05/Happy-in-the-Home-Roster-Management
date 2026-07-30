@@ -262,7 +262,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Communication</div>
           <div className="space-y-0.5 mb-2">
-            <NavLink to="/chat" className={getNavClasses} title="Live Chat">
+            <NavLink replace={true} to="/chat" className={getNavClasses} title="Live Chat">
               <MessageSquare className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Live Chat' : ''}
             </NavLink>
           </div>
@@ -270,24 +270,24 @@ function Layout({ children }: { children: React.ReactNode }) {
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Operations</div>
           <div className="space-y-0.5">
             {user?.role === 'ADMIN' && (
-              <NavLink to="/tasks" className={getNavClasses} title="Tasks">
+              <NavLink replace={true} to="/tasks" className={getNavClasses} title="Tasks">
                 <CheckSquare className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Tasks' : ''}
               </NavLink>
             )}
-            <NavLink to="/roster" className={getNavClasses} title="Roster">
+            <NavLink replace={true} to="/roster" className={getNavClasses} title="Roster">
               <Calendar className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Roster' : ''}
             </NavLink>
-            <NavLink to="/progress-notes" className={getNavClasses} title="Progress Notes">
+            <NavLink replace={true} to="/progress-notes" className={getNavClasses} title="Progress Notes">
               <ClipboardEdit className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Progress Notes' : ''}
             </NavLink>
           </div>
 
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Logistics</div>
           <div className="space-y-0.5">
-            <NavLink to="/travel-logs" className={getNavClasses} title="Travel Logs">
+            <NavLink replace={true} to="/travel-logs" className={getNavClasses} title="Travel Logs">
               <Map className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Travel Logs' : ''}
             </NavLink>
-            <NavLink to="/vehicles" className={getNavClasses} title="Vehicles">
+            <NavLink replace={true} to="/vehicles" className={getNavClasses} title="Vehicles">
               <Car className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Vehicles' : ''}
             </NavLink>
           </div>
@@ -296,13 +296,13 @@ function Layout({ children }: { children: React.ReactNode }) {
             <>
               <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Directory</div>
               <div className="space-y-0.5">
-                <NavLink to="/clients" className={getNavClasses} title="Clients">
+                <NavLink replace={true} to="/clients" className={getNavClasses} title="Clients">
                   <Heart className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Clients' : ''}
                 </NavLink>
-                <NavLink to="/staff" className={getNavClasses} title="Staff">
+                <NavLink replace={true} to="/staff" className={getNavClasses} title="Staff">
                   <Users className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Staff' : ''}
                 </NavLink>
-                <NavLink to="/providers" className={getNavClasses} title="Providers">
+                <NavLink replace={true} to="/providers" className={getNavClasses} title="Providers">
                   <Building className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Providers' : ''}
                 </NavLink>
               </div>
@@ -310,14 +310,14 @@ function Layout({ children }: { children: React.ReactNode }) {
               <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Admin & Finance</div>
               <div className="space-y-0.5">
             {user?.role === 'ADMIN' && (
-              <NavLink to="/activity" className={getNavClasses} title="Staff Activity">
+              <NavLink replace={true} to="/activity" className={getNavClasses} title="Staff Activity">
                 <Activity className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Staff Activity' : ''}
               </NavLink>
             )}
-                <NavLink to="/invoices" className={getNavClasses} title="Invoicing">
+                <NavLink replace={true} to="/invoices" className={getNavClasses} title="Invoicing">
                   <FileText className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Invoicing' : ''}
                 </NavLink>
-                <NavLink to="/compliance" className={getNavClasses} title="Compliance">
+                <NavLink replace={true} to="/compliance" className={getNavClasses} title="Compliance">
                   <FileCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Compliance' : ''}
                 </NavLink>
               </div>
@@ -327,14 +327,14 @@ function Layout({ children }: { children: React.ReactNode }) {
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Resources</div>
           <div className="space-y-0.5">
             {user?.role === 'STAFF' && (
-              <NavLink to="/onboarding" className={getNavClasses} title="Onboarding Hub">
+              <NavLink replace={true} to="/onboarding" className={getNavClasses} title="Onboarding Hub">
                 <FileCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
               </NavLink>
             )}
-            <NavLink to="/training" className={getNavClasses} title="Training">
+            <NavLink replace={true} to="/training" className={getNavClasses} title="Training">
               <GraduationCap className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Training' : ''}
             </NavLink>
-            <NavLink to="/files" className={getNavClasses} title="Files">
+            <NavLink replace={true} to="/files" className={getNavClasses} title="Files">
               <FolderOpen className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Files' : ''}
             </NavLink>
           </div>
@@ -343,7 +343,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             <>
               <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>System</div>
               <div className="space-y-0.5">
-                <NavLink to="/settings" className={getNavClasses} title="Settings">
+                <NavLink replace={true} to="/settings" className={getNavClasses} title="Settings">
                   <Settings className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Settings' : ''}
                 </NavLink>
               </div>
@@ -379,7 +379,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             </div>
           )}
           <div className={isDesktopSidebarCollapsed && !isMobileMenuOpen ? "flex flex-col space-y-1" : "flex items-center space-x-1"}>
-            <NavLink to="/profile" className={(props: {isActive: boolean}) => `${getNavClasses(props)} ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-full' : 'flex-1'}`} title="Profile">
+            <NavLink replace={true} to="/profile" className={(props: {isActive: boolean}) => `${getNavClasses(props)} ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-full' : 'flex-1'}`} title="Profile">
               <User className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Profile' : ''}
             </NavLink>
             <button onClick={handleHardReset} title="Sync / Reset App Cache" className={`flex-shrink-0 flex items-center justify-center ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'h-7 w-full' : 'h-7 w-7'} bg-brand-navy hover:bg-brand-bg text-[#8B949E] hover:text-[#E6EDF3] border border-transparent hover:border-border-subtle rounded-lg transition-colors`}>

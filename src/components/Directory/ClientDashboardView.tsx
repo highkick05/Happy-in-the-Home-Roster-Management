@@ -100,7 +100,7 @@ export default function ClientDashboardView() {
     return (
       <div className="p-8 text-center">
         <p className="text-red-400 mb-4">Client not found.</p>
-        <button onClick={() => navigate('/clients')} className="text-brand-teal hover:underline">Return to Directory</button>
+        <button onClick={() => navigate('/clients', { replace: true })} className="text-brand-teal hover:underline">Return to Directory</button>
       </div>
     );
   }
@@ -150,7 +150,7 @@ export default function ClientDashboardView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2 shrink-0">
         <div className="flex items-center space-x-4">
           <button 
-            onClick={() => navigate('/clients')}
+            onClick={() => navigate('/clients', { replace: true })}
             className="p-2 -ml-2 text-[#8B949E] hover:text-white transition-colors rounded-full hover:bg-white/[0.04]"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -174,7 +174,7 @@ export default function ClientDashboardView() {
         <div className="flex items-center space-x-3">
           <button 
             type="button"
-            onClick={() => navigate(`/clients/${id}/documents`)}
+            onClick={() => navigate(`/clients/${id}/documents`, { replace: true })}
             className="px-3 py-1.5 min-h-[36px] bg-brand-navy border border-border-subtle hover:border-brand-teal text-[#8B949E] hover:text-[#E6EDF3] rounded-lg text-xs font-semibold flex items-center space-x-2 transition-colors duration-155 shadow-sm"
             title="Documents"
           >
@@ -184,7 +184,7 @@ export default function ClientDashboardView() {
           
           <button 
             type="button"
-            onClick={() => navigate(`/clients/${id}/budget`)}
+            onClick={() => navigate(`/clients/${id}/budget`, { replace: true })}
             className="px-3 py-1.5 min-h-[36px] bg-brand-navy border border-border-subtle hover:border-brand-teal text-[#8B949E] hover:text-[#E6EDF3] rounded-lg text-xs font-semibold flex items-center space-x-2 transition-colors duration-155 shadow-sm"
             title="Budget"
           >

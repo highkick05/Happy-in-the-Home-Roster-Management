@@ -178,7 +178,7 @@ return (
               <MessageSquare className="w-4 h-4 text-brand-teal" /> Live Chat
             </h3>
             <div className="flex items-center gap-3">
-               <button onClick={() => { setIsOpen(false); navigate('/chat'); }} className="text-zinc-400 hover:text-white transition-colors" title="Open Full View">
+               <button onClick={() => { setIsOpen(false); navigate('/chat', { replace: true }); }} className="text-zinc-400 hover:text-white transition-colors" title="Open Full View">
                  <Maximize2 className="w-4 h-4" />
                </button>
                <button onClick={() => setIsOpen(false)} className="text-zinc-400 hover:text-white transition-colors" title="Close">

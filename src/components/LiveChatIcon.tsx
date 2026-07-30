@@ -156,7 +156,7 @@ return (
             if (permission === 'granted') subscribeToPush();
           }).catch(() => {});
         }
-        navigate('/chat');
+        navigate('/chat', { replace: true });
       }}
       className="relative p-1.5 rounded-full hover:bg-white/[0.04] transition-colors focus:outline-none focus:ring-2 focus:ring-brand-teal "
     >

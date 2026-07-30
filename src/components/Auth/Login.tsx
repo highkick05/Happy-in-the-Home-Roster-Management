@@ -9,8 +9,14 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [publicSettings, setPublicSettings] = useState<any>({});
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (user) {
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate]);
 
   React.useEffect(() => {
     fetch('/api/public-settings')
@@ -42,7 +48,7 @@ export default function Login() {
       if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission().catch(() => {});
       }
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (err: any) {
       setError(err.message);
     } finally {

@@ -169,7 +169,7 @@ export default function DashboardView() {
           <div className="w-full flex-1 rounded-lg border border-border-subtle flex flex-col items-center justify-center py-10 px-4 text-center bg-brand-bg">
              <Calendar className="w-8 h-8 text-[#8B949E] mb-3" />
              <p className="text-[#8B949E] text-sm mb-4">Manage your shifts and assignments.</p>
-             <Link to="/roster" className="px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-sm font-semibold rounded-md transition-all">
+             <Link replace={true} to="/roster" className="px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-sm font-semibold rounded-md transition-all">
                Go to Roster
              </Link>
           </div>
@@ -180,7 +180,7 @@ export default function DashboardView() {
           <div className="w-full flex-1 rounded-lg border border-border-subtle flex flex-col items-center justify-center py-10 px-4 text-center bg-brand-bg">
              <FileText className="w-8 h-8 text-[#8B949E] mb-3" />
              <p className="text-[#8B949E] text-sm mb-4">Automated compliant invoices are generated upon shift completion.</p>
-             <Link to="/invoices" className="px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-sm font-semibold rounded-md transition-all">
+             <Link replace={true} to="/invoices" className="px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-sm font-semibold rounded-md transition-all">
                View Invoices
              </Link>
           </div>

@@ -269,7 +269,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               {activeTab === 'CLIENTS' && displayClients.map(c => {
                 const initials = `${(c.first_name || '').charAt(0)}${(c.last_name || '').charAt(0)}`.toUpperCase();
                 return (
-                  <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${c.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
+                  <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`, { replace: true })} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${c.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
                         {c.avatar_url ? (

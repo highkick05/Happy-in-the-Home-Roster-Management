@@ -391,7 +391,7 @@ export default function HomeCareBudgetView() {
     <div className="w-full flex flex-col h-full space-y-6">
       <div className="flex items-center space-x-4 mb-2 shrink-0">
         <button 
-          onClick={() => navigate(`/clients/${id}`)}
+          onClick={() => navigate(`/clients/${id}`, { replace: true })}
           className="p-2 -ml-2 text-[#8B949E] hover:text-white transition-colors rounded-full hover:bg-white/[0.04]"
         >
           <ArrowLeft className="w-5 h-5" />
