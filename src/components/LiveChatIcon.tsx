@@ -35,6 +35,15 @@ export default function LiveChatIcon() {
     fetchUnread();
     const interval = setInterval(fetchUnread, 10000); // Poll every 10 seconds
 
+    
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchUnread();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
     const socket = io(window.location.origin, {
       path: '/socket.io'
     });
@@ -48,6 +57,12 @@ export default function LiveChatIcon() {
       }
     });
 
+    socket.on('chat_read_by_user', (data: any) => {
+      if (user && data.user_id === user.id) {
+        setUnreadCount(0);
+      }
+    });
+    
     socket.on('chat_cleared', () => {
       setUnreadCount(0);
     });
@@ -61,6 +76,8 @@ export default function LiveChatIcon() {
       clearInterval(interval);
       socket.disconnect();
       window.removeEventListener('chat_read', handleChatRead);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
     };
   }, [token, user]);
 
