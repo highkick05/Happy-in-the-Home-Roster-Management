@@ -3047,10 +3047,13 @@ try {
     const settingsRows = db
       .prepare("SELECT key, value FROM settings")
       .all() as any[];
-    const settings = settingsRows.reduce(
-      (acc, row) => ({ ...acc, [row.key]: JSON.parse(row.value) }),
-      {},
-    );
+    const settings = settingsRows.reduce((acc, row) => {
+      try {
+        return { ...acc, [row.key]: JSON.parse(row.value) };
+      } catch (e) {
+        return { ...acc, [row.key]: row.value };
+      }
+    }, {});
 
     res.json({
       token,
@@ -3653,10 +3656,13 @@ try {
     const settingsRows = db
       .prepare("SELECT key, value FROM settings")
       .all() as any[];
-    const settings = settingsRows.reduce(
-      (acc, row) => ({ ...acc, [row.key]: JSON.parse(row.value) }),
-      {}
-    );
+    const settings = settingsRows.reduce((acc, row) => {
+      try {
+        return { ...acc, [row.key]: JSON.parse(row.value) };
+      } catch (e) {
+        return { ...acc, [row.key]: row.value };
+      }
+    }, {});
 
     res.json({
       user: {
