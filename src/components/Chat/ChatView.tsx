@@ -87,6 +87,32 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   };
 
   const fetchGifs = (offset: number) => debouncedGifSearch ? gf.search(debouncedGifSearch, { offset, limit: 10 }) : gf.trending({ offset, limit: 10 });
+
+  const handleQuote = (msg: ChatMessage) => {
+    const quotedContent = msg.content ? `> ${msg.first_name}: ${msg.content}\n\n` : `> ${msg.first_name}: [${msg.file_name || 'Attachment'}]\n\n`;
+    setNewMessage(prev => quotedContent + prev);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
+
+  const handleDeleteMessage = async (msgId: number) => {
+    if (!window.confirm("Are you sure you want to delete this message?")) return;
+    try {
+      const res = await fetch(`/api/chat/messages/${msgId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!res.ok) {
+        alert("Failed to delete message. You may not have permission.");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleAddReaction = async (messageId: number, emoji: string) => {
     setHoveredMessageId(null);
     setReactionPickerMessageId(null);
@@ -545,10 +571,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                     
                     {/* Message Bubble */}
                     <div 
-                      className={`flex flex-col min-w-0 ${!msg.file_url ? 'w-full max-w-full' : 'max-w-full'} ${isOwnMessage ? 'items-end' : 'items-start'} relative`}
-                      onMouseEnter={() => setHoveredMessageId(msg.id)}
-                      onMouseLeave={() => setHoveredMessageId(null)}
-                      onClick={() => setHoveredMessageId(prev => prev === msg.id ? null : msg.id)}
+                      className={`flex flex-col min-w-0 ${!msg.file_url ? 'max-w-full' : 'max-w-full'} ${isOwnMessage ? 'items-end' : 'items-start'} relative`}
                     >
                       <div className="flex items-baseline space-x-2 mb-1">
                         <span className="text-xs font-medium text-zinc-300">
@@ -560,7 +583,10 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                       </div>
                       
                       <div 
-                        className={`rounded-lg font-semibold tracking-wide break-words max-w-full ${
+                        onMouseEnter={() => setHoveredMessageId(msg.id)}
+                        onMouseLeave={() => setHoveredMessageId(null)}
+                        onClick={() => setHoveredMessageId(prev => prev === msg.id ? null : msg.id)}
+                        className={`rounded-lg font-semibold tracking-wide break-words max-w-full cursor-default ${
                           isEmojiOnly
                             ? 'text-5xl md:text-7xl py-1 leading-normal overflow-visible'
                             : `px-4 py-2 text-xs overflow-hidden ${isOwnMessage 
@@ -592,6 +618,14 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                           <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '😮'); }} className="hover:scale-125 transition-transform text-base">😮</button>
                           <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '😢'); }} className="hover:scale-125 transition-transform text-base">😢</button>
                           <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '🙏'); }} className="hover:scale-125 transition-transform text-base">🙏</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleQuote(msg); }} className="hover:scale-125 transition-transform text-zinc-400 bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Quote">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"></path><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"></path></svg>
+                          </button>
+                          {(isOwnMessage || user?.role === 'ADMIN') && (
+                            <button onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.id); }} className="hover:scale-125 transition-transform text-red-400 bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Delete">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                            </button>
+                          )}
                           <div className="relative" ref={reactionPickerRef}>
                             <button onClick={(e) => { e.stopPropagation(); setReactionPickerMessageId(reactionPickerMessageId === msg.id ? null : msg.id); }} className="hover:scale-125 transition-transform text-zinc-400 bg-white/5 rounded-full w-5 h-5 flex items-center justify-center">
                               <MoreHorizontal className="w-3 h-3" />
