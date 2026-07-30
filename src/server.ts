@@ -3416,19 +3416,6 @@ try {
         reactions[emoji] = [];
       }
 
-      // Remove user from all other reactions
-      Object.keys(reactions).forEach(key => {
-        if (key !== emoji) {
-          const idx = reactions[key].indexOf(userId);
-          if (idx > -1) {
-            reactions[key].splice(idx, 1);
-            if (reactions[key].length === 0) {
-              delete reactions[key];
-            }
-          }
-        }
-      });
-
       const userIndex = reactions[emoji].indexOf(userId);
       if (userIndex > -1) {
         reactions[emoji].splice(userIndex, 1);

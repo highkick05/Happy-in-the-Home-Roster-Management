@@ -320,6 +320,10 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       setMessages((prev) => prev.map(m => m.id === msg.id ? msg : m));
     });
 
+    newSocket.on('message_reaction', ({ messageId, reactions }: { messageId: number, reactions: any }) => {
+      setMessages((prev) => prev.map(m => m.id === messageId ? { ...m, reactions: JSON.stringify(reactions) } : m));
+    });
+
     newSocket.on('chat_cleared', () => {
       setMessages([]);
       markRead();
