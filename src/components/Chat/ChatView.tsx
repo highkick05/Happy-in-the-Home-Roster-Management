@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
-import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal } from 'lucide-react';
+import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera } from 'lucide-react';
 // @ts-ignore
 import data from '@emoji-mart/data';
 // @ts-ignore
@@ -44,7 +44,8 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     const timer = setTimeout(() => setDebouncedGifSearch(gifSearch), 500);
     return () => clearTimeout(timer);
   }, [gifSearch]);
-  const [attachment, setAttachment] = useState<globalThis.File | null>(null);
+  const [attachments, setAttachments] = useState<globalThis.File[]>([]);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewFile, setPreviewFile] = useState<{url: string, type: string, name: string} | null>(null);
@@ -169,12 +170,12 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (selectedGif || attachment) {
+    if (selectedGif || attachments.length > 0) {
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     }
-  }, [selectedGif, attachment]);
+  }, [selectedGif, attachments]);
 
   useEffect(() => {
     const fetchMessages = () => {
@@ -283,7 +284,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     setIsDragging(false);
     
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      setAttachment(e.dataTransfer.files[0]);
+      setAttachments(prev => [...prev, ...Array.from(e.dataTransfer.files!)]);
     }
   };
 
@@ -303,107 +304,142 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     }, 500);
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+    const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!newMessage.trim() && !attachment && !selectedGif) || !socket || !user || isUploading) return;
+    if ((!newMessage.trim() && attachments.length === 0 && !selectedGif) || !socket || !user || isUploading) return;
 
     let content = newMessage.trim();
     if (selectedGif) {
         content += (content ? '\n\n' : '') + selectedGif.images.fixed_height.url;
     }
-    let fileUrl: string | null = null;
-    let fileName: string | null = null;
-    let fileType: string | null = null;
 
-    if (attachment) {
+    if (attachments.length > 0) {
       setIsUploading(true);
       try {
-        const formData = new FormData();
-        formData.append('file', attachment);
-        const res = await fetch('/api/files?folderPath=/Chat', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData
-        });
-        const data = await res.json();
-        if (data.success && data.id) {
-          fileUrl = `/api/files/download/${data.id}?preview=true`;
-          fileName = attachment.name;
-          fileType = attachment.type;
+        for (let i = 0; i < attachments.length; i++) {
+          const file = attachments[i];
+          const formData = new FormData();
+          formData.append('file', file);
+          const res = await fetch('/api/files?folderPath=/Chat', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+          });
+          const data = await res.json();
+          if (data.success && data.id) {
+            const fileUrl = `/api/files/download/${data.id}?preview=true`;
+            const fileName = file.name;
+            const fileType = file.type;
+
+            // Optimistic UI update
+            const tempId = Date.now() + i;
+            if (content !== '/clear') {
+              const tempMessage = {
+                id: tempId,
+                user_id: user.id,
+                content: i === 0 ? content : '', // Only include text in first message
+                created_at: new Date().toISOString(),
+                first_name: user.firstName,
+                last_name: user.lastName,
+                avatar_url: user.avatarUrl || null,
+                file_url: fileUrl,
+                file_name: fileName,
+                file_type: fileType,
+              };
+
+              setMessages(prev => [...prev, tempMessage as any]);
+              setTimeout(scrollToBottom, 50);
+            }
+
+            try {
+              const res2 = await fetch('/api/chat/messages', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  content: i === 0 ? content : '',
+                  file_url: fileUrl,
+                  file_name: fileName,
+                  file_type: fileType
+                })
+              });
+              if (res2.ok) {
+                const realMsg = await res2.json();
+                if (content !== '/clear') {
+                  setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
+                }
+              }
+            } catch (e) {
+              console.error("Failed to send message via API", e);
+            }
+          }
         }
       } catch (err) {
         console.error("Upload failed", err);
       } finally {
         setIsUploading(false);
-        setAttachment(null);
+        setAttachments([]);
+      }
+    } else if (content || selectedGif) {
+      // Optimistic UI update
+      const tempId = Date.now();
+      if (content !== '/clear') {
+        const tempMessage = {
+          id: tempId,
+          user_id: user.id,
+          content,
+          created_at: new Date().toISOString(),
+          first_name: user.firstName,
+          last_name: user.lastName,
+          avatar_url: user.avatarUrl || null,
+          file_url: null,
+          file_name: null,
+          file_type: null,
+        };
+
+        setMessages(prev => [...prev, tempMessage as any]);
+        setTimeout(scrollToBottom, 50);
+      }
+
+      try {
+        const res = await fetch('/api/chat/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            content,
+            file_url: null,
+            file_name: null,
+            file_type: null
+          })
+        });
+        if (res.ok) {
+          const realMsg = await res.json();
+          if (content !== '/clear') {
+            setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to send message via API", e);
       }
     }
 
     setNewMessage('');
+    setSelectedGif(null);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+    
     fetch('/api/chat/typing', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ isTyping: false })
     }).catch(() => {});
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
-    if (!content && !fileUrl) {
-      return;
-    }
-    
-    setSelectedGif(null);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
-    
-    // Optimistic UI update
-    const tempId = Date.now();
-    if (content !== '/clear') {
-      const tempMessage: ChatMessage = {
-        id: tempId,
-        user_id: user.id,
-        content,
-        created_at: new Date().toISOString(),
-        first_name: user.firstName,
-        last_name: user.lastName,
-        avatar_url: user.avatarUrl || null,
-        file_url: fileUrl,
-        file_name: fileName,
-        file_type: fileType,
-      };
-
-      setMessages(prev => [...prev, tempMessage]);
-      setTimeout(scrollToBottom, 50);
-    }
-
-    try {
-      const res = await fetch('/api/chat/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          content,
-          file_url: fileUrl,
-          file_name: fileName,
-          file_type: fileType
-        })
-      });
-      if (res.ok) {
-        const realMsg = await res.json();
-        if (content !== '/clear') {
-          setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
-        }
-      } else {
-        const errData = await res.json().catch(() => null);
-        if (errData && errData.error) {
-          alert(errData.error);
-        }
-      }
-    } catch (e) {
-      console.error("Failed to send message via API", e);
-    }
   };
 
   // Helper to safely parse SQLite datetime strings to UTC
@@ -619,17 +655,21 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         {/* Input Area */}
         <div className="p-4 bg-[#11161d]/90 backdrop-blur-md border-t border-border-subtle shrink-0 relative z-10">
           <div className="flex flex-col space-y-2">
-            {attachment && (
-              <div className="flex items-center space-x-2 bg-brand-navy p-2 rounded-lg border border-border-subtle max-w-sm">
-                <div className="bg-brand-bg p-1.5 rounded">
-                   {attachment.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 text-brand-teal" /> : <File className="w-4 h-4 text-zinc-400" />}
-                </div>
-                <div className="flex-1 truncate text-xs text-zinc-300">
-                  {attachment.name}
-                </div>
-                <button type="button" onClick={() => setAttachment(null)} className="text-zinc-500 hover:text-white">
-                  <X className="w-4 h-4" />
-                </button>
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2 p-2 max-h-32 overflow-y-auto">
+                {attachments.map((file, idx) => (
+                  <div key={idx} className="flex items-center space-x-2 bg-brand-navy p-2 rounded-lg border border-border-subtle max-w-[200px]">
+                    <div className="bg-brand-bg p-1.5 rounded shrink-0">
+                       {file.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 text-brand-teal" /> : <File className="w-4 h-4 text-zinc-400" />}
+                    </div>
+                    <div className="flex-1 truncate text-xs text-zinc-300">
+                      {file.name}
+                    </div>
+                    <button type="button" onClick={() => setAttachments(attachments.filter((_, i) => i !== idx))} className="text-zinc-500 hover:text-white shrink-0">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
             <form onSubmit={handleSendMessage} className="flex space-x-2 items-end">
@@ -637,7 +677,24 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
               type="file" 
               className="hidden" 
               ref={fileInputRef} 
-              onChange={e => e.target.files && setAttachment(e.target.files[0])} 
+              multiple
+              onChange={e => {
+                if (e.target.files) {
+                  setAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
+                }
+              }} 
+            />
+            <input 
+              type="file" 
+              className="hidden" 
+              accept="image/*,video/*"
+              multiple
+              ref={cameraInputRef} 
+              onChange={e => {
+                if (e.target.files) {
+                  setAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
+                }
+              }} 
             />
             
             <div className="relative flex-1 flex flex-col bg-brand-navy border border-border-subtle rounded-lg focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal">
@@ -686,6 +743,15 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                   
                   <button 
                     type="button" 
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                    title="Camera & Photos"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                  
+                  <button 
+                    type="button" 
                     onClick={() => fileInputRef.current?.click()}
                     className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
                     title="Attach File"
@@ -698,7 +764,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
             <button
               type="submit"
-              disabled={(!newMessage.trim() && !attachment && !selectedGif) || isUploading}
+              disabled={(!newMessage.trim() && attachments.length === 0 && !selectedGif) || isUploading}
               className="flex items-center justify-center px-4 h-[36px] text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg text-white bg-brand-teal/20 border border-brand-teal/40 hover:bg-brand-teal hover:text-[#0d1117] disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
             >
               {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />} {isUploading ? 'Sending...' : 'Send'}
