@@ -1082,9 +1082,17 @@ try {
         file_url TEXT,
         file_name TEXT,
         file_type TEXT,
+        reactions TEXT DEFAULT '{}',
+        is_edited INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
+      try {
+        db.exec("ALTER TABLE chat_messages ADD COLUMN is_edited INTEGER DEFAULT 0;");
+      } catch (e) {
+        // column likely exists
+      }
+
       
       
       CREATE TABLE IF NOT EXISTS training_modules (
@@ -3444,13 +3452,47 @@ try {
   });
 
 
+  app.put("/api/chat/messages/:id", authenticateToken, (req: any, res: any) => {
+    const msgId = parseInt(req.params.id);
+    const { content } = req.body;
+    
+    if (isNaN(msgId) || !content) {
+      return res.status(400).json({ error: "Invalid input" });
+    }
+
+    const stmt = db.prepare("SELECT * FROM chat_messages WHERE id = ?");
+    const msg = stmt.get(msgId) as any;
+
+    if (!msg) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    if (Number(msg.user_id) !== Number(req.user.id) && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const updateStmt = db.prepare("UPDATE chat_messages SET content = ?, is_edited = 1 WHERE id = ?");
+    updateStmt.run(content, msgId);
+
+    const updatedMsg = db.prepare(`
+      SELECT c.*, u.first_name, u.last_name 
+      FROM chat_messages c 
+      JOIN users u ON c.user_id = u.id 
+      WHERE c.id = ?
+    `).get(msgId);
+    
+    io.emit("chat_message_edited", updatedMsg);
+
+    res.json({ success: true, message: updatedMsg });
+  });
+
   app.delete("/api/chat/messages/:id", authenticateToken, (req, res) => {
     try {
       const messageId = req.params.id;
       const userId = (req).user.id;
       const msg = db.prepare("SELECT * FROM chat_messages WHERE id = ?").get(messageId);
       if (!msg) return res.status(404).json({error: "Not found"});
-      if (msg.user_id !== userId && (req).user.role !== 'ADMIN') {
+      if (Number(msg.user_id) !== Number(userId) && (req).user.role !== 'ADMIN') {
         return res.status(403).json({error: "Forbidden"});
       }
       db.prepare("DELETE FROM chat_messages WHERE id = ?").run(messageId);

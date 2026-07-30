@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
-import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera } from 'lucide-react';
+import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera, Edit2, Quote, Trash2 } from 'lucide-react';
 // @ts-ignore
 import data from '@emoji-mart/data';
 // @ts-ignore
@@ -24,6 +24,7 @@ interface ChatMessage {
   file_name: string | null;
     file_type: string | null;
   reactions?: string;
+  is_edited?: number;
 }
 
 export default function ChatView({ isMini = false }: { isMini?: boolean }) {
@@ -65,23 +66,12 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const giphyButtonRef = useRef<HTMLButtonElement>(null);
   const giphyPickerRef = useRef<HTMLDivElement>(null);
-  const [showActionsMessageId, setShowActionsMessageId] = useState<number | null>(null);
+  const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
   const [reactionDetails, setReactionDetails] = useState<{msgId: number, emoji: string, userIds: number[]} | null>(null);
-  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [inlineEditMessageId, setInlineEditMessageId] = useState<number | null>(null);
+  const [inlineEditContent, setInlineEditContent] = useState('');
 
-  const handlePointerDown = (msgId: number) => {
-    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-    longPressTimerRef.current = setTimeout(() => {
-      setShowActionsMessageId(msgId);
-    }, 500);
-  };
-
-  const cancelLongPress = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  };
+  
 
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<number | null>(null);
   const reactionPickerRef = useRef<HTMLDivElement>(null);
@@ -121,6 +111,26 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         textareaRef.current.focus();
       }
     }, 0);
+  };
+
+  const handleSaveEdit = async (msgId: number) => {
+    if (!inlineEditContent.trim()) return;
+    try {
+      const res = await fetch(`/api/chat/messages/${msgId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ content: inlineEditContent.trim() })
+      });
+      if (res.ok) {
+        setInlineEditMessageId(null);
+        setInlineEditContent('');
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleDeleteMessage = async (msgId: number) => {
@@ -292,6 +302,11 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
 
 
+
+    
+    newSocket.on('chat_message_edited', (msg: ChatMessage) => {
+      setMessages((prev) => prev.map(m => m.id === msg.id ? msg : m));
+    });
 
     newSocket.on('chat_cleared', () => {
       setMessages([]);
@@ -576,7 +591,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
             <div className="text-center text-zinc-500 mt-10">No messages yet. Start the conversation!</div>
           ) : (
             messages.map((msg) => {
-              const isOwnMessage = user?.id === msg.user_id;
+              const isOwnMessage = Number(user?.id) === Number(msg.user_id);
               const nonQuotedText = msg.content.split('\n').filter(line => !line.startsWith('> ')).join('\n').trim();
               const hasQuote = msg.content.includes('> ');
               const isEmojiOnly = isOnlyEmojis(nonQuotedText) && !msg.file_url && nonQuotedText.length > 0 && !hasQuote;
@@ -677,35 +692,61 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                             )}
                           </div>
                         )}
-                        <span>{contentToRender}</span>
+                        {inlineEditMessageId === msg.id ? (
+                          <div className="flex flex-col space-y-2 mt-1 min-w-[200px]" onClick={e => e.stopPropagation()}>
+                            <textarea 
+                              className="w-full bg-black/20 border border-white/10 rounded p-2 text-sm text-white placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-brand-teal resize-none"
+                              value={inlineEditContent}
+                              onChange={e => setInlineEditContent(e.target.value)}
+                              rows={3}
+                              autoFocus
+                            />
+                            <div className="flex justify-end space-x-2">
+                              <button onClick={() => { setInlineEditMessageId(null); setInlineEditContent(''); }} className="px-3 py-1 bg-black/30 hover:bg-black/50 text-zinc-300 text-xs rounded transition-colors">Cancel</button>
+                              <button onClick={() => handleSaveEdit(msg.id)} className="px-3 py-1 bg-brand-teal hover:bg-brand-teal/80 text-black font-medium text-xs rounded transition-colors">Save</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <span>{contentToRender}</span>
+                        )}
+                        {msg.is_edited ? <span className="text-[9px] opacity-50 ml-2 italic">(edited)</span> : null}
                         </div>
                       
-                      {(showActionsMessageId === msg.id || reactionPickerMessageId === msg.id) && (
-                        <div className={`absolute -bottom-5 ${isOwnMessage ? 'right-0' : 'left-0'} bg-[#1c2128] border border-border-subtle rounded-full px-2 py-1 flex items-center space-x-2 shadow-xl z-[60]`}>
+                      {(hoveredMessageId === msg.id || reactionPickerMessageId === msg.id) && (
+                        <div className={`absolute -top-10 right-0 bg-[#1c2128] border border-border-subtle rounded-lg px-2 py-1.5 flex items-center space-x-2 shadow-xl z-[60]`}>
                           <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '👍'); }} className="hover:scale-125 transition-transform text-base">👍</button>
                           <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '❤️'); }} className="hover:scale-125 transition-transform text-base">❤️</button>
                           <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '😂'); }} className="hover:scale-125 transition-transform text-base">😂</button>
                           <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '😮'); }} className="hover:scale-125 transition-transform text-base">😮</button>
-                          <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '😢'); }} className="hover:scale-125 transition-transform text-base">😢</button>
-                          <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '🙏'); }} className="hover:scale-125 transition-transform text-base">🙏</button>
-                          <button onClick={(e) => { e.stopPropagation(); handleQuote(msg); }} className="hover:scale-125 transition-transform text-zinc-400 bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Quote">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"></path><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"></path></svg>
-                          </button>
-                          {(isOwnMessage || user?.role === 'ADMIN') && (
-                            <button onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.id); }} className="hover:scale-125 transition-transform text-red-400 bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Delete">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-                            </button>
-                          )}
+                          
                           <div className="relative" ref={reactionPickerRef}>
-                            <button onClick={(e) => { e.stopPropagation(); setReactionPickerMessageId(reactionPickerMessageId === msg.id ? null : msg.id); }} className="hover:scale-125 transition-transform text-zinc-400 bg-white/5 rounded-full w-5 h-5 flex items-center justify-center">
+                            <button onClick={(e) => { e.stopPropagation(); setReactionPickerMessageId(reactionPickerMessageId === msg.id ? null : msg.id); }} className="hover:scale-125 transition-transform text-zinc-400 hover:text-white bg-white/5 rounded-full w-5 h-5 flex items-center justify-center">
                               <MoreHorizontal className="w-3 h-3" />
                             </button>
                             {reactionPickerMessageId === msg.id && (
-                              <div className={`absolute bottom-8 ${isOwnMessage ? 'right-0' : 'left-0'} z-[100] shadow-xl`} onClick={e => e.stopPropagation()}>
+                              <div className={`absolute top-8 ${isOwnMessage ? 'right-0' : 'left-0'} z-[100] shadow-xl`} onClick={e => e.stopPropagation()}>
                                 <Picker data={data} onEmojiSelect={(emoji: any) => { handleAddReaction(msg.id, emoji.native); setReactionPickerMessageId(null); }} theme="dark" />
                               </div>
                             )}
                           </div>
+                          
+                          <div className="w-[1px] h-4 bg-border-subtle mx-1" />
+                          
+                          {(isOwnMessage || user?.role === 'ADMIN') && (
+                            <button onClick={(e) => { e.stopPropagation(); setInlineEditContent(msg.content); setInlineEditMessageId(msg.id); }} className="hover:scale-125 transition-transform text-zinc-400 hover:text-white bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Edit">
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                          )}
+
+                          <button onClick={(e) => { e.stopPropagation(); handleQuote(msg); }} className="hover:scale-125 transition-transform text-zinc-400 hover:text-white bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Quote">
+                            <Quote className="w-3 h-3" />
+                          </button>
+                          
+                          {(isOwnMessage || user?.role === 'ADMIN') && (
+                            <button onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.id); }} className="hover:scale-125 transition-transform text-red-400 hover:text-red-300 bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Delete">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
                         </div>
                       )}
                       
