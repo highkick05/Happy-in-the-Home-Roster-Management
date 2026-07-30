@@ -4735,6 +4735,15 @@ app.get("/api/health", (req, res) => {
     },
   );
 
+  app.get("/api/users/names", authenticateToken, (req: any, res: any) => {
+    try {
+      const users = db.prepare("SELECT id, first_name, last_name FROM users").all();
+      res.json(users);
+    } catch(e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.get("/api/staff", authenticateTokenOrWallboard, (req: any, res: any) => {
     if (req.user.role !== "ADMIN") {
       const staff = db

@@ -228,6 +228,20 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [userNamesMap, setUserNamesMap] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    fetch('/api/users/names', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(users => {
+        if (Array.isArray(users)) {
+          const map: Record<number, string> = {};
+          users.forEach(u => map[u.id] = `${u.first_name || ''} ${u.last_name || ''}`.trim());
+          setUserNamesMap(map);
+        }
+      })
+      .catch(console.error);
+  }, [token]);
 
   useEffect(() => {
     if (selectedGif || attachments.length > 0) {
@@ -770,9 +784,11 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                             <div className={`flex flex-wrap gap-1 mt-1 ${isOwnMessage ? "justify-end" : "justify-start"}`}>
                               {reactionEntries.map(([emoji, users]) => {
                                 const hasReacted = users.includes(user?.id);
+                                const reactorNames = users.map(uid => userNamesMap[uid] || 'Unknown').join(', ');
                                 return (
                                   <button
                                     key={emoji}
+                                    title={reactorNames}
                                     onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, emoji); }}
                                     className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs border ${hasReacted ? 'bg-brand-teal/20 border-brand-teal text-brand-teal' : 'bg-black/20 border-border-subtle text-zinc-400 hover:bg-black/40'}`}
                                   >
