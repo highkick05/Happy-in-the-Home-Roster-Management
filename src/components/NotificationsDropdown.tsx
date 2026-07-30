@@ -25,7 +25,7 @@ export default function NotificationsDropdown() {
   const fetchNotifications = async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/notifications', {
+      const res = await fetch(`/api/notifications?_t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {

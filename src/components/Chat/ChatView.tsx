@@ -265,6 +265,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
     // Mark as read immediately
     const markRead = () => {
+      if (document.hidden) return;
       fetch('/api/chat/read', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } })
         .then(() => window.dispatchEvent(new CustomEvent('chat_read')))
         .catch(console.error);

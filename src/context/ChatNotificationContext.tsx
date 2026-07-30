@@ -69,7 +69,7 @@ export function ChatNotificationProvider({ children }: { children: ReactNode }) 
   const fetchUnread = async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/chat/unread', {
+      const res = await fetch(`/api/chat/unread?_t=${Date.now()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
