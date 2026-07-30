@@ -816,7 +816,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
           />
           <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex justify-center">
             <div className="w-full max-w-[280px]">
-              <Grid key={debouncedGifSearch} width={280} columns={2} fetchGifs={fetchGifs} onGifClick={onGifClick} />
+              <Grid key={debouncedGifSearch} width={280} columns={2} fetchGifs={fetchGifs} onGifClick={onGifClick} hideAttribution={true} noLink={true} />
             </div>
           </div>
         </div>
