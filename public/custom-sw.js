@@ -12,11 +12,8 @@ self.addEventListener('push', function(event) {
     event.waitUntil(
       self.registration.showNotification(data.title, options).then(() => {
         // Try to update app badge if supported (works on desktop/some platforms)
-        if (navigator.setAppBadge) {
-          // You would need to fetch the unread count here if not provided in payload, 
-          // or just increment.
-          // But web push in SW doesn't easily have access to incrementing a global badge 
-          // without storing it in IndexedDB. Let's just catch it.
+        if (navigator.setAppBadge && data.badgeCount) {
+          navigator.setAppBadge(data.badgeCount).catch(() => {});
         }
       })
     );
