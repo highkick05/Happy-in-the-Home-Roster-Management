@@ -3375,6 +3375,37 @@ try {
     }
   });
 
+  app.get("/api/chat/pinned-message", authenticateToken, (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      const row = db.prepare("SELECT value FROM settings WHERE key = 'chat_pinned_message'").get() as any;
+      res.json({ message: row ? row.value : '' });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/chat/pinned-message", authenticateToken, (req: any, res: any) => {
+    try {
+      if (req.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: "Only admins can update the pinned message" });
+      }
+      const { message } = req.body;
+      db.prepare("INSERT INTO settings (key, value) VALUES ('chat_pinned_message', ?) ON CONFLICT(key) DO UPDATE SET value = ?").run(message, message);
+      
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('chat_pinned_message_updated', { message });
+      }
+      
+      res.json({ success: true, message });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.get("/api/chat/messages", authenticateToken, (req, res) => {
     try {
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");

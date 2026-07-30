@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
-import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera, Edit2, Quote, Trash2 } from 'lucide-react';
+import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera, Edit2, Quote, Trash2, Check } from 'lucide-react';
 // @ts-ignore
 import data from '@emoji-mart/data';
 // @ts-ignore
@@ -35,6 +35,10 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     return new GiphyFetch(apiKey);
   }, [settings?.giphyApiKey]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [pinnedMessage, setPinnedMessage] = useState<string>('');
+  const [isEditingPinned, setIsEditingPinned] = useState(false);
+  const [pinnedEditValue, setPinnedEditValue] = useState('');
+
   const userIdToNameMap = React.useMemo(() => {
     const map: Record<number, string> = {};
     messages.forEach(m => {
@@ -252,6 +256,11 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   }, [selectedGif, attachments]);
 
   useEffect(() => {
+    fetch('/api/chat/pinned-message', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => setPinnedMessage(data.message || ''))
+      .catch(console.error);
+
     const fetchMessages = () => {
       fetch('/api/chat/messages', {
         headers: {
@@ -324,6 +333,10 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       setMessages((prev) => prev.map(m => m.id === messageId ? { ...m, reactions: JSON.stringify(reactions) } : m));
     });
 
+    newSocket.on('chat_pinned_message_updated', ({ message }: { message: string }) => {
+      setPinnedMessage(message);
+    });
+
     newSocket.on('chat_cleared', () => {
       setMessages([]);
       markRead();
@@ -349,6 +362,27 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       newSocket.disconnect();
     };
   }, [token]);
+
+  const savePinnedMessage = async () => {
+    try {
+      const res = await fetch('/api/chat/pinned-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ message: pinnedEditValue })
+      });
+      if (res.ok) {
+        setIsEditingPinned(false);
+        setPinnedMessage(pinnedEditValue);
+      } else {
+        alert("Failed to save pinned message. You may not be an admin.");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -598,6 +632,51 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                 />
               );
             })()}
+          </div>
+        )}
+
+        {/* Pinned Message */}
+        {(pinnedMessage || user?.role === 'ADMIN') && (
+          <div className="relative z-20 bg-brand-teal/10 border-b border-brand-teal/20 px-3 py-2 md:px-4 flex items-center justify-between text-sm shadow-md backdrop-blur-sm">
+            <div className="flex items-center space-x-2 flex-1 min-w-0">
+              <span className="text-brand-teal font-semibold shrink-0"><span className="hidden sm:inline">📌</span> Pinned:</span>
+              {isEditingPinned ? (
+                <input
+                  type="text"
+                  value={pinnedEditValue}
+                  onChange={e => setPinnedEditValue(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && savePinnedMessage()}
+                  className="flex-1 bg-black/40 border border-brand-teal/30 rounded px-2 py-1 text-zinc-200 outline-none focus:border-brand-teal/70"
+                  autoFocus
+                />
+              ) : (
+                <span className="text-zinc-200 truncate pr-2" title={pinnedMessage || "No pinned message"}>
+                  {pinnedMessage || <span className="text-zinc-500 italic">No pinned message</span>}
+                </span>
+              )}
+            </div>
+            {user?.role === 'ADMIN' && (
+              <div className="flex items-center space-x-1 shrink-0 ml-2">
+                {isEditingPinned ? (
+                  <>
+                    <button onClick={savePinnedMessage} className="p-1.5 rounded hover:bg-brand-teal/20 text-brand-teal" title="Save">
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => setIsEditingPinned(false)} className="p-1.5 rounded hover:bg-black/20 text-zinc-400" title="Cancel">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  <button 
+                    onClick={() => { setPinnedEditValue(pinnedMessage); setIsEditingPinned(true); }}
+                    className="p-1.5 rounded hover:bg-black/20 text-zinc-400 hover:text-brand-teal transition-colors"
+                    title="Edit pinned message"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
