@@ -637,26 +637,31 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
         {/* Pinned Message */}
         {(pinnedMessage || user?.role === 'ADMIN') && (
-          <div className="relative z-20 bg-brand-teal/10 border-b border-brand-teal/20 px-3 py-2 md:px-4 flex items-center justify-between text-sm shadow-md backdrop-blur-sm">
-            <div className="flex items-center space-x-2 flex-1 min-w-0">
-              {user?.role === 'ADMIN' && <span className="text-brand-teal font-semibold shrink-0"><span className="hidden sm:inline">📌</span> Pinned:</span>}
+          <div className="relative z-20 bg-brand-teal/10 border-b border-brand-teal/20 px-3 py-2 md:px-4 flex items-start justify-between text-sm shadow-md backdrop-blur-sm">
+            <div className="flex items-start space-x-2 flex-1 min-w-0">
+              {user?.role === 'ADMIN' && <span className="text-brand-teal font-semibold shrink-0 mt-1 md:mt-0"><span className="hidden sm:inline">📌</span> Pinned:</span>}
               {isEditingPinned ? (
-                <input
-                  type="text"
+                <textarea
                   value={pinnedEditValue}
                   onChange={e => setPinnedEditValue(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && savePinnedMessage()}
-                  className="flex-1 bg-black/40 border border-brand-teal/30 rounded px-2 py-1 text-zinc-200 outline-none focus:border-brand-teal/70"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      savePinnedMessage();
+                    }
+                  }}
+                  className="flex-1 bg-black/40 border border-brand-teal/30 rounded px-2 py-1 text-zinc-200 outline-none focus:border-brand-teal/70 min-h-[32px] resize-none"
                   autoFocus
+                  rows={1}
                 />
               ) : (
-                <span className="text-zinc-200 truncate pr-2" title={pinnedMessage || "No pinned message"}>
+                <span className="text-zinc-200 pr-2 break-words mt-1 md:mt-0" title={pinnedMessage || "No pinned message"}>
                   {pinnedMessage || <span className="text-zinc-500 italic">No pinned message</span>}
                 </span>
               )}
             </div>
             {user?.role === 'ADMIN' && (
-              <div className="flex items-center space-x-1 shrink-0 ml-2">
+              <div className="flex items-center space-x-1 shrink-0 ml-2 mt-0.5 md:mt-0">
                 {isEditingPinned ? (
                   <>
                     <button onClick={savePinnedMessage} className="p-1.5 rounded hover:bg-brand-teal/20 text-brand-teal" title="Save">
