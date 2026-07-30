@@ -38,6 +38,10 @@ export default function Login() {
       }
 
       login(data.token, data.user, data.settings);
+      
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
+      }
       navigate('/');
     } catch (err: any) {
       setError(err.message);

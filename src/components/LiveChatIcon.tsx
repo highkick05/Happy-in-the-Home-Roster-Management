@@ -64,9 +64,26 @@ export default function LiveChatIcon() {
     };
   }, [token, user]);
 
-  return (
+  
+  useEffect(() => {
+    if ('setAppBadge' in navigator) {
+      if (unreadCount > 0) {
+        // @ts-ignore
+        navigator.setAppBadge(unreadCount).catch(() => {});
+      } else {
+        // @ts-ignore
+        navigator.clearAppBadge().catch(() => {});
+      }
+    }
+  }, [unreadCount]);
+return (
     <button 
-      onClick={() => navigate('/chat')}
+      onClick={() => {
+        if ('Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission().catch(() => {});
+        }
+        navigate('/chat');
+      }}
       className="relative p-1.5 rounded-full hover:bg-white/[0.04] transition-colors focus:outline-none focus:ring-2 focus:ring-brand-teal "
     >
       <MessageSquare className={`w-[18px] h-[18px] transition-colors ${unreadCount > 0 ? 'text-brand-teal' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`} />

@@ -83,7 +83,19 @@ export default function FloatingChatIcon() {
 
   if (location.pathname.includes('/chat')) return null;
 
-  return (
+  
+  useEffect(() => {
+    if ('setAppBadge' in navigator) {
+      if (unreadCount > 0) {
+        // @ts-ignore
+        navigator.setAppBadge(unreadCount).catch(() => {});
+      } else {
+        // @ts-ignore
+        navigator.clearAppBadge().catch(() => {});
+      }
+    }
+  }, [unreadCount]);
+return (
     <>
       {isOpen && (
         <div ref={popupRef} className="fixed bottom-0 right-0 w-full sm:w-[400px] h-[75vh] sm:h-[65vh] max-h-[700px] sm:max-h-[600px] bg-brand-bg border-l border-t border-border-subtle rounded-tl-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 origin-bottom-right z-[9999] lg:hidden">
@@ -110,6 +122,9 @@ export default function FloatingChatIcon() {
         <div className="fixed bottom-6 right-4 z-[9999] lg:hidden flex flex-col items-end gap-2">
           <button 
             onClick={() => {
+              if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission().catch(() => {});
+              }
               setIsOpen(true);
               setUnreadCount(0);
             }}
