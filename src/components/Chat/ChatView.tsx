@@ -89,11 +89,32 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const fetchGifs = (offset: number) => debouncedGifSearch ? gf.search(debouncedGifSearch, { offset, limit: 10 }) : gf.trending({ offset, limit: 10 });
 
   const handleQuote = (msg: ChatMessage) => {
-    const quotedContent = msg.content ? `> ${msg.first_name}: ${msg.content}\n\n` : `> ${msg.first_name}: [${msg.file_name || 'Attachment'}]\n\n`;
-    setNewMessage(prev => quotedContent + prev);
-    if (textareaRef.current) {
-      textareaRef.current.focus();
+    let contentToQuote = msg.content || '';
+    
+    if (!contentToQuote && msg.file_url) {
+      contentToQuote = `[${msg.file_name || 'Attachment'}]`;
+    } else {
+      // Remove previous quotes from the content
+      contentToQuote = contentToQuote.split('\n').filter(line => !line.startsWith('> ')).join(' ').trim();
+      if (!contentToQuote) contentToQuote = '[Attachment]';
     }
+    
+    const quotedContent = `> ${msg.first_name}: ${contentToQuote}\n\n`;
+    
+    setNewMessage(prev => {
+      const updated = quotedContent + prev;
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+          textareaRef.current.value = updated;
+          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 240)}px`;
+          textareaRef.current.focus();
+          const len = updated.length;
+          textareaRef.current.setSelectionRange(len, len);
+        }
+      }, 0);
+      return updated;
+    });
   };
 
   const handleDeleteMessage = async (msgId: number) => {
@@ -534,16 +555,39 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
           ) : (
             messages.map((msg) => {
               const isOwnMessage = user?.id === msg.user_id;
-              const isEmojiOnly = isOnlyEmojis(msg.content) && !msg.file_url;
+              const nonQuotedText = msg.content.split('\n').filter(line => !line.startsWith('> ')).join('\n').trim();
+              const hasQuote = msg.content.includes('> ');
+              const isEmojiOnly = isOnlyEmojis(nonQuotedText) && !msg.file_url && nonQuotedText.length > 0 && !hasQuote;
               
-              const contentToRender = msg.content.split(/(\s+)/).map((part, i) => {
-                if (part.startsWith('http') && (part.includes('giphy.com') || part.match(/\.(gif|jpe?g|png)$/i))) {
-                  return <img key={i} src={part.trim()} alt="gif" className="max-w-[200px] rounded my-1 block" onLoad={() => scrollToBottom()} />;
+              const contentToRender = msg.content.split('\n').map((line, lineIndex) => {
+                if (line.startsWith('> ')) {
+                  const quoteContent = line.substring(2);
+                  const isImageQuote = quoteContent.match(/http.*(giphy\.com|\.(gif|jpe?g|png))/i);
+                  
+                  return (
+                    <div key={lineIndex} className="pl-3 py-1 mb-1 border-l-[3px] border-brand-teal/50 bg-black/10 text-zinc-300 italic text-[11px] rounded-r-md overflow-hidden whitespace-nowrap max-w-full flex items-center">
+                      {isImageQuote ? (
+                        <div className="flex items-center space-x-2 w-full">
+                          <span className="truncate flex-shrink-0">{quoteContent.split('http')[0]}</span>
+                          <img src={'http' + quoteContent.split('http').slice(1).join('http').trim()} alt="quoted gif" className="h-6 rounded object-cover" />
+                        </div>
+                      ) : (
+                        <span className="truncate">{quoteContent}</span>
+                      )}
+                    </div>
+                  );
                 }
-                if (part.includes('\n')) {
-                  return <span key={i} className="break-all whitespace-pre-wrap">{part}</span>;
-                }
-                return <span key={i} className="break-all">{part}</span>;
+                
+                return (
+                  <div key={lineIndex} className="min-h-[14px] whitespace-pre-wrap">
+                    {line.split(/(\s+)/).map((part, i) => {
+                      if (part.startsWith('http') && (part.includes('giphy.com') || part.match(/\.(gif|jpe?g|png)$/i))) {
+                        return <img key={i} src={part.trim()} alt="gif" className="max-w-[200px] rounded my-1 block" onLoad={() => scrollToBottom()} />;
+                      }
+                      return <span key={i} className="break-words">{part}</span>;
+                    })}
+                  </div>
+                );
               });
               
               return (
@@ -585,16 +629,19 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                       <div 
                         onMouseEnter={() => setHoveredMessageId(msg.id)}
                         onMouseLeave={() => setHoveredMessageId(null)}
-                        onClick={() => setHoveredMessageId(prev => prev === msg.id ? null : msg.id)}
-                        className={`rounded-lg font-semibold tracking-wide break-words max-w-full cursor-default ${
-                          isEmojiOnly
-                            ? 'text-5xl md:text-7xl py-1 leading-normal overflow-visible'
-                            : `px-4 py-2 text-xs overflow-hidden ${isOwnMessage 
-                              ? 'bg-brand-teal/10 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-none' 
-                              : 'bg-brand-navy text-[#8B949E] border border-border-subtle rounded-tl-none'}`
-                        }`}
+                        className="relative max-w-full flex flex-col"
                       >
-                        {msg.file_url && (
+                        <div 
+                          onClick={() => setHoveredMessageId(prev => prev === msg.id ? null : msg.id)}
+                          className={`rounded-lg font-semibold tracking-wide break-words max-w-full cursor-default ${
+                            isEmojiOnly
+                              ? 'text-5xl md:text-7xl py-1 leading-normal overflow-visible'
+                              : `px-4 py-2 text-xs overflow-hidden ${isOwnMessage 
+                                ? 'bg-brand-teal/10 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-none' 
+                                : 'bg-brand-navy text-[#8B949E] border border-border-subtle rounded-tl-none'}`
+                          }`}
+                        >
+                          {msg.file_url && (
                           <div className="mb-2">
                             {msg.file_type?.startsWith('image/') ? (
                               <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="text-left w-full">
@@ -609,6 +656,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                           </div>
                         )}
                         <span>{contentToRender}</span>
+                        </div>
                       
                       {(hoveredMessageId === msg.id || reactionPickerMessageId === msg.id) && (
                         <div className={`absolute -bottom-5 ${isOwnMessage ? 'right-0' : 'left-0'} bg-[#1c2128] border border-border-subtle rounded-full px-2 py-1 flex items-center space-x-2 shadow-xl z-[60]`}>
@@ -631,7 +679,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                               <MoreHorizontal className="w-3 h-3" />
                             </button>
                             {reactionPickerMessageId === msg.id && (
-                              <div className="absolute top-8 right-0 z-[100] shadow-xl" onClick={e => e.stopPropagation()}>
+                              <div className={`absolute bottom-8 ${isOwnMessage ? 'right-0' : 'left-0'} z-[100] shadow-xl`} onClick={e => e.stopPropagation()}>
                                 <Picker data={data} onEmojiSelect={(emoji: any) => { handleAddReaction(msg.id, emoji.native); setReactionPickerMessageId(null); }} theme="dark" />
                               </div>
                             )}
@@ -646,7 +694,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                           if (reactionEntries.length === 0) return null;
                           
                           return (
-                            <div className="flex flex-wrap gap-1 mt-1">
+                            <div className={`flex flex-wrap gap-1 mt-1 ${isOwnMessage ? "justify-end" : "justify-start"}`}>
                               {reactionEntries.map(([emoji, users]) => {
                                 const hasReacted = users.includes(user?.id);
                                 return (
@@ -675,7 +723,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
               );
             })
           )}
-          <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} className="h-6" />
         </div>
 
         {/* Typing Indicator */}
