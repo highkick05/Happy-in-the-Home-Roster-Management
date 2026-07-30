@@ -34,8 +34,17 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     return new GiphyFetch(apiKey);
   }, [settings?.giphyApiKey]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const userIdToNameMap = React.useMemo(() => {
+    const map: Record<number, string> = {};
+    messages.forEach(m => {
+      if (m.user_id && m.first_name) map[m.user_id] = m.first_name;
+    });
+    if (user) map[user.id] = user.firstName;
+    return map;
+  }, [messages, user]);
   const [newMessage, setNewMessage] = useState('');
   const [selectedGif, setSelectedGif] = useState<any>(null);
+  const [quotedMessages, setQuotedMessages] = useState<ChatMessage[]>([]);
   const [gifSearch, setGifSearch] = useState('');
   const [debouncedGifSearch, setDebouncedGifSearch] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -56,7 +65,24 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const giphyButtonRef = useRef<HTMLButtonElement>(null);
   const giphyPickerRef = useRef<HTMLDivElement>(null);
-  const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
+  const [showActionsMessageId, setShowActionsMessageId] = useState<number | null>(null);
+  const [reactionDetails, setReactionDetails] = useState<{msgId: number, emoji: string, userIds: number[]} | null>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handlePointerDown = (msgId: number) => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      setShowActionsMessageId(msgId);
+    }, 500);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<number | null>(null);
   const reactionPickerRef = useRef<HTMLDivElement>(null);
 
@@ -89,32 +115,12 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const fetchGifs = (offset: number) => debouncedGifSearch ? gf.search(debouncedGifSearch, { offset, limit: 10 }) : gf.trending({ offset, limit: 10 });
 
   const handleQuote = (msg: ChatMessage) => {
-    let contentToQuote = msg.content || '';
-    
-    if (!contentToQuote && msg.file_url) {
-      contentToQuote = `[${msg.file_name || 'Attachment'}]`;
-    } else {
-      // Remove previous quotes from the content
-      contentToQuote = contentToQuote.split('\n').filter(line => !line.startsWith('> ')).join(' ').trim();
-      if (!contentToQuote) contentToQuote = '[Attachment]';
-    }
-    
-    const quotedContent = `> ${msg.first_name}: ${contentToQuote}\n\n`;
-    
-    setNewMessage(prev => {
-      const updated = quotedContent + prev;
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.style.height = 'auto';
-          textareaRef.current.value = updated;
-          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 240)}px`;
-          textareaRef.current.focus();
-          const len = updated.length;
-          textareaRef.current.setSelectionRange(len, len);
-        }
-      }, 0);
-      return updated;
-    });
+    setQuotedMessages(prev => [...prev, msg]);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, 0);
   };
 
   const handleDeleteMessage = async (msgId: number) => {
@@ -353,9 +359,24 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
     const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!newMessage.trim() && attachments.length === 0 && !selectedGif) || !socket || !user || isUploading) return;
+    if ((!newMessage.trim() && attachments.length === 0 && !selectedGif && quotedMessages.length === 0) || !socket || !user || isUploading) return;
 
     let content = newMessage.trim();
+    if (quotedMessages.length > 0) {
+      const quotePrefix = quotedMessages.map(qMsg => {
+        let contentToQuote = qMsg.content || '';
+        if (!contentToQuote && qMsg.file_url) {
+          contentToQuote = `[${qMsg.file_name || 'Attachment'}]`;
+        } else {
+          contentToQuote = contentToQuote.split('\n').filter(line => !line.startsWith('> ')).join(' ').trim();
+          if (!contentToQuote) contentToQuote = '[Attachment]';
+        }
+        return `> ${qMsg.first_name}: ${contentToQuote}\n\n`;
+      }).join('');
+      content = quotePrefix + content;
+      setQuotedMessages([]);
+    }
+    
     if (selectedGif) {
         content += (content ? '\n\n' : '') + selectedGif.images.fixed_height.url;
     }
@@ -477,6 +498,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
     setNewMessage('');
     setSelectedGif(null);
+    setQuotedMessages([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -658,7 +680,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                         <span>{contentToRender}</span>
                         </div>
                       
-                      {(hoveredMessageId === msg.id || reactionPickerMessageId === msg.id) && (
+                      {(showActionsMessageId === msg.id || reactionPickerMessageId === msg.id) && (
                         <div className={`absolute -bottom-5 ${isOwnMessage ? 'right-0' : 'left-0'} bg-[#1c2128] border border-border-subtle rounded-full px-2 py-1 flex items-center space-x-2 shadow-xl z-[60]`}>
                           <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '👍'); }} className="hover:scale-125 transition-transform text-base">👍</button>
                           <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '❤️'); }} className="hover:scale-125 transition-transform text-base">❤️</button>
@@ -787,6 +809,32 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                   <button type="button" onClick={() => setSelectedGif(null)} className="absolute top-1 right-1 bg-black/70 p-1 rounded-full text-zinc-300 hover:text-white transition-colors">
                     <X className="w-3 h-3" />
                   </button>
+                </div>
+              )}
+              
+              {quotedMessages.length > 0 && (
+                <div className="flex flex-col space-y-1 mx-2 mt-2">
+                  {quotedMessages.map((qMsg, idx) => {
+                    const isImageQuote = qMsg.content?.match(/http.*(giphy\.com|\.(gif|jpe?g|png))/i);
+                    let quoteContent = qMsg.content ? qMsg.content.split('\n').filter(line => !line.startsWith('> ')).join(' ').trim() : '';
+                    if (!quoteContent && qMsg.file_url) quoteContent = `[${qMsg.file_name || 'Attachment'}]`;
+
+                    return (
+                      <div key={idx} className="relative flex items-center justify-between bg-black/20 border-l-[3px] border-brand-teal/50 rounded-r-md px-3 py-1.5 text-xs text-zinc-300">
+                        <div className="flex items-center space-x-2 truncate">
+                          <span className="font-semibold text-brand-teal">{qMsg.first_name}:</span>
+                          {isImageQuote ? (
+                            <img src={isImageQuote[0]} alt="quoted gif" className="h-8 rounded object-cover" />
+                          ) : (
+                            <span className="truncate">{quoteContent}</span>
+                          )}
+                        </div>
+                        <button type="button" onClick={() => setQuotedMessages(prev => prev.filter((_, i) => i !== idx))} className="ml-2 bg-black/50 hover:bg-black p-1 rounded-full text-zinc-400 hover:text-white transition-colors flex-shrink-0">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               
