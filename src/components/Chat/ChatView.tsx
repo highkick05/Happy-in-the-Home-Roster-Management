@@ -687,8 +687,8 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
             <input 
               type="file" 
               className="hidden" 
-              accept="image/*,video/*"
-              multiple
+              accept="image/*"
+              capture="environment"
               ref={cameraInputRef} 
               onChange={e => {
                 if (e.target.files) {
@@ -745,7 +745,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                     type="button" 
                     onClick={() => cameraInputRef.current?.click()}
                     className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                    title="Camera & Photos"
+                    title="Camera"
                   >
                     <Camera className="w-4 h-4" />
                   </button>
