@@ -440,6 +440,19 @@ function RootRedirect() {
 }
 
 export default function App() {
+
+  React.useEffect(() => {
+    const promptForNotifications = () => {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
+      }
+      document.removeEventListener('click', promptForNotifications);
+    };
+    
+    document.addEventListener('click', promptForNotifications);
+    return () => document.removeEventListener('click', promptForNotifications);
+  }, []);
+
   React.useEffect(() => {
     fetch('/api/app-manifest.json').then(r => r.json()).then(data => {
       const link = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
@@ -458,6 +471,7 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <BrowserRouter>
+        <ChatNotificationProvider>
       <ReloadPrompt />
           <UniversalPWAInstall />
           <Routes>
@@ -487,6 +501,7 @@ export default function App() {
             <Route path="/settings" element={<ProtectedRoute adminOnly><Layout><SettingsView /></Layout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfileView /></Layout></ProtectedRoute>} />
           </Routes>
+                </ChatNotificationProvider>
         </BrowserRouter>
       </AuthProvider>
     </ErrorBoundary>

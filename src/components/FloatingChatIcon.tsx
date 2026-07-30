@@ -2,142 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, X, Maximize2 } from 'lucide-react';
 import ChatView from './Chat/ChatView';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { io } from 'socket.io-client';
+import { useChatNotifications } from '../context/ChatNotificationContext';
 
 export default function FloatingChatIcon() {
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount, setUnreadCount, subscribeToPush } = useChatNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
-  const { token, user } = useAuth();
   const navigate = useNavigate();
-
-  const subscribeToPush = async () => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      let subscription = await registration.pushManager.getSubscription();
-      
-      if (!subscription) {
-        const response = await fetch('/api/push/public-key');
-        const vapidPublicKey = await response.text();
-        
-        function urlBase64ToUint8Array(base64String) {
-          const padding = '='.repeat((4 - base64String.length % 4) % 4);
-          const base64 = (base64String + padding)
-            .replace(/\-/g, '+')
-            .replace(/_/g, '/');
-        
-          const rawData = window.atob(base64);
-          const outputArray = new Uint8Array(rawData.length);
-        
-          for (let i = 0; i < rawData.length; ++i) {
-            outputArray[i] = rawData.charCodeAt(i);
-          }
-          return outputArray;
-        }
-
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
-        });
-      }
-      
-      await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ subscription })
-      });
-    } catch (e) {
-      console.error('Failed to subscribe to push notifications', e);
-    }
-  };
-
-  useEffect(() => {
-    if (token && 'Notification' in window && Notification.permission === 'granted') {
-      subscribeToPush();
-    }
-  }, [token]);
-
   const location = useLocation();
-
-  const fetchUnread = async () => {
-    if (!token) return;
-    try {
-      const res = await fetch('/api/chat/unread', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUnreadCount(data.count);
-      }
-    } catch (e) {
-      console.error("Failed to fetch unread chat count", e);
-    }
-  };
-
-  useEffect(() => {
-    if (location.pathname.includes('/chat')) {
-      setUnreadCount(0);
-    }
-  }, [location.pathname]);
-
-  useEffect(() => {
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 10000); // Poll every 10 seconds
-
-    
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchUnread();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleVisibilityChange);
-
-    const socket = io(window.location.origin, {
-      path: '/socket.io'
-    });
-
-    socket.on('new_message', (msg: any) => {
-      // Only increment if we aren't on the chat page and the message isn't ours
-      if (!window.location.pathname.includes('/chat')) {
-        if (!user || msg.user_id !== user.id) {
-          setUnreadCount(prev => prev + 1);
-        }
-      }
-    });
-
-    socket.on('chat_read_by_user', (data: any) => {
-      if (user && data.user_id === user.id) {
-        setUnreadCount(0);
-      }
-    });
-    
-    socket.on('chat_cleared', () => {
-      setUnreadCount(0);
-    });
-
-    const handleChatRead = () => {
-      setUnreadCount(0);
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_NOTIFICATIONS' });
-      }
-    };
-    window.addEventListener('chat_read', handleChatRead);
-
-    return () => {
-      clearInterval(interval);
-      socket.disconnect();
-      window.removeEventListener('chat_read', handleChatRead);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleVisibilityChange);
-    };
-  }, [token, user]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -145,6 +17,7 @@ export default function FloatingChatIcon() {
         setIsOpen(false);
       }
     };
+
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
@@ -153,23 +26,9 @@ export default function FloatingChatIcon() {
     };
   }, [isOpen]);
 
-    useEffect(() => {
-    if ('setAppBadge' in navigator) {
-      if (unreadCount > 0) {
-        // @ts-ignore
-        navigator.setAppBadge(unreadCount).catch(() => {});
-      } else {
-        // @ts-ignore
-        navigator.clearAppBadge().catch(() => {});
-      }
-    }
-  }, [unreadCount]);
-
   if (location.pathname.includes('/chat')) return null;
 
-  
-
-return (
+  return (
     <>
       {isOpen && (
         <div ref={popupRef} className="fixed bottom-0 right-0 w-full sm:w-[400px] h-[75vh] sm:h-[65vh] max-h-[700px] sm:max-h-[600px] bg-brand-bg border-l border-t border-border-subtle rounded-tl-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 origin-bottom-right z-[9999] lg:hidden">
