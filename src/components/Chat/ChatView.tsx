@@ -639,7 +639,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         {(pinnedMessage || user?.role === 'ADMIN') && (
           <div className="relative z-20 bg-brand-teal/10 border-b border-brand-teal/20 px-3 py-2 md:px-4 flex items-center justify-between text-sm shadow-md backdrop-blur-sm">
             <div className="flex items-center space-x-2 flex-1 min-w-0">
-              <span className="text-brand-teal font-semibold shrink-0"><span className="hidden sm:inline">📌</span> Pinned:</span>
+              {user?.role === 'ADMIN' && <span className="text-brand-teal font-semibold shrink-0"><span className="hidden sm:inline">📌</span> Pinned:</span>}
               {isEditingPinned ? (
                 <input
                   type="text"
