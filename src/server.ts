@@ -1087,11 +1087,7 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
-      try {
-        db.exec("ALTER TABLE chat_messages ADD COLUMN is_edited INTEGER DEFAULT 0;");
-      } catch (e) {
-        // column likely exists
-      }
+
 
       
       
@@ -1163,6 +1159,12 @@ try {
       );
     `);
     console.log("[DEBUG] Completed client_ledger_entries table setup.");
+
+    try {
+      db.exec("ALTER TABLE chat_messages ADD COLUMN is_edited INTEGER DEFAULT 0;");
+    } catch (e) {
+      // column likely exists
+    }
 
     // Migration for tasks
     try {
