@@ -8,6 +8,58 @@ export default function LiveChatIcon() {
   const [unreadCount, setUnreadCount] = useState(0);
   const { token, user } = useAuth();
   const navigate = useNavigate();
+
+  const subscribeToPush = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+      
+      if (!subscription) {
+        const response = await fetch('/api/push/public-key');
+        const vapidPublicKey = await response.text();
+        
+        function urlBase64ToUint8Array(base64String) {
+          const padding = '='.repeat((4 - base64String.length % 4) % 4);
+          const base64 = (base64String + padding)
+            .replace(/\-/g, '+')
+            .replace(/_/g, '/');
+        
+          const rawData = window.atob(base64);
+          const outputArray = new Uint8Array(rawData.length);
+        
+          for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+          }
+          return outputArray;
+        }
+
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+        });
+      }
+      
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ subscription })
+      });
+    } catch (e) {
+      console.error('Failed to subscribe to push notifications', e);
+    }
+  };
+
+  useEffect(() => {
+    if (token && 'Notification' in window && Notification.permission === 'granted') {
+      subscribeToPush();
+    }
+  }, [token]);
+
   const location = useLocation();
 
   const fetchUnread = async () => {
@@ -69,6 +121,9 @@ export default function LiveChatIcon() {
 
     const handleChatRead = () => {
       setUnreadCount(0);
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_NOTIFICATIONS' });
+      }
     };
     window.addEventListener('chat_read', handleChatRead);
 
@@ -97,7 +152,9 @@ return (
     <button 
       onClick={() => {
         if ('Notification' in window && Notification.permission === 'default') {
-          Notification.requestPermission().catch(() => {});
+          Notification.requestPermission().then(permission => {
+            if (permission === 'granted') subscribeToPush();
+          }).catch(() => {});
         }
         navigate('/chat');
       }}

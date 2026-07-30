@@ -52,6 +52,7 @@ export default defineConfig(({mode}) => {
           navigateFallback: 'index.html'
         },
         workbox: {
+          importScripts: ['/custom-sw.js'],
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,

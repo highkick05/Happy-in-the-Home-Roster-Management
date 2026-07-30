@@ -1,4 +1,9 @@
 import "express-async-errors";
+import webpush from 'web-push';
+
+const VAPID_PUBLIC_KEY = 'BJJipdW8yPjurHatAx-yKuxglYM9TVFau8jQUsbPK5ybbYUotCGx6Y3zd6sOCQkeWBsfrHYHgwZYKzwp8BBv2_0';
+const VAPID_PRIVATE_KEY = 'XFEVMuT0GKOCFwEoxi7PZt6MGALJih-1LUR7OWy_Nwk';
+webpush.setVapidDetails('mailto:admin@happyinthehome.org', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 import express from "express";
 import { Server as SocketIOServer } from "socket.io";
 import http from "http";
@@ -1132,6 +1137,16 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
+
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      );
       CREATE TABLE IF NOT EXISTS client_template_settings (
         client_id INTEGER NOT NULL,
         template_name TEXT NOT NULL,
@@ -3288,6 +3303,32 @@ try {
 
   const typingUsers = new Map<number, { userName: string, lastTyped: number }>();
 
+
+  app.get("/api/push/public-key", (req, res) => {
+    res.send(VAPID_PUBLIC_KEY);
+  });
+
+  app.post("/api/push/subscribe", authenticateToken, (req, res) => {
+    try {
+      const { subscription } = req.body;
+      const { endpoint, keys } = subscription;
+      
+      const existing = db.prepare("SELECT id FROM push_subscriptions WHERE endpoint = ? AND user_id = ?").get(endpoint, req.user.id);
+      
+      if (!existing) {
+        db.prepare(`
+          INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) 
+          VALUES (?, ?, ?, ?)
+        `).run(req.user.id, endpoint, keys.p256dh, keys.auth);
+      }
+      
+      res.status(201).json({ success: true });
+    } catch (e: any) {
+      console.error("Push subscribe error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post("/api/chat/typing", authenticateToken, (req: any, res: any) => {
     try {
       const { isTyping, userName } = req.body;
@@ -3449,6 +3490,38 @@ try {
       `).get(info.lastInsertRowid);
       
       const io = req.app.get('io');
+      
+      // --- Send Web Push Notifications to all other users ---
+      try {
+        const subscriptions = db.prepare("SELECT * FROM push_subscriptions WHERE user_id != ?").all(user_id);
+        const payload = JSON.stringify({
+          title: "New message from " + (newMsg.first_name || 'Someone'),
+          body: newMsg.content || (newMsg.file_name ? 'Sent a file: ' + newMsg.file_name : 'Sent an attachment'),
+          url: '/chat',
+          badgeCount: 1
+        });
+        
+        subscriptions.forEach(sub => {
+          const pushSubscription = {
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: sub.p256dh,
+              auth: sub.auth
+            }
+          };
+          
+          webpush.sendNotification(pushSubscription, payload).catch(err => {
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              db.prepare("DELETE FROM push_subscriptions WHERE id = ?").run(sub.id);
+            } else {
+              console.error('Error sending push notification:', err);
+            }
+          });
+        });
+      } catch(pushErr) {
+        console.error("Failed to send push notifications", pushErr);
+      }
+      
       if (io) {
         locallyEmittedMessageIds.add(newMsg.id);
         if (locallyEmittedMessageIds.size > 1000) {
