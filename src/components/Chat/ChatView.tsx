@@ -149,10 +149,10 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
   const handleAddReaction = async (messageId: number, emoji: string) => {
     setHoveredMessageId(null);
-    setReactionPickerMessageId(null);
+    setReactionPicker(null);
     setTimeout(() => {
       setHoveredMessageId(null);
-      setReactionPickerMessageId(null);
+      setReactionPicker(null);
     }, 100);
     try {
       const res = await fetch(`/api/chat/messages/${messageId}/react`, {
