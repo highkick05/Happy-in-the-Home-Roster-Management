@@ -1167,11 +1167,16 @@ try {
     }
 
     try {
-      db.exec("ALTER TABLE chat_messages ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;");
-      db.exec("ALTER TABLE chat_messages ADD COLUMN last_updated_by INTEGER;");
-      db.exec("UPDATE chat_messages SET updated_at = created_at WHERE updated_at IS NULL;");
+      const columns = db.prepare("PRAGMA table_info(chat_messages)").all() as any[];
+      if (!columns.some(c => c.name === 'updated_at')) {
+        db.exec("ALTER TABLE chat_messages ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;");
+        db.exec("UPDATE chat_messages SET updated_at = created_at WHERE updated_at IS NULL;");
+      }
+      if (!columns.some(c => c.name === 'last_updated_by')) {
+        db.exec("ALTER TABLE chat_messages ADD COLUMN last_updated_by INTEGER;");
+      }
     } catch (e) {
-      // column likely exists
+      console.error("Migration error chat_messages:", e);
     }
 
     // Migration for tasks
