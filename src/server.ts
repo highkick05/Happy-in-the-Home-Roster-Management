@@ -1085,6 +1085,8 @@ try {
         reactions TEXT DEFAULT '{}',
         is_edited INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_updated_by INTEGER,
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
 
@@ -1169,14 +1171,20 @@ try {
     try {
       const columns = db.prepare("PRAGMA table_info(chat_messages)").all() as any[];
       if (!columns.some(c => c.name === 'updated_at')) {
-        db.exec("ALTER TABLE chat_messages ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;");
-        db.exec("UPDATE chat_messages SET updated_at = created_at WHERE updated_at IS NULL;");
+        db.exec("ALTER TABLE chat_messages ADD COLUMN updated_at DATETIME;");
+        db.exec("UPDATE chat_messages SET updated_at = created_at;");
       }
+    } catch (e) {
+      console.error("Migration error chat_messages updated_at:", e);
+    }
+
+    try {
+      const columns = db.prepare("PRAGMA table_info(chat_messages)").all() as any[];
       if (!columns.some(c => c.name === 'last_updated_by')) {
         db.exec("ALTER TABLE chat_messages ADD COLUMN last_updated_by INTEGER;");
       }
     } catch (e) {
-      console.error("Migration error chat_messages:", e);
+      console.error("Migration error chat_messages last_updated_by:", e);
     }
 
     // Migration for tasks
@@ -3301,11 +3309,18 @@ try {
   app.get("/api/chat/unread", authenticateToken, (req, res) => {
     try {
       const userRow = db.prepare("SELECT last_chat_read FROM users WHERE id = ?").get(req.user.id) as any;
+      
+      const columns = db.prepare("PRAGMA table_info(chat_messages)").all() as any[];
+      const hasUpdatedAt = columns.some(c => c.name === 'updated_at');
+      const hasLastUpdatedBy = columns.some(c => c.name === 'last_updated_by');
+      const updatedCol = hasUpdatedAt ? 'updated_at' : 'created_at';
+      const updatedByCol = hasLastUpdatedBy ? 'COALESCE(last_updated_by, user_id)' : 'user_id';
+
       let count = 0;
       if (!userRow?.last_chat_read) {
-        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED' AND COALESCE(last_updated_by, user_id) != ?").get(req.user.id) as any).count;
+        count = (db.prepare(`SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED' AND ${updatedByCol} != ?`).get(req.user.id) as any).count;
       } else {
-        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE updated_at > ? AND content != 'SYSTEM_CHAT_CLEARED' AND COALESCE(last_updated_by, user_id) != ?").get(userRow.last_chat_read, req.user.id) as any).count;
+        count = (db.prepare(`SELECT COUNT(*) as count FROM chat_messages WHERE ${updatedCol} > ? AND content != 'SYSTEM_CHAT_CLEARED' AND ${updatedByCol} != ?`).get(userRow.last_chat_read, req.user.id) as any).count;
       }
       console.log("Unread count for user", req.user.id, "is", count, "last_read", userRow?.last_chat_read);
       res.json({ count });
@@ -3483,7 +3498,16 @@ try {
         reactions[emoji].push(userId);
       }
 
-      db.prepare("UPDATE chat_messages SET reactions = ?, updated_at = datetime('now'), last_updated_by = ? WHERE id = ?").run(JSON.stringify(reactions), userId, messageId);
+      // Check if columns exist
+      const columns = db.prepare("PRAGMA table_info(chat_messages)").all() as any[];
+      const hasUpdatedAt = columns.some(c => c.name === 'updated_at');
+      const hasLastUpdatedBy = columns.some(c => c.name === 'last_updated_by');
+
+      if (hasUpdatedAt && hasLastUpdatedBy) {
+        db.prepare("UPDATE chat_messages SET reactions = ?, updated_at = datetime('now'), last_updated_by = ? WHERE id = ?").run(JSON.stringify(reactions), userId, messageId);
+      } else {
+        db.prepare("UPDATE chat_messages SET reactions = ? WHERE id = ?").run(JSON.stringify(reactions), messageId);
+      }
 
       const io = req.app.get('io');
       if (io) {
@@ -3517,8 +3541,15 @@ try {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const updateStmt = db.prepare("UPDATE chat_messages SET content = ?, is_edited = 1, updated_at = datetime('now'), last_updated_by = ? WHERE id = ?");
-    updateStmt.run(content, req.user.id, msgId);
+    const columns = db.prepare("PRAGMA table_info(chat_messages)").all() as any[];
+    const hasUpdatedAt = columns.some(c => c.name === 'updated_at');
+    const hasLastUpdatedBy = columns.some(c => c.name === 'last_updated_by');
+    
+    if (hasUpdatedAt && hasLastUpdatedBy) {
+      db.prepare("UPDATE chat_messages SET content = ?, is_edited = 1, updated_at = datetime('now'), last_updated_by = ? WHERE id = ?").run(content, req.user.id, msgId);
+    } else {
+      db.prepare("UPDATE chat_messages SET content = ?, is_edited = 1 WHERE id = ?").run(content, msgId);
+    }
 
     const updatedMsg = db.prepare(`
       SELECT c.*, u.first_name, u.last_name 
