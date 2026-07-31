@@ -1166,6 +1166,14 @@ try {
       // column likely exists
     }
 
+    try {
+      db.exec("ALTER TABLE chat_messages ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;");
+      db.exec("ALTER TABLE chat_messages ADD COLUMN last_updated_by INTEGER;");
+      db.exec("UPDATE chat_messages SET updated_at = created_at WHERE updated_at IS NULL;");
+    } catch (e) {
+      // column likely exists
+    }
+
     // Migration for tasks
     try {
       const taskCols = db.prepare("PRAGMA table_info(tasks)").all() as any[];
@@ -3290,9 +3298,9 @@ try {
       const userRow = db.prepare("SELECT last_chat_read FROM users WHERE id = ?").get(req.user.id) as any;
       let count = 0;
       if (!userRow?.last_chat_read) {
-        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED' AND user_id != ?").get(req.user.id) as any).count;
+        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED' AND user_id != ? AND (last_updated_by IS NULL OR last_updated_by != ?)").get(req.user.id, req.user.id) as any).count;
       } else {
-        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE created_at > ? AND content != 'SYSTEM_CHAT_CLEARED' AND user_id != ?").get(userRow.last_chat_read, req.user.id) as any).count;
+        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE updated_at > ? AND content != 'SYSTEM_CHAT_CLEARED' AND user_id != ? AND (last_updated_by IS NULL OR last_updated_by != ?)").get(userRow.last_chat_read, req.user.id, req.user.id) as any).count;
       }
       console.log("Unread count for user", req.user.id, "is", count, "last_read", userRow?.last_chat_read);
       res.json({ count });
@@ -3460,7 +3468,7 @@ try {
         reactions[emoji].push(userId);
       }
 
-      db.prepare("UPDATE chat_messages SET reactions = ? WHERE id = ?").run(JSON.stringify(reactions), messageId);
+      db.prepare("UPDATE chat_messages SET reactions = ?, updated_at = datetime('now'), last_updated_by = ? WHERE id = ?").run(JSON.stringify(reactions), userId, messageId);
 
       const io = req.app.get('io');
       if (io) {
@@ -3494,8 +3502,8 @@ try {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const updateStmt = db.prepare("UPDATE chat_messages SET content = ?, is_edited = 1 WHERE id = ?");
-    updateStmt.run(content, msgId);
+    const updateStmt = db.prepare("UPDATE chat_messages SET content = ?, is_edited = 1, updated_at = datetime('now'), last_updated_by = ? WHERE id = ?");
+    updateStmt.run(content, req.user.id, msgId);
 
     const updatedMsg = db.prepare(`
       SELECT c.*, u.first_name, u.last_name 

@@ -122,6 +122,18 @@ export function ChatNotificationProvider({ children }: { children: ReactNode }) 
       }
     });
     
+    socket.on('message_reaction', () => {
+      if (!window.location.pathname.includes('/chat')) {
+        fetchUnread();
+      }
+    });
+
+    socket.on('chat_message_edited', () => {
+      if (!window.location.pathname.includes('/chat')) {
+        fetchUnread();
+      }
+    });
+    
     socket.on('chat_cleared', () => {
       setUnreadCount(0);
     });
