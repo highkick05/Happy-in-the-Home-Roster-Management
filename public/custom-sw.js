@@ -2,6 +2,19 @@ self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
     
+    if (data.type === 'CLEAR_NOTIFICATIONS') {
+      event.waitUntil(
+        self.registration.getNotifications().then(notifications => {
+          notifications.forEach(notification => notification.close());
+        }).then(() => {
+          if (navigator.clearAppBadge) {
+            return navigator.clearAppBadge().catch(() => {});
+          }
+        })
+      );
+      return;
+    }
+    
     const options = {
       body: data.body,
       icon: '/icon-192x192.png',
@@ -12,8 +25,14 @@ self.addEventListener('push', function(event) {
     event.waitUntil(
       self.registration.showNotification(data.title, options).then(() => {
         // Try to update app badge if supported (works on desktop/some platforms)
-        if (navigator.setAppBadge && data.badgeCount) {
-          navigator.setAppBadge(data.badgeCount).catch(() => {});
+        if (navigator.setAppBadge && typeof data.badgeCount !== 'undefined') {
+          if (data.badgeCount > 0) {
+            navigator.setAppBadge(data.badgeCount).catch(() => {});
+          } else {
+            if (navigator.clearAppBadge) {
+               navigator.clearAppBadge().catch(() => {});
+            }
+          }
         }
       })
     );

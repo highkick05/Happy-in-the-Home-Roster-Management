@@ -3306,27 +3306,32 @@ try {
     }
   });
 
+function getUnreadChatCount(db: any, userId: number) {
+  try {
+    const userRow = db.prepare("SELECT last_chat_read FROM users WHERE id = ?").get(userId) as any;
+    const columns = db.prepare("PRAGMA table_info(chat_messages)").all() as any[];
+    const hasUpdatedAt = columns.some((c: any) => c.name === 'updated_at');
+    const hasLastUpdatedBy = columns.some((c: any) => c.name === 'last_updated_by');
+    const updatedCol = hasUpdatedAt ? 'COALESCE(updated_at, created_at)' : 'created_at';
+    const updatedByCol = hasLastUpdatedBy ? 'COALESCE(last_updated_by, user_id)' : 'user_id';
+    
+    let count = 0;
+    if (!userRow?.last_chat_read) {
+      count = (db.prepare(`SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED' AND ${updatedByCol} != ?`).get(userId) as any).count;
+    } else {
+      const unreadMsgs = db.prepare(`SELECT id FROM chat_messages WHERE ${updatedCol} > ? AND content != 'SYSTEM_CHAT_CLEARED' AND ${updatedByCol} != ?`).all(userRow.last_chat_read, userId) as any[];
+      count = unreadMsgs.length;
+    }
+    return count;
+  } catch (e) {
+    console.error("Error calculating unread count:", e);
+    return 0;
+  }
+}
+
   app.get("/api/chat/unread", authenticateToken, (req, res) => {
     try {
-      const userRow = db.prepare("SELECT last_chat_read FROM users WHERE id = ?").get(req.user.id) as any;
-      
-      const columns = db.prepare("PRAGMA table_info(chat_messages)").all() as any[];
-      const hasUpdatedAt = columns.some(c => c.name === 'updated_at');
-      const hasLastUpdatedBy = columns.some(c => c.name === 'last_updated_by');
-      const updatedCol = hasUpdatedAt ? 'COALESCE(updated_at, created_at)' : 'created_at';
-      const updatedByCol = hasLastUpdatedBy ? 'COALESCE(last_updated_by, user_id)' : 'user_id';
-
-      let count = 0;
-      if (!userRow?.last_chat_read) {
-        count = (db.prepare(`SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED' AND ${updatedByCol} != ?`).get(req.user.id) as any).count;
-      } else {
-        const unreadMsgs = db.prepare(`SELECT id, ${updatedCol} as ts, ${updatedByCol} as by_user FROM chat_messages WHERE ${updatedCol} > ? AND content != 'SYSTEM_CHAT_CLEARED' AND ${updatedByCol} != ?`).all(userRow.last_chat_read, req.user.id) as any[];
-        count = unreadMsgs.length;
-        if (count > 0) {
-           console.log("DEBUG UNREAD MSGS:", unreadMsgs, "last_read:", userRow.last_chat_read);
-        }
-      }
-      console.log("Unread count for user", req.user.id, "is", count, "last_read", userRow?.last_chat_read);
+      const count = getUnreadChatCount(db, req.user.id);
       res.json({ count });
     } catch (e: any) {
       console.error("Error in /api/chat/unread:", e);
@@ -3345,11 +3350,41 @@ try {
 
   app.post("/api/chat/read", authenticateToken, (req, res) => {
     try {
+      // Only send push if there are actually unread messages to clear, to save push budget
+      const unreadCount = getUnreadChatCount(db, req.user.id);
+      
       db.prepare("UPDATE users SET last_chat_read = datetime('now') WHERE id = ?").run(req.user.id);
       const io = req.app.get('io');
       if (io) {
         io.emit('chat_read_by_user', { user_id: req.user.id });
       }
+      
+      if (unreadCount > 0) {
+        // Send silent push to clear notifications on other devices
+        try {
+          const subscriptions = db.prepare("SELECT * FROM push_subscriptions WHERE user_id = ?").all(req.user.id) as any[];
+          const payload = JSON.stringify({ type: 'CLEAR_NOTIFICATIONS' });
+          
+          subscriptions.forEach(sub => {
+            const pushSubscription = {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: sub.p256dh,
+                auth: sub.auth
+              }
+            };
+            
+            webpush.sendNotification(pushSubscription, payload).catch((err: any) => {
+              if (err.statusCode === 410 || err.statusCode === 404) {
+                db.prepare("DELETE FROM push_subscriptions WHERE id = ?").run(sub.id);
+              }
+            });
+          });
+        } catch (pushErr) {
+          console.error("Failed to send clear push notification", pushErr);
+        }
+      }
+
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -3521,6 +3556,42 @@ try {
          io.emit('message_reaction', { messageId: Number(messageId), reactions });
       }
 
+      // --- Send Web Push Notifications for reaction to update badge ---
+      try {
+        const reactorName = req.user.first_name || 'Someone';
+        const subscriptions = db.prepare("SELECT * FROM push_subscriptions WHERE user_id != ?").all(userId) as any[];
+        
+        subscriptions.forEach(sub => {
+          let badgeCount = 1;
+          try {
+            badgeCount = getUnreadChatCount(db, sub.user_id);
+          } catch(e) { console.error(e); }
+          
+          const userPayload = JSON.stringify({
+            title: "New reaction from " + reactorName,
+            body: reactorName + " reacted with " + emoji,
+            url: '/chat',
+            badgeCount: badgeCount
+          });
+          
+          const pushSubscription = {
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: sub.p256dh,
+              auth: sub.auth
+            }
+          };
+          
+          webpush.sendNotification(pushSubscription, userPayload).catch((err: any) => {
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              db.prepare("DELETE FROM push_subscriptions WHERE id = ?").run(sub.id);
+            }
+          });
+        });
+      } catch(pushErr) {
+        console.error("Failed to send push notifications for reaction", pushErr);
+      }
+
       res.json({ success: true, reactions });
     } catch (e: any) {
       console.error("Error in /react:", e);
@@ -3648,15 +3719,10 @@ try {
           badgeCount: 1
         });
         
-        subscriptions.forEach(sub => {
+        subscriptions.forEach((sub: any) => {
           let badgeCount = 1;
           try {
-            const userRow = db.prepare("SELECT last_chat_read FROM users WHERE id = ?").get(sub.user_id);
-            if (!userRow?.last_chat_read) {
-              badgeCount = db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED' AND user_id != ?").get(sub.user_id).count;
-            } else {
-              badgeCount = db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE created_at > ? AND content != 'SYSTEM_CHAT_CLEARED' AND user_id != ?").get(userRow.last_chat_read, sub.user_id).count;
-            }
+            badgeCount = getUnreadChatCount(db, sub.user_id);
           } catch(e) { console.error(e); }
           
           const userPayload = JSON.stringify({
