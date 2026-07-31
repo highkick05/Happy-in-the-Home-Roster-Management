@@ -3298,9 +3298,9 @@ try {
       const userRow = db.prepare("SELECT last_chat_read FROM users WHERE id = ?").get(req.user.id) as any;
       let count = 0;
       if (!userRow?.last_chat_read) {
-        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED' AND user_id != ? AND (last_updated_by IS NULL OR last_updated_by != ?)").get(req.user.id, req.user.id) as any).count;
+        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED' AND COALESCE(last_updated_by, user_id) != ?").get(req.user.id) as any).count;
       } else {
-        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE updated_at > ? AND content != 'SYSTEM_CHAT_CLEARED' AND user_id != ? AND (last_updated_by IS NULL OR last_updated_by != ?)").get(userRow.last_chat_read, req.user.id, req.user.id) as any).count;
+        count = (db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE updated_at > ? AND content != 'SYSTEM_CHAT_CLEARED' AND COALESCE(last_updated_by, user_id) != ?").get(userRow.last_chat_read, req.user.id) as any).count;
       }
       console.log("Unread count for user", req.user.id, "is", count, "last_read", userRow?.last_chat_read);
       res.json({ count });
