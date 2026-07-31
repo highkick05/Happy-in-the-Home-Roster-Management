@@ -864,7 +864,13 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                       
                       {(() => {
                         try {
-                          const reactions = msg.reactions ? JSON.parse(msg.reactions) : {};
+                          let reactions = {};
+                          try {
+                            const parsed = msg.reactions ? JSON.parse(msg.reactions) : {};
+                            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                              reactions = parsed;
+                            }
+                          } catch (e) {}
                           const reactionEntries = Object.entries(reactions) as [string, number[]][];
                           if (reactionEntries.length === 0) return null;
                           

@@ -3313,14 +3313,18 @@ try {
       const columns = db.prepare("PRAGMA table_info(chat_messages)").all() as any[];
       const hasUpdatedAt = columns.some(c => c.name === 'updated_at');
       const hasLastUpdatedBy = columns.some(c => c.name === 'last_updated_by');
-      const updatedCol = hasUpdatedAt ? 'updated_at' : 'created_at';
+      const updatedCol = hasUpdatedAt ? 'COALESCE(updated_at, created_at)' : 'created_at';
       const updatedByCol = hasLastUpdatedBy ? 'COALESCE(last_updated_by, user_id)' : 'user_id';
 
       let count = 0;
       if (!userRow?.last_chat_read) {
         count = (db.prepare(`SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED' AND ${updatedByCol} != ?`).get(req.user.id) as any).count;
       } else {
-        count = (db.prepare(`SELECT COUNT(*) as count FROM chat_messages WHERE ${updatedCol} > ? AND content != 'SYSTEM_CHAT_CLEARED' AND ${updatedByCol} != ?`).get(userRow.last_chat_read, req.user.id) as any).count;
+        const unreadMsgs = db.prepare(`SELECT id, ${updatedCol} as ts, ${updatedByCol} as by_user FROM chat_messages WHERE ${updatedCol} > ? AND content != 'SYSTEM_CHAT_CLEARED' AND ${updatedByCol} != ?`).all(userRow.last_chat_read, req.user.id) as any[];
+        count = unreadMsgs.length;
+        if (count > 0) {
+           console.log("DEBUG UNREAD MSGS:", unreadMsgs, "last_read:", userRow.last_chat_read);
+        }
       }
       console.log("Unread count for user", req.user.id, "is", count, "last_read", userRow?.last_chat_read);
       res.json({ count });
@@ -3481,10 +3485,13 @@ try {
 
       let reactions: any = {};
       try {
-        reactions = JSON.parse(msg.reactions || '{}');
+        const parsed = JSON.parse(msg.reactions || '{}');
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          reactions = parsed;
+        }
       } catch (e) {}
 
-      if (!reactions[emoji]) {
+      if (!Array.isArray(reactions[emoji])) {
         reactions[emoji] = [];
       }
 
