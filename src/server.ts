@@ -3310,6 +3310,16 @@ try {
       console.log("Unread count for user", req.user.id, "is", count, "last_read", userRow?.last_chat_read);
       res.json({ count });
     } catch (e: any) {
+      console.error("Error in /api/chat/unread:", e);
+      res.status(500).json({ error: e.message, stack: e.stack });
+    }
+  });
+
+  app.get("/api/debug/chat_schema", (req, res) => {
+    try {
+      const cols = db.prepare("PRAGMA table_info(chat_messages)").all();
+      res.json(cols);
+    } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
   });
@@ -3482,8 +3492,8 @@ try {
 
       res.json({ success: true, reactions });
     } catch (e: any) {
-      console.error(e);
-      res.status(500).json({ error: e.message });
+      console.error("Error in /react:", e);
+      res.status(500).json({ error: e.message, stack: e.stack });
     }
   });
 
