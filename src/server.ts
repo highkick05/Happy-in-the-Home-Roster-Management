@@ -3150,7 +3150,13 @@ try {
   const getSmtpSettings = () => {
     const rows = db.prepare("SELECT key, value FROM settings").all() as any[];
     const settings = rows.reduce(
-      (acc, row) => ({ ...acc, [row.key]: JSON.parse(row.value) }),
+      (acc, row) => {
+          let parsed = row.value;
+          try {
+            parsed = JSON.parse(row.value);
+          } catch(e) {}
+          return { ...acc, [row.key]: parsed };
+        },
       {} as any
     );
     
@@ -4153,7 +4159,13 @@ function getUnreadChatCount(db: any, userId: number) {
     try {
       const rows = db.prepare("SELECT key, value FROM settings").all() as any[];
       const settings = rows.reduce(
-        (acc, row) => ({ ...acc, [row.key]: JSON.parse(row.value) }),
+        (acc, row) => {
+          let parsed = row.value;
+          try {
+            parsed = JSON.parse(row.value);
+          } catch(e) {}
+          return { ...acc, [row.key]: parsed };
+        },
         {} as any,
       );
       res.json(settings);
@@ -4171,7 +4183,13 @@ function getUnreadChatCount(db: any, userId: number) {
         )
         .all() as any[];
       const settings = rows.reduce(
-        (acc, row) => ({ ...acc, [row.key]: JSON.parse(row.value) }),
+        (acc, row) => {
+          let parsed = row.value;
+          try {
+            parsed = JSON.parse(row.value);
+          } catch(e) {}
+          return { ...acc, [row.key]: parsed };
+        },
         {} as any,
       );
       res.json(settings);
@@ -12822,7 +12840,13 @@ app.get("/api/health", (req, res) => {
 
       const rows = db.prepare("SELECT key, value FROM settings").all() as any[];
       const settings = rows.reduce(
-        (acc, row) => ({ ...acc, [row.key]: JSON.parse(row.value) }),
+        (acc, row) => {
+          let parsed = row.value;
+          try {
+            parsed = JSON.parse(row.value);
+          } catch(e) {}
+          return { ...acc, [row.key]: parsed };
+        },
         {}
       );
 
