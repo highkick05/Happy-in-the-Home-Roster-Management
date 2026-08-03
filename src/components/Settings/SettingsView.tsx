@@ -1054,8 +1054,12 @@ export default function SettingsView() {
                   <input type="password" value={settings.smtpPass} onChange={e => setSettings({...settings, smtpPass: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="Password or App Password" />
                 </div>
                 <div className="col-span-1">
-                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Send From Email</label>
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Send From Email (System/Password Reset)</label>
                   <input type="email" value={settings.smtpFrom} onChange={e => setSettings({...settings, smtpFrom: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="e.g. support@yourcompany.com" />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Send From Email (Invoices)</label>
+                  <input type="email" value={settings.smtpFromInvoices} onChange={e => setSettings({...settings, smtpFromInvoices: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="e.g. billing@yourcompany.com" />
                 </div>
                 <div className="col-span-1">
                   <label className="block text-xs font-medium text-[#8B949E] mb-2">SMTP Security</label>

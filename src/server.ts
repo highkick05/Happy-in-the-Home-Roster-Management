@@ -3165,13 +3165,14 @@ try {
     const user = settings.smtpUser || process.env.SMTP_USER;
     const pass = settings.smtpPass || process.env.SMTP_PASS;
     const from = settings.smtpFrom || process.env.SMTP_FROM || "support@happyinthehome.com";
+    const fromInvoices = settings.smtpFromInvoices || settings.smtpFrom || process.env.SMTP_FROM || "billing@happyinthehome.com";
     let security = settings.smtpSecurity;
     if (!security) {
       const isSecure = settings.smtpSecure !== undefined ? settings.smtpSecure : (port === 465);
       security = isSecure ? 'SSL' : 'STARTTLS';
     }
 
-    return { host, port, user, pass, from, security };
+    return { host, port, user, pass, from, fromInvoices, security };
   };
 
   const getTransporter = () => {
@@ -12920,7 +12921,7 @@ app.get("/api/health", (req, res) => {
       }
 
       const mailOptions = {
-        from: s.from,
+        from: s.fromInvoices,
         to: providerEmail,
         subject: `Invoice ${invoiceNumber} for ${clientName}`,
         html: `
