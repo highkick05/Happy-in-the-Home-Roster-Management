@@ -4218,7 +4218,7 @@ function getUnreadChatCount(db: any, userId: number) {
       }
 
       const transporter = getTransporter(type);
-      console.log(`Testing ${type} email. User: "${s.user}", Host: "${s.host}", Port: ${s.port}, Security: "${s.security}"`);
+      console.log(`Testing ${type} email. User: "${s.user}", Pass length: ${s.pass?.length}, Host: "${s.host}", Port: ${s.port}, Security: "${s.security}"`);
       const fromAddress = type === 'invoices' ? s.fromInvoices : s.from;
       await transporter.sendMail({
         from: fromAddress,
