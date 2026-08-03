@@ -20,16 +20,20 @@ export default function SettingsView() {
   const [savedCategoryIds, setSavedCategoryIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [generalLoading, setGeneralLoading] = useState(false);
-  const [testingEmail, setTestingEmail] = useState(false);
+  const [testingEmailType, setTestingEmailType] = useState<'system' | 'invoices' | null>(null);
   const [testEmailResult, setTestEmailResult] = useState<{success: boolean, message: string, details?: string} | null>(null);
 
-  const handleTestEmail = async () => {
-    setTestingEmail(true);
+  const handleTestEmail = async (type: 'system' | 'invoices') => {
+    setTestingEmailType(type);
     setTestEmailResult(null);
     try {
       const res = await fetch('/api/settings/test-email', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ type })
       });
       const data = await res.json();
       if (res.ok) {
@@ -40,7 +44,7 @@ export default function SettingsView() {
     } catch (e: any) {
       setTestEmailResult({ success: false, message: e.message || 'Network error occurred' });
     } finally {
-      setTestingEmail(false);
+      setTestingEmailType(null);
     }
   };
   const [settings, setSettings] = useState({
@@ -1058,10 +1062,6 @@ export default function SettingsView() {
                   <input type="email" value={settings.smtpFrom} onChange={e => setSettings({...settings, smtpFrom: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="e.g. support@yourcompany.com" />
                 </div>
                 <div className="col-span-1">
-                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Send From Email (Invoices)</label>
-                  <input type="email" value={settings.smtpFromInvoices} onChange={e => setSettings({...settings, smtpFromInvoices: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="e.g. billing@yourcompany.com" />
-                </div>
-                <div className="col-span-1">
                   <label className="block text-xs font-medium text-[#8B949E] mb-2">SMTP Security</label>
                   <select 
                     value={settings.smtpSecurity || (settings.smtpSecure === false ? 'STARTTLS' : 'SSL')} 
@@ -1077,17 +1077,68 @@ export default function SettingsView() {
                 </div>
               </div>
 
+              <div className="mt-8 mb-4 pt-8 border-t border-border-subtle">
+                <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">Invoice Email Settings</h3>
+                <p className="text-xs text-[#8B949E] mt-0">Configure separate SMTP server settings for sending invoices. Leave these blank to fallback to the System Email Settings above.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">SMTP Host (Invoices)</label>
+                  <input type="text" value={settings.smtpHostInvoices || ''} onChange={e => setSettings({...settings, smtpHostInvoices: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="e.g. smtp.gmail.com" />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">SMTP Port (Invoices)</label>
+                  <input type="text" value={settings.smtpPortInvoices || ''} onChange={e => setSettings({...settings, smtpPortInvoices: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="e.g. 587 or 465" />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">SMTP Username (Invoices)</label>
+                  <input type="text" value={settings.smtpUserInvoices || ''} onChange={e => setSettings({...settings, smtpUserInvoices: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="Email address" />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">SMTP Password (Invoices)</label>
+                  <input type="password" value={settings.smtpPassInvoices || ''} onChange={e => setSettings({...settings, smtpPassInvoices: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="Password or App Password" />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">Send From Email (Invoices)</label>
+                  <input type="email" value={settings.smtpFromInvoices || ''} onChange={e => setSettings({...settings, smtpFromInvoices: e.target.value})} className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]" placeholder="e.g. billing@yourcompany.com" />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">SMTP Security (Invoices)</label>
+                  <select 
+                    value={settings.smtpSecurityInvoices || ''} 
+                    onChange={e => setSettings({...settings, smtpSecurityInvoices: e.target.value})} 
+                    className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors"
+                  >
+                    <option value="">Use System Security</option>
+                    <option value="STARTTLS">STARTTLS (Usually Port 587)</option>
+                    <option value="NOVERIFY">STARTTLS - No Verify (Allow Self-Signed)</option>
+                    <option value="SSL">SSL/TLS (Usually Port 465)</option>
+                    <option value="SSL_NOVERIFY">SSL/TLS - No Verify (Allow Self-Signed)</option>
+                    <option value="NONE">None (Plain Text)</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <button type="submit" disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
                   <Save className="w-4 h-4 mr-2" />
                   {generalLoading ? 'Saving...' : 'Save Settings'}
                 </button>
-                <button type="button" onClick={handleTestEmail} disabled={testingEmail || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-brand-navy border border-brand-teal/50 text-brand-teal hover:bg-brand-teal/10 text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
-                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  {testingEmail ? 'Sending Test...' : 'Test Email Settings'}
-                </button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => handleTestEmail('system')} disabled={testingEmailType !== null || user?.role !== 'ADMIN'} className="flex items-center px-4 py-2.5 bg-brand-navy border border-brand-teal/50 text-brand-teal hover:bg-brand-teal/10 text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
+                    <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    {testingEmailType === 'system' ? 'Testing...' : 'Test System'}
+                  </button>
+                  <button type="button" onClick={() => handleTestEmail('invoices')} disabled={testingEmailType !== null || user?.role !== 'ADMIN'} className="flex items-center px-4 py-2.5 bg-brand-navy border border-brand-teal/50 text-brand-teal hover:bg-brand-teal/10 text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
+                    <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    {testingEmailType === 'invoices' ? 'Testing...' : 'Test Invoices'}
+                  </button>
+                </div>
               </div>
               {testEmailResult && (
                 <div className={`p-3 rounded-md text-sm ${testEmailResult.success ? 'bg-brand-green/20 text-brand-green border border-brand-green/50' : 'bg-red-500/10 text-red-400 border border-red-500/50'}`}>

@@ -3147,7 +3147,7 @@ try {
     },
   );
 
-  const getSmtpSettings = () => {
+  const getSmtpSettings = (type: "system" | "invoices" = "system") => {
     const rows = db.prepare("SELECT key, value FROM settings").all() as any[];
     const settings = rows.reduce(
       (acc, row) => {
@@ -3160,13 +3160,16 @@ try {
       {} as any
     );
     
-    const host = settings.smtpHost || process.env.SMTP_HOST || "smtp.hostinger.com";
-    const port = parseInt(settings.smtpPort || process.env.SMTP_PORT || "465", 10);
-    const user = settings.smtpUser || process.env.SMTP_USER;
-    const pass = settings.smtpPass || process.env.SMTP_PASS;
+    const host = (type === "invoices" && settings.smtpHostInvoices) ? settings.smtpHostInvoices : (settings.smtpHost || process.env.SMTP_HOST || "smtp.hostinger.com");
+    const rawPort = (type === "invoices" && settings.smtpPortInvoices) ? settings.smtpPortInvoices : (settings.smtpPort || process.env.SMTP_PORT || "465");
+    const port = parseInt(rawPort, 10);
+    const user = (type === "invoices" && settings.smtpUserInvoices) ? settings.smtpUserInvoices : (settings.smtpUser || process.env.SMTP_USER);
+    const pass = (type === "invoices" && settings.smtpPassInvoices) ? settings.smtpPassInvoices : (settings.smtpPass || process.env.SMTP_PASS);
+    
     const from = settings.smtpFrom || process.env.SMTP_FROM || "support@happyinthehome.com";
     const fromInvoices = settings.smtpFromInvoices || settings.smtpFrom || process.env.SMTP_FROM || "billing@happyinthehome.com";
-    let security = settings.smtpSecurity;
+    
+    let security = (type === "invoices" && settings.smtpSecurityInvoices) ? settings.smtpSecurityInvoices : settings.smtpSecurity;
     if (!security) {
       const isSecure = settings.smtpSecure !== undefined ? settings.smtpSecure : (port === 465);
       security = isSecure ? 'SSL' : 'STARTTLS';
@@ -3175,8 +3178,8 @@ try {
     return { host, port, user, pass, from, fromInvoices, security };
   };
 
-  const getTransporter = () => {
-    const s = getSmtpSettings();
+  const getTransporter = (type: "system" | "invoices" = "system") => {
+    const s = getSmtpSettings(type);
     let secure = false;
     let requireTLS = false;
     let ignoreTLS = false;
@@ -4203,9 +4206,10 @@ function getUnreadChatCount(db: any, userId: number) {
   
   app.post("/api/settings/test-email", authenticateToken, requireAdmin, async (req, res) => {
     try {
-      const s = getSmtpSettings();
+      const type = req.body.type === 'invoices' ? 'invoices' : 'system';
+      const s = getSmtpSettings(type);
       if (!s.user || !s.pass) {
-        return res.status(400).json({ error: "SMTP Username or Password are not configured." });
+        return res.status(400).json({ error: `SMTP Username or Password are not configured for ${type} emails.` });
       }
       
       const adminUser = db.prepare("SELECT email FROM users WHERE id = ?").get(req.user.id) as any;
@@ -4213,14 +4217,15 @@ function getUnreadChatCount(db: any, userId: number) {
         return res.status(400).json({ error: "Could not find your email address." });
       }
 
-      const transporter = getTransporter();
+      const transporter = getTransporter(type);
+      const fromAddress = type === 'invoices' ? s.fromInvoices : s.from;
       await transporter.sendMail({
-        from: s.from,
+        from: fromAddress,
         to: adminUser.email,
-        subject: "Test Email from Happy in the Home",
-        text: "This is a test email to verify your SMTP settings. If you received this, your email configuration is working correctly!",
+        subject: `Test ${type === 'invoices' ? 'Invoice' : 'System'} Email from Happy in the Home`,
+        text: `This is a test email to verify your ${type} SMTP settings. If you received this, your email configuration is working correctly!`,
       });
-      res.json({ success: true, message: "Test email sent successfully to " + adminUser.email });
+      res.json({ success: true, message: `Test email sent successfully to ${adminUser.email} using ${type} settings` });
     } catch (e: any) {
       const errorDetails = {
         message: e.message,
@@ -12813,9 +12818,9 @@ app.get("/api/health", (req, res) => {
     const invoiceId = parseInt(req.params.id);
     if (!invoiceId) return res.status(400).json({ error: "Invalid invoiceId" });
 
-    const s = getSmtpSettings();
+    const s = getSmtpSettings("invoices");
     if (!s.user || !s.pass) {
-      return res.status(400).json({ error: "SMTP settings are not configured on the server." });
+      return res.status(400).json({ error: "SMTP settings (Invoices) are not configured." });
     }
 
     try {
@@ -12941,7 +12946,7 @@ app.get("/api/health", (req, res) => {
         ]
       };
 
-      await getTransporter().sendMail(mailOptions);
+      await getTransporter("invoices").sendMail(mailOptions);
 
       db.prepare("UPDATE invoices SET status = 'SENT' WHERE id = ?").run(invoiceId);
 
