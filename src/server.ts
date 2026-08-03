@@ -3147,9 +3147,9 @@ try {
     },
   );
 
-  const getSmtpSettings = (type: "system" | "invoices" = "system") => {
+  const getSmtpSettings = (type: "system" | "invoices" = "system", overrides: any = {}) => {
     const rows = db.prepare("SELECT key, value FROM settings").all() as any[];
-    const settings = rows.reduce(
+    const dbSettings = rows.reduce(
       (acc, row) => {
           let parsed = row.value;
           try {
@@ -3159,6 +3159,7 @@ try {
         },
       {} as any
     );
+    const settings = { ...dbSettings, ...overrides };
     
     const host = ((type === "invoices" && settings.smtpHostInvoices?.trim()) ? settings.smtpHostInvoices : (settings.smtpHost || process.env.SMTP_HOST || "smtp.hostinger.com"))?.trim();
     const rawPort = (type === "invoices" && settings.smtpPortInvoices?.trim()) ? settings.smtpPortInvoices : (settings.smtpPort || process.env.SMTP_PORT || "465");
@@ -3178,8 +3179,8 @@ try {
     return { host, port, user, pass, from, fromInvoices, security };
   };
 
-  const getTransporter = (type: "system" | "invoices" = "system") => {
-    const s = getSmtpSettings(type);
+  const getTransporter = (type: "system" | "invoices" = "system", overrides: any = {}) => {
+    const s = getSmtpSettings(type, overrides);
     let secure = false;
     let requireTLS = false;
     let ignoreTLS = false;
@@ -4208,7 +4209,8 @@ function getUnreadChatCount(db: any, userId: number) {
     let s;
     try {
       const type = req.body.type === 'invoices' ? 'invoices' : 'system';
-      s = getSmtpSettings(type);
+      const overrides = req.body.settings || {};
+      s = getSmtpSettings(type, overrides);
       if (!s.user || !s.pass) {
         return res.status(400).json({ error: `SMTP Username or Password are not configured for ${type} emails.` });
       }
@@ -4218,7 +4220,7 @@ function getUnreadChatCount(db: any, userId: number) {
         return res.status(400).json({ error: "Could not find your email address." });
       }
 
-      const transporter = getTransporter(type);
+      const transporter = getTransporter(type, overrides);
       console.log(`Testing ${type} email. User: "${s.user}", Pass length: ${s.pass?.length}, Host: "${s.host}", Port: ${s.port}, Security: "${s.security}"`);
       const fromAddress = type === 'invoices' ? s.fromInvoices : s.from;
       await transporter.sendMail({

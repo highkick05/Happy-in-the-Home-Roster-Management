@@ -33,7 +33,7 @@ export default function SettingsView() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ type })
+        body: JSON.stringify({ type, settings })
       });
       const data = await res.json();
       if (res.ok) {
