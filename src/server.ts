@@ -3160,14 +3160,14 @@ try {
       {} as any
     );
     
-    const host = (type === "invoices" && settings.smtpHostInvoices) ? settings.smtpHostInvoices : (settings.smtpHost || process.env.SMTP_HOST || "smtp.hostinger.com");
-    const rawPort = (type === "invoices" && settings.smtpPortInvoices) ? settings.smtpPortInvoices : (settings.smtpPort || process.env.SMTP_PORT || "465");
+    const host = ((type === "invoices" && settings.smtpHostInvoices?.trim()) ? settings.smtpHostInvoices : (settings.smtpHost || process.env.SMTP_HOST || "smtp.hostinger.com"))?.trim();
+    const rawPort = (type === "invoices" && settings.smtpPortInvoices?.trim()) ? settings.smtpPortInvoices : (settings.smtpPort || process.env.SMTP_PORT || "465");
     const port = parseInt(rawPort, 10);
-    const user = (type === "invoices" && settings.smtpUserInvoices) ? settings.smtpUserInvoices : (settings.smtpUser || process.env.SMTP_USER);
-    const pass = (type === "invoices" && settings.smtpPassInvoices) ? settings.smtpPassInvoices : (settings.smtpPass || process.env.SMTP_PASS);
+    const user = ((type === "invoices" && settings.smtpUserInvoices?.trim()) ? settings.smtpUserInvoices : (settings.smtpUser || process.env.SMTP_USER))?.trim();
+    const pass = ((type === "invoices" && settings.smtpPassInvoices?.trim()) ? settings.smtpPassInvoices : (settings.smtpPass || process.env.SMTP_PASS))?.trim();
     
-    const from = settings.smtpFrom || process.env.SMTP_FROM || "support@happyinthehome.com";
-    const fromInvoices = settings.smtpFromInvoices || settings.smtpFrom || process.env.SMTP_FROM || "billing@happyinthehome.com";
+    const from = (settings.smtpFrom || process.env.SMTP_FROM || "support@happyinthehome.com")?.trim();
+    const fromInvoices = (settings.smtpFromInvoices?.trim() || settings.smtpFrom || process.env.SMTP_FROM || "billing@happyinthehome.com")?.trim();
     
     let security = (type === "invoices" && settings.smtpSecurityInvoices) ? settings.smtpSecurityInvoices : settings.smtpSecurity;
     if (!security) {
@@ -4218,6 +4218,7 @@ function getUnreadChatCount(db: any, userId: number) {
       }
 
       const transporter = getTransporter(type);
+      console.log(`Testing ${type} email. User: "${s.user}", Host: "${s.host}", Port: ${s.port}, Security: "${s.security}"`);
       const fromAddress = type === 'invoices' ? s.fromInvoices : s.from;
       await transporter.sendMail({
         from: fromAddress,
