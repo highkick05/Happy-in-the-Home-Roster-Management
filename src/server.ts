@@ -4229,17 +4229,12 @@ function getUnreadChatCount(db: any, userId: number) {
       });
       res.json({ success: true, message: `Test email sent successfully to ${adminUser.email} using ${type} settings` });
     } catch (e: any) {
-      const attemptedUser = s?.user || 'unknown';
-      let attemptedPass = s?.pass || '';
       const errorDetails = {
         message: e.message,
         code: e.code,
         command: e.command,
         response: e.response,
-        stack: e.stack,
-        attemptedUser: attemptedUser,
-        attemptedPassLength: attemptedPass.length,
-        attemptedPassChars: Array.from(attemptedPass).map(c => c.charCodeAt(0)).join(',')
+        stack: e.stack
       };
       res.status(500).json({ 
         error: e.message || "Failed to send test email.",
