@@ -4226,7 +4226,7 @@ function getUnreadChatCount(db: any, userId: number) {
       await transporter.sendMail({
         from: fromAddress,
         to: adminUser.email,
-        subject: `Test ${type === 'invoices' ? 'Invoice' : 'System'} Email from Happy in the Home`,
+        subject: `[${type.toUpperCase()}] Test Email from Happy in the Home - ${new Date().toLocaleTimeString()}`,
         text: `This is a test email to verify your ${type} SMTP settings. If you received this, your email configuration is working correctly!`,
       });
       res.json({ success: true, message: `Test email sent successfully to ${adminUser.email} using ${type} settings` });
