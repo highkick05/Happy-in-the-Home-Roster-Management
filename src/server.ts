@@ -4205,9 +4205,10 @@ function getUnreadChatCount(db: any, userId: number) {
 
   
   app.post("/api/settings/test-email", authenticateToken, requireAdmin, async (req, res) => {
+    let s;
     try {
       const type = req.body.type === 'invoices' ? 'invoices' : 'system';
-      const s = getSmtpSettings(type);
+      s = getSmtpSettings(type);
       if (!s.user || !s.pass) {
         return res.status(400).json({ error: `SMTP Username or Password are not configured for ${type} emails.` });
       }
