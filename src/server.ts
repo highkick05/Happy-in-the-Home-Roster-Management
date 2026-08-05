@@ -7404,14 +7404,60 @@ app.get("/api/health", (req, res) => {
           `attachment; filename=Progress_Notes_${client.first_name}_${client.last_name}.pdf`
         );
 
+        const settingsRows = db
+          .prepare("SELECT key, value FROM settings")
+          .all() as any[];
+        const settingsMap: any = {};
+        settingsRows.forEach((r: any) => {
+          try {
+            settingsMap[r.key] = JSON.parse(r.value);
+          } catch {
+            settingsMap[r.key] = r.value;
+          }
+        });
+
         const doc = new PDFDocument({ margin: 50 });
         doc.pipe(res);
 
-        doc.fontSize(20).text('Participant Progress Notes', { align: 'center' });
+        if (settingsMap.letterheadLogo) {
+          try {
+            let buffer: Buffer | null = null;
+            if (settingsMap.letterheadLogo.startsWith("/api/assets/")) {
+              const fileWithQuery = settingsMap.letterheadLogo.split("/").pop();
+              const filename = fileWithQuery.split("?")[0];
+              const persistentAssetPath = path.join(process.cwd(), "data", "uploads", "assets", filename);
+              const uploadsAssetPath = path.join(process.cwd(), "uploads", "assets", filename);
+              const oldAssetPath = path.join(process.cwd(), "assets", filename);
+              if (fs.existsSync(uploadsAssetPath)) {
+                buffer = fs.readFileSync(uploadsAssetPath);
+              } else if (fs.existsSync(persistentAssetPath)) {
+                buffer = fs.readFileSync(persistentAssetPath);
+              } else if (fs.existsSync(oldAssetPath)) {
+                buffer = fs.readFileSync(oldAssetPath);
+              }
+            } else if (settingsMap.letterheadLogo.startsWith("data:image/")) {
+              const base64Data = settingsMap.letterheadLogo.replace(
+                /^data:image\/\w+;base64,/,
+                ""
+              );
+              buffer = Buffer.from(base64Data, "base64");
+            }
+            if (buffer) {
+              doc.image(buffer, 50, 40, { fit: [200, 80] });
+              // Move cursor below the logo
+              doc.y = 130;
+            }
+          } catch (err) {
+            console.error("Error loading letterhead logo for Progress Notes PDF:", err);
+          }
+        }
+
+        doc.fontSize(20).text('Progress Notes', { align: 'center' });
         doc.moveDown();
 
         doc.fontSize(12).font('Helvetica-Bold').text('Participant Details');
-        doc.font('Helvetica').text(`Name: ${client.first_name} ${client.last_name}`);
+        doc.font('Helvetica').text(`ID: ${client.id}`);
+        doc.text(`Name: ${client.first_name} ${client.last_name}`);
         if (client.ndis_number) doc.text(`NDIS Number: ${client.ndis_number}`);
         if (client.my_aged_care_id) doc.text(`My Aged Care ID: ${client.my_aged_care_id}`);
         if (client.dob) doc.text(`DOB: ${client.dob}`);
