@@ -17,6 +17,7 @@ export default function ProgressNotesView() {
   const [fromDate, setFromDate] = useState<Date | null>(null);
   const [toDate, setToDate] = useState<Date | null>(null);
   const [staffList, setStaffList] = useState<any[]>([]);
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
 
   useEffect(() => {
     if (user?.role === 'ADMIN') {
@@ -155,6 +156,12 @@ export default function ProgressNotesView() {
               </div>
             </div>
             
+            <button onClick={handleDownloadPDF} disabled={!selectedClientId || downloadingPDF} className="bg-brand-navy border border-white/10 px-3 h-7 rounded-md text-[12px] font-medium hover:bg-white/5 transition-colors flex items-center justify-center disabled:opacity-50 text-white">
+              <svg className="w-3.5 h-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              {downloadingPDF ? 'Generating...' : 'Download PDF'}
+            </button>
             <button className="bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 px-2 h-7 rounded-md text-[12px] font-medium hover:bg-[#3A422F] transition-colors flex items-center justify-center">
               Time Critical Alert
             </button>

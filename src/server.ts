@@ -7324,6 +7324,144 @@ app.get("/api/health", (req, res) => {
     },
   );
 
+
+  app.get(
+    "/api/progress-notes/:clientId/pdf",
+    authenticateToken,
+    (req: any, res: any) => {
+      try {
+        const { clientId } = req.params;
+        const { startDate, endDate } = req.query;
+        
+        const client = db.prepare("SELECT * FROM clients WHERE id = ?").get(clientId) as any;
+        if (!client) {
+          return res.status(404).json({ error: "Client not found" });
+        }
+
+        let query = `
+        SELECT 
+          'SHIFT' as source, s.id, s.start_time, s.end_time, s.actual_finish_time, s.notes, s.status, s.service_id,
+          c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
+          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
+          srv.name as service_name, srv.type as service_type,
+          s.tags as tags, s.staff_id as author_id
+        FROM shifts s
+        LEFT JOIN clients c ON s.client_id = c.id
+        LEFT JOIN users u ON s.staff_id = u.id
+        LEFT JOIN services srv ON s.service_id = srv.id
+        WHERE s.client_id = ? AND s.status IN ('COMPLETED', 'PUBLISHED', 'CANCELLED') AND s.notes IS NOT NULL AND s.notes != ''
+      `;
+        const params: any[] = [clientId];
+
+        if (req.user.role !== "ADMIN") {
+          query += ` AND s.staff_id = ?`;
+          params.push(req.user.id);
+        }
+
+        if (startDate) {
+          query += ` AND date(s.start_time) >= date(?)`;
+          params.push(startDate);
+        }
+        if (endDate) {
+          query += ` AND date(s.start_time) <= date(?)`;
+          params.push(endDate);
+        }
+
+        query += ` UNION ALL 
+        SELECT 
+          'MANUAL' as source, pn.id, pn.created_at as start_time, NULL as end_time, NULL as actual_finish_time, pn.content as notes, 'COMPLETED' as status, NULL as service_id,
+          c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
+          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
+          NULL as service_name, NULL as service_type,
+          pn.tags as tags, pn.author_id
+        FROM progress_notes pn
+        LEFT JOIN clients c ON pn.client_id = c.id
+        LEFT JOIN users u ON pn.author_id = u.id
+        WHERE pn.client_id = ?
+        `;
+        params.push(clientId);
+
+        if (req.user.role !== "ADMIN") {
+          query += ` AND pn.author_id = ?`;
+          params.push(req.user.id);
+        }
+
+        if (startDate) {
+          query += ` AND date(pn.created_at) >= date(?)`;
+          params.push(startDate);
+        }
+        if (endDate) {
+          query += ` AND date(pn.created_at) <= date(?)`;
+          params.push(endDate);
+        }
+
+        query = `SELECT * FROM (${query}) ORDER BY start_time DESC`;
+        const notes = db.prepare(query).all(...params) as any[];
+
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename=Progress_Notes_${client.first_name}_${client.last_name}.pdf`
+        );
+
+        const doc = new PDFDocument({ margin: 50 });
+        doc.pipe(res);
+
+        doc.fontSize(20).text('Participant Progress Notes', { align: 'center' });
+        doc.moveDown();
+
+        doc.fontSize(12).font('Helvetica-Bold').text('Participant Details');
+        doc.font('Helvetica').text(`Name: ${client.first_name} ${client.last_name}`);
+        if (client.ndis_number) doc.text(`NDIS Number: ${client.ndis_number}`);
+        if (client.my_aged_care_id) doc.text(`My Aged Care ID: ${client.my_aged_care_id}`);
+        if (client.dob) doc.text(`DOB: ${client.dob}`);
+        doc.moveDown(2);
+
+        if (notes.length === 0) {
+          doc.fontSize(10).text("No progress notes found for the selected period.");
+        } else {
+          notes.forEach((note: any) => {
+            const dateStr = new Date(note.start_time).toLocaleString();
+            doc.fontSize(11).font('Helvetica-Bold').text(`Date: ${dateStr}`);
+            doc.fontSize(10).font('Helvetica').text(`Staff: ${note.staff_first_name} ${note.staff_last_name} (${note.staff_role})`);
+            doc.text(`Source: ${note.source === 'SHIFT' ? 'Shift' : 'Manual Note'}`);
+            
+            let textContent = note.notes;
+            try {
+              const data = JSON.parse(textContent);
+              if (data && data.blocks) {
+                textContent = data.blocks.map((block: any) => {
+                  if (block.type === 'paragraph' || block.type === 'header') return block.data.text.replace(/<[^>]*>?/gm, '');
+                  if (block.type === 'list') {
+                    return block.data.items.map((item: string) => '- ' + item.replace(/<[^>]*>?/gm, '')).join('\n');
+                  }
+                  if (block.type === 'image') return '[Image attachment omitted from PDF]';
+                  return '';
+                }).join('\n\n');
+              }
+            } catch (e) {
+              // Not JSON, leave as plain text
+            }
+
+            // decode HTML entities if present? Maybe a bit complex. Replace basic ones
+            textContent = textContent.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+
+            doc.moveDown(0.5);
+            doc.font('Helvetica').text(textContent, { align: 'justify' });
+            doc.moveDown(1.5);
+          });
+        }
+
+        doc.end();
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        if (!res.headersSent) {
+          res.status(500).json({ error: "Internal Server Error" });
+        }
+      }
+    }
+  );
+
   app.get(
     "/api/progress-notes/:clientId",
     authenticateToken,
