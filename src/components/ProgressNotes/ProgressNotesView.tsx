@@ -90,6 +90,44 @@ export default function ProgressNotesView() {
     await fetchNotes();
   };
 
+  const handleDownloadPDF = async () => {
+    if (!selectedClientId) return;
+    setDownloadingPDF(true);
+    try {
+      let url = `/api/progress-notes/${selectedClientId}/pdf`;
+      const params = new URLSearchParams();
+      if (fromDate) params.append('startDate', fromDate.toISOString());
+      if (toDate) params.append('endDate', toDate.toISOString());
+      const qs = params.toString();
+      if (qs) url += `?${qs}`;
+
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      const client = clients.find(c => c.id === Number(selectedClientId));
+      const clientName = client ? `${client.first_name}_${client.last_name}` : 'Client';
+      a.download = `Progress_Notes_${clientName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error(error);
+      alert('Failed to download PDF');
+    } finally {
+      setDownloadingPDF(false);
+    }
+  };
+
   const handleDeleteNote = async (source: 'SHIFT' | 'MANUAL', id: number) => {
     if (!confirm('Are you sure you want to delete this progress note?')) return;
     
