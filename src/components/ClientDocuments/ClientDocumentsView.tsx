@@ -71,8 +71,8 @@ export default function ClientDocumentsView() {
       if (!res.ok) throw new Error("Failed to fetch documents");
       const docs = await res.json();
       
-      const temps = docs.filter((d: any) => d.source === "Templates");
-      const comps = docs.filter((d: any) => d.source === "Completed");
+      const temps = docs.filter((d: any) => d.category === "Templates");
+      const comps = docs.filter((d: any) => d.category === "Completed");
       
       setTemplates(temps);
       setCompletedDocs(comps);
@@ -128,7 +128,7 @@ export default function ClientDocumentsView() {
         }
       );
       fetchClientDocuments();
-      if (selectedFile?.name === name && selectedFile?.source === category) {
+      if (selectedFile?.name === name && selectedFile?.category === category) {
         setSelectedFile(null);
       }
     } catch (e) {
@@ -216,7 +216,7 @@ export default function ClientDocumentsView() {
         setSelectedFile(file);
       }}
       className={`flex items-center justify-between p-3 mb-2 rounded-lg cursor-pointer transition-colors ${
-        selectedFile?.name === file.name && selectedFile?.source === category
+        selectedFile?.name === file.name && selectedFile?.category === category
           ? "bg-brand-teal/20 border border-brand-teal/50"
           : "bg-[#111] hover:bg-zinc-800 border border-transparent"
       }`}
@@ -345,7 +345,7 @@ export default function ClientDocumentsView() {
                   <div className="flex-1 min-w-0 pr-4">
                     <h3 className="text-lg font-medium text-white mb-1 truncate" title={selectedFile.name}>{selectedFile.name}</h3>
                     <p className="text-zinc-500 text-xs truncate">
-                       {selectedFile.source}
+                       {selectedFile.category}
                     </p>
                   </div>
                   <div className="flex items-center space-x-3 shrink-0">
