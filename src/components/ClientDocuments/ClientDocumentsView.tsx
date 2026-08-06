@@ -372,25 +372,13 @@ export default function ClientDocumentsView() {
             </span>
           </div>
 
-          <div className="flex space-x-2">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex-1 flex items-center justify-center space-x-1.5 bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 px-2 py-1.5 rounded text-sm font-medium transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Upload Template</span>
-            </button>
-            <button
-              onClick={() => {
-                setGenericUploadCategory("Completed");
-                genericFileInputRef.current?.click();
-              }}
-              className="flex-1 flex items-center justify-center space-x-1.5 bg-brand-purple/10 text-brand-purple hover:bg-brand-purple/20 px-2 py-1.5 rounded text-sm font-medium transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Upload Completed</span>
-            </button>
-          </div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full flex items-center justify-center space-x-1.5 bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 px-2 py-1.5 rounded text-sm font-medium transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Upload Template</span>
+          </button>
           <input
             type="file"
             ref={fileInputRef}
@@ -476,19 +464,17 @@ export default function ClientDocumentsView() {
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between group">
-                          <div className="flex items-center space-x-3 overflow-hidden">
-                            <FileIcon
-                              className={`w-4 h-4 shrink-0 ${isCompleted ? "text-brand-purple" : "text-[#8B949E]"}`}
-                            />
-                            <span
-                              className={`text-[11px] font-medium truncate ${isCompleted ? "text-white" : ""}`}
-                              title={tmpl.name}
-                            >
-                              {tmpl.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center w-full min-w-0 group">
+                          <FileIcon
+                            className={`w-4 h-4 shrink-0 mr-3 ${isCompleted ? "text-brand-purple" : "text-[#8B949E]"}`}
+                          />
+                          <span
+                            className={`text-[11px] font-medium truncate flex-1 min-w-0 ${isCompleted ? "text-white" : ""}`}
+                            title={tmpl.name}
+                          >
+                            {tmpl.name}
+                          </span>
+                          <div className="hidden group-hover:flex items-center shrink-0 ml-2 space-x-1">
                             {!isCompleted && (
                               <button
                                 onClick={(e) => {
@@ -531,6 +517,16 @@ export default function ClientDocumentsView() {
 
 
 
+                    <button
+            onClick={() => {
+              setGenericUploadCategory("Completed");
+              genericFileInputRef.current?.click();
+            }}
+            className="w-full flex items-center justify-center space-x-1.5 bg-brand-purple/10 text-brand-purple hover:bg-brand-purple/20 px-2 py-1.5 rounded text-sm font-medium transition-colors shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Upload Completed</span>
+          </button>
           {/* Completed Documents */}
           <div
             onDragEnter={(e) => handleDragEnter(e, "Completed")}
@@ -552,16 +548,6 @@ export default function ClientDocumentsView() {
             <div className="relative z-10 flex flex-col h-full overflow-hidden">
               <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-2 pt-2 shrink-0">
                 <span>Completed Documents</span>
-                <button
-                  onClick={() => {
-                    setGenericUploadCategory("Completed");
-                    genericFileInputRef.current?.click();
-                  }}
-                  className="hover:text-white transition-colors title='Upload Signed Document'"
-                  title="Upload Signed Document"
-                >
-                  <UploadCloud className="w-3.5 h-3.5" />
-                </button>
               </h3>
               <div className="space-y-1 p-2 flex-1 overflow-y-auto min-h-0">
                 {clientDocuments.filter((d) => d.category === "Completed")
@@ -609,19 +595,17 @@ export default function ClientDocumentsView() {
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between group">
-                          <div className="flex items-center space-x-3 overflow-hidden">
-                            <FileText
-                              className={`w-4 h-4 shrink-0 text-brand-purple`}
-                            />
-                            <span
-                              className="text-[11px] font-medium truncate text-white"
-                              title={doc.name}
-                            >
-                              {doc.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center shrink-0 ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center w-full min-w-0 group">
+                          <FileText
+                            className={`w-4 h-4 shrink-0 mr-3 text-brand-purple`}
+                          />
+                          <span
+                            className="text-[11px] font-medium truncate flex-1 min-w-0 text-white"
+                            title={doc.name}
+                          >
+                            {doc.name}
+                          </span>
+                          <div className="hidden group-hover:flex items-center shrink-0 ml-2 space-x-1">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
