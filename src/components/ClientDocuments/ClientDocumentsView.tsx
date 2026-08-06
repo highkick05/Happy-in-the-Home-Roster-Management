@@ -431,7 +431,7 @@ export default function ClientDocumentsView() {
                           ? handleDocumentSelect(clientDoc)
                           : handleTemplateSelect(tmpl)
                       }
-                      className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === tmpl.name ? (isCompleted ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-teal/10 border-brand-teal text-white") : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
+                      className={`w-full flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === tmpl.name ? (isCompleted ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-teal/10 border-brand-teal text-white") : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
                     >
                       {editingFile?.name === tmpl.name &&
                       editingFile?.type === "template" ? (
@@ -562,7 +562,7 @@ export default function ClientDocumentsView() {
                     <div
                       key={doc.name}
                       onClick={() => handleDocumentSelect(doc)}
-                      className={`flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
+                      className={`w-full flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
                     >
                       {editingFile?.name === doc.name &&
                       editingFile?.type === "document" ? (
