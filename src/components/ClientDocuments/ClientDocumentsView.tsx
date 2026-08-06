@@ -13,7 +13,6 @@ import {
   Edit2,
   Download,
   Check,
-  Loader2,
 } from "lucide-react";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import mammoth from 'mammoth';
@@ -43,8 +42,33 @@ export default function ClientDocumentsView() {
     type: "template" | "document";
   } | null>(null);
   const [editNameValue, setEditNameValue] = useState("");
+  const [sidebarWidth, setSidebarWidth] = useLocalStorage("client-documents-sidebar-width", 750);
+  const [isResizing, setIsResizing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+
+  
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Limit width between 400px and 800px (or whatever max is desired, maybe 1200px)
+      const newWidth = Math.min(Math.max(e.clientX, 400), window.innerWidth - 300);
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing, setSidebarWidth]);
 
   useEffect(() => {
     fetchClientDetails().then((fundingType) => {
@@ -437,8 +461,19 @@ export default function ClientDocumentsView() {
     <div className="flex h-full h-[calc(100vh-64px)] overflow-hidden">
       {/* Sidebar */}
       <div
-        className="w-[600px] min-w-[400px] max-w-[800px] border-r border-border-subtle bg-brand-navy flex flex-col shrink-0 relative resize-x overflow-hidden"
+        style={{ width: `${sidebarWidth}px` }}
+        className="border-r border-border-subtle bg-brand-navy flex flex-col shrink-0 relative overflow-visible"
       >
+        {/* Resize Handle */}
+        <div
+          className="absolute top-0 -right-2 w-4 h-full cursor-col-resize z-50 flex items-center justify-center group"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsResizing(true);
+          }}
+        >
+          <div className="w-1 h-8 bg-border-subtle/50 group-hover:bg-brand-teal rounded-full transition-colors" />
+        </div>
         <div className="p-3 border-b border-border-subtle shrink-0">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-base font-bold text-white">Client Documents</h2>
