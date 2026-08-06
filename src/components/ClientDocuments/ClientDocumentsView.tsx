@@ -475,18 +475,23 @@ export default function ClientDocumentsView() {
                             {tmpl.name}
                           </span>
                           <div className="hidden group-hover:flex items-center shrink-0 ml-2 space-x-1">
-                            {!isCompleted && (
+                            
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setUploadingForName(tmpl.name);
-                                  specificFileInputRef.current?.click();
+                                  const url = `/api/templates/${encodeURIComponent(tmpl.name)}/download?fundingType=${clientFundingType}&token=${token}`;
+                                  const a = document.createElement("a");
+                                  a.href = url;
+                                  a.download = tmpl.name;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
                                 }}
                                 className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/5 text-white hover:bg-white/10 rounded transition-colors"
                               >
-                                Upload
+                                Download
                               </button>
-                            )}
+
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -606,10 +611,27 @@ export default function ClientDocumentsView() {
                             {doc.name}
                           </span>
                           <div className="hidden group-hover:flex items-center shrink-0 ml-2 space-x-1">
+                            
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const url = `/api/clients/${id}/documents/${encodeURIComponent(doc.name)}/download?token=${token}`;
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = doc.name;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                              }}
+                              className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 startRename(doc.name, "document");
+
                               }}
                               className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
                             >
@@ -679,15 +701,44 @@ export default function ClientDocumentsView() {
               </p>
             </div>
 
-            {/* IFrame Area */}
+            
+            {/* IFrame Area or Fallback */}
             <div className="flex-1 relative bg-[#0D1117]">
-              <iframe
-                key={selectedFile.name + selectedFile.source}
-                src={getIframeUrl()}
-                className="w-full h-full border-none bg-white"
-                title="PDF Viewer"
-              />
+              {selectedFile.name.toLowerCase().endsWith('.docx') ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                  <FileText className="w-16 h-16 text-[#8B949E]/50 mb-4" />
+                  <h3 className="text-xl font-bold text-white mb-2">
+                    DOCX Preview Not Available
+                  </h3>
+                  <p className="text-[#8B949E] max-w-md mb-6">
+                    Browser preview is not supported for Word documents. Please download the file to view or edit it.
+                  </p>
+                  <button
+                    onClick={() => {
+                      const url = getIframeUrl().split('#')[0]; // remove #toolbar=1 just in case
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = selectedFile.name;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                    }}
+                    className="flex items-center space-x-2 bg-brand-teal text-black hover:bg-brand-teal/90 px-4 py-2 rounded-md font-bold transition-colors"
+                  >
+                    <Download className="w-5 h-5" />
+                    <span>Download {selectedFile.name}</span>
+                  </button>
+                </div>
+              ) : (
+                <iframe
+                  key={selectedFile.name + selectedFile.source}
+                  src={getIframeUrl()}
+                  className="w-full h-full border-none bg-white"
+                  title="Document Viewer"
+                />
+              )}
             </div>
+
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
