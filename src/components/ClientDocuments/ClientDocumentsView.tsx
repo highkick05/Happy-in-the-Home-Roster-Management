@@ -13,8 +13,12 @@ import {
   Edit2,
   Download,
   Check,
+  Loader2,
 } from "lucide-react";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
+import mammoth from 'mammoth';
+import * as xlsx from 'xlsx';
+import { Loader2 } from "lucide-react";
 
 export default function ClientDocumentsView() {
   const { id } = useParams<{ id: string }>();
@@ -39,6 +43,8 @@ export default function ClientDocumentsView() {
     type: "template" | "document";
   } | null>(null);
   const [editNameValue, setEditNameValue] = useState("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
   useEffect(() => {
     fetchClientDetails().then((fundingType) => {
@@ -350,6 +356,75 @@ export default function ClientDocumentsView() {
   };
 
   // Utility to get a reliable url for iframe
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl(null);
+      setIsPreviewLoading(false);
+      return;
+    }
+    
+    const originalName = (selectedFile.name || '').toLowerCase();
+    const isWord = originalName.match(/\.(doc|docx)$/i);
+    const isExcel = originalName.match(/\.(xls|xlsx|csv)$/i);
+    
+    if (isWord || isExcel) {
+      setIsPreviewLoading(true);
+      const url = selectedFile.source === "template" 
+        ? `/api/templates/${encodeURIComponent(selectedFile.name)}/download?fundingType=${clientFundingType}&token=${token}`
+        : `/api/clients/${id}/documents/${encodeURIComponent(selectedFile.name)}/download?token=${token}`;
+        
+      fetch(url)
+        .then(async (res) => {
+           if (!res.ok) throw new Error('Failed to fetch preview');
+           const blob = await res.blob();
+           
+           let finalBlob = blob;
+           
+           if (isExcel) {
+             try {
+                const arrayBuffer = await blob.arrayBuffer();
+                const workbook = xlsx.read(arrayBuffer, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const htmlString = xlsx.utils.sheet_to_html(workbook.Sheets[firstSheetName]);
+                finalBlob = new Blob([
+                  `<html><head><style>table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } tr:nth-child(even){background-color: #f2f2f2;} body { font-family: sans-serif; padding: 20px; }</style></head><body>${htmlString}</body></html>`
+                ], { type: 'text/html' });
+             } catch (e) {
+                console.error("Excel preview failed", e);
+             }
+           } else if (isWord) {
+             try {
+                const arrayBuffer = await blob.arrayBuffer();
+                const result = await mammoth.convertToHtml({ arrayBuffer });
+                finalBlob = new Blob([
+                  `<html><head><style>body { font-family: sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.6; } img { max-width: 100%; }</style></head><body>${result.value}</body></html>`
+                ], { type: 'text/html' });
+             } catch (e) {
+                console.error("Word preview failed", e);
+             }
+           }
+           const objectUrl = window.URL.createObjectURL(finalBlob);
+           setPreviewUrl(objectUrl);
+           setIsPreviewLoading(false);
+        })
+        .catch((e) => {
+           console.error(e);
+           setPreviewUrl(null);
+           setIsPreviewLoading(false);
+        });
+        
+      return () => {
+         if (previewUrl) {
+           URL.revokeObjectURL(previewUrl);
+         }
+      };
+    } else {
+      setPreviewUrl(null);
+      setIsPreviewLoading(false);
+    }
+  }, [selectedFile, clientFundingType, id, token]);
+
   const getIframeUrl = () => {
     if (!selectedFile) return "";
     if (selectedFile.source === "template") {
@@ -474,7 +549,7 @@ export default function ClientDocumentsView() {
                           >
                             {tmpl.name}
                           </span>
-                          <div className="hidden group-hover:flex items-center shrink-0 ml-2 space-x-1">
+                          <div className="invisible group-hover:visible flex items-center shrink-0 ml-2 space-x-1">
                             
                               <button
                                 onClick={(e) => {
@@ -610,7 +685,7 @@ export default function ClientDocumentsView() {
                           >
                             {doc.name}
                           </span>
-                          <div className="hidden group-hover:flex items-center shrink-0 ml-2 space-x-1">
+                          <div className="invisible group-hover:visible flex items-center shrink-0 ml-2 space-x-1">
                             
                             <button
                               onClick={(e) => {
@@ -704,31 +779,46 @@ export default function ClientDocumentsView() {
             
             {/* IFrame Area or Fallback */}
             <div className="flex-1 relative bg-[#0D1117]">
-              {selectedFile.name.toLowerCase().endsWith('.docx') ? (
-                <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                  <FileText className="w-16 h-16 text-[#8B949E]/50 mb-4" />
-                  <h3 className="text-xl font-bold text-white mb-2">
-                    DOCX Preview Not Available
-                  </h3>
-                  <p className="text-[#8B949E] max-w-md mb-6">
-                    Browser preview is not supported for Word documents. Please download the file to view or edit it.
-                  </p>
-                  <button
-                    onClick={() => {
-                      const url = getIframeUrl().split('#')[0]; // remove #toolbar=1 just in case
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = selectedFile.name;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                    }}
-                    className="flex items-center space-x-2 bg-brand-teal text-black hover:bg-brand-teal/90 px-4 py-2 rounded-md font-bold transition-colors"
-                  >
-                    <Download className="w-5 h-5" />
-                    <span>Download {selectedFile.name}</span>
-                  </button>
+              {isPreviewLoading ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0D1117] z-10">
+                  <Loader2 className="w-10 h-10 text-brand-teal animate-spin mb-4" />
+                  <p className="text-white font-medium">Generating Preview...</p>
                 </div>
+              ) : null}
+              {selectedFile.name.toLowerCase().match(/\.(doc|docx|xls|xlsx|csv)$/) ? (
+                previewUrl ? (
+                  <iframe
+                    key={selectedFile.name + selectedFile.source + "preview"}
+                    src={previewUrl}
+                    className="w-full h-full border-none bg-white"
+                    title="Document Preview"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                    <FileText className="w-16 h-16 text-[#8B949E]/50 mb-4" />
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      Preview Error
+                    </h3>
+                    <p className="text-[#8B949E] max-w-md mb-6">
+                      Could not generate preview for this document. Please download the file to view or edit it.
+                    </p>
+                    <button
+                      onClick={() => {
+                        const url = getIframeUrl().split('#')[0]; // remove #toolbar=1 just in case
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = selectedFile.name;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                      }}
+                      className="flex items-center space-x-2 bg-brand-teal text-black hover:bg-brand-teal/90 px-4 py-2 rounded-md font-bold transition-colors"
+                    >
+                      <Download className="w-5 h-5" />
+                      <span>Download {selectedFile.name}</span>
+                    </button>
+                  </div>
+                )
               ) : (
                 <iframe
                   key={selectedFile.name + selectedFile.source}
@@ -738,7 +828,6 @@ export default function ClientDocumentsView() {
                 />
               )}
             </div>
-
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
