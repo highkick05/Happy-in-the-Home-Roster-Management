@@ -14524,8 +14524,8 @@ function resolveFilePath(systemName) {
         const mainDocs = getDocsInDir(docsDir, "Main");
         const savedDocs = getDocsInDir(path.join(docsDir, "Saved"), "Saved");
         const completedDocs = getDocsInDir(path.join(docsDir, "Completed"), "Completed");
-
-        res.json([...mainDocs, ...savedDocs, ...completedDocs]);
+        const templateDocs = getDocsInDir(path.join(docsDir, "Templates"), "Templates");
+        res.json([...mainDocs, ...savedDocs, ...completedDocs, ...templateDocs]);
       } catch (e: any) {
         res.status(500).json({ error: e.message });
       }
@@ -14556,6 +14556,9 @@ function resolveFilePath(systemName) {
         }
         if (!fs.existsSync(filePath)) {
           filePath = path.join(docsDir, "Completed", fileName);
+        }
+        if (!fs.existsSync(filePath)) {
+          filePath = path.join(docsDir, "Templates", fileName);
         }
 
         if (fs.existsSync(filePath)) {
@@ -14613,6 +14616,8 @@ function resolveFilePath(systemName) {
           docsDir = path.join(docsDir, "Saved");
         } else if (req.body.category === "Completed") {
           docsDir = path.join(docsDir, "Completed");
+        } else if (req.body.category === "Templates") {
+          docsDir = path.join(docsDir, "Templates");
         }
 
         if (!fs.existsSync(docsDir)) {

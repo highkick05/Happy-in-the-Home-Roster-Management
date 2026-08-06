@@ -129,7 +129,7 @@ export default function ClientDocumentsView() {
     setSelectedFile({
       ...template,
       source: "template",
-      viewUrl: `/api/templates/${encodeURIComponent(template.name)}/download?fundingType=${clientFundingType}&token=${token}`,
+      viewUrl: `/api/clients/${id}/documents/${encodeURIComponent(template.name)}/download?token=${token}`,
     });
   };
 
@@ -189,20 +189,18 @@ export default function ClientDocumentsView() {
   ) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
-
     const fd = new FormData();
     fd.append("file", file);
-    fd.append("fundingType", clientFundingType);
-
+    fd.append("category", "Templates");
     setLoading(true);
     try {
-      const res = await fetch("/api/templates/upload", {
+      const res = await fetch(`/api/clients/${id}/documents/upload`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
       });
       if (res.ok) {
-        fetchTemplates(clientFundingType);
+        fetchClientDocuments();
       }
     } catch (err) {
       console.error(err);
@@ -276,15 +274,15 @@ export default function ClientDocumentsView() {
         const file = e.dataTransfer.files[0];
         const fd = new FormData();
         fd.append("file", file);
-        fd.append("fundingType", clientFundingType);
+        fd.append("category", "Templates");
         setLoading(true);
-        fetch("/api/templates/upload", {
+        fetch(`/api/clients/${id}/documents/upload`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           body: fd,
         })
           .then((res) => {
-            if (res.ok) fetchTemplates(clientFundingType);
+            if (res.ok) fetchClientDocuments();
           })
           .finally(() => setLoading(false));
       } else {
@@ -452,7 +450,7 @@ export default function ClientDocumentsView() {
   const getIframeUrl = () => {
     if (!selectedFile) return "";
     if (selectedFile.source === "template") {
-      return `/api/templates/${encodeURIComponent(selectedFile.name)}/download?fundingType=${clientFundingType}&token=${token}#toolbar=1`;
+      return `/api/clients/${id}/documents/${encodeURIComponent(selectedFile.name)}/download?token=${token}#toolbar=1`;
     }
     return `/api/clients/${id}/documents/${encodeURIComponent(selectedFile.name)}/download?token=${token}#toolbar=1`;
   };
@@ -521,17 +519,17 @@ export default function ClientDocumentsView() {
                 <span>Original Templates</span>
               </h3>
               <div className="space-y-1 p-2 flex-1 overflow-y-auto min-h-0">
-                {templates.length === 0 && (
+                {clientDocuments.filter(d => d.category === "Templates").length === 0 && (
                   <p className="text-xs text-[#8B949E]/70">
                     No templates found for {clientFundingType}
                   </p>
                 )}
-                {templates.map((tmpl) => {
+                {clientDocuments.filter(d => d.category === "Templates").map((tmpl) => {
                   const clientDoc = clientDocuments.find(
                     (d) => d.name === tmpl.name,
                   );
-                  const isCompleted = !!clientDoc;
-                  const fileSource = isCompleted ? "document" : "template";
+                  const isCompleted = false;
+                  const fileSource = "template";
 
                   return (
                     <div
@@ -589,7 +587,7 @@ export default function ClientDocumentsView() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  const url = `/api/templates/${encodeURIComponent(tmpl.name)}/download?fundingType=${clientFundingType}&token=${token}`;
+                                  const url = `/api/clients/${id}/documents/${encodeURIComponent(tmpl.name)}/download?token=${token}`;
                                   const a = document.createElement("a");
                                   a.href = url;
                                   a.download = tmpl.name;
