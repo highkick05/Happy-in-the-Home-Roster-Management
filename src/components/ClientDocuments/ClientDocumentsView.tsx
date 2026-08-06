@@ -522,7 +522,7 @@ export default function ClientDocumentsView() {
               setGenericUploadCategory("Completed");
               genericFileInputRef.current?.click();
             }}
-            className="w-full flex items-center justify-center space-x-1.5 bg-brand-purple/10 text-brand-purple hover:bg-brand-purple/20 px-2 py-1.5 rounded text-sm font-medium transition-colors shrink-0"
+            className="w-full flex items-center justify-center space-x-1.5 bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 px-2 py-1.5 rounded text-sm font-medium transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Upload Completed</span>
