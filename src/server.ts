@@ -14352,7 +14352,7 @@ function resolveFilePath(systemName) {
         }
         const files = fs
           .readdirSync(templatesDir)
-          .filter((f) => f.endsWith(".pdf"));
+          .filter((f) => !f.startsWith("."));
         const templates = files.map((name) => ({
           id: encodeURIComponent(name),
           name,
@@ -14398,7 +14398,7 @@ function resolveFilePath(systemName) {
         const templatesDir = path.join(UPLOADS_DIR, "Templates", fundingType);
         const templateName = req.params.name;
 
-        if (!templateName || !templateName.endsWith(".pdf"))
+        if (!templateName )
           return res.status(400).json({ error: "Invalid template name" });
 
         const filePath = path.join(templatesDir, templateName);
@@ -14447,7 +14447,7 @@ function resolveFilePath(systemName) {
         const templatesDir = path.join(UPLOADS_DIR, "Templates", fundingType);
         const templateName = req.params.name;
 
-        if (!templateName || !templateName.endsWith(".pdf"))
+        if (!templateName )
           return res.status(400).json({ error: "Invalid template name" });
 
         const filePath = path.join(templatesDir, templateName);
@@ -14473,9 +14473,7 @@ function resolveFilePath(systemName) {
         const templatesDir = path.join(UPLOADS_DIR, "Templates", typeDir);
 
         let targetName = newName;
-        if (!targetName.endsWith(".pdf")) {
-          targetName += ".pdf";
-        }
+
 
         const oldPath = path.join(templatesDir, oldName);
         const newPath = path.join(templatesDir, targetName);
@@ -14509,7 +14507,7 @@ function resolveFilePath(systemName) {
 
         const getDocsInDir = (dirPath: string, category: string) => {
           if (!fs.existsSync(dirPath)) return [];
-          const files = fs.readdirSync(dirPath).filter((f) => f.endsWith(".pdf"));
+          const files = fs.readdirSync(dirPath).filter((f) => !fs.statSync(path.join(dirPath, f)).isDirectory());
           return files.map((name) => {
             const stats = fs.statSync(path.join(dirPath, name));
             return {
@@ -14549,7 +14547,7 @@ function resolveFilePath(systemName) {
         const docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
         
         const fileName = req.params.name;
-        if (!fileName || !fileName.endsWith(".pdf"))
+        if (!fileName )
           return res.status(400).json({ error: "Invalid document name" });
 
         let filePath = path.join(docsDir, fileName);
@@ -14649,9 +14647,7 @@ function resolveFilePath(systemName) {
         if (category === "Completed") docsDir = path.join(docsDir, "Completed");
 
         let targetName = newName;
-        if (!targetName.endsWith(".pdf")) {
-          targetName += ".pdf";
-        }
+
 
         const oldPath = path.join(docsDir, oldName);
         const newPath = path.join(docsDir, targetName);
@@ -14699,7 +14695,7 @@ function resolveFilePath(systemName) {
         if (category === "Completed") docsDir = path.join(docsDir, "Completed");
 
         const fileName = req.params.name;
-        if (!fileName || !fileName.endsWith(".pdf"))
+        if (!fileName )
           return res.status(400).json({ error: "Invalid document name" });
 
         const filePath = path.join(docsDir, fileName);

@@ -285,7 +285,7 @@ export default function ClientDocumentsView() {
 
   const startRename = (name: string, type: "template" | "document") => {
     setEditingFile({ name, type });
-    setEditNameValue(name.replace(".pdf", ""));
+    setEditNameValue(name);
   };
 
   const saveRename = async () => {
@@ -383,7 +383,7 @@ export default function ClientDocumentsView() {
             type="file"
             ref={fileInputRef}
             className="hidden"
-            accept=".pdf"
+            
             onChange={handleUploadTemplate}
           />
         </div>
@@ -642,14 +642,14 @@ export default function ClientDocumentsView() {
           type="file"
           ref={genericFileInputRef}
           className="hidden"
-          accept=".pdf"
+          
           onChange={handleUploadGeneric}
         />
         <input
           type="file"
           ref={specificFileInputRef}
           className="hidden"
-          accept=".pdf"
+          
           onChange={handleUploadSpecific}
         />
       </div>
