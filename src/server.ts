@@ -14503,7 +14503,7 @@ function resolveFilePath(systemName) {
 
         const clientFolder =
           `${client.first_name || ""} ${client.last_name || ""}`.trim();
-        const docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+        const docsDir = path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents");
 
         const getDocsInDir = (dirPath: string, category: string) => {
           if (!fs.existsSync(dirPath)) return [];
@@ -14544,7 +14544,7 @@ function resolveFilePath(systemName) {
 
         const clientFolder =
           `${client.first_name || ""} ${client.last_name || ""}`.trim();
-        const docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+        const docsDir = path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents");
         
         const fileName = req.params.name;
         if (!fileName )
@@ -14610,7 +14610,7 @@ function resolveFilePath(systemName) {
 
         const clientFolder =
           `${client.first_name || ""} ${client.last_name || ""}`.trim();
-        let docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+        let docsDir = path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents");
         
         if (req.body.category === "Saved") {
           docsDir = path.join(docsDir, "Saved");
@@ -14635,7 +14635,7 @@ function resolveFilePath(systemName) {
            if (req.body.category === "Templates") dbCategoryPath = "/Templates";
            
            const folderPath = "/Clients/" + clientFolder + "/Documents" + dbCategoryPath;
-           const systemNamePath = clientFolder + "/Documents" + dbCategoryPath + "/" + req.file.originalname;
+           const systemNamePath = "Clients/" + clientFolder + "/Documents" + dbCategoryPath + "/" + req.file.originalname;
            
            const existing = db.prepare("SELECT id FROM files WHERE folder_path = ? AND original_name = ?").get(folderPath, req.file.originalname);
            if (!existing) {
@@ -14672,7 +14672,7 @@ function resolveFilePath(systemName) {
 
         const clientFolder =
           `${client.first_name || ""} ${client.last_name || ""}`.trim();
-        let docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+        let docsDir = path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents");
         if (category === "Saved") docsDir = path.join(docsDir, "Saved");
         if (category === "Completed") docsDir = path.join(docsDir, "Completed");
         if (category === "Templates") docsDir = path.join(docsDir, "Templates");
@@ -14689,10 +14689,10 @@ function resolveFilePath(systemName) {
         } else {
           // fallback search
           const dirsToCheck = [
-             path.join(UPLOADS_DIR, clientFolder, "Documents"),
-             path.join(UPLOADS_DIR, clientFolder, "Documents", "Saved"),
-             path.join(UPLOADS_DIR, clientFolder, "Documents", "Completed"),
-             path.join(UPLOADS_DIR, clientFolder, "Documents", "Templates")
+             path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents"),
+             path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents", "Saved"),
+             path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents", "Completed"),
+             path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents", "Templates")
           ];
           for (const d of dirsToCheck) {
              const op = path.join(d, oldName);
@@ -14722,7 +14722,7 @@ function resolveFilePath(systemName) {
         const clientFolder =
           `${client.first_name || ""} ${client.last_name || ""}`.trim();
         const category = req.query.category;
-        let docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
+        let docsDir = path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents");
         if (category === "Saved") docsDir = path.join(docsDir, "Saved");
         if (category === "Completed") docsDir = path.join(docsDir, "Completed");
         if (category === "Templates") docsDir = path.join(docsDir, "Templates");
@@ -14742,10 +14742,10 @@ function resolveFilePath(systemName) {
           return res.json({ success: true });
         } else {
           const dirsToCheck = [
-             path.join(UPLOADS_DIR, clientFolder, "Documents"),
-             path.join(UPLOADS_DIR, clientFolder, "Documents", "Saved"),
-             path.join(UPLOADS_DIR, clientFolder, "Documents", "Completed"),
-             path.join(UPLOADS_DIR, clientFolder, "Documents", "Templates")
+             path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents"),
+             path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents", "Saved"),
+             path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents", "Completed"),
+             path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents", "Templates")
           ];
           for (const d of dirsToCheck) {
              const fp = path.join(d, fileName);
