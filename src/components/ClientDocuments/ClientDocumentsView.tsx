@@ -437,7 +437,7 @@ export default function ClientDocumentsView() {
     <div className="flex h-full h-[calc(100vh-64px)] overflow-hidden">
       {/* Sidebar */}
       <div
-        className="w-[480px] min-w-[300px] max-w-[800px] border-r border-border-subtle bg-brand-navy flex flex-col shrink-0 relative resize-x overflow-hidden"
+        className="w-[600px] min-w-[400px] max-w-[800px] border-r border-border-subtle bg-brand-navy flex flex-col shrink-0 relative resize-x overflow-hidden"
       >
         <div className="p-3 border-b border-border-subtle shrink-0">
           <div className="flex items-center justify-between mb-2">
