@@ -362,7 +362,7 @@ export default function ClientDocumentsView() {
     <div className="flex h-full h-[calc(100vh-64px)] overflow-hidden">
       {/* Sidebar */}
       <div
-        className="w-[380px] border-r border-border-subtle bg-brand-navy flex flex-col shrink-0 relative"
+        className="w-[480px] border-r border-border-subtle bg-brand-navy flex flex-col shrink-0 relative"
       >
         <div className="p-3 border-b border-border-subtle shrink-0">
           <div className="flex items-center justify-between mb-2">
@@ -470,7 +470,7 @@ export default function ClientDocumentsView() {
                               className={`w-4 h-4 shrink-0 ${isCompleted ? "text-brand-purple" : "text-[#8B949E]"}`}
                             />
                             <span
-                              className={`text-sm font-medium truncate ${isCompleted ? "text-white" : ""}`}
+                              className={`text-xs font-medium truncate ${isCompleted ? "text-white" : ""}`}
                               title={tmpl.name}
                             >
                               {tmpl.name}
@@ -603,7 +603,7 @@ export default function ClientDocumentsView() {
                               className={`w-4 h-4 shrink-0 text-brand-purple`}
                             />
                             <span
-                              className="text-sm font-medium truncate text-white"
+                              className="text-xs font-medium truncate text-white"
                               title={doc.name}
                             >
                               {doc.name}
