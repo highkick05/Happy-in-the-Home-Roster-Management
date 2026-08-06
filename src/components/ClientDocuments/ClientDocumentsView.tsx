@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
+  ArrowLeft,
   Plus,
   Trash2,
   Printer,
@@ -387,7 +388,9 @@ export default function ClientDocumentsView() {
     
     if (isWord || isExcel) {
       setIsPreviewLoading(true);
-      const url = `/api/clients/${id}/documents/${encodeURIComponent(selectedFile.name)}/download?token=${token}`;
+      const url = selectedFile.source === "template" 
+        ? `/api/templates/${encodeURIComponent(selectedFile.name)}/download?fundingType=${clientFundingType}&token=${token}`
+        : `/api/clients/${id}/documents/${encodeURIComponent(selectedFile.name)}/download?token=${token}`;
         
       fetch(url)
         .then(async (res) => {
@@ -443,7 +446,7 @@ export default function ClientDocumentsView() {
   const getIframeUrl = () => {
     if (!selectedFile) return "";
     if (selectedFile.source === "template") {
-      return `/api/clients/${id}/documents/${encodeURIComponent(selectedFile.name)}/download?token=${token}#toolbar=1`;
+      return `/api/templates/${encodeURIComponent(selectedFile.name)}/download?fundingType=${clientFundingType}&token=${token}#toolbar=1`;
     }
     return `/api/clients/${id}/documents/${encodeURIComponent(selectedFile.name)}/download?token=${token}#toolbar=1`;
   };
@@ -467,7 +470,16 @@ export default function ClientDocumentsView() {
         </div>
         <div className="p-3 border-b border-border-subtle shrink-0">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-base font-bold text-white">Client Documents</h2>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => navigate(`/clients/${id}`)}
+                className="text-[#8B949E] hover:text-white transition-colors"
+                title="Back to Client Dashboard"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <h2 className="text-base font-bold text-white">Client Documents</h2>
+            </div>
             <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-[#0D1117] text-[#8B949E] rounded">
               {clientFundingType}
             </span>
