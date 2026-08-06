@@ -14626,6 +14626,31 @@ function resolveFilePath(systemName) {
 
         const targetPath = path.join(docsDir, req.file.originalname);
         fs.renameSync(req.file.path, targetPath);
+
+        // Also insert into files table so it shows up in FilesView
+        try {
+           let dbCategoryPath = "";
+           if (req.body.category === "Saved") dbCategoryPath = "/Saved";
+           if (req.body.category === "Completed") dbCategoryPath = "/Completed";
+           if (req.body.category === "Templates") dbCategoryPath = "/Templates";
+           
+           const folderPath = "/Clients/" + clientFolder + "/Documents" + dbCategoryPath;
+           const systemNamePath = clientFolder + "/Documents" + dbCategoryPath + "/" + req.file.originalname;
+           
+           const existing = db.prepare("SELECT id FROM files WHERE folder_path = ? AND original_name = ?").get(folderPath, req.file.originalname);
+           if (!existing) {
+             db.prepare(
+               "INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path) VALUES (?, ?, ?, ?, ?)"
+             ).run(req.file.originalname, systemNamePath, req.file.size, req.user.id, folderPath);
+           } else {
+             db.prepare(
+               "UPDATE files SET size = ?, system_name = ? WHERE id = ?"
+             ).run(req.file.size, systemNamePath, existing.id);
+           }
+        } catch (dbErr) {
+           console.error("Failed to insert into files DB:", dbErr);
+        }
+
         res.json({ success: true, name: req.file.originalname });
       } catch (e: any) {
         if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
@@ -14650,6 +14675,7 @@ function resolveFilePath(systemName) {
         let docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
         if (category === "Saved") docsDir = path.join(docsDir, "Saved");
         if (category === "Completed") docsDir = path.join(docsDir, "Completed");
+        if (category === "Templates") docsDir = path.join(docsDir, "Templates");
 
         let targetName = newName;
 
@@ -14665,7 +14691,8 @@ function resolveFilePath(systemName) {
           const dirsToCheck = [
              path.join(UPLOADS_DIR, clientFolder, "Documents"),
              path.join(UPLOADS_DIR, clientFolder, "Documents", "Saved"),
-             path.join(UPLOADS_DIR, clientFolder, "Documents", "Completed")
+             path.join(UPLOADS_DIR, clientFolder, "Documents", "Completed"),
+             path.join(UPLOADS_DIR, clientFolder, "Documents", "Templates")
           ];
           for (const d of dirsToCheck) {
              const op = path.join(d, oldName);
@@ -14698,6 +14725,7 @@ function resolveFilePath(systemName) {
         let docsDir = path.join(UPLOADS_DIR, clientFolder, "Documents");
         if (category === "Saved") docsDir = path.join(docsDir, "Saved");
         if (category === "Completed") docsDir = path.join(docsDir, "Completed");
+        if (category === "Templates") docsDir = path.join(docsDir, "Templates");
 
         const fileName = req.params.name;
         if (!fileName )
@@ -14706,18 +14734,27 @@ function resolveFilePath(systemName) {
         const filePath = path.join(docsDir, fileName);
 
         if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
+                    fs.unlinkSync(filePath);
+          try {
+            const systemNamePath = filePath.replace(path.join(process.cwd(), "uploads") + "/", "").replace(/\\/g, "/");
+            db.prepare("DELETE FROM files WHERE system_name = ?").run(systemNamePath);
+          } catch(e) { console.error("Failed to delete from files db", e); }
           return res.json({ success: true });
         } else {
           const dirsToCheck = [
              path.join(UPLOADS_DIR, clientFolder, "Documents"),
              path.join(UPLOADS_DIR, clientFolder, "Documents", "Saved"),
-             path.join(UPLOADS_DIR, clientFolder, "Documents", "Completed")
+             path.join(UPLOADS_DIR, clientFolder, "Documents", "Completed"),
+             path.join(UPLOADS_DIR, clientFolder, "Documents", "Templates")
           ];
           for (const d of dirsToCheck) {
              const fp = path.join(d, fileName);
              if (fs.existsSync(fp)) {
-                 fs.unlinkSync(fp);
+                                  fs.unlinkSync(fp);
+                 try {
+                   const systemNamePath = fp.replace(path.join(process.cwd(), "uploads") + "/", "").replace(/\\/g, "/");
+                   db.prepare("DELETE FROM files WHERE system_name = ?").run(systemNamePath);
+                 } catch(e) { console.error("Failed to delete from files db", e); }
                  return res.json({ success: true });
              }
           }

@@ -211,19 +211,14 @@ export default function ClientDocumentsView() {
   };
 
   const handleDeleteTemplate = async (templateName: string) => {
-    if (!window.confirm("Delete this blank template for everyone?")) return;
+    if (!window.confirm("Delete this template?")) return;
     try {
-      await fetch(
-        `/api/templates/${encodeURIComponent(templateName)}?fundingType=${clientFundingType}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      fetchTemplates(clientFundingType);
-      if (selectedFile?.name === templateName) {
-        setSelectedFile(null);
-      }
+      await fetch(`/api/clients/${id}/documents/${encodeURIComponent(templateName)}?category=Templates`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchClientDocuments();
+      if (selectedFile?.name === templateName) setSelectedFile(null);
     } catch (e) {
       console.error(e);
     }
