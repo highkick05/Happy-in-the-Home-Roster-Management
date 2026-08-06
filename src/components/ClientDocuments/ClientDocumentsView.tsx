@@ -362,7 +362,7 @@ export default function ClientDocumentsView() {
     <div className="flex h-full h-[calc(100vh-64px)] overflow-hidden">
       {/* Sidebar */}
       <div
-        className="w-[480px] border-r border-border-subtle bg-brand-navy flex flex-col shrink-0 relative"
+        className="w-[480px] min-w-[300px] max-w-[800px] border-r border-border-subtle bg-brand-navy flex flex-col shrink-0 relative resize-x overflow-hidden"
       >
         <div className="p-3 border-b border-border-subtle shrink-0">
           <div className="flex items-center justify-between mb-2">
@@ -372,13 +372,25 @@ export default function ClientDocumentsView() {
             </span>
           </div>
 
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full flex items-center justify-center space-x-1.5 bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 px-2 py-1.5 rounded text-sm font-medium transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Upload Template</span>
-          </button>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-1 flex items-center justify-center space-x-1.5 bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 px-2 py-1.5 rounded text-sm font-medium transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Upload Template</span>
+            </button>
+            <button
+              onClick={() => {
+                setGenericUploadCategory("Completed");
+                genericFileInputRef.current?.click();
+              }}
+              className="flex-1 flex items-center justify-center space-x-1.5 bg-brand-purple/10 text-brand-purple hover:bg-brand-purple/20 px-2 py-1.5 rounded text-sm font-medium transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Upload Completed</span>
+            </button>
+          </div>
           <input
             type="file"
             ref={fileInputRef}
@@ -408,7 +420,7 @@ export default function ClientDocumentsView() {
 
             <div className="relative z-10 flex flex-col h-full overflow-hidden">
               <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-2 pt-2 shrink-0">
-                <span>Required Documents</span>
+                <span>Original Templates</span>
               </h3>
               <div className="space-y-1 p-2 flex-1 overflow-y-auto min-h-0">
                 {templates.length === 0 && (
@@ -470,7 +482,7 @@ export default function ClientDocumentsView() {
                               className={`w-4 h-4 shrink-0 ${isCompleted ? "text-brand-purple" : "text-[#8B949E]"}`}
                             />
                             <span
-                              className={`text-xs font-medium truncate ${isCompleted ? "text-white" : ""}`}
+                              className={`text-[11px] font-medium truncate ${isCompleted ? "text-white" : ""}`}
                               title={tmpl.name}
                             >
                               {tmpl.name}
@@ -603,7 +615,7 @@ export default function ClientDocumentsView() {
                               className={`w-4 h-4 shrink-0 text-brand-purple`}
                             />
                             <span
-                              className="text-xs font-medium truncate text-white"
+                              className="text-[11px] font-medium truncate text-white"
                               title={doc.name}
                             >
                               {doc.name}
