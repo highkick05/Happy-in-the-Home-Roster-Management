@@ -14366,6 +14366,76 @@ function resolveFilePath(systemName) {
     },
   );
 
+  app.get(
+    "/api/clients/:id/documents/:name/preview",
+    authenticateTokenOrWallboard,
+    async (req: any, res: any) => {
+      try {
+        const client = db
+          .prepare("SELECT id, first_name, last_name FROM clients WHERE id = ?")
+          .get(req.params.id) as any;
+        if (!client) return res.status(404).json({ error: "Client not found" });
+
+        const clientFolder =
+          `${client.first_name || ""} ${client.last_name || ""}`.trim();
+        const docsDir = path.join(UPLOADS_DIR, "Clients", clientFolder, "Documents");
+        
+        const fileName = req.params.name;
+        if (!fileName )
+          return res.status(400).json({ error: "Invalid document name" });
+
+        let filePath = path.join(docsDir, fileName);
+        if (!fs.existsSync(filePath)) {
+          filePath = path.join(docsDir, "Saved", fileName);
+        }
+        if (!fs.existsSync(filePath)) {
+          filePath = path.join(docsDir, "Completed", fileName);
+        }
+        if (!fs.existsSync(filePath)) {
+          filePath = path.join(docsDir, "Templates", fileName);
+        }
+
+        if (!fs.existsSync(filePath)) {
+           return res.status(404).json({ error: "File not found" });
+        }
+
+        const ext = path.extname(fileName).toLowerCase();
+
+        if (ext === '.pdf') {
+           return res.redirect(`/api/clients/${req.params.id}/documents/${encodeURIComponent(fileName)}/download?token=${req.query.token || ''}`);
+        } else if (ext === '.doc' || ext === '.docx') {
+           try {
+              // we don't have require in ESM natively for node so we can dynamically import or just use what we have
+              const mammoth = await import("mammoth");
+              const result = await mammoth.default.convertToHtml({path: filePath});
+              res.setHeader("Content-Type", "text/html");
+              return res.send(`<html><head><style>body { font-family: sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.6; } img { max-width: 100%; }</style></head><body>${result.value}</body></html>`);
+           } catch (e) {
+              console.error("Mammoth error", e);
+              return res.status(500).send("Could not generate Word preview");
+           }
+        } else if (ext === '.xls' || ext === '.xlsx' || ext === '.csv') {
+           try {
+              const xlsx = await import("xlsx");
+              const workbook = xlsx.readFile(filePath);
+              const firstSheet = workbook.SheetNames[0];
+              const htmlString = xlsx.utils.sheet_to_html(workbook.Sheets[firstSheet]);
+              res.setHeader("Content-Type", "text/html");
+              return res.send(`<html><head><style>table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } tr:nth-child(even){background-color: #f2f2f2;} body { font-family: sans-serif; padding: 20px; }</style></head><body>${htmlString}</body></html>`);
+           } catch (e) {
+              console.error("XLSX error", e);
+              return res.status(500).send("Could not generate Excel preview");
+           }
+        } else {
+           return res.sendFile(filePath);
+        }
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    }
+  );
+
+
   app.post(
     "/api/templates/upload",
     authenticateToken,
@@ -14627,7 +14697,19 @@ function resolveFilePath(systemName) {
           fs.mkdirSync(docsDir, { recursive: true });
         }
 
-        const targetPath = path.join(docsDir, req.file.originalname);
+        let originalName = req.file.originalname;
+        let targetPath = path.join(docsDir, originalName);
+        if (fs.existsSync(targetPath) && req.body.overwrite !== "true") {
+          let i = 1;
+          const ext = path.extname(originalName);
+          const base = path.basename(originalName, ext);
+          while (fs.existsSync(targetPath)) {
+            originalName = `${base} (${i})${ext}`;
+            targetPath = path.join(docsDir, originalName);
+            i++;
+          }
+        }
+
         fs.renameSync(req.file.path, targetPath);
 
         // Also insert into files table so it shows up in FilesView
@@ -14638,13 +14720,13 @@ function resolveFilePath(systemName) {
            if (req.body.category === "Templates") dbCategoryPath = "/Templates";
            
            const folderPath = "/Clients/" + clientFolder + "/Documents" + dbCategoryPath;
-           const systemNamePath = "Clients/" + clientFolder + "/Documents" + dbCategoryPath + "/" + req.file.originalname;
+           const systemNamePath = "Clients/" + clientFolder + "/Documents" + dbCategoryPath + "/" + originalName;
            
-           const existing = db.prepare("SELECT id FROM files WHERE folder_path = ? AND original_name = ?").get(folderPath, req.file.originalname);
+           const existing = db.prepare("SELECT id FROM files WHERE folder_path = ? AND original_name = ?").get(folderPath, originalName);
            if (!existing) {
              db.prepare(
                "INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path) VALUES (?, ?, ?, ?, ?)"
-             ).run(req.file.originalname, systemNamePath, req.file.size, req.user.id, folderPath);
+             ).run(originalName, systemNamePath, req.file.size, req.user.id, folderPath);
            } else {
              db.prepare(
                "UPDATE files SET size = ?, system_name = ? WHERE id = ?"
@@ -14654,7 +14736,7 @@ function resolveFilePath(systemName) {
            console.error("Failed to insert into files DB:", dbErr);
         }
 
-        res.json({ success: true, name: req.file.originalname });
+        res.json({ success: true, name: originalName });
       } catch (e: any) {
         if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
         res.status(500).json({ error: e.message });

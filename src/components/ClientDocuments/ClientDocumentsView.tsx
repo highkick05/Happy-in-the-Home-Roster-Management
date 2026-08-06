@@ -1,371 +1,134 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useDropzone } from "react-dropzone";
 import {
-  ArrowLeft,
-  Plus,
-  Trash2,
-  Printer,
-  Save,
   FileText,
   UploadCloud,
   File as FileIcon,
   X,
-  Edit2,
   Download,
-  Check,
+  Trash2,
+  FileImage,
+  FileBarChart2,
+  ArrowLeft
 } from "lucide-react";
-import { useLocalStorage } from "../../hooks/useLocalStorage";
-import mammoth from 'mammoth';
 import * as xlsx from 'xlsx';
-import { Loader2 } from "lucide-react";
+import mammoth from 'mammoth';
+
+const FileThumbnail = ({ file, size = 'sm' }: { file?: any, size?: 'sm' | 'lg' | 'xl' }) => {
+  const iconProps = {
+    className: size === 'sm' ? 'w-5 h-5' : size === 'lg' ? 'w-10 h-10' : 'w-16 h-16',
+    strokeWidth: 1.5
+  };
+
+  if (!file) {
+    return <FileIcon {...iconProps} className={`${iconProps.className} text-zinc-400`} />;
+  }
+
+  const originalName = (file.name || '').toLowerCase();
+  
+  const isImage = originalName.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|heic|heif|avif|tiff|tif)$/i);
+  const isPdf = originalName.match(/\.pdf$/i);
+  const isWord = originalName.match(/\.(doc|docx)$/i);
+  const isExcel = originalName.match(/\.(xls|xlsx|csv)$/i);
+  
+  if (isImage) {
+    return <FileImage {...iconProps} className={`${iconProps.className} text-emerald-400`} />;
+  }
+  if (isPdf) {
+    return <FileText {...iconProps} className={`${iconProps.className} text-rose-500`} />;
+  }
+  if (isWord) {
+    return <FileText {...iconProps} className={`${iconProps.className} text-blue-400`} />;
+  }
+  if (isExcel) {
+    return <FileBarChart2 {...iconProps} className={`${iconProps.className} text-green-500`} />;
+  }
+
+  return <FileIcon {...iconProps} className={`${iconProps.className} text-zinc-400`} />;
+};
 
 export default function ClientDocumentsView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
 
   const [templates, setTemplates] = useState<any[]>([]);
-  const [clientDocuments, setClientDocuments] = useState<any[]>([]);
-  const [selectedFile, setSelectedFile] = useState<any | null>(null);
-
-  const [clientFundingType, setClientFundingType] = useState<string>("NDIS");
-
-  const [loading, setLoading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const specificFileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingForName, setUploadingForName] = useState<string | null>(null);
-
-  const [dragCategory, setDragCategory] = useState<string | null>(null);
-
-  const [editingFile, setEditingFile] = useState<{
-    name: string;
-    type: "template" | "document";
-  } | null>(null);
-  const [editNameValue, setEditNameValue] = useState("");
-  const [sidebarWidth, setSidebarWidth] = useLocalStorage("client-documents-sidebar-width", 750);
-  const [isResizing, setIsResizing] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-
+  const [completedDocs, setCompletedDocs] = useState<any[]>([]);
   
-  useEffect(() => {
-    if (!isResizing) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      // Limit width between 400px and 800px (or whatever max is desired, maybe 1200px)
-      const newWidth = Math.min(Math.max(e.clientX, 400), window.innerWidth - 300);
-      setSidebarWidth(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isResizing, setSidebarWidth]);
-
-  useEffect(() => {
-    fetchClientDetails().then((fundingType) => {
-      fetchTemplates(fundingType);
-      fetchClientDocuments();
-    });
-  }, [id, token]);
-
-  const fetchClientDetails = async () => {
-    try {
-      const res = await fetch(`/api/clients/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const fType =
-          (data.funding_type || data.client?.funding_type) === "HCP" ||
-          (data.funding_type || data.client?.funding_type) === "HOME_CARE" ||
-          data.funding_type === "Home Care"
-            ? "HCP"
-            : "NDIS";
-        setClientFundingType(fType);
-        return fType;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return "NDIS";
-  };
-
-  const fetchTemplates = async (fundingType: string) => {
-    try {
-      const res = await fetch(`/api/templates?fundingType=${fundingType}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        setTemplates(await res.json());
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const [selectedFile, setSelectedFile] = useState<any | null>(null);
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  
+  const [isUploading, setIsUploading] = useState(false);
 
   const fetchClientDocuments = async () => {
     try {
       const res = await fetch(`/api/clients/${id}/documents`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        setClientDocuments(await res.json());
-      }
+      if (!res.ok) throw new Error("Failed to fetch documents");
+      const docs = await res.json();
+      
+      const temps = docs.filter((d: any) => d.source === "Templates");
+      const comps = docs.filter((d: any) => d.source === "Completed");
+      
+      setTemplates(temps);
+      setCompletedDocs(comps);
     } catch (e) {
       console.error(e);
     }
   };
 
-  const handleTemplateSelect = (template: any) => {
-    setSelectedFile({
-      ...template,
-      source: "template",
-      viewUrl: `/api/clients/${id}/documents/${encodeURIComponent(template.name)}/download?token=${token}`,
-    });
-  };
+  useEffect(() => {
+    fetchClientDocuments();
+  }, [id, token]);
 
-  const handleDocumentSelect = (doc: any) => {
-    setSelectedFile({
-      ...doc,
-      source: "document",
-      // Use the general files endpoint if mapped, else we would need a download endpoint for client docs.
-      // Actually, wait, do we have a download endpoint for client docs? No, we didn't add one!
-      // We can use the static uploads directory if we know the path.
-      viewUrl: `/uploads/${encodeURIComponent(doc.clientName || "")}/Documents/${encodeURIComponent(doc.name)}`,
-    });
-    // Let's fix the viewUrl later if needed. Actually it's easier to just fetch it or create an object URL.
-    loadDocumentPreview(doc.name);
-  };
-
-  const loadDocumentPreview = async (name: string) => {
-    // To safely preview, we need to know the client's folder path. Unfortunately it's not exposed cleanly.
-    // Let's add a quick download endpoint for client docs if it's missing, or we can just fetch and blob it.
-    // We can fetch it by doing a GET to a new endpoint or the files endpoint.
-    // Wait, earlier we used `res.json(documents)` which didn't include URLs.
-  };
-
-  const handleUploadSpecific = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    if (!e.target.files || e.target.files.length === 0 || !uploadingForName)
-      return;
-    const file = e.target.files[0];
-
-    // Create a new file with the target name to ensure it overwrites
-    const newFile = new File([file], uploadingForName, { type: file.type });
-    const fd = new FormData();
-    fd.append("file", newFile);
-
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/clients/${id}/documents/upload`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      });
-      if (res.ok) {
-        fetchClientDocuments();
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-      setUploadingForName(null);
-      if (specificFileInputRef.current) specificFileInputRef.current.value = "";
-    }
-  };
-
-  const handleUploadTemplate = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    const file = e.target.files[0];
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("category", "Templates");
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/clients/${id}/documents/upload`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      });
-      if (res.ok) {
-        fetchClientDocuments();
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  const handleDeleteTemplate = async (templateName: string) => {
-    if (!window.confirm("Delete this template?")) return;
-    try {
-      await fetch(`/api/clients/${id}/documents/${encodeURIComponent(templateName)}?category=Templates`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchClientDocuments();
-      if (selectedFile?.name === templateName) setSelectedFile(null);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const genericFileInputRef = useRef<HTMLInputElement>(null);
-  const [genericUploadCategory, setGenericUploadCategory] =
-    useState<string>("Main");
-
-  const handleUploadGeneric = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    uploadGenericFiles(e.target.files, genericUploadCategory);
-    if (genericFileInputRef.current) genericFileInputRef.current.value = "";
-  };
-
-  const uploadGenericFiles = async (files: FileList, category: string) => {
-    const file = files[0];
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("category", category);
-
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/clients/${id}/documents/upload`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      });
-      if (res.ok) {
-        fetchClientDocuments();
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDropToSection = (e: React.DragEvent, category: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragCategory(null);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      if (category === "Required") {
-        // Upload template
-        const file = e.dataTransfer.files[0];
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("category", "Templates");
-        setLoading(true);
-        fetch(`/api/clients/${id}/documents/upload`, {
+  const handleUpload = useCallback(async (acceptedFiles: File[], category: string) => {
+    setIsUploading(true);
+    for (const file of acceptedFiles) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("category", category);
+      
+      try {
+        const res = await fetch(`/api/clients/${id}/documents/upload`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd,
-        })
-          .then((res) => {
-            if (res.ok) fetchClientDocuments();
-          })
-          .finally(() => setLoading(false));
-      } else {
-        uploadGenericFiles(e.dataTransfer.files, category);
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        });
+        if (!res.ok) throw new Error("Upload failed");
+      } catch (err) {
+        console.error("Upload error", err);
       }
     }
-  };
+    setIsUploading(false);
+    fetchClientDocuments();
+  }, [id, token]);
 
-  const handleDragEnter = (e: React.DragEvent, category: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragCategory(category);
-  };
+  const { getRootProps: getRootPropsTemplates, getInputProps: getInputPropsTemplates, isDragActive: isDragActiveTemplates } = useDropzone({
+    onDrop: (files) => handleUpload(files, "Templates"),
+  });
+  
+  const { getRootProps: getRootPropsCompleted, getInputProps: getInputPropsCompleted, isDragActive: isDragActiveCompleted } = useDropzone({
+    onDrop: (files) => handleUpload(files, "Completed"),
+  });
 
-  const handleDragLeave = (e: React.DragEvent, category: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Only reset if dragging leaves the section
-    if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget as Node))
-      return;
-    setDragCategory(null);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const startRename = (name: string, type: "template" | "document") => {
-    setEditingFile({ name, type });
-    setEditNameValue(name);
-  };
-
-  const saveRename = async () => {
-    if (!editingFile || !editNameValue.trim()) return;
-
-    const endpoint =
-      editingFile.type === "template"
-        ? "/api/templates/rename"
-        : `/api/clients/${id}/documents/rename`;
-
-    let category = "Main";
-    if (editingFile.type === "document") {
-      const doc = clientDocuments.find((d) => d.name === editingFile.name);
-      if (doc) category = doc.category || "Main";
-    }
-
-    try {
-      const res = await fetch(endpoint, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fundingType: clientFundingType,
-          oldName: editingFile.name,
-          newName: editNameValue.trim(),
-          category,
-        }),
-      });
-
-      if (res.ok) {
-        if (editingFile.type === "template") fetchTemplates(clientFundingType);
-        else fetchClientDocuments();
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setEditingFile(null);
-    }
-  };
-
-  const handleDeleteDocument = async (docName: string) => {
-    if (!window.confirm("Delete this document from the client's file?")) return;
-    const doc = clientDocuments.find((d) => d.name === docName);
-    const category = doc?.category || "Main";
+  const deleteDocument = async (name: string, category: string) => {
+    if (!window.confirm("Are you sure you want to delete this document?")) return;
     try {
       await fetch(
-        `/api/clients/${id}/documents/${encodeURIComponent(docName)}?category=${category}`,
+        `/api/clients/${id}/documents/${encodeURIComponent(name)}?category=${category}`,
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
-        },
+        }
       );
       fetchClientDocuments();
-      if (selectedFile?.name === docName) {
+      if (selectedFile?.name === name && selectedFile?.source === category) {
         setSelectedFile(null);
       }
     } catch (e) {
@@ -373,34 +136,43 @@ export default function ClientDocumentsView() {
     }
   };
 
-  // Utility to get a reliable url for iframe
+  const downloadFile = (name: string) => {
+    const url = `/api/clients/${id}/documents/${encodeURIComponent(name)}/download?token=${token}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
   useEffect(() => {
     if (!selectedFile) {
-      setPreviewUrl(null);
+      setPreviewContent(null);
       setIsPreviewLoading(false);
       return;
     }
-    
+
     const originalName = (selectedFile.name || '').toLowerCase();
+    const isImage = originalName.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|heic|heif|avif|tiff|tif)$/i);
+    const isPdf = originalName.match(/\.pdf$/i);
+    const isText = originalName.match(/\.(txt|md|csv|json)$/i);
     const isWord = originalName.match(/\.(doc|docx)$/i);
     const isExcel = originalName.match(/\.(xls|xlsx|csv)$/i);
-    
-    if (isWord || isExcel) {
+
+    if (isImage || isPdf || isText || isWord || isExcel) {
       setIsPreviewLoading(true);
-      const url = selectedFile.source === "template" 
-        ? `/api/templates/${encodeURIComponent(selectedFile.name)}/download?fundingType=${clientFundingType}&token=${token}`
-        : `/api/clients/${id}/documents/${encodeURIComponent(selectedFile.name)}/download?token=${token}`;
-        
-      fetch(url)
-        .then(async (res) => {
+      fetch(`/api/clients/${id}/documents/${encodeURIComponent(selectedFile.name)}/download?token=${token}`)
+        .then(async res => {
            if (!res.ok) throw new Error('Failed to fetch preview');
            const blob = await res.blob();
-           
+           return blob;
+        })
+        .then(async blob => {
            let finalBlob = blob;
            
            if (isExcel) {
-             try {
+              try {
                 const arrayBuffer = await blob.arrayBuffer();
                 const workbook = xlsx.read(arrayBuffer, { type: 'array' });
                 const firstSheetName = workbook.SheetNames[0];
@@ -408,478 +180,191 @@ export default function ClientDocumentsView() {
                 finalBlob = new Blob([
                   `<html><head><style>table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } tr:nth-child(even){background-color: #f2f2f2;} body { font-family: sans-serif; padding: 20px; }</style></head><body>${htmlString}</body></html>`
                 ], { type: 'text/html' });
-             } catch (e) {
+              } catch (e) {
                 console.error("Excel preview failed", e);
-             }
+              }
            } else if (isWord) {
-             try {
+              try {
                 const arrayBuffer = await blob.arrayBuffer();
                 const result = await mammoth.convertToHtml({ arrayBuffer });
                 finalBlob = new Blob([
                   `<html><head><style>body { font-family: sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.6; } img { max-width: 100%; }</style></head><body>${result.value}</body></html>`
                 ], { type: 'text/html' });
-             } catch (e) {
+              } catch (e) {
                 console.error("Word preview failed", e);
-             }
+              }
            }
-           const objectUrl = window.URL.createObjectURL(finalBlob);
-           setPreviewUrl(objectUrl);
+           const url = window.URL.createObjectURL(finalBlob);
+           setPreviewContent(url);
            setIsPreviewLoading(false);
         })
-        .catch((e) => {
-           console.error(e);
-           setPreviewUrl(null);
+        .catch(err => {
+           console.error(err);
            setIsPreviewLoading(false);
         });
-        
-      return () => {
-         if (previewUrl) {
-           URL.revokeObjectURL(previewUrl);
-         }
-      };
     } else {
-      setPreviewUrl(null);
+      setPreviewContent(null);
       setIsPreviewLoading(false);
     }
-  }, [selectedFile, clientFundingType, id, token]);
+  }, [selectedFile, id, token]);
 
-  const getIframeUrl = () => {
-    if (!selectedFile) return "";
-    if (selectedFile.source === "template") {
-      return `/api/templates/${encodeURIComponent(selectedFile.name)}/download?fundingType=${clientFundingType}&token=${token}#toolbar=1`;
-    }
-    return `/api/clients/${id}/documents/${encodeURIComponent(selectedFile.name)}/download?token=${token}#toolbar=1`;
-  };
+  const renderFileItem = (file: any, category: string) => (
+    <div
+      key={file.name + category}
+      onClick={(e) => {
+        e.stopPropagation();
+        setSelectedFile(file);
+      }}
+      className={`flex items-center justify-between p-3 mb-2 rounded-lg cursor-pointer transition-colors ${
+        selectedFile?.name === file.name && selectedFile?.source === category
+          ? "bg-brand-teal/20 border border-brand-teal/50"
+          : "bg-[#111] hover:bg-zinc-800 border border-transparent"
+      }`}
+    >
+      <div className="flex items-center space-x-3 truncate">
+        <FileThumbnail file={file} size="sm" />
+        <span className="text-sm font-medium text-white truncate">
+          {file.name}
+        </span>
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          deleteDocument(file.name, category);
+        }}
+        className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  );
 
   return (
-    <div className="flex h-full h-[calc(100vh-64px)] overflow-hidden">
-      {/* Sidebar */}
-      <div
-        style={{ width: `${sidebarWidth}px` }}
-        className="border-r border-border-subtle bg-brand-navy flex flex-col shrink-0 relative overflow-visible"
-      >
-        {/* Resize Handle */}
-        <div
-          className="absolute top-0 -right-2 w-4 h-full cursor-col-resize z-50 flex items-center justify-center group"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setIsResizing(true);
-          }}
+    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-[#0a0a0a]">
+      {/* Header */}
+      <div className="flex items-center px-6 py-4 border-b border-white/[0.05] bg-[#111] shrink-0">
+        <button
+          onClick={() => navigate(-1)}
+          className="mr-4 p-2 rounded-lg hover:bg-white/5 transition-colors text-zinc-400 hover:text-white"
         >
-          <div className="w-1 h-8 bg-border-subtle/50 group-hover:bg-brand-teal rounded-full transition-colors" />
-        </div>
-        <div className="p-3 border-b border-border-subtle shrink-0">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => navigate(`/clients/${id}`)}
-                className="text-[#8B949E] hover:text-white transition-colors"
-                title="Back to Client Dashboard"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <h2 className="text-base font-bold text-white">Client Documents</h2>
-            </div>
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-[#0D1117] text-[#8B949E] rounded">
-              {clientFundingType}
-            </span>
-          </div>
-
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full flex items-center justify-center space-x-1.5 bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 px-2 py-1.5 rounded text-sm font-medium transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Upload Template</span>
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="hidden"
-            
-            onChange={handleUploadTemplate}
-          />
-        </div>
-
-        <div className="flex-1 p-3 space-y-4 flex flex-col min-h-0">
-          <div
-            onDragEnter={(e) => handleDragEnter(e, "Required")}
-            onDragLeave={(e) => handleDragLeave(e, "Required")}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDropToSection(e, "Required")}
-            className={`transition-colors rounded-lg border-2 border-dashed relative flex-1 min-h-0 flex flex-col overflow-hidden ${dragCategory === "Required" ? "border-brand-teal bg-brand-teal/5" : "border-border-subtle/50"}`}
-          >
-            {/* Watermark */}
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-30 text-[#8B949E] group-hover:text-white transition-colors">
-              <UploadCloud className="w-10 h-10 mb-2" />
-              <span className="text-xs uppercase font-bold tracking-widest text-center">
-                Drag & Drop
-                <br />
-                Templates Here
-              </span>
-            </div>
-
-            <div className="relative z-10 flex flex-col h-full overflow-hidden">
-              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-2 pt-2 shrink-0">
-                <span>Original Templates</span>
-              </h3>
-              <div className="space-y-1 p-2 flex-1 overflow-y-auto min-h-0">
-                {clientDocuments.filter(d => d.category === "Templates").length === 0 && (
-                  <p className="text-xs text-[#8B949E]/70">
-                    No templates found for {clientFundingType}
-                  </p>
-                )}
-                {clientDocuments.filter(d => d.category === "Templates").map((tmpl) => {
-                  const clientDoc = clientDocuments.find(
-                    (d) => d.name === tmpl.name,
-                  );
-                  const isCompleted = false;
-                  const fileSource = "template";
-
-                  return (
-                    <div
-                      key={tmpl.name}
-                      onClick={() =>
-                        isCompleted
-                          ? handleDocumentSelect(clientDoc)
-                          : handleTemplateSelect(tmpl)
-                      }
-                      className={`w-full flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === tmpl.name ? (isCompleted ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-teal/10 border-brand-teal text-white") : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
-                    >
-                      {editingFile?.name === tmpl.name &&
-                      editingFile?.type === "template" ? (
-                        <div className="flex items-center space-x-2">
-                          <input
-                            autoFocus
-                            value={editNameValue}
-                            onChange={(e) => setEditNameValue(e.target.value)}
-                            className="flex-1 bg-[#0D1117] text-white text-sm px-2 py-1 rounded border border-brand-teal focus:outline-none"
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => e.key === "Enter" && saveRename()}
-                          />
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              saveRename();
-                            }}
-                            className="text-brand-green hover:text-white p-1"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingFile(null);
-                            }}
-                            className="text-red-400 hover:text-white p-1"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center w-full min-w-0 group">
-                          <FileIcon
-                            className={`w-4 h-4 shrink-0 mr-3 ${isCompleted ? "text-brand-purple" : "text-[#8B949E]"}`}
-                          />
-                          <span
-                            className={`text-[11px] font-medium truncate flex-1 min-w-0 ${isCompleted ? "text-white" : ""}`}
-                            title={tmpl.name}
-                          >
-                            {tmpl.name}
-                          </span>
-                          <div className="invisible group-hover:visible flex items-center shrink-0 ml-2 space-x-1">
-                            
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const url = `/api/clients/${id}/documents/${encodeURIComponent(tmpl.name)}/download?token=${token}`;
-                                  const a = document.createElement("a");
-                                  a.href = url;
-                                  a.download = tmpl.name;
-                                  document.body.appendChild(a);
-                                  a.click();
-                                  document.body.removeChild(a);
-                                }}
-                                className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/5 text-white hover:bg-white/10 rounded transition-colors"
-                              >
-                                Download
-                              </button>
-
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startRename(tmpl.name, "template");
-                              }}
-                              className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteTemplate(tmpl.name);
-                              }}
-                              className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-
-
-                    <button
-            onClick={() => {
-              setGenericUploadCategory("Completed");
-              genericFileInputRef.current?.click();
-            }}
-            className="w-full flex items-center justify-center space-x-1.5 bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20 px-2 py-1.5 rounded text-sm font-medium transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Upload Completed</span>
-          </button>
-          {/* Completed Documents */}
-          <div
-            onDragEnter={(e) => handleDragEnter(e, "Completed")}
-            onDragLeave={(e) => handleDragLeave(e, "Completed")}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDropToSection(e, "Completed")}
-            className={`transition-colors rounded-lg border-2 border-dashed relative flex-1 min-h-0 flex flex-col overflow-hidden ${dragCategory === "Completed" ? "border-brand-purple bg-brand-purple/5" : "border-border-subtle/50"}`}
-          >
-            {/* Watermark */}
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center opacity-30 text-[#8B949E] group-hover:text-white transition-colors">
-              <UploadCloud className="w-10 h-10 mb-2" />
-              <span className="text-xs uppercase font-bold tracking-widest text-center">
-                Drag & Drop
-                <br />
-                Completed Docs
-              </span>
-            </div>
-
-            <div className="relative z-10 flex flex-col h-full overflow-hidden">
-              <h3 className="text-[10px] uppercase tracking-wider text-[#8B949E] font-semibold mb-2 flex items-center justify-between px-2 pt-2 shrink-0">
-                <span>Completed Documents</span>
-              </h3>
-              <div className="space-y-1 p-2 flex-1 overflow-y-auto min-h-0">
-                {clientDocuments.filter((d) => d.category === "Completed")
-                  .length === 0 && (
-                  <p className="text-xs text-[#8B949E]/70">
-                    No completed documents yet
-                  </p>
-                )}
-                {clientDocuments
-                  .filter((d) => d.category === "Completed")
-                  .map((doc) => (
-                    <div
-                      key={doc.name}
-                      onClick={() => handleDocumentSelect(doc)}
-                      className={`w-full flex flex-col p-1.5 rounded-md cursor-pointer transition-colors border max-w-full text-[13px] ${selectedFile?.name === doc.name && selectedFile?.source === "document" ? "bg-brand-purple/10 border-brand-purple text-white" : "bg-brand-bg border-transparent hover:border-border-subtle text-[#8B949E]"}`}
-                    >
-                      {editingFile?.name === doc.name &&
-                      editingFile?.type === "document" ? (
-                        <div className="flex items-center space-x-2">
-                          <input
-                            autoFocus
-                            value={editNameValue}
-                            onChange={(e) => setEditNameValue(e.target.value)}
-                            className="flex-1 bg-[#161B22] text-white text-sm px-2 py-1 rounded border border-brand-purple focus:outline-none"
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => e.key === "Enter" && saveRename()}
-                          />
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              saveRename();
-                            }}
-                            className="text-brand-green hover:text-white p-1"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingFile(null);
-                            }}
-                            className="text-red-400 hover:text-white p-1"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center w-full min-w-0 group">
-                          <FileText
-                            className={`w-4 h-4 shrink-0 mr-3 text-brand-purple`}
-                          />
-                          <span
-                            className="text-[11px] font-medium truncate flex-1 min-w-0 text-white"
-                            title={doc.name}
-                          >
-                            {doc.name}
-                          </span>
-                          <div className="invisible group-hover:visible flex items-center shrink-0 ml-2 space-x-1">
-                            
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const url = `/api/clients/${id}/documents/${encodeURIComponent(doc.name)}/download?token=${token}`;
-                                const a = document.createElement("a");
-                                a.href = url;
-                                a.download = doc.name;
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                              }}
-                              className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startRename(doc.name, "document");
-
-                              }}
-                              className="p-1.5 text-[#8B949E] hover:text-white rounded-md transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteDocument(doc.name);
-                              }}
-                              className="p-1.5 text-[#8B949E] hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <input
-          type="file"
-          ref={genericFileInputRef}
-          className="hidden"
-          
-          onChange={handleUploadGeneric}
-        />
-        <input
-          type="file"
-          ref={specificFileInputRef}
-          className="hidden"
-          
-          onChange={handleUploadSpecific}
-        />
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <h1 className="text-xl font-semibold text-white">Client Documents</h1>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#0D1117] relative">
-        {selectedFile ? (
-          <div className="flex-1 flex flex-col h-full overflow-hidden">
-            {/* Top Info Bar */}
-            <div className="h-auto px-4 py-2 border-b border-border-subtle bg-[#161B22] shrink-0 flex flex-row items-center justify-between">
-              <div className="flex items-center space-x-3">
-                {selectedFile.source === "template" ? (
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-brand-teal/20 text-brand-teal rounded">
-                    Blank Template
-                  </span>
-                ) : (
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-brand-purple/20 text-brand-purple rounded">
-                    Client Document
-                  </span>
-                )}
-                <h3 className="text-sm font-semibold text-white truncate max-w-lg">
-                  {selectedFile.name}
-                </h3>
-              </div>
-              <p
-                className="text-[10px] text-[#8B949E] truncate ml-4 max-w-sm"
-                title="Fill the form in the preview below and click 'Download PDF' to save your copy. Then drag it to the upload dropzone on the left to save to client files."
-              >
-                <strong className="text-white">Save:</strong> Fill viewer,
-                download, then upload file.
-              </p>
-            </div>
-
-            
-            {/* IFrame Area or Fallback */}
-            <div className="flex-1 relative bg-[#0D1117]">
-              {isPreviewLoading ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0D1117] z-10">
-                  <Loader2 className="w-10 h-10 text-brand-teal animate-spin mb-4" />
-                  <p className="text-white font-medium">Generating Preview...</p>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Main Content Area (Two Columns) */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Templates Column */}
+          <div className="flex-1 flex flex-col p-6 border-r border-white/[0.05]">
+            <h2 className="text-lg font-semibold text-white mb-4">Templates</h2>
+            <div
+              {...getRootPropsTemplates()}
+              className={`flex-1 relative border-2 border-dashed rounded-xl flex flex-col overflow-hidden transition-colors ${
+                isDragActiveTemplates
+                  ? "border-brand-teal bg-brand-teal/5"
+                  : "border-white/[0.1] hover:border-brand-teal/50"
+              }`}
+            >
+              <input {...getInputPropsTemplates()} />
+              
+              {/* Background Dropzone Indicator */}
+              {(templates.length === 0 || isDragActiveTemplates) && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center text-zinc-500 pointer-events-none z-20" style={{backgroundColor: isDragActiveTemplates ? 'rgba(0,0,0,0.5)' : 'transparent'}}>
+                  <UploadCloud className="w-16 h-16 mb-4 opacity-50" />
+                  <p className="text-lg font-medium text-zinc-400 mb-2">Drag & Drop Templates Here</p>
+                  <p className="text-sm">or click to select files</p>
                 </div>
-              ) : null}
-              {selectedFile.name.toLowerCase().match(/\.(doc|docx|xls|xlsx|csv)$/) ? (
-                previewUrl ? (
-                  <iframe
-                    key={selectedFile.name + selectedFile.source + "preview"}
-                    src={previewUrl}
-                    className="w-full h-full border-none bg-white"
-                    title="Document Preview"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                    <FileText className="w-16 h-16 text-[#8B949E]/50 mb-4" />
-                    <h3 className="text-xl font-bold text-white mb-2">
-                      Preview Error
-                    </h3>
-                    <p className="text-[#8B949E] max-w-md mb-6">
-                      Could not generate preview for this document. Please download the file to view or edit it.
+              )}
+              
+              {/* File List */}
+              <div className="flex-1 overflow-y-auto p-4 z-10">
+                 {templates.map(file => renderFileItem(file, "Templates"))}
+              </div>
+            </div>
+          </div>
+
+          {/* Completed Column */}
+          <div className="flex-1 flex flex-col p-6 border-r border-white/[0.05]">
+            <h2 className="text-lg font-semibold text-white mb-4">Completed Documents</h2>
+            <div
+              {...getRootPropsCompleted()}
+              className={`flex-1 relative border-2 border-dashed rounded-xl flex flex-col overflow-hidden transition-colors ${
+                isDragActiveCompleted
+                  ? "border-brand-teal bg-brand-teal/5"
+                  : "border-white/[0.1] hover:border-brand-teal/50"
+              }`}
+            >
+              <input {...getInputPropsCompleted()} />
+              
+              {/* Background Dropzone Indicator */}
+              {(completedDocs.length === 0 || isDragActiveCompleted) && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center text-zinc-500 pointer-events-none z-20" style={{backgroundColor: isDragActiveCompleted ? 'rgba(0,0,0,0.5)' : 'transparent'}}>
+                  <UploadCloud className="w-16 h-16 mb-4 opacity-50" />
+                  <p className="text-lg font-medium text-zinc-400 mb-2">Drag & Drop Completed Documents Here</p>
+                  <p className="text-sm">or click to select files</p>
+                </div>
+              )}
+              
+              {/* File List */}
+              <div className="flex-1 overflow-y-auto p-4 z-10">
+                 {completedDocs.map(file => renderFileItem(file, "Completed"))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Preview Panel */}
+        <div className="w-[450px] lg:w-[600px] shrink-0 bg-[#0a0a0a] flex flex-col border-l border-white/[0.05]">
+          {selectedFile ? (
+             <div className="w-full h-full flex flex-col overflow-hidden">
+                <div className="flex-1 relative flex items-center justify-center bg-black/40 min-h-0 border-b border-white/[0.05]">
+                  {isPreviewLoading ? (
+                     <div className="text-zinc-500 flex flex-col items-center animate-pulse">
+                        <FileIcon className="w-12 h-12 mb-3 opacity-30" strokeWidth={1} />
+                        <p className="text-sm">Loading preview...</p>
+                     </div>
+                  ) : previewContent ? (
+                     (selectedFile.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|heic|heif|avif|tiff|tif)$/i)) ? (
+                       <img src={previewContent} alt={selectedFile.name} className="max-w-full max-h-full object-contain drop-shadow-md" />
+                     ) : (
+                       <iframe src={previewContent} title={selectedFile.name} className="w-full h-full bg-white border-none" />
+                     )
+                  ) : (
+                     <div className="p-10 flex flex-col items-center text-center">
+                       <div className="p-6 bg-zinc-800/80 rounded-full shadow-inner mb-6 flex items-center justify-center">
+                         <FileThumbnail file={selectedFile} size="xl" />
+                       </div>
+                       <h3 className="text-xl font-bold text-white mb-2">Preview Error</h3>
+                       <p className="text-zinc-500 text-sm max-w-xs">Could not generate preview for this document. Please download the file to view or edit it.</p>
+                     </div>
+                  )}
+                </div>
+                
+                <div className="bg-[#111] p-6 shrink-0 flex items-center justify-between">
+                  <div className="flex-1 min-w-0 pr-4">
+                    <h3 className="text-lg font-medium text-white mb-1 truncate" title={selectedFile.name}>{selectedFile.name}</h3>
+                    <p className="text-zinc-500 text-xs truncate">
+                       {selectedFile.source}
                     </p>
-                    <button
-                      onClick={() => {
-                        const url = getIframeUrl().split('#')[0]; // remove #toolbar=1 just in case
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = selectedFile.name;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                      }}
-                      className="flex items-center space-x-2 bg-brand-teal text-black hover:bg-brand-teal/90 px-4 py-2 rounded-md font-bold transition-colors"
+                  </div>
+                  <div className="flex items-center space-x-3 shrink-0">
+                    <button 
+                      onClick={() => downloadFile(selectedFile.name)} 
+                      className="px-5 flex items-center justify-center py-2 bg-brand-teal hover:bg-teal-400 text-black text-sm font-semibold rounded-lg transition-colors shadow-sm"
                     >
-                      <Download className="w-5 h-5" />
-                      <span>Download {selectedFile.name}</span>
+                      <Download className="w-4 h-4 mr-2" /> Download
                     </button>
                   </div>
-                )
-              ) : (
-                <iframe
-                  key={selectedFile.name + selectedFile.source}
-                  src={getIframeUrl()}
-                  className="w-full h-full border-none bg-white"
-                  title="Document Viewer"
-                />
-              )}
+                </div>
+             </div>
+          ) : (
+            <div className="text-zinc-600 flex flex-col items-center justify-center h-full">
+              <FileIcon className="w-16 h-16 mb-4 opacity-30" strokeWidth={1} />
+              <p className="text-sm">Select a file to preview</p>
             </div>
-          </div>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-            <FileText className="w-16 h-16 text-[#8B949E]/30 mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">
-              No Document Selected
-            </h3>
-            <p className="text-[#8B949E] max-w-md">
-              Select a template from the sidebar to view it. You can fill out
-              templates directly in the viewer, download them, and upload the
-              saved copy directly to the client's file.
-            </p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
