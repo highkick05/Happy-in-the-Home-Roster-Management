@@ -387,9 +387,7 @@ export default function ClientDocumentsView() {
     
     if (isWord || isExcel) {
       setIsPreviewLoading(true);
-      const url = selectedFile.source === "template" 
-        ? `/api/templates/${encodeURIComponent(selectedFile.name)}/download?fundingType=${clientFundingType}&token=${token}`
-        : `/api/clients/${id}/documents/${encodeURIComponent(selectedFile.name)}/download?token=${token}`;
+      const url = `/api/clients/${id}/documents/${encodeURIComponent(selectedFile.name)}/download?token=${token}`;
         
       fetch(url)
         .then(async (res) => {

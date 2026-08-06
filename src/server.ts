@@ -14562,6 +14562,9 @@ function resolveFilePath(systemName) {
         }
 
         if (fs.existsSync(filePath)) {
+          if (!fileName.toLowerCase().endsWith('.pdf')) {
+             return res.sendFile(filePath);
+          }
           try {
             const fs = require('fs');
             const pdfBytes = fs.readFileSync(filePath);
