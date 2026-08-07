@@ -12135,11 +12135,14 @@ app.get("/api/health", (req, res) => {
         }
         const servicesJson = JSON.stringify(services);
 
+        const clientRow = db.prepare("SELECT funding_type FROM clients WHERE id = ?").get(clientId) as any;
+        const clientFundingType = clientRow?.funding_type || "NDIS";
+
         const shiftResult = db
           .prepare(
             `
-        INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, actual_finish_time, status, notes, custom_staff_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?)
+        INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, actual_finish_time, status, notes, custom_staff_name, funding_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?)
       `,
           )
           .run(
@@ -12152,6 +12155,7 @@ app.get("/api/health", (req, res) => {
             endDateTime,
             "Manually generated invoice",
             finalCustomStaffName,
+            clientFundingType,
           );
 
         const shiftId = shiftResult.lastInsertRowid as number;
