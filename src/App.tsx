@@ -306,6 +306,9 @@ function Layout({ children }: { children: React.ReactNode }) {
                 <NavLink replace={true} to="/providers" className={getNavClasses} title="Providers">
                   <Building className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Providers' : ''}
                 </NavLink>
+                <NavLink replace={true} to="/services" className={getNavClasses} title="Services">
+                  <Briefcase className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Services' : ''}
+                </NavLink>
               </div>
 
               <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Admin & Finance</div>
@@ -492,6 +495,7 @@ export default function App() {
             <Route path="/clients/:id/budget" element={<ProtectedRoute adminOnly><Layout><ClientBudgetSwitchboard /></Layout></ProtectedRoute>} />
             <Route path="/clients/:id/documents" element={<ProtectedRoute adminOnly><Layout><ClientDocumentsView /></Layout></ProtectedRoute>} />
             <Route path="/providers" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="PROVIDERS" /></Layout></ProtectedRoute>} />
+            <Route path="/services" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="CONTRACTORS" /></Layout></ProtectedRoute>} />
             <Route path="/invoices" element={<ProtectedRoute adminOnly><Layout><InvoicingView /></Layout></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute adminOnly><Layout><StaffActivityReport /></Layout></ProtectedRoute>} />
             <Route path="/progress-notes" element={<ProtectedRoute><Layout><ProgressNotesView /></Layout></ProtectedRoute>} />

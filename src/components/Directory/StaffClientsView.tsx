@@ -6,14 +6,15 @@ import StaffModal from './StaffModal';
 import ClientModal from './ClientModal';
 import ClientRosterModal from './ClientRosterModal';
 import ProviderModal from './ProviderModal';
+import ContractorModal from './ContractorModal';
 import EmploymentContractModal from './EmploymentContractModal';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { getAvatarUrl } from '../../utils/avatar';
 
-export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 'CLIENTS' | 'PROVIDERS' }) {
+export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 'CLIENTS' | 'PROVIDERS' | 'CONTRACTORS' }) {
   const { token, user } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'STAFF' | 'CLIENTS' | 'PROVIDERS'>(type);
+  const [activeTab, setActiveTab] = useState<'STAFF' | 'CLIENTS' | 'PROVIDERS' | 'CONTRACTORS'>(type);
 
   useEffect(() => {
     setActiveTab(type);
@@ -22,6 +23,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [staff, setStaff] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
+  const [contractors, setContractors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientTab, setClientTab] = useLocalStorage<'NDIS' | 'HOME_CARE'>('directory_client_tab', 'NDIS');
   const [staffTab, setStaffTab] = useLocalStorage<'STAFF' | 'ADMIN'>('directory_staff_tab', 'STAFF');
@@ -40,6 +42,8 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
 
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<any>(null);
+  const [isContractorModalOpen, setIsContractorModalOpen] = useState(false);
+  const [selectedContractor, setSelectedContractor] = useState<any>(null);
 
   useEffect(() => {
     fetchData();
@@ -202,8 +206,9 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-brand-bg border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E]">
-                <th className="px-4 py-2 font-semibold">{activeTab === 'PROVIDERS' ? 'Company Name' : 'Name'}</th>
+                <th className="px-4 py-2 font-semibold">{activeTab === 'PROVIDERS' || activeTab === 'CONTRACTORS' ? 'Company Name' : 'Name'}</th>
                 {activeTab === 'PROVIDERS' && <th className="px-4 py-2 font-semibold">Type</th>}
+                {activeTab === 'CONTRACTORS' && <th className="px-4 py-2 font-semibold">Type</th>}
                 {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Provider & Services</th>}
                 {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Funding</th>}
                 <th className="px-4 py-2 font-semibold">{activeTab === 'STAFF' ? 'Email/Role' : activeTab === 'CLIENTS' ? 'Contact Info' : 'Contact Info'}</th>
@@ -338,6 +343,44 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 );
               })}
 
+              
+              {activeTab === 'CONTRACTORS' && contractors.filter(c => staffTab === 'STAFF' ? c.contractor_type === 'Clinical' : c.contractor_type === 'Maintenance').map(c => {
+                const initials = (c.company_name || '').slice(0, 2).toUpperCase();
+                return (
+                  <tr key={c.id} onClick={() => handleEditContractor(c)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer`}>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal flex items-center justify-center text-[11px] font-semibold shrink-0">
+                          {initials || '?'}
+                        </div>
+                        <div>
+                          <div className="font-medium text-[#E6EDF3] flex items-center">
+                            {c.company_name}
+                          </div>
+                          <div className="text-[#8B949E] text-xs mt-0.5">Joined {new Date(c.created_at || Date.now()).toLocaleDateString()}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="flex gap-2 items-center">
+                        <span className="px-1.5 py-0.2 rounded text-[10px] uppercase font-bold tracking-wider bg-[#1d1f23] text-brand-teal border border-brand-teal/20">
+                          {c.contractor_type || 'Clinical'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="text-[#E6EDF3]">{c.contact_name || 'No Contact Name'}</div>
+                      <div className="text-[#8B949E] text-xs mt-0.5">{c.email} {c.phone && `• ${c.phone}`}</div>
+                    </td>
+                    <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => handleEditContractor(c)} className="p-1.5 text-[#8B949E] hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]">
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+
               {activeTab === 'PROVIDERS' && sortedProviders.map(p => {
                 const initials = (p.company_name || '').slice(0, 2).toUpperCase();
                 return (
@@ -398,6 +441,9 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               {(activeTab === 'CLIENTS' && displayClients.length === 0) && (
                 <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No clients found in this category.</td></tr>
               )}
+              {(activeTab === 'CONTRACTORS' && contractors.length === 0) && (
+                <tr><td colSpan={4} className="px-4 py-6 text-center text-[#8B949E]">No contractors found.</td></tr>
+              )}
               {(activeTab === 'PROVIDERS' && providers.length === 0) && (
                 <tr><td colSpan={4} className="px-4 py-6 text-center text-[#8B949E]">No providers found.</td></tr>
               )}
@@ -444,6 +490,16 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
         }}
         token={token!}
         provider={selectedProvider}
+      />
+      <ContractorModal
+        isOpen={isContractorModalOpen}
+        onClose={() => setIsContractorModalOpen(false)}
+        onSave={() => {
+          setIsContractorModalOpen(false);
+          fetchData();
+        }}
+        token={token!}
+        contractor={selectedContractor}
       />
 
       {isContractModalOpen && contractStaffMember && (

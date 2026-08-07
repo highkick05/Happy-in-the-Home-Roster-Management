@@ -222,6 +222,16 @@ async function startServer() {
         management_fee REAL DEFAULT 0,
         can_email_invoices INTEGER DEFAULT 1
       );
+      CREATE TABLE IF NOT EXISTS contractors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        contact_name TEXT,
+        email TEXT,
+        phone TEXT,
+        address TEXT,
+        contractor_type TEXT
+      );
 
       CREATE TABLE IF NOT EXISTS clients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
