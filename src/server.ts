@@ -8336,13 +8336,14 @@ app.get("/api/health", (req, res) => {
               }
 
               const overlapCheckSql = clearExisting
-                ? `SELECT id FROM shifts WHERE client_id = ? AND status IN ('COMPLETED', 'IN_PROGRESS') AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))`
-                : `SELECT id FROM shifts WHERE client_id = ? AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))`;
+                ? `SELECT id FROM shifts WHERE client_id = ? AND staff_id IS ? AND status IN ('COMPLETED', 'IN_PROGRESS') AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))`
+                : `SELECT id FROM shifts WHERE client_id = ? AND staff_id IS ? AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))`;
 
               const clientPreservedConflict = db
                 .prepare(overlapCheckSql)
                 .get(
                   clientId,
+                  tmpl.staff_id,
                   endDateTime.toISOString(),
                   startDateTime.toISOString(),
                   endDateTime.toISOString(),
