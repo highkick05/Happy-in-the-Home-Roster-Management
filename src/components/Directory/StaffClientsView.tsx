@@ -210,7 +210,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
             <thead>
               <tr className="bg-brand-bg border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E]">
                 <th className="px-4 py-2 font-semibold">{activeTab === 'PROVIDERS' || activeTab === 'CONTRACTORS' ? 'Company Name' : 'Name'}</th>
-                {activeTab === 'PROVIDERS' && <th className="px-4 py-2 font-semibold">Type</th>}
+                {(activeTab === 'PROVIDERS' || activeTab === 'CONTRACTORS') && <th className="px-4 py-2 font-semibold">Type</th>}
                 
                 {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Provider & Services</th>}
                 {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Funding</th>}
@@ -363,6 +363,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                           <div className="text-[#8B949E] text-xs mt-0.5">Joined {new Date(c.created_at || Date.now()).toLocaleDateString()}</div>
                         </div>
                       </div>
+                    </td>
+                    
+                    <td className="px-4 py-2">
+                      <span className="px-1.5 py-0.2 rounded text-[10px] uppercase font-bold tracking-wider bg-[#1d1f23] text-brand-teal border border-brand-teal/20 inline-block">
+                        {c.contractor_type || 'Other'}
+                      </span>
                     </td>
                     
                     <td className="px-4 py-2">

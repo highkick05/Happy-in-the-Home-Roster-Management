@@ -15,7 +15,8 @@ export default function ContractorModal({ isOpen, onClose, onSave, token, contra
     contactName: '',
     email: '',
     phone: '',
-    address: ''
+    address: '',
+    serviceType: 'Other'
   });
 
   useEffect(() => {
@@ -25,7 +26,8 @@ export default function ContractorModal({ isOpen, onClose, onSave, token, contra
         contactName: contractor.contact_name || '',
         email: contractor.email || '',
         phone: contractor.phone || '',
-        address: contractor.address || ''
+        address: contractor.address || '',
+        serviceType: contractor.contractor_type || 'Other'
       });
     } else {
       setFormData({
@@ -33,12 +35,13 @@ export default function ContractorModal({ isOpen, onClose, onSave, token, contra
         contactName: '',
         email: '',
         phone: '',
-        address: ''
+        address: '',
+        serviceType: 'Other'
       });
     }
   }, [contractor, isOpen]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -58,7 +61,7 @@ export default function ContractorModal({ isOpen, onClose, onSave, token, contra
         email: formData.email,
         phone: formData.phone,
         address: formData.address,
-        contractor_type: 'Service' // Default type since we removed the selector
+        contractor_type: formData.serviceType
       };
 
       const res = await fetch(url, {
@@ -96,8 +99,32 @@ export default function ContractorModal({ isOpen, onClose, onSave, token, contra
               <input required name="companyName" value={formData.companyName} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
             </div>
             <div>
+              <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Service Type</label>
+              <select name="serviceType" value={formData.serviceType} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors">
+                <option value="Cleaning">Cleaning</option>
+                <option value="Dietitian">Dietitian</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Gardening">Gardening</option>
+                <option value="Home Maintenance">Home Maintenance</option>
+                <option value="Occupational Therapy">Occupational Therapy</option>
+                <option value="Physiotherapy">Physiotherapy</option>
+                <option value="Plumbing">Plumbing</option>
+                <option value="Podiatry">Podiatry</option>
+                <option value="Remedial Massage">Remedial Massage</option>
+                <option value="Speech Pathology">Speech Pathology</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
               <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Contact Name</label>
               <input name="contactName" value={formData.contactName} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Phone</label>
+              <input name="phone" value={formData.phone} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
             </div>
           </div>
           
@@ -107,14 +134,9 @@ export default function ContractorModal({ isOpen, onClose, onSave, token, contra
               <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
             </div>
             <div>
-              <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Phone</label>
-              <input name="phone" value={formData.phone} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+              <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Address</label>
+              <input name="address" value={formData.address} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
             </div>
-          </div>
-          
-          <div>
-            <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Address</label>
-            <textarea name="address" value={formData.address} onChange={handleChange} rows={2} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
           </div>
           
           <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-white/[0.05]">
