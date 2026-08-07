@@ -197,21 +197,6 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
 
     setSubmitting(true);
     
-    let startIso = "";
-    let endIso = "";
-    try {
-      const start = new Date(`${formData.date}T${formData.startTime}:00`);
-      startIso = start.toISOString();
-      
-      let end = new Date(`${formData.date}T${formData.endTime}:00`);
-      if (formData.endTime <= formData.startTime) {
-          end.setDate(end.getDate() + 1);
-      }
-      endIso = end.toISOString();
-    } catch (e) {
-      console.warn("Could not parse timezone format, falling back to backend parser.");
-    }
-
     try {
       const res = await fetch('/api/invoices/manual', {
         method: 'POST',
@@ -221,8 +206,6 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
         },
         body: JSON.stringify({
           ...formData,
-          startDateTime: startIso || undefined,
-          endDateTime: endIso || undefined,
           services: validServices
         })
       });

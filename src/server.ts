@@ -14,6 +14,7 @@ import db from "../db.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import multer from "multer";
+import { fromZonedTime } from 'date-fns-tz';
 
 function getHistoricalServiceData(db, srv, shiftDateStr) {
   if (!srv || srv.type !== 'NDIS') return { rate: srv?.rate, rates_json: srv?.rates_json };
@@ -12107,26 +12108,26 @@ app.get("/api/health", (req, res) => {
       }
 
       try {
-        let finalStartDateTime = startDateTime;
-        let finalEndDateTime = endDateTime;
+        const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+        const settingsMap: Record<string, string> = {};
+        settingsRows.forEach((r) => { settingsMap[r.key] = r.value; });
+        let rawTz = settingsMap.timezone || "Australia/Perth";
+        const portalTimezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
+
+        // Parse date and time in the portal's timezone
+        const finalStartDateTime = fromZonedTime(`${date}T${startTime}:00`, portalTimezone).toISOString();
         
-        if (!finalStartDateTime) {
-          finalStartDateTime = `${date}T${startTime}:00`;
+        let endDateTimeStr = `${date}T${endTime}:00`;
+        if (endTime <= startTime) {
+          const [year, month, day] = date.split("-").map(Number);
+          const nextDay = new Date(year, month - 1, day);
+          nextDay.setDate(nextDay.getDate() + 1);
+          const y = nextDay.getFullYear();
+          const m = String(nextDay.getMonth() + 1).padStart(2, "0");
+          const rDay = String(nextDay.getDate()).padStart(2, "0");
+          endDateTimeStr = `${y}-${m}-${rDay}T${endTime}:00`;
         }
-        if (!finalEndDateTime) {
-          finalEndDateTime = `${date}T${endTime}:00`;
-          // If endTime is less than or equal to startTime, it means it crosses over midnight to the next day
-          if (endTime <= startTime) {
-            const [year, month, day] = date.split("-").map(Number);
-            const nextDay = new Date(year, month - 1, day);
-            nextDay.setDate(nextDay.getDate() + 1);
-            const y = nextDay.getFullYear();
-            const m = String(nextDay.getMonth() + 1).padStart(2, "0");
-            const rDay = String(nextDay.getDate()).padStart(2, "0");
-            const nextDayStr = `${y}-${m}-${rDay}`;
-            finalEndDateTime = `${nextDayStr}T${endTime}:00`;
-          }
-        }
+        const finalEndDateTime = fromZonedTime(endDateTimeStr, portalTimezone).toISOString();
 
         // 1. Create a completed shift
         const isCustomStaff = staffId === "custom" || !staffId;

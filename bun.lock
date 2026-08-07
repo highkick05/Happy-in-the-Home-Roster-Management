@@ -33,6 +33,7 @@
         "cors": "^2.8.6",
         "crypto": "^1.0.1",
         "date-fns": "^4.1.0",
+        "date-fns-tz": "^3.2.0",
         "date-holidays": "^3.28.0",
         "dotenv": "^17.2.3",
         "editorjs-text-color-plugin": "^2.0.4",
@@ -1039,6 +1040,8 @@
     "date-easter": ["date-easter@1.0.3", "", {}, "sha512-aOViyIgpM4W0OWUiLqivznwTtuMlD/rdUWhc5IatYnplhPiWrLv75cnifaKYhmQwUBLAMWLNG4/9mlLIbXoGBQ=="],
 
     "date-fns": ["date-fns@4.1.0", "", {}, "sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg=="],
+
+    "date-fns-tz": ["date-fns-tz@3.2.0", "", { "peerDependencies": { "date-fns": "^3.0.0 || ^4.0.0" } }, "sha512-sg8HqoTEulcbbbVXeg84u5UnlsQa8GS5QXMqjjYIhS4abEVVKIUwe0/l/UhrZdKaL/W5eWZNlbTeEIiOXTcsBQ=="],
 
     "date-holidays": ["date-holidays@3.28.0", "", { "dependencies": { "date-holidays-parser": "^3.4.7", "js-yaml": "^4.1.1", "lodash": "^4.17.23", "prepin": "^1.0.3" }, "bin": { "holidays2json": "scripts/holidays2json.cjs" } }, "sha512-TNrzyzO5JWght5RLzKek8No1vme6vL3pnXl6LwWCPEPgENQiuXi/xvGIgOdmX8hWQml29SRn8sz3/BpNyAb/ew=="],
 
