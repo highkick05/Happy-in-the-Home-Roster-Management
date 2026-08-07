@@ -1,58 +1,87 @@
 const fs = require('fs');
+const file = 'src/server.ts';
+let content = fs.readFileSync(file, 'utf8');
 
-let content = fs.readFileSync('src/server.ts', 'utf8');
-
-if (!content.includes('CREATE TABLE IF NOT EXISTS contractors')) {
-  content = content.replace(
-    /CREATE TABLE IF NOT EXISTS providers \([\s\S]*?\);/,
-    `$&
-      CREATE TABLE IF NOT EXISTS contractors (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        company_name TEXT NOT NULL,
-        sort_order INTEGER DEFAULT 0,
-        contact_name TEXT,
-        email TEXT,
-        phone TEXT,
-        address TEXT,
-        contractor_type TEXT
-      );`
-  );
-}
-
-if (!content.includes('app.get("/api/contractors"')) {
-  content = content.replace(
-    /\/\/ --- Providers APIs ---[\s\S]*?(?=\/\/ --- Clients APIs ---)/,
-    `$&
+const contractorRoutes = `
   // --- Contractors APIs ---
   app.get("/api/contractors", authenticateToken, requireAdmin, (req, res) => {
-    const contractors = db.prepare("SELECT * FROM contractors").all();
-    res.json(contractors);
+    try {
+      const rows = db.prepare("SELECT * FROM contractors ORDER BY company_name COLLATE NOCASE ASC").all();
+      res.json(rows);
+    } catch (e: any) {
+      logger.error(\`API Error: \${e}\`, { error: "Internal Server Error" });
+      res.status(500).json({ error: "Internal Server Error" });
+    }
   });
-  app.post("/api/contractors", authenticateToken, requireAdmin, (req, res) => {
-    const { company_name, contact_name, email, phone, address, contractor_type } = req.body;
-    const stmt = db.prepare(\`
-      INSERT INTO contractors (company_name, contact_name, email, phone, address, contractor_type)
-      VALUES (?, ?, ?, ?, ?, ?)
-    \`);
-    const info = stmt.run(company_name, contact_name, email, phone, address, contractor_type);
-    res.status(201).json({ id: info.lastInsertRowid });
-  });
-  app.put("/api/contractors/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
-    const { company_name, contact_name, email, phone, address, contractor_type } = req.body;
-    const stmt = db.prepare(\`
-      UPDATE contractors
-      SET company_name = ?, contact_name = ?, email = ?, phone = ?, address = ?, contractor_type = ?
-      WHERE id = ?
-    \`);
-    stmt.run(company_name, contact_name, email, phone, address, contractor_type, req.params.id);
-    res.json({ success: true });
-  });
-  app.delete("/api/contractors/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
-    db.prepare("DELETE FROM contractors WHERE id = ?").run(req.params.id);
-    res.json({ success: true });
-  });
-`
-  );
-}
 
-fs.writeFileSync('src/server.ts', content);
+  app.post("/api/contractors", authenticateToken, requireAdmin, (req, res) => {
+    const {
+      company_name,
+      contact_name,
+      email,
+      phone,
+      address,
+      contractor_type
+    } = req.body;
+    try {
+      const stmt = db.prepare(\`
+        INSERT INTO contractors (company_name, contact_name, email, phone, address, contractor_type)
+        VALUES (?, ?, ?, ?, ?, ?)
+      \`);
+      const info = stmt.run(
+        company_name,
+        contact_name || null,
+        email || null,
+        phone || null,
+        address || null,
+        contractor_type || 'Other'
+      );
+      res.json({ id: info.lastInsertRowid });
+    } catch (e: any) {
+      logger.error(\`API Error: \${e}\`, { error: "Internal Server Error" });
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  app.put("/api/contractors/:id", authenticateToken, requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const {
+      company_name,
+      contact_name,
+      email,
+      phone,
+      address,
+      contractor_type
+    } = req.body;
+    try {
+      const stmt = db.prepare(\`
+        UPDATE contractors SET
+          company_name = ?,
+          contact_name = ?,
+          email = ?,
+          phone = ?,
+          address = ?,
+          contractor_type = ?
+        WHERE id = ?
+      \`);
+      stmt.run(
+        company_name,
+        contact_name || null,
+        email || null,
+        phone || null,
+        address || null,
+        contractor_type || 'Other',
+        id
+      );
+      res.json({ success: true });
+    } catch (e: any) {
+      logger.error(\`API Error: \${e}\`, { error: "Internal Server Error" });
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+`;
+
+content = content.replace('// --- Respite Bookings APIs ---', contractorRoutes + '\n  // --- Respite Bookings APIs ---');
+
+fs.writeFileSync(file, content);

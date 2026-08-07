@@ -52,7 +52,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const endpoint = (activeTab === "STAFF" ? "/api/staff" : activeTab === "CLIENTS" ? "/api/clients" : "/api/providers") + "?t=" + Date.now();
+      const endpoint = (activeTab === "STAFF" ? "/api/staff" : activeTab === "CLIENTS" ? "/api/clients" : activeTab === "CONTRACTORS" ? "/api/contractors" : "/api/providers") + "?t=" + Date.now();
       const res = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -60,6 +60,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
         const data = await res.json();
         if (activeTab === 'STAFF') setStaff(data);
         else if (activeTab === 'CLIENTS') setClients(data);
+        else if (activeTab === 'CONTRACTORS') setContractors(data);
         else setProviders(data);
       }
     } catch (e) {
