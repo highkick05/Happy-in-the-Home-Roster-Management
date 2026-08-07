@@ -74,7 +74,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
     const newStatus = currentStatus === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED';
     
     try {
-      const endpoint = activeTab === 'STAFF' ? `/api/staff/${id}/status` : activeTab === 'CLIENTS' ? `/api/clients/${id}/status` : `/api/providers/${id}/status`;
+      const endpoint = activeTab === 'STAFF' ? `/api/staff/${id}/status` : activeTab === 'CLIENTS' ? `/api/clients/${id}/status` : activeTab === 'CONTRACTORS' ? `/api/contractors/${id}/status` : `/api/providers/${id}/status`;
       const res = await fetch(endpoint, {
         method: 'PUT',
         headers: { 
@@ -351,7 +351,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               {activeTab === 'CONTRACTORS' && contractors.map(c => {
                 const initials = (c.company_name || '').slice(0, 2).toUpperCase();
                 return (
-                  <tr key={c.id} onClick={() => handleEditContractor(c)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer`}>
+                  <tr key={c.id} onClick={() => handleEditContractor(c)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${c.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
                         <div className="w-7 h-7 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal flex items-center justify-center text-[11px] font-semibold shrink-0">
@@ -360,6 +360,11 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                         <div>
                           <div className="font-medium text-[#E6EDF3] flex items-center">
                             {c.company_name}
+                            {c.status === 'SUSPENDED' && (
+                              <span className="ml-2 px-1.5 py-0.2 rounded text-[9px] font-semibold tracking-wider bg-red-500/10 border border-red-500/20 text-red-400 uppercase">
+                                SUSPENDED
+                              </span>
+                            )}
                           </div>
                           <div className="text-[#8B949E] text-xs mt-0.5">Joined {new Date(c.created_at || Date.now()).toLocaleDateString()}</div>
                         </div>
@@ -379,6 +384,13 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                     <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                       <button onClick={() => handleEditContractor(c)} className="p-1.5 text-[#8B949E] hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]">
                         <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        onClick={() => handleToggleStatus(c.id, c.status || 'ACTIVE')} 
+                        className="p-1.5 text-[#8B949E] hover:text-red-400 transition-colors rounded-md hover:bg-white/[0.04]"
+                        title={c.status === 'SUSPENDED' ? 'Reactivate' : 'Suspend'}
+                      >
+                        {c.status === 'SUSPENDED' ? <CheckCircle className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
                       </button>
                     </td>
                   </tr>
