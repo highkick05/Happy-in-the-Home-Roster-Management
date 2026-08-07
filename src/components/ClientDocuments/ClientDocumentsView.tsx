@@ -244,7 +244,7 @@ export default function ClientDocumentsView() {
       {/* Header */}
       <div className="flex items-center px-6 py-4 border-b border-white/[0.05] bg-[#111] shrink-0">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate(`/clients/${id}`)}
           className="mr-4 p-2 rounded-lg hover:bg-white/5 transition-colors text-zinc-400 hover:text-white"
         >
           <ArrowLeft className="w-5 h-5" />
