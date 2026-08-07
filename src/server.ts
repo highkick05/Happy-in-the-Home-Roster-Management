@@ -12086,6 +12086,8 @@ app.get("/api/health", (req, res) => {
         date,
         startTime,
         endTime,
+        startDateTime,
+        endDateTime,
         customStaffName,
       } = req.body;
 
@@ -12105,19 +12107,25 @@ app.get("/api/health", (req, res) => {
       }
 
       try {
-        const startDateTime = `${date}T${startTime}:00`;
-        let endDateTime = `${date}T${endTime}:00`;
-
-        // If endTime is less than or equal to startTime, it means it crosses over midnight to the next day
-        if (endTime <= startTime) {
-          const [year, month, day] = date.split("-").map(Number);
-          const nextDay = new Date(year, month - 1, day);
-          nextDay.setDate(nextDay.getDate() + 1);
-          const y = nextDay.getFullYear();
-          const m = String(nextDay.getMonth() + 1).padStart(2, "0");
-          const rDay = String(nextDay.getDate()).padStart(2, "0");
-          const nextDayStr = `${y}-${m}-${rDay}`;
-          endDateTime = `${nextDayStr}T${endTime}:00`;
+        let finalStartDateTime = startDateTime;
+        let finalEndDateTime = endDateTime;
+        
+        if (!finalStartDateTime) {
+          finalStartDateTime = `${date}T${startTime}:00`;
+        }
+        if (!finalEndDateTime) {
+          finalEndDateTime = `${date}T${endTime}:00`;
+          // If endTime is less than or equal to startTime, it means it crosses over midnight to the next day
+          if (endTime <= startTime) {
+            const [year, month, day] = date.split("-").map(Number);
+            const nextDay = new Date(year, month - 1, day);
+            nextDay.setDate(nextDay.getDate() + 1);
+            const y = nextDay.getFullYear();
+            const m = String(nextDay.getMonth() + 1).padStart(2, "0");
+            const rDay = String(nextDay.getDate()).padStart(2, "0");
+            const nextDayStr = `${y}-${m}-${rDay}`;
+            finalEndDateTime = `${nextDayStr}T${endTime}:00`;
+          }
         }
 
         // 1. Create a completed shift
@@ -12150,9 +12158,9 @@ app.get("/api/health", (req, res) => {
             finalStaffId,
             mainServiceId,
             servicesJson,
-            startDateTime,
-            endDateTime,
-            endDateTime,
+            finalStartDateTime,
+            finalEndDateTime,
+            finalEndDateTime,
             "Manually generated invoice",
             finalCustomStaffName,
             clientFundingType,
