@@ -223,7 +223,7 @@ export default function ClientDocumentsView() {
     >
       <div className="flex items-center space-x-3 truncate">
         <FileThumbnail file={file} size="sm" />
-        <span className="text-sm font-medium text-white truncate">
+        <span className="text-xs font-medium text-white truncate">
           {file.name}
         </span>
       </div>
@@ -253,8 +253,7 @@ export default function ClientDocumentsView() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Main Content Area (Two Columns) */}
-        <div className="flex-1 flex overflow-hidden">
+        
           {/* Templates Column */}
           <div className="flex-1 flex flex-col p-6 border-r border-white/[0.05]">
             <h2 className="text-lg font-semibold text-white mb-4">Templates</h2>
@@ -312,10 +311,9 @@ export default function ClientDocumentsView() {
               </div>
             </div>
           </div>
-        </div>
 
         {/* Right Preview Panel */}
-        <div className="w-[450px] lg:w-[600px] shrink-0 bg-[#0a0a0a] flex flex-col border-l border-white/[0.05]">
+        <div className="flex-1 bg-[#0a0a0a] flex flex-col">
           {selectedFile ? (
              <div className="w-full h-full flex flex-col overflow-hidden">
                 <div className="flex-1 relative flex items-center justify-center bg-black/40 min-h-0 border-b border-white/[0.05]">
