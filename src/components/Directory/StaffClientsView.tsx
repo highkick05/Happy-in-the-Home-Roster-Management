@@ -187,7 +187,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
             </div>
           ) : (
             <div className="px-4 py-2 text-xs font-medium text-[#E6EDF3] flex items-center">
-              Providers <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-brand-navy border border-border-subtle text-[#8B949E]">{sortedProviders.length}</span>
+              {activeTab === 'CONTRACTORS' ? 'Services' : 'Providers'} <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-brand-navy border border-border-subtle text-[#8B949E]">{activeTab === 'CONTRACTORS' ? contractors.length : sortedProviders.length}</span>
             </div>
           )}
           <button 
@@ -195,7 +195,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
             className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green hover:opacity-90 text-white text-xs font-medium rounded-md transition-all shadow-sm shrink-0"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Add {activeTab === 'STAFF' ? 'Staff' : activeTab === 'CLIENTS' ? 'Client' : 'Provider'}
+            Add {activeTab === 'STAFF' ? 'Staff' : activeTab === 'CLIENTS' ? 'Client' : activeTab === 'CONTRACTORS' ? 'Service' : 'Provider'}
           </button>
         </div>
 
@@ -208,7 +208,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               <tr className="bg-brand-bg border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E]">
                 <th className="px-4 py-2 font-semibold">{activeTab === 'PROVIDERS' || activeTab === 'CONTRACTORS' ? 'Company Name' : 'Name'}</th>
                 {activeTab === 'PROVIDERS' && <th className="px-4 py-2 font-semibold">Type</th>}
-                {activeTab === 'CONTRACTORS' && <th className="px-4 py-2 font-semibold">Type</th>}
+                
                 {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Provider & Services</th>}
                 {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Funding</th>}
                 <th className="px-4 py-2 font-semibold">{activeTab === 'STAFF' ? 'Email/Role' : activeTab === 'CLIENTS' ? 'Contact Info' : 'Contact Info'}</th>
@@ -344,7 +344,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               })}
 
               
-              {activeTab === 'CONTRACTORS' && contractors.filter(c => staffTab === 'STAFF' ? c.contractor_type === 'Clinical' : c.contractor_type === 'Maintenance').map(c => {
+              {activeTab === 'CONTRACTORS' && contractors.map(c => {
                 const initials = (c.company_name || '').slice(0, 2).toUpperCase();
                 return (
                   <tr key={c.id} onClick={() => handleEditContractor(c)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer`}>
@@ -361,13 +361,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-2">
-                      <div className="flex gap-2 items-center">
-                        <span className="px-1.5 py-0.2 rounded text-[10px] uppercase font-bold tracking-wider bg-[#1d1f23] text-brand-teal border border-brand-teal/20">
-                          {c.contractor_type || 'Clinical'}
-                        </span>
-                      </div>
-                    </td>
+                    
                     <td className="px-4 py-2">
                       <div className="text-[#E6EDF3]">{c.contact_name || 'No Contact Name'}</div>
                       <div className="text-[#8B949E] text-xs mt-0.5">{c.email} {c.phone && `• ${c.phone}`}</div>
@@ -442,7 +436,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No clients found in this category.</td></tr>
               )}
               {(activeTab === 'CONTRACTORS' && contractors.length === 0) && (
-                <tr><td colSpan={4} className="px-4 py-6 text-center text-[#8B949E]">No contractors found.</td></tr>
+                <tr><td colSpan={4} className="px-4 py-6 text-center text-[#8B949E]">No services found.</td></tr>
               )}
               {(activeTab === 'PROVIDERS' && providers.length === 0) && (
                 <tr><td colSpan={4} className="px-4 py-6 text-center text-[#8B949E]">No providers found.</td></tr>
