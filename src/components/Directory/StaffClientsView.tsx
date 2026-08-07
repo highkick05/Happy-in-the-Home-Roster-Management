@@ -97,6 +97,9 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
     } else if (activeTab === 'CLIENTS') {
       setSelectedClient(null);
       setIsClientModalOpen(true);
+    } else if (activeTab === 'CONTRACTORS') {
+      setSelectedContractor(null);
+      setIsContractorModalOpen(true);
     } else {
       setSelectedProvider(null);
       setIsProviderModalOpen(true);
