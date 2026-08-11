@@ -235,7 +235,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 z-40 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-20' : 'w-56 md:w-52'} bg-brand-navy border-r border-border-subtle flex flex-col transition-all duration-300 ease-in-out shrink-0 group print:hidden`}>
+      <div className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 z-40 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'w-14' : 'w-56 md:w-52'} bg-brand-navy border-r border-border-subtle flex flex-col transition-all duration-300 ease-in-out shrink-0 group print:hidden`}>
         
         {/* Collapse Toggle */}
         <button 
