@@ -119,8 +119,20 @@ function Layout({ children }: { children: React.ReactNode }) {
   const { logout, user, settings, token, switchRole } = useAuth();
   const location = useLocation();
 
+  const previousSidebarState = React.useRef(isDesktopSidebarCollapsed);
+  const wasInEmail = React.useRef(location.pathname.includes('/email'));
+
   React.useEffect(() => {
     setIsMobileMenuOpen(false);
+    
+    const isEmail = location.pathname.includes('/email');
+    if (isEmail && !wasInEmail.current) {
+      previousSidebarState.current = isDesktopSidebarCollapsed;
+      setIsDesktopSidebarCollapsed(true);
+    } else if (!isEmail && wasInEmail.current) {
+      setIsDesktopSidebarCollapsed(previousSidebarState.current);
+    }
+    wasInEmail.current = isEmail;
   }, [location.pathname]);
 
   React.useEffect(() => {
