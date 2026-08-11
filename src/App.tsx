@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import RosterCalendar from './components/Roster/RosterCalendar';
-import { Briefcase, MessageSquare,  Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car, GraduationCap  } from 'lucide-react';
+import { Briefcase, MessageSquare,  Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car, GraduationCap, Mail  } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatNotificationProvider } from './context/ChatNotificationContext';
 import QuickLinksDrawer from './components/QuickLinksDrawer';
@@ -38,6 +38,7 @@ import WallboardView from './components/Kiosk/WallboardView';
 import TravelLogsView from './components/TravelLogsView';
 import ChatView from './components/Chat/ChatView';
 import VehiclesView from './components/VehiclesView';
+import EmailView from './components/Email/EmailView';
 import { getAvatarUrl } from './utils/avatar';
 
 
@@ -262,6 +263,9 @@ function Layout({ children }: { children: React.ReactNode }) {
           
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Communication</div>
           <div className="space-y-0.5 mb-2">
+            <NavLink replace={true} to="/email" className={getNavClasses} title="Email">
+              <Mail className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Email' : ''}
+            </NavLink>
             <NavLink replace={true} to="/chat" className={getNavClasses} title="Live Chat">
               <MessageSquare className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Live Chat' : ''}
             </NavLink>
@@ -395,7 +399,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         <header className="h-12 shrink-0 border-b border-border-subtle bg-brand-bg/80 text-[#E6EDF3] backdrop-blur-md flex items-center justify-end px-4 md:px-8 hidden md:flex sticky top-0 z-[100] print:hidden">
           <DateTimer />
         </header>
-        <main className={`flex-1 ${location.pathname.includes('/travel-logs') || location.pathname.includes('/vehicles') || location.pathname.includes('/roster') || location.pathname.includes('/kiosk') || location.pathname.includes('/files') || location.pathname.includes('/chat') ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-auto'} print:overflow-visible ${location.pathname.includes('/files') || location.pathname.includes('/chat') ? 'p-0' : location.pathname.includes('/roster') || location.pathname.includes('/kiosk') ? 'p-0 md:pt-4 md:pb-6 md:px-8' : 'p-4 md:pt-4 md:pb-6 md:px-8'} print:p-0 relative`}>
+        <main className={`flex-1 ${location.pathname.includes('/travel-logs') || location.pathname.includes('/vehicles') || location.pathname.includes('/roster') || location.pathname.includes('/kiosk') || location.pathname.includes('/files') || location.pathname.includes('/chat') || location.pathname.includes('/email') ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-auto'} print:overflow-visible ${location.pathname.includes('/files') || location.pathname.includes('/chat') || location.pathname.includes('/email') ? 'p-0' : location.pathname.includes('/roster') || location.pathname.includes('/kiosk') ? 'p-0 md:pt-4 md:pb-6 md:px-8' : 'p-4 md:pt-4 md:pb-6 md:px-8'} print:p-0 relative`}>
           {children}
         </main>
       </div>
@@ -474,6 +478,7 @@ export default function App() {
             <Route path="/reset-password/:token" element={<ResetPasswordView />} />
             <Route path="/kiosk/wallboard" element={<WallboardView />} />
             <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
+            <Route path="/email" element={<ProtectedRoute><Layout><EmailView /></Layout></ProtectedRoute>} />
             <Route path="/chat" element={<ProtectedRoute><Layout><ChatView /></Layout></ProtectedRoute>} />
             <Route path="/travel-logs" element={<ProtectedRoute><Layout><TravelLogsView /></Layout></ProtectedRoute>} />
             <Route path="/vehicles" element={<ProtectedRoute><Layout><VehiclesView /></Layout></ProtectedRoute>} />
