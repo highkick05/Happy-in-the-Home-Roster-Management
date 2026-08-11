@@ -408,9 +408,11 @@ function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden print:overflow-visible bg-brand-bg print:bg-white relative">
-        <header className="h-12 shrink-0 border-b border-border-subtle bg-brand-bg/80 text-[#E6EDF3] backdrop-blur-md flex items-center justify-end px-4 md:px-8 hidden md:flex sticky top-0 z-[100] print:hidden">
-          <DateTimer />
-        </header>
+        {!location.pathname.includes('/email') && (
+          <header className="h-12 shrink-0 border-b border-border-subtle bg-brand-bg/80 text-[#E6EDF3] backdrop-blur-md flex items-center justify-end px-4 md:px-8 hidden md:flex sticky top-0 z-[100] print:hidden">
+            <DateTimer />
+          </header>
+        )}
         <main className={`flex-1 ${location.pathname.includes('/travel-logs') || location.pathname.includes('/vehicles') || location.pathname.includes('/roster') || location.pathname.includes('/kiosk') || location.pathname.includes('/files') || location.pathname.includes('/chat') || location.pathname.includes('/email') ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-auto'} print:overflow-visible ${location.pathname.includes('/files') || location.pathname.includes('/chat') || location.pathname.includes('/email') ? 'p-0' : location.pathname.includes('/roster') || location.pathname.includes('/kiosk') ? 'p-0 md:pt-4 md:pb-6 md:px-8' : 'p-4 md:pt-4 md:pb-6 md:px-8'} print:p-0 relative`}>
           {children}
         </main>
