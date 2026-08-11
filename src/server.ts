@@ -4281,12 +4281,12 @@ function getUnreadChatCount(db: any, userId: number) {
       const result = stmt.get("imapAccounts");
       if (!result) return res.json({ total: 0 });
       const accounts = JSON.parse(result.value);
-      let totalUnread = 0;
+      let totalUnread = 0; const accountCounts = [];
       for (const account of accounts) {
         const count = await getUnreadCount(account);
-        totalUnread += count;
+        totalUnread += count; accountCounts.push({ username: account.username, count });
       }
-      res.json({ total: totalUnread });
+      res.json({ total: totalUnread, accounts: accountCounts });
     } catch (e: any) {
       logger.error(`API Error fetching emails: ${e}`);
       res.status(500).json({ error: "Internal Server Error" });
