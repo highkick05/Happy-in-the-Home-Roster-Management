@@ -3,7 +3,7 @@ import { Save, Plus, Trash2, Shield, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function EmailWidgetSettings() {
-  const { settings, fetchSettings } = useAuth();
+  const { settings, updateSettings } = useAuth();
   const [accounts, setAccounts] = React.useState<any[]>([]);
   const [isSaving, setIsSaving] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState<Record<number, boolean>>({});
@@ -28,7 +28,7 @@ export default function EmailWidgetSettings() {
         })
       });
       if (res.ok) {
-        await fetchSettings();
+        updateSettings({ ...settings, imapAccounts: accounts });
         alert('Email widget settings saved successfully');
       }
     } catch (e) {
