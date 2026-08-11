@@ -35,7 +35,6 @@ import UniversalPWAInstall from './components/UniversalPWAInstall';
 import NotificationsDropdown from './components/NotificationsDropdown';
 import LiveChatIcon from './components/LiveChatIcon';
 import WallboardView from './components/Kiosk/WallboardView';
-import TasksView from './components/Tasks/TasksView';
 import TravelLogsView from './components/TravelLogsView';
 import ChatView from './components/Chat/ChatView';
 import VehiclesView from './components/VehiclesView';
@@ -270,11 +269,6 @@ function Layout({ children }: { children: React.ReactNode }) {
           
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Operations</div>
           <div className="space-y-0.5">
-            {user?.role === 'ADMIN' && (
-              <NavLink replace={true} to="/tasks" className={getNavClasses} title="Tasks">
-                <CheckSquare className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Tasks' : ''}
-              </NavLink>
-            )}
             <NavLink replace={true} to="/roster" className={getNavClasses} title="Roster">
               <Calendar className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Roster' : ''}
             </NavLink>
@@ -401,7 +395,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         <header className="h-12 shrink-0 border-b border-border-subtle bg-brand-bg/80 text-[#E6EDF3] backdrop-blur-md flex items-center justify-end px-4 md:px-8 hidden md:flex sticky top-0 z-[100] print:hidden">
           <DateTimer />
         </header>
-        <main className={`flex-1 ${location.pathname.includes('/travel-logs') || location.pathname.includes('/vehicles') || location.pathname.includes('/roster') || location.pathname.includes('/kiosk') || location.pathname.includes('/files') || location.pathname.includes('/tasks') || location.pathname.includes('/chat') ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-auto'} print:overflow-visible ${location.pathname.includes('/files') || location.pathname.includes('/tasks') || location.pathname.includes('/chat') ? 'p-0' : location.pathname.includes('/roster') || location.pathname.includes('/kiosk') ? 'p-0 md:pt-4 md:pb-6 md:px-8' : 'p-4 md:pt-4 md:pb-6 md:px-8'} print:p-0 relative`}>
+        <main className={`flex-1 ${location.pathname.includes('/travel-logs') || location.pathname.includes('/vehicles') || location.pathname.includes('/roster') || location.pathname.includes('/kiosk') || location.pathname.includes('/files') || location.pathname.includes('/chat') ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-auto'} print:overflow-visible ${location.pathname.includes('/files') || location.pathname.includes('/chat') ? 'p-0' : location.pathname.includes('/roster') || location.pathname.includes('/kiosk') ? 'p-0 md:pt-4 md:pb-6 md:px-8' : 'p-4 md:pt-4 md:pb-6 md:px-8'} print:p-0 relative`}>
           {children}
         </main>
       </div>
@@ -436,10 +430,6 @@ function ProtectedRoute({ children, adminOnly = false, staffOnly = false }: { ch
 }
 
 function RootRedirect() {
-  const { user } = useAuth();
-  if (user?.role === 'ADMIN') {
-    return <Navigate to="/tasks" replace />;
-  }
   return <Navigate to="/roster" replace />;
 }
 
@@ -484,7 +474,6 @@ export default function App() {
             <Route path="/reset-password/:token" element={<ResetPasswordView />} />
             <Route path="/kiosk/wallboard" element={<WallboardView />} />
             <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
-            <Route path="/tasks" element={<ProtectedRoute adminOnly><Layout><TasksView /></Layout></ProtectedRoute>} />
             <Route path="/chat" element={<ProtectedRoute><Layout><ChatView /></Layout></ProtectedRoute>} />
             <Route path="/travel-logs" element={<ProtectedRoute><Layout><TravelLogsView /></Layout></ProtectedRoute>} />
             <Route path="/vehicles" element={<ProtectedRoute><Layout><VehiclesView /></Layout></ProtectedRoute>} />
