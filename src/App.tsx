@@ -39,6 +39,7 @@ import TravelLogsView from './components/TravelLogsView';
 import ChatView from './components/Chat/ChatView';
 import VehiclesView from './components/VehiclesView';
 import EmailView from './components/Email/EmailView';
+import EmailFloatingWidget from './components/Email/EmailFloatingWidget';
 import { getAvatarUrl } from './utils/avatar';
 
 
@@ -421,6 +422,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       {/* Quick Links Floating Hover Tab */}
       {user?.role === 'ADMIN' && <QuickLinksDrawer />}
       <FloatingChatIcon />
+      <EmailFloatingWidget />
     </div>
   );
 }

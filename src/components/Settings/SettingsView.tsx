@@ -4,11 +4,12 @@ import { Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, D
 import DatabaseSettings from './DatabaseSettings';
 import TestingChecklist from './TestingChecklist';
 import FundingTypesSettings from './FundingTypesSettings';
+import EmailWidgetSettings from './EmailWidgetSettings';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 export default function SettingsView() {
   const { token, user, updateSettings } = useAuth();
-  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'CHAT' | 'EMAIL' | 'FUNDING_TYPES' | 'DATABASE' | 'TESTING'>('settings_active_tab', 'GENERAL');
+  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'CHAT' | 'EMAIL' | 'EMAIL_WIDGET' | 'FUNDING_TYPES' | 'DATABASE' | 'TESTING'>('settings_active_tab', 'GENERAL');
   const [services, setServices] = useState<any[]>([]);
   const [priceLists, setPriceLists] = useState<any[]>([]);
   const [showPriceListModal, setShowPriceListModal] = useState(false);
@@ -760,6 +761,12 @@ export default function SettingsView() {
         >
           Email Settings
         </button>
+        <button
+          onClick={() => setActiveTab('EMAIL_WIDGET')}
+          className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider ${activeTab === 'EMAIL_WIDGET' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+        >
+          Email Widget
+        </button>
         {user?.role === 'ADMIN' && (
           <>
             <button
@@ -1151,6 +1158,12 @@ export default function SettingsView() {
                 </div>
               )}
             </form>
+          </div>
+        )}
+
+        {activeTab === 'EMAIL_WIDGET' && (
+          <div className="p-4 max-w-4xl">
+            <EmailWidgetSettings />
           </div>
         )}
 

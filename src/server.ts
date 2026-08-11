@@ -1,6 +1,7 @@
 import "express-async-errors";
 import webpush from 'web-push';
 
+import { getUnreadCount } from "./getUnreadEmails";
 const VAPID_PUBLIC_KEY = 'BJJipdW8yPjurHatAx-yKuxglYM9TVFau8jQUsbPK5ybbYUotCGx6Y3zd6sOCQkeWBsfrHYHgwZYKzwp8BBv2_0';
 const VAPID_PRIVATE_KEY = 'XFEVMuT0GKOCFwEoxi7PZt6MGALJih-1LUR7OWy_Nwk';
 webpush.setVapidDetails('mailto:admin@happyinthehome.org', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
@@ -4274,6 +4275,24 @@ function getUnreadChatCount(db: any, userId: number) {
       res.status(500).json({ error: "Internal Server Error" });
     }
   });
+  app.get("/api/emails/unread-count", authenticateToken, async (req, res) => {
+    try {
+      const stmt = db.prepare("SELECT value FROM settings WHERE key = ?");
+      const result = stmt.get("imapAccounts");
+      if (!result) return res.json({ total: 0 });
+      const accounts = JSON.parse(result.value);
+      let totalUnread = 0;
+      for (const account of accounts) {
+        const count = await getUnreadCount(account);
+        totalUnread += count;
+      }
+      res.json({ total: totalUnread });
+    } catch (e: any) {
+      logger.error(`API Error fetching emails: ${e}`);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
 
   app.get("/api/awesome-quotes/daily", (req, res) => {
     try {
