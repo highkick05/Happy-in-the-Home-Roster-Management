@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Mail } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export default function EmailFloatingWidget() {
+  const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<{ username: string; count: number }[]>([]);
   const [isHovering, setIsHovering] = useState(false);
 
   useEffect(() => {
+    if (user?.role !== 'ADMIN') return;
+
     const fetchUnreadCount = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -29,8 +33,9 @@ export default function EmailFloatingWidget() {
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 60000); // Check every minute
     return () => clearInterval(interval);
-  }, []);
+  }, [user?.role]);
 
+  if (user?.role !== 'ADMIN') return null;
   if (unreadCount === null) return null;
 
   return (

@@ -65,6 +65,12 @@ export default function SettingsView() {
     smtpFrom: '',
     smtpSecure: false,
     smtpSecurity: 'STARTTLS',
+    smtpHostInvoices: '',
+    smtpPortInvoices: '587',
+    smtpUserInvoices: '',
+    smtpPassInvoices: '',
+    smtpFromInvoices: '',
+    smtpSecurityInvoices: 'STARTTLS',
     invoiceEmailSignature: `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; max-width: 450px;">
   <tbody><tr>
     <td style="padding-bottom: 20px;">

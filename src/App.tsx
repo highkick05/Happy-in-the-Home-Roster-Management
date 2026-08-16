@@ -276,9 +276,11 @@ function Layout({ children }: { children: React.ReactNode }) {
           
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Communication</div>
           <div className="space-y-0.5 mb-2">
-            <NavLink replace={true} to="/email" className={getNavClasses} title="Email">
-              <Mail className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Email' : ''}
-            </NavLink>
+            {user?.role === 'ADMIN' && (
+              <NavLink replace={true} to="/email" className={getNavClasses} title="Email">
+                <Mail className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Email' : ''}
+              </NavLink>
+            )}
             <NavLink replace={true} to="/chat" className={getNavClasses} title="Live Chat">
               <MessageSquare className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Live Chat' : ''}
             </NavLink>
@@ -422,7 +424,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       {/* Quick Links Floating Hover Tab */}
       {user?.role === 'ADMIN' && <QuickLinksDrawer />}
       <FloatingChatIcon />
-      <EmailFloatingWidget />
+      {user?.role === 'ADMIN' && <EmailFloatingWidget />}
     </div>
   );
 }
@@ -494,7 +496,7 @@ export default function App() {
             <Route path="/reset-password/:token" element={<ResetPasswordView />} />
             <Route path="/kiosk/wallboard" element={<WallboardView />} />
             <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
-            <Route path="/email" element={<ProtectedRoute><Layout><EmailView /></Layout></ProtectedRoute>} />
+            <Route path="/email" element={<ProtectedRoute adminOnly><Layout><EmailView /></Layout></ProtectedRoute>} />
             <Route path="/chat" element={<ProtectedRoute><Layout><ChatView /></Layout></ProtectedRoute>} />
             <Route path="/travel-logs" element={<ProtectedRoute><Layout><TravelLogsView /></Layout></ProtectedRoute>} />
             <Route path="/vehicles" element={<ProtectedRoute><Layout><VehiclesView /></Layout></ProtectedRoute>} />

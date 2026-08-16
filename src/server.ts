@@ -4275,7 +4275,7 @@ function getUnreadChatCount(db: any, userId: number) {
       res.status(500).json({ error: "Internal Server Error" });
     }
   });
-  app.get("/api/emails/unread-count", authenticateToken, async (req, res) => {
+  app.get("/api/emails/unread-count", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const stmt = db.prepare("SELECT value FROM settings WHERE key = ?");
       const result = stmt.get("imapAccounts");
