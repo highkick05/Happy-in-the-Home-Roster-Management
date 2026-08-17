@@ -8,7 +8,7 @@ webpush.setVapidDetails('mailto:admin@happyinthehome.org', VAPID_PUBLIC_KEY, VAP
 import express from "express";
 import { Server as SocketIOServer } from "socket.io";
 import http from "http";
-import { createServer as createViteServer } from "vite";
+
 import path from "path";
 import { fileURLToPath } from "url";
 import db from "../db.js";
@@ -18261,6 +18261,7 @@ function resolveFilePath(systemName) {
 
   if (process.env.NODE_ENV !== "production") {
     try {
+      const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
         server: {
           middlewareMode: true,
