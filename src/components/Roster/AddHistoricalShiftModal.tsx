@@ -119,6 +119,7 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
   }, [startTime, endTime, startDate, endDate]);
 
   const getServiceDetails = (s: ServiceFormEntry) => {
+    if (s.serviceId === 'orientation') { return { rate: 0, unit: 'Hour', name: 'Orientation' }; }
     if (s.serviceId === 'custom') {
       return { 
         rate: s.rateOverride !== undefined && s.rateOverride !== '' ? Number(s.rateOverride) : 0, 
@@ -326,7 +327,8 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
             const effectiveRate = (s.rateOverride !== undefined && s.rateOverride !== '') ? Number(s.rateOverride) : rate;
             return {
                 ...s,
-                serviceId: s.serviceId === 'custom' ? 'custom' : (s.serviceId ? parseInt(s.serviceId, 10) : null),
+                serviceId: s.serviceId === 'custom' ? 'custom' : (s.serviceId === 'orientation' ? 'orientation' : (s.serviceId ? parseInt(s.serviceId, 10) : null)),
+                customName: s.serviceId === 'orientation' ? 'Orientation' : s.customName,
                 qtyOverride: effectiveQty,
                 rateOverride: effectiveRate
             };
@@ -593,6 +595,7 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
                           className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
                         >
                           <option value="">-- Choose Personalised Service --</option>
+                          <option value="orientation">-- Orientation --</option>
                           <option value="custom">-- Custom Service --</option>
                           {clientPersonalisedServices.map(cs => (
                             <option key={cs.id} value={String(cs.id)}>{cs.name} ({cs.code})</option>
@@ -631,7 +634,8 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
                                 step="0.01"
                                 value={s.rateOverride !== undefined && s.rateOverride !== null ? s.rateOverride : ''}
                                 onChange={(e) => updateServiceEntry(index, 'rateOverride', e.target.value)}
-                                placeholder={`$${rate.toFixed(2)}`}
+                                placeholder={`${rate.toFixed(2)}`}
+                                disabled={s.serviceId === 'orientation'}
                                 className="w-24 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
                               />
                             </div>

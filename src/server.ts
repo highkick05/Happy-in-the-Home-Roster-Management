@@ -2192,14 +2192,15 @@ try {
         let srv = null;
         if (
           sd.isCustom ||
+          sd.serviceId === 'orientation' ||
           (sd.serviceId && String(sd.serviceId).startsWith("custom")) ||
           sd.serviceId === null
         ) {
           srv = {
             id: sd.serviceId || 'custom',
-            name: sd.customName || sd.name || "Custom Service",
-            rate: Number(sd.rateOverride || sd.customRate || 0),
-            unit: sd.customUnit || "Hour",
+            name: sd.serviceId === 'orientation' ? 'Orientation' : (sd.customName || sd.name || "Custom Service"),
+            rate: sd.serviceId === 'orientation' ? 0 : Number(sd.rateOverride || sd.customRate || 0),
+            unit: sd.serviceId === 'orientation' ? "Hour" : (sd.customUnit || "Hour"),
             code: sd.customCode || "CUSTOM",
             type: "CUSTOM",
           };
@@ -2767,7 +2768,27 @@ try {
     try {
       const data = getInvoiceDataForRespiteBooking(respiteBookingId);
       if (!data) return;
+
+      // Orientation check: if shift contains an orientation service, do not generate an invoice
+      let isOrientation = false;
+      try {
+          const shiftData = db.prepare("SELECT services_json FROM shifts WHERE id = ?").get(shiftId) as any;
+          if (shiftData && shiftData.services_json) {
+              const parsed = JSON.parse(shiftData.services_json);
+              if (Array.isArray(parsed) && parsed.some((p: any) => p.serviceId === 'orientation')) {
+                  isOrientation = true;
+              }
+          }
+      } catch (e) {}
+
+      if (isOrientation) {
+          console.log(`[DEBUG] Skipping invoice generation because shift ${shiftId} contains Orientation service`);
+          db.prepare("DELETE FROM invoices WHERE shift_id = ? AND status != 'PAID'").run(shiftId);
+          return;
+      }
+
       if (data.lineItems.length === 0) return;
+
 
       const {
         shift,
@@ -9293,7 +9314,7 @@ app.get("/api/health", (req, res) => {
         (servicesData && servicesData.length > 0
           ? servicesData[0].serviceId
           : serviceId);
-      if (mainServiceId === 'custom') mainServiceId = null;
+      if (mainServiceId === 'custom' || mainServiceId === 'orientation') mainServiceId = null;
 
       // Conflict Checking
       if (!ignoreConflicts && status !== 'CANCELLED') {
@@ -9319,12 +9340,13 @@ app.get("/api/health", (req, res) => {
           const conflict = db
             .prepare(`
               SELECT id, start_time, end_time, client_id FROM shifts 
-              WHERE staff_id = ? AND status != 'CANCELLED'
+              WHERE staff_id = ? AND status != 'CANCELLED' AND id != ?
               AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))
               LIMIT 1
             `)
             .get(
               singleStaffId,
+              -1, // Dummy ID for create so we don't conflict with nothing
               endDateTime,
               startDateTime,
               endDateTime,
@@ -9785,7 +9807,7 @@ app.get("/api/health", (req, res) => {
           (processedServicesData && processedServicesData.length > 0
             ? processedServicesData[0].serviceId
             : serviceId || existing.service_id);
-        if (mainServiceId === 'custom') mainServiceId = null;
+        if (mainServiceId === 'custom' || mainServiceId === 'orientation') mainServiceId = null;
 
         const finalFundingType =
           fundingType ||

@@ -469,6 +469,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
                           onChange={e => updateService(idx, 'serviceId', e.target.value)}
                         >
                           <option value="">Select Service</option>
+                          <option value="orientation">-- Orientation --</option>
                           {clientPersonalisedServices.map(s => (
                             <option key={s.id} value={s.id}>{s.name} ({s.code || 'No Code'})</option>
                           ))}
@@ -492,6 +493,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
                               value={row.rateOverride || ''}
                               onChange={(e) => updateService(idx, 'rateOverride', e.target.value)}
                               placeholder={rate.toFixed(2)}
+                              disabled={row.serviceId === 'orientation'}
                               className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
                             />
                           </div>
