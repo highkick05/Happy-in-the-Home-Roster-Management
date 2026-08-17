@@ -322,11 +322,23 @@ async function startServer() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         services_json TEXT,
         merged_into_invoice_id INTEGER,
-        custom_staff_name TEXT
+        custom_staff_name TEXT,
+        attachments_json TEXT
       );
     `);
 
     // Auto-migrate chat_messages table to add file columns if missing
+      try {
+        const invCols = db.prepare("PRAGMA table_info(invoices)").all();
+        const hasAttachments = invCols.some((c: any) => c.name === 'attachments_json');
+        if (!hasAttachments) {
+          db.prepare("ALTER TABLE invoices ADD COLUMN attachments_json TEXT").run();
+          console.log("Migrated invoices table to include attachments_json");
+        }
+      } catch(e) {
+        console.error("Failed to migrate invoices table:", e);
+      }
+
       try {
         const columns = db.prepare("PRAGMA table_info(chat_messages)").all();
         const hasFileUrl = columns.some(c => c.name === 'file_url');
