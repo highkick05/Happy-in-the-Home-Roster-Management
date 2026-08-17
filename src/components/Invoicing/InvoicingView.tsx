@@ -581,6 +581,54 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
             </div>
           );
         })()}
+
+        <div className="pt-2">
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-1.5">Additional Evidence (Attachments)</label>
+          <div 
+            className="border-2 border-dashed border-white/10 rounded-md p-4 text-center hover:bg-white/[0.02] transition-colors cursor-pointer"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                setAttachments(prev => [...prev, ...Array.from(e.dataTransfer.files!)]);
+              }
+            }}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input 
+              type="file" 
+              multiple 
+              className="hidden" 
+              ref={fileInputRef}
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  setAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
+                }
+              }}
+            />
+            <p className="text-xs text-zinc-500">Drag & drop files here, or click to select files</p>
+            {attachments.length > 0 && (
+              <div className="mt-2 text-left flex flex-col gap-1">
+                {attachments.map((f, i) => (
+                  <div key={i} className="flex justify-between items-center bg-white/5 px-2 py-1 rounded text-xs">
+                    <span className="text-zinc-300 truncate">{f.name}</span>
+                    <button 
+                      type="button" 
+                      className="text-red-400 hover:text-red-300 ml-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAttachments(prev => prev.filter((_, idx) => idx !== i));
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="flex space-x-2">
           <button
             type="button"
