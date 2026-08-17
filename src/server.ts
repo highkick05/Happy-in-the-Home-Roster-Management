@@ -2909,6 +2909,13 @@ try {
 
   const generateInvoiceForShift = (shiftId: number) => {
     try {
+      const shiftCheck = db.prepare("SELECT services_json FROM shifts WHERE id = ?").get(shiftId) as any;
+      if (shiftCheck && shiftCheck.services_json) {
+        if (shiftCheck.services_json.includes('"orientation"') || shiftCheck.services_json.includes('-- Orientation --')) {
+          console.log(`[DEBUG] Skipping invoice generation for orientation shift ${shiftId}`);
+          return;
+        }
+      }
       const data = getInvoiceDataForShift(shiftId);
       if (!data) return;
       if (data.lineItems.length === 0) return;
@@ -12201,9 +12208,10 @@ app.get("/api/health", (req, res) => {
           ? customStaffName || "Generic Staff"
           : null;
 
-        const mainServiceId = services[0].isCustom
+        let mainServiceId = services[0].isCustom
           ? null
           : services[0].serviceId;
+        if (mainServiceId === 'custom' || mainServiceId === 'orientation') mainServiceId = null;
         if (req.body.gstType && services.length > 0) {
           services[0].gstType = req.body.gstType;
         }
@@ -16866,6 +16874,16 @@ function resolveFilePath(systemName) {
   }
 
   // Migration to sync shift.service_id with services_json
+  // Cleanup $0 Orientation Invoices
+  try {
+    const shiftsWithOrientation = db.prepare("SELECT id FROM shifts WHERE services_json LIKE '%orientation%' OR services_json LIKE '%-- Orientation --%'").all() as {id: number}[];
+    for (const shift of shiftsWithOrientation) {
+      db.prepare("DELETE FROM invoices WHERE shift_id = ?").run(shift.id);
+    }
+  } catch (e) {
+    console.error("Cleanup orientation invoices failed:", e);
+  }
+
   try {
     const shiftsToSync = db.prepare("SELECT id, service_id, services_json FROM shifts").all() as any[];
     let synced = 0;
