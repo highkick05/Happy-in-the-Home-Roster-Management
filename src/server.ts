@@ -35,6 +35,7 @@ function getHistoricalServiceData(db, srv, shiftDateStr) {
 
 import * as xlsx from "xlsx";
 import PDFDocument from "pdfkit";
+import { PDFDocument as PDFLibDocument } from "pdf-lib";
 import fs from "fs";
 import morgan from "morgan";
 import winston from "winston";
@@ -2041,7 +2042,7 @@ try {
 
         lineItems.push({
           date: sd.date || "",
-          time: sd.time || "",
+          time: sd.omitTime ? "" : (sd.time || ""),
           serviceName: srv.name,
           code: srv.code || srv.id,
           metadata: sd.staffName ? `Provided by ${sd.staffName}` : "",
@@ -2276,7 +2277,7 @@ try {
 
             lineItems.push({
               date: sd.date || shiftDateStr,
-              time: sd.time || timeStr,
+              time: sd.omitTime ? "" : (sd.time || timeStr),
               serviceName: srv.name,
               code: srv.code || srv.id,
               metadata: sd.staffName
@@ -12099,8 +12100,9 @@ app.get("/api/health", (req, res) => {
     "/api/invoices/manual",
     authenticateToken,
     requireAdmin,
+    upload.array("attachments"),
     (req: any, res: any) => {
-      const {
+      let {
         clientId,
         staffId,
         services,
@@ -12111,6 +12113,14 @@ app.get("/api/health", (req, res) => {
         endDateTime,
         customStaffName,
       } = req.body;
+      
+      if (typeof services === 'string') {
+        try {
+          services = JSON.parse(services);
+        } catch(e) {
+          return res.status(400).json({ error: "Invalid services JSON" });
+        }
+      }
 
       if (
         !clientId ||
@@ -12118,14 +12128,15 @@ app.get("/api/health", (req, res) => {
         !services ||
         !Array.isArray(services) ||
         services.length === 0 ||
-        !date ||
-        !startTime ||
-        !endTime
+        !date
       ) {
         return res
           .status(400)
           .json({ error: "Missing required fields or services array" });
       }
+
+      const finalStartTime = startTime || '00:00';
+      const finalEndTime = endTime || '00:00';
 
       try {
         const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
@@ -12135,17 +12146,17 @@ app.get("/api/health", (req, res) => {
         const portalTimezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
 
         // Parse date and time in the portal's timezone
-        const finalStartDateTime = fromZonedTime(`${date}T${startTime}:00`, portalTimezone).toISOString();
+        const finalStartDateTime = fromZonedTime(`${date}T${finalStartTime}:00`, portalTimezone).toISOString();
         
-        let endDateTimeStr = `${date}T${endTime}:00`;
-        if (endTime <= startTime) {
+        let endDateTimeStr = `${date}T${finalEndTime}:00`;
+        if (finalEndTime <= finalStartTime) {
           const [year, month, day] = date.split("-").map(Number);
           const nextDay = new Date(year, month - 1, day);
           nextDay.setDate(nextDay.getDate() + 1);
           const y = nextDay.getFullYear();
           const m = String(nextDay.getMonth() + 1).padStart(2, "0");
           const rDay = String(nextDay.getDate()).padStart(2, "0");
-          endDateTimeStr = `${y}-${m}-${rDay}T${endTime}:00`;
+          endDateTimeStr = `${y}-${m}-${rDay}T${finalEndTime}:00`;
         }
         const finalEndDateTime = fromZonedTime(endDateTimeStr, portalTimezone).toISOString();
 
@@ -12162,6 +12173,11 @@ app.get("/api/health", (req, res) => {
         if (req.body.gstType && services.length > 0) {
           services[0].gstType = req.body.gstType;
         }
+
+        if (!startTime && !endTime) {
+          services.forEach((s: any) => s.omitTime = true);
+        }
+
         const servicesJson = JSON.stringify(services);
 
         const clientRow = db.prepare("SELECT funding_type FROM clients WHERE id = ?").get(clientId) as any;
@@ -12191,6 +12207,16 @@ app.get("/api/health", (req, res) => {
 
         // 2. Generate the invoice
         generateInvoiceForShift(shiftId);
+
+        const attachments = (req.files as any[])?.map(f => ({
+          filename: f.originalname,
+          path: f.path,
+          mimetype: f.mimetype
+        })) || [];
+
+        if (attachments.length > 0) {
+          db.prepare("UPDATE invoices SET attachments_json = ? WHERE shift_id = ?").run(JSON.stringify(attachments), shiftId);
+        }
 
         const invoice = db
           .prepare("SELECT * FROM invoices WHERE shift_id = ?")
@@ -12331,7 +12357,7 @@ app.get("/api/health", (req, res) => {
                   ...sd,
                   qtyOverride: finalQty,
                   date: sd.date || shiftDateStr,
-                  time: sd.time || timeStr,
+                  time: sd.omitTime ? "" : (sd.time || timeStr),
                   staffName: sd.staffName || staffName,
                 });
               }
@@ -13116,6 +13142,78 @@ app.get("/api/health", (req, res) => {
         if (data.lineItems.length === 0)
           return res.status(400).json({ error: "No billable items" });
 
+        
+        if (invoiceRow.attachments_json) {
+          try {
+            const attachments = JSON.parse(invoiceRow.attachments_json);
+            if (attachments && attachments.length > 0) {
+              const buffers: Buffer[] = [];
+              const doc = new PDFDocument({ margin: 50 });
+              doc.on('data', (chunk: any) => buffers.push(chunk));
+              doc.on('end', async () => {
+                try {
+                  const basePdfBuffer = Buffer.concat(buffers);
+                  const mergedPdf = await PDFLibDocument.load(basePdfBuffer);
+                  
+                  for (const att of attachments) {
+                    if (!fs.existsSync(att.path)) continue;
+                    const attBytes = fs.readFileSync(att.path);
+                    
+                    if (att.mimetype === 'application/pdf') {
+                      try {
+                        const attPdf = await PDFLibDocument.load(attBytes);
+                        const copiedPages = await mergedPdf.copyPages(attPdf, attPdf.getPageIndices());
+                        copiedPages.forEach(page => mergedPdf.addPage(page));
+                      } catch (e) {
+                        console.error('Failed to merge PDF attachment', e);
+                      }
+                    } else if (att.mimetype.startsWith('image/')) {
+                      try {
+                        let image;
+                        if (att.mimetype === 'image/jpeg') {
+                          image = await mergedPdf.embedJpg(attBytes);
+                        } else if (att.mimetype === 'image/png') {
+                          image = await mergedPdf.embedPng(attBytes);
+                        }
+                        if (image) {
+                          const page = mergedPdf.addPage();
+                          const { width, height } = page.getSize();
+                          const imgDims = image.scaleToFit(width - 100, height - 100);
+                          page.drawImage(image, {
+                            x: page.getWidth() / 2 - imgDims.width / 2,
+                            y: page.getHeight() / 2 - imgDims.height / 2,
+                            width: imgDims.width,
+                            height: imgDims.height,
+                          });
+                        }
+                      } catch (e) {
+                        console.error('Failed to merge Image attachment', e);
+                      }
+                    }
+                  }
+                  
+                  const finalBytes = await mergedPdf.save();
+                  res.setHeader("Content-Type", "application/pdf");
+                  res.setHeader(
+                    "Content-Disposition",
+                    `attachment; filename="${data.invoiceNum}.pdf"`
+                  );
+                  res.setHeader("Content-Length", finalBytes.length);
+                  res.end(Buffer.from(finalBytes));
+                } catch(e) {
+                   console.error('Error merging', e);
+                   res.status(500).end();
+                }
+              });
+              buildInvoicePdf(doc, data);
+              doc.end();
+              return; // We are done here
+            }
+          } catch(e) {
+            console.error("Failed to parse attachments", e);
+          }
+        }
+        
         res.setHeader("Content-Type", "application/pdf");
         res.setHeader(
           "Content-Disposition",
@@ -13128,6 +13226,7 @@ app.get("/api/health", (req, res) => {
         buildInvoicePdf(doc, data);
 
         doc.end();
+
       } catch (e: any) {
         console.error("Failed to generate dynamic invoice:", e);
         if (!res.headersSent)

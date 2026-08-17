@@ -31,6 +31,8 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
   ]);
   
   const [options, setOptions] = useState<{ clients: any[], staff: any[], services: any[] }>({ clients: [], staff: [], services: [] });
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -198,17 +200,24 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
     setSubmitting(true);
     
     try {
-      const res = await fetch('/api/invoices/manual', {
+      
+      const submitData = new FormData();
+      Object.entries(formData).forEach(([key, val]) => {
+        submitData.append(key, val);
+      });
+      submitData.append('services', JSON.stringify(validServices));
+      attachments.forEach(file => {
+        submitData.append('attachments', file);
+      });
+
+      const res = await fetch('/api/invoices/manual?folderPath=Invoices/Attachments', {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}` 
         },
-        body: JSON.stringify({
-          ...formData,
-          services: validServices
-        })
+        body: submitData
       });
+  
       
       const data = await res.json();
       if (res.ok) {
@@ -287,18 +296,16 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Start Time</label>
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Start Time (Optional)</label>
           <CustomTimePicker
-            required
             className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none font-mono text-sm"
             value={formData.startTime}
             onChange={e => setFormData({ ...formData, startTime: e.target.value })}
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">End Time</label>
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">End Time (Optional)</label>
           <CustomTimePicker
-            required
             className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none font-mono text-sm"
             value={formData.endTime}
             onChange={e => setFormData({ ...formData, endTime: e.target.value })}

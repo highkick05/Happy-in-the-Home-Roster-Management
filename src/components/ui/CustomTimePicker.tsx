@@ -82,13 +82,27 @@ export function CustomTimePicker({
           value={value ? `${hour}:${minute}` : ""}
           placeholder={placeholder}
           onClick={() => setShow(!show)}
-          className={`${className} cursor-pointer pr-7`}
+          className={`${className} cursor-pointer pr-12`}
           name={name}
           id={id}
           required={required}
         />
-        <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none text-zinc-400">
-          <Clock className="w-4 h-4" />
+        <div className="absolute inset-y-0 right-0 flex items-center pr-2 text-zinc-400">
+          {!required && value && (
+            <button
+              type="button"
+              className="mr-1 hover:text-white pointer-events-auto"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange({ target: { name, value: '' } });
+                setShow(false);
+              }}
+              title="Clear time"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          )}
+          <Clock className="w-4 h-4 pointer-events-none" />
         </div>
       </div>
 
