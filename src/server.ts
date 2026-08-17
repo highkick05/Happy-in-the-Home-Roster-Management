@@ -3493,6 +3493,19 @@ function getUnreadChatCount(db: any, userId: number) {
       } else {
         typingUsers.delete(req.user.id);
       }
+      
+      const io = req.app.get('io');
+      if (io) {
+        const activeTyping = [];
+        const now = Date.now();
+        for (const [userId, data] of typingUsers.entries()) {
+          if (now - data.lastTyped <= 4000) {
+            activeTyping.push({ userId, userName: data.userName });
+          }
+        }
+        io.emit('chat_typing_update', activeTyping);
+      }
+      
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ error: "Server error" });
