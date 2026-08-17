@@ -203,7 +203,7 @@ export default function WallboardView() {
           clientId: d.client_id,
           clientName: `${d.client_first_name} ${d.client_last_name}`.trim(),
           status: d.status,
-          serviceName: d.service_name,
+          serviceName: d.service_name || (d.services_json && String(d.services_json).includes('orientation') ? 'Orientation' : (d.services_json && String(d.services_json).includes('custom') ? 'Custom Service' : '')),
           actualStartTime: d.actual_start_time,
           actualEndTime: d.actual_finish_time,
         }));
@@ -235,7 +235,7 @@ export default function WallboardView() {
                 clientId: d.client_id,
                 clientName: `${d.client_first_name} ${d.client_last_name}`.trim(),
                 status: s.status,
-                serviceName: s.service_name,
+                serviceName: s.service_name || (s.services_json && String(s.services_json).includes('orientation') ? 'Orientation' : (s.services_json && String(s.services_json).includes('custom') ? 'Custom Service' : '')),
                 actualStartTime: s.actual_start_time,
                 actualEndTime: s.actual_finish_time,
               });

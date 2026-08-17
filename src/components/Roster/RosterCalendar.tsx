@@ -907,7 +907,14 @@ export default function RosterCalendar() {
                       <div className="flex flex-wrap gap-1 min-w-0">
                         {event.servicesData.map((sd: any, idx: number) => {
                           const srv = servicesList.find((s: any) => String(s.id) === String(sd.serviceId));
-                          const srvName = srv ? srv.name : (sd.serviceName || (idx === 0 ? event.serviceName : 'Unknown Service'));
+                          let srvName = srv ? srv.name : (sd.serviceName || (idx === 0 ? event.serviceName : 'Unknown Service'));
+                          if (!srvName || srvName === 'Unknown Service') {
+                            if (String(sd.serviceId).toLowerCase().includes('orientation')) {
+                              srvName = 'Orientation';
+                            } else if (String(sd.serviceId).toLowerCase().includes('custom')) {
+                              srvName = sd.serviceName || 'Custom Service';
+                            }
+                          }
                           return (
                             <span key={idx} className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-[10px] max-w-full truncate" title={srvName}>
                               {srvName}
