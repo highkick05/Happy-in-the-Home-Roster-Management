@@ -3076,7 +3076,7 @@ try {
     db.prepare("UPDATE users SET last_active_role = ? WHERE id = ?").run(targetRole, user.id);
 
     const token = jwt.sign({ id: user.id, role: targetRole }, process.env.JWT_SECRET || "happyinthehome-secret-key-123", {
-      expiresIn: "1d",
+      expiresIn: "180d",
     });
 
     res.json({
@@ -3114,7 +3114,7 @@ try {
     }
 
     const token = jwt.sign({ id: user.id, role: loginRole }, JWT_SECRET, {
-      expiresIn: "1d",
+      expiresIn: "180d",
     });
 
     // Also attach safe settings

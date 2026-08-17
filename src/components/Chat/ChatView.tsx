@@ -911,17 +911,20 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
               );
             })
           )}
-          {/* Typing Indicator */}
+          <div ref={messagesEndRef} className="h-6" />
+        </div>
+
+        {/* Typing Indicator */}
         {typingUsers.length > 0 && (
-          <div className="flex items-center space-x-2 text-xs text-brand-teal italic mt-4 pl-4 animate-pulse shrink-0">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <span>{typingUsers.length === 1 ? `${typingUsers[0]} is typing...` : `${typingUsers.join(', ')} are typing...`}</span>
+          <div className="px-4 py-2 bg-[#11161d]/95 backdrop-blur-md shrink-0 flex items-center space-x-2 text-xs text-brand-teal italic z-20 border-t border-white/[0.05] shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.5)]">
+            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+            <span className="animate-pulse truncate max-w-full">
+              {typingUsers.length === 1 ? `${typingUsers[0]} is typing...` : `${typingUsers.join(', ')} are typing...`}
+            </span>
           </div>
         )}
-        <div ref={messagesEndRef} className="h-6" />
-      </div>
 
-      {/* Input Area */}
+        {/* Input Area */}
         <div className="p-4 bg-[#11161d]/90 backdrop-blur-md border-t border-border-subtle shrink-0 relative z-10">
           <div className="flex flex-col space-y-2">
             {attachments.length > 0 && (
