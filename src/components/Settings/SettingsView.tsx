@@ -58,6 +58,7 @@ export default function SettingsView() {
     invoicePrefix: 'INV-',
     ndisInvoicePrefix: 'INV-',
     hcInvoicePrefix: 'HC-',
+    cancellationNoticePeriod: '24',
     smtpHost: '',
     smtpPort: '587',
     smtpUser: '',
@@ -909,6 +910,21 @@ export default function SettingsView() {
                  </div>
               </div>
 
+              <div className="col-span-2 border-t border-border-subtle pt-6 mt-6">
+                 <h4 className="text-md font-medium text-[#E6EDF3] mb-4">Cancellation Policy</h4>
+                 <div className="flex flex-col gap-2 p-4 border border-border-subtle bg-brand-navy rounded-xl shadow-sm">
+                   <label className="text-sm font-medium text-slate-400">Cancellation Notice Period (Hours)</label>
+                   <input
+                      type="number"
+                      name="cancellationNoticePeriod"
+                     value={settings.cancellationNoticePeriod !== undefined ? settings.cancellationNoticePeriod : 24}
+                     onChange={e => setSettings({...settings, cancellationNoticePeriod: e.target.value})}
+                     className="w-full md:w-1/3 bg-slate-900 border border-slate-700 rounded p-2 text-white"
+                     placeholder="e.g., 24"
+                   />
+                   <p className="text-xs text-slate-500">Default number of hours required for shift cancellation notice.</p>
+                 </div>
+              </div>
               <div className="pt-6">
                 <button type="submit" disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
                   <Save className="w-4 h-4 mr-2" />
