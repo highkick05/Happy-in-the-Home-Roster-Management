@@ -529,7 +529,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
         </div>
       </div>
 
-      <div className="pt-4 border-t border-white/[0.08] flex justify-between items-center space-x-3 mt-4">
+      <div className="pt-4 border-t border-white/[0.08] flex flex-col md:flex-row md:items-end justify-between gap-4 mt-4">
         {(() => {
           const computedSubtotal = selectedServices.reduce((acc, s) => {
              let { rate, unit, name } = getServiceDetails(s.serviceId);
@@ -567,7 +567,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
           const computedTotal = computedSubtotal + computedGst;
 
           return (
-            <div className="flex flex-col text-white text-sm font-medium">
+            <div className="flex flex-col text-white text-sm font-medium shrink-0">
               <div className="flex items-center justify-between text-xs text-zinc-400 mb-1 w-48">
                 <span>Subtotal:</span>
                 <span className="font-mono">${computedSubtotal.toFixed(2)}</span>
@@ -584,7 +584,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
           );
         })()}
 
-        <div className="pt-2">
+        <div className="pt-2 flex-1 min-w-0 w-full max-w-full md:max-w-md">
           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-1.5">Additional Evidence (Attachments)</label>
           <div 
             className="border-2 border-dashed border-white/10 rounded-md p-4 text-center hover:bg-white/[0.02] transition-colors cursor-pointer"
@@ -612,8 +612,8 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
             {attachments.length > 0 && (
               <div className="mt-2 text-left flex flex-col gap-1">
                 {attachments.map((f, i) => (
-                  <div key={i} className="flex justify-between items-center bg-white/5 px-2 py-1 rounded text-xs">
-                    <span className="text-zinc-300 truncate">{f.name}</span>
+                  <div key={i} className="flex justify-between items-center bg-white/5 px-2 py-1 rounded text-xs overflow-hidden w-full">
+                    <span className="text-zinc-300 truncate min-w-0 flex-1 mr-2">{f.name}</span>
                     <button 
                       type="button" 
                       className="text-red-400 hover:text-red-300 ml-2"
@@ -631,7 +631,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
           </div>
         </div>
 
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 shrink-0 w-full md:w-auto justify-end mt-2 md:mt-0">
           <button
             type="button"
             onClick={onClose}
