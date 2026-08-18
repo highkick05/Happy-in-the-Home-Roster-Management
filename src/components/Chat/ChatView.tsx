@@ -594,7 +594,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
   return (
     <div 
-      className={`flex flex-col flex-1 h-full min-h-0 relative ${isMini ? 'p-0 pb-0' : 'p-2 md:p-6 pb-20 md:pb-6'}`}
+      className={`flex flex-col flex-1 h-full min-h-0 relative ${isMini ? 'p-0 pb-0' : 'p-2 md:p-6 pb-2 md:pb-6'}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -944,7 +944,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                 ))}
               </div>
             )}
-            <form onSubmit={handleSendMessage} className="flex space-x-2 items-end">
+            <form onSubmit={handleSendMessage} className="flex space-x-2 items-end w-full max-w-full overflow-hidden">
             <input 
               type="file" 
               className="hidden" 
@@ -969,7 +969,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
               }} 
             />
             
-            <div className="relative flex-1 flex flex-col bg-brand-navy border border-border-subtle rounded-lg focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal">
+            <div className="relative flex-1 min-w-0 flex flex-col bg-brand-navy border border-border-subtle rounded-lg focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal">
               
               {selectedGif && (
                 <div className="relative inline-block m-2 w-max">
