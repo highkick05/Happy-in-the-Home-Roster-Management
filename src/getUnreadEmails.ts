@@ -24,8 +24,8 @@ export async function getUnreadCount(config: any) {
     connection.end();
     
     return messages.length;
-  } catch (err) {
-    console.error("IMAP error:", err);
+  } catch (err: any) {
+    // Silenced IMAP errors to keep Docker logs clean
     return 0;
   }
 }
