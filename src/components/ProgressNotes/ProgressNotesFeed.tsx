@@ -68,15 +68,6 @@ export default function ProgressNotesFeed({
   const [editTags, setEditTags] = useState('');
   const editEditorRef = useRef<EditorJSRef>(null);
 
-  const [page, setPage] = useState(1);
-  const pageSize = 14;
-  
-  useEffect(() => {
-    setPage(1);
-  }, [selectedClientId]);
-  
-  const paginatedNotes = notes.slice((page - 1) * pageSize, page * pageSize);
-  const totalPages = Math.ceil(notes.length / pageSize);
   const colsCount = useBreakpoint();
 
   const handleSubmit = async () => {
@@ -259,7 +250,7 @@ export default function ProgressNotesFeed({
                 )
               });
             } else {
-              paginatedNotes.forEach((note, idx) => {
+              notes.forEach((note, idx) => {
                 let estH = 110;
                 if (editingNote?.source === note.source && editingNote?.id === note.id) {
                    estH = 320;
@@ -269,7 +260,7 @@ export default function ProgressNotesFeed({
                 }
                 if (note.tags) estH += 28;
                 allItems.push({ h: estH, el: (
-            <div key={`${note.source}-${note.id}-${idx}`} className={`rounded-xl border p-3 shadow-sm mb-4 break-inside-avoid ${note.tags?.includes('Incident') ? 'bg-red-500/10 border-red-500/50' : 'bg-brand-navy border-border-subtle'}`}>
+            <div key={`${note.source}-${note.id}-${idx}`} className={`rounded-xl border p-3 shadow-sm break-inside-avoid ${note.tags?.includes('Incident') ? 'bg-red-500/10 border-red-500/50' : 'bg-brand-navy border-border-subtle'}`}>
                <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="text-[12px] text-zinc-300">
@@ -373,35 +364,15 @@ export default function ProgressNotesFeed({
               }
               
               columns[currentColumn].push(item.el);
-              colHeights[currentColumn] += item.h + 16;
+              colHeights[currentColumn] += item.h + 8;
             });
 
             return columns.map((colItems, colIdx) => (
-              <div key={colIdx} className="flex flex-col gap-4 flex-1 min-w-0">
+              <div key={colIdx} className="flex flex-col gap-2 flex-1 min-w-0">
                 {colItems}
               </div>
             ));
           })()}
-        </div>
-      )}
-      
-      {totalPages > 1 && (
-        <div className="flex items-center justify-end gap-3 pt-2">
-           <button 
-             onClick={() => setPage(Math.max(1, page - 1))}
-             disabled={page === 1}
-             className="px-2 py-1 bg-brand-navy border border-border-subtle rounded text-[12px] text-white disabled:opacity-50"
-           >
-             Prev
-           </button>
-           <span className="text-[12px] text-zinc-400">Page {page} of {totalPages}</span>
-           <button 
-             onClick={() => setPage(Math.min(totalPages, page + 1))}
-             disabled={page === totalPages}
-             className="px-2 py-1 bg-brand-navy border border-border-subtle rounded text-[12px] text-white disabled:opacity-50"
-           >
-             Next
-           </button>
         </div>
       )}
     </div>

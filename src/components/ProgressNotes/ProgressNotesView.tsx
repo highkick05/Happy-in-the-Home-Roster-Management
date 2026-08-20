@@ -19,6 +19,16 @@ export default function ProgressNotesView() {
   const [staffList, setStaffList] = useState<any[]>([]);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const pageSize = 14;
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedClientId, fromDate, toDate]);
+
+  const totalPages = Math.ceil(notes.length / pageSize);
+  const paginatedNotes = notes.slice((page - 1) * pageSize, page * pageSize);
+
   useEffect(() => {
     if (user?.role === 'ADMIN') {
       fetch('/api/staff', { headers: { Authorization: `Bearer ${token}` } })
@@ -200,9 +210,29 @@ export default function ProgressNotesView() {
               </svg>
               {downloadingPDF ? 'Generating...' : 'Download PDF'}
             </button>
-            <button className="bg-[#2D3325] text-[#93C55A] border border-[#93C55A]/30 px-2 h-7 rounded-md text-[12px] font-medium hover:bg-[#3A422F] transition-colors flex items-center justify-center">
-              Time Critical Alert
-            </button>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2 bg-brand-navy border border-white/10 px-2 h-7 rounded-md">
+                <button 
+                  onClick={() => setPage(Math.max(1, page - 1))}
+                  disabled={page === 1}
+                  className="text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <span className="text-[11px] text-zinc-300 font-medium whitespace-nowrap">Page {page} of {totalPages}</span>
+                <button 
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
+                  disabled={page === totalPages}
+                  className="text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            )}
          </div>
        </div>
 
@@ -213,7 +243,7 @@ export default function ProgressNotesView() {
          availableClients={clients}
          selectedClientId={selectedClientId}
          onClientChange={setSelectedClientId}
-         notes={notes}
+         notes={paginatedNotes}
          onSubmitNote={handleSubmitNote}
          onDeleteNote={handleDeleteNote}
          onEditNote={handleEditNote}
