@@ -7626,9 +7626,9 @@ app.get("/api/health", (req, res) => {
         const doc = new PDFDocument({ margin: 50 });
         doc.pipe(res);
 
+        let logoBuffer: Buffer | null = null;
         if (settingsMap.letterheadLogo) {
           try {
-            let buffer: Buffer | null = null;
             if (settingsMap.letterheadLogo.startsWith("/api/assets/")) {
               const fileWithQuery = settingsMap.letterheadLogo.split("/").pop();
               const filename = fileWithQuery.split("?")[0];
@@ -7636,34 +7636,38 @@ app.get("/api/health", (req, res) => {
               const uploadsAssetPath = path.join(process.cwd(), "uploads", "assets", filename);
               const oldAssetPath = path.join(process.cwd(), "assets", filename);
               if (fs.existsSync(uploadsAssetPath)) {
-                buffer = fs.readFileSync(uploadsAssetPath);
+                logoBuffer = fs.readFileSync(uploadsAssetPath);
               } else if (fs.existsSync(persistentAssetPath)) {
-                buffer = fs.readFileSync(persistentAssetPath);
+                logoBuffer = fs.readFileSync(persistentAssetPath);
               } else if (fs.existsSync(oldAssetPath)) {
-                buffer = fs.readFileSync(oldAssetPath);
+                logoBuffer = fs.readFileSync(oldAssetPath);
               }
             } else if (settingsMap.letterheadLogo.startsWith("data:image/")) {
               const base64Data = settingsMap.letterheadLogo.replace(
                 /^data:image\/\w+;base64,/,
                 ""
               );
-              buffer = Buffer.from(base64Data, "base64");
-            }
-            if (buffer) {
-              doc.image(buffer, 50, 40, { fit: [200, 80] });
-              // Move cursor below the logo
-              doc.y = 130;
+              logoBuffer = Buffer.from(base64Data, "base64");
             }
           } catch (err) {
             console.error("Error loading letterhead logo for Progress Notes PDF:", err);
           }
         }
 
-        doc.fontSize(20).text('Progress Notes', { align: 'center' });
-        doc.moveDown();
+        // Draw logo in the top right
+        if (logoBuffer) {
+          doc.image(logoBuffer, doc.page.width - 50 - 200, 40, { fit: [200, 80], align: 'right' });
+        }
 
-        doc.fontSize(12).font('Helvetica-Bold').text('Participant Details');
-        doc.font('Helvetica').text(`ID: ${client.id}`);
+        // Reset y so title starts at top left
+        doc.y = 50;
+
+        doc.fontSize(24).font('Helvetica-Bold').text('Progress Notes');
+        doc.moveDown(1.5);
+
+        doc.fontSize(10).font('Helvetica-Bold').text('Participant Details');
+        doc.font('Helvetica').fontSize(9);
+        doc.text(`ID: ${client.id}`);
         doc.text(`Name: ${client.first_name} ${client.last_name}`);
         if (client.ndis_number) doc.text(`NDIS Number: ${client.ndis_number}`);
         if (client.my_aged_care_id) doc.text(`My Aged Care ID: ${client.my_aged_care_id}`);
