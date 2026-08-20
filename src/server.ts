@@ -7193,7 +7193,12 @@ app.get("/api/health", (req, res) => {
           const target = isoObj || fallbackObj;
           if (!target) return { date: "N/A", time: "N/A" };
           try {
-            const d = new Date(target);
+            let d;
+            if (!target.endsWith('Z') && !target.includes('+')) {
+              d = new Date(target + 'Z');
+            } else {
+              d = new Date(target);
+            }
             if (isNaN(d.getTime())) {
               return {
                 date: formatYMDtoDMY(target.split("T")[0] || target),
@@ -7669,7 +7674,17 @@ app.get("/api/health", (req, res) => {
           doc.fontSize(10).text("No progress notes found for the selected period.");
         } else {
           notes.forEach((note: any) => {
-            const dateStr = new Date(note.start_time).toLocaleString('en-GB', { timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+            let dateStr = '';
+            if (note.start_time) {
+              let st = note.start_time;
+              if (!st.endsWith('Z') && !st.includes('+')) {
+                const d = new Date(st + 'Z');
+                dateStr = d.toLocaleString('en-GB', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+              } else {
+                const d = new Date(st);
+                dateStr = d.toLocaleString('en-GB', { timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+              }
+            }
             doc.fontSize(11).font('Helvetica-Bold').text(`Date: ${dateStr}`);
             doc.fontSize(10).font('Helvetica').text(`Staff: ${note.staff_first_name} ${note.staff_last_name}${note.staff_primary_position ? ` (${note.staff_primary_position})` : ''}`.trim());
             
@@ -15771,7 +15786,12 @@ function resolveFilePath(systemName) {
           const target = isoObj || fallbackObj;
           if (!target) return { date: "N/A", time: "N/A" };
           try {
-            const d = new Date(target);
+            let d;
+            if (!target.endsWith('Z') && !target.includes('+')) {
+              d = new Date(target + 'Z');
+            } else {
+              d = new Date(target);
+            }
             if (isNaN(d.getTime())) {
               // Might be HH:mm already. So try to parse back
               return {
@@ -16228,7 +16248,12 @@ function resolveFilePath(systemName) {
           const target = isoObj || fallbackObj;
           if (!target) return { date: "N/A", time: "N/A" };
           try {
-            const d = new Date(target);
+            let d;
+            if (!target.endsWith('Z') && !target.includes('+')) {
+              d = new Date(target + 'Z');
+            } else {
+              d = new Date(target);
+            }
             if (isNaN(d.getTime())) {
               return {
                 date: formatYMDtoDMY(target.split("T")[0] || target),
@@ -16265,7 +16290,12 @@ function resolveFilePath(systemName) {
         ) => {
           const target = isoObj || fallbackObj;
           if (!target) return new Date();
-          const d = new Date(target);
+          let d;
+            if (!target.endsWith('Z') && !target.includes('+')) {
+              d = new Date(target + 'Z');
+            } else {
+              d = new Date(target);
+            }
           if (isNaN(d.getTime())) return new Date();
           // To calculate duration correctly regardless of timezone, we can just use the absolute UTC milliseconds.
           return d;
