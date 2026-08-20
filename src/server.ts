@@ -7667,8 +7667,7 @@ app.get("/api/health", (req, res) => {
           notes.forEach((note: any) => {
             const dateStr = new Date(note.start_time).toLocaleString();
             doc.fontSize(11).font('Helvetica-Bold').text(`Date: ${dateStr}`);
-            doc.fontSize(10).font('Helvetica').text(`Staff: ${note.staff_first_name} ${note.staff_last_name} (${note.staff_role})`);
-            doc.text(`Source: ${note.source === 'SHIFT' ? 'Shift' : 'Manual Note'}`);
+            doc.fontSize(10).font('Helvetica').text(`Staff: ${note.staff_first_name} ${note.staff_last_name}${note.staff_primary_position ? ` (${note.staff_primary_position})` : ''}`.trim());
             
             let textContent = note.notes;
             try {
