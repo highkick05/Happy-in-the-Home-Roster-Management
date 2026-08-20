@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '../../context/AuthContext';
 
 interface Props {
   notes: any[];
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export default function PrintableClinicalChart({ notes, clientData, period }: Props) {
+  const { settings } = useAuth();
   // Redaction helper for compliance
   const redact = (value: string | undefined | null, fallback: string = '') => {
     return value ? value : fallback; 
@@ -121,8 +123,8 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                <div className="relative z-10 w-full h-full flex flex-col items-start justify-start pt-0 pb-0">
                   {notes.map((note) => {
                      const noteDate = new Date(note.start_time || note.actual_finish_time || note.end_time);
-                     const dateStr = noteDate.toLocaleDateString('en-GB');
-                     const timeStr = noteDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                     const dateStr = noteDate.toLocaleDateString('en-GB', { timeZone: settings?.timezone || 'Australia/Perth' });
+                     const timeStr = noteDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: settings?.timezone || 'Australia/Perth' });
                      
                      const staffName = [note.staff_first_name, note.staff_last_name].filter(Boolean).join(' ');
                      const roleStr = note.staff_primary_position || (note.staff_role === 'ADMIN' ? 'Administrator' : 'Support Worker');

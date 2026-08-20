@@ -7531,6 +7531,10 @@ app.get("/api/health", (req, res) => {
         const { clientId } = req.params;
         const { startDate, endDate } = req.query;
         
+        const rawTzSetting = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
+        const rawTz = rawTzSetting ? rawTzSetting.value : "Australia/Perth";
+        const timezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
+        
         const client = db.prepare("SELECT * FROM clients WHERE id = ?").get(clientId) as any;
         if (!client) {
           return res.status(404).json({ error: "Client not found" });
@@ -7538,7 +7542,7 @@ app.get("/api/health", (req, res) => {
 
         let query = `
         SELECT 
-          'SHIFT' as source, s.id, s.start_time, s.end_time, s.actual_finish_time, s.notes, s.status, s.service_id,
+          'SHIFT' as source, s.id, COALESCE(s.actual_finish_time, s.end_time, s.start_time) as start_time, s.end_time, s.actual_finish_time, s.notes, s.status, s.service_id,
           c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
           u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role, u.primary_position as staff_primary_position,
           srv.name as service_name, srv.type as service_type,
@@ -7665,7 +7669,7 @@ app.get("/api/health", (req, res) => {
           doc.fontSize(10).text("No progress notes found for the selected period.");
         } else {
           notes.forEach((note: any) => {
-            const dateStr = new Date(note.start_time).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+            const dateStr = new Date(note.start_time).toLocaleString('en-GB', { timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
             doc.fontSize(11).font('Helvetica-Bold').text(`Date: ${dateStr}`);
             doc.fontSize(10).font('Helvetica').text(`Staff: ${note.staff_first_name} ${note.staff_last_name}${note.staff_primary_position ? ` (${note.staff_primary_position})` : ''}`.trim());
             
@@ -7714,7 +7718,7 @@ app.get("/api/health", (req, res) => {
         const { startDate, endDate } = req.query;
         let query = `
         SELECT 
-          'SHIFT' as source, s.id, s.start_time, s.end_time, s.actual_finish_time, s.notes, s.status, s.service_id,
+          'SHIFT' as source, s.id, COALESCE(s.actual_finish_time, s.end_time, s.start_time) as start_time, s.end_time, s.actual_finish_time, s.notes, s.status, s.service_id,
           c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
           u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role, u.primary_position as staff_primary_position,
           srv.name as service_name, srv.type as service_type,

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Pencil, Plus, Save, X } from 'lucide-react';
 import EditorJSWrapper, { EditorJSRef } from './EditorJSWrapper';
+import { useAuth } from '../../context/AuthContext';
 
 export interface ProgressNote {
   source: 'SHIFT' | 'MANUAL';
@@ -57,6 +58,7 @@ export default function ProgressNotesFeed({
   staffList = [],
   currentUserId
 }: ProgressNotesFeedProps) {
+  const { settings } = useAuth();
   const [newNoteTags, setNewNoteTags] = useState('Activity');
   const [newNoteAuthorId, setNewNoteAuthorId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -131,7 +133,8 @@ export default function ProgressNotesFeed({
         year: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
-        hour12: true
+        hour12: true,
+        timeZone: settings?.timezone || 'Australia/Perth'
       });
     } catch {
       return dateStr;
