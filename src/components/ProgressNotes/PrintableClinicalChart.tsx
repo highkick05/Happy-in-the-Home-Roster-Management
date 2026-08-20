@@ -125,7 +125,7 @@ export default function PrintableClinicalChart({ notes, clientData, period }: Pr
                      const timeStr = noteDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
                      
                      const staffName = [note.staff_first_name, note.staff_last_name].filter(Boolean).join(' ');
-                     const roleStr = note.staff_role === 'ADMIN' ? 'Administrator' : 'Support Worker';
+                     const roleStr = note.staff_primary_position || (note.staff_role === 'ADMIN' ? 'Administrator' : 'Support Worker');
                      
                      return (
                         <div 

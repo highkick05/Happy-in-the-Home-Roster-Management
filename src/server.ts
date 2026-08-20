@@ -210,7 +210,8 @@ async function startServer() {
         bank_acc TEXT,
         tax_number TEXT,
         super_fund_name TEXT,
-        super_member_number TEXT
+        super_member_number TEXT,
+        primary_position TEXT
       );
 
       CREATE TABLE IF NOT EXISTS providers (
@@ -622,6 +623,9 @@ try {
     }
     if (!usersCols.some(c => c.name === 'avatar_url')) {
       db.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT");
+    }
+    if (!usersCols.some(c => c.name === 'primary_position')) {
+      db.exec("ALTER TABLE users ADD COLUMN primary_position TEXT");
     }
   } catch(e) {
     console.error("Migration error for users table:", e.message);
@@ -5012,14 +5016,14 @@ app.get("/api/health", (req, res) => {
     if (req.user.role !== "ADMIN") {
       const staff = db
         .prepare(
-          "SELECT id, first_name, last_name, role, avatar_url FROM users WHERE role = ?",
+          "SELECT id, first_name, last_name, role, avatar_url, primary_position FROM users WHERE role = ?",
         )
         .all("STAFF");
       return res.json(staff);
     }
     const staff = db
       .prepare(
-        "SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, created_at, can_switch_admin, avatar_url FROM users",
+        "SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, created_at, can_switch_admin, avatar_url, primary_position FROM users",
       )
       .all();
     res.json(staff);
@@ -5045,11 +5049,12 @@ app.get("/api/health", (req, res) => {
       superMemberNumber,
       canSwitchAdmin,
       avatarUrl,
+      primaryPosition,
     } = req.body;
     try {
       const hash = bcrypt.hashSync(password, 10);
       const stmt = db.prepare(
-        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
       const info = stmt.run(
         email,
@@ -5118,11 +5123,12 @@ app.get("/api/health", (req, res) => {
       superMemberNumber,
       canSwitchAdmin,
       avatarUrl,
+      primaryPosition,
     } = req.body;
     const { id } = req.params;
     try {
       const stmt = db.prepare(
-        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ? WHERE id = ?",
+        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = ? WHERE id = ?",
       );
       stmt.run(
         email,
@@ -5142,6 +5148,7 @@ app.get("/api/health", (req, res) => {
         superMemberNumber,
         canSwitchAdmin ? 1 : 0,
         avatarUrl || null,
+        primaryPosition || null,
         id,
       );
       res.json({
@@ -7228,7 +7235,7 @@ app.get("/api/health", (req, res) => {
             `
         SELECT 
           s.id, s.start_time, s.end_time, s.actual_finish_time, s.notes, s.status,
-          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
+          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role, u.primary_position as staff_primary_position,
           srv.name as service_name
         FROM shifts s
         LEFT JOIN users u ON s.staff_id = u.id
@@ -7425,7 +7432,7 @@ app.get("/api/health", (req, res) => {
             const staffName =
               `${note.staff_first_name || ""} ${note.staff_last_name || ""}`.trim();
             const staffRole =
-              note.staff_role === "ADMIN" ? "Administrator" : "Support Worker";
+              note.staff_primary_position || (note.staff_role === "ADMIN" ? "Administrator" : "Support Worker");
 
             doc.font("Helvetica").fontSize(9);
             const fontHeight = doc.currentLineHeight();
@@ -7519,7 +7526,7 @@ app.get("/api/health", (req, res) => {
         SELECT 
           'SHIFT' as source, s.id, s.start_time, s.end_time, s.actual_finish_time, s.notes, s.status, s.service_id,
           c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
-          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
+          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role, u.primary_position as staff_primary_position,
           srv.name as service_name, srv.type as service_type,
           s.tags as tags, s.staff_id as author_id
         FROM shifts s
@@ -7548,7 +7555,7 @@ app.get("/api/health", (req, res) => {
         SELECT 
           'MANUAL' as source, pn.id, pn.created_at as start_time, NULL as end_time, NULL as actual_finish_time, pn.content as notes, 'COMPLETED' as status, NULL as service_id,
           c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
-          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
+          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role, u.primary_position as staff_primary_position,
           NULL as service_name, NULL as service_type,
           pn.tags as tags, pn.author_id
         FROM progress_notes pn
@@ -7696,7 +7703,7 @@ app.get("/api/health", (req, res) => {
         SELECT 
           'SHIFT' as source, s.id, s.start_time, s.end_time, s.actual_finish_time, s.notes, s.status, s.service_id,
           c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
-          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
+          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role, u.primary_position as staff_primary_position,
           srv.name as service_name, srv.type as service_type,
           s.tags as tags, s.staff_id as author_id
         FROM shifts s
@@ -7725,7 +7732,7 @@ app.get("/api/health", (req, res) => {
         SELECT 
           'MANUAL' as source, pn.id, pn.created_at as start_time, NULL as end_time, NULL as actual_finish_time, pn.content as notes, 'COMPLETED' as status, NULL as service_id,
           c.first_name as client_first_name, c.last_name as client_last_name, c.ndis_number, c.dob, c.funding_type, c.my_aged_care_id,
-          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role,
+          u.first_name as staff_first_name, u.last_name as staff_last_name, u.role as staff_role, u.primary_position as staff_primary_position,
           NULL as service_name, NULL as service_type,
           pn.tags as tags, pn.author_id
         FROM progress_notes pn

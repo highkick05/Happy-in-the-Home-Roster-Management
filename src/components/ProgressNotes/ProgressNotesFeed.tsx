@@ -9,6 +9,7 @@ export interface ProgressNote {
   notes: string;
   staff_first_name: string;
   staff_last_name: string;
+  staff_primary_position?: string;
   tags?: string;
   author_id?: number;
 }
@@ -273,7 +274,7 @@ export default function ProgressNotesFeed({
                     </div>
                     <div className="text-[12px] text-zinc-400">
                       Staff: {note.staff_first_name} {note.staff_last_name}
-                      {note.source === 'SHIFT' && ' (Shift)'}
+                      {note.staff_primary_position ? ` (${note.staff_primary_position})` : (note.source === 'SHIFT' ? ' (Shift)' : '')}
                     </div>
                   </div>
                   

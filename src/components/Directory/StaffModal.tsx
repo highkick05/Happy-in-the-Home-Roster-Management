@@ -30,6 +30,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
     superFundName: '',
     superMemberNumber: staff?.super_member_number || '',
     canSwitchAdmin: staff ? !!staff.can_switch_admin : false,
+    primaryPosition: staff?.primary_position || '',
     avatarUrl: getAvatarUrl(staff?.avatar_url || Math.random().toString(36).substring(7)),
   });
 
@@ -53,6 +54,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         superFundName: staff.super_fund_name || '',
         superMemberNumber: staff?.super_member_number || '',
         canSwitchAdmin: !!staff.can_switch_admin,
+        primaryPosition: staff.primary_position || '',
         avatarUrl: getAvatarUrl(staff.avatar_url || staff.first_name || 'Staff'),
       });
     } else {
@@ -226,6 +228,17 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                   </label>
                 </div>
               )}
+              <div className="md:col-span-2 pt-1 pb-3">
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Primary Position</label>
+                <select name="primaryPosition" value={formData.primaryPosition} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+                  <option value="">Select a position...</option>
+                  <option value="Support Worker">Support Worker</option>
+                  <option value="Enrolled Nurse">Enrolled Nurse</option>
+                  <option value="Registered Nurse">Registered Nurse</option>
+                  <option value="Administration">Administration</option>
+                  <option value="Manager">Manager</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">First Name *</label>
                 <input required name="firstName" value={formData.firstName} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
