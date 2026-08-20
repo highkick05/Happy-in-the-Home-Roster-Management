@@ -9232,6 +9232,26 @@ app.get("/api/health", (req, res) => {
   );
 
   app.get("/api/shifts", authenticateTokenOrWallboard, (req: any, res: any) => {
+    const { start, end } = req.query;
+    
+    // Pre-load all services to eliminate N+1 queries in the loop
+    const allServices = db.prepare("SELECT id, name, code, type, rate, unit, rates_json, status FROM services").all() as any[];
+    const servicesMap = new Map(allServices.map(s => [s.id, s]));
+    const activeServicesByCodeAndType = new Map();
+    allServices.forEach(s => {
+      if (s.status !== 'ARCHIVED') {
+        activeServicesByCodeAndType.set(`${s.code}-${s.type}`, s);
+      }
+    });
+
+    let queryParams: any[] = [];
+    let dateFilter = "";
+    
+    if (start && end) {
+      dateFilter = " AND ((s.start_time >= ? AND s.start_time <= ?) OR (s.end_time >= ? AND s.end_time <= ?) OR (s.start_time <= ? AND s.end_time >= ?))";
+      queryParams = [start, end, start, end, start, end];
+    }
+
     let query = `
       SELECT s.*, 
              u.first_name as staff_first_name, u.last_name as staff_last_name,
@@ -9242,8 +9262,9 @@ app.get("/api/health", (req, res) => {
       LEFT JOIN users u ON s.staff_id = u.id
       LEFT JOIN clients c ON s.client_id = c.id
       LEFT JOIN services srv ON s.service_id = srv.id
-      WHERE (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
+      WHERE (s.notes != 'Manually generated invoice' OR s.notes IS NULL)${dateFilter}
     `;
+    
     // If not admin, only show their own published shifts and omit rates
     if (req.user.role !== "ADMIN") {
       const staffQuery = `
@@ -9256,19 +9277,19 @@ app.get("/api/health", (req, res) => {
          LEFT JOIN clients c ON s.client_id = c.id
          LEFT JOIN services srv ON s.service_id = srv.id
          WHERE s.staff_id = ? AND s.status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')
-           AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL)
+           AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL)${dateFilter}
        `;
-      const shifts = db.prepare(staffQuery).all(req.user.id) as any[];
+      const shifts = db.prepare(staffQuery).all(req.user.id, ...queryParams) as any[];
       shifts.forEach((s) => {
         try {
           let parsed = s.services_json ? JSON.parse(s.services_json) : [];
           if (Array.isArray(parsed)) {
              for (const sd of parsed) {
                  if (sd.serviceId && !sd.serviceName) {
-                     let srv = db.prepare("SELECT id, name, code, type, rate, unit, rates_json, status FROM services WHERE id = ?").get(sd.serviceId) as any;
+                     let srv = servicesMap.get(sd.serviceId);
                      if (srv) {
                          if (srv.status === 'ARCHIVED') {
-                             const activeSrv = db.prepare("SELECT id, name, code, type, rate, unit, rates_json FROM services WHERE code = ? AND type = ? AND (status IS NULL OR status != 'ARCHIVED') ORDER BY id DESC LIMIT 1").get(srv.code, srv.type) as any;
+                             const activeSrv = activeServicesByCodeAndType.get(`${srv.code}-${srv.type}`);
                              if (activeSrv) {
                                  srv = activeSrv;
                                  sd.serviceId = activeSrv.id;
@@ -9293,17 +9314,17 @@ app.get("/api/health", (req, res) => {
       return res.json(shifts);
     }
 
-    const shifts = db.prepare(query).all() as any[];
+    const shifts = db.prepare(query).all(...queryParams) as any[];
     shifts.forEach((s) => {
       try {
         let parsed = s.services_json ? JSON.parse(s.services_json) : [];
         if (Array.isArray(parsed)) {
            for (const sd of parsed) {
                if (sd.serviceId && !sd.serviceName) {
-                   let srv = db.prepare("SELECT id, name, code, type, rate, unit, rates_json, status FROM services WHERE id = ?").get(sd.serviceId) as any;
+                   let srv = servicesMap.get(sd.serviceId);
                      if (srv) {
                          if (srv.status === 'ARCHIVED') {
-                             const activeSrv = db.prepare("SELECT id, name, code, type, rate, unit, rates_json FROM services WHERE code = ? AND type = ? AND (status IS NULL OR status != 'ARCHIVED') ORDER BY id DESC LIMIT 1").get(srv.code, srv.type) as any;
+                             const activeSrv = activeServicesByCodeAndType.get(`${srv.code}-${srv.type}`);
                              if (activeSrv) {
                                  srv = activeSrv;
                                  sd.serviceId = activeSrv.id;

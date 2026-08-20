@@ -154,8 +154,36 @@ export default function RosterCalendar() {
   const fetchData = useCallback(async () => {
     if (!token) return;
     try {
+      // Calculate start and end bounds based on the current view and date
+      let startBound = new Date(date);
+      let endBound = new Date(date);
+      
+      if (view === 'month') {
+        startBound.setDate(1);
+        startBound.setDate(startBound.getDate() - startBound.getDay()); // Start of first week
+        endBound.setMonth(endBound.getMonth() + 1);
+        endBound.setDate(0);
+        endBound.setDate(endBound.getDate() + (6 - endBound.getDay())); // End of last week
+      } else if (view === 'week') {
+        startBound.setDate(startBound.getDate() - startBound.getDay());
+        endBound.setDate(endBound.getDate() + (6 - endBound.getDay()));
+      } else if (view === 'day') {
+        startBound.setHours(0, 0, 0, 0);
+        endBound.setHours(23, 59, 59, 999);
+      } else if (view === 'agenda') {
+         startBound.setHours(0, 0, 0, 0);
+         endBound.setDate(endBound.getDate() + 30); // Arbitrary 30 days for agenda
+      }
+
+      // Add a small buffer just in case
+      startBound.setDate(startBound.getDate() - 1);
+      endBound.setDate(endBound.getDate() + 1);
+
+      const startIso = startBound.toISOString();
+      const endIso = endBound.toISOString();
+
       const [shiftsRes, respiteRes, staffRes, clientsRes, servicesRes] = await Promise.all([
-        fetch(`/api/shifts`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
+        fetch(`/api/shifts?start=${startIso}&end=${endIso}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
         fetch(`/api/respite-bookings`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
         fetch(`/api/staff`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`/api/clients`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -292,11 +320,11 @@ export default function RosterCalendar() {
     } catch (e) {
       console.error(e);
     }
-  }, [token]);
+  }, [token, date, view]);
 
   useEffect(() => {
     if (token) fetchData();
-  }, [token]);
+  }, [token, date, view]);
 
   useEffect(() => {
     const handleSyncComplete = () => {

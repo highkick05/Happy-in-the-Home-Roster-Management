@@ -175,10 +175,38 @@ export default function WallboardView() {
 
   const fetchData = async () => {
     try {
+      // Calculate start and end bounds based on current view and date
+      let startBound = new Date(date);
+      let endBound = new Date(date);
+      
+      if (view === 'month') {
+        startBound.setDate(1);
+        startBound.setDate(startBound.getDate() - startBound.getDay()); // Start of first week
+        endBound.setMonth(endBound.getMonth() + 1);
+        endBound.setDate(0);
+        endBound.setDate(endBound.getDate() + (6 - endBound.getDay())); // End of last week
+      } else if (view === 'week') {
+        startBound.setDate(startBound.getDate() - startBound.getDay());
+        endBound.setDate(endBound.getDate() + (6 - endBound.getDay()));
+      } else if (view === 'day') {
+        startBound.setHours(0, 0, 0, 0);
+        endBound.setHours(23, 59, 59, 999);
+      } else if (view === 'agenda') {
+         startBound.setHours(0, 0, 0, 0);
+         endBound.setDate(endBound.getDate() + 30); // Arbitrary 30 days for agenda
+      }
+
+      // Add a small buffer just in case
+      startBound.setDate(startBound.getDate() - 1);
+      endBound.setDate(endBound.getDate() + 1);
+
+      const startIso = startBound.toISOString();
+      const endIso = endBound.toISOString();
+
       const fetchOptions = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
       const [shiftsRes, respiteRes] = await Promise.all([
-        fetch('/api/shifts?wallboard=true&t=' + Date.now(), fetchOptions),
-        fetch('/api/respite-bookings?wallboard=true&t=' + Date.now(), fetchOptions)
+        fetch(`/api/shifts?wallboard=true&start=${startIso}&end=${endIso}&t=` + Date.now(), fetchOptions),
+        fetch(`/api/respite-bookings?wallboard=true&start=${startIso}&end=${endIso}&t=` + Date.now(), fetchOptions)
       ]);
 
       if (shiftsRes.ok) {
@@ -266,7 +294,7 @@ export default function WallboardView() {
       }
     }, 30000);
     return () => clearInterval(interval);
-  }, [token, manualMode]);
+  }, [token, manualMode, date, view]);
 
   const handleSelectEvent = (event: ShiftEvent) => {
     if (event.isRespiteWrapper) return;
