@@ -5519,6 +5519,20 @@ app.get("/api/health", (req, res) => {
     }
   });
 
+
+  app.patch("/api/clients/:id/care-plan", authenticateToken, (req, res) => {
+    try {
+      const { id } = req.params;
+      const { carePlanDetails } = req.body;
+      const stmt = db.prepare("UPDATE clients SET care_plan_details = ? WHERE id = ?");
+      stmt.run(carePlanDetails, id);
+      res.json({ success: true });
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
   app.put("/api/clients/:id", authenticateToken, requireAdmin, (req, res) => {
     try {
       const updateTransaction = db.transaction((reqBody, paramId) => {

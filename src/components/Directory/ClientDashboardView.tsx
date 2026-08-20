@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowLeft, Phone, Mail, FileText, Calendar, Building, Home, CheckCircle2, Edit2, ClipboardEdit, Calculator } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, FileText, Calendar, Building, Home, CheckCircle2, Edit2, ClipboardEdit, Calculator, Save, X, Loader2 } from 'lucide-react';
 import ClientModal from './ClientModal';
 import ClientRosterModal from './ClientRosterModal';
 import { getAvatarUrl } from '../../utils/avatar';
@@ -49,10 +49,38 @@ export default function ClientDashboardView() {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
+  const [isEditingCarePlan, setIsEditingCarePlan] = useState(false);
+  const [carePlanNotes, setCarePlanNotes] = useState('');
+  const [isSavingCarePlan, setIsSavingCarePlan] = useState(false);
 
   useEffect(() => {
     fetchData();
   }, [id, token]);
+
+  
+  const handleSaveCarePlan = async () => {
+    setIsSavingCarePlan(true);
+    try {
+      const res = await fetch(`/api/clients/${id}/care-plan`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ carePlanDetails: carePlanNotes })
+      });
+      if (res.ok) {
+        setClient((prev: any) => ({ ...prev, care_plan_details: carePlanNotes }));
+        setIsEditingCarePlan(false);
+      } else {
+        alert("Failed to save care plan notes.");
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSavingCarePlan(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -335,13 +363,36 @@ export default function ClientDashboardView() {
                </div>
                
                <div>
-                 <div className="text-xs text-[#8B949E] mb-2">Care Plan Notes</div>
-                 {client.care_plan_details ? (
-                   <div className="text-sm text-[#E6EDF3] whitespace-pre-wrap leading-relaxed bg-brand-bg/50 p-4 rounded-md border border-border-subtle">
+                 <div className="flex items-center justify-between mb-2">
+                   <div className="text-xs font-semibold text-[#8B949E] uppercase tracking-wider">Care Plan Notes</div>
+                   {!isEditingCarePlan ? (
+                     <button onClick={() => { setCarePlanNotes(client.care_plan_details || ''); setIsEditingCarePlan(true); }} className="text-brand-teal hover:text-white transition-colors text-xs flex items-center">
+                       <Edit2 className="w-3 h-3 mr-1" /> Edit
+                     </button>
+                   ) : (
+                     <div className="flex items-center space-x-2">
+                       <button onClick={() => setIsEditingCarePlan(false)} className="text-zinc-400 hover:text-white transition-colors text-xs flex items-center">
+                         <X className="w-3 h-3 mr-1" /> Cancel
+                       </button>
+                       <button onClick={handleSaveCarePlan} disabled={isSavingCarePlan} className="bg-brand-teal text-[#0d1117] hover:bg-brand-teal/90 transition-colors text-xs flex items-center px-2 py-1 rounded font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                         {isSavingCarePlan ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />} Save
+                       </button>
+                     </div>
+                   )}
+                 </div>
+                 {isEditingCarePlan ? (
+                   <textarea
+                     value={carePlanNotes}
+                     onChange={(e) => setCarePlanNotes(e.target.value)}
+                     className="w-full bg-black/40 border border-brand-teal/50 rounded-md p-3 text-[13px] text-white outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal transition-all min-h-[120px] resize-y placeholder-zinc-600"
+                     placeholder="Enter care plan details here..."
+                   />
+                 ) : client.care_plan_details ? (
+                   <div className="text-[13px] text-[#E6EDF3] whitespace-pre-wrap leading-relaxed bg-black/20 p-4 rounded-lg border border-white/[0.05]">
                      {client.care_plan_details}
                    </div>
                  ) : (
-                   <div className="text-sm text-[#8B949E] italic">No care plan details have been added for this client.</div>
+                   <div className="text-[13px] text-[#8B949E] italic bg-black/20 p-4 rounded-lg border border-transparent">No care plan details have been added for this client.</div>
                  )}
                </div>
             </div>
