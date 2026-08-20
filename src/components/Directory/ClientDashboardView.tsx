@@ -73,9 +73,8 @@ export default function ClientDashboardView() {
       if (servicesRes.ok) setServices(await servicesRes.json());
       if (notesRes.ok) {
         const _notes = await notesRes.json();
-        // The endpoint returns ordered by start_time ASC. So getting the last 3 means the 3 most recent in time.
-        // We'll reverse it so the absolute most recent is first.
-        setRecentNotes(_notes.slice(-3).reverse());
+        // The endpoint returns ordered by start_time DESC, so newest is first.
+        setRecentNotes(_notes.slice(0, 3));
       }
       if (ratesRes.ok) {
         setFundingRates(await ratesRes.json());
