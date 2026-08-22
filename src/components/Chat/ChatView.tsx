@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera, Edit2, Quote, Trash2, Check } from 'lucide-react';
 // @ts-ignore
 import data from '@emoji-mart/data';
@@ -701,36 +703,32 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
               const hasQuote = msg.content.includes('> ');
               const isEmojiOnly = isOnlyEmojis(nonQuotedText) && !msg.file_url && nonQuotedText.length > 0 && !hasQuote;
               
-              const contentToRender = msg.content.split('\n').map((line, lineIndex) => {
-                if (line.startsWith('> ')) {
-                  const quoteContent = line.substring(2);
-                  const isImageQuote = quoteContent.match(/http.*(giphy\.com|\.(gif|jpe?g|png))/i);
-                  
-                  return (
-                    <div key={lineIndex} className="pl-3 py-1 mb-1 border-l-[3px] border-brand-teal/50 bg-black/10 text-zinc-300 italic text-[11px] rounded-r-md overflow-hidden whitespace-nowrap max-w-full flex items-center">
-                      {isImageQuote ? (
-                        <div className="flex items-center space-x-2 w-full">
-                          <span className="truncate flex-shrink-0">{quoteContent.split('http')[0]}</span>
-                          <img src={'http' + quoteContent.split('http').slice(1).join('http').trim()} alt="quoted gif" className="h-6 rounded object-cover" />
-                        </div>
-                      ) : (
-                        <span className="truncate">{quoteContent}</span>
-                      )}
-                    </div>
-                  );
-                }
-                
-                return (
-                  <div key={lineIndex} className="min-h-[14px] whitespace-pre-wrap">
-                    {line.split(/(\s+)/).map((part, i) => {
-                      if (part.startsWith('http') && (part.includes('giphy.com') || part.match(/\.(gif|jpe?g|png)$/i))) {
-                        return <img key={i} src={part.trim()} alt="gif" className="max-w-[200px] rounded my-1 block" onLoad={() => scrollToBottom()} />;
-                      }
-                      return <span key={i} className="break-words">{part}</span>;
-                    })}
-                  </div>
-                );
-              });
+              const contentToRender = (
+                <div className="prose prose-sm md:prose-base prose-invert prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 max-w-none text-zinc-100">
+                  <Markdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      a: ({node, ...props}) => {
+                        const href = props.href || '';
+                        if (href && (href.includes('giphy.com') || href.match(/\.(gif|jpe?g|png)$/i))) {
+                          return <img src={href} alt="gif" className="max-w-[200px] rounded my-1 block" onLoad={() => scrollToBottom()} />;
+                        }
+                        return <a {...props} className="text-brand-teal hover:underline break-words" target="_blank" rel="noopener noreferrer" />;
+                      },
+                      blockquote: ({node, ...props}) => {
+                        return (
+                          <blockquote className="pl-3 py-1 my-1 border-l-[3px] border-brand-teal/50 bg-black/10 text-zinc-300 italic text-[11px] md:text-xs rounded-r-md overflow-hidden max-w-full">
+                            {props.children}
+                          </blockquote>
+                        );
+                      },
+                      p: ({node, ...props}) => <p className="whitespace-pre-wrap break-words" {...props} />
+                    }}
+                  >
+                    {msg.content}
+                  </Markdown>
+                </div>
+              );
               
               return (
                 <div key={msg.id} className={`flex w-full ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
