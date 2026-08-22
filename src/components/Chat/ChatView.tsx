@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { Plus, useAuth } from '../../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -67,6 +67,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const [previewFile, setPreviewFile] = useState<{url: string, type: string, name: string} | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showGiphyPicker, setShowGiphyPicker] = useState(false);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
@@ -1030,50 +1031,57 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                       setAttachments(prev => [...prev, ...Array.from(e.clipboardData.files)]);
                     }
                   }}
-                  placeholder="Type your message..."
-                  className="flex-1 bg-transparent px-3 py-2.5 text-xs font-semibold tracking-wide text-[#E6EDF3] focus:outline-none border-none resize-none"
+                  placeholder="Type a message..."
+                  className="flex-1 bg-transparent px-3 py-2.5 text-xs font-semibold text-[#E6EDF3] focus:outline-none border-none resize-none whitespace-pre-wrap"
                   rows={1}
                   style={{ minHeight: '36px', maxHeight: '240px' }}
                 />
                 
-                <div className="flex items-center space-x-1 pb-0.5 pr-1 flex-shrink-0">
-                  <button 
-                    ref={giphyButtonRef}
-                    type="button" 
-                    onClick={() => { setShowGiphyPicker(!showGiphyPicker); setShowEmojiPicker(false); }}
+                <div className="flex items-center space-x-1 pb-0.5 pr-1 flex-shrink-0 relative">
+                  <button
+                    type="button"
+                    onClick={() => { setShowAttachmentMenu(!showAttachmentMenu); setShowEmojiPicker(false); setShowGiphyPicker(false); }}
                     className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                    title="GIFs"
+                    title="Attach"
                   >
-                    <Sticker className="w-4 h-4" />
+                    <Plus className="w-5 h-5" />
                   </button>
-                  
-                  <button 
-                    ref={emojiButtonRef}
-                    type="button" 
-                    onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGiphyPicker(false); }}
-                    className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                    title="Emojis"
-                  >
-                    <Smile className="w-4 h-4" />
-                  </button>
-                  
-                  <button 
-                    type="button" 
-                    onClick={() => cameraInputRef.current?.click()}
-                    className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                    title="Camera"
-                  >
-                    <Camera className="w-4 h-4" />
-                  </button>
-                  
-                  <button 
-                    type="button" 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                    title="Attach File"
-                  >
-                    <Paperclip className="w-4 h-4" />
-                  </button>
+
+                  {showAttachmentMenu && (
+                    <>
+                      <div className="fixed inset-0 z-[80]" onClick={() => setShowAttachmentMenu(false)} />
+                      <div className="absolute bottom-full right-0 mb-2 w-48 bg-[#1c2128] border border-border-subtle rounded-lg shadow-xl z-[90] flex flex-col py-1 animate-in fade-in zoom-in-95">
+                        <button
+                          type="button"
+                          onClick={() => { setShowAttachmentMenu(false); setShowGiphyPicker(true); }}
+                          className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
+                        >
+                          <Sticker className="w-4 h-4" /> <span>GIFs</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowAttachmentMenu(false); setShowEmojiPicker(true); }}
+                          className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
+                        >
+                          <Smile className="w-4 h-4" /> <span>Emojis</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowAttachmentMenu(false); cameraInputRef.current?.click(); }}
+                          className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
+                        >
+                          <Camera className="w-4 h-4" /> <span>Camera</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowAttachmentMenu(false); fileInputRef.current?.click(); }}
+                          className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
+                        >
+                          <Paperclip className="w-4 h-4" /> <span>Document</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -1081,9 +1089,10 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
             <button
               type="submit"
               disabled={(!newMessage.trim() && attachments.length === 0 && !selectedGif) || isUploading}
-              className="flex items-center justify-center px-4 h-[36px] text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg text-white bg-brand-teal/20 border border-brand-teal/40 hover:bg-brand-teal hover:text-[#0d1117] disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              className="flex items-center justify-center w-[36px] h-[36px] text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg text-white bg-brand-teal/20 border border-brand-teal/40 hover:bg-brand-teal hover:text-[#0d1117] disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              title="Send"
             >
-              {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />} {isUploading ? 'Sending...' : 'Send'}
+              {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 ml-0.5" />}
             </button>
           </form>
           </div>
