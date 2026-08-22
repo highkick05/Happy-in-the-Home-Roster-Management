@@ -414,42 +414,41 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
         className="bg-zinc-900 border border-zinc-700/50 rounded-2xl p-4 w-full sm:max-w-lg md:max-w-2xl lg:max-w-3xl text-zinc-100 flex flex-col max-h-[95vh] overflow-hidden shadow-2xl transition-all" 
       >
                 {/* Header */}
-        <div className="mb-4 shrink-0 space-y-2.5">
-          {/* Line 1: Date and Time */}
-          <div className="flex items-center justify-between w-full">
-            <div className="bg-brand-teal/20 border border-brand-teal/40 text-brand-teal px-2.5 py-1 rounded-md text-sm sm:text-base font-semibold whitespace-nowrap shadow-sm">
-              {getShortDateBadge(shift.start)}
-            </div>
-            <div className="bg-white/5 border border-white/10 text-zinc-200 px-2.5 py-1 rounded-md text-sm sm:text-base font-semibold whitespace-nowrap shadow-sm">
-              {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-            </div>
-          </div>
-
-          {/* Line 2: Name, Map, X */}
-          <div className="flex items-start justify-between gap-3 w-full border-b border-zinc-700/60 pb-3">
-            <h2 className="text-[22px] md:text-3xl font-extrabold text-white tracking-tight leading-tight line-clamp-2 flex-1 min-w-0 text-left">
+        <div className="mb-3 shrink-0 space-y-2">
+          {/* Top Line: Name, Date, Time, Map, X */}
+          <div className="flex items-center gap-1.5 sm:gap-2 w-full border-b border-zinc-700/60 pb-2.5 flex-wrap sm:flex-nowrap">
+            <h2 className="text-lg md:text-xl font-extrabold text-white tracking-tight truncate max-w-[35%] sm:max-w-xs shrink-0" title={shift.clientName}>
               {shift.clientName}
             </h2>
-            <div className="flex items-center gap-2 shrink-0">
+            
+            <div className="bg-brand-teal/20 border border-brand-teal/40 text-brand-teal px-1.5 sm:px-2 py-1 rounded-md text-[10px] sm:text-xs font-semibold whitespace-nowrap shadow-sm shrink-0">
+              {getShortDateBadge(shift.start)}
+            </div>
+            
+            <div className="bg-white/5 border border-white/10 text-zinc-200 px-1.5 sm:px-2 py-1 rounded-md text-[10px] sm:text-xs font-semibold whitespace-nowrap shadow-sm shrink-0">
+              {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+            </div>
+
+            <div className="flex items-center gap-1 sm:gap-2 ml-auto shrink-0">
               {clientAddress && (
                  <a
                    href={`https://maps.google.com/?q=${encodeURIComponent(clientAddress)}`}
                    target="_blank"
                    rel="noopener noreferrer"
-                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] sm:text-xs font-bold uppercase tracking-wider bg-brand-blue/15 text-blue-300 hover:bg-brand-blue/30 border border-brand-blue/30 transition-all shadow-sm"
+                   className="flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-brand-blue/15 text-blue-300 hover:bg-brand-blue/30 border border-brand-blue/30 transition-all shadow-sm"
                    title="View Client Address on Google Maps"
                  >
                    <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                    <span className="hidden sm:inline">Map</span>
                  </a>
                )}
-               <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04]">
-                 <X className="w-6 h-6 md:w-7 md:h-7" />
+               <button onClick={onClose} className="p-1 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04]">
+                 <X className="w-5 h-5 md:w-6 md:h-6" />
                </button>
             </div>
           </div>
 
-          {/* Line 3: Assigned Tasks */}
+          {/* Line 2: Assigned Tasks */}
           <div className="flex flex-row items-start sm:items-center gap-1.5 sm:gap-2 pt-1 w-full text-left">
             <span className="text-xs sm:text-sm text-zinc-400 font-bold uppercase tracking-wider shrink-0 mt-0.5 sm:mt-0">Assigned Tasks:</span>
             {shift.servicesData && shift.servicesData.length > 0 ? (
