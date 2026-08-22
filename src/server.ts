@@ -8699,7 +8699,6 @@ app.get("/api/health", (req, res) => {
   app.post(
     "/api/roster/print",
     authenticateToken,
-    requireAdmin,
     (req, res) => {
       try {
         const { startDate, endDate, timeZone, view, shifts, groupBy, filterName } = req.body;

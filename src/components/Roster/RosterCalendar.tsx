@@ -1153,15 +1153,13 @@ export default function RosterCalendar() {
                   <>
                     {/* Secondary Actions */}
                     <div className="flex items-center gap-2">
-                      {activeView === Views.WEEK && (
-                        <button 
+                      <button 
                           onClick={handlePrintPdf}
                           className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto gap-1.5"
                         >
                           <Printer className="w-3.5 h-3.5" />
                           Print Roster
                         </button>
-                      )}
                       <button 
                         onClick={() => setMultiSelectMode(true)}
                         className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto"
@@ -1207,6 +1205,17 @@ export default function RosterCalendar() {
               </div>
             </div>
           )}
+          {user?.role !== 'ADMIN' && (
+            <button 
+              onClick={handlePrintPdf}
+              className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto gap-1.5"
+              title="Print Weekly Roster"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Print Roster
+            </button>
+          )}
+
           {user?.role === 'ADMIN' && (
             <button 
               onClick={() => setIsFullScreen(!isFullScreen)}
