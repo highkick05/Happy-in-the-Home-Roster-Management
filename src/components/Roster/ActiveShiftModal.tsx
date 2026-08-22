@@ -414,9 +414,19 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
         className="bg-zinc-900 border border-zinc-700/50 rounded-2xl p-4 w-full sm:max-w-lg md:max-w-2xl lg:max-w-3xl text-zinc-100 flex flex-col max-h-[95vh] overflow-hidden shadow-2xl transition-all" 
       >
                 {/* Header */}
-        <div className="mb-4 shrink-0 space-y-3">
-          {/* Line 1: Name, Map, X */}
-          <div className="flex items-start justify-between gap-3 w-full">
+        <div className="mb-4 shrink-0 space-y-2.5">
+          {/* Line 1: Date and Time */}
+          <div className="flex items-center justify-between w-full">
+            <div className="bg-brand-teal/20 border border-brand-teal/40 text-brand-teal px-2.5 py-1 rounded-md text-sm sm:text-base font-semibold whitespace-nowrap shadow-sm">
+              {getShortDateBadge(shift.start)}
+            </div>
+            <div className="bg-white/5 border border-white/10 text-zinc-200 px-2.5 py-1 rounded-md text-sm sm:text-base font-semibold whitespace-nowrap shadow-sm">
+              {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+            </div>
+          </div>
+
+          {/* Line 2: Name, Map, X */}
+          <div className="flex items-start justify-between gap-3 w-full border-b border-zinc-700/60 pb-3">
             <h2 className="text-[22px] md:text-3xl font-extrabold text-white tracking-tight leading-tight line-clamp-2 flex-1 min-w-0 text-left">
               {shift.clientName}
             </h2>
@@ -436,16 +446,6 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04]">
                  <X className="w-6 h-6 md:w-7 md:h-7" />
                </button>
-            </div>
-          </div>
-
-          {/* Line 2: Date and Time */}
-          <div className="flex items-center justify-between w-full border-b border-zinc-700/60 pb-3">
-            <div className="bg-brand-teal/20 border border-brand-teal/40 text-brand-teal px-2.5 py-1 rounded-md text-sm sm:text-base font-semibold whitespace-nowrap shadow-sm">
-              {getShortDateBadge(shift.start)}
-            </div>
-            <div className="bg-white/5 border border-white/10 text-zinc-200 px-2.5 py-1 rounded-md text-sm sm:text-base font-semibold whitespace-nowrap shadow-sm">
-              {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
             </div>
           </div>
 
