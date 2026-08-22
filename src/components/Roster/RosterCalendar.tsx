@@ -676,12 +676,34 @@ export default function RosterCalendar() {
           clientId: d.client_id,
           clientName: d.client_first_name + ' ' + d.client_last_name,
           status: d.status,
-          isRespiteWrapper: true
+          isRespiteWrapper: true,
+          respiteData: d
         }));
         
         currentWeekShifts = [...mappedIndividual, ...mappedRespite].filter(shift => {
           const sDate = new Date(shift.start);
-          return sDate >= weekStart && sDate <= weekEnd;
+          if (!(sDate >= weekStart && sDate <= weekEnd)) return false;
+
+          if (user?.role === 'ADMIN') {
+            if (clientFilter && shift.clientId?.toString() !== clientFilter) return false;
+            
+            if (staffFilter === 'unassigned') {
+              if (shift.isRespiteWrapper && shift.respiteData?.shifts) {
+                const isStaffAssigned = shift.respiteData.shifts.some((s: any) => !s.staff_id);
+                if (!isStaffAssigned) return false;
+              } else {
+                if (shift.staffId !== null && shift.staffId !== undefined) return false;
+              }
+            } else if (staffFilter) {
+              if (shift.isRespiteWrapper && shift.respiteData?.shifts) {
+                const isStaffAssigned = shift.respiteData.shifts.some((s: any) => s.staff_id?.toString() === staffFilter);
+                if (!isStaffAssigned) return false;
+              } else {
+                if (shift.staffId?.toString() !== staffFilter) return false;
+              }
+            }
+          }
+          return true;
         });
       }
 
