@@ -634,6 +634,19 @@ export default function RosterCalendar() {
         return sDate >= weekStart && sDate <= weekEnd;
       });
 
+      let filterName = '';
+      if (clientFilter) {
+        const c = clientList.find(c => c.id.toString() === clientFilter);
+        if (c) filterName = `${c.first_name} ${c.last_name}`;
+      } else if (staffFilter) {
+        if (staffFilter === 'unassigned') {
+          filterName = 'Unassigned Staff';
+        } else {
+          const s = staffList.find(s => s.id.toString() === staffFilter);
+          if (s) filterName = `${s.first_name} ${s.last_name}`;
+        }
+      }
+
       const res = await fetch('/api/roster/print', {
         method: 'POST',
         headers: {
@@ -647,7 +660,7 @@ export default function RosterCalendar() {
           view: activeView,
           shifts: currentWeekShifts,
           groupBy,
-          filterName: clientFilter ? clientList.find(c => c.id.toString() === clientFilter)?.first_name + ' ' + clientList.find(c => c.id.toString() === clientFilter)?.last_name : staffFilter && staffFilter !== 'unassigned' ? staffList.find(s => s.id.toString() === staffFilter)?.first_name + ' ' + staffList.find(s => s.id.toString() === staffFilter)?.last_name : staffFilter === 'unassigned' ? 'Unassigned Staff' : ''
+          filterName
         })
       });
 
@@ -660,7 +673,11 @@ export default function RosterCalendar() {
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
-      a.download = `Roster_${format(date, 'yyyy-MM-dd')}.pdf`;
+      
+      const startStr = format(weekStart, 'MMM_dd');
+      const endStr = format(weekEnd, 'MMM_dd');
+      const safeName = filterName ? filterName.replace(/[^a-zA-Z0-9]+/g, '_') : 'All';
+      a.download = `${safeName}_${startStr}_${endStr}_Roster.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
