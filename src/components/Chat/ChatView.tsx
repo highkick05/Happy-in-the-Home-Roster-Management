@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera, Edit2, Quote, Trash2, Check } from 'lucide-react';
+import { Plus, Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera, Edit2, Quote, Trash2, Check } from 'lucide-react';
 // @ts-ignore
 import data from '@emoji-mart/data';
 // @ts-ignore
