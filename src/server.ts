@@ -7718,23 +7718,6 @@ app.get("/api/health", (req, res) => {
           });
         
         }
-        
-        if (currentY + 30 > doc.page.height - 30) {
-           doc.addPage();
-           startY = 30;
-           drawHeader();
-           currentY = startY;
-        }
-
-        for (let d = 0; d < 7; d++) {
-           if (dailyTotalHours[d] > 0) {
-               doc.fillColor('#e5e7eb').rect(30 + d * colWidth + 2, currentY, colWidth - 4, 20).fill();
-               doc.fillColor('#000000').fontSize(9);
-               doc.text(`Total: ${dailyTotalHours[d].toFixed(2)}h`, 30 + d * colWidth + 4, currentY + 5, { width: colWidth - 8, align: 'center' });
-           }
-        }
-        currentY += 24;
-
         doc.end();
 
       } catch (e: any) {
