@@ -1011,6 +1011,12 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                   value={newMessage}
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
+                  onPaste={(e) => {
+                    if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+                      e.preventDefault();
+                      setAttachments(prev => [...prev, ...Array.from(e.clipboardData.files)]);
+                    }
+                  }}
                   placeholder="Type your message..."
                   className="flex-1 bg-transparent px-3 py-2.5 text-xs font-semibold tracking-wide text-[#E6EDF3] focus:outline-none border-none resize-none"
                   rows={1}
