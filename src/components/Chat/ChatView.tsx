@@ -234,6 +234,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [userNamesMap, setUserNamesMap] = useState<Record<number, string>>({});
 
   useEffect(() => {
@@ -361,7 +362,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         
         return [...prev, msg];
       });
-      setTimeout(scrollToBottom, 100);
+      setTimeout(() => scrollToBottom(false, true), 100);
     });
 
     return () => {
@@ -419,12 +420,24 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     }
   }, [typingUsers]);
 
-  const scrollToBottom = (instant = false) => {
+  const scrollToBottom = (instant = false, force = false) => {
+    const shouldScroll = () => {
+      if (instant || force) return true;
+      const container = scrollContainerRef.current;
+      if (container) {
+        return container.scrollHeight - container.scrollTop - container.clientHeight < 250;
+      }
+      return true;
+    };
+
+    if (!shouldScroll()) return;
+
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
     }, 100);
     // Double check after images might have loaded
     setTimeout(() => {
+      if (!shouldScroll()) return;
       messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
     }, 500);
   };
@@ -488,7 +501,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
               };
 
               setMessages(prev => [...prev, tempMessage as any]);
-              setTimeout(scrollToBottom, 50);
+              setTimeout(() => scrollToBottom(false, true), 50);
             }
 
             try {
@@ -540,7 +553,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         };
 
         setMessages(prev => [...prev, tempMessage as any]);
-        setTimeout(scrollToBottom, 50);
+        setTimeout(() => scrollToBottom(false, true), 50);
       }
 
       try {
@@ -693,7 +706,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         )}
 
         {/* Messages Area */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 relative z-10">
+        <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 relative z-10">
           {messages.length === 0 ? (
             <div className="text-center text-zinc-500 mt-10">No messages yet. Start the conversation!</div>
           ) : (

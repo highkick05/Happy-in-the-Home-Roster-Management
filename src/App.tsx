@@ -424,7 +424,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       {/* Quick Links Floating Hover Tab */}
       {user?.role === 'ADMIN' && <QuickLinksDrawer />}
       <FloatingChatIcon />
-      {user?.role === 'ADMIN' && <EmailFloatingWidget />}
+      {user?.role === 'ADMIN' && !location.pathname.includes('/chat') && <EmailFloatingWidget />}
     </div>
   );
 }
