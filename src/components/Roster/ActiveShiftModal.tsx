@@ -413,81 +413,75 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
       <div 
         className="bg-zinc-900 border border-zinc-700/50 rounded-2xl p-4 w-full sm:max-w-lg md:max-w-2xl lg:max-w-3xl text-zinc-100 flex flex-col max-h-[95vh] overflow-hidden shadow-2xl transition-all" 
       >
-        {/* Header */}
-        <div className="flex justify-between items-start mb-4 shrink-0 gap-3">
-          <div className="flex-1 space-y-3">
-             {/* Top Row: Name, Time, Map */}
-             <div className="flex flex-col sm:flex-row sm:items-center w-full border-b border-zinc-700/60 pb-2 sm:pb-3 gap-2 sm:gap-4">
-               <div className="flex flex-col min-w-0 text-left mb-1 sm:mb-0">
-                 <div className="flex items-center gap-2 mb-1">
-                   <span className="px-2 py-0.5 rounded-full bg-brand-teal/20 border border-brand-teal/40 text-brand-teal text-[10px] sm:text-xs font-bold uppercase tracking-widest shrink-0 shadow-sm">
-                     {getShortDateBadge(shift.start)}
-                   </span>
-                 </div>
-                 <h2 className="text-[22px] md:text-3xl font-extrabold text-white tracking-tight leading-tight line-clamp-2">
-                   {shift.clientName}
-                 </h2>
-               </div>
-               
-               <div className="flex items-center gap-2 mt-1 sm:mt-0 sm:ml-auto shrink-0 justify-between sm:justify-end">
-                 <div className="shrink-0 text-right sm:text-center">
-                   <p className="text-sm sm:text-base md:text-lg text-zinc-200 font-semibold whitespace-nowrap bg-white/5 px-2.5 py-1 rounded-md border border-white/10">
-                     {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                   </p>
-                 </div>
-                 
-                 <div className="shrink-0">
-                   {clientAddress && (
-                     <a
-                       href={`https://maps.google.com/?q=${encodeURIComponent(clientAddress)}`}
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] sm:text-xs font-bold uppercase tracking-wider bg-brand-blue/15 text-blue-300 hover:bg-brand-blue/30 border border-brand-blue/30 transition-all shadow-sm"
-                       title="View Client Address on Google Maps"
-                     >
-                       <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                       <span className="inline">Map</span>
-                     </a>
-                   )}
-                 </div>
-               </div>
-             </div>
-
-             {/* Bottom Row: Assigned Tasks */}
-             <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 pt-2 w-full">
-                 <span className="text-xs sm:text-sm text-zinc-400 font-bold uppercase tracking-wider shrink-0 text-left mt-0.5">Assigned Tasks:</span>
-                 {shift.servicesData && shift.servicesData.length > 0 ? (
-                    <div className="flex flex-col justify-start flex-1 min-w-0">
-                       {shift.servicesData.slice(0, 1).map((s: any, idx: number) => {
-                          const srv = servicesList.find((srv: any) => String(srv.id) === String(s.serviceId));
-                          const srvName = srv ? srv.name : (s.serviceName || s.serviceCode || shift.serviceName);
-                          return (
-                             <span key={idx} className="block text-sm md:text-base font-semibold text-brand-teal line-clamp-2 text-left leading-tight" title={srvName}>
-                                 {srvName}
-                             </span>
-                          );
-                       })}
-                    </div>
-                 ) : shift.serviceName ? (
-                    <span className="block text-sm md:text-base font-semibold text-brand-teal line-clamp-2 text-left flex-1 min-w-0 leading-tight" title={shift.serviceName}>
-                        {shift.serviceName}
-                    </span>
-                 ) : (
-                    <span className="block text-sm md:text-base font-semibold text-zinc-500 italic text-left flex-1 min-w-0">
-                        Not specified
-                    </span>
-                 )}
-             </div>
-             
-             {isEarlyStart && !isLocked && (
-                <span className="inline-block px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded-full border border-amber-500/30">
-                   {Math.floor(startDiffMs / 60000)} minutes until shift
-                </span>
-             )}
+                {/* Header */}
+        <div className="mb-4 shrink-0 space-y-3">
+          {/* Line 1: Name, Map, X */}
+          <div className="flex items-start justify-between gap-3 w-full">
+            <h2 className="text-[22px] md:text-3xl font-extrabold text-white tracking-tight leading-tight line-clamp-2 flex-1 min-w-0 text-left">
+              {shift.clientName}
+            </h2>
+            <div className="flex items-center gap-2 shrink-0">
+              {clientAddress && (
+                 <a
+                   href={`https://maps.google.com/?q=${encodeURIComponent(clientAddress)}`}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] sm:text-xs font-bold uppercase tracking-wider bg-brand-blue/15 text-blue-300 hover:bg-brand-blue/30 border border-brand-blue/30 transition-all shadow-sm"
+                   title="View Client Address on Google Maps"
+                 >
+                   <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                   <span className="hidden sm:inline">Map</span>
+                 </a>
+               )}
+               <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04]">
+                 <X className="w-6 h-6 md:w-7 md:h-7" />
+               </button>
+            </div>
           </div>
-          <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04] shrink-0 -mt-1 -mr-1">
-            <X className="w-5 h-5 md:w-6 md:h-6" />
-          </button>
+
+          {/* Line 2: Date and Time */}
+          <div className="flex items-center justify-between w-full border-b border-zinc-700/60 pb-3">
+            <div className="bg-brand-teal/20 border border-brand-teal/40 text-brand-teal px-2.5 py-1 rounded-md text-sm sm:text-base font-semibold whitespace-nowrap shadow-sm">
+              {getShortDateBadge(shift.start)}
+            </div>
+            <div className="bg-white/5 border border-white/10 text-zinc-200 px-2.5 py-1 rounded-md text-sm sm:text-base font-semibold whitespace-nowrap shadow-sm">
+              {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+            </div>
+          </div>
+
+          {/* Line 3: Assigned Tasks */}
+          <div className="flex flex-row items-start sm:items-center gap-1.5 sm:gap-2 pt-1 w-full text-left">
+            <span className="text-xs sm:text-sm text-zinc-400 font-bold uppercase tracking-wider shrink-0 mt-0.5 sm:mt-0">Assigned Tasks:</span>
+            {shift.servicesData && shift.servicesData.length > 0 ? (
+               <div className="flex-1 min-w-0 text-left">
+                  {shift.servicesData.slice(0, 1).map((s: any, idx: number) => {
+                     const srv = servicesList.find((srv: any) => String(srv.id) === String(s.serviceId));
+                     const srvName = srv ? srv.name : (s.serviceName || s.serviceCode || shift.serviceName);
+                     return (
+                        <span key={idx} className="block text-sm md:text-base font-semibold text-brand-teal line-clamp-2 leading-tight" title={srvName}>
+                            {srvName}
+                        </span>
+                     );
+                  })}
+               </div>
+            ) : shift.serviceName ? (
+               <span className="block text-sm md:text-base font-semibold text-brand-teal line-clamp-2 flex-1 min-w-0 leading-tight text-left" title={shift.serviceName}>
+                   {shift.serviceName}
+               </span>
+            ) : (
+               <span className="block text-sm md:text-base font-semibold text-zinc-500 italic flex-1 min-w-0 text-left">
+                   Not specified
+               </span>
+            )}
+          </div>
+          
+          {isEarlyStart && !isLocked && (
+             <div className="pt-1 text-left">
+               <span className="inline-block px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded-full border border-amber-500/30">
+                  {Math.floor(startDiffMs / 60000)} minutes until shift
+               </span>
+             </div>
+          )}
         </div>
 
         {/* Scrollable Content */}
