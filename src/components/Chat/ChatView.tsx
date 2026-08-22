@@ -722,7 +722,8 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                           </blockquote>
                         );
                       },
-                      p: ({node, ...props}) => <p className="whitespace-pre-wrap break-words" {...props} />
+                      p: ({node, ...props}) => <p className="whitespace-pre-wrap break-words" {...props} />,
+                      strong: ({node, ...props}) => <strong className="font-bold text-white" {...props} />
                     }}
                   >
                     {msg.content}
@@ -773,7 +774,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                       >
                         <div 
                           onClick={() => setHoveredMessageId(prev => prev === msg.id ? null : msg.id)}
-                          className={`rounded-lg font-semibold tracking-wide break-words max-w-full cursor-default ${
+                          className={`rounded-lg font-normal tracking-wide break-words max-w-full cursor-default ${
                             isEmojiOnly
                               ? 'text-5xl md:text-7xl py-1 leading-normal overflow-visible'
                               : `px-4 py-2 text-xs overflow-hidden ${isOwnMessage 
