@@ -179,6 +179,22 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
     }
   }, [isOpen, shift]);
 
+
+  const getShortDateBadge = (dateString: Date) => {
+    const d = new Date(dateString);
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(today.getDate() + 1);
+    
+    if (d.toDateString() === today.toDateString()) {
+       return "Today";
+    } else if (d.toDateString() === tomorrow.toDateString()) {
+       return "Tomorrow";
+    } else {
+       return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+  };
+
   if (!isOpen || !shift) return null;
 
   const handleStartShift = async () => {
@@ -401,53 +417,59 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
         <div className="flex justify-between items-start mb-4 shrink-0 gap-3">
           <div className="flex-1 space-y-3">
              {/* Top Row: Name, Time, Map */}
-             <div className="flex items-center w-full border-b border-zinc-700/60 pb-2 sm:pb-3 gap-2 sm:gap-4">
-               <div className="flex-1 min-w-0 text-left">
-                 <h2 className="text-[22px] md:text-3xl font-extrabold text-white tracking-tight truncate">
+             <div className="flex flex-col sm:flex-row sm:items-center w-full border-b border-zinc-700/60 pb-2 sm:pb-3 gap-2 sm:gap-4">
+               <div className="flex flex-col min-w-0 text-left mb-1 sm:mb-0">
+                 <div className="flex items-center gap-2 mb-1">
+                   <span className="px-2 py-0.5 rounded-full bg-brand-teal/20 border border-brand-teal/40 text-brand-teal text-[10px] sm:text-xs font-bold uppercase tracking-widest shrink-0 shadow-sm">
+                     {getShortDateBadge(shift.start)}
+                   </span>
+                 </div>
+                 <h2 className="text-[22px] md:text-3xl font-extrabold text-white tracking-tight leading-tight line-clamp-2">
                    {shift.clientName}
                  </h2>
                </div>
                
-               <div className="shrink-0 text-right sm:text-center ml-auto">
-                 <p className="text-sm sm:text-base md:text-lg text-zinc-200 font-semibold whitespace-nowrap">
-                   {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                 </p>
-               </div>
-               
-               <div className="shrink-0">
-                 {clientAddress && (
-                   <a
-                     href={`https://maps.google.com/?q=${encodeURIComponent(clientAddress)}`}
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-brand-blue/15 text-blue-300 hover:bg-brand-blue/30 border border-brand-blue/20 transition-all"
-                     title="View Client Address on Google Maps"
-                   >
-                     <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                     <span className="hidden sm:inline">Directions</span>
-                     <span className="sm:hidden">Map</span>
-                   </a>
-                 )}
+               <div className="flex items-center gap-2 mt-1 sm:mt-0 sm:ml-auto shrink-0 justify-between sm:justify-end">
+                 <div className="shrink-0 text-right sm:text-center">
+                   <p className="text-sm sm:text-base md:text-lg text-zinc-200 font-semibold whitespace-nowrap bg-white/5 px-2.5 py-1 rounded-md border border-white/10">
+                     {new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                   </p>
+                 </div>
+                 
+                 <div className="shrink-0">
+                   {clientAddress && (
+                     <a
+                       href={`https://maps.google.com/?q=${encodeURIComponent(clientAddress)}`}
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] sm:text-xs font-bold uppercase tracking-wider bg-brand-blue/15 text-blue-300 hover:bg-brand-blue/30 border border-brand-blue/30 transition-all shadow-sm"
+                       title="View Client Address on Google Maps"
+                     >
+                       <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                       <span className="inline">Map</span>
+                     </a>
+                   )}
+                 </div>
                </div>
              </div>
 
              {/* Bottom Row: Assigned Tasks */}
-             <div className="flex items-center gap-3 pt-1 w-full">
-                 <span className="text-xs sm:text-sm text-zinc-400 font-bold uppercase tracking-wider shrink-0 text-left">Assigned Tasks:</span>
+             <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 pt-2 w-full">
+                 <span className="text-xs sm:text-sm text-zinc-400 font-bold uppercase tracking-wider shrink-0 text-left mt-0.5">Assigned Tasks:</span>
                  {shift.servicesData && shift.servicesData.length > 0 ? (
-                    <div className="flex items-center justify-start overflow-hidden flex-1 min-w-0">
+                    <div className="flex flex-col justify-start flex-1 min-w-0">
                        {shift.servicesData.slice(0, 1).map((s: any, idx: number) => {
                           const srv = servicesList.find((srv: any) => String(srv.id) === String(s.serviceId));
                           const srvName = srv ? srv.name : (s.serviceName || s.serviceCode || shift.serviceName);
                           return (
-                             <span key={idx} className="block text-sm md:text-base font-semibold text-brand-teal truncate text-left" title={srvName}>
+                             <span key={idx} className="block text-sm md:text-base font-semibold text-brand-teal line-clamp-2 text-left leading-tight" title={srvName}>
                                  {srvName}
                              </span>
                           );
                        })}
                     </div>
                  ) : shift.serviceName ? (
-                    <span className="block text-sm md:text-base font-semibold text-brand-teal truncate text-left flex-1 min-w-0" title={shift.serviceName}>
+                    <span className="block text-sm md:text-base font-semibold text-brand-teal line-clamp-2 text-left flex-1 min-w-0 leading-tight" title={shift.serviceName}>
                         {shift.serviceName}
                     </span>
                  ) : (
