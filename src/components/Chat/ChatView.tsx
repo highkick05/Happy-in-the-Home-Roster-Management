@@ -957,7 +957,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                 ))}
               </div>
             )}
-            <form onSubmit={handleSendMessage} className="flex space-x-2 items-end w-full max-w-full overflow-hidden">
+            <form onSubmit={handleSendMessage} className="flex space-x-2 items-end w-full max-w-full overflow-visible">
             <input 
               type="file" 
               className="hidden" 
@@ -1038,54 +1038,99 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                 />
                 
                 <div className="flex items-center space-x-1 pb-0.5 pr-1 flex-shrink-0 relative">
-                  <button
-                    type="button"
-                    onClick={() => { setShowAttachmentMenu(!showAttachmentMenu); setShowEmojiPicker(false); setShowGiphyPicker(false); }}
-                    className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                    title="Attach"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
+                  
+                  {/* Mobile/Tablet: Collapsed Plus Button */}
+                  <div className="lg:hidden flex relative">
+                    <button
+                      type="button"
+                      onClick={() => { setShowAttachmentMenu(!showAttachmentMenu); setShowEmojiPicker(false); setShowGiphyPicker(false); }}
+                      className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                      title="Attach"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
 
-                  {showAttachmentMenu && (
-                    <>
-                      <div className="fixed inset-0 z-[80]" onClick={() => setShowAttachmentMenu(false)} />
-                      <div className="absolute bottom-full right-0 mb-2 w-48 bg-[#1c2128] border border-border-subtle rounded-lg shadow-xl z-[90] flex flex-col py-1 animate-in fade-in zoom-in-95">
-                        <button
-                          type="button"
-                          onClick={() => { setShowAttachmentMenu(false); setShowGiphyPicker(true); }}
-                          className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
-                        >
-                          <Sticker className="w-4 h-4" /> <span>GIFs</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setShowAttachmentMenu(false); setShowEmojiPicker(true); }}
-                          className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
-                        >
-                          <Smile className="w-4 h-4" /> <span>Emojis</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setShowAttachmentMenu(false); cameraInputRef.current?.click(); }}
-                          className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
-                        >
-                          <Camera className="w-4 h-4" /> <span>Camera</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setShowAttachmentMenu(false); fileInputRef.current?.click(); }}
-                          className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
-                        >
-                          <Paperclip className="w-4 h-4" /> <span>Document</span>
-                        </button>
-                      </div>
-                    </>
-                  )}
+                    {showAttachmentMenu && (
+                      <>
+                        <div className="fixed inset-0 z-[80]" onClick={() => setShowAttachmentMenu(false)} />
+                        <div className="absolute bottom-full right-0 mb-2 w-48 bg-[#1c2128] border border-border-subtle rounded-lg shadow-xl z-[90] flex flex-col py-1 animate-in fade-in zoom-in-95">
+                          <button
+                            type="button"
+                            onClick={() => { setShowAttachmentMenu(false); setShowGiphyPicker(true); }}
+                            className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
+                          >
+                            <Sticker className="w-4 h-4" /> <span>GIFs</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setShowAttachmentMenu(false); setShowEmojiPicker(true); }}
+                            className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
+                          >
+                            <Smile className="w-4 h-4" /> <span>Emojis</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setShowAttachmentMenu(false); cameraInputRef.current?.click(); }}
+                            className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
+                          >
+                            <Camera className="w-4 h-4" /> <span>Camera</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setShowAttachmentMenu(false); fileInputRef.current?.click(); }}
+                            className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
+                          >
+                            <Paperclip className="w-4 h-4" /> <span>Document</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Desktop: Full Icons */}
+                  <div className="hidden lg:flex items-center space-x-1">
+                    <button 
+                      ref={giphyButtonRef}
+                      type="button" 
+                      onClick={() => { setShowGiphyPicker(!showGiphyPicker); setShowEmojiPicker(false); setShowAttachmentMenu(false); }}
+                      className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                      title="GIFs"
+                    >
+                      <Sticker className="w-4 h-4" />
+                    </button>
+                    
+                    <button 
+                      ref={emojiButtonRef}
+                      type="button" 
+                      onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGiphyPicker(false); setShowAttachmentMenu(false); }}
+                      className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                      title="Emojis"
+                    >
+                      <Smile className="w-4 h-4" />
+                    </button>
+                    
+                    <button 
+                      type="button" 
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                      title="Camera"
+                    >
+                      <Camera className="w-4 h-4" />
+                    </button>
+                    
+                    <button 
+                      type="button" 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                      title="Attach File"
+                    >
+                      <Paperclip className="w-4 h-4" />
+                    </button>
+                  </div>
+
                 </div>
               </div>
             </div>
-
             <button
               type="submit"
               disabled={(!newMessage.trim() && attachments.length === 0 && !selectedGif) || isUploading}
