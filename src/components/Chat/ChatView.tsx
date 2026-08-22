@@ -717,7 +717,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
               const isEmojiOnly = isOnlyEmojis(nonQuotedText) && !msg.file_url && nonQuotedText.length > 0 && !hasQuote;
               
               const contentToRender = (
-                <div className="prose prose-sm md:prose-base prose-invert prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 max-w-none text-zinc-100">
+                <div className="prose prose-sm prose-invert prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 max-w-none text-zinc-100">
                   <Markdown 
                     remarkPlugins={[remarkGfm]}
                     components={{
