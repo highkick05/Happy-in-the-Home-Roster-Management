@@ -7716,9 +7716,27 @@ app.get("/api/health", (req, res) => {
             doc.font('Helvetica').text(textContent, { align: 'justify' });
             doc.moveDown(1.5);
           });
+        
+        }
+        
+        if (currentY + 30 > doc.page.height - 30) {
+           doc.addPage();
+           startY = 30;
+           drawHeader();
+           currentY = startY;
         }
 
+        for (let d = 0; d < 7; d++) {
+           if (dailyTotalHours[d] > 0) {
+               doc.fillColor('#e5e7eb').rect(30 + d * colWidth + 2, currentY, colWidth - 4, 20).fill();
+               doc.fillColor('#000000').fontSize(9);
+               doc.text(`Total: ${dailyTotalHours[d].toFixed(2)}h`, 30 + d * colWidth + 4, currentY + 5, { width: colWidth - 8, align: 'center' });
+           }
+        }
+        currentY += 24;
+
         doc.end();
+
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
         if (!res.headersSent) {
@@ -8706,9 +8724,44 @@ app.get("/api/health", (req, res) => {
 
         const titleText = filterName ? `${filterName} - Roster` : `Roster`;
         const subTitleText = `${formatDate(startDate)} to ${formatDate(endDate || startDate)}`;
+
+const shiftsByDay = Array(7).fill(null).map(() => []);
         
+        
+        let totalOverallHours = 0;
+        const dailyTotalHours = Array(7).fill(0);
+        
+        const thisWeekShifts = shifts || [];
+        thisWeekShifts.forEach(shift => {
+          const shiftDate = new Date(shift.start);
+          const weekdayStr = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(shiftDate);
+          const daysMap = { 'Mon': 0, 'Tue': 1, 'Wed': 2, 'Thu': 3, 'Fri': 4, 'Sat': 5, 'Sun': 6 };
+          let d = daysMap[weekdayStr];
+          
+          if (d >= 0 && d <= 6) {
+             shiftsByDay[d].push(shift);
+             const durationMs = new Date(shift.end).getTime() - new Date(shift.start).getTime();
+             const hours = durationMs / (1000 * 60 * 60);
+             dailyTotalHours[d] += hours;
+             totalOverallHours += hours;
+          }
+        });
+
+        
+        shiftsByDay.forEach(dayShifts => {
+           dayShifts.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+        });
+        
+        
+        const initialY = doc.y;
         doc.fontSize(16).fillColor('#000000').text(titleText, { align: 'center' });
         doc.fontSize(12).fillColor('#555555').text(subTitleText, { align: 'center' });
+        
+        doc.fontSize(12).fillColor('#000000').text(`Total Hours: ${totalOverallHours.toFixed(2)}`, 30, initialY, { align: 'right', width: doc.page.width - 60 });
+        
+        // Reset y just to be safe
+        doc.y = initialY + 40;
+
         doc.moveDown(1);
         
         const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -8726,24 +8779,7 @@ app.get("/api/health", (req, res) => {
         
         drawHeader();
         
-        const shiftsByDay = Array(7).fill(null).map(() => []);
         
-        const thisWeekShifts = shifts || [];
-
-        thisWeekShifts.forEach(shift => {
-          const shiftDate = new Date(shift.start);
-          const weekdayStr = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(shiftDate);
-          const daysMap = { 'Mon': 0, 'Tue': 1, 'Wed': 2, 'Thu': 3, 'Fri': 4, 'Sat': 5, 'Sun': 6 };
-          let d = daysMap[weekdayStr];
-          
-          if (d >= 0 && d <= 6) {
-             shiftsByDay[d].push(shift);
-          }
-        });
-        
-        shiftsByDay.forEach(dayShifts => {
-           dayShifts.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-        });
         
         const maxShifts = Math.max(...shiftsByDay.map(d => d.length));
         let currentY = startY;
