@@ -697,7 +697,7 @@ export default function RosterCalendar() {
           if (s) filterName = `${s.first_name} ${s.last_name}`;
         }
       } else if (user?.role !== 'ADMIN') {
-        filterName = (user?.first_name || '') + ' ' + (user?.last_name || '');
+        filterName = (user?.firstName || '') + ' ' + (user?.lastName || '');
       }
 
       const res = await fetch('/api/roster/print', {
