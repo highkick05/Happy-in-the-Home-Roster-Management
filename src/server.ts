@@ -8853,6 +8853,23 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
            currentY += rowMaxHeight + 4;
         }
         
+        // --- Add Daily Subtotals ---
+        if (currentY + 30 > doc.page.height - 30) {
+            doc.addPage();
+            currentY = 30;
+        } else {
+            currentY += 10;
+        }
+        
+        doc.moveTo(30, currentY).lineTo(doc.page.width - 30, currentY).strokeColor('#cccccc').stroke();
+        currentY += 10;
+        
+        doc.fillColor('#000000').fontSize(10);
+        for (let d = 0; d < 7; d++) {
+            const hrs = dailyTotalHours[d] > 0 ? dailyTotalHours[d].toFixed(2) + ' hrs' : '-';
+            doc.text(hrs, 30 + d * colWidth, currentY, { width: colWidth, align: 'center' });
+        }
+        
         doc.end();
       } catch (e) {
         console.error(`API Error: ${e}`);
