@@ -637,10 +637,53 @@ export default function RosterCalendar() {
       const weekStart = startOfWeek(date, { weekStartsOn: 1 });
       const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
       
-      const currentWeekShifts = mappedEvents.filter(shift => {
-        const sDate = new Date(shift.start);
-        return sDate >= weekStart && sDate <= weekEnd;
-      });
+      const startIso = weekStart.toISOString();
+      const endIso = weekEnd.toISOString();
+      
+      const [shiftsRes, respiteRes] = await Promise.all([
+        fetch(`/api/shifts?start=${startIso}&end=${endIso}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
+        fetch(`/api/respite-bookings`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+      ]);
+      
+      let currentWeekShifts: any[] = [];
+      if (shiftsRes.ok && respiteRes.ok) {
+        const shiftsData = await shiftsRes.json();
+        const respiteData = await respiteRes.json();
+        
+        const individualShifts = shiftsData.filter((d: any) => !d.respite_booking_id);
+        const mappedIndividual = individualShifts.map((d: any) => ({
+          id: d.id,
+          title: d.client_first_name + ' ' + d.client_last_name + ' (' + (d.staff_first_name || 'Unassigned') + ')',
+          start: new Date(d.start_time),
+          end: new Date(d.end_time),
+          staffId: d.staff_id,
+          staffName: d.staff_id ? d.staff_first_name + ' ' + d.staff_last_name : 'Unassigned',
+          clientId: d.client_id,
+          clientName: d.client_first_name + ' ' + d.client_last_name,
+          status: d.status,
+          serviceId: d.service_id,
+          serviceName: d.service_name,
+          fundingType: d.funding_type
+        }));
+        
+        const mappedRespite = respiteData.map((d: any) => ({
+          id: 'respite-' + d.id,
+          title: 'Respite: ' + d.client_first_name + ' ' + d.client_last_name,
+          start: new Date(d.start_date),
+          end: new Date(d.end_date),
+          staffId: d.staff_id,
+          staffName: d.staff_id ? d.staff_first_name + ' ' + d.staff_last_name : 'Unassigned',
+          clientId: d.client_id,
+          clientName: d.client_first_name + ' ' + d.client_last_name,
+          status: d.status,
+          isRespiteWrapper: true
+        }));
+        
+        currentWeekShifts = [...mappedIndividual, ...mappedRespite].filter(shift => {
+          const sDate = new Date(shift.start);
+          return sDate >= weekStart && sDate <= weekEnd;
+        });
+      }
 
       let filterName = '';
       if (clientFilter) {
@@ -653,6 +696,8 @@ export default function RosterCalendar() {
           const s = staffList.find(s => s.id.toString() === staffFilter);
           if (s) filterName = `${s.first_name} ${s.last_name}`;
         }
+      } else if (user?.role !== 'ADMIN') {
+        filterName = (user?.first_name || '') + ' ' + (user?.last_name || '');
       }
 
       const res = await fetch('/api/roster/print', {
