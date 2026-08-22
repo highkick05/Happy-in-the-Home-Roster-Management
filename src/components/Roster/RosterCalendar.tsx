@@ -392,34 +392,42 @@ export default function RosterCalendar() {
   }, [events]);
 
   const filteredEvents = events.filter(e => {
-    if (clientFilter && e.clientId?.toString() !== clientFilter) return false;
-    
+    // Only apply client/staff filters if user is ADMIN (since staff don't have the UI to clear them)
+    if (user?.role === 'ADMIN') {
+      if (clientFilter && e.clientId?.toString() !== clientFilter) return false;
+      
+      if (staffFilter === 'unassigned') {
+        if (e.isRespiteWrapper && e.respiteData?.shifts) {
+          const isStaffAssigned = e.respiteData.shifts.some((s: any) => !s.staff_id);
+          if (!isStaffAssigned) return false;
+        } else {
+          if (e.staffId !== null && e.staffId !== undefined) return false;
+        }
+      } else if (staffFilter) {
+        if (e.isRespiteWrapper && e.respiteData?.shifts) {
+          const isStaffAssigned = e.respiteData.shifts.some((s: any) => s.staff_id?.toString() === staffFilter);
+          if (!isStaffAssigned) return false;
+        } else {
+          if (e.staffId?.toString() !== staffFilter) return false;
+        }
+      }
+    }
+
     // Non-admins should not see the respite wrapper, only their child shifts
     if (user?.role !== 'ADMIN' && e.isRespiteWrapper) {
       return false;
     }
 
-    // Non-admins should only see their own child shifts
+    // Non-admins should only see their own child shifts (just in case they leaked)
     if (user?.role !== 'ADMIN' && e.isRespiteChild && e.staffId !== user?.id) {
       return false;
     }
-
-    if (staffFilter === 'unassigned') {
-      if (e.isRespiteWrapper && e.respiteData?.shifts) {
-        const isStaffAssigned = e.respiteData.shifts.some((s: any) => !s.staff_id);
-        if (!isStaffAssigned) return false;
-      } else {
-        if (e.staffId !== null && e.staffId !== undefined) return false;
-      }
-    } else if (staffFilter) {
-      if (e.isRespiteWrapper && e.respiteData?.shifts) {
-        // For respite bookings, check if the staff is assigned to any of the child shifts
-        const isStaffAssigned = e.respiteData.shifts.some((s: any) => s.staff_id?.toString() === staffFilter);
-        if (!isStaffAssigned) return false;
-      } else {
-        if (e.staffId?.toString() !== staffFilter) return false;
-      }
+    
+    // For non-admins, ensure they only see their own normal shifts (belt and braces)
+    if (user?.role !== 'ADMIN' && !e.isRespiteWrapper && !e.isRespiteChild && e.staffId !== user?.id) {
+      return false;
     }
+
     return true;
   });
 
