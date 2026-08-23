@@ -224,7 +224,8 @@ async function startServer() {
         address TEXT,
         provider_type TEXT,
         management_fee REAL DEFAULT 0,
-        can_email_invoices INTEGER DEFAULT 1
+        can_email_invoices INTEGER DEFAULT 1,
+        submission_method TEXT DEFAULT 'manual'
       );
       CREATE TABLE IF NOT EXISTS contractors (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -527,6 +528,22 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
       "ALTER TABLE providers ADD COLUMN can_email_invoices INTEGER DEFAULT 1",
     );
     console.log("[DEBUG] Completed can_email_invoices column check.");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  // add submission_method to providers
+  try {
+    db.exec(
+      "ALTER TABLE providers ADD COLUMN submission_method TEXT DEFAULT 'manual'",
+    );
+    // map existing can_email_invoices
+    db.exec(
+      "UPDATE providers SET submission_method = 'email' WHERE can_email_invoices = 1"
+    );
+    console.log("[DEBUG] Completed submission_method column check.");
   } catch (e: any) {
     if (e.message && !e.message.includes("duplicate column")) {
       console.warn("Migration warning:", e.message);
@@ -6500,11 +6517,11 @@ app.get("/api/health", (req, res) => {
       address,
       providerType,
       managementFee,
-      canEmailInvoices,
+      submissionMethod,
     } = req.body;
     try {
       const stmt = db.prepare(
-        "INSERT INTO providers (company_name, contact_name, email, phone, address, provider_type, management_fee, can_email_invoices) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO providers (company_name, contact_name, email, phone, address, provider_type, management_fee, submission_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       );
       const info = stmt.run(
         companyName,
@@ -6514,7 +6531,7 @@ app.get("/api/health", (req, res) => {
         address,
         providerType || "NDIS",
         managementFee === undefined ? 10.0 : managementFee,
-        canEmailInvoices === false ? 0 : 1,
+        submissionMethod || 'manual',
       );
       res.json({
         id: info.lastInsertRowid,
@@ -6525,6 +6542,7 @@ app.get("/api/health", (req, res) => {
         address,
         providerType,
         managementFee,
+        submissionMethod,
       });
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -6541,12 +6559,12 @@ app.get("/api/health", (req, res) => {
       address,
       providerType,
       managementFee,
-      canEmailInvoices,
+      submissionMethod,
     } = req.body;
     const { id } = req.params;
     try {
       const stmt = db.prepare(
-        "UPDATE providers SET company_name = ?, contact_name = ?, email = ?, phone = ?, address = ?, provider_type = ?, management_fee = ?, can_email_invoices = ? WHERE id = ?",
+        "UPDATE providers SET company_name = ?, contact_name = ?, email = ?, phone = ?, address = ?, provider_type = ?, management_fee = ?, submission_method = ? WHERE id = ?",
       );
       stmt.run(
         companyName,
@@ -6556,7 +6574,7 @@ app.get("/api/health", (req, res) => {
         address,
         providerType || "NDIS",
         managementFee === undefined ? 10.0 : managementFee,
-        canEmailInvoices === false ? 0 : 1,
+        submissionMethod || 'manual',
         id,
       );
       res.json({
@@ -6568,6 +6586,7 @@ app.get("/api/health", (req, res) => {
         address,
         providerType,
         managementFee,
+        submissionMethod,
       });
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -11811,7 +11830,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
              COALESCE(i.custom_staff_name, s.custom_staff_name, u.first_name, ui.first_name) as staff_first_name, 
              CASE WHEN i.custom_staff_name IS NOT NULL OR s.custom_staff_name IS NOT NULL THEN '' ELSE COALESCE(u.last_name, ui.last_name, '') END as staff_last_name,
              (((SELECT COUNT(*) FROM invoices sub WHERE sub.merged_into_shift_id = s.id OR sub.merged_into_invoice_id = i.id) > 0) OR i.services_json IS NOT NULL) as is_merged,
-             p.can_email_invoices
+             p.submission_method
       FROM invoices i
       LEFT JOIN shifts s ON i.shift_id = s.id
       LEFT JOIN respite_bookings rb ON i.respite_booking_id = rb.id
@@ -13546,6 +13565,117 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       console.error("Failed to email invoice:", e);
       const smtpInfo = `Host: ${s.host}, Port: ${s.port}, User: ${s.user}`;
       res.status(500).json({ error: `${e.message || "Failed to send email."} (SMTP Settings: ${smtpInfo})` });
+    }
+  });
+
+  app.post("/api/invoices/:id/submit-trilogy", authenticateToken, async (req: any, res: any) => {
+    const invoiceId = parseInt(req.params.id);
+    const isTestMode = req.query.testMode === 'true';
+
+    if (!invoiceId) return res.status(400).json({ error: "Invalid invoiceId" });
+
+    try {
+      // 1. Fetch invoice details from SQLite
+      const invoice = db.prepare(`
+        SELECT i.invoice_number, i.amount, i.file_path, i.created_at, 
+               c.first_name, c.last_name
+        FROM invoices i
+        JOIN clients c ON i.client_id = c.id
+        WHERE i.id = ?
+      `).get(invoiceId) as any;
+
+      if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+      if (!invoice.file_path) return res.status(400).json({ error: "No PDF file associated with this invoice." });
+
+      const clientName = `${invoice.first_name} ${invoice.last_name}`.trim();
+      const totalAmount = invoice.amount;
+      
+      // 2. Format Due Date as dd/MM/yyyy (must be at least 8 days in the future for Trilogy Care validation)
+      const safeDate = new Date();
+      safeDate.setDate(safeDate.getDate() + 8);
+      const formattedSafeDueDate = safeDate.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+
+      const caseNotes = "Routine care provided."; // Default or fetch from somewhere if available
+
+      // 3. Launch headless Playwright Chromium browser
+      const { chromium } = require('playwright');
+      const browser = await chromium.launch({ 
+        headless: !isTestMode, 
+        slowMo: isTestMode ? 50 : undefined 
+      });
+      const context = await browser.newContext();
+      const page = await context.newPage();
+
+      try {
+        // 4. Navigate to form
+        await page.goto('https://forms.zohopublic.com/trilogycare/form/SubmitaBill/formperma/7Gx2G7Q7znBF_iUAsfxsuE989UqORSCbSDZXFuu1LwU');
+
+        // 5. Page 1 - Provider & Consumer Details
+        await page.fill('#SingleLine-arialabel', 'HAPPY IN THE HOME');
+        await page.fill('#SingleLine5-arialabel', '69895033115');
+        await page.fill('#Email-arialabel', 'invoices@happyinthehome.org');
+        await page.fill('#SingleLine3-arialabel', clientName); 
+        await page.fill('#SingleLine4-arialabel', invoice.invoice_number);
+        await page.fill('#Date1-date', formattedSafeDueDate);
+        await page.fill('#MultiLine-arialabel', caseNotes);
+        
+        // Selects "No" for Incidents/Accidents
+        await page.check('#Radio_1');
+        
+        await page.click('button[elname="next"]');
+
+        // Wait for Page 2 to load
+        await page.waitForSelector('#Currency1-arialabel', { state: 'visible', timeout: 15000 });
+
+        // 6. Page 2 - Bill Details & Upload
+        // Selects "Yes" for having an invoice to attach
+        await page.check('#Radio1_2');
+        await page.fill('#Currency1-arialabel', totalAmount.toString());
+        
+        const path = require('path');
+        const fs = require('fs');
+        const pdfPath = path.resolve(invoice.file_path);
+        
+        if (!fs.existsSync(pdfPath)) {
+            throw new Error(`PDF file not found at path: ${pdfPath}`);
+        }
+        
+        await page.setInputFiles('#FileUpload-id', pdfPath);
+        
+        // Wait for upload to complete (Zoho shows a checkmark or progress bar)
+        // Adjust timeout/selector based on actual form behavior if needed, for now just wait a bit
+        await page.waitForTimeout(3000); 
+
+        if (!isTestMode) {
+          await page.click('button[elname="submit"]');
+          // Wait for success indicator or navigation
+          await page.waitForLoadState('networkidle');
+        } else {
+          // In test mode, pause the browser for human inspection before closing
+          await page.pause();
+        }
+
+      } finally {
+        // 7. Close the browser
+        await browser.close();
+      }
+
+      // 8. Update the invoice status in SQLite to SENT (only if not in test mode)
+      if (!isTestMode) {
+        db.prepare("UPDATE invoices SET status = 'SENT' WHERE id = ?").run(invoiceId);
+        // 9. Return success
+        res.json({ success: true, message: "Invoice submitted to Trilogy Care successfully and marked as SENT." });
+      } else {
+        res.json({ success: true, message: "Test run completed successfully (Dry Run)." });
+      }
+      
+    } catch (e: any) {
+      console.error("Failed to submit Trilogy Care invoice:", e);
+      res.status(500).json({ error: e.message || "Failed to submit Trilogy Care invoice." });
     }
   });
 

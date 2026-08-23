@@ -1,7 +1,7 @@
 import { useDropzone } from 'react-dropzone';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { FileText, Copy, ChevronUp, ChevronDown, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle, X, Upload, Edit } from 'lucide-react';
+import { FileText, Copy, ChevronUp, ChevronDown, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle, X, Upload, Edit, Bug } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
 import { RefreshCw, Search, Mail } from 'lucide-react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -740,6 +740,8 @@ export default function InvoicingView() {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<number[]>([]);
   const [isMerging, setIsMerging] = useState(false);
   const [isEmailing, setIsEmailing] = useState<number | null>(null);
+  const [isTesting, setIsTesting] = useState<number | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [allDbClients, setAllDbClients] = useState<any[]>([]);
   const [allDbStaff, setAllDbStaff] = useState<any[]>([]);
@@ -1067,10 +1069,14 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
   };
 
   
-  const handleEmailInvoice = async (invoiceId: number) => {
+  const handleSubmitInvoice = async (invoiceId: number, submissionMethod: string) => {
     setIsEmailing(invoiceId);
     try {
-      const response = await fetch(`/api/invoices/${invoiceId}/email`, {
+      const endpoint = submissionMethod === 'trilogy_form' 
+        ? `/api/invoices/${invoiceId}/submit-trilogy` 
+        : `/api/invoices/${invoiceId}/email`;
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -1078,15 +1084,41 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
       });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to email invoice');
+        throw new Error(data.error || 'Failed to submit invoice');
       }
-      alert(data.message || 'Invoice emailed successfully');
+      alert(data.message || (submissionMethod === 'trilogy_form' ? 'Invoice submitted to Trilogy Care successfully' : 'Invoice emailed successfully'));
       fetchInvoices();
     } catch (error: any) {
-      alert(error.message || 'Failed to email invoice');
+      alert(error.message || 'Failed to submit invoice');
       console.error(error);
     } finally {
       setIsEmailing(null);
+    }
+  };
+
+  const handleTestTrilogyInvoice = async (invoiceId: number) => {
+    setIsTesting(invoiceId);
+    setToastMessage('Executing Test Run in Browser...');
+    
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}/submit-trilogy?testMode=true`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit test run');
+      }
+      setToastMessage(data.message || 'Test run completed successfully (Dry Run).');
+      setTimeout(() => setToastMessage(null), 5000);
+    } catch (error: any) {
+      setToastMessage(`Error: ${error.message || 'Failed to submit test run'}`);
+      setTimeout(() => setToastMessage(null), 5000);
+      console.error(error);
+    } finally {
+      setIsTesting(null);
     }
   };
 
@@ -1151,7 +1183,22 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
     </th>
   );
   return (
-    <div className="h-full flex flex-col space-y-3">
+    <div className="h-full flex flex-col space-y-3 relative">
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-black border border-white/[0.08] shadow-lg rounded-lg px-4 py-3 flex items-center space-x-3 max-w-sm animate-in fade-in slide-in-from-bottom-4">
+          {toastMessage.includes('Error') ? (
+            <AlertCircle className="w-5 h-5 text-red-500" />
+          ) : toastMessage.includes('Executing') ? (
+            <RefreshCw className="w-5 h-5 text-brand-blue animate-spin" />
+          ) : (
+            <CheckCircle className="w-5 h-5 text-brand-green" />
+          )}
+          <span className="text-[13px] text-white font-medium leading-snug">{toastMessage}</span>
+          <button onClick={() => setToastMessage(null)} className="p-1 text-zinc-500 hover:text-white transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       <div className="flex border-b border-white/[0.08] justify-between items-center">
         <div className="flex space-x-6">
           <button 
@@ -1504,15 +1551,27 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                     <td className="px-3 py-1.5 text-right flex items-center justify-end space-x-1">
                        {subTab === 'active' && (
                          <>
-                           {i.can_email_invoices !== 0 && (
-                             <button
-                               title="Email Invoice"
-                               onClick={() => handleEmailInvoice(i.id)}
-                               disabled={isEmailing === i.id}
-                               className={`p-1.5 rounded-md transition-colors ${isEmailing === i.id ? 'text-brand-blue opacity-30 cursor-not-allowed' : 'text-zinc-400 hover:text-brand-blue hover:bg-brand-blue/10'}`}
-                             >
-                               {isEmailing === i.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-                             </button>
+                           {i.submission_method && i.submission_method !== 'manual' && (
+                             <>
+                               {i.submission_method === 'trilogy_form' && (
+                                 <button
+                                   title="Test Trilogy Form (Dry Run)"
+                                   onClick={() => handleTestTrilogyInvoice(i.id)}
+                                   disabled={isTesting === i.id}
+                                   className={`p-1.5 rounded-md transition-colors ${isTesting === i.id ? 'text-amber-500 opacity-30 cursor-not-allowed' : 'text-zinc-400 hover:text-amber-500 hover:bg-amber-500/10'}`}
+                                 >
+                                   {isTesting === i.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Bug className="w-4 h-4" />}
+                                 </button>
+                               )}
+                               <button
+                                 title={i.submission_method === 'trilogy_form' ? "Submit to Trilogy Care" : "Email Invoice"}
+                                 onClick={() => handleSubmitInvoice(i.id, i.submission_method)}
+                                 disabled={isEmailing === i.id}
+                                 className={`p-1.5 rounded-md transition-colors ${isEmailing === i.id ? 'text-brand-blue opacity-30 cursor-not-allowed' : 'text-zinc-400 hover:text-brand-blue hover:bg-brand-blue/10'}`}
+                               >
+                                 {isEmailing === i.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : (i.submission_method === 'trilogy_form' ? <Send className="w-4 h-4" /> : <Mail className="w-4 h-4" />)}
+                               </button>
+                             </>
                            )}
                            <button
                              title="Sent"

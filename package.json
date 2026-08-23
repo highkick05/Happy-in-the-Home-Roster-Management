@@ -63,6 +63,7 @@
     "nodemailer": "^8.0.7",
     "pdf-lib": "^1.17.1",
     "pdfkit": "^0.18.0",
+    "playwright": "^1.62.1",
     "react": "^19.0.1",
     "react-big-calendar": "^1.19.4",
     "react-dom": "^19.0.1",

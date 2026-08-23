@@ -18,7 +18,7 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
     address: '',
     providerType: 'NDIS',
     managementFee: 10.00,
-    canEmailInvoices: true
+    submissionMethod: 'manual'
   });
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
         address: provider.address || '',
         providerType: provider.provider_type || 'NDIS',
         managementFee: provider.management_fee !== undefined && provider.management_fee !== null ? provider.management_fee : 10.00,
-        canEmailInvoices: provider.can_email_invoices !== 0,
+        submissionMethod: provider.submission_method || (provider.can_email_invoices !== 0 ? 'email' : 'manual'),
       });
     } else {
       setFormData({
@@ -42,7 +42,7 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
         address: '',
         providerType: 'NDIS',
         managementFee: 10.00,
-        canEmailInvoices: true,
+        submissionMethod: 'manual',
       });
     }
   }, [provider, isOpen]);
@@ -139,18 +139,13 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
               <textarea name="address" value={formData.address} onChange={handleChange} rows={2} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
             </div>
 
-            <div className="flex items-center mt-2">
-              <input
-                type="checkbox"
-                name="canEmailInvoices"
-                checked={formData.canEmailInvoices}
-                onChange={handleChange}
-                id="canEmailInvoices"
-                className="w-4 h-4 rounded border-white/[0.08] bg-black/40 text-brand-blue focus:ring-brand-blue focus:ring-offset-0"
-              />
-              <label htmlFor="canEmailInvoices" className="ml-2 block text-[13px] text-zinc-300">
-                Can Email Invoices?
-              </label>
+            <div>
+              <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Invoice Submission Method</label>
+              <select name="submissionMethod" value={formData.submissionMethod} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+                <option value="manual">Manual / Download Only</option>
+                <option value="email">Standard Email</option>
+                <option value="trilogy_form">Trilogy Care Web Form</option>
+              </select>
             </div>
           </form>
         </div>
