@@ -225,7 +225,8 @@ async function startServer() {
         provider_type TEXT,
         management_fee REAL DEFAULT 0,
         can_email_invoices INTEGER DEFAULT 1,
-        submission_method TEXT DEFAULT 'manual'
+        submission_method TEXT DEFAULT 'manual',
+        is_test_mode_enabled INTEGER DEFAULT 0
       );
       CREATE TABLE IF NOT EXISTS contractors (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -544,6 +545,16 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
       "UPDATE providers SET submission_method = 'email' WHERE can_email_invoices = 1"
     );
     console.log("[DEBUG] Completed submission_method column check.");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
+    db.exec(
+      "ALTER TABLE providers ADD COLUMN is_test_mode_enabled INTEGER DEFAULT 0",
+    );
   } catch (e: any) {
     if (e.message && !e.message.includes("duplicate column")) {
       console.warn("Migration warning:", e.message);
@@ -6518,10 +6529,11 @@ app.get("/api/health", (req, res) => {
       providerType,
       managementFee,
       submissionMethod,
+      isTestModeEnabled,
     } = req.body;
     try {
       const stmt = db.prepare(
-        "INSERT INTO providers (company_name, contact_name, email, phone, address, provider_type, management_fee, submission_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO providers (company_name, contact_name, email, phone, address, provider_type, management_fee, submission_method, is_test_mode_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
       const info = stmt.run(
         companyName,
@@ -6532,6 +6544,7 @@ app.get("/api/health", (req, res) => {
         providerType || "NDIS",
         managementFee === undefined ? 10.0 : managementFee,
         submissionMethod || 'manual',
+        isTestModeEnabled ? 1 : 0,
       );
       res.json({
         id: info.lastInsertRowid,
@@ -6543,6 +6556,7 @@ app.get("/api/health", (req, res) => {
         providerType,
         managementFee,
         submissionMethod,
+        isTestModeEnabled,
       });
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -6560,11 +6574,12 @@ app.get("/api/health", (req, res) => {
       providerType,
       managementFee,
       submissionMethod,
+      isTestModeEnabled,
     } = req.body;
     const { id } = req.params;
     try {
       const stmt = db.prepare(
-        "UPDATE providers SET company_name = ?, contact_name = ?, email = ?, phone = ?, address = ?, provider_type = ?, management_fee = ?, submission_method = ? WHERE id = ?",
+        "UPDATE providers SET company_name = ?, contact_name = ?, email = ?, phone = ?, address = ?, provider_type = ?, management_fee = ?, submission_method = ?, is_test_mode_enabled = ? WHERE id = ?",
       );
       stmt.run(
         companyName,
@@ -6575,6 +6590,7 @@ app.get("/api/health", (req, res) => {
         providerType || "NDIS",
         managementFee === undefined ? 10.0 : managementFee,
         submissionMethod || 'manual',
+        isTestModeEnabled ? 1 : 0,
         id,
       );
       res.json({
@@ -6587,6 +6603,7 @@ app.get("/api/health", (req, res) => {
         providerType,
         managementFee,
         submissionMethod,
+        isTestModeEnabled,
       });
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -11830,7 +11847,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
              COALESCE(i.custom_staff_name, s.custom_staff_name, u.first_name, ui.first_name) as staff_first_name, 
              CASE WHEN i.custom_staff_name IS NOT NULL OR s.custom_staff_name IS NOT NULL THEN '' ELSE COALESCE(u.last_name, ui.last_name, '') END as staff_last_name,
              (((SELECT COUNT(*) FROM invoices sub WHERE sub.merged_into_shift_id = s.id OR sub.merged_into_invoice_id = i.id) > 0) OR i.services_json IS NOT NULL) as is_merged,
-             p.submission_method
+             p.submission_method,
+             p.is_test_mode_enabled
       FROM invoices i
       LEFT JOIN shifts s ON i.shift_id = s.id
       LEFT JOIN respite_bookings rb ON i.respite_booking_id = rb.id

@@ -18,7 +18,8 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
     address: '',
     providerType: 'NDIS',
     managementFee: 10.00,
-    submissionMethod: 'manual'
+    submissionMethod: 'manual',
+    isTestModeEnabled: false,
   });
 
   useEffect(() => {
@@ -32,6 +33,7 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
         providerType: provider.provider_type || 'NDIS',
         managementFee: provider.management_fee !== undefined && provider.management_fee !== null ? provider.management_fee : 10.00,
         submissionMethod: provider.submission_method || (provider.can_email_invoices !== 0 ? 'email' : 'manual'),
+        isTestModeEnabled: provider.is_test_mode_enabled === 1,
       });
     } else {
       setFormData({
@@ -43,6 +45,7 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
         providerType: 'NDIS',
         managementFee: 10.00,
         submissionMethod: 'manual',
+        isTestModeEnabled: false,
       });
     }
   }, [provider, isOpen]);
@@ -147,6 +150,21 @@ export default function ProviderModal({ isOpen, onClose, onSave, token, provider
                 <option value="trilogy_form">Trilogy Care Web Form</option>
               </select>
             </div>
+            {formData.submissionMethod === 'trilogy_form' && (
+              <div className="flex items-center space-x-2 pt-2">
+                <input 
+                  type="checkbox" 
+                  id="isTestModeEnabled"
+                  name="isTestModeEnabled"
+                  checked={formData.isTestModeEnabled}
+                  onChange={handleChange}
+                  className="w-4 h-4 rounded border-white/[0.2] bg-black/40 text-brand-blue focus:ring-brand-blue focus:ring-offset-black"
+                />
+                <label htmlFor="isTestModeEnabled" className="text-[13px] font-medium text-zinc-300">
+                  Enable Test Mode (Dry Run Icon)
+                </label>
+              </div>
+            )}
           </form>
         </div>
 

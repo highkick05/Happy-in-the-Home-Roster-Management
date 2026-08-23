@@ -1553,7 +1553,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                          <>
                            {i.submission_method && i.submission_method !== 'manual' && (
                              <>
-                               {i.submission_method === 'trilogy_form' && (
+                               {i.submission_method === 'trilogy_form' && i.is_test_mode_enabled === 1 && (
                                  <button
                                    title="Test Trilogy Form (Dry Run)"
                                    onClick={() => handleTestTrilogyInvoice(i.id)}
@@ -1569,7 +1569,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                                  disabled={isEmailing === i.id}
                                  className={`p-1.5 rounded-md transition-colors ${isEmailing === i.id ? 'text-brand-blue opacity-30 cursor-not-allowed' : 'text-zinc-400 hover:text-brand-blue hover:bg-brand-blue/10'}`}
                                >
-                                 {isEmailing === i.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : (i.submission_method === 'trilogy_form' ? <Send className="w-4 h-4" /> : <Mail className="w-4 h-4" />)}
+                                 {isEmailing === i.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
                                </button>
                              </>
                            )}
