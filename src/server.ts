@@ -13622,8 +13622,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       // 3. Launch headless Playwright Chromium browser
       const { chromium } = require('playwright');
       const browser = await chromium.launch({ 
-        headless: !isTestMode, 
-        slowMo: isTestMode ? 50 : undefined 
+        headless: true // Force headless mode for Docker container compatibility
       });
       const context = await browser.newContext();
       const page = await context.newPage();
@@ -13673,8 +13672,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           // Wait for success indicator or navigation
           await page.waitForLoadState('networkidle');
         } else {
-          // In test mode, pause the browser for human inspection before closing
-          await page.pause();
+          // In test mode, we just wait a moment to ensure all fields are filled, but do not click submit.
+          await page.waitForTimeout(2000);
         }
 
       } finally {
