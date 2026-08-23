@@ -28,6 +28,9 @@ COPY --from=builder /app/dist ./dist
 # Create necessary persistent directories
 RUN mkdir -p /app/data /app/uploads /app/invoices
 
+# Install Playwright OS dependencies (libglib, libnss3, etc.) required for Chromium
+RUN npx playwright install-deps chromium
+
 # Environment Variables
 ENV NODE_ENV=production
 ENV PORT=3000
