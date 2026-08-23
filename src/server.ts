@@ -13622,7 +13622,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       // 3. Launch headless Playwright Chromium browser
       const { chromium } = require('playwright');
       const browser = await chromium.launch({ 
-        headless: true // Force headless mode for Docker container compatibility
+        headless: true, // Force headless mode for Docker container compatibility
+        args: ['--no-sandbox', '--disable-setuid-sandbox'] // CRITICAL: Required for Playwright to run inside a Docker container
       });
       const context = await browser.newContext();
       const page = await context.newPage();
