@@ -13595,7 +13595,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
     try {
       // 1. Fetch invoice details from SQLite
       const invoice = db.prepare(`
-        SELECT i.invoice_number, i.amount, i.file_path, i.created_at, 
+        SELECT i.*, 
                c.first_name, c.last_name
         FROM invoices i
         JOIN clients c ON i.client_id = c.id
@@ -13608,6 +13608,59 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       const clientName = `${invoice.first_name} ${invoice.last_name}`.trim();
       const totalAmount = invoice.amount;
       
+      const path = require('path');
+      const fs = require('fs');
+      
+      let pdfPath = path.join('/app', 'invoices', `${invoiceId}.pdf`);
+      let isTempPdf = false;
+      const UPLOADS_DIR = path.join(process.cwd(), "uploads");
+
+      if (!fs.existsSync(pdfPath) && invoice.file_path) {
+          const checkPath1 = path.join('/app', 'invoices', invoice.file_path);
+          const clientNameSafe = clientName.replace(/[\\/\\]/g, "");
+          const checkPath2 = path.join(UPLOADS_DIR, "Clients", clientNameSafe, "Invoices", invoice.file_path);
+          if (fs.existsSync(checkPath1)) {
+              pdfPath = checkPath1;
+          } else if (fs.existsSync(checkPath2)) {
+              pdfPath = checkPath2;
+          }
+      }
+
+      if (!fs.existsSync(pdfPath)) {
+        // Must be a dynamic invoice that hasn't been saved to disk. Generate it to a temp file!
+        let data: any = null;
+        if (invoice.services_json) {
+          data = getInvoiceDataForMergedInvoice(invoice);
+        } else if (invoice.respite_booking_id) {
+          data = getInvoiceDataForRespiteBooking(invoice.respite_booking_id);
+        } else if (invoice.shift_id) {
+          data = getInvoiceDataForShift(invoice.shift_id);
+        }
+        
+        if (data) {
+          // It's a dynamic invoice, generate the PDF directly to disk
+          pdfPath = path.join('/tmp', `trilogy_upload_${invoiceId}_${Date.now()}.pdf`);
+          isTempPdf = true;
+          
+          await new Promise((resolve, reject) => {
+            const PDFDocument = require('pdfkit');
+            const doc = new PDFDocument({ margin: 50 });
+            const writeStream = fs.createWriteStream(pdfPath);
+            doc.pipe(writeStream);
+            
+            writeStream.on('finish', resolve);
+            writeStream.on('error', reject);
+            
+            buildInvoicePdf(doc, data);
+            doc.end();
+          });
+        }
+      }
+
+      if (!fs.existsSync(pdfPath)) {
+          throw new Error(`PDF file not found and could not be generated at path: ${pdfPath}`);
+      }
+
       // 2. Format Due Date as dd/MM/yyyy (must be at least 8 days in the future for Trilogy Care validation)
       const safeDate = new Date();
       safeDate.setDate(safeDate.getDate() + 8);
@@ -13654,23 +13707,6 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         await page.check('#Radio1_2');
         await page.fill('#Currency1-arialabel', totalAmount.toString());
         
-        const path = require('path');
-        const fs = require('fs');
-        const UPLOADS_DIR = path.join(process.cwd(), "uploads");
-        
-        let pdfPath = path.join('/app', 'invoices', `${invoiceId}.pdf`);
-        if (!fs.existsSync(pdfPath)) {
-            pdfPath = path.join('/app', 'invoices', invoice.file_path);
-        }
-        if (!fs.existsSync(pdfPath)) {
-            const clientNameSafe = clientName.replace(/[\\/\\]/g, "");
-            pdfPath = path.join(UPLOADS_DIR, "Clients", clientNameSafe, "Invoices", invoice.file_path);
-        }
-        
-        if (!fs.existsSync(pdfPath)) {
-            throw new Error(`PDF file not found at path: ${pdfPath}`);
-        }
-        
         await page.setInputFiles('#FileUpload-id', pdfPath);
         
         // Wait for upload to complete (Zoho shows a checkmark or progress bar)
@@ -13689,6 +13725,13 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       } finally {
         // 7. Close the browser
         await browser.close();
+        if (isTempPdf && fs.existsSync(pdfPath)) {
+            try {
+                fs.unlinkSync(pdfPath);
+            } catch(e) {
+                console.error("Failed to delete temp Trilogy PDF", e);
+            }
+        }
       }
 
       // 8. Update the invoice status in SQLite to SENT (only if not in test mode)
