@@ -7683,10 +7683,10 @@ app.get("/api/health", (req, res) => {
               let st = note.start_time;
               if (!st.endsWith('Z') && !st.includes('+')) {
                 const d = new Date(st + 'Z');
-                dateStr = d.toLocaleString('en-GB', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+                dateStr = d.toLocaleString('en-AU', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
               } else {
                 const d = new Date(st);
-                dateStr = d.toLocaleString('en-GB', { timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
+                dateStr = d.toLocaleString('en-AU', { timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
               }
             }
             doc.fontSize(11).font('Helvetica-Bold').text(`Date: ${dateStr}`);
