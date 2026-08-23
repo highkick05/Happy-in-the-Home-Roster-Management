@@ -13639,7 +13639,10 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         
         if (data) {
           // It's a dynamic invoice, generate the PDF directly to disk
-          pdfPath = path.join('/tmp', `trilogy_upload_${invoiceId}_${Date.now()}.pdf`);
+          const tempFolder = path.join('/tmp', `trilogy_upload_${invoiceId}_${Date.now()}`);
+          fs.mkdirSync(tempFolder, { recursive: true });
+          const safeFilename = invoice.invoice_number ? `${invoice.invoice_number}.pdf` : \`INV-${invoiceId}.pdf\`;
+          pdfPath = path.join(tempFolder, safeFilename);
           isTempPdf = true;
           
           await new Promise((resolve, reject) => {
@@ -13728,6 +13731,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         if (isTempPdf && fs.existsSync(pdfPath)) {
             try {
                 fs.unlinkSync(pdfPath);
+                // Also clean up the temporary directory we created
+                fs.rmdirSync(path.dirname(pdfPath));
             } catch(e) {
                 console.error("Failed to delete temp Trilogy PDF", e);
             }
