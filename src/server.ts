@@ -13641,7 +13641,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           // It's a dynamic invoice, generate the PDF directly to disk
           const tempFolder = path.join('/tmp', `trilogy_upload_${invoiceId}_${Date.now()}`);
           fs.mkdirSync(tempFolder, { recursive: true });
-          const safeFilename = invoice.invoice_number ? `${invoice.invoice_number}.pdf` : \`INV-${invoiceId}.pdf\`;
+          const safeFilename = invoice.invoice_number ? `${invoice.invoice_number}.pdf` : `INV-${invoiceId}.pdf`;
           pdfPath = path.join(tempFolder, safeFilename);
           isTempPdf = true;
           
