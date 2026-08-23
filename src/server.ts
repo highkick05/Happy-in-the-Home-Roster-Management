@@ -13656,7 +13656,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         
         const path = require('path');
         const fs = require('fs');
-        const pdfPath = path.resolve(invoice.file_path);
+        const pdfPath = path.join('/app', 'invoices', `${invoiceId}.pdf`);
         
         if (!fs.existsSync(pdfPath)) {
             throw new Error(`PDF file not found at path: ${pdfPath}`);
