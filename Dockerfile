@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y python3 build-essential && rm -rf /var/
 
 COPY package*.json ./
 # Use ci for repeatable builds and faster installation
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 COPY . .
 # Build React frontend and Node backend
