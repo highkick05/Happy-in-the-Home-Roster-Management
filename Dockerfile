@@ -13,7 +13,7 @@ COPY . .
 # Build React frontend and Node backend
 RUN npm run build
 # Prune development dependencies
-RUN npm prune --production
+RUN npm prune --omit=dev --legacy-peer-deps
 
 # Production Image
 FROM node:20-bookworm-slim
