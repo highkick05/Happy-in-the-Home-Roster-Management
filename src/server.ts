@@ -1521,7 +1521,17 @@ try {
     console.error("Migration error auto-assigning avatars:", err);
   }
 
-
+  // Add status column to contractors table if missing
+  try {
+    const columns = db.prepare("PRAGMA table_info(contractors)").all() as any[];
+    const hasStatus = columns.some(c => c.name === 'status');
+    if (!hasStatus) {
+      db.prepare("ALTER TABLE contractors ADD COLUMN status TEXT DEFAULT 'ACTIVE'").run();
+      console.log("Migrated contractors table to include status");
+    }
+  } catch (err) {
+    console.error("Migration error contractors table:", err);
+  }
 
   // Data consistency sync for old templates
   try {

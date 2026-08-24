@@ -238,6 +238,11 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   };
 
 
+  const handleEditContractor = (c: any) => {
+    setSelectedContractor(c);
+    setIsContractorModalOpen(true);
+  };
+
   if (user?.role !== 'ADMIN') {
     return <div className="p-4 text-zinc-400">You do not have permission to view this page.</div>;
   }
