@@ -3190,7 +3190,9 @@ try {
   app.get("/api/notifications", authenticateToken, (req: any, res: any) => {
     try {
       let query = "SELECT * FROM notifications WHERE user_id = ?";
-      if (req.user.role !== 'ADMIN') {
+      if (req.user.role === 'ADMIN') {
+        query = "SELECT * FROM notifications WHERE user_id = ? OR user_id = 0";
+      } else if (req.user.role !== 'ADMIN') {
         query += " AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON', 'TRAINING_REQUIRED', 'TRAINING', 'TRAINING_EXPIRED', 'TRAINING_EXPIRING_SOON')";
       }
       query += " ORDER BY created_at DESC LIMIT 50";
@@ -3219,7 +3221,7 @@ try {
            ).run(req.user.id);
         } else {
            db.prepare(
-             "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0"
+             "UPDATE notifications SET is_read = 1 WHERE (user_id = ? OR user_id = 0) AND is_read = 0"
            ).run(req.user.id);
         }
         res.json({ success: true });
@@ -3238,9 +3240,15 @@ try {
     authenticateToken,
     (req: any, res: any) => {
       try {
-        db.prepare(
-          "UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?",
-        ).run(req.params.id, req.user.id);
+        if (req.user.role === 'ADMIN') {
+          db.prepare(
+            "UPDATE notifications SET is_read = 1 WHERE id = ? AND (user_id = ? OR user_id = 0)",
+          ).run(req.params.id, req.user.id);
+        } else {
+          db.prepare(
+            "UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?",
+          ).run(req.params.id, req.user.id);
+        }
         res.json({ success: true });
       } catch (e: any) {
         logger.error(
@@ -10451,8 +10459,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                    `/clients/${shift.client_id}/progress-notes`
                  );
               }
-           }
         }
+           }
 
         console.log(
           `[DEBUG TRIGGER] Shift ${id} completed. Triggering cascade engine.`,
@@ -10483,15 +10491,13 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
             "INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)",
           );
 
-          for (const admin of admins) {
-            insertNotif.run(
-              admin.id,
+          insertNotif.run(
+              0,
               "SHIFT_COMPLETED",
               "Shift Completed",
               `${staffName} has completed their shift with ${clientName} and submitted progress notes.`,
               "/roster",
             );
-          }
         } catch (err) {
           logger.error(
             `Failed to create notifications for shift ${id}: ${err}`,
@@ -17082,21 +17088,15 @@ function resolveFilePath(systemName) {
             );
             
             // Notify admins
-            for (const admin of admins) {
-              const adminExists = checkNotif.get(
-                admin.id,
+            const adminExists = checkNotif.get(0, "DOCUMENT_EXPIRED", `%${file.original_name}%`);
+            if (!adminExists) {
+              insertNotif.run(
+                0,
                 "DOCUMENT_EXPIRED",
-                `%${file.original_name}%`,
+                `Staff Document Expired`,
+                adminMsg,
+                `/compliance`,
               );
-              if (!adminExists) {
-                insertNotif.run(
-                  admin.id,
-                  "DOCUMENT_EXPIRED",
-                  `Staff Document Expired`,
-                  adminMsg,
-                  `/compliance`,
-                );
-              }
             }
 
             logger.info(
@@ -17151,21 +17151,15 @@ function resolveFilePath(systemName) {
             );
             
             // Notify admins
-            for (const admin of admins) {
-              const adminExists = checkNotif.get(
-                admin.id,
+            const adminExists = checkNotif.get(0, "DOCUMENT_EXPIRING_SOON", `%${file.original_name}%`);
+            if (!adminExists) {
+              insertNotif.run(
+                0,
                 "DOCUMENT_EXPIRING_SOON",
-                `%${file.original_name}%`,
+                `Staff Document Expiring Soon`,
+                adminMsg,
+                `/compliance`,
               );
-              if (!adminExists) {
-                insertNotif.run(
-                  admin.id,
-                  "DOCUMENT_EXPIRING_SOON",
-                  `Staff Document Expiring Soon`,
-                  adminMsg,
-                  `/compliance`,
-                );
-              }
             }
 
             logger.info(
@@ -17263,21 +17257,15 @@ function resolveFilePath(systemName) {
             );
             
             // Notify admins
-            for (const admin of admins) {
-              const adminExists = checkNotif.get(
-                admin.id,
+            const adminExists = checkNotif.get(0, "TRAINING_EXPIRED", `%${item.module_name}%`);
+            if (!adminExists) {
+              insertNotif.run(
+                0,
                 "TRAINING_EXPIRED",
-                `%${item.module_name}%`,
+                `Staff Training Expired`,
+                adminMsg,
+                `/training`,
               );
-              if (!adminExists) {
-                insertNotif.run(
-                  admin.id,
-                  "TRAINING_EXPIRED",
-                  `Staff Training Expired`,
-                  adminMsg,
-                  `/training`,
-                );
-              }
             }
             logger.info(
               `Flagged EXPIRED training for staff_training ${item.id} (user ${item.staff_id})`,
@@ -17338,21 +17326,15 @@ function resolveFilePath(systemName) {
             );
             
             // Notify admins
-            for (const admin of admins) {
-              const adminExists = checkNotif.get(
-                admin.id,
+            const adminExists = checkNotif.get(0, "TRAINING_EXPIRING_SOON", `%${item.module_name}%`);
+            if (!adminExists) {
+              insertNotif.run(
+                0,
                 "TRAINING_EXPIRING_SOON",
-                `%${item.module_name}%`,
+                `Staff Training Expiring Soon`,
+                adminMsg,
+                `/training`,
               );
-              if (!adminExists) {
-                insertNotif.run(
-                  admin.id,
-                  "TRAINING_EXPIRING_SOON",
-                  `Staff Training Expiring Soon`,
-                  adminMsg,
-                  `/training`,
-                );
-              }
             }
             logger.info(
               `Flagged EXPIRING_SOON training for staff_training ${item.id} (user ${item.staff_id})`,
@@ -17400,6 +17382,48 @@ function resolveFilePath(systemName) {
 
 
   // Run once on startup
+
+  // Migrate notifications to shared admin queue (user_id = 0)
+  try {
+    const adminIds = db.prepare("SELECT id FROM users WHERE role = 'ADMIN' OR can_switch_admin = 1").all().map((r: any) => r.id);
+    if (adminIds.length > 0) {
+      const placeholders = adminIds.map(() => '?').join(',');
+      const adminNotifs = db.prepare(`SELECT * FROM notifications WHERE user_id IN (${placeholders}) AND type IN ('SHIFT_COMPLETED', 'DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON', 'TRAINING_EXPIRED', 'TRAINING_EXPIRING_SOON') AND title LIKE 'Staff%'`).all(...adminIds) as any[];
+      const shiftNotifs = db.prepare(`SELECT * FROM notifications WHERE user_id IN (${placeholders}) AND type = 'SHIFT_COMPLETED'`).all(...adminIds) as any[];
+      
+      const allToMigrate = [...adminNotifs, ...shiftNotifs];
+      
+      const grouped = new Map();
+      for (const n of allToMigrate) {
+        const key = `${n.type}:::${n.title}:::${n.message}:::${n.link}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, []);
+        }
+        grouped.get(key).push(n);
+      }
+      
+      let deleted = 0;
+      let updated = 0;
+      db.prepare("BEGIN TRANSACTION").run();
+      for (const [key, group] of grouped) {
+        const keep = group[0];
+        db.prepare("UPDATE notifications SET user_id = 0 WHERE id = ?").run(keep.id);
+        updated++;
+        for (let i = 1; i < group.length; i++) {
+          db.prepare("DELETE FROM notifications WHERE id = ?").run(group[i].id);
+          deleted++;
+        }
+      }
+      db.prepare("COMMIT").run();
+      if (updated > 0 || deleted > 0) {
+        logger.info(`Migrated ${updated} admin notifications to shared queue. Deleted ${deleted} duplicates.`);
+      }
+    }
+  } catch (e) {
+    logger.error("Failed to run notification migration:", e);
+    db.prepare("ROLLBACK").run();
+  }
+
   checkComplianceDocumentExpiry();
   checkTrainingExpiry();
 
