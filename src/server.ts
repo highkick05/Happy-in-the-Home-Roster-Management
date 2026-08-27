@@ -7038,7 +7038,7 @@ app.get("/api/health", (req, res) => {
     authenticateToken,
     (req: any, res: any) => {
       try {
-        const { clientId, content, tags, authorId } = req.body;
+        const { clientId, content, tags, authorId, date } = req.body;
         if (!clientId || !content) {
           return res.status(400).json({ error: "Missing required fields" });
         }
@@ -7051,9 +7051,10 @@ app.get("/api/health", (req, res) => {
           }
         }
         
+        let createdAt = date ? new Date(date).toISOString() : new Date().toISOString();
         const result = db.prepare(
-          "INSERT INTO progress_notes (client_id, author_id, content, tags) VALUES (?, ?, ?, ?)"
-        ).run(clientId, authorId ? authorId : req.user.id, content, tags || null);
+          "INSERT INTO progress_notes (client_id, author_id, content, tags, created_at) VALUES (?, ?, ?, ?, ?)"
+        ).run(clientId, authorId ? authorId : req.user.id, content, tags || null, createdAt);
         
         res.json({ success: true, id: result.lastInsertRowid });
       } catch (e: any) {
@@ -7084,7 +7085,7 @@ app.get("/api/health", (req, res) => {
     (req: any, res: any) => {
       try {
         const { id } = req.params;
-        const { content, tags } = req.body;
+        const { content, tags, date } = req.body;
         
         const note = db.prepare("SELECT author_id FROM progress_notes WHERE id = ?").get(id) as any;
         if (!note) return res.status(404).json({ error: "Note not found" });
@@ -7092,7 +7093,11 @@ app.get("/api/health", (req, res) => {
           return res.status(403).json({ error: "Forbidden" });
         }
         
-        db.prepare("UPDATE progress_notes SET content = ?, tags = ? WHERE id = ?").run(content, tags || null, id);
+        if (date) {
+          db.prepare("UPDATE progress_notes SET content = ?, tags = ?, created_at = ? WHERE id = ?").run(content, tags || null, new Date(date).toISOString(), id);
+        } else {
+          db.prepare("UPDATE progress_notes SET content = ?, tags = ? WHERE id = ?").run(content, tags || null, id);
+        }
         res.json({ success: true });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });

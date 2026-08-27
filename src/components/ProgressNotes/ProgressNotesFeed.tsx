@@ -99,6 +99,14 @@ export default function ProgressNotesFeed({
   const handleStartEdit = (note: ProgressNote) => {
     setEditingNote({ source: note.source, id: note.id });
     setEditTags(note.tags || 'Activity');
+    try {
+      const d = new Date(note.start_time);
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const formatted = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      setEditNoteDate(formatted);
+    } catch(e) {
+      setEditNoteDate('');
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -107,7 +115,7 @@ export default function ProgressNotesFeed({
       const editorData = await editEditorRef.current?.save();
       if (!editorData) return;
       const contentStr = JSON.stringify(editorData);
-      await onEditNote(editingNote.source, editingNote.id, contentStr, editTags);
+      await onEditNote(editingNote.source, editingNote.id, contentStr, editTags, editNoteDate || undefined);
       setEditingNote(null);
     } catch (e) {
       console.error(e);
@@ -187,22 +195,33 @@ export default function ProgressNotesFeed({
                   <h3 className="text-[12px] font-semibold text-white">Add New Progress Note</h3>
                 </div>
                 <div className="p-3">
-                  <div className="flex items-center justify-between gap-4 mb-3">
-                    {userRole === 'ADMIN' ? (
-                      <div className="flex items-center space-x-2 text-[12px] flex-1">
-                        <span className="text-zinc-400">Author:</span>
-                        <select 
-                          value={newNoteAuthorId}
-                          onChange={(e) => setNewNoteAuthorId(e.target.value)}
-                          className="bg-brand-navy border border-border-subtle rounded px-2 py-1.5 text-white outline-none w-48 shadow-sm"
-                        >
-                          <option value="" className="bg-brand-navy text-white">(Self)</option>
-                          {staffList?.filter(s => s.role === 'STAFF').map(s => (
-                            <option key={s.id} value={s.id} className="bg-brand-navy text-white">{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
-                          ))}
-                        </select>
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
+                    <div className="flex items-center space-x-4 flex-1">
+                      {userRole === 'ADMIN' && (
+                        <div className="flex items-center space-x-2 text-[12px]">
+                          <span className="text-zinc-400">Author:</span>
+                          <select 
+                            value={newNoteAuthorId}
+                            onChange={(e) => setNewNoteAuthorId(e.target.value)}
+                            className="bg-brand-navy border border-border-subtle rounded px-2 py-1.5 text-white outline-none w-48 shadow-sm"
+                          >
+                            <option value="" className="bg-brand-navy text-white">(Self)</option>
+                            {staffList?.filter(s => s.role === 'STAFF').map(s => (
+                              <option key={s.id} value={s.id} className="bg-brand-navy text-white">{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <div className="flex items-center space-x-2 text-[12px]">
+                        <span className="text-zinc-400">Date:</span>
+                        <input 
+                          type="datetime-local" 
+                          value={newNoteDate}
+                          onChange={(e) => setNewNoteDate(e.target.value)}
+                          className="bg-brand-navy border border-border-subtle rounded px-2 py-1.5 text-white outline-none shadow-sm"
+                        />
                       </div>
-                    ) : <div className="flex-1" />}
+                    </div>
                     <div className="flex items-center space-x-2 text-[12px]">
                       <span className="text-zinc-400">Tag:</span>
                       <div className="bg-brand-navy border border-border-subtle rounded flex overflow-hidden shadow-sm">
@@ -296,6 +315,13 @@ export default function ProgressNotesFeed({
                  <div className="space-y-3 bg-black/20 p-4 rounded-lg border border-border-subtle">
                     {note.source === 'MANUAL' && (
                       <div className="flex items-center space-x-2 text-[12px] mb-2">
+                        <span className="text-zinc-400">Date:</span>
+                        <input 
+                          type="datetime-local" 
+                          value={editNoteDate}
+                          onChange={(e) => setEditNoteDate(e.target.value)}
+                          className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none mr-4"
+                        />
                         <span className="text-zinc-400">Tag:</span>
                         <select 
                           value={editTags}

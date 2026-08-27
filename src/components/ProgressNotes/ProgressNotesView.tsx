@@ -87,14 +87,14 @@ export default function ProgressNotesView() {
     }
   };
 
-  const handleSubmitNote = async (content: string, tags: string, clientId: string, authorId?: string) => {
+  const handleSubmitNote = async (content: string, tags: string, clientId: string, authorId?: string, date?: string) => {
     const res = await fetch('/api/progress-notes', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({ clientId, content, tags, authorId })
+      body: JSON.stringify({ clientId, content, tags, authorId, date })
     });
     if (!res.ok) throw new Error('Failed to submit note');
     await fetchNotes();
@@ -157,7 +157,7 @@ export default function ProgressNotesView() {
     await fetchNotes();
   };
 
-  const handleEditNote = async (source: 'SHIFT' | 'MANUAL', id: number, content: string, tags?: string) => {
+  const handleEditNote = async (source: 'SHIFT' | 'MANUAL', id: number, content: string, tags?: string, date?: string) => {
     const endpoint = source === 'MANUAL' ? `/api/progress-notes/${id}` : `/api/progress-notes/shifts/${id}`;
     const res = await fetch(endpoint, {
       method: 'PUT',
@@ -165,7 +165,7 @@ export default function ProgressNotesView() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({ content, tags })
+      body: JSON.stringify({ content, tags, date })
     });
     if (!res.ok) throw new Error('Failed to edit note');
     await fetchNotes();
