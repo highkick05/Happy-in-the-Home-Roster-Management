@@ -2,8 +2,8 @@ FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install native build tools for better-sqlite3
-RUN apt-get update && apt-get install -y python3 build-essential && rm -rf /var/lib/apt/lists/*
+# Install native build tools for better-sqlite3 and git for commit hash
+RUN apt-get update && apt-get install -y python3 build-essential git && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 # Use ci for repeatable builds and faster installation
