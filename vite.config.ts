@@ -9,7 +9,7 @@ export default defineConfig(({mode}) => {
   return {
     plugins: [
       (VitePWA as any)({
-        registerType: 'prompt',
+        registerType: 'autoUpdate',
         strategy: 'generateSW',
         injectRegister: 'inline',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
