@@ -8,4 +8,3 @@ osrm-data
 dev-database.sqlite
 dev-database.sqlite-shm
 dev-database.sqlite-wal
-.git
