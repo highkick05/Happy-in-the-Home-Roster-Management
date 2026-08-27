@@ -5,7 +5,12 @@ import { defineConfig, loadEnv } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'child_process';
 
-const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
+let commitHash = 'unknown';
+try {
+  commitHash = execSync('git rev-parse --short HEAD').toString().trim();
+} catch (e) {
+  console.warn('Could not retrieve git commit hash, defaulting to "unknown"');
+}
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
