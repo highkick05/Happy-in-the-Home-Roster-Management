@@ -21,9 +21,9 @@ interface ProgressNotesFeedProps {
   selectedClientId: string;
   onClientChange: (clientId: string) => void;
   notes: ProgressNote[];
-  onSubmitNote: (content: string, tags: string, clientId: string, authorId?: string) => Promise<void>;
+  onSubmitNote: (content: string, tags: string, clientId: string, authorId?: string, date?: string) => Promise<void>;
   onDeleteNote?: (source: 'SHIFT' | 'MANUAL', id: number) => Promise<void>;
-  onEditNote: (source: 'SHIFT' | 'MANUAL', id: number, content: string, tags?: string) => Promise<void>;
+  onEditNote: (source: 'SHIFT' | 'MANUAL', id: number, content: string, tags?: string, date?: string) => Promise<void>;
   loading?: boolean;
   staffList?: any[];
   currentUserId?: number;
@@ -85,11 +85,12 @@ export default function ProgressNotesFeed({
       
       const contentStr = JSON.stringify(editorData);
       const authorId = newNoteAuthorId ? newNoteAuthorId : currentUserId?.toString();
-      await onSubmitNote(contentStr, newNoteTags, selectedClientId, authorId);
+      await onSubmitNote(contentStr, newNoteTags, selectedClientId, authorId, newNoteDate || undefined);
       
       editorRef.current?.clear();
       setNewNoteTags('Activity');
       setNewNoteAuthorId('');
+      setNewNoteDate('');
     } catch (e) {
       console.error(e);
       alert('Failed to submit note');
