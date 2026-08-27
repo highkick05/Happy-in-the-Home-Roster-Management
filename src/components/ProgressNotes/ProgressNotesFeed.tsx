@@ -61,11 +61,13 @@ export default function ProgressNotesFeed({
   const { settings } = useAuth();
   const [newNoteTags, setNewNoteTags] = useState('Activity');
   const [newNoteAuthorId, setNewNoteAuthorId] = useState('');
+  const [newNoteDate, setNewNoteDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const editorRef = useRef<EditorJSRef>(null);
 
   const [editingNote, setEditingNote] = useState<{source: 'SHIFT'|'MANUAL', id: number} | null>(null);
   const [editTags, setEditTags] = useState('');
+  const [editNoteDate, setEditNoteDate] = useState('');
   const editEditorRef = useRef<EditorJSRef>(null);
 
   const colsCount = useBreakpoint();
