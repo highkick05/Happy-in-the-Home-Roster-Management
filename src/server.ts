@@ -3191,7 +3191,7 @@ try {
     try {
       let query = "SELECT * FROM notifications WHERE user_id = ?";
       if (req.user.role !== 'ADMIN') {
-        query += " AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON', 'TRAINING_REQUIRED', 'TRAINING')";
+        query += " AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON', 'TRAINING_REQUIRED', 'TRAINING', 'TRAINING_EXPIRED', 'TRAINING_EXPIRING_SOON')";
       }
       query += " ORDER BY created_at DESC LIMIT 50";
       
@@ -3215,7 +3215,7 @@ try {
       try {
         if (req.user.role !== 'ADMIN') {
            db.prepare(
-             "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0 AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON', 'TRAINING_REQUIRED', 'TRAINING')"
+             "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0 AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON', 'TRAINING_REQUIRED', 'TRAINING', 'TRAINING_EXPIRED', 'TRAINING_EXPIRING_SOON')"
            ).run(req.user.id);
         } else {
            db.prepare(
@@ -17205,9 +17205,204 @@ function resolveFilePath(systemName) {
     }
   }
 
+
+  // Daily training expiry check function
+  async function checkTrainingExpiry() {
+    try {
+      logger.info("Running training expiry check...");
+      
+      const expiringTraining = db
+        .prepare(
+          `
+        SELECT st.id, st.staff_id, st.expiry_date, tm.title as module_name, u.email, u.first_name, u.last_name 
+         FROM staff_training st 
+         JOIN users u ON st.staff_id = u.id 
+         JOIN training_modules tm ON st.training_module_id = tm.id
+         WHERE st.status = 'COMPLETED' AND st.expiry_date IS NOT NULL
+      `
+        )
+        .all() as any[];
+
+      const today = new Date();
+      const insertNotif = db.prepare(
+        "INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)",
+      );
+      const checkNotif = db.prepare(
+        "SELECT id FROM notifications WHERE user_id = ? AND type = ? AND message LIKE ? AND is_read = 0",
+      );
+
+      const admins = db
+        .prepare("SELECT id FROM users WHERE role = 'ADMIN' OR can_switch_admin = 1")
+        .all() as any[];
+
+      for (const item of expiringTraining) {
+        // Expiry date format is typically YYYY-MM-DD or ISO string. Let's parse it properly
+        const expDate = new Date(item.expiry_date);
+        const diffTime = expDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays <= 0) {
+          // EXPIRED
+          const title = `Training Expired`;
+          const msg = `Your training module '${item.module_name}' has expired. Immediate action required.`;
+          const adminMsg = `Staff member ${item.first_name} ${item.last_name} (${item.email}) has an expired training module: '${item.module_name}'.`;
+          
+          // Notify staff member
+          const exists = checkNotif.get(
+            item.staff_id,
+            "TRAINING_EXPIRED",
+            `%${item.module_name}%`,
+          );
+          if (!exists) {
+            insertNotif.run(
+              item.staff_id,
+              "TRAINING_EXPIRED",
+              title,
+              msg,
+              `/training`,
+            );
+            
+            // Notify admins
+            for (const admin of admins) {
+              const adminExists = checkNotif.get(
+                admin.id,
+                "TRAINING_EXPIRED",
+                `%${item.module_name}%`,
+              );
+              if (!adminExists) {
+                insertNotif.run(
+                  admin.id,
+                  "TRAINING_EXPIRED",
+                  `Staff Training Expired`,
+                  adminMsg,
+                  `/training`,
+                );
+              }
+            }
+            logger.info(
+              `Flagged EXPIRED training for staff_training ${item.id} (user ${item.staff_id})`,
+            );
+            
+            // Send Email reminder safely if SMTP is configured
+            const s = getSmtpSettings();
+            if (s.user && s.pass && item.email) {
+              try {
+                await getTransporter().sendMail({
+                  from: s.from,
+                  to: item.email,
+                  subject: `Action Required: Training Expired - Happy in the Home`,
+                  text:
+                    `Dear ${item.first_name || "Team Member"},
+
+` +
+                    `This is a friendly reminder that your training module '${item.module_name}' has expired.
+
+` +
+                    `Immediate renewal is required to maintain compliance. Please log in to your Staff Portal and complete the required training.
+
+` +
+                    `Regards,
+` +
+                    `Happy in the Home Support Team`,
+                });
+                logger.info(
+                  `Expiry email notification sent to ${item.email} for training ${item.id}`,
+                );
+              } catch (mailErr) {
+                logger.error(
+                  `Failed to send expiry email to ${item.email}:`,
+                  mailErr,
+                );
+              }
+            }
+          }
+        } else if (diffDays <= 90 && diffDays > 0) {
+          // EXPIRING SOON
+          const title = `Training Expiring Soon`;
+          const msg = `Your training module '${item.module_name}' expires in ${diffDays} days. Please renew it soon.`;
+          const adminMsg = `Staff member ${item.first_name} ${item.last_name} (${item.email}) has a training module expiring in ${diffDays} days: '${item.module_name}'.`;
+          
+          // Notify staff member
+          const exists = checkNotif.get(
+            item.staff_id,
+            "TRAINING_EXPIRING_SOON",
+            `%${item.module_name}%`,
+          );
+          if (!exists) {
+            insertNotif.run(
+              item.staff_id,
+              "TRAINING_EXPIRING_SOON",
+              title,
+              msg,
+              `/training`,
+            );
+            
+            // Notify admins
+            for (const admin of admins) {
+              const adminExists = checkNotif.get(
+                admin.id,
+                "TRAINING_EXPIRING_SOON",
+                `%${item.module_name}%`,
+              );
+              if (!adminExists) {
+                insertNotif.run(
+                  admin.id,
+                  "TRAINING_EXPIRING_SOON",
+                  `Staff Training Expiring Soon`,
+                  adminMsg,
+                  `/training`,
+                );
+              }
+            }
+            logger.info(
+              `Flagged EXPIRING_SOON training for staff_training ${item.id} (user ${item.staff_id})`,
+            );
+            
+            // Send Email reminder safely if SMTP is configured
+            const s = getSmtpSettings();
+            if (s.user && s.pass && item.email) {
+              try {
+                await getTransporter().sendMail({
+                  from: s.from,
+                  to: item.email,
+                  subject: `Action Required: Training Expiring Soon - Happy in the Home`,
+                  text:
+                    `Dear ${item.first_name || "Team Member"},
+
+` +
+                    `This is a friendly reminder that your training module '${item.module_name}' is expiring in ${diffDays} days.
+
+` +
+                    `Please log in to your Staff Portal and complete the required training before it expires.
+
+` +
+                    `Regards,
+` +
+                    `Happy in the Home Support Team`,
+                });
+                logger.info(
+                  `Expiring soon email notification sent to ${item.email} for training ${item.id}`,
+                );
+              } catch (mailErr) {
+                logger.error(
+                  `Failed to send expiring soon email to ${item.email}:`,
+                  mailErr,
+                );
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      logger.error("Error during training cron check:", e);
+    }
+  }
+
+
   // Run once on startup
   checkComplianceDocumentExpiry();
-  
+  checkTrainingExpiry();
+
   try {
     const rawTzSetting = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
     const rawTz = rawTzSetting?.value || "Australia/Perth";
@@ -17286,6 +17481,7 @@ function resolveFilePath(systemName) {
   // Daily compliance document expiry check
   cron.schedule("0 1 * * *", async () => {
     await checkComplianceDocumentExpiry();
+    await checkTrainingExpiry();
   });
 
   // Check for future-dated price lists that should become active today
