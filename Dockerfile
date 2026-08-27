@@ -36,7 +36,6 @@ ENV NODE_ENV=production
 ENV PORT=3000
 # Store SQLite and its WAL files safely in a dedicated directory
 ENV DATABASE_PATH=/app/data/database.sqlite 
-ENV OSRM_URL=http://osrm:5000
 
 EXPOSE 3000
 

@@ -11,3 +11,5 @@ services:
       - ./data:/app/data
       - ./uploads:/app/uploads
       - ./invoices:/app/invoices
+    extra_hosts:
+      - "mail.happyinthehome.org:72.60.40.220"
