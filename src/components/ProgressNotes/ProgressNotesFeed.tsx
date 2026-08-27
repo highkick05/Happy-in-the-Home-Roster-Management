@@ -197,15 +197,15 @@ export default function ProgressNotesFeed({
                   <h3 className="text-[12px] font-semibold text-white">Add New Progress Note</h3>
                 </div>
                 <div className="p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
-                    <div className="flex items-center space-x-4 flex-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 w-full">
+                    <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap scrollbar-hide pb-1 sm:pb-0 w-full">
                       {userRole === 'ADMIN' && (
-                        <div className="flex items-center space-x-2 text-[12px]">
+                        <div className="flex items-center space-x-2 text-[12px] shrink-0">
                           <span className="text-zinc-400">Author:</span>
                           <select 
                             value={newNoteAuthorId}
                             onChange={(e) => setNewNoteAuthorId(e.target.value)}
-                            className="bg-brand-navy border border-border-subtle rounded px-2 py-1.5 text-white outline-none w-48 shadow-sm"
+                            className="bg-brand-navy border border-border-subtle rounded px-2 py-1.5 text-white outline-none w-32 shadow-sm"
                           >
                             <option value="" className="bg-brand-navy text-white">(Self)</option>
                             {staffList?.filter(s => s.role === 'STAFF').map(s => (
@@ -214,7 +214,7 @@ export default function ProgressNotesFeed({
                           </select>
                         </div>
                       )}
-                      <div className="flex items-center space-x-2 text-[12px]">
+                      <div className="flex items-center space-x-2 text-[12px] shrink-0">
                         <span className="text-zinc-400">Date:</span>
                         <input 
                           type="datetime-local" 
@@ -223,19 +223,19 @@ export default function ProgressNotesFeed({
                           className="bg-brand-navy border border-border-subtle rounded px-2 py-1.5 text-white outline-none shadow-sm"
                         />
                       </div>
-                    </div>
-                    <div className="flex items-center space-x-2 text-[12px]">
-                      <span className="text-zinc-400">Tag:</span>
-                      <div className="bg-brand-navy border border-border-subtle rounded flex overflow-hidden shadow-sm">
-                        {['Activity', 'Behavioural', 'Incident'].map(tag => (
-                          <button
-                            key={tag}
-                            onClick={() => setNewNoteTags(tag)}
-                            className={`px-3 py-1.5 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-brand-navy/60'}`}
-                          >
-                            {tag}
-                          </button>
-                        ))}
+                      <div className="flex items-center space-x-2 text-[12px] shrink-0 ml-auto sm:ml-0">
+                        <span className="text-zinc-400">Tag:</span>
+                        <div className="bg-brand-navy border border-border-subtle rounded flex overflow-hidden shadow-sm">
+                          {['Activity', 'Behavioural', 'Incident'].map(tag => (
+                            <button
+                              key={tag}
+                              onClick={() => setNewNoteTags(tag)}
+                              className={`px-2.5 py-1.5 transition-colors ${newNoteTags === tag ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-brand-navy/60'}`}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -315,27 +315,29 @@ export default function ProgressNotesFeed({
 
                {editingNote?.source === note.source && editingNote?.id === note.id ? (
                  <div className="space-y-3 bg-black/20 p-4 rounded-lg border border-border-subtle">
-                    {note.source === 'MANUAL' && (
-                      <div className="flex items-center space-x-2 text-[12px] mb-2">
-                        <span className="text-zinc-400">Date:</span>
-                        <input 
-                          type="datetime-local" 
-                          value={editNoteDate}
-                          onChange={(e) => setEditNoteDate(e.target.value)}
-                          className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none mr-4"
-                        />
-                        <span className="text-zinc-400">Tag:</span>
-                        <select 
-                          value={editTags}
-                          onChange={(e) => setEditTags(e.target.value)}
-                          className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none"
-                        >
-                          <option value="Activity" className="bg-brand-navy text-white">Activity</option>
-                          <option value="Behavioural" className="bg-brand-navy text-white">Behavioural</option>
-                          <option value="Incident" className="bg-brand-navy text-white">Incident</option>
-                        </select>
+                    <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap scrollbar-hide text-[12px] mb-2 pb-1">
+                        <div className="flex items-center space-x-2 shrink-0">
+                          <span className="text-zinc-400">Date:</span>
+                          <input 
+                            type="datetime-local" 
+                            value={editNoteDate}
+                            onChange={(e) => setEditNoteDate(e.target.value)}
+                            className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none"
+                          />
+                        </div>
+                        <div className="flex items-center space-x-2 shrink-0">
+                          <span className="text-zinc-400">Tag:</span>
+                          <select 
+                            value={editTags}
+                            onChange={(e) => setEditTags(e.target.value)}
+                            className="bg-black/40 border border-white/[0.08] rounded px-2 py-1 text-white outline-none"
+                          >
+                            <option value="Activity" className="bg-brand-navy text-white">Activity</option>
+                            <option value="Behavioural" className="bg-brand-navy text-white">Behavioural</option>
+                            <option value="Incident" className="bg-brand-navy text-white">Incident</option>
+                          </select>
+                        </div>
                       </div>
-                    )}
                     
                     <div className="bg-black/30 rounded border border-border-subtle p-3">
                       <EditorJSWrapper 

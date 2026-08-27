@@ -7112,7 +7112,7 @@ app.get("/api/health", (req, res) => {
     (req: any, res: any) => {
       try {
         const { id } = req.params;
-        const { content } = req.body;
+        const { content, tags, date } = req.body;
         
         const shift = db.prepare("SELECT staff_id FROM shifts WHERE id = ?").get(id) as any;
         if (!shift) return res.status(404).json({ error: "Shift not found" });
@@ -7120,7 +7120,11 @@ app.get("/api/health", (req, res) => {
           return res.status(403).json({ error: "Forbidden" });
         }
         
-        db.prepare("UPDATE shifts SET notes = ? WHERE id = ?").run(content, id);
+        if (date) {
+          db.prepare("UPDATE shifts SET notes = ?, tags = ?, actual_finish_time = ? WHERE id = ?").run(content, tags || null, new Date(date).toISOString(), id);
+        } else {
+          db.prepare("UPDATE shifts SET notes = ?, tags = ? WHERE id = ?").run(content, tags || null, id);
+        }
         res.json({ success: true });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
