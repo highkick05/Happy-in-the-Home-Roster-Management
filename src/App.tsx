@@ -12,7 +12,6 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatNotificationProvider } from './context/ChatNotificationContext';
 import QuickLinksDrawer from './components/QuickLinksDrawer';
 import FloatingChatIcon from './components/FloatingChatIcon';
-import ReloadPrompt from './components/ReloadPrompt';
 import Login from './components/Auth/Login';
 import ForgotPasswordView from './components/Auth/ForgotPasswordView';
 import ResetPasswordView from './components/Auth/ResetPasswordView';
@@ -470,7 +469,6 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
         <ChatNotificationProvider>
-      <ReloadPrompt />
           <UniversalPWAInstall />
           <Routes>
             <Route path="/login" element={<Login />} />
