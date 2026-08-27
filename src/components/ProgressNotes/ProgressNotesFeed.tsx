@@ -85,7 +85,7 @@ export default function ProgressNotesFeed({
       
       const contentStr = JSON.stringify(editorData);
       const authorId = newNoteAuthorId ? newNoteAuthorId : currentUserId?.toString();
-      await onSubmitNote(contentStr, newNoteTags, selectedClientId, authorId, newNoteDate || undefined);
+      await onSubmitNote(contentStr, newNoteTags, selectedClientId, authorId, newNoteDate ? new Date(newNoteDate).toISOString() : undefined);
       
       editorRef.current?.clear();
       setNewNoteTags('Activity');
@@ -118,7 +118,7 @@ export default function ProgressNotesFeed({
       const editorData = await editEditorRef.current?.save();
       if (!editorData) return;
       const contentStr = JSON.stringify(editorData);
-      await onEditNote(editingNote.source, editingNote.id, contentStr, editTags, editNoteDate || undefined);
+      await onEditNote(editingNote.source, editingNote.id, contentStr, editTags, editNoteDate ? new Date(editNoteDate).toISOString() : undefined);
       setEditingNote(null);
     } catch (e) {
       console.error(e);
