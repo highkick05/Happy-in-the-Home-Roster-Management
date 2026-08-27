@@ -259,7 +259,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           )}
         </div>
         
-        <nav className="flex-1 px-3 mt-0 overflow-hidden z-10 relative flex flex-col">
+        <nav className="flex-1 px-3 mt-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] z-10 relative flex flex-col">
           
           <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-0 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Communication</div>
           <div className="space-y-0.5 mb-2">
