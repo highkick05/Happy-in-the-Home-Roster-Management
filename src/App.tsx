@@ -42,6 +42,9 @@ import EmailFloatingWidget from './components/Email/EmailFloatingWidget';
 import { getAvatarUrl } from './utils/avatar';
 
 
+// @ts-ignore
+declare const __APP_VERSION__: string | undefined;
+
 function DateTimer() {
   const [now, setNow] = React.useState(new Date());
   
@@ -351,9 +354,15 @@ function Layout({ children }: { children: React.ReactNode }) {
             </>
           )}
 
-          <div className="pt-4 mt-6 border-t border-border-subtle hidden">
+          <div className="pt-4 mt-auto">
           </div>
         </nav>
+
+        {(!isDesktopSidebarCollapsed || isMobileMenuOpen) && (
+          <div className="px-5 py-2 text-[10px] text-zinc-500/50 font-mono text-left tracking-wide select-none">
+            v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
+          </div>
+        )}
 
         <div className={`p-3 border-t border-border-subtle space-y-1 shrink-0 z-10 relative bg-brand-navy ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '!px-2' : ''}`}>
           {!isDesktopSidebarCollapsed || isMobileMenuOpen ? (
