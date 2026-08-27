@@ -3189,10 +3189,14 @@ try {
   // --- Notifications API ---
   app.get("/api/notifications", authenticateToken, (req: any, res: any) => {
     try {
+      let query = "SELECT * FROM notifications WHERE user_id = ?";
+      if (req.user.role !== 'ADMIN') {
+        query += " AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON', 'TRAINING_REQUIRED', 'TRAINING')";
+      }
+      query += " ORDER BY created_at DESC LIMIT 50";
+      
       const notifs = db
-        .prepare(
-          "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
-        )
+        .prepare(query)
         .all(req.user.id);
       res.json(notifs);
     } catch (e: any) {
@@ -3209,9 +3213,15 @@ try {
     authenticateToken,
     (req: any, res: any) => {
       try {
-        db.prepare(
-          "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0",
-        ).run(req.user.id);
+        if (req.user.role !== 'ADMIN') {
+           db.prepare(
+             "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0 AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON', 'TRAINING_REQUIRED', 'TRAINING')"
+           ).run(req.user.id);
+        } else {
+           db.prepare(
+             "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0"
+           ).run(req.user.id);
+        }
         res.json({ success: true });
       } catch (e: any) {
         logger.error(
@@ -10138,7 +10148,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           userIdsToNotify.add(Number(shift.staff_id));
 
           const admins = db
-            .prepare("SELECT id FROM users WHERE role = 'ADMIN'")
+            .prepare("SELECT id FROM users WHERE role = 'ADMIN' OR can_switch_admin = 1")
             .all() as any[];
           for (const admin of admins) {
             userIdsToNotify.add(Number(admin.id));
@@ -10428,7 +10438,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
               const staffName = `${alertStaff.first_name || ''} ${alertStaff.last_name || ''}`.trim();
               const clientName = `${alertClient.first_name || ''} ${alertClient.last_name || ''}`.trim();
               
-              const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN'").all() as any[];
+              const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN' OR can_switch_admin = 1").all() as any[];
               const insertNotification = db.prepare(`
                 INSERT INTO notifications (user_id, type, title, message, link)
                 VALUES (?, 'ALERT', 'Incident Reported', ?, ?)
@@ -10466,7 +10476,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
             : "a client";
 
           const admins = db
-            .prepare("SELECT id FROM users WHERE role = 'ADMIN'")
+            .prepare("SELECT id FROM users WHERE role = 'ADMIN' OR can_switch_admin = 1")
             .all() as any[];
 
           const insertNotif = db.prepare(
@@ -17042,7 +17052,7 @@ function resolveFilePath(systemName) {
       );
 
       const admins = db
-        .prepare("SELECT id FROM users WHERE role = 'ADMIN'")
+        .prepare("SELECT id FROM users WHERE role = 'ADMIN' OR can_switch_admin = 1")
         .all() as any[];
 
       for (const file of expiringFiles) {
