@@ -20068,7 +20068,7 @@ function resolveFilePath(systemName) {
       console.warn("Vite not found or failed to start, falling back to static files.");
       app.use(express.static(distPath, {
       setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.html')) {
+        if (filePath.endsWith('.html') || filePath.endsWith('sw.js') || filePath.endsWith('custom-sw.js') || filePath.endsWith('.webmanifest')) {
           res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
           res.setHeader('Pragma', 'no-cache');
           res.setHeader('Expires', '0');
@@ -20080,7 +20080,7 @@ function resolveFilePath(systemName) {
     // Serve static files in production
     app.use(express.static(distPath, {
       setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.html')) {
+        if (filePath.endsWith('.html') || filePath.endsWith('sw.js') || filePath.endsWith('custom-sw.js') || filePath.endsWith('.webmanifest')) {
           res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
           res.setHeader('Pragma', 'no-cache');
           res.setHeader('Expires', '0');
