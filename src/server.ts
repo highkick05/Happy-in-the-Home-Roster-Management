@@ -20228,6 +20228,9 @@ function resolveFilePath(systemName) {
   // Universal fallback for SPA routing
   app.use((req, res, next) => {
     if (req.method === 'GET' && req.accepts('html') && !req.path.startsWith('/api/')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.sendFile(path.join(distPath, 'index.html'), (err) => {
         if (err) {
           console.error(`[SPA Fallback Error] Failed to serve index.html from ${distPath}: `, err.message);
