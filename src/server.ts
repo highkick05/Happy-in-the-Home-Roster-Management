@@ -12491,112 +12491,69 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
     requireAdmin,
     upload.array("attachments"),
     (req: any, res: any) => {
-      let {
-        clientId,
-        staffId,
-        services,
-        date,
-        startTime,
-        endTime,
-        startDateTime,
-        endDateTime,
-        customStaffName,
-      } = req.body;
+      let { clientId, staffId, services, date, customStaffName } = req.body;
       
       if (typeof services === 'string') {
-        try {
-          services = JSON.parse(services);
-        } catch(e) {
-          return res.status(400).json({ error: "Invalid services JSON" });
-        }
+        try { services = JSON.parse(services); } catch(e) { return res.status(400).json({ error: "Invalid JSON" }); }
       }
-
-      if (
-        !clientId ||
-        !staffId ||
-        !services ||
-        !Array.isArray(services) ||
-        services.length === 0 ||
-        !date
-      ) {
-        return res
-          .status(400)
-          .json({ error: "Missing required fields or services array" });
+      
+      if (!clientId || !staffId || !services || !date) {
+        return res.status(400).json({ error: "Missing required fields" });
       }
-
-      const finalStartTime = startTime || '00:00';
-      const finalEndTime = endTime || '00:00';
 
       try {
         const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
-        const settingsMap: Record<string, string> = {};
+        const settingsMap: any = {};
         settingsRows.forEach((r) => { settingsMap[r.key] = r.value; });
-        let rawTz = settingsMap.timezone || "Australia/Perth";
-        const portalTimezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
-
-        // Parse date and time in the portal's timezone
-        const finalStartDateTime = fromZonedTime(`${date}T${finalStartTime}:00`, portalTimezone).toISOString();
         
-        let endDateTimeStr = `${date}T${finalEndTime}:00`;
-        if (finalEndTime <= finalStartTime) {
-          const [year, month, day] = date.split("-").map(Number);
-          const nextDay = new Date(year, month - 1, day);
-          nextDay.setDate(nextDay.getDate() + 1);
-          const y = nextDay.getFullYear();
-          const m = String(nextDay.getMonth() + 1).padStart(2, "0");
-          const rDay = String(nextDay.getDate()).padStart(2, "0");
-          endDateTimeStr = `${y}-${m}-${rDay}T${finalEndTime}:00`;
-        }
-        const finalEndDateTime = fromZonedTime(endDateTimeStr, portalTimezone).toISOString();
+        let calculatedAmount = 0;
+        
+        const parsedDate = new Date(date);
+        const timezone = settingsMap.timezone ? settingsMap.timezone.replace(/['"]+/g, "") : "Australia/Perth";
+        const dayOfWeek = parsedDate.getDay();
 
-        // 1. Create a completed shift
-        const isCustomStaff = staffId === "custom" || !staffId;
-        const finalStaffId = isCustomStaff ? req.user.id : staffId;
-        const finalCustomStaffName = isCustomStaff
-          ? customStaffName || "Generic Staff"
-          : null;
+        services.forEach((sd: any) => {
+           let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
+           let finalRate = 0;
 
-        let mainServiceId = services[0].isCustom
-          ? null
-          : services[0].serviceId;
-        if (mainServiceId === 'custom' || mainServiceId === 'orientation') mainServiceId = null;
-        if (req.body.gstType && services.length > 0) {
-          services[0].gstType = req.body.gstType;
-        }
+           if (sd.isCustom) {
+               finalRate = sd.rateOverride ? Number(sd.rateOverride) : 0;
+           } else {
+               const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
+               if (srv) {
+                   finalRate = Number(srv.rate || 0);
+                   if (srv.type === "HOME_CARE" && srv.rates_json) {
+                       try {
+                           const rates = JSON.parse(srv.rates_json);
+                           if (dayOfWeek === 0 && rates["Sunday"]) finalRate = Number(rates["Sunday"]);
+                           else if (dayOfWeek === 6 && rates["Saturday"]) finalRate = Number(rates["Saturday"]);
+                           else if (rates["Weekday"]) finalRate = Number(rates["Weekday"]);
+                       } catch(e) {}
+                   } else if (srv.type === "NDIS" && srv.rates_json) {
+                       try {
+                           const rates = JSON.parse(srv.rates_json);
+                           const region = settingsMap.ndisRegion || "NSW";
+                           if (rates[region] !== undefined) finalRate = Number(rates[region]);
+                       } catch(e) {}
+                   }
+               }
+           }
 
-        if (!startTime && !endTime) {
-          services.forEach((s: any) => s.omitTime = true);
-        }
+           if (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== "") {
+               finalRate = Number(sd.rateOverride);
+           }
+           calculatedAmount += qty * finalRate;
+        });
 
-        const servicesJson = JSON.stringify(services);
+        const c = db.prepare("SELECT first_name FROM clients WHERE id = ?").get(clientId) as any;
+        const cInitial = c ? c.first_name.substring(0, 3).toUpperCase() : "XXX";
+        const dateStr = date.replace(/-/g, "").substring(4, 8);
+        const timestampPart = Date.now().toString().slice(-3);
+        const remittanceNumber = `REM-${cInitial}-${dateStr}-${timestampPart}`;
 
-        const clientRow = db.prepare("SELECT funding_type FROM clients WHERE id = ?").get(clientId) as any;
-        const clientFundingType = clientRow?.funding_type || "NDIS";
-
-        const shiftResult = db
-          .prepare(
-            `
-        INSERT INTO shifts (client_id, staff_id, service_id, services_json, start_time, end_time, actual_finish_time, status, notes, custom_staff_name, funding_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?)
-      `,
-          )
-          .run(
-            clientId,
-            finalStaffId,
-            mainServiceId,
-            servicesJson,
-            finalStartDateTime,
-            finalEndDateTime,
-            finalEndDateTime,
-            "Manually generated invoice",
-            finalCustomStaffName,
-            clientFundingType,
-          );
-
-        const shiftId = shiftResult.lastInsertRowid as number;
-
-        // 2. Generate the invoice
-        generateInvoiceForShift(shiftId);
+        const isCustomStaff = staffId === "custom";
+        const finalStaffId = isCustomStaff ? null : staffId;
+        const finalCustomStaffName = isCustomStaff ? (customStaffName || "Generic Staff") : null;
 
         const attachments = (req.files as any[])?.map(f => ({
           filename: f.originalname,
@@ -12604,19 +12561,93 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           mimetype: f.mimetype
         })) || [];
 
-        if (attachments.length > 0) {
-          db.prepare("UPDATE remittances SET attachments_json = ? WHERE shift_id = ?").run(JSON.stringify(attachments), shiftId);
+        const insertResult = db.prepare(
+          `INSERT INTO remittances (remittance_number, client_id, staff_id, custom_payee_name, amount, status, services_json, attachments_json)
+           VALUES (?, ?, ?, ?, ?, 'GENERATED', ?, ?)`
+        ).run(
+          remittanceNumber,
+          clientId,
+          finalStaffId,
+          finalCustomStaffName,
+          calculatedAmount,
+          JSON.stringify(services),
+          JSON.stringify(attachments)
+        );
+        
+        const remittanceId = insertResult.lastInsertRowid;
+        
+        // Generate PDF
+        const remittance = db.prepare("SELECT * FROM remittances WHERE id = ?").get(remittanceId);
+        
+        let subfolder = (settingsMap.awsS3Folder || "Invoices/Attachments").trim();
+        if (subfolder.startsWith("/")) subfolder = subfolder.substring(1);
+        const rawSystemName = `${remittanceNumber}.pdf`;
+        
+        const path = require("path");
+        const fsLib = require("fs");
+        const PDFDocument = require("pdfkit");
+        
+        const systemName = path.posix.join(subfolder, rawSystemName);
+        const targetDir = path.join(process.cwd(), "uploads", subfolder);
+        if (!fsLib.existsSync(targetDir)) {
+          fsLib.mkdirSync(targetDir, { recursive: true });
         }
+        const filePath = path.join(targetDir, rawSystemName);
+        const doc = new PDFDocument({ margin: 50 });
+        const writeStream = fsLib.createWriteStream(filePath);
+        doc.pipe(writeStream);
+        
+        const clientRow = db.prepare("SELECT * FROM clients WHERE id = ?").get(clientId) as any;
+        let staffRow = { first_name: finalCustomStaffName || "Contractor", last_name: "" };
+        if (!isCustomStaff && finalStaffId) {
+           const dbStaff = db.prepare("SELECT * FROM users WHERE id = ?").get(finalStaffId) as any;
+           if (dbStaff) staffRow = dbStaff;
+        }
+        
+        let lineItems = services.map((sd: any) => {
+            let unit = sd.customUnit || "Hour";
+            let rate = sd.rateOverride ? Number(sd.rateOverride) : 0;
+            let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
+            let amount = rate * qty;
+            return {
+                name: sd.isCustom ? sd.customName : "Service Item",
+                unit: unit,
+                rate: rate,
+                qty: qty,
+                amount: amount
+            }
+        });
+        
+        const pdfData = {
+           shift: { funding_type: clientRow?.funding_type || "NDIS", actual_finish_time: new Date().toISOString() },
+           settingsMap: settingsMap,
+           invoiceNum: remittanceNumber,
+           invoiceDate: date,
+           lineItems: lineItems,
+           subtotal: calculatedAmount,
+           totalAmount: calculatedAmount,
+           gstAmount: 0,
+           client: clientRow,
+           contractor: staffRow
+        };
+        
+        try {
+            buildRemittancePdf(doc, pdfData);
+        } catch(e) {
+            console.error("PDF generation failed:", e);
+        }
+        
+        doc.end();
+        writeStream.on("finish", () => {
+           db.prepare("UPDATE remittances SET file_path = ? WHERE id = ?").run(systemName, remittanceId);
+        });
 
-        const invoice = db
-          .prepare("SELECT * FROM invoices WHERE shift_id = ?")
-          .get(shiftId);
-        res.json({ success: true, invoice });
+        res.json({ success: true, remittance: remittance });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
-        res.status(500).json({ error: "Internal Server Error" });
+        res.status(500).json({ error: e.message });
       }
-    },
+    }
   );
 
   app.post(
