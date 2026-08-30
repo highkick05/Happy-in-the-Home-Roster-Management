@@ -13522,37 +13522,26 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
   }
 
   const buildRemittancePdf = (doc: any, data: any) => {
-    const { shift, settingsMap, invoiceNum, invoiceDate, lineItems, subtotal } =
-      data;
-    const isHomeCare =
-      shift.funding_type === "HCP" ||
-      shift.funding_type === "Home Care" ||
-      shift.funding_type === "HOME_CARE";
-    const gstAmount =
-      data.gstAmount !== undefined
-        ? data.gstAmount
-        : isHomeCare
-          ? lineItems.reduce((acc: number, curr: any) => acc + (Math.round((curr.amount || 0) * 0.1 * 100) / 100), 0)
-          : 0;
-    const totalAmount =
-      data.totalAmount !== undefined ? data.totalAmount : subtotal + gstAmount;
+    const { settingsMap, invoiceNum, invoiceDate, lineItems, subtotal, totalAmount, gstAmount, contractor, client } = data;
 
     if (settingsMap.letterheadLogo) {
       try {
         let buffer: Buffer | null = null;
-
         if (settingsMap.letterheadLogo.startsWith("/api/assets/")) {
+          const path = require("path");
+          const fsLib = require("fs");
           const fileWithQuery = settingsMap.letterheadLogo.split("/").pop();
-          const filename = fileWithQuery.split("?")[0]; // Strip the query params
+          const filename = fileWithQuery.split("?")[0];
           const persistentAssetPath = path.join(process.cwd(), "data", "uploads", "assets", filename);
           const uploadsAssetPath = path.join(process.cwd(), "uploads", "assets", filename);
           const oldAssetPath = path.join(process.cwd(), "assets", filename);
-          if (fs.existsSync(uploadsAssetPath)) {
-            buffer = fs.readFileSync(uploadsAssetPath);
-          } else if (fs.existsSync(persistentAssetPath)) {
-            buffer = fs.readFileSync(persistentAssetPath);
-          } else if (fs.existsSync(oldAssetPath)) {
-            buffer = fs.readFileSync(oldAssetPath);
+
+          if (fsLib.existsSync(uploadsAssetPath)) {
+            buffer = fsLib.readFileSync(uploadsAssetPath);
+          } else if (fsLib.existsSync(persistentAssetPath)) {
+            buffer = fsLib.readFileSync(persistentAssetPath);
+          } else if (fsLib.existsSync(oldAssetPath)) {
+            buffer = fsLib.readFileSync(oldAssetPath);
           }
         } else if (settingsMap.letterheadLogo.startsWith("data:image/")) {
           const base64Data = settingsMap.letterheadLogo.replace(
@@ -13561,7 +13550,6 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           );
           buffer = Buffer.from(base64Data, "base64");
         }
-
         if (buffer) {
           doc.image(buffer, 50, 20, { fit: [200, 80] });
           doc.y = 35;
@@ -13588,7 +13576,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
     doc
       .fontSize(10)
       .font("Helvetica")
-      .text(`Invoice No: ${invoiceNum}`, { align: "right" });
+      .text(`Remittance No: ${invoiceNum}`, { align: "right" });
     doc.text(`Date: ${invoiceDate}`, { align: "right" });
     doc.moveDown();
 
@@ -13597,12 +13585,13 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       .fontSize(10)
       .font("Helvetica-Bold")
       .fillColor("black")
-      .text("FROM", 50, topY);
+      .text("FROM:", 50, topY);
     doc
       .fontSize(12)
       .font("Helvetica-Bold")
       .text(settingsMap.businessName || "", 50, topY + 15);
     doc.fontSize(10).font("Helvetica");
+    
     let cy = topY + 30;
     if (settingsMap.abn) {
       doc.text(`ABN: ${settingsMap.abn}`, 50, cy);
@@ -13616,216 +13605,129 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       doc.text(settingsMap.contactEmail, 50, cy);
     }
 
-    const billToLabel = isHomeCare ? "PROVIDER" : "PLAN MANAGER";
-    let billToName = shift.plan_manager_name || `${shift.c_fn} ${shift.c_ln}`;
-    let billToEmail = shift.plan_manager_email || "";
-    let billToAddress = shift.plan_manager_address || "";
+    let billToName = contractor?.first_name ? `${contractor.first_name} ${contractor.last_name || ''}`.trim() : (contractor?.custom_payee_name || "Contractor");
+    let billToEmail = contractor?.email || "";
+    let billToPhone = contractor?.mobile || "";
 
     doc
       .fontSize(10)
       .font("Helvetica-Bold")
       .fillColor("black")
-      .text("BILL TO", 300, topY);
-    doc.fontSize(12).text(`${shift.c_fn} ${shift.c_ln}`, 300, topY + 15);
-    const ndisLabel = isHomeCare ? "Home Care ID:" : "NDIS No:";
-    const ndisVal = shift.my_aged_care_id || shift.ndis_number;
-    doc
-      .fontSize(10)
-      .font("Helvetica")
-      .text(`${ndisLabel} ${ndisVal || "N/A"}`, 300, topY + 30);
+      .text("TO (PAYEE):", 300, topY);
+    doc.fontSize(12).text(billToName, 300, topY + 15);
 
     doc.moveDown(1);
-    const pmY = doc.y;
-    doc
-      .fontSize(8)
-      .fillColor("gray")
-      .text(billToLabel, 300, pmY)
-      .fillColor("black");
-    doc
-      .fontSize(10)
-      .font("Helvetica")
-      .text(billToName, 300, pmY + 10);
-    if (billToEmail) doc.text(billToEmail, 300, pmY + 22);
-    if (billToAddress) doc.text(billToAddress, 300, pmY + 34);
+    const pmY = topY + 30;
+    
+    doc.fontSize(10).font("Helvetica");
+    let py = pmY;
+    if (billToEmail) {
+        doc.text(billToEmail, 300, py);
+        py += 15;
+    }
+    if (billToPhone) {
+        doc.text(billToPhone, 300, py);
+        py += 15;
+    }
+    
+    if (client) {
+       let clientName = `${client.first_name || ''} ${client.last_name || ''}`.trim();
+       if (clientName) {
+           doc.moveDown(1);
+           doc.font("Helvetica-Bold").fontSize(9).text("Regarding Client:", 300, py + 10);
+           doc.font("Helvetica").text(clientName, 300, py + 22);
+       }
+    }
 
     doc.moveDown(4);
-
-    let currentY = Math.max(doc.y + 10, 295);
+    let currentY = Math.max(doc.y + 10, 260);
 
     // Table Header
     doc.font("Helvetica-Bold").fontSize(10);
-    doc.text("DATE", 50, currentY, { width: 60, align: "left" });
-    doc.text("DESCRIPTION", 110, currentY, { width: 150, align: "left" });
-    doc.text("TIME", 265, currentY, { width: 100, align: "left" });
-    doc.text("QTY", 370, currentY, { width: 35, align: "right" });
-    doc.text("UNIT", 410, currentY, { width: 55, align: "left" });
-    doc.text("RATE", 470, currentY, { width: 50, align: "right" });
-    doc.text("AMOUNT", 525, currentY, { width: 55, align: "right" });
+    // doc.text("DATE", 50, currentY, { width: 60, align: "left" });
+    doc.text("DESCRIPTION", 50, currentY, { width: 210, align: "left" });
+    // doc.text("TIME", 265, currentY, { width: 100, align: "left" });
+    doc.text("QTY", 280, currentY, { width: 40, align: "right" });
+    doc.text("UNIT", 335, currentY, { width: 60, align: "left" });
+    doc.text("RATE", 410, currentY, { width: 60, align: "right" });
+    doc.text("AMOUNT", 490, currentY, { width: 80, align: "right" });
 
     doc
       .moveTo(50, currentY + 15)
-      .lineTo(580, currentY + 15)
+      .lineTo(570, currentY + 15)
       .stroke();
-
     currentY += 20;
+
     doc.font("Helvetica").fontSize(10);
 
     lineItems.forEach((item: any) => {
-      let safeServiceName = item.serviceName || "Unknown Service";
-      let textHeight =
-        doc.heightOfString(safeServiceName, { width: 150 }) || 15;
-      let blockHeight = textHeight + 20 + (item.metadata ? 12 : 0);
+      let safeServiceName = item.name || item.desc || "Unknown Service";
+      if (item.date) {
+         safeServiceName = `${item.date} - ${safeServiceName}`;
+      }
+      let textHeight = doc.heightOfString(safeServiceName, { width: 210 }) || 15;
+      let blockHeight = textHeight + 15;
 
-      // Automatically add page if the required height for this line item exceeds the margin
       if (currentY + blockHeight > 700) {
         doc.addPage();
-        // Print Header again for the new page
         doc.font("Helvetica-Bold").fontSize(10);
-        doc.text("DATE", 50, 50, { width: 60, align: "left" });
-        doc.text("DESCRIPTION", 110, 50, { width: 150, align: "left" });
-        doc.text("TIME", 265, 50, { width: 100, align: "left" });
-        doc.text("QTY", 370, 50, { width: 35, align: "right" });
-        doc.text("UNIT", 410, 50, { width: 55, align: "left" });
-        doc.text("RATE", 470, 50, { width: 50, align: "right" });
-        doc.text("AMOUNT", 525, 50, { width: 55, align: "right" });
-        doc.moveTo(50, 65).lineTo(580, 65).stroke();
+        doc.text("DESCRIPTION", 50, 50, { width: 210, align: "left" });
+        doc.text("QTY", 280, 50, { width: 40, align: "right" });
+        doc.text("UNIT", 335, 50, { width: 60, align: "left" });
+        doc.text("RATE", 410, 50, { width: 60, align: "right" });
+        doc.text("AMOUNT", 490, 50, { width: 80, align: "right" });
+        doc.moveTo(50, 65).lineTo(570, 65).stroke();
         currentY = 75;
       }
 
       doc.font("Helvetica").fontSize(10);
-      doc.text(item.date, 50, currentY, { width: 60, align: "left" });
-
-      doc
-        .fontSize(9)
-        .text(item.time, 265, currentY, { width: 100, align: "left" });
-      doc.fontSize(10);
-
-      // Calculate dynamic height for description block
-      doc.text(safeServiceName, 110, currentY, { width: 150, align: "left" });
-
+      
+      doc.text(safeServiceName, 50, currentY, { width: 210, align: "left" });
+      
       let descY = currentY + textHeight + 2;
-      const codePrefix =
-        shift.funding_type === "HCP" ||
-        shift.funding_type === "Home Care" ||
-        shift.funding_type === "HOME_CARE"
-          ? "Serv. ID:"
-          : "Code:";
-      doc.fontSize(9).text(`${codePrefix} ${item.code || "N/A"}`, 110, descY, {
-        width: 150,
-        align: "left",
-      });
 
-      if (item.metadata) {
-        descY += 12;
-        doc.text(item.metadata, 110, descY, { width: 150, align: "left" });
-      }
+      doc.text(Number(item.qty).toString(), 280, currentY, { width: 40, align: "right" });
+      doc.text(item.unit || "N/A", 335, currentY, { width: 60, align: "left" });
+      doc.text(`$${Number(item.rate).toFixed(2)}`, 410, currentY, { width: 60, align: "right" });
+      doc.text(`$${Number(item.amount).toFixed(2)}`, 490, currentY, { width: 80, align: "right" });
 
-      doc.fontSize(10);
-      doc.text(item.qty.toString(), 370, currentY, {
-        width: 35,
-        align: "right",
-      });
-      doc.text(item.unit, 410, currentY, { width: 55, align: "left" });
-      doc.text(`$${item.rate.toFixed(2)}`, 470, currentY, {
-        width: 50,
-        align: "right",
-      });
-      doc.text(`$${item.amount.toFixed(2)}`, 525, currentY, {
-        width: 55,
-        align: "right",
-      });
-
-      // Dynamic Row Height: increment currentY by that height plus a 5pt buffer
       doc
-        .moveTo(50, descY + 15)
-        .lineTo(580, descY + 15)
+        .moveTo(50, descY + 10)
+        .lineTo(570, descY + 10)
+        .strokeColor("#e4e4e7")
         .stroke();
-      currentY = descY + 20;
+      doc.strokeColor("black"); // reset
+
+      currentY = descY + 15;
     });
 
     let totalsY = currentY + 30;
-
     if (totalsY + 100 > 700) {
       doc.addPage();
       totalsY = 50;
     }
 
-    let bankName = "National Australia Bank";
-    let bankAccName = "Happy in the Home";
-    let bankBsb = "086-554";
-    let bankAcc = "506627847";
-    try {
-      if (settingsMap.bankName) bankName = settingsMap.bankName;
-      if (settingsMap.bankAccountName)
-        bankAccName = settingsMap.bankAccountName;
-      if (settingsMap.bankBsb) bankBsb = settingsMap.bankBsb;
-      if (settingsMap.bankAcc) bankAcc = settingsMap.bankAcc;
-    } catch (e) {
-      if (
-        e.message &&
-        !e.message.includes("duplicate column") &&
-        !e.message.includes("no such column")
-      )
-        logger.warn("Migration/Query warning:", e.message);
-    }
-
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(10)
-      .text("PAYMENT DETAILS", 50, totalsY);
-    doc.font("Helvetica").text(`Bank: ${bankName}`, 50, totalsY + 15);
-    doc.text(`Account: ${bankAccName}`, 50, totalsY + 27);
-    doc.text(`BSB: ${bankBsb}`, 50, totalsY + 39);
-    doc.text(`Acc No: ${bankAcc}`, 50, totalsY + 51);
-    doc
-      .font("Helvetica-Bold")
-      .text(`Reference: ${invoiceNum}`, 50, totalsY + 67);
-
     doc.font("Helvetica");
-    doc.text("Subtotal:", 380, totalsY + 15, { width: 100, align: "right" });
-    doc.text(`$${subtotal.toFixed(2)}`, 480, totalsY + 15, {
-      width: 70,
-      align: "right",
-    });
-
-    if (gstAmount > 0) {
-      doc.text("GST (10%):", 380, totalsY + 30, { width: 100, align: "right" });
-      doc.text(`$${gstAmount.toFixed(2)}`, 480, totalsY + 30, {
-        width: 70,
-        align: "right",
-      });
-    } else {
-      doc.text("GST (GST-Free):", 380, totalsY + 30, {
-        width: 100,
-        align: "right",
-      });
-      doc.text("$0.00", 480, totalsY + 30, { width: 70, align: "right" });
-    }
+    doc.text("Subtotal:", 350, totalsY + 15, { width: 100, align: "right" });
+    doc.text(`$${subtotal.toFixed(2)}`, 470, totalsY + 15, { width: 100, align: "right" });
 
     doc
-      .moveTo(380, totalsY + 45)
-      .lineTo(550, totalsY + 45)
+      .moveTo(350, totalsY + 45)
+      .lineTo(570, totalsY + 45)
       .stroke();
 
     doc.font("Helvetica-Bold").fontSize(12);
-    doc.text("TOTAL AMOUNT:", 350, totalsY + 55, {
-      width: 130,
-      align: "right",
-    });
-    doc.text(`$${totalAmount.toFixed(2)}`, 480, totalsY + 55, {
-      width: 70,
-      align: "right",
-    });
+    doc.text("TOTAL PAID:", 350, totalsY + 55, { width: 100, align: "right" });
+    doc.text(`$${totalAmount.toFixed(2)}`, 470, totalsY + 55, { width: 100, align: "right" });
 
     doc.moveDown(4);
-    let paymentDueDays = settingsMap.paymentDueDays || 14;
     doc
       .font("Helvetica")
       .fontSize(10)
       .text(
-        `THANK YOU FOR YOUR BUSINESS. PAYMENT IS DUE WITHIN ${paymentDueDays} DAYS.`,
+        `THIS IS A REMITTANCE ADVICE TO CONFIRM PAYMENT OF THE ABOVE SERVICES.`,
         50,
-        doc.y,
+        doc.y + 30,
         { align: "center" },
       );
   };
@@ -15833,9 +15735,11 @@ function resolveFilePath(systemName) {
         const remittanceId = req.params.id;
         const query = `
         SELECT q.*, 
-               c.first_name as c_fn, c.last_name as c_ln, c.ndis_number, c.address as c_address, c.provider_id
+               c.first_name as c_fn, c.last_name as c_ln, c.ndis_number, c.address as c_address, c.provider_id, c.funding_type,
+               s.first_name as s_fn, s.last_name as s_ln, s.email as s_email, s.mobile as s_mobile
         FROM remittances q
         LEFT JOIN clients c ON q.client_id = c.id
+        LEFT JOIN users s ON q.staff_id = s.id
         WHERE q.id = ?
       `;
         const quote = db.prepare(query).get(remittanceId) as any;
@@ -15858,6 +15762,7 @@ function resolveFilePath(systemName) {
         let rawTz7 = settingsMap.timezone || "Australia/Perth";
         const timezone =
           typeof rawTz7 === "string" ? rawTz7.replace(/['"]+/g, "") : rawTz7;
+
         const dateFormatter = getSafeDateTimeFormat("en-GB", {
           timeZone: timezone,
           day: "2-digit",
@@ -15882,120 +15787,81 @@ function resolveFilePath(systemName) {
         try {
           if (quote.services_json)
             servicesData = JSON.parse(quote.services_json);
-        } catch (e: any) {
-          if (
-            e.message &&
-            !e.message.includes("duplicate column") &&
-            !e.message.includes("no such column")
-          )
-            logger.warn("Migration/Query warning:", e.message);
-        }
-
-        let activityDateStr = "";
-        try {
-          activityDateStr = dateFormatter
-            .format(new Date(quote.activity_date))
-            .replace(/\//g, "-");
-          if (servicesData.length > 0 && servicesData[0].endDate) {
-             const endStr = dateFormatter.format(new Date(servicesData[0].endDate)).replace(/\//g, "-");
-             activityDateStr = `${activityDateStr} to ${endStr}`;
-          }
-        } catch (e) {
-          activityDateStr = String(quote.activity_date);
-        }
-
-        let paymentDueDays = 14;
-        try {
-           paymentDueDays = settingsMap.paymentDueDays ? parseInt(settingsMap.paymentDueDays) : 14;
-           if (isNaN(paymentDueDays)) paymentDueDays = 14;
-        } catch(e) {}
-        
-        let validUntilStr = "";
-        try {
-           const d = quote.created_at ? new Date(quote.created_at.replace(" ", "T") + (quote.created_at.includes("Z") ? "" : "Z")) : new Date();
-           d.setDate(d.getDate() + paymentDueDays);
-           validUntilStr = dateFormatter.format(d).replace(/\//g, "-");
-        } catch(e) {
-           validUntilStr = quoteDateStr;
-        }
+        } catch (e: any) {}
 
         const parsedDate = new Date(quote.activity_date || Date.now());
         const dayOfWeek = isNaN(parsedDate.getTime())
           ? 1
           : getTzDayOfWeek(parsedDate, timezone);
+
         let subtotal = 0;
         let lineItems: any[] = [];
-
         let gstTypeFromMeta: string | null = null;
+
         if (servicesData.length > 0) {
           if (servicesData[0].gstType) {
             gstTypeFromMeta = servicesData[0].gstType;
           }
-
           servicesData.forEach((sd) => {
-            const srv = db
-              .prepare("SELECT * FROM services WHERE id = ?")
-              .get(sd.serviceId) as any;
-            if (srv) {
-              let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 0;
-              let finalRate = Number(srv.rate || 0);
-              if (srv.type === "HOME_CARE" && srv.rates_json) {
-                try {
-                  const rates = JSON.parse(srv.rates_json);
-                  if (dayOfWeek === 0 && rates["Sunday"])
-                    finalRate = Number(rates["Sunday"]);
-                  else if (dayOfWeek === 6 && rates["Saturday"])
-                    finalRate = Number(rates["Saturday"]);
-                  else if (rates["Weekday"])
-                    finalRate = Number(rates["Weekday"]);
-                } catch (e) {
-                  if (
-                    e.message &&
-                    !e.message.includes("duplicate column") &&
-                    !e.message.includes("no such column")
-                  )
-                    logger.warn("Migration/Query warning:", e.message);
-                }
-              } else if (srv.type === "NDIS" && srv.rates_json) {
-                try {
-                  const rates = JSON.parse(srv.rates_json);
-                  const region = settingsMap.ndisRegion || "NSW";
-                  if (rates[region] !== undefined)
-                    finalRate = Number(rates[region]);
-                } catch (e) {
-                  if (
-                    e.message &&
-                    !e.message.includes("duplicate column") &&
-                    !e.message.includes("no such column")
-                  )
-                    logger.warn("Migration/Query warning:", e.message);
-                }
-              }
-              if (
-                sd.rateOverride !== undefined &&
-                sd.rateOverride !== null &&
-                sd.rateOverride !== ""
-              ) {
-                finalRate = Number(sd.rateOverride);
-              }
-              const amt = qty * finalRate;
-              subtotal += amt;
-              let mappedUnit = srv.unit || "H";
-              if (mappedUnit === "Hour") mappedUnit = "H";
-              if (mappedUnit === "KM") mappedUnit = "Kilometre";
+            let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 0;
+            let finalRate = 0;
+            let itemName = sd.isCustom ? (sd.customName || "Service Item") : "Service Item";
+            let mappedUnit = sd.customUnit || "Hour";
 
-              lineItems.push({
-                desc: srv.name,
-                code: srv.code || "N/A",
-                qty: qty,
-                unit: mappedUnit,
-                rate: finalRate,
-                amount: amt,
-                date: sd.date,
-                startTime: sd.startTime,
-                endTime: sd.endTime
-              });
+            if (sd.isCustom) {
+               finalRate = sd.rateOverride ? Number(sd.rateOverride) : 0;
+            } else {
+               const srv = db
+                 .prepare("SELECT * FROM services WHERE id = ?")
+                 .get(sd.serviceId) as any;
+               if (srv) {
+                 itemName = srv.name;
+                 mappedUnit = srv.unit || "Hour";
+                 finalRate = Number(srv.rate || 0);
+                 if (srv.type === "HOME_CARE" && srv.rates_json) {
+                   try {
+                     const rates = JSON.parse(srv.rates_json);
+                     if (dayOfWeek === 0 && rates["Sunday"])
+                       finalRate = Number(rates["Sunday"]);
+                     else if (dayOfWeek === 6 && rates["Saturday"])
+                       finalRate = Number(rates["Saturday"]);
+                     else if (rates["Weekday"])
+                       finalRate = Number(rates["Weekday"]);
+                   } catch (e) {}
+                 } else if (srv.type === "NDIS" && srv.rates_json) {
+                   try {
+                     const rates = JSON.parse(srv.rates_json);
+                     const region = settingsMap.ndisRegion || "NSW";
+                     if (rates[region] !== undefined)
+                       finalRate = Number(rates[region]);
+                   } catch (e) {}
+                 }
+               }
             }
+
+            if (
+              sd.rateOverride !== undefined &&
+              sd.rateOverride !== null &&
+              sd.rateOverride !== ""
+            ) {
+              finalRate = Number(sd.rateOverride);
+            }
+            
+            const amt = qty * finalRate;
+            subtotal += amt;
+            
+            if (mappedUnit === "Hour") mappedUnit = "H";
+            if (mappedUnit === "KM") mappedUnit = "Kilometre";
+
+            lineItems.push({
+              name: itemName,
+              desc: itemName,
+              qty: qty,
+              unit: mappedUnit,
+              rate: finalRate,
+              amount: amt,
+              date: sd.date
+            });
           });
         }
 
@@ -16004,6 +15870,30 @@ function resolveFilePath(systemName) {
           gstAmount = lineItems.reduce((acc: number, curr: any) => acc + (Math.round((curr.amount || 0) * 0.1 * 100) / 100), 0);
         }
         const totalAmount = subtotal + gstAmount;
+
+        const contractor = quote.staff_id ? {
+           first_name: quote.s_fn,
+           last_name: quote.s_ln,
+           email: quote.s_email,
+           mobile: quote.s_mobile
+        } : { custom_payee_name: quote.custom_payee_name };
+        
+        const client = quote.client_id ? {
+           first_name: quote.c_fn,
+           last_name: quote.c_ln
+        } : null;
+
+        const pdfData = {
+           settingsMap,
+           invoiceNum: quote.remittance_number,
+           invoiceDate: quoteDateStr,
+           lineItems,
+           subtotal,
+           totalAmount,
+           gstAmount,
+           contractor,
+           client
+        };
 
         res.setHeader("Content-Type", "application/pdf");
         res.setHeader(
@@ -16014,285 +15904,16 @@ function resolveFilePath(systemName) {
         const doc = new PDFDocument({ margin: 50 });
         doc.pipe(res);
 
-        console.log("QUOTE PDF LOGO:", String(settingsMap.letterheadLogo).substring(0, 50));
-        if (settingsMap.letterheadLogo) {
-          try {
-            let buffer: Buffer | null = null;
-            if (settingsMap.letterheadLogo.startsWith("/api/assets/")) {
-              const fileWithQuery = settingsMap.letterheadLogo.split("/").pop();
-              const filename = fileWithQuery.split("?")[0];
-              const persistentAssetPath = path.join(process.cwd(), "data", "uploads", "assets", filename);
-              const uploadsAssetPath = path.join(process.cwd(), "uploads", "assets", filename);
-              const oldAssetPath = path.join(process.cwd(), "assets", filename);
-              
-              if (fs.existsSync(uploadsAssetPath)) {
-                buffer = fs.readFileSync(uploadsAssetPath);
-              } else if (fs.existsSync(persistentAssetPath)) {
-                buffer = fs.readFileSync(persistentAssetPath);
-              } else if (fs.existsSync(oldAssetPath)) {
-                buffer = fs.readFileSync(oldAssetPath);
-              }
-            } else if (settingsMap.letterheadLogo.startsWith("data:image/")) {
-              const base64Data = settingsMap.letterheadLogo.replace(
-                /^data:image\/\w+;base64,/,
-                "",
-              );
-              buffer = Buffer.from(base64Data, "base64");
-            }
-            if (buffer) {
-              doc.image(buffer, doc.page.width - 50 - 200, 20, { fit: [200, 80], align: "right" });
-            }
-          } catch (e) {
-            console.error("Logo render error:", e);
-          }
-        }
-
-        doc
-          .fontSize(24)
-          .font("Helvetica-Bold")
-          .fillColor("#18181b")
-          .text("REMITTANCE ADVICE", 50, 35);
-        doc
-          .fontSize(10)
-          .font("Helvetica")
-          .fillColor("#52525b")
-          .text(settingsMap.businessName || "", 50, 65);
-        doc.moveDown(2);
-
-        const topY = 115;
-        doc
-          .fontSize(10)
-          .font("Helvetica-Bold")
-          .fillColor("black")
-          .text("From:", 50, topY);
-          
-        const fromLines: string[] = [];
-        if (settingsMap.businessName) fromLines.push(settingsMap.businessName);
-        if (settingsMap.contactPhone && settingsMap.contactPhone.trim() !== "0400000000" && settingsMap.contactPhone.trim() !== "") {
-          fromLines.push(settingsMap.contactPhone.trim());
-        }
-        if (settingsMap.contactEmail) fromLines.push(settingsMap.contactEmail);
-        if (settingsMap.businessAddress) fromLines.push(settingsMap.businessAddress);
-        if (settingsMap.abn) fromLines.push(`ABN: ${settingsMap.abn}`);
-
-        doc.fontSize(10).font("Helvetica");
-        let currentY = topY + 15;
-        fromLines.forEach((line) => {
-          if (line.trim()) {
-            doc.text(line, 50, currentY);
-            currentY += 15;
-          }
-        });
-
-        doc
-          .font("Helvetica-Bold")
-          .text("Remittance Date: ", 350, topY)
-          .font("Helvetica")
-          .text(quoteDateStr, 420, topY);
-        doc
-          .font("Helvetica-Bold")
-          .text("Remittance ID: ", 350, topY + 15)
-          .font("Helvetica")
-          .text(quote.remittance_number, 405, topY + 15);
-        doc
-          .font("Helvetica-Bold")
-          .text("Valid Until: ", 350, topY + 30)
-          .font("Helvetica")
-          .text(validUntilStr, 415, topY + 30);
-
-        // Participant Details Box
-        const partY = 195;
-        doc.rect(50, partY, 4, 70).fill("#0ea5e9"); // Cyan left border
-        doc.fillColor("black");
-        doc
-          .fontSize(12)
-          .font("Helvetica-Bold")
-          .fillColor("#0ea5e9")
-          .text("Participant Details", 65, partY + 5);
-        doc.fillColor("black").fontSize(10);
-        doc
-          .font("Helvetica-Bold")
-          .text("Name: ", 65, partY + 25, { continued: true })
-          .font("Helvetica")
-          .text(`${quote.c_fn || ""} ${quote.c_ln || ""}`.trim() || "N/A");
-        doc
-          .font("Helvetica-Bold")
-          .text("Service Activity: ", 65, partY + 40, { continued: true })
-          .font("Helvetica")
-          .text(quote.activity_name || "");
-        doc
-          .font("Helvetica-Bold")
-          .text("Date of Activity: ", 65, partY + 55, { continued: true })
-          .font("Helvetica")
-          .text(activityDateStr);
-
-        currentY = 295;
-
-        // Table Header
-        doc.rect(50, currentY, 500, 25).fill("#f4f4f5"); // Light gray bg for header
-        doc.fillColor("#18181b").font("Helvetica-Bold").fontSize(9);
-        doc.text("Description", 60, currentY + 8, {
-          width: 180,
-          align: "left",
-        });
-        doc.text("NDIS Code", 250, currentY + 8, { width: 100, align: "left" });
-        doc.text("Quantity", 350, currentY + 8, { width: 50, align: "center" });
-        doc.text("Rate", 410, currentY + 8, { width: 50, align: "right" });
-        doc.text("Total", 480, currentY + 8, { width: 60, align: "right" });
-
-        doc
-          .moveTo(50, currentY + 25)
-          .lineTo(550, currentY + 25)
-          .strokeColor("#e4e4e7")
-          .stroke();
-
-        currentY += 35;
-        doc.font("Helvetica").fontSize(9);
-
-        lineItems.forEach((item: any) => {
-          let descText = item.desc || "Unknown";
-          if (item.date) {
-             let timeStr = "";
-             if (item.startTime || item.endTime) {
-               timeStr = ` ${item.startTime || ''} - ${item.endTime || ''}`;
-             }
-             descText += `\nDate: ${item.date}${timeStr}`;
-          }
-          let textHeight =
-            doc.heightOfString(descText, { width: 180 }) || 15;
-          let blockHeight = Math.max(textHeight, 15) + 20;
-
-          if (currentY + blockHeight > 700) {
-            doc.addPage();
-            currentY = 50;
-          }
-
-          doc.fillColor("#18181b");
-          doc.text(descText, 60, currentY, {
-            width: 180,
-            align: "left",
-          });
-          doc.text(item.code || "N/A", 250, currentY, {
-            width: 100,
-            align: "left",
-          });
-
-          // Quantity & Unit
-          doc.text(String(item.qty || 0), 350, currentY, {
-            width: 50,
-            align: "center",
-          });
-          doc
-            .fillColor("#71717a")
-            .fontSize(8)
-            .text(item.unit || "", 350, currentY + 12, {
-              width: 50,
-              align: "center",
-            });
-
-          doc.fillColor("#18181b").fontSize(9);
-          doc.text(`$${item.rate.toFixed(2)}`, 410, currentY, {
-            width: 50,
-            align: "right",
-          });
-          doc.text(`$${item.amount.toFixed(2)}`, 480, currentY, {
-            width: 60,
-            align: "right",
-          });
-
-          currentY += textHeight + 10;
-          doc
-            .moveTo(50, currentY)
-            .lineTo(550, currentY)
-            .strokeColor("#e4e4e7")
-            .stroke();
-          currentY += 10;
-        });
-
-        if (currentY + 70 > 700) {
-          doc.addPage();
-          currentY = 50;
-        } else {
-          currentY += 10;
-        }
-
-        // Total Box
-        doc.rect(50, currentY, 500, 60).fill("#f4f4f5");
-
-        doc.fillColor("#71717a").font("Helvetica").fontSize(10);
-        doc.text("Subtotal:", 250, currentY + 10, {
-          width: 150,
-          align: "right",
-        });
-        doc.text(`$${subtotal.toFixed(2)}`, 410, currentY + 10, {
-          width: 120,
-          align: "right",
-        });
-
-        const gstLabel = gstTypeFromMeta === "GST Free" ? "GST (GST Free):" : "GST:";
-        doc.text(gstLabel, 250, currentY + 25, { width: 150, align: "right" });
-        doc.text(`$${gstAmount.toFixed(2)}`, 410, currentY + 25, {
-          width: 120,
-          align: "right",
-        });
-
-        doc.fillColor("black").font("Helvetica-Bold").fontSize(12);
-        doc.text("TOTAL QUOTE AMOUNT:", 200, currentY + 42, {
-          width: 200,
-          align: "right",
-        });
-        doc
-          .fontSize(14)
-          .text(`$${totalAmount.toFixed(2)}`, 410, currentY + 41, {
-            width: 120,
-            align: "right",
-          });
-
-        currentY += 90;
-
-        // Important Notes
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(12)
-          .fillColor("black")
-          .text("Important Notes", 50, currentY);
-        currentY += 20;
-        doc
-          .moveTo(50, currentY)
-          .lineTo(550, currentY)
-          .strokeColor("#e4e4e7")
-          .stroke();
-        currentY += 10;
-
-        doc.font("Helvetica").fontSize(9).fillColor("#52525b");
-        const defaultNotes =
-          "Remote Billing: This quote is calculated using the NDIS Price Guide for Remote (MMM 6) locations.\n" +
-          "Transport: Final transport billing will be based on verified logbook odometer readings at a rate of $1.00 per kilometer.\n" +
-          "Exclusions: NDIS funding does not cover personal expenses such as meals, snacks, or activity entry fees. These are out-of-pocket costs for the participant.\n" +
-          "Cancellations: Charges for cancellations will be applied in accordance with the current NDIS Pricing Arrangements and Price Limits.";
-
-        const customNotes = quote.important_notes
-          ? quote.important_notes.trim()
-          : "";
-        const notes = customNotes !== "" ? customNotes : defaultNotes;
-
-        if (currentY > 700) {
-          doc.addPage();
-          currentY = 50;
-        }
-
-        // Just use doc.text and let PDFKit handle wrapping and page breaks automatically.
-        doc.text(notes, 50, currentY, { width: 500, align: 'left' });
+        buildRemittancePdf(doc, pdfData);
 
         doc.end();
-      } catch (e: any) {
-        console.error("DEBUG QUOTE DOWNLOAD ERROR:", e);
-
-        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
-        res.status(500).json({ error: "Internal Server Error" });
+      } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Server error" });
       }
-    },
+    }
   );
+
 
   app.get("/api/files", authenticateToken, (req: any, res: any) => {
     let query = `
