@@ -360,7 +360,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
         {(!isDesktopSidebarCollapsed || isMobileMenuOpen) && (
           <div className="px-5 py-2 text-[10px] text-zinc-500/50 font-mono text-left tracking-wide select-none">
-            v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'} (Auto-Update Active)
+            v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'} (Auto-Update Verified! ✅)
           </div>
         )}
 
