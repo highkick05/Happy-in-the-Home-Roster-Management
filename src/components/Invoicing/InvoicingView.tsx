@@ -663,6 +663,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
 }
 
 import QuotesView from './QuotesView';
+import RemittancesView from './RemittancesView';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
 
@@ -714,7 +715,7 @@ export default function InvoicingView() {
   };
 
   const { token, user } = useAuth();
-  const [tab, setTab] = useLocalStorage<'invoices' | 'quotes'>('invoicing_tab', 'invoices');
+  const [tab, setTab] = useLocalStorage<'invoices' | 'quotes' | 'remittances'>('invoicing_tab', 'invoices');
   const [subTab, setSubTab] = useLocalStorage<'active' | 'sent' | 'paid'>('invoicing_sub_tab', 'active');
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1213,6 +1214,12 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
           >
             Quotes
           </button>
+          <button 
+            onClick={() => setTab('remittances')} 
+            className={`pb-2 border-b-2 font-medium text-[11px] transition-colors uppercase tracking-wider ${tab === 'remittances' ? 'border-brand-teal text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+          >
+            Remittances
+          </button>
         </div>
         <div className="flex flex-wrap items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg select-none mb-3">
           <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
@@ -1225,7 +1232,9 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
         </div>
       </div>
 
-      {tab === 'quotes' ? (
+      {tab === 'remittances' ? (
+        <RemittancesView />
+      ) : tab === 'quotes' ? (
         <QuotesView />
       ) : (
         <div className="flex-1 flex flex-col space-y-3">

@@ -394,3 +394,16 @@ CREATE TABLE client_template_settings (
         frequency TEXT DEFAULT 'Weekly',
         PRIMARY KEY (client_id, template_name)
       );
+CREATE TABLE remittances (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    remittance_number TEXT NOT NULL,
+    provider_id INTEGER,
+    staff_id INTEGER,
+    custom_payee_name TEXT,
+    amount REAL NOT NULL,
+    file_path TEXT,
+    status TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    services_json TEXT,
+    attachments_json TEXT
+);

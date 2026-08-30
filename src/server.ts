@@ -313,6 +313,20 @@ async function startServer() {
         progress_note TEXT
       );
 
+      
+      CREATE TABLE IF NOT EXISTS remittances (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        remittance_number TEXT NOT NULL,
+        provider_id INTEGER,
+        staff_id INTEGER,
+        custom_payee_name TEXT,
+        amount REAL NOT NULL,
+        file_path TEXT,
+        status TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        services_json TEXT,
+        attachments_json TEXT
+      );
       CREATE TABLE IF NOT EXISTS invoices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         invoice_number TEXT NOT NULL,
@@ -14981,7 +14995,1123 @@ function resolveFilePath(systemName) {
     }
   });
 
-  // --- BLANK TEMPLATES (FILE SYSTEM) ---
+  
+
+// --- Remittances APIs ---
+  app.get("/api/remittances", authenticateToken, (req: any, res: any) => {
+    let query = `
+      SELECT q.*, 
+             c.first_name as client_first_name, c.last_name as client_last_name,
+             u.first_name as staff_first_name, u.last_name as staff_last_name
+      FROM remittances q
+      LEFT JOIN clients c ON q.client_id = c.id
+      LEFT JOIN users u ON q.staff_id = u.id
+      ORDER BY q.created_at DESC
+    `;
+    try {
+      const quotes = db.prepare(query).all();
+      res.json(quotes);
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  app.post(
+    "/api/remittances",
+    authenticateToken,
+    requireAdmin,
+    (req: any, res: any) => {
+      const { clientId, activityName, date, endDate, services, importantNotes, quoteDate } =
+        req.body;
+      try {
+        const prefix = "QUO";
+        const c = db
+          .prepare("SELECT first_name FROM clients WHERE id = ?")
+          .get(clientId) as any;
+        const cInitial = c ? c.first_name.substring(0, 3).toUpperCase() : "XXX";
+        const dateStr = date.replace(/-/g, "").substring(4, 8);
+        const timestampPart = Date.now().toString().slice(-3);
+        const remittanceNumber = `${prefix}-${cInitial}-${dateStr}-${timestampPart}`;
+
+        // Calculate amount based on services map
+        const settingsRows = db
+          .prepare("SELECT key, value FROM settings")
+          .all() as any[];
+        const settingsMap: Record<string, any> = {};
+        settingsRows.forEach((r) => {
+          try {
+            settingsMap[r.key] = JSON.parse(r.value);
+          } catch {
+            settingsMap[r.key] = r.value;
+          }
+        });
+
+        let rawTzRemittance = settingsMap.timezone || "Australia/Perth";
+        const timezone =
+          typeof rawTzRemittance === "string"
+            ? rawTzQuote.replace(/['"]+/g, "")
+            : rawTzQuote;
+
+        let calculatedAmount = 0;
+        const parsedDate = new Date(date);
+        const dayOfWeek = getTzDayOfWeek(parsedDate, timezone);
+
+        if (services && Array.isArray(services)) {
+          if (services.length > 0) {
+            if (req.body.gstType) {
+              services[0].gstType = req.body.gstType;
+            }
+            if (req.body.date) {
+              services[0].startDate = req.body.date;
+            }
+            if (req.body.endDate) {
+              services[0].endDate = req.body.endDate;
+            }
+          }
+
+          services.forEach((sd) => {
+            const srv = db
+              .prepare("SELECT * FROM services WHERE id = ?")
+              .get(sd.serviceId) as any;
+            if (srv) {
+              let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 0;
+              let finalRate = Number(srv.rate || 0);
+              if (srv.type === "HOME_CARE" && srv.rates_json) {
+                try {
+                  const rates = JSON.parse(srv.rates_json);
+                  if (dayOfWeek === 0 && rates["Sunday"])
+                    finalRate = Number(rates["Sunday"]);
+                  else if (dayOfWeek === 6 && rates["Saturday"])
+                    finalRate = Number(rates["Saturday"]);
+                  else if (rates["Weekday"])
+                    finalRate = Number(rates["Weekday"]);
+                } catch (e) {
+                  if (
+                    e.message &&
+                    !e.message.includes("duplicate column") &&
+                    !e.message.includes("no such column")
+                  )
+                    logger.warn("Migration/Query warning:", e.message);
+                }
+              } else if (srv.type === "NDIS" && srv.rates_json) {
+                try {
+                  const rates = JSON.parse(srv.rates_json);
+                  const region = settingsMap.ndisRegion || "NSW";
+                  if (rates[region] !== undefined)
+                    finalRate = Number(rates[region]);
+                } catch (e) {
+                  if (
+                    e.message &&
+                    !e.message.includes("duplicate column") &&
+                    !e.message.includes("no such column")
+                  )
+                    logger.warn("Migration/Query warning:", e.message);
+                }
+              }
+
+              if (
+                sd.rateOverride !== undefined &&
+                sd.rateOverride !== null &&
+                sd.rateOverride !== ""
+              ) {
+                finalRate = Number(sd.rateOverride);
+              }
+
+              calculatedAmount += qty * finalRate;
+            }
+          });
+        }
+
+        if (req.body.gstType === "10%") {
+          let calcGst = 0;
+          if (servicesData.length > 0) {
+            servicesData.forEach((sd: any) => {
+              const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
+              if (srv) {
+                let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
+                let finalRate = Number(srv.rate || 0);
+                if (srv.type === "HOME_CARE" && srv.rates_json) {
+                  try {
+                    const rates = JSON.parse(srv.rates_json);
+                    if (rates["Weekday"]) finalRate = Number(rates["Weekday"]);
+                  } catch (e) {}
+                }
+                if (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== "") {
+                  finalRate = Number(sd.rateOverride);
+                }
+                calcGst += Math.round((qty * finalRate) * 0.1 * 100) / 100;
+              }
+            });
+          }
+          calculatedAmount += calcGst;
+        }
+
+        const stmt = db.prepare(`
+        INSERT INTO remittances (remittance_number, client_id, activity_name, activity_date, services_json, amount, status, important_notes, remittance_date)
+        VALUES (?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?)
+      `);
+        stmt.run(
+          remittanceNumber,
+          clientId,
+          activityName,
+          date,
+          JSON.stringify(services || []),
+          calculatedAmount,
+          importantNotes || null,
+          quoteDate || null,
+        );
+
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
+
+
+  app.put(
+    "/api/remittances/:id",
+    authenticateToken,
+    requireAdmin,
+    (req: any, res: any) => {
+      const remittanceId = req.params.id;
+      const { clientId, activityName, date, endDate, services, importantNotes, quoteDate } =
+        req.body;
+
+      try {
+        const existingRemittance = db.prepare("SELECT * FROM remittances WHERE id = ?").get(remittanceId) as any;
+        if (!existingQuote) {
+          return res.status(404).json({ error: "Remittance not found" });
+        }
+
+        // Calculate amount based on services map
+        const settingsRows = db
+          .prepare("SELECT key, value FROM settings")
+          .all() as any[];
+        const settingsMap: Record<string, any> = {};
+        settingsRows.forEach((r) => {
+          try {
+            settingsMap[r.key] = JSON.parse(r.value);
+          } catch {
+            settingsMap[r.key] = r.value;
+          }
+        });
+
+        let rawTzRemittance = settingsMap.timezone || "Australia/Perth";
+        const timezone =
+          typeof rawTzRemittance === "string"
+            ? rawTzQuote.replace(/['"]+/g, "")
+            : rawTzQuote;
+
+        let calculatedAmount = 0;
+        const parsedDate = new Date(date);
+        const dayOfWeek = getTzDayOfWeek(parsedDate, timezone);
+
+        if (services && Array.isArray(services)) {
+          if (services.length > 0) {
+            if (req.body.gstType) {
+              services[0].gstType = req.body.gstType;
+            }
+            if (req.body.date) {
+              services[0].startDate = req.body.date;
+            }
+            if (req.body.endDate) {
+              services[0].endDate = req.body.endDate;
+            }
+          }
+
+          services.forEach((sd) => {
+            const srv = db
+              .prepare("SELECT * FROM services WHERE id = ?")
+              .get(sd.serviceId) as any;
+            if (srv) {
+              let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 0;
+              let finalRate = Number(srv.rate || 0);
+
+              if (srv.type === "HOME_CARE" && srv.rates_json) {
+                try {
+                  const rates = JSON.parse(srv.rates_json);
+                  if (dayOfWeek === 0 && rates["Sunday"])
+                    finalRate = Number(rates["Sunday"]);
+                  else if (dayOfWeek === 6 && rates["Saturday"])
+                    finalRate = Number(rates["Saturday"]);
+                  else if (rates["Weekday"])
+                    finalRate = Number(rates["Weekday"]);
+                } catch (e: any) {
+                  // ignore
+                }
+              } else if (srv.type === "NDIS" && srv.rates_json) {
+                try {
+                  const rates = JSON.parse(srv.rates_json);
+                  const region = settingsMap.ndisRegion || "NSW";
+                  if (rates[region] !== undefined)
+                    finalRate = Number(rates[region]);
+                } catch (e: any) {
+                  // ignore
+                }
+              }
+
+              if (
+                sd.rateOverride !== undefined &&
+                sd.rateOverride !== null &&
+                sd.rateOverride !== ""
+              ) {
+                finalRate = Number(sd.rateOverride);
+              }
+
+              calculatedAmount += qty * finalRate;
+            }
+          });
+        }
+        
+        if (req.body.gstType === "10%") {
+          let calcGst = 0;
+          if (servicesData.length > 0) {
+            servicesData.forEach((sd: any) => {
+              const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
+              if (srv) {
+                let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
+                let finalRate = Number(srv.rate || 0);
+                if (srv.type === "HOME_CARE" && srv.rates_json) {
+                  try {
+                    const rates = JSON.parse(srv.rates_json);
+                    if (rates["Weekday"]) finalRate = Number(rates["Weekday"]);
+                  } catch (e) {}
+                }
+                if (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== "") {
+                  finalRate = Number(sd.rateOverride);
+                }
+                calcGst += Math.round((qty * finalRate) * 0.1 * 100) / 100;
+              }
+            });
+          }
+          calculatedAmount += calcGst;
+        }
+
+        const stmt = db.prepare(`
+          UPDATE remittances 
+          SET client_id = ?, activity_name = ?, activity_date = ?, services_json = ?, amount = ?, important_notes = ?, remittance_date = ?
+          WHERE id = ?
+        `);
+
+        stmt.run(
+          clientId,
+          activityName,
+          date,
+          JSON.stringify(services || []),
+          calculatedAmount,
+          importantNotes || null,
+          quoteDate || null,
+          remittanceId
+        );
+
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
+  app.delete(
+    "/api/remittances/:id",
+    authenticateToken,
+    requireAdmin,
+    (req: any, res: any) => {
+      try {
+        db.prepare("DELETE FROM remittances WHERE id = ?").run(req.params.id);
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/remittances/bulk-delete",
+    authenticateToken,
+    requireAdmin,
+    (req: any, res: any) => {
+      const { remittanceIds } = req.body;
+      if (!remittanceIds || !Array.isArray(remittanceIds) || remittanceIds.length === 0)
+        return res.json({ success: true });
+      try {
+        const placeholders = remittanceIds.map(() => "?").join(",");
+        db.prepare(`DELETE FROM remittances WHERE id IN (${placeholders})`).run(
+          ...remittanceIds,
+        );
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
+
+  app.get(
+    "/api/remittances/:id/download",
+    authenticateToken,
+    (req: any, res: any) => {
+      try {
+        const remittanceId = req.params.id;
+        const query = `
+        SELECT q.*, 
+               c.first_name as c_fn, c.last_name as c_ln, c.ndis_number, c.address as c_address, c.provider_id
+        FROM remittances q
+        LEFT JOIN clients c ON q.client_id = c.id
+        WHERE q.id = ?
+      `;
+        const quote = db.prepare(query).get(remittanceId) as any;
+        if (!quote) return res.status(404).json({ error: "Remittance not found" });
+
+        const settingsRows = db
+          .prepare("SELECT key, value FROM settings")
+          .all() as any[];
+        const settingsMap: any = {};
+        settingsRows.forEach((row) => {
+          if (row.value && row.value !== "undefined") {
+            try {
+              settingsMap[row.key] = JSON.parse(row.value);
+            } catch (e) {
+              settingsMap[row.key] = row.value;
+            }
+          }
+        });
+
+        let rawTz7 = settingsMap.timezone || "Australia/Perth";
+        const timezone =
+          typeof rawTz7 === "string" ? rawTz7.replace(/['"]+/g, "") : rawTz7;
+        const dateFormatter = getSafeDateTimeFormat("en-GB", {
+          timeZone: timezone,
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
+
+        let quoteDateStr = "";
+        try {
+          if (quote.remittance_date) {
+            const d = new Date(quote.remittance_date);
+            quoteDateStr = dateFormatter.format(d).replace(/\//g, "-");
+          } else {
+            const createdAtDate = quote.created_at ? new Date(quote.created_at.replace(" ", "T") + (quote.created_at.includes("Z") ? "" : "Z")) : new Date();
+            quoteDateStr = dateFormatter.format(createdAtDate).replace(/\//g, "-");
+          }
+        } catch (e) {
+          quoteDateStr = dateFormatter.format(new Date()).replace(/\//g, "-");
+        }
+
+        let servicesData: any[] = [];
+        try {
+          if (quote.services_json)
+            servicesData = JSON.parse(quote.services_json);
+        } catch (e: any) {
+          if (
+            e.message &&
+            !e.message.includes("duplicate column") &&
+            !e.message.includes("no such column")
+          )
+            logger.warn("Migration/Query warning:", e.message);
+        }
+
+        let activityDateStr = "";
+        try {
+          activityDateStr = dateFormatter
+            .format(new Date(quote.activity_date))
+            .replace(/\//g, "-");
+          if (servicesData.length > 0 && servicesData[0].endDate) {
+             const endStr = dateFormatter.format(new Date(servicesData[0].endDate)).replace(/\//g, "-");
+             activityDateStr = `${activityDateStr} to ${endStr}`;
+          }
+        } catch (e) {
+          activityDateStr = String(quote.activity_date);
+        }
+
+        let paymentDueDays = 14;
+        try {
+           paymentDueDays = settingsMap.paymentDueDays ? parseInt(settingsMap.paymentDueDays) : 14;
+           if (isNaN(paymentDueDays)) paymentDueDays = 14;
+        } catch(e) {}
+        
+        let validUntilStr = "";
+        try {
+           const d = quote.created_at ? new Date(quote.created_at.replace(" ", "T") + (quote.created_at.includes("Z") ? "" : "Z")) : new Date();
+           d.setDate(d.getDate() + paymentDueDays);
+           validUntilStr = dateFormatter.format(d).replace(/\//g, "-");
+        } catch(e) {
+           validUntilStr = quoteDateStr;
+        }
+
+        const parsedDate = new Date(quote.activity_date || Date.now());
+        const dayOfWeek = isNaN(parsedDate.getTime())
+          ? 1
+          : getTzDayOfWeek(parsedDate, timezone);
+        let subtotal = 0;
+        let lineItems: any[] = [];
+
+        let gstTypeFromMeta: string | null = null;
+        if (servicesData.length > 0) {
+          if (servicesData[0].gstType) {
+            gstTypeFromMeta = servicesData[0].gstType;
+          }
+
+          servicesData.forEach((sd) => {
+            const srv = db
+              .prepare("SELECT * FROM services WHERE id = ?")
+              .get(sd.serviceId) as any;
+            if (srv) {
+              let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 0;
+              let finalRate = Number(srv.rate || 0);
+              if (srv.type === "HOME_CARE" && srv.rates_json) {
+                try {
+                  const rates = JSON.parse(srv.rates_json);
+                  if (dayOfWeek === 0 && rates["Sunday"])
+                    finalRate = Number(rates["Sunday"]);
+                  else if (dayOfWeek === 6 && rates["Saturday"])
+                    finalRate = Number(rates["Saturday"]);
+                  else if (rates["Weekday"])
+                    finalRate = Number(rates["Weekday"]);
+                } catch (e) {
+                  if (
+                    e.message &&
+                    !e.message.includes("duplicate column") &&
+                    !e.message.includes("no such column")
+                  )
+                    logger.warn("Migration/Query warning:", e.message);
+                }
+              } else if (srv.type === "NDIS" && srv.rates_json) {
+                try {
+                  const rates = JSON.parse(srv.rates_json);
+                  const region = settingsMap.ndisRegion || "NSW";
+                  if (rates[region] !== undefined)
+                    finalRate = Number(rates[region]);
+                } catch (e) {
+                  if (
+                    e.message &&
+                    !e.message.includes("duplicate column") &&
+                    !e.message.includes("no such column")
+                  )
+                    logger.warn("Migration/Query warning:", e.message);
+                }
+              }
+              if (
+                sd.rateOverride !== undefined &&
+                sd.rateOverride !== null &&
+                sd.rateOverride !== ""
+              ) {
+                finalRate = Number(sd.rateOverride);
+              }
+              const amt = qty * finalRate;
+              subtotal += amt;
+              let mappedUnit = srv.unit || "H";
+              if (mappedUnit === "Hour") mappedUnit = "H";
+              if (mappedUnit === "KM") mappedUnit = "Kilometre";
+
+              lineItems.push({
+                desc: srv.name,
+                code: srv.code || "N/A",
+                qty: qty,
+                unit: mappedUnit,
+                rate: finalRate,
+                amount: amt,
+                date: sd.date,
+                startTime: sd.startTime,
+                endTime: sd.endTime
+              });
+            }
+          });
+        }
+
+        let gstAmount = 0;
+        if (gstTypeFromMeta === "10%") {
+          gstAmount = lineItems.reduce((acc: number, curr: any) => acc + (Math.round((curr.amount || 0) * 0.1 * 100) / 100), 0);
+        }
+        const totalAmount = subtotal + gstAmount;
+
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${quote.remittance_number}.pdf"`,
+        );
+
+        const doc = new PDFDocument({ margin: 50 });
+        doc.pipe(res);
+
+        console.log("QUOTE PDF LOGO:", String(settingsMap.letterheadLogo).substring(0, 50));
+        if (settingsMap.letterheadLogo) {
+          try {
+            let buffer: Buffer | null = null;
+            if (settingsMap.letterheadLogo.startsWith("/api/assets/")) {
+              const fileWithQuery = settingsMap.letterheadLogo.split("/").pop();
+              const filename = fileWithQuery.split("?")[0];
+              const persistentAssetPath = path.join(process.cwd(), "data", "uploads", "assets", filename);
+              const uploadsAssetPath = path.join(process.cwd(), "uploads", "assets", filename);
+              const oldAssetPath = path.join(process.cwd(), "assets", filename);
+              
+              if (fs.existsSync(uploadsAssetPath)) {
+                buffer = fs.readFileSync(uploadsAssetPath);
+              } else if (fs.existsSync(persistentAssetPath)) {
+                buffer = fs.readFileSync(persistentAssetPath);
+              } else if (fs.existsSync(oldAssetPath)) {
+                buffer = fs.readFileSync(oldAssetPath);
+              }
+            } else if (settingsMap.letterheadLogo.startsWith("data:image/")) {
+              const base64Data = settingsMap.letterheadLogo.replace(
+                /^data:image\/\w+;base64,/,
+                "",
+              );
+              buffer = Buffer.from(base64Data, "base64");
+            }
+            if (buffer) {
+              doc.image(buffer, doc.page.width - 50 - 200, 20, { fit: [200, 80], align: "right" });
+            }
+          } catch (e) {
+            console.error("Logo render error:", e);
+          }
+        }
+
+        doc
+          .fontSize(24)
+          .font("Helvetica-Bold")
+          .fillColor("#18181b")
+          .text("REMITTANCE ADVICE", 50, 35);
+        doc
+          .fontSize(10)
+          .font("Helvetica")
+          .fillColor("#52525b")
+          .text(settingsMap.businessName || "", 50, 65);
+        doc.moveDown(2);
+
+        const topY = 115;
+        doc
+          .fontSize(10)
+          .font("Helvetica-Bold")
+          .fillColor("black")
+          .text("From:", 50, topY);
+          
+        const fromLines: string[] = [];
+        if (settingsMap.businessName) fromLines.push(settingsMap.businessName);
+        if (settingsMap.contactPhone && settingsMap.contactPhone.trim() !== "0400000000" && settingsMap.contactPhone.trim() !== "") {
+          fromLines.push(settingsMap.contactPhone.trim());
+        }
+        if (settingsMap.contactEmail) fromLines.push(settingsMap.contactEmail);
+        if (settingsMap.businessAddress) fromLines.push(settingsMap.businessAddress);
+        if (settingsMap.abn) fromLines.push(`ABN: ${settingsMap.abn}`);
+
+        doc.fontSize(10).font("Helvetica");
+        let currentY = topY + 15;
+        fromLines.forEach((line) => {
+          if (line.trim()) {
+            doc.text(line, 50, currentY);
+            currentY += 15;
+          }
+        });
+
+        doc
+          .font("Helvetica-Bold")
+          .text("Remittance Date: ", 350, topY)
+          .font("Helvetica")
+          .text(quoteDateStr, 420, topY);
+        doc
+          .font("Helvetica-Bold")
+          .text("Remittance ID: ", 350, topY + 15)
+          .font("Helvetica")
+          .text(quote.remittance_number, 405, topY + 15);
+        doc
+          .font("Helvetica-Bold")
+          .text("Valid Until: ", 350, topY + 30)
+          .font("Helvetica")
+          .text(validUntilStr, 415, topY + 30);
+
+        // Participant Details Box
+        const partY = 195;
+        doc.rect(50, partY, 4, 70).fill("#0ea5e9"); // Cyan left border
+        doc.fillColor("black");
+        doc
+          .fontSize(12)
+          .font("Helvetica-Bold")
+          .fillColor("#0ea5e9")
+          .text("Participant Details", 65, partY + 5);
+        doc.fillColor("black").fontSize(10);
+        doc
+          .font("Helvetica-Bold")
+          .text("Name: ", 65, partY + 25, { continued: true })
+          .font("Helvetica")
+          .text(`${quote.c_fn || ""} ${quote.c_ln || ""}`.trim() || "N/A");
+        doc
+          .font("Helvetica-Bold")
+          .text("Service Activity: ", 65, partY + 40, { continued: true })
+          .font("Helvetica")
+          .text(quote.activity_name || "");
+        doc
+          .font("Helvetica-Bold")
+          .text("Date of Activity: ", 65, partY + 55, { continued: true })
+          .font("Helvetica")
+          .text(activityDateStr);
+
+        currentY = 295;
+
+        // Table Header
+        doc.rect(50, currentY, 500, 25).fill("#f4f4f5"); // Light gray bg for header
+        doc.fillColor("#18181b").font("Helvetica-Bold").fontSize(9);
+        doc.text("Description", 60, currentY + 8, {
+          width: 180,
+          align: "left",
+        });
+        doc.text("NDIS Code", 250, currentY + 8, { width: 100, align: "left" });
+        doc.text("Quantity", 350, currentY + 8, { width: 50, align: "center" });
+        doc.text("Rate", 410, currentY + 8, { width: 50, align: "right" });
+        doc.text("Total", 480, currentY + 8, { width: 60, align: "right" });
+
+        doc
+          .moveTo(50, currentY + 25)
+          .lineTo(550, currentY + 25)
+          .strokeColor("#e4e4e7")
+          .stroke();
+
+        currentY += 35;
+        doc.font("Helvetica").fontSize(9);
+
+        lineItems.forEach((item: any) => {
+          let descText = item.desc || "Unknown";
+          if (item.date) {
+             let timeStr = "";
+             if (item.startTime || item.endTime) {
+               timeStr = ` ${item.startTime || ''} - ${item.endTime || ''}`;
+             }
+             descText += `\nDate: ${item.date}${timeStr}`;
+          }
+          let textHeight =
+            doc.heightOfString(descText, { width: 180 }) || 15;
+          let blockHeight = Math.max(textHeight, 15) + 20;
+
+          if (currentY + blockHeight > 700) {
+            doc.addPage();
+            currentY = 50;
+          }
+
+          doc.fillColor("#18181b");
+          doc.text(descText, 60, currentY, {
+            width: 180,
+            align: "left",
+          });
+          doc.text(item.code || "N/A", 250, currentY, {
+            width: 100,
+            align: "left",
+          });
+
+          // Quantity & Unit
+          doc.text(String(item.qty || 0), 350, currentY, {
+            width: 50,
+            align: "center",
+          });
+          doc
+            .fillColor("#71717a")
+            .fontSize(8)
+            .text(item.unit || "", 350, currentY + 12, {
+              width: 50,
+              align: "center",
+            });
+
+          doc.fillColor("#18181b").fontSize(9);
+          doc.text(`$${item.rate.toFixed(2)}`, 410, currentY, {
+            width: 50,
+            align: "right",
+          });
+          doc.text(`$${item.amount.toFixed(2)}`, 480, currentY, {
+            width: 60,
+            align: "right",
+          });
+
+          currentY += textHeight + 10;
+          doc
+            .moveTo(50, currentY)
+            .lineTo(550, currentY)
+            .strokeColor("#e4e4e7")
+            .stroke();
+          currentY += 10;
+        });
+
+        if (currentY + 70 > 700) {
+          doc.addPage();
+          currentY = 50;
+        } else {
+          currentY += 10;
+        }
+
+        // Total Box
+        doc.rect(50, currentY, 500, 60).fill("#f4f4f5");
+
+        doc.fillColor("#71717a").font("Helvetica").fontSize(10);
+        doc.text("Subtotal:", 250, currentY + 10, {
+          width: 150,
+          align: "right",
+        });
+        doc.text(`$${subtotal.toFixed(2)}`, 410, currentY + 10, {
+          width: 120,
+          align: "right",
+        });
+
+        const gstLabel = gstTypeFromMeta === "GST Free" ? "GST (GST Free):" : "GST:";
+        doc.text(gstLabel, 250, currentY + 25, { width: 150, align: "right" });
+        doc.text(`$${gstAmount.toFixed(2)}`, 410, currentY + 25, {
+          width: 120,
+          align: "right",
+        });
+
+        doc.fillColor("black").font("Helvetica-Bold").fontSize(12);
+        doc.text("TOTAL QUOTE AMOUNT:", 200, currentY + 42, {
+          width: 200,
+          align: "right",
+        });
+        doc
+          .fontSize(14)
+          .text(`$${totalAmount.toFixed(2)}`, 410, currentY + 41, {
+            width: 120,
+            align: "right",
+          });
+
+        currentY += 90;
+
+        // Important Notes
+        doc
+          .font("Helvetica-Bold")
+          .fontSize(12)
+          .fillColor("black")
+          .text("Important Notes", 50, currentY);
+        currentY += 20;
+        doc
+          .moveTo(50, currentY)
+          .lineTo(550, currentY)
+          .strokeColor("#e4e4e7")
+          .stroke();
+        currentY += 10;
+
+        doc.font("Helvetica").fontSize(9).fillColor("#52525b");
+        const defaultNotes =
+          "Remote Billing: This quote is calculated using the NDIS Price Guide for Remote (MMM 6) locations.\n" +
+          "Transport: Final transport billing will be based on verified logbook odometer readings at a rate of $1.00 per kilometer.\n" +
+          "Exclusions: NDIS funding does not cover personal expenses such as meals, snacks, or activity entry fees. These are out-of-pocket costs for the participant.\n" +
+          "Cancellations: Charges for cancellations will be applied in accordance with the current NDIS Pricing Arrangements and Price Limits.";
+
+        const customNotes = quote.important_notes
+          ? quote.important_notes.trim()
+          : "";
+        const notes = customNotes !== "" ? customNotes : defaultNotes;
+
+        if (currentY > 700) {
+          doc.addPage();
+          currentY = 50;
+        }
+
+        // Just use doc.text and let PDFKit handle wrapping and page breaks automatically.
+        doc.text(notes, 50, currentY, { width: 500, align: 'left' });
+
+        doc.end();
+      } catch (e: any) {
+        console.error("DEBUG QUOTE DOWNLOAD ERROR:", e);
+
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
+
+  app.get("/api/files", authenticateToken, (req: any, res: any) => {
+    let query = `
+      SELECT f.*, u.first_name, u.last_name
+      FROM files f
+      LEFT JOIN users u ON f.uploaded_by = u.id
+    `;
+    if (req.user.role !== "ADMIN") {
+      query += " WHERE f.uploaded_by = ?";
+      const files = db.prepare(query).all(req.user.id);
+      return res.json(files);
+    }
+    const files = db.prepare(query).all();
+    res.json(files);
+  });
+
+  app.post(
+    "/api/files",
+    authenticateToken,
+    upload.single("file"),
+    (req: any, res: any) => {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+      let folderPath = req.query.folderPath || "/";
+      const dateIssued = req.body.date_issued || null;
+      const dateExpires = req.body.date_expires || null;
+
+      let targetUserId = req.user.id;
+      if (req.user.role === "ADMIN" && req.body.targetUserId) {
+        targetUserId = req.body.targetUserId;
+      }
+
+      if (req.body.context === "STAFF_ONBOARDING" || req.body.context === "STAFF_VEHICLES") {
+        try {
+          const targetUser = db
+            .prepare("SELECT first_name, last_name FROM users WHERE id = ?")
+            .get(targetUserId) as { first_name: string; last_name: string };
+          if (targetUser) {
+            const name = [targetUser.first_name, targetUser.last_name]
+              .filter(Boolean)
+              .join(" ")
+              .trim()
+              .replace(/[\/\\]/g, "");
+            folderPath = `/Staff/${name ? `${name}/` : ""}${req.body.context === "STAFF_VEHICLES" ? "Vehicles" : "Onboarding"}`;
+          }
+        } catch (err: any) {
+          logger.error(
+            `Failed to lookup targetUser for folder path: ${err.message}`,
+          );
+        }
+      }
+
+      let subfolder = (folderPath as string).trim();
+      subfolder = path.normalize(subfolder).replace(/^(\.\.[\/\\])+/, "");
+      if (subfolder.startsWith("/")) {
+        subfolder = subfolder.substring(1);
+      }
+
+      const initialSubfolderRaw = (req.query.folderPath as string) || "/";
+      let initialSubfolder = initialSubfolderRaw.trim();
+      initialSubfolder = path
+        .normalize(initialSubfolder)
+        .replace(/^(\.\.[\/\\])+/, "");
+      if (initialSubfolder.startsWith("/")) {
+        initialSubfolder = initialSubfolder.substring(1);
+      }
+
+      const initialSystemName =
+        initialSubfolder && initialSubfolder !== "."
+          ? path.posix.join(initialSubfolder, req.file.filename)
+          : req.file.filename;
+      const actualSystemName =
+        subfolder && subfolder !== "."
+          ? path.posix.join(subfolder, req.file.filename)
+          : req.file.filename;
+
+      if (initialSystemName !== actualSystemName) {
+        const initialFilePath = path.join(
+          process.cwd(),
+          "uploads",
+          initialSystemName,
+        );
+        const actualDirPath = path.join(process.cwd(), "uploads", subfolder);
+        const actualFilePath = path.join(actualDirPath, req.file.filename);
+        if (fs.existsSync(initialFilePath)) {
+          if (!fs.existsSync(actualDirPath))
+            fs.mkdirSync(actualDirPath, { recursive: true });
+          fs.renameSync(initialFilePath, actualFilePath);
+        }
+      }
+
+      const systemName = actualSystemName;
+
+      try {
+        const stmt = db.prepare(
+          "INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path, date_issued, date_expires) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        );
+        const info = stmt.run(
+          req.file.originalname,
+          systemName,
+          req.file.size,
+          targetUserId,
+          folderPath,
+          dateIssued,
+          dateExpires,
+        );
+
+        // Clear notifications immediately upon successful document renewal/upload
+        db.prepare(
+          `DELETE FROM notifications WHERE user_id = ? AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON')`,
+        ).run(targetUserId);
+
+        res.json({
+          success: true,
+          id: info.lastInsertRowid,
+          system_name: systemName,
+          date_issued: dateIssued,
+          date_expires: dateExpires,
+        });
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
+
+  app.put("/api/files/:id", authenticateToken, (req: any, res: any) => {
+    const { id } = req.params;
+    const { date_issued, date_expires } = req.body;
+    try {
+      const file = db
+        .prepare("SELECT id, uploaded_by FROM files WHERE id = ?")
+        .get(id) as any;
+      if (!file) return res.status(404).json({ error: "File not found" });
+
+      if (req.user.role !== "ADMIN" && file.uploaded_by !== req.user.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      db.prepare(
+        "UPDATE files SET date_issued = ?, date_expires = ? WHERE id = ?",
+      ).run(date_issued || null, date_expires || null, id);
+
+      // Clear notifications for this doc if it was updated
+      db.prepare(
+        `DELETE FROM notifications WHERE user_id = ? AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON')`,
+      ).run(file.uploaded_by);
+
+      res.json({ success: true });
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  app.get(
+    "/api/files/download/:id",
+    authenticateToken,
+    (req: any, res: any) => {
+      const { id } = req.params;
+      const preview = req.query.preview === "true";
+      try {
+        const file = db
+          .prepare("SELECT * FROM files WHERE id = ?")
+          .get(id) as any;
+        if (!file) return res.status(404).json({ error: "File not found" });
+
+        // Basic security for non-admins (allow chat files and settings chat media to be accessed by any authenticated user)
+        if (req.user.role !== "ADMIN" && file.uploaded_by !== req.user.id && !file.folder_path?.startsWith('/Chat') && !file.folder_path?.startsWith('/Settings/Chat')) {
+          return res.status(403).json({ error: "Forbidden" });
+        }
+
+        const filePath = resolveFilePath(file.system_name);
+        if (fs.existsSync(filePath)) {
+          if (preview) {
+            if (file.mime_type) {
+              res.setHeader("Content-Type", file.mime_type);
+            }
+            res.sendFile(filePath);
+          } else {
+            res.download(filePath, file.original_name);
+          }
+        } else {
+          res.status(404).json({ error: "File on disk not found" });
+        }
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/admin/migrate-files",
+    authenticateToken,
+    (req: any, res: any) => {
+      if (req.user.role !== "ADMIN")
+        return res.status(403).json({ error: "Requires admin privileges" });
+
+      try {
+        const files = db
+          .prepare("SELECT id, system_name, folder_path FROM files")
+          .all() as any[];
+        let migrated = 0;
+
+        for (const file of files) {
+          if (
+            !file.folder_path ||
+            file.folder_path === "/" ||
+            file.folder_path.trim() === ""
+          ) {
+            continue;
+          }
+
+          let subfolder = file.folder_path.trim();
+          subfolder = path.normalize(subfolder).replace(/^(\.\.[\/\\])+/, "");
+          if (subfolder.startsWith("/")) {
+            subfolder = subfolder.substring(1);
+          }
+
+          if (
+            file.system_name.startsWith(subfolder + "/") ||
+            file.system_name.startsWith(subfolder + "\\")
+          ) {
+            continue;
+          }
+
+          const currentFilePath = path.join(
+            process.cwd(),
+              "data",
+              "uploads",
+            file.system_name,
+          );
+          const targetDir = path.join(process.cwd(), "uploads", subfolder);
+          const targetFilePath = path.join(targetDir, file.system_name);
+
+          if (fs.existsSync(currentFilePath)) {
+            if (!fs.existsSync(targetDir)) {
+              fs.mkdirSync(targetDir, { recursive: true });
+            }
+
+            fs.renameSync(currentFilePath, targetFilePath);
+
+            const newSystemName = path.posix.join(subfolder, file.system_name);
+            db.prepare("UPDATE files SET system_name = ? WHERE id = ?").run(
+              newSystemName,
+              file.id,
+            );
+            migrated++;
+          }
+        }
+        res.json({
+          success: true,
+          message: `Migrated ${migrated} files successfully.`,
+          count: migrated,
+        });
+      } catch (e: any) {
+        logger.error(`Migration API Error: ${e}`, {
+          error: "Internal Server Error",
+        });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
+
+  app.delete("/api/files/:id", authenticateToken, (req: any, res: any) => {
+    const { id } = req.params;
+    try {
+      const file = db
+        .prepare("SELECT system_name, uploaded_by FROM files WHERE id = ?")
+        .get(id) as any;
+      if (file) {
+        if (req.user.role !== "ADMIN" && file.uploaded_by !== req.user.id) {
+          return res.status(403).json({ error: "Forbidden" });
+        }
+        const filePath = resolveFilePath(file.system_name);
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+          } catch (e) {
+            logger.warn("Failed to delete file", e);
+          }
+        }
+      }
+      db.prepare("DELETE FROM files WHERE id = ?").run(id);
+      res.json({ success: true });
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  
+
+// --- BLANK TEMPLATES (FILE SYSTEM) ---
   app.get(
     "/api/templates",
     authenticateTokenOrWallboard,
