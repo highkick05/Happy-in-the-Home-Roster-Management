@@ -397,6 +397,7 @@ CREATE TABLE client_template_settings (
 CREATE TABLE remittances (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     remittance_number TEXT NOT NULL,
+    client_id INTEGER,
     provider_id INTEGER,
     staff_id INTEGER,
     custom_payee_name TEXT,

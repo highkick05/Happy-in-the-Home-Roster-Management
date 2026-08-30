@@ -655,7 +655,10 @@ export default function RemittancesView() {
     setSelectedIds([]);
     try {
       const res = await fetch('/api/remittances', { headers: { Authorization: `Bearer ${token}` } });
-      setRemittances(await res.json());
+      
+      const data = await res.json();
+      setRemittances(Array.isArray(data) ? data : []);
+
     } catch (e) {
       console.error(e);
     } finally {
@@ -663,12 +666,12 @@ export default function RemittancesView() {
     }
   };
 
-  const filteredRemittances = remittances.filter(q => {
+  const filteredRemittances = (remittances || []).filter(q => {
     const s = searchTerm.toLowerCase();
 
     const nameStr = `${q.client_first_name} ${q.client_last_name}`.toLowerCase();
     const idStr = q.remittance_number.toLowerCase();
-    return nameStr.includes(s) || idStr.includes(s) || q.activity_name.toLowerCase().includes(s);
+    return nameStr.includes(s) || idStr.includes(s) || (q.activity_name || '').toLowerCase().includes(s);
   });
   const sortedRemittances = [...filteredRemittances].sort((a, b) => {
     let valA: any = '';
@@ -957,7 +960,7 @@ export default function RemittancesView() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-1.5 text-[#E6EDF3]">{q.activity_name}</td>
+                    <td className="px-3 py-1.5 text-[#E6EDF3]">{q.activity_name || 'N/A'}</td>
                     <td className="px-3 py-1.5 font-medium text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>${Number(q.amount).toFixed(2)}</span>

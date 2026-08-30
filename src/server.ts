@@ -317,6 +317,7 @@ async function startServer() {
       CREATE TABLE IF NOT EXISTS remittances (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         remittance_number TEXT NOT NULL,
+        client_id INTEGER,
         provider_id INTEGER,
         staff_id INTEGER,
         custom_payee_name TEXT,
