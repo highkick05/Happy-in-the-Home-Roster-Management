@@ -14614,16 +14614,17 @@ function resolveFilePath(systemName) {
   setupQuotePdfRoutes(app, db, authenticateToken);
 
   if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = require("vite");
-    createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    }).then((vite: any) => {
-      app.use(vite.middlewares);
-      
-      const PORT = process.env.PORT || 3000;
-      app.listen(PORT, "0.0.0.0", () => {
-        logger.info(`Server running on port ${PORT}`);
+    import("vite").then(({ createServer: createViteServer }) => {
+      createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      }).then((vite: any) => {
+        app.use(vite.middlewares);
+        
+        const PORT = process.env.PORT || 3000;
+        app.listen(PORT, "0.0.0.0", () => {
+          logger.info(`Server running on port ${PORT}`);
+        });
       });
     });
   } else {

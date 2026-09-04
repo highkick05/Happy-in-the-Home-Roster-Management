@@ -735,6 +735,20 @@ export default function QuotesView() {
     } catch (e) { console.error(e); }
   };
 
+  const previewPDF = async (id: number) => {
+    try {
+      const res = await fetch(`/api/quotes/${id}/download`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Preview failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to preview PDF');
+    }
+  };
+
   const downloadPDF = async (id: number, numberStr: string) => {
     try {
       const res = await fetch(`/api/quotes/${id}/download`, { headers: { Authorization: `Bearer ${token}` } });
@@ -971,6 +985,7 @@ export default function QuotesView() {
                     </td>
                     <td className="px-3 py-1.5 text-right flex items-center justify-end space-x-1">
                       <button title="Edit Quote" onClick={() => { setEditingQuote(q); setShowGenerateModal(true); }} className="p-1.5 text-zinc-400 hover:text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors"><Edit2 className="w-4 h-4" /></button>
+                      <button title="Preview PDF" onClick={() => previewPDF(q.id)} className="p-1.5 text-zinc-400 hover:text-brand-purple hover:bg-brand-purple/10 rounded-md transition-colors"><Eye className="w-4 h-4" /></button>
                       <button title="Download PDF" onClick={() => downloadPDF(q.id, q.quote_number)} className="p-1.5 text-zinc-400 hover:text-brand-teal hover:bg-brand-teal/10 rounded-md transition-colors"><Download className="w-4 h-4" /></button>
                       <button title="Delete Quote" onClick={() => handleDeleteSingle(q.id)} className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
                     </td>
