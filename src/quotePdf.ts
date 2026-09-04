@@ -8,7 +8,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       const quoteId = req.params.id;
       const quote = db.prepare(`
         SELECT q.*, 
-               c.first_name as client_first_name, c.last_name as client_last_name, c.email as client_email, c.ndis_number, c.my_aged_care_id
+               c.first_name as client_first_name, c.last_name as client_last_name, c.contact_email as client_email, c.ndis_number, c.my_aged_care_id
         FROM quotes q
         LEFT JOIN clients c ON q.client_id = c.id
         WHERE q.id = ?
