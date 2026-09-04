@@ -14389,8 +14389,8 @@ function resolveFilePath(systemName) {
 
         if (req.body.gstType === "10%") {
           let calcGst = 0;
-          if (servicesData.length > 0) {
-            servicesData.forEach((sd: any) => {
+          if (services && services.length > 0) {
+            services.forEach((sd: any) => {
               const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
               if (srv) {
                 let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
@@ -14532,8 +14532,8 @@ function resolveFilePath(systemName) {
         
         if (req.body.gstType === "10%") {
           let calcGst = 0;
-          if (servicesData.length > 0) {
-            servicesData.forEach((sd: any) => {
+          if (services && services.length > 0) {
+            services.forEach((sd: any) => {
               const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
               if (srv) {
                 let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
