@@ -154,15 +154,25 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
           timeStr = item.startTime;
         }
 
+        let dateStr = "";
+        if (item.date) {
+           const d = new Date(item.date);
+           if (!isNaN(d.getTime())) {
+              dateStr = d.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+           } else {
+              dateStr = item.date;
+           }
+        }
+
         doc.font("Helvetica").fontSize(10);
-        doc.text(item.date || "", 50, currentY, { width: 60, align: "left" });
+        doc.text(dateStr, 50, currentY, { width: 60, align: "left" });
         doc.fontSize(9).text(timeStr, 265, currentY, { width: 100, align: "left" });
         doc.fontSize(10);
         
         doc.text(safeServiceName, 110, currentY, { width: 150, align: "left" });
         let descY = currentY + textHeight + 2;
         
-        doc.fontSize(9).text(`Code: ${srv.item_number || "N/A"}`, 110, descY, { width: 150, align: "left" });
+        doc.fontSize(9).text(`Code: ${srv.code || "N/A"}`, 110, descY, { width: 150, align: "left" });
         doc.fontSize(10);
         
         doc.text(qty.toString(), 370, currentY, { width: 35, align: "right" });
@@ -228,6 +238,96 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
     } catch (e) {
       console.error("Quote PDF Error:", e);
       res.status(500).json({ error: "Failed to generate Quote PDF" });
+    }
+  });
+
+  app.get("/api/quotes/:id/preview", authenticateToken, (req: any, res: any) => {
+    try {
+      const quoteId = req.params.id;
+      const quote = db.prepare(`
+        SELECT q.*, 
+               c.first_name as client_first_name, c.last_name as client_last_name, c.contact_email as client_email, c.ndis_number, c.my_aged_care_id
+        FROM quotes q
+        LEFT JOIN clients c ON q.client_id = c.id
+        WHERE q.id = ?
+      `).get(quoteId) as any;
+
+      if (!quote) return res.status(404).json({ error: "Quote not found" });
+
+      const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+      const settingsMap: Record<string, any> = {};
+      settingsRows.forEach((r: any) => {
+        try { settingsMap[r.key] = JSON.parse(r.value); } 
+        catch { settingsMap[r.key] = r.value; }
+      });
+
+      let services: any[] = [];
+      if (quote.services_json) {
+        try { services = JSON.parse(quote.services_json); } catch (e) {}
+      }
+
+      let subtotal = 0;
+      let lineItems = services.map((item: any) => {
+        const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(item.serviceId) as any;
+        if (!srv) return null;
+
+        let qty = item.qtyOverride ? Number(item.qtyOverride) : 1;
+        let finalRate = Number(srv.rate || 0);
+        if (item.rateOverride !== undefined && item.rateOverride !== null && item.rateOverride !== "") {
+          finalRate = Number(item.rateOverride);
+        }
+        let lineAmount = qty * finalRate;
+        subtotal += lineAmount;
+
+        let timeStr = "";
+        if (item.startTime && item.endTime) {
+          timeStr = `${item.startTime} - ${item.endTime}`;
+          if (item.duration) {
+             timeStr += ` (${item.duration}h)`;
+          }
+        } else if (item.startTime) {
+          timeStr = item.startTime;
+        }
+
+        let dateStr = "";
+        if (item.date) {
+           const d = new Date(item.date);
+           if (!isNaN(d.getTime())) {
+              dateStr = d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
+           } else {
+              dateStr = item.date;
+           }
+        }
+
+        return {
+          date: dateStr,
+          serviceName: srv.name || "Unknown Service",
+          code: srv.code || "N/A",
+          time: timeStr,
+          qty,
+          unit: srv.unit || "Hr",
+          rate: finalRate,
+          amount: lineAmount
+        };
+      }).filter(Boolean);
+
+      const isGSTFree = true; 
+      let gstAmount = 0;
+      let totalAmount = subtotal + gstAmount;
+
+      res.json({
+        success: true,
+        data: {
+          quote,
+          settingsMap,
+          lineItems,
+          subtotal,
+          totalAmount,
+          gstAmount
+        }
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
     }
   });
 }

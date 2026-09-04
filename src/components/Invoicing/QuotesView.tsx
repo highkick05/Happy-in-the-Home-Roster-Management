@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Download, X, Upload, Copy, ChevronUp, ChevronDown, CheckCircle, Search, Trash2, Eye, Edit2 } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
+import QuotePreviewModal from './QuotePreviewModal';
 
 function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: string | null, onGenerated: () => void, onClose: () => void, editData?: any }) {
   const { settings } = useAuth();
@@ -580,6 +581,7 @@ export default function QuotesView() {
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [editingQuote, setEditingQuote] = useState<any | null>(null);
+  const [previewQuoteId, setPreviewQuoteId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchQuotes();
@@ -735,18 +737,8 @@ export default function QuotesView() {
     } catch (e) { console.error(e); }
   };
 
-  const previewPDF = async (id: number) => {
-    try {
-      const res = await fetch(`/api/quotes/${id}/download`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) throw new Error('Preview failed');
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-    } catch (e) {
-      console.error(e);
-      alert('Failed to preview PDF');
-    }
+  const previewPDF = (id: number) => {
+    setPreviewQuoteId(id);
   };
 
   const downloadPDF = async (id: number, numberStr: string) => {
@@ -859,6 +851,13 @@ export default function QuotesView() {
             </form>
           </div>
         </div>
+      )}
+
+      {previewQuoteId !== null && (
+        <QuotePreviewModal 
+          quoteId={previewQuoteId}
+          onClose={() => setPreviewQuoteId(null)}
+        />
       )}
 
       {showGenerateModal && (
