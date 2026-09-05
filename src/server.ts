@@ -12498,7 +12498,103 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
     },
   );
 
-  app.post(
+  
+  app.get("/api/remittances", authenticateToken, (req: any, res: any) => {
+    try {
+      const query = `
+        SELECT r.*, 
+               c.first_name as client_first_name, 
+               c.last_name as client_last_name,
+               s.first_name as staff_first_name,
+               s.last_name as staff_last_name
+        FROM remittances r
+        LEFT JOIN clients c ON r.client_id = c.id
+        LEFT JOIN staff s ON r.staff_id = s.id
+        ORDER BY r.created_at DESC
+      `;
+      const remittances = db.prepare(query).all();
+      res.json(remittances);
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/remittances/historical", authenticateToken, requireAdmin, upload.array("attachments"), (req: any, res: any) => {
+    try {
+      const { clientId, date } = req.body;
+      const amount = req.body.amount || 0;
+      
+      const files = (req.files as Express.Multer.File[]) || [];
+      const attachmentsJson = JSON.stringify(files.map(f => ({
+        originalName: f.originalname,
+        filename: f.filename,
+        path: f.path,
+        mimetype: f.mimetype
+      })));
+      
+      const now = new Date();
+      const remittanceNumber = `REM-HIST-${now.getTime()}`;
+      
+      db.prepare(`
+        INSERT INTO remittances (remittance_number, client_id, amount, status, attachments_json)
+        VALUES (?, ?, ?, 'HISTORICAL', ?)
+      `).run(remittanceNumber, clientId || null, amount, attachmentsJson);
+      
+      res.json({ success: true, message: "Historical remittance uploaded" });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/remittances/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const id = req.params.id;
+      db.prepare("DELETE FROM remittances WHERE id = ?").run(id);
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/remittances/bulk-delete", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { remittanceIds } = req.body;
+      if (!remittanceIds || !Array.isArray(remittanceIds)) {
+        return res.status(400).json({ error: "Invalid request" });
+      }
+      for (const id of remittanceIds) {
+        db.prepare("DELETE FROM remittances WHERE id = ?").run(id);
+      }
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/remittances/:id/download", authenticateToken, (req: any, res: any) => {
+    try {
+      const id = req.params.id;
+      const rem = db.prepare("SELECT * FROM remittances WHERE id = ?").get(id) as any;
+      if (!rem) return res.status(404).json({ error: "Not found" });
+      
+      if (rem.file_path) {
+        const p = require('path').resolve(rem.file_path);
+        if (require('fs').existsSync(p)) {
+          return res.download(p);
+        }
+      }
+      res.status(404).json({ error: "PDF not found for this remittance." });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+app.post(
     "/api/remittances/manual",
     authenticateToken,
     requireAdmin,
@@ -12559,7 +12655,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         });
 
         const c = db.prepare("SELECT first_name FROM clients WHERE id = ?").get(clientId) as any;
-        const cInitial = c ? c.first_name.substring(0, 3).toUpperCase() : "XXX";
+        const cInitial = (c && c.first_name) ? c.first_name.substring(0, 3).toUpperCase() : "XXX";
         const dateStr = date.replace(/-/g, "").substring(4, 8);
         const timestampPart = Date.now().toString().slice(-3);
         const remittanceNumber = `REM-${cInitial}-${dateStr}-${timestampPart}`;
