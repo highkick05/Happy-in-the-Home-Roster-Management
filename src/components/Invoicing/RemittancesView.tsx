@@ -4,14 +4,15 @@ import { useAuth } from '../../context/AuthContext';
 import { Download, X, Upload, Copy, ChevronUp, ChevronDown, CheckCircle, Search, Trash2, Eye, Edit2, FileText, Plus, RefreshCw } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
+import PdfPreviewModal from "./PdfPreviewModal";
 
-function GenerateRemittanceForm({ token, onGenerated, onClose }: { token: string | null, onGenerated: () => void, onClose: () => void }) {
+function GenerateRemittanceForm({ token, onGenerated, onClose, editData }: { token: string | null, onGenerated: () => void, onClose: () => void, editData?: any }) {
   const { settings } = useAuth();
   const [formData, setFormData] = useState({
-    clientId: '',
-    staffId: '',
-    customStaffName: '',
-    date: new Date().toISOString().split('T')[0],
+    clientId: editData ? String(editData.client_id || '') : '',
+    staffId: editData ? (editData.staff_id ? String(editData.staff_id) : 'custom') : '',
+    customStaffName: editData ? (editData.custom_payee_name || '') : '',
+    date: editData ? (editData.created_at ? editData.created_at.split(' ')[0] : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
     startTime: '09:00',
     endTime: '10:00',
     gstType: 'GST Free'
@@ -25,9 +26,11 @@ function GenerateRemittanceForm({ token, onGenerated, onClose }: { token: string
     customName?: string;
     customUnit?: string;
     customRate?: string;
-  }[]>([
-    { serviceId: '', qtyOverride: '', rateOverride: '' }
-  ]);
+  }[]>(
+    editData && editData.services_json 
+      ? JSON.parse(editData.services_json)
+      : [{ serviceId: '', qtyOverride: '', rateOverride: '' }]
+  );
   
   const [options, setOptions] = useState<{ clients: any[], staff: any[], services: any[] }>({ clients: [], staff: [], services: [] });
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -709,6 +712,7 @@ export default function RemittancesView() {
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [editingRemittance, setEditingRemittance] = useState<any | null>(null);
+  const [previewRemittance, setPreviewRemittance] = useState<{id: number, number: string} | null>(null);
 
   useEffect(() => {
     fetchRemittances();
@@ -979,6 +983,15 @@ export default function RemittancesView() {
         </div>
       )}
 
+      {previewRemittance && (
+        <PdfPreviewModal
+          token={token}
+          url={`/api/remittances/${previewRemittance.id}/download`}
+          filename={`${previewRemittance.number}.pdf`}
+          onClose={() => setPreviewRemittance(null)}
+        />
+      )}
+
       {showGenerateModal && (
         <div className="fixed inset-0 z-[60] flex justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto custom-scrollbar">
           <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-[1400px] flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
@@ -987,13 +1000,13 @@ export default function RemittancesView() {
                 <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">{editingRemittance ? 'Edit Service Remittance' : 'Manual Remittance Generation'}</h3>
                 <p className="text-xs text-[#8B949E] mt-0">Configure service and timing details for a standalone remittance advice.</p>
               </div>
-              <button onClick={() => setShowGenerateModal(false)} className="w-10 h-10 flex items-center justify-center bg-brand-navy border border-border-subtle hover:border-brand-blue rounded-md text-[#E6EDF3] transition-colors">
+              <button onClick={() => { setShowGenerateModal(false); setEditingRemittance(null); }} className="w-10 h-10 flex items-center justify-center bg-brand-navy border border-border-subtle hover:border-brand-blue rounded-md text-[#E6EDF3] transition-colors">
                 ×
               </button>
             </div>
             
             <div className="overflow-visible flex-1">
-              <GenerateRemittanceForm token={token} onGenerated={() => fetchRemittances()} onClose={() => { setShowGenerateModal(false); }} />
+              <GenerateRemittanceForm token={token} editData={editingRemittance} onGenerated={() => fetchRemittances()} onClose={() => { setShowGenerateModal(false); setEditingRemittance(null); }} />
             </div>
           </div>
         </div>
@@ -1103,6 +1116,8 @@ export default function RemittancesView() {
                     </td>
                     <td className="px-3 py-1.5 text-right flex items-center justify-end space-x-1">
                       
+                      <button title="Preview PDF" onClick={() => setPreviewRemittance({ id: q.id, number: q.remittance_number })} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-md transition-colors"><Eye className="w-4 h-4" /></button>
+                      <button title="Edit Remittance" onClick={() => { setEditingRemittance(q); setShowGenerateModal(true); }} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-md transition-colors"><Edit2 className="w-4 h-4" /></button>
                       <button title="Download PDF" onClick={() => downloadPDF(q.id, q.remittance_number)} className="p-1.5 text-zinc-400 hover:text-brand-teal hover:bg-brand-teal/10 rounded-md transition-colors"><Download className="w-4 h-4" /></button>
                       <button title="Delete Remittance" onClick={() => handleDeleteSingle(q.id)} className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
                     </td>

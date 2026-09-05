@@ -12582,7 +12582,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       if (!rem) return res.status(404).json({ error: "Not found" });
       
       if (rem.file_path) {
-        const p = require('path').resolve(rem.file_path);
+        const p = require('path').resolve(process.cwd(), 'uploads', rem.file_path);
         if (require('fs').existsSync(p)) {
           return res.download(p);
         }
@@ -12600,7 +12600,7 @@ app.post(
     requireAdmin,
     upload.array("attachments"),
     (req: any, res: any) => {
-      let { clientId, staffId, services, date, customStaffName } = req.body;
+      let { clientId, staffId, services, date, customStaffName, remittanceId: reqRemittanceId, remittanceNumber: reqRemittanceNumber } = req.body;
       
       if (typeof services === 'string') {
         try { services = JSON.parse(services); } catch(e) { return res.status(400).json({ error: "Invalid JSON" }); }
@@ -12658,7 +12658,7 @@ app.post(
         const cInitial = (c && c.first_name) ? c.first_name.substring(0, 3).toUpperCase() : "XXX";
         const dateStr = date.replace(/-/g, "").substring(4, 8);
         const timestampPart = Date.now().toString().slice(-3);
-        const remittanceNumber = `REM-${cInitial}-${dateStr}-${timestampPart}`;
+        const remittanceNumber = req.body.remittanceNumber || `REM-${cInitial}-${dateStr}-${timestampPart}`;
 
         const isCustomStaff = staffId === "custom";
         const finalStaffId = isCustomStaff ? null : staffId;
@@ -12670,20 +12670,37 @@ app.post(
           mimetype: f.mimetype
         })) || [];
 
-        const insertResult = db.prepare(
-          `INSERT INTO remittances (remittance_number, client_id, staff_id, custom_payee_name, amount, status, services_json, attachments_json)
-           VALUES (?, ?, ?, ?, ?, 'GENERATED', ?, ?)`
-        ).run(
-          remittanceNumber,
-          clientId,
-          finalStaffId,
-          finalCustomStaffName,
-          calculatedAmount,
-          JSON.stringify(services),
-          JSON.stringify(attachments)
-        );
-        
-        const remittanceId = insertResult.lastInsertRowid;
+        let remittanceId = req.body.remittanceId;
+        if (remittanceId) {
+          db.prepare(
+            `UPDATE remittances SET client_id=?, staff_id=?, custom_payee_name=?, amount=?, services_json=? WHERE id=?`
+          ).run(
+            clientId,
+            finalStaffId,
+            finalCustomStaffName,
+            calculatedAmount,
+            JSON.stringify(services),
+            remittanceId
+          );
+          // if there are new attachments, maybe append them, but for now just update what we have
+          if (attachments.length > 0) {
+              db.prepare(`UPDATE remittances SET attachments_json=? WHERE id=?`).run(JSON.stringify(attachments), remittanceId);
+          }
+        } else {
+          const insertResult = db.prepare(
+            `INSERT INTO remittances (remittance_number, client_id, staff_id, custom_payee_name, amount, status, services_json, attachments_json)
+             VALUES (?, ?, ?, ?, ?, 'GENERATED', ?, ?)`
+          ).run(
+            remittanceNumber,
+            clientId,
+            finalStaffId,
+            finalCustomStaffName,
+            calculatedAmount,
+            JSON.stringify(services),
+            JSON.stringify(attachments)
+          );
+          remittanceId = insertResult.lastInsertRowid;
+        }
         
         // Generate PDF
         const remittance = db.prepare("SELECT * FROM remittances WHERE id = ?").get(remittanceId);
