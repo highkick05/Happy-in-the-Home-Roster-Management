@@ -246,7 +246,7 @@ const buildRemittancePdf = (doc: any, data: any) => {
         !e.message.includes("duplicate column") &&
         !e.message.includes("no such column")
       )
-        logger.warn("Migration/Query warning:", e.message);
+        console.warn("Migration/Query warning:", e.message);
     }
 
     doc
