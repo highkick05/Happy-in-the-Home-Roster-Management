@@ -140,7 +140,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
         {/* The "Paper" Document */}
         <div className="bg-white w-full max-w-[210mm] min-h-[297mm] shadow-xl border border-zinc-200 rounded-sm p-[12mm] sm:p-[20mm] text-zinc-900 font-sans flex flex-col relative mx-auto my-0">
           
-          <div className="flex justify-between items-start mb-12 border-b border-zinc-100 pb-8">
+          <div className="flex justify-between items-start mb-6 border-b border-zinc-100 pb-4">
              {settingsMap.letterheadLogo ? (
                 <img src={settingsMap.letterheadLogo} alt="Logo" className="h-20 object-contain" />
              ) : (
@@ -157,7 +157,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
              </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
              {/* FROM section */}
              <div className="flex flex-col text-sm border-t-2 border-brand-teal pt-4 relative">
                 <div className="font-bold text-xs uppercase tracking-widest text-brand-teal mb-2">From</div>
@@ -182,11 +182,12 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                 <thead>
                    <tr className="border-b-2 border-zinc-900 text-xs uppercase tracking-wider font-semibold text-zinc-900">
                       <th className="py-3 px-2 w-[12%]">Date</th>
-                      <th className="py-3 px-2 w-[35%]">Description</th>
-                      <th className="py-3 px-2 w-[20%]">Time</th>
+                      <th className="py-3 px-2 w-[30%]">Description</th>
+                      <th className="py-3 px-2 w-[15%]">Time</th>
                       <th className="py-3 px-2 text-right">Qty</th>
                       <th className="py-3 px-2 text-left">Unit</th>
                       <th className="py-3 px-2 text-right">Rate</th>
+                      <th className="py-3 px-2 text-right">GST</th>
                       <th className="py-3 px-2 text-right">Amount</th>
                    </tr>
                 </thead>
@@ -200,10 +201,11 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                                 Code: {item.code || 'N/A'}
                             </div>
                          </td>
-                         <td className="py-4 px-2 whitespace-nowrap text-zinc-600 text-xs">{item.time}</td>
+                         <td className="py-4 px-2 whitespace-pre-wrap text-zinc-600 text-xs">{item.time}</td>
                          <td className="py-4 px-2 text-right text-zinc-700">{item.qty}</td>
                          <td className="py-4 px-2 text-left text-zinc-500 text-xs">{item.unit}</td>
                          <td className="py-4 px-2 text-right text-zinc-700">${Number(item.rate).toFixed(2)}</td>
+                         <td className="py-4 px-2 text-right text-zinc-700">${Number(item.gst || 0).toFixed(2)}</td>
                          <td className="py-4 px-2 text-right font-medium text-zinc-900">${Number(item.amount).toFixed(2)}</td>
                       </tr>
                    ))}
@@ -211,7 +213,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
              </table>
           </div>
 
-          <div className="flex justify-end mt-12 pt-8 border-t-2 border-zinc-900">
+          <div className="flex justify-end mt-8 pt-6 border-t-2 border-zinc-900">
              {/* Totals */}
              <div className="w-1/3 min-w-[240px] flex flex-col justify-end text-sm ml-8">
                 <div className="flex justify-between py-2 text-zinc-600">

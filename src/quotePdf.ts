@@ -92,46 +92,55 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       const clientName = `${quote.client_first_name || ''} ${quote.client_last_name || ''}`.trim();
       doc.fontSize(12).text(clientName, 300, topY + 15);
       
-      const ndisVal = quote.ndis_number || quote.my_aged_care_id || "N/A";
-      doc.fontSize(10).font("Helvetica").text(`ID No: ${ndisVal}`, 300, topY + 30);
-      doc.moveDown(4);
+      const idLabel = quote.ndis_number 
+        ? `NDIS No: ${quote.ndis_number}`
+        : quote.my_aged_care_id 
+          ? `Home Care ID: ${quote.my_aged_care_id}`
+          : "";
+      if (idLabel) {
+        doc.fontSize(10).font("Helvetica").text(idLabel, 300, topY + 30);
+      }
 
-      let currentY = Math.max(doc.y + 10, 295);
+      let currentY = doc.y + 30;
 
       // Table Header
       doc.font("Helvetica-Bold").fontSize(10);
-      doc.text("DATE", 50, currentY, { width: 60, align: "left" });
-      doc.text("DESCRIPTION", 110, currentY, { width: 150, align: "left" });
-      doc.text("TIME", 265, currentY, { width: 100, align: "left" }); // THIS IS WHAT THE USER WANTS
-      doc.text("QTY", 370, currentY, { width: 35, align: "right" });
-      doc.text("UNIT", 410, currentY, { width: 45, align: "left" });
-      doc.text("RATE", 460, currentY, { width: 50, align: "right" });
-      doc.text("AMOUNT", 515, currentY, { width: 65, align: "right" });
+      doc.text("DATE", 50, currentY, { width: 55, align: "left" });
+      doc.text("DESCRIPTION", 105, currentY, { width: 140, align: "left" });
+      doc.text("TIME", 250, currentY, { width: 75, align: "left" }); 
+      doc.text("QTY", 330, currentY, { width: 25, align: "right" });
+      doc.text("UNIT", 360, currentY, { width: 35, align: "left" });
+      doc.text("RATE", 400, currentY, { width: 45, align: "right" });
+      doc.text("GST", 450, currentY, { width: 45, align: "right" });
+      doc.text("AMOUNT", 500, currentY, { width: 65, align: "right" });
+
       doc.moveTo(50, currentY + 15).lineTo(580, currentY + 15).stroke();
       currentY += 20;
 
       doc.font("Helvetica").fontSize(10);
       let subtotal = 0;
       let calcGst = 0;
+      const hasGst = services.length > 0 && services[0].gstType === "10%";
 
       for (const item of services) {
         const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(item.serviceId) as any;
         if (!srv) continue;
 
         let safeServiceName = srv.name || "Unknown Service";
-        let textHeight = doc.heightOfString(safeServiceName, { width: 150 }) || 15;
+        let textHeight = doc.heightOfString(safeServiceName, { width: 140 }) || 15;
         let blockHeight = textHeight + 20;
 
         if (currentY + blockHeight > 700) {
           doc.addPage();
           doc.font("Helvetica-Bold").fontSize(10);
-          doc.text("DATE", 50, 50, { width: 60, align: "left" });
-          doc.text("DESCRIPTION", 110, 50, { width: 150, align: "left" });
-          doc.text("TIME", 265, 50, { width: 100, align: "left" });
-          doc.text("QTY", 370, 50, { width: 35, align: "right" });
-          doc.text("UNIT", 410, 50, { width: 45, align: "left" });
-          doc.text("RATE", 460, 50, { width: 50, align: "right" });
-          doc.text("AMOUNT", 515, 50, { width: 65, align: "right" });
+          doc.text("DATE", 50, 50, { width: 55, align: "left" });
+          doc.text("DESCRIPTION", 105, 50, { width: 140, align: "left" });
+          doc.text("TIME", 250, 50, { width: 75, align: "left" });
+          doc.text("QTY", 330, 50, { width: 25, align: "right" });
+          doc.text("UNIT", 360, 50, { width: 35, align: "left" });
+          doc.text("RATE", 400, 50, { width: 45, align: "right" });
+          doc.text("GST", 450, 50, { width: 45, align: "right" });
+          doc.text("AMOUNT", 500, 50, { width: 65, align: "right" });
           doc.moveTo(50, 65).lineTo(580, 65).stroke();
           currentY = 75;
         }
@@ -144,11 +153,17 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         let lineAmount = qty * finalRate;
         subtotal += lineAmount;
 
+        let lineGst = 0;
+        if (hasGst) {
+          lineGst = Math.round((qty * finalRate) * 0.1 * 100) / 100;
+        }
+        calcGst += lineGst;
+
         let timeStr = "";
         if (item.startTime && item.endTime) {
           timeStr = `${item.startTime} - ${item.endTime}`;
           if (item.duration) {
-             timeStr += ` (${item.duration}h)`;
+             timeStr += `\n(${item.duration}h)`;
           }
         } else if (item.startTime) {
           timeStr = item.startTime;
@@ -165,30 +180,26 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         }
 
         doc.font("Helvetica").fontSize(10);
-        doc.text(dateStr, 50, currentY, { width: 60, align: "left" });
-        doc.fontSize(9).text(timeStr, 265, currentY, { width: 100, align: "left" });
+        doc.text(dateStr, 50, currentY, { width: 55, align: "left" });
+        doc.fontSize(9).text(timeStr, 250, currentY, { width: 75, align: "left" });
         doc.fontSize(10);
         
-        doc.text(safeServiceName, 110, currentY, { width: 150, align: "left" });
+        doc.text(safeServiceName, 105, currentY, { width: 140, align: "left" });
         let descY = currentY + textHeight + 2;
         
-        doc.fontSize(9).text(`Code: ${srv.code || "N/A"}`, 110, descY, { width: 150, align: "left" });
+        doc.fontSize(9).text(`Code: ${srv.code || "N/A"}`, 105, descY, { width: 140, align: "left" });
         doc.fontSize(10);
         
-        doc.text(qty.toString(), 370, currentY, { width: 35, align: "right" });
-        doc.text(srv.unit || "N/A", 410, currentY, { width: 45, align: "left" });
-        doc.text(`$${finalRate.toFixed(2)}`, 460, currentY, { width: 50, align: "right" });
-        doc.text(`$${lineAmount.toFixed(2)}`, 515, currentY, { width: 65, align: "right" });
+        doc.text(qty.toString(), 330, currentY, { width: 25, align: "right" });
+        doc.text(srv.unit || "N/A", 360, currentY, { width: 35, align: "left" });
+        doc.text(`$${finalRate.toFixed(2)}`, 400, currentY, { width: 45, align: "right" });
+        doc.text(`$${lineGst.toFixed(2)}`, 450, currentY, { width: 45, align: "right" });
+        doc.text(`$${lineAmount.toFixed(2)}`, 500, currentY, { width: 65, align: "right" });
 
         doc.moveTo(50, descY + 15).lineTo(580, descY + 15).stroke();
         currentY = descY + 20;
       }
 
-      // If GST applies to Quote
-      if (services.length > 0 && services[0].gstType === "10%") {
-        calcGst = Math.round(subtotal * 0.1 * 100) / 100;
-      }
-      
       let totalAmount = subtotal + calcGst;
 
       let totalsY = currentY + 30;
@@ -267,6 +278,9 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       }
 
       let subtotal = 0;
+      let calcGst = 0;
+      const hasGst = services.length > 0 && services[0].gstType === "10%";
+
       let lineItems = services.map((item: any) => {
         const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(item.serviceId) as any;
         if (!srv) return null;
@@ -279,11 +293,17 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         let lineAmount = qty * finalRate;
         subtotal += lineAmount;
 
+        let lineGst = 0;
+        if (hasGst) {
+          lineGst = Math.round((qty * finalRate) * 0.1 * 100) / 100;
+        }
+        calcGst += lineGst;
+
         let timeStr = "";
         if (item.startTime && item.endTime) {
           timeStr = `${item.startTime} - ${item.endTime}`;
           if (item.duration) {
-             timeStr += ` (${item.duration}h)`;
+             timeStr += `\n(${item.duration}h)`;
           }
         } else if (item.startTime) {
           timeStr = item.startTime;
@@ -307,12 +327,12 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
           qty,
           unit: srv.unit || "Hr",
           rate: finalRate,
+          gst: lineGst,
           amount: lineAmount
         };
       }).filter(Boolean);
 
-      const isGSTFree = true; 
-      let gstAmount = 0;
+      let gstAmount = calcGst;
       let totalAmount = subtotal + gstAmount;
 
       res.json({
