@@ -12509,7 +12509,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                s.last_name as staff_last_name
         FROM remittances r
         LEFT JOIN clients c ON r.client_id = c.id
-        LEFT JOIN staff s ON r.staff_id = s.id
+        LEFT JOIN users s ON r.staff_id = s.id
         ORDER BY r.created_at DESC
       `;
       const remittances = db.prepare(query).all();
