@@ -348,6 +348,18 @@ async function startServer() {
 
     // Auto-migrate chat_messages table to add file columns if missing
       try {
+        // Drop remittances table completely and recreate it since it was missing columns and it's early
+        // Wait, better to just alter it if it exists.
+        const remCols = db.prepare("PRAGMA table_info(remittances)").all() as any[];
+        if (remCols.length > 0) {
+          if (!remCols.some(c => c.name === 'client_id')) {
+            db.prepare("ALTER TABLE remittances ADD COLUMN client_id INTEGER").run();
+          }
+          if (!remCols.some(c => c.name === 'provider_id')) {
+            db.prepare("ALTER TABLE remittances ADD COLUMN provider_id INTEGER").run();
+          }
+        }
+        
         const invCols = db.prepare("PRAGMA table_info(invoices)").all();
         const hasAttachments = invCols.some((c: any) => c.name === 'attachments_json');
         if (!hasAttachments) {
