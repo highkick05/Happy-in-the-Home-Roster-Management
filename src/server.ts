@@ -12613,7 +12613,13 @@ app.post(
       try {
         const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
         const settingsMap: any = {};
-        settingsRows.forEach((r) => { settingsMap[r.key] = r.value; });
+        settingsRows.forEach((r) => {
+          try {
+            settingsMap[r.key] = JSON.parse(r.value);
+          } catch(e) {
+            settingsMap[r.key] = r.value;
+          }
+        });
         
         let calculatedAmount = 0;
         
@@ -13712,24 +13718,27 @@ app.post(
       .font("Helvetica-Bold")
       .fillColor("black")
       .text("FROM:", 50, topY);
+
+    const cleanStr = (val) => (typeof val === 'string' ? val.replace(/^["']+|["']+$/g, '') : val);
     doc
       .fontSize(12)
       .font("Helvetica-Bold")
-      .text(settingsMap.businessName || "", 50, topY + 15);
+      .text(cleanStr(settingsMap.businessName) || "", 50, topY + 15);
     doc.fontSize(10).font("Helvetica");
     
     let cy = topY + 30;
     if (settingsMap.abn) {
-      doc.text(`ABN: ${settingsMap.abn}`, 50, cy);
+      doc.text(`ABN: ${cleanStr(settingsMap.abn)}`, 50, cy);
       cy += 15;
     }
     if (settingsMap.businessAddress) {
-      doc.text(settingsMap.businessAddress, 50, cy);
+      doc.text(cleanStr(settingsMap.businessAddress), 50, cy);
       cy += 15;
     }
     if (settingsMap.contactEmail) {
-      doc.text(settingsMap.contactEmail, 50, cy);
+      doc.text(cleanStr(settingsMap.contactEmail), 50, cy);
     }
+
 
     let billToName = contractor?.first_name ? `${contractor.first_name} ${contractor.last_name || ''}`.trim() : (contractor?.custom_payee_name || "Contractor");
     let billToEmail = contractor?.email || "";
@@ -13762,8 +13771,12 @@ app.post(
            doc.moveDown(1);
            doc.font("Helvetica-Bold").fontSize(9).text("Regarding Client:", 300, py + 10);
            doc.font("Helvetica").text(clientName, 300, py + 22);
+           py += 34;
        }
     }
+    
+    doc.font("Helvetica-Bold").fontSize(9).text("Payment Method:", 300, py + 10);
+    doc.font("Helvetica").text("Bank Transfer", 300, py + 22);
 
     doc.moveDown(4);
     let currentY = Math.max(doc.y + 10, 260);
