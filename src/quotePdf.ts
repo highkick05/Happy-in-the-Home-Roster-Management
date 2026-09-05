@@ -101,7 +101,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         doc.fontSize(10).font("Helvetica").text(idLabel, 300, topY + 30);
       }
 
-      let currentY = doc.y + 30;
+      let currentY = doc.y + 50;
 
       // Table Header
       doc.font("Helvetica-Bold").fontSize(10);
