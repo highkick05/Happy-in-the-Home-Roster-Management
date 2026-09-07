@@ -13924,16 +13924,17 @@ app.post(
 
     doc.font("Helvetica");
     doc.text("Subtotal:", 350, totalsY + 15, { width: 100, align: "right" });
-    doc.text(`${subtotal.toFixed(2)}`, 470, totalsY + 15, { width: 100, align: "right" });
+    doc.text(`$${subtotal.toFixed(2)}`, 470, totalsY + 15, { width: 100, align: "right" });
 
     let gstY = totalsY + 30;
     if (gstAmount && gstAmount > 0) {
-      doc.text("GST:", 350, gstY, { width: 100, align: "right" });
-      doc.text(`${gstAmount.toFixed(2)}`, 470, gstY, { width: 100, align: "right" });
-      gstY += 15;
+      doc.text("GST (10%):", 350, gstY, { width: 100, align: "right" });
+      doc.text(`$${gstAmount.toFixed(2)}`, 470, gstY, { width: 100, align: "right" });
     } else {
-      gstY += 15;
+      doc.text("GST (GST-Free):", 350, gstY, { width: 100, align: "right" });
+      doc.text("$0.00", 470, gstY, { width: 100, align: "right" });
     }
+    gstY += 15;
 
     doc
       .moveTo(350, gstY)
@@ -13942,7 +13943,7 @@ app.post(
 
     doc.font("Helvetica-Bold").fontSize(12);
     doc.text("TOTAL PAID:", 350, gstY + 10, { width: 100, align: "right" });
-    doc.text(`${totalAmount.toFixed(2)}`, 470, gstY + 10, { width: 100, align: "right" });
+    doc.text(`$${totalAmount.toFixed(2)}`, 470, gstY + 10, { width: 100, align: "right" });
 
     doc.moveDown(4);
     doc
