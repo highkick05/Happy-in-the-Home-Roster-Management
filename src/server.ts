@@ -12600,7 +12600,7 @@ app.post(
     requireAdmin,
     upload.array("attachments"),
     (req: any, res: any) => {
-      let { clientId, staffId, services, date, customStaffName, remittanceId: reqRemittanceId, remittanceNumber: reqRemittanceNumber } = req.body;
+      let { clientId, staffId, services, date, customStaffName, remittanceId: reqRemittanceId, remittanceNumber: reqRemittanceNumber, gstType } = req.body;
       
       if (typeof services === 'string') {
         try { services = JSON.parse(services); } catch(e) { return res.status(400).json({ error: "Invalid JSON" }); }
@@ -12659,6 +12659,55 @@ app.post(
            }
            calculatedAmount += qty * finalRate;
         });
+
+        let calculatedGst = 0;
+        if (gstType === '10%') {
+           services.forEach((sd: any) => {
+               let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
+               let finalRate = 0;
+               let name = sd.customName || "";
+               
+               if (sd.isCustom) {
+                   finalRate = sd.rateOverride ? Number(sd.rateOverride) : 0;
+               } else {
+                   const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
+                   if (srv) {
+                       finalRate = Number(srv.rate || 0);
+                       name = srv.name || "";
+                       if (srv.type === "HOME_CARE" && srv.rates_json) {
+                           try {
+                               const rates = JSON.parse(srv.rates_json);
+                               if (dayOfWeek === 0 && rates["Sunday"]) finalRate = Number(rates["Sunday"]);
+                               else if (dayOfWeek === 6 && rates["Saturday"]) finalRate = Number(rates["Saturday"]);
+                               else if (rates["Weekday"]) finalRate = Number(rates["Weekday"]);
+                           } catch(e) {}
+                       } else if (srv.type === "NDIS" && srv.rates_json) {
+                           try {
+                               const rates = JSON.parse(srv.rates_json);
+                               const region = settingsMap.ndisRegion || "NSW";
+                               if (rates[region] !== undefined) finalRate = Number(rates[region]);
+                           } catch(e) {}
+                       }
+                   }
+               }
+               if (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== "") {
+                   finalRate = Number(sd.rateOverride);
+               }
+               
+               const isProviderTravel = name?.toLowerCase().includes('provider travel') || false;
+               const isABT = name?.toLowerCase().includes('activity based transport') || false;
+               const isTravelOrTransport = isProviderTravel || isABT;
+               let effectiveQty = 0;
+               if (sd.qtyOverride !== undefined && sd.qtyOverride !== '') {
+                   effectiveQty = Number(sd.qtyOverride);
+               } else {
+                   effectiveQty = isTravelOrTransport ? 0 : 1;
+               }
+               
+               calculatedGst += (Math.round((effectiveQty * finalRate) * 0.1 * 100) / 100);
+           });
+        }
+        const totalAmount = calculatedAmount + calculatedGst;
 
         const c = db.prepare("SELECT first_name FROM clients WHERE id = ?").get(clientId) as any;
         const cInitial = (c && c.first_name) ? c.first_name.substring(0, 3).toUpperCase() : "XXX";
@@ -12740,9 +12789,36 @@ app.post(
             let unit = sd.customUnit || "Hour";
             let rate = sd.rateOverride ? Number(sd.rateOverride) : 0;
             let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
+            let name = sd.customName || "Service Item";
+            
+            if (!sd.isCustom) {
+               const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
+               if (srv) {
+                   name = srv.name || name;
+                   if (!sd.rateOverride) {
+                       let finalRate = Number(srv.rate || 0);
+                       if (srv.type === "HOME_CARE" && srv.rates_json) {
+                           try {
+                               const rates = JSON.parse(srv.rates_json);
+                               if (dayOfWeek === 0 && rates["Sunday"]) finalRate = Number(rates["Sunday"]);
+                               else if (dayOfWeek === 6 && rates["Saturday"]) finalRate = Number(rates["Saturday"]);
+                               else if (rates["Weekday"]) finalRate = Number(rates["Weekday"]);
+                           } catch(e) {}
+                       } else if (srv.type === "NDIS" && srv.rates_json) {
+                           try {
+                               const rates = JSON.parse(srv.rates_json);
+                               const region = settingsMap.ndisRegion || "NSW";
+                               if (rates[region] !== undefined) finalRate = Number(rates[region]);
+                           } catch(e) {}
+                       }
+                       rate = finalRate;
+                   }
+               }
+            }
+            
             let amount = rate * qty;
             return {
-                name: sd.isCustom ? sd.customName : "Service Item",
+                name: name,
                 unit: unit,
                 rate: rate,
                 qty: qty,
@@ -12757,8 +12833,8 @@ app.post(
            invoiceDate: date,
            lineItems: lineItems,
            subtotal: calculatedAmount,
-           totalAmount: calculatedAmount,
-           gstAmount: 0,
+           totalAmount: totalAmount,
+           gstAmount: calculatedGst,
            client: clientRow,
            contractor: staffRow
         };
@@ -13848,16 +13924,25 @@ app.post(
 
     doc.font("Helvetica");
     doc.text("Subtotal:", 350, totalsY + 15, { width: 100, align: "right" });
-    doc.text(`$${subtotal.toFixed(2)}`, 470, totalsY + 15, { width: 100, align: "right" });
+    doc.text(`${subtotal.toFixed(2)}`, 470, totalsY + 15, { width: 100, align: "right" });
+
+    let gstY = totalsY + 30;
+    if (gstAmount && gstAmount > 0) {
+      doc.text("GST:", 350, gstY, { width: 100, align: "right" });
+      doc.text(`${gstAmount.toFixed(2)}`, 470, gstY, { width: 100, align: "right" });
+      gstY += 15;
+    } else {
+      gstY += 15;
+    }
 
     doc
-      .moveTo(350, totalsY + 45)
-      .lineTo(570, totalsY + 45)
+      .moveTo(350, gstY)
+      .lineTo(570, gstY)
       .stroke();
 
     doc.font("Helvetica-Bold").fontSize(12);
-    doc.text("TOTAL PAID:", 350, totalsY + 55, { width: 100, align: "right" });
-    doc.text(`$${totalAmount.toFixed(2)}`, 470, totalsY + 55, { width: 100, align: "right" });
+    doc.text("TOTAL PAID:", 350, gstY + 10, { width: 100, align: "right" });
+    doc.text(`${totalAmount.toFixed(2)}`, 470, gstY + 10, { width: 100, align: "right" });
 
     doc.moveDown(4);
     doc
