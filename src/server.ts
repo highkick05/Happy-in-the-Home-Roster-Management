@@ -13994,9 +13994,15 @@ app.post(
     const stampY = doc.y;
     
     doc.save();
+    // Add realistic stamp rotation and slight opacity
+    doc.rotate(-10, { origin: [stampX + 70, stampY + 22] });
+    doc.fillOpacity(0.75);
+    
+    // Draw solid stamp background
     doc.roundedRect(stampX, stampY, 140, 44, 4)
        .fill('#16a34a');
        
+    // Draw stamp text
     doc.font("Helvetica-Bold")
        .fontSize(28)
        .fillColor('#ffffff')
