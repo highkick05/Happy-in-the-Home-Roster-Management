@@ -13995,13 +13995,11 @@ app.post(
     
     doc.save();
     doc.roundedRect(stampX, stampY, 140, 44, 4)
-       .lineWidth(4)
-       .strokeColor('#16a34a')
-       .stroke();
+       .fill('#16a34a');
        
     doc.font("Helvetica-Bold")
        .fontSize(28)
-       .fillColor('#16a34a')
+       .fillColor('#ffffff')
        .text("PAID", stampX, stampY + 10, { width: 140, align: 'center' });
     doc.restore();
     
