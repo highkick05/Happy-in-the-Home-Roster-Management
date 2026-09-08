@@ -13988,15 +13988,34 @@ app.post(
     doc.text("TOTAL PAID:", 350, gstY + 10, { width: 100, align: "right" });
     doc.text(`$${totalAmount.toFixed(2)}`, 470, gstY + 10, { width: 100, align: "right" });
 
-    doc.moveDown(4);
+    doc.moveDown(3);
+    
+    const stampX = 430;
+    const stampY = doc.y;
+    
+    doc.save();
+    doc.roundedRect(stampX, stampY, 140, 44, 4)
+       .lineWidth(4)
+       .strokeColor('#16a34a')
+       .stroke();
+       
+    doc.font("Helvetica-Bold")
+       .fontSize(28)
+       .fillColor('#16a34a')
+       .text("PAID", stampX, stampY + 10, { width: 140, align: 'center' });
+    doc.restore();
+    
+    doc.y = stampY + 70;
+
     doc
       .font("Helvetica")
       .fontSize(10)
+      .fillColor("black")
       .text(
         `THIS IS A REMITTANCE ADVICE TO CONFIRM PAYMENT OF THE ABOVE SERVICES.`,
         50,
-        doc.y + 30,
-        { align: "center" },
+        doc.y,
+        { align: "center" }
       );
   };
 
