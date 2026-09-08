@@ -13995,17 +13995,20 @@ app.post(
     
     doc.save();
     // Add realistic stamp rotation and slight opacity
-    doc.rotate(-10, { origin: [stampX + 70, stampY + 22] });
-    doc.fillOpacity(0.75);
+    doc.rotate(-2, { origin: [stampX + 70, stampY + 22] });
+    doc.fillOpacity(0.65);
+    doc.strokeOpacity(0.65);
     
-    // Draw solid stamp background
+    // Draw stamp outline (typical rubber stamp look)
     doc.roundedRect(stampX, stampY, 140, 44, 4)
-       .fill('#16a34a');
+       .lineWidth(4)
+       .strokeColor('#16a34a')
+       .stroke();
        
     // Draw stamp text
     doc.font("Helvetica-Bold")
        .fontSize(28)
-       .fillColor('#ffffff')
+       .fillColor('#16a34a')
        .text("PAID", stampX, stampY + 10, { width: 140, align: 'center' });
     doc.restore();
     
