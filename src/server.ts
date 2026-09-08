@@ -13994,8 +13994,7 @@ app.post(
     const stampY = doc.y;
     
     doc.save();
-    // Add realistic stamp rotation and slight opacity
-    doc.rotate(-2, { origin: [stampX + 70, stampY + 22] });
+    // Add realistic stamp opacity
     doc.fillOpacity(0.65);
     doc.strokeOpacity(0.65);
     
