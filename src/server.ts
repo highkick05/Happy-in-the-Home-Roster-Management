@@ -358,6 +358,12 @@ async function startServer() {
           if (!remCols.some(c => c.name === 'provider_id')) {
             db.prepare("ALTER TABLE remittances ADD COLUMN provider_id INTEGER").run();
           }
+          if (!remCols.some(c => c.name === 'invoice_reference')) {
+            db.prepare("ALTER TABLE remittances ADD COLUMN invoice_reference TEXT").run();
+          }
+          if (!remCols.some(c => c.name === 'transaction_reference')) {
+            db.prepare("ALTER TABLE remittances ADD COLUMN transaction_reference TEXT").run();
+          }
         }
         
         const invCols = db.prepare("PRAGMA table_info(invoices)").all();
@@ -12600,7 +12606,7 @@ app.post(
     requireAdmin,
     upload.array("attachments"),
     (req: any, res: any) => {
-      let { clientId, staffId, services, date, customStaffName, remittanceId: reqRemittanceId, remittanceNumber: reqRemittanceNumber, gstType } = req.body;
+      let { clientId, staffId, services, date, customStaffName, remittanceId: reqRemittanceId, remittanceNumber: reqRemittanceNumber, gstType, invoiceReference, transactionReference } = req.body;
       
       if (typeof services === 'string') {
         try { services = JSON.parse(services); } catch(e) { return res.status(400).json({ error: "Invalid JSON" }); }
@@ -12728,13 +12734,15 @@ app.post(
         let remittanceId = req.body.remittanceId;
         if (remittanceId) {
           db.prepare(
-            `UPDATE remittances SET client_id=?, staff_id=?, custom_payee_name=?, amount=?, services_json=? WHERE id=?`
+            `UPDATE remittances SET client_id=?, staff_id=?, custom_payee_name=?, amount=?, services_json=?, invoice_reference=?, transaction_reference=? WHERE id=?`
           ).run(
             clientId,
             finalStaffId,
             finalCustomStaffName,
             calculatedAmount,
             JSON.stringify(services),
+            invoiceReference || null,
+            transactionReference || null,
             remittanceId
           );
           // if there are new attachments, maybe append them, but for now just update what we have
@@ -12743,8 +12751,8 @@ app.post(
           }
         } else {
           const insertResult = db.prepare(
-            `INSERT INTO remittances (remittance_number, client_id, staff_id, custom_payee_name, amount, status, services_json, attachments_json)
-             VALUES (?, ?, ?, ?, ?, 'GENERATED', ?, ?)`
+            `INSERT INTO remittances (remittance_number, client_id, staff_id, custom_payee_name, amount, status, services_json, attachments_json, invoice_reference, transaction_reference)
+             VALUES (?, ?, ?, ?, ?, 'GENERATED', ?, ?, ?, ?)`
           ).run(
             remittanceNumber,
             clientId,
@@ -12752,7 +12760,9 @@ app.post(
             finalCustomStaffName,
             calculatedAmount,
             JSON.stringify(services),
-            JSON.stringify(attachments)
+            JSON.stringify(attachments),
+            invoiceReference || null,
+            transactionReference || null
           );
           remittanceId = insertResult.lastInsertRowid;
         }
@@ -12836,7 +12846,9 @@ app.post(
            totalAmount: totalAmount,
            gstAmount: calculatedGst,
            client: clientRow,
-           contractor: staffRow
+           contractor: staffRow,
+           invoiceReference,
+           transactionReference
         };
         
         try {
@@ -13730,7 +13742,7 @@ app.post(
   }
 
   const buildRemittancePdf = (doc: any, data: any) => {
-    const { settingsMap, invoiceNum, invoiceDate, lineItems, subtotal, totalAmount, gstAmount, contractor, client } = data;
+    const { settingsMap, invoiceNum, invoiceDate, lineItems, subtotal, totalAmount, gstAmount, contractor, client, invoiceReference, transactionReference } = data;
 
     if (settingsMap.letterheadLogo) {
       try {
@@ -13853,6 +13865,19 @@ app.post(
     
     doc.font("Helvetica-Bold").fontSize(9).text("Payment Method:", 300, py + 10);
     doc.font("Helvetica").text("Bank Transfer", 300, py + 22);
+    py += 34;
+    
+    if (invoiceReference) {
+        doc.font("Helvetica-Bold").fontSize(9).text("Invoice Reference:", 300, py + 10);
+        doc.font("Helvetica").text(invoiceReference, 300, py + 22);
+        py += 34;
+    }
+    
+    if (transactionReference) {
+        doc.font("Helvetica-Bold").fontSize(9).text("Transaction Ref:", 300, py + 10);
+        doc.font("Helvetica").text(transactionReference, 300, py + 22);
+        py += 34;
+    }
 
     doc.moveDown(4);
     let currentY = Math.max(doc.y + 10, 260);

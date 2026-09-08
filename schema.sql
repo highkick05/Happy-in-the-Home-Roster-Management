@@ -406,5 +406,7 @@ CREATE TABLE remittances (
     status TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     services_json TEXT,
-    attachments_json TEXT
+    attachments_json TEXT,
+    invoice_reference TEXT,
+    transaction_reference TEXT
 );
