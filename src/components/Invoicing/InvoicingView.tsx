@@ -1407,9 +1407,10 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
           )}
           
           <CycleSelector 
-            type="payrun" 
+            type="invoicing" 
             currentStart={filterStartDate ? format(filterStartDate, 'yyyy-MM-dd') : null} 
             currentEnd={filterEndDate ? format(filterEndDate, 'yyyy-MM-dd') : null}
+            autoSelectCurrent={true}
             onSelect={(s, e) => {
               setFilterStartDate(new Date(s));
               setFilterEndDate(new Date(e));

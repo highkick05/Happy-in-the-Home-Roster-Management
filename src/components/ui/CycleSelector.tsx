@@ -7,9 +7,10 @@ interface CycleSelectorProps {
   onSelect: (start: string, end: string) => void;
   currentStart: string | null;
   currentEnd: string | null;
+  autoSelectCurrent?: boolean;
 }
 
-export default function CycleSelector({ type, onSelect, currentStart, currentEnd }: CycleSelectorProps) {
+export default function CycleSelector({ type, onSelect, currentStart, currentEnd, autoSelectCurrent }: CycleSelectorProps) {
   const [cycles, setCycles] = useState<any[]>([]);
 
   useEffect(() => {
@@ -24,6 +25,9 @@ export default function CycleSelector({ type, onSelect, currentStart, currentEnd
          const start = type === 'payrun' ? settings.payrunStartDay : settings.invoicingStartDay;
          const c = generateCycles(freq || 'Fortnightly', start || 'Monday', new Date().toISOString(), 6);
          setCycles(c);
+         if (autoSelectCurrent && c.length >= 3) {
+             onSelect(c[2].start, c[2].end);
+         }
       })
       .catch(err => console.error('Failed to load cycles', err));
   }, [type]);

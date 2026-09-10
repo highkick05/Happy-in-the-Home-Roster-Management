@@ -147,6 +147,7 @@ export default function StaffActivityReport() {
             type="payrun" 
             currentStart={dateRange.start} 
             currentEnd={dateRange.end}
+            autoSelectCurrent={true}
             onSelect={(s, e) => setDateRange({ start: s, end: e })} 
           />
           <div className="flex items-center space-x-2 bg-brand-navy border border-border-subtle rounded-md px-2 py-1 focus-within:border-brand-teal transition-colors">
