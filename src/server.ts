@@ -15341,7 +15341,17 @@ function resolveFilePath(systemName) {
       doc.addPage();
       doc.font('Helvetica-Bold').fontSize(16).text('Position Description');
       doc.moveDown(1);
-      doc.font('Helvetica').fontSize(10).text(positionDescription);
+      if (positionDescription) {
+        positionDescription.split('\n').forEach(line => {
+          if (line.trim().startsWith('•')) {
+            doc.font('Helvetica').fontSize(11).text(line.trim(), { indent: 20 });
+          } else if (line.trim() === '') {
+             doc.moveDown(0.5);
+          } else {
+            doc.font('Helvetica').fontSize(11).text(line);
+          }
+        });
+      }
 
       // --- PAGE: SIGNED ---
       doc.addPage();
@@ -15402,7 +15412,12 @@ function resolveFilePath(systemName) {
       for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
         doc.font('Helvetica').fontSize(8).fillColor('#888888');
-        doc.text(`Page ${i + 1} of ${range.count}`, 0, doc.page.height - 30, { width: doc.page.width, align: 'center', lineBreak: false });
+        
+        // The issue is doc.page.height - 30 pushes the text PAST the bottom margin, triggering auto-pagination.
+        // We must calculate a safe Y coordinate right above the bottom margin limit, or temporarily disable bottom margin.
+        let safeY = doc.page.height - doc.page.margins.bottom + 15;
+        doc.text(`Page ${i + 1} of ${range.count}`, 0, safeY, { width: doc.page.width, align: 'center', lineBreak: false });
+    
       }
 
       doc.end();
