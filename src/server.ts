@@ -1059,7 +1059,9 @@ try {
     const insertTemplate = db.prepare(`
       INSERT INTO position_templates (position_title, description_text) 
       VALUES (?, ?) 
-      ON CONFLICT(position_title) DO NOTHING
+      ON CONFLICT(position_title) DO UPDATE 
+      SET description_text = excluded.description_text 
+      WHERE length(position_templates.description_text) < 500
     `);
 
     db.transaction(() => {
@@ -15415,8 +15417,12 @@ function resolveFilePath(systemName) {
         
         // The issue is doc.page.height - 30 pushes the text PAST the bottom margin, triggering auto-pagination.
         // We must calculate a safe Y coordinate right above the bottom margin limit, or temporarily disable bottom margin.
-        let safeY = doc.page.height - doc.page.margins.bottom + 15;
-        doc.text(`Page ${i + 1} of ${range.count}`, 0, safeY, { width: doc.page.width, align: 'center', lineBreak: false });
+        
+        const oldBottomMargin = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0; // Temporarily disable bottom margin to prevent auto-pagination loop
+        doc.text(`Page ${i + 1} of ${range.count}`, 0, doc.page.height - 30, { width: doc.page.width, align: 'center', lineBreak: false });
+        doc.page.margins.bottom = oldBottomMargin; // Restore margin
+
     
       }
 
