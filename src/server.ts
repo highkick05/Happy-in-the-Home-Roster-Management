@@ -5120,7 +5120,7 @@ app.get("/api/health", (req, res) => {
   });
 
 
-  app.get("/api/staff/contract-templates", authenticateToken, (req, res) => {
+  app.get("/api/settings/position-templates", authenticateToken, (req, res) => {
     try {
       const templates = db.prepare("SELECT * FROM position_templates").all();
       res.json(templates);
@@ -5129,7 +5129,7 @@ app.get("/api/health", (req, res) => {
     }
   });
 
-  app.post("/api/staff/contract-templates", authenticateToken, requireAdmin, (req, res) => {
+  app.put("/api/settings/position-templates", authenticateToken, requireAdmin, (req, res) => {
     try {
       const { position_title, description_text } = req.body;
       db.prepare(
@@ -15349,35 +15349,27 @@ function resolveFilePath(systemName) {
       doc.font('Helvetica-Bold').fontSize(16).text('SIGNED');
       doc.moveDown(1);
       
-      doc.font('Helvetica-Bold').fontSize(12).text('Employer – company with more than one director');
+      doc.font('Helvetica-Bold').fontSize(12).text('Employer');
       doc.moveDown(0.5);
-      doc.font('Helvetica').fontSize(10).text('EXECUTED by [Happy in the Home and 69695033115] in accordance with section 127 of the Corporations Act 2001 (Cth).');
+      doc.font('Helvetica').fontSize(10).text('EXECUTED by [Happy in the Home and 69695033115]');
       doc.moveDown(4);
 
       // Employer signature fields
       const startX = doc.x;
-      const signatureWidth = 200;
+      const signatureWidth = 250;
       doc.moveTo(startX, doc.y).lineTo(startX + signatureWidth, doc.y).stroke();
-      doc.moveTo(startX + signatureWidth + 40, doc.y).lineTo(startX + signatureWidth * 2 + 40, doc.y).stroke();
       doc.moveDown(0.5);
       doc.text('Name of Director (print)', startX, doc.y, { width: signatureWidth });
-      const currentY = doc.y;
-      doc.text('Name of Director / Company Secretary (print)\n(delete as applicable)', startX + signatureWidth + 40, currentY - 12, { width: signatureWidth });
       doc.moveDown(3);
       
       doc.moveTo(startX, doc.y).lineTo(startX + signatureWidth, doc.y).stroke();
-      doc.moveTo(startX + signatureWidth + 40, doc.y).lineTo(startX + signatureWidth * 2 + 40, doc.y).stroke();
       doc.moveDown(0.5);
       doc.text('Signature of Director', startX, doc.y, { width: signatureWidth });
-      const currentY2 = doc.y;
-      doc.text('Signature of Director / Company Secretary\n(delete as applicable)', startX + signatureWidth + 40, currentY2 - 12, { width: signatureWidth });
       doc.moveDown(3);
 
       doc.moveTo(startX, doc.y).lineTo(startX + signatureWidth, doc.y).stroke();
-      doc.moveTo(startX + signatureWidth + 40, doc.y).lineTo(startX + signatureWidth * 2 + 40, doc.y).stroke();
       doc.moveDown(0.5);
       doc.text('Date', startX, doc.y, { width: signatureWidth });
-      doc.text('Date', startX + signatureWidth + 40, doc.y, { width: signatureWidth });
       doc.moveDown(4);
 
       // Employee
