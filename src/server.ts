@@ -5119,6 +5119,28 @@ app.get("/api/health", (req, res) => {
     res.json(staff);
   });
 
+
+  app.get("/api/staff/contract-templates", authenticateToken, (req, res) => {
+    try {
+      const templates = db.prepare("SELECT * FROM position_templates").all();
+      res.json(templates);
+    } catch (e) {
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  app.post("/api/staff/contract-templates", authenticateToken, requireAdmin, (req, res) => {
+    try {
+      const { position_title, description_text } = req.body;
+      db.prepare(
+        "INSERT INTO position_templates (position_title, description_text) VALUES (?, ?) ON CONFLICT(position_title) DO UPDATE SET description_text = excluded.description_text"
+      ).run(position_title, description_text);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
   app.post("/api/staff", authenticateToken, requireAdmin, (req, res) => {
     const {
       email,
@@ -15389,7 +15411,7 @@ function resolveFilePath(systemName) {
       for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
         doc.font('Helvetica').fontSize(8).fillColor('#888888');
-        doc.text(`Page ${i + 1} of ${range.count}`, 0, doc.page.height - 30, { align: 'center' });
+        doc.text(`Page ${i + 1} of ${range.count}`, 0, doc.page.height - 30, { align: 'center', lineBreak: false });
       }
 
       doc.end();
