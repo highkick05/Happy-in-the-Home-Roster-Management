@@ -512,11 +512,22 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
         
         db.pragma("foreign_keys = OFF");
         db.transaction(() => {
-          db.exec(newSql);
-          db.exec("INSERT INTO services_new SELECT * FROM services;");
-          db.exec("DROP TABLE services;");
-          db.exec("ALTER TABLE services_new RENAME TO services;");
-        })();
+      for (const t of defaultTemplates) {
+        insertTemplate.run(t.title, t.desc);
+      }
+    })();
+    
+    // FORCE UPDATE TO REMOVE CERTIFICATE III
+    try {
+        db.prepare(`
+            UPDATE position_templates 
+            SET description_text = REPLACE(description_text, '• Certificate III in Individual Support, Aged Care, or Disability (or equivalent/working towards).', '• Previous experience performing personal care.')
+            WHERE position_title = 'Support Worker'
+        `).run();
+    } catch (e) {
+        console.error("Failed to patch support worker requirements", e);
+    }
+
         db.pragma("foreign_keys = ON");
         console.log("[DEBUG] Recreated services table without UNIQUE constraint to preserve historical pricing");
       }
