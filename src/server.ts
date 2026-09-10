@@ -5164,7 +5164,8 @@ app.get("/api/health", (req, res) => {
         superFundName,
         superMemberNumber,
         canSwitchAdmin ? 1 : 0,
-      avatarUrl || null,
+        avatarUrl || null,
+        primaryPosition || null
       );
       res.json({
         id: info.lastInsertRowid,
