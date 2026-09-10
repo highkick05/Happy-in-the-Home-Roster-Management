@@ -11573,15 +11573,18 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       `;
         const params: any[] = [];
         if (startDate) {
+          const startUtc = fromZonedTime(`${startDate}T00:00:00`, timezone).toISOString();
           query += ` AND s.start_time >= ?`;
-          params.push(startDate);
+          params.push(startUtc);
         }
         if (endDate) {
-          const endPlusOne = new Date(
-            new Date(endDate).getTime() + 86400000,
-          ).toISOString();
+          const dateObj = new Date(endDate);
+          dateObj.setUTCDate(dateObj.getUTCDate() + 1);
+          const endNextDay = dateObj.toISOString().split('T')[0];
+          const endUtc = fromZonedTime(`${endNextDay}T00:00:00`, timezone).toISOString();
+          
           query += ` AND s.start_time < ?`;
-          params.push(endPlusOne);
+          params.push(endUtc);
         }
         if (staffId) {
           query += ` AND s.staff_id = ?`;

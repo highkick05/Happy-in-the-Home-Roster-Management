@@ -6,6 +6,7 @@ import { parse } from 'date-fns/parse';
 import { startOfWeek } from 'date-fns/startOfWeek';
 import { endOfWeek } from 'date-fns/endOfWeek';
 import { getDay } from 'date-fns/getDay';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
@@ -442,12 +443,28 @@ export default function RosterCalendar() {
     if (typeof sEvent.id === 'string' && sEvent.id.startsWith('rb_')) return; // ignore resize for respite bookings
     
     try {
+      // Translate the spoofed calendar visual time back into an absolute UTC timestamp 
+      // based on the organizational timezone, NOT the browser's timezone.
+      const orgTz = settings?.timezone || 'Australia/Perth';
+      const visualStart = new Date(start);
+      const visualEnd = new Date(end);
+      
+      const startIso = fromZonedTime(
+        `${visualStart.getFullYear()}-${String(visualStart.getMonth()+1).padStart(2,'0')}-${String(visualStart.getDate()).padStart(2,'0')}T${String(visualStart.getHours()).padStart(2,'0')}:${String(visualStart.getMinutes()).padStart(2,'0')}:00`, 
+        orgTz
+      ).toISOString();
+      
+      const endIso = fromZonedTime(
+        `${visualEnd.getFullYear()}-${String(visualEnd.getMonth()+1).padStart(2,'0')}-${String(visualEnd.getDate()).padStart(2,'0')}T${String(visualEnd.getHours()).padStart(2,'0')}:${String(visualEnd.getMinutes()).padStart(2,'0')}:00`, 
+        orgTz
+      ).toISOString();
+
       const res = await fetch(`/api/shifts/${sEvent.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          startTime: new Date(start).toISOString(),
-          endTime: new Date(end).toISOString()
+          startTime: startIso,
+          endTime: endIso
         })
       });
       if (res.status === 409) {
@@ -568,11 +585,20 @@ export default function RosterCalendar() {
     if (user?.role !== 'ADMIN') return;
     const { start, end, resourceId } = slotInfo;
     
-    // Convert to local date and time strings for the form
-    const startStr = start.toISOString(); // this might be UTC, so let's format locally
-    const dateStr = start.toLocaleDateString('en-CA'); // 'YYYY-MM-DD' natively
-    const startTimeStr = start.toTimeString().slice(0, 5); // 'HH:mm'
-    const endTimeStr = end.toTimeString().slice(0, 5);
+    // Reverse the spoofed calendar time back to the organizational absolute time
+    // so the new shift modal gets pre-filled with the exact visual digits chosen.
+    const orgTz = settings?.timezone || 'Australia/Perth';
+    const visualStart = new Date(start);
+    const visualEnd = new Date(end);
+
+    const startIso = fromZonedTime(
+      `${visualStart.getFullYear()}-${String(visualStart.getMonth()+1).padStart(2,'0')}-${String(visualStart.getDate()).padStart(2,'0')}T${String(visualStart.getHours()).padStart(2,'0')}:${String(visualStart.getMinutes()).padStart(2,'0')}:00`, 
+      orgTz
+    ).toISOString();
+
+    const dateStr = `${visualStart.getFullYear()}-${String(visualStart.getMonth()+1).padStart(2,'0')}-${String(visualStart.getDate()).padStart(2,'0')}`;
+    const startTimeStr = `${String(visualStart.getHours()).padStart(2,'0')}:${String(visualStart.getMinutes()).padStart(2,'0')}`;
+    const endTimeStr = `${String(visualEnd.getHours()).padStart(2,'0')}:${String(visualEnd.getMinutes()).padStart(2,'0')}`;
 
     if (copiedShift) {
        const copyStart = new Date(copiedShift.start);

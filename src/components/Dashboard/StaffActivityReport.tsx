@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { Activity, Calendar, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import CycleSelector from '../ui/CycleSelector';
 
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
@@ -142,6 +143,12 @@ export default function StaffActivityReport() {
               <option key={st.id} value={st.id}>{st.first_name} {st.last_name}</option>
             ))}
           </select>
+          <CycleSelector 
+            type="payrun" 
+            currentStart={dateRange.start} 
+            currentEnd={dateRange.end}
+            onSelect={(s, e) => setDateRange({ start: s, end: e })} 
+          />
           <div className="flex items-center space-x-2 bg-brand-navy border border-border-subtle rounded-md px-2 py-1 focus-within:border-brand-teal transition-colors">
             <Calendar className="w-4 h-4 text-[#8B949E]" />
             <CustomDatePicker

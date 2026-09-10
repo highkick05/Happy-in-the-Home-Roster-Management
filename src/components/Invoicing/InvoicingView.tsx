@@ -665,6 +665,8 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
 import QuotesView from './QuotesView';
 import RemittancesView from './RemittancesView';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import CycleSelector from '../ui/CycleSelector';
+import { format } from 'date-fns';
 import CustomTimePicker from '../ui/CustomTimePicker';
 
 
@@ -1404,6 +1406,15 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
             </button>
           )}
           
+          <CycleSelector 
+            type="payrun" 
+            currentStart={filterStartDate ? format(filterStartDate, 'yyyy-MM-dd') : null} 
+            currentEnd={filterEndDate ? format(filterEndDate, 'yyyy-MM-dd') : null}
+            onSelect={(s, e) => {
+              setFilterStartDate(new Date(s));
+              setFilterEndDate(new Date(e));
+            }} 
+          />
           <div className="w-28 h-7">
             <CustomDatePicker
               selected={filterStartDate}
