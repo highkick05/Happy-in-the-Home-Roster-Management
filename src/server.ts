@@ -1029,7 +1029,7 @@ try {
     const defaultTemplates = [
   {
     "title": "Support Worker",
-    "desc": "Position Overview:\nThe Support Worker is responsible for providing direct, person-centered care and assistance to clients within their homes and the community. This role focuses on empowering clients to maintain their independence, dignity, and quality of life in accordance with their individual care plans.\n\nKey Responsibilities:\n• Personal Care: Assist with daily living activities including bathing, dressing, grooming, toileting, and personal hygiene.\n• Domestic Assistance: Perform essential household tasks such as cleaning, laundry, meal preparation, and grocery shopping to maintain a safe and hygienic living environment.\n• Community Access: Facilitate social inclusion by transporting and accompanying clients to medical appointments, community events, shopping, and recreational activities.\n• Health & Wellbeing: Monitor client health, provide medication prompting and assistance (where authorized), and immediately report any changes in condition to the clinical team.\n• Documentation: Maintain accurate, timely, and objective progress notes after each shift, detailing the care provided and any incidents or observations.\n• Safety & Compliance: Adhere to all organizational policies, manual handling guidelines, and occupational health and safety regulations to ensure a safe environment for both the client and staff member.\n\nRequirements:\n• Certificate III in Individual Support, Aged Care, or Disability (or equivalent/working towards).\n• Valid First Aid and CPR certification.\n• Current Driver's License and a reliable, insured vehicle.\n• National Police Clearance and relevant Working with Children/Vulnerable People checks."
+    "desc": "Position Overview:\nThe Support Worker is responsible for providing direct, person-centered care and assistance to clients within their homes and the community. This role focuses on empowering clients to maintain their independence, dignity, and quality of life in accordance with their individual care plans.\n\nKey Responsibilities:\n• Personal Care: Assist with daily living activities including bathing, dressing, grooming, toileting, and personal hygiene.\n• Domestic Assistance: Perform essential household tasks such as cleaning, laundry, meal preparation, and grocery shopping to maintain a safe and hygienic living environment.\n• Community Access: Facilitate social inclusion by transporting and accompanying clients to medical appointments, community events, shopping, and recreational activities.\n• Health & Wellbeing: Monitor client health, provide medication prompting and assistance (where authorized), and immediately report any changes in condition to the clinical team.\n• Documentation: Maintain accurate, timely, and objective progress notes after each shift, detailing the care provided and any incidents or observations.\n• Safety & Compliance: Adhere to all organizational policies, manual handling guidelines, and occupational health and safety regulations to ensure a safe environment for both the client and staff member.\n\nRequirements:\n• Previous experience performing personal care.\n• Valid First Aid and CPR certification.\n• Current Driver's License and a reliable, insured vehicle.\n• National Police Clearance and relevant Working with Children/Vulnerable People checks."
   },
   {
     "title": "Registered Nurse",
@@ -15343,10 +15343,14 @@ function resolveFilePath(systemName) {
       doc.addPage();
       doc.font('Helvetica-Bold').fontSize(16).text('Position Description');
       doc.moveDown(1);
-      if (positionDescription) {
+            if (positionDescription) {
         positionDescription.split('\n').forEach(line => {
           if (line.trim().startsWith('•')) {
-            doc.font('Helvetica').fontSize(11).text(line.trim(), { indent: 20 });
+            doc.font('Helvetica').fontSize(11).list([line.trim().replace(/^•\s*/, '')], { 
+                bulletRadius: 2, 
+                textIndent: 20, 
+                bulletIndent: 10 
+            });
           } else if (line.trim() === '') {
              doc.moveDown(0.5);
           } else {
