@@ -19,7 +19,7 @@ export default defineConfig(({mode}) => {
       (VitePWA as any)({
         registerType: 'autoUpdate',
         strategy: 'generateSW',
-        injectRegister: 'inline',
+        injectRegister: 'auto',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
         manifest: {
           name: 'Happy Job Management System',
