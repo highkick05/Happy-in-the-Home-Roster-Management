@@ -39,15 +39,17 @@ export default function CycleSelector({ type, onSelect, currentStart, currentEnd
       <div className="relative">
         <select 
           className="appearance-none bg-brand-navy border border-border-subtle text-[#E6EDF3] text-xs rounded-md pl-3 pr-8 py-1.5 focus:outline-none focus:border-brand-teal transition-colors"
-          value={`${currentStart}_${currentEnd}`}
+          value={currentStart && currentEnd ? `${currentStart}_${currentEnd}` : '_'}
           onChange={(e) => {
-            if (e.target.value) {
+            if (e.target.value === '_') {
+              onSelect('', '');
+            } else if (e.target.value) {
               const [s, eDate] = e.target.value.split('_');
               onSelect(s, eDate);
             }
           }}
         >
-          <option value="_">Select {type === 'payrun' ? 'Payrun' : 'Invoicing'} Fortnight...</option>
+          <option value="_">Show All {type === 'payrun' ? 'Payruns' : 'Invoices'}</option>
           {cycles.map(c => (
             <option key={c.label} value={`${c.start}_${c.end}`}>
               {c.label}

@@ -1408,12 +1408,17 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
           
           <CycleSelector 
             type="invoicing" 
-            currentStart={filterStartDate ? format(filterStartDate, 'yyyy-MM-dd') : null} 
-            currentEnd={filterEndDate ? format(filterEndDate, 'yyyy-MM-dd') : null}
-            autoSelectCurrent={true}
+            currentStart={filterStartDate ? format(filterStartDate, 'yyyy-MM-dd') : ''} 
+            currentEnd={filterEndDate ? format(filterEndDate, 'yyyy-MM-dd') : ''}
+            autoSelectCurrent={false}
             onSelect={(s, e) => {
-              setFilterStartDate(new Date(s));
-              setFilterEndDate(new Date(e));
+              if (!s || !e) {
+                setFilterStartDate(null);
+                setFilterEndDate(null);
+              } else {
+                setFilterStartDate(new Date(s));
+                setFilterEndDate(new Date(e));
+              }
             }} 
           />
           <div className="w-28 h-7">
