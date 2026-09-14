@@ -18,4 +18,4 @@
   4. **Client Documents:** Uploads in the Clients Dashboard > Documents page (both the "Templates" and "Completed Documents" folders).
   5. **Invoicing Engine:** The logic where invoices marked as "paid" generate a PDF, save to the physical filesystem, and sync to the `files` table under the `Clients/Client_Name/Invoices` folder path.
   6. **Live Chat Uploads**
-- **FUTURE FILE HANDLING:** If the application requires new file handling capabilities in the future, it MUST strictly adhere to the existing, protected architecture patterns (combining physical filesystem storage in `/uploads` or `/invoices` with database tracking in the `files` table). Do not reinvent, alter, or remove the current stable file architecture.
+- **FUTURE FILE HANDLING:** If the application requires new file handling capabilities in the future, it MUST strictly adhere to the existing, protected architecture patterns (combining physical filesystem storage strictly within `/uploads` (such as `/uploads/Clients/[Client_Name]/Invoices`) with database tracking in the `files` table). Do not reinvent, alter, or remove the current stable file architecture.
