@@ -9,6 +9,9 @@
 - **EXPIRY CRON ENGINE:** The "Automated Expiry Cron Engine" (which includes `checkExpiries`, the `cron.schedule("0 8 * * *")` block, and the startup `setTimeout` in `src/server.ts`) is **STRICTLY PROTECTED**. 
 - **DO NOT MODIFY OR DELETE:** Do not remove, refactor, comment out, or alter this engine under any circumstances. It is mission-critical for staff compliance and training alerts. Treat this block of code as read-only.
 
+- **COMPLIANCE & AUDIT ENGINE:** The Evidence Matrix Generator, System Logs Ledger, and Excel Exporter logic (including `/api/compliance/evidence/matrix`, `/api/compliance/logs`, and `/api/compliance/export/evidence`) are **STRICTLY PROTECTED**.
+- **DO NOT MODIFY OR DELETE:** Do not remove, refactor, comment out, or alter these compliance endpoints or the `audit_logs` table architecture. They are mission-critical for NDIA/Home Care auditing. Treat this block of code as read-only.
+
 - **DATABASE BACKUP ENGINE:** The "Automated Database Backup Engine" (which includes the `/api/admin/database/*` endpoints and the `cron.schedule("0 2 * * *")` backup task in `src/server.ts`) is **STRICTLY PROTECTED**.
 - **DO NOT MODIFY OR DELETE:** Do not remove, refactor, comment out, or alter the backup engine under any circumstances. It is mission-critical for data safety. Treat this block of code as read-only.
 
