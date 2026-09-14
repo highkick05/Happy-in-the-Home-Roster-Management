@@ -378,7 +378,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             }}
             title="Click to force update the app"
           >
-            v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'} (Force Reload)
+            v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'} (Auto-Update Active ✅)
           </div>
         )}
 
