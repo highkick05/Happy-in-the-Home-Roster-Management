@@ -373,8 +373,8 @@ function Layout({ children }: { children: React.ReactNode }) {
                  const cacheNames = await caches.keys();
                  await Promise.all(cacheNames.map(name => caches.delete(name)));
               }
-              // Hard reload the window bypassing the cache
-              window.location.href = window.location.href.split('#')[0] + '?v=' + new Date().getTime();
+              // Hard reload the window bypassing the cache, stripping existing query params
+              window.location.href = window.location.href.split('#')[0].split('?')[0] + '?v=' + new Date().getTime();
             }}
             title="Click to force update the app"
           >
