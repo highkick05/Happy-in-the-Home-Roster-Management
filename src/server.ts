@@ -14626,7 +14626,7 @@ app.post(
       // 2. Wipe DB ghosts (file records that don't have physical files)
       const invoiceFiles = db.prepare("SELECT * FROM files WHERE original_name LIKE 'INV-%' OR original_name LIKE 'HC-%' OR folder_path LIKE '/Clients/%/Invoices'").all();
       for (const f of invoiceFiles) {
-         const sysPath = require('path').join(process.cwd(), 'uploads', (f.folder_path || '/').replace(/^\\/+/, '').replace(/^\/+/, ''), f.system_name);
+         const sysPath = require('path').join(process.cwd(), 'uploads', (f.folder_path || '/').replace(/^[\\\\\\/]+/, ''), f.system_name);
          if (!fs.existsSync(sysPath)) {
              db.prepare("DELETE FROM files WHERE id = ?").run(f.id);
              deletedGhosts++;
