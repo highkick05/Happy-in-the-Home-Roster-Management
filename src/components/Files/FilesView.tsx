@@ -355,6 +355,12 @@ export default function FilesView() {
           <p className="text-zinc-400 text-xs mt-0">Manage documents, uploads, and media.</p>
         </div>
         <div className="flex items-center gap-2">
+          {selectedFiles.length > 0 && (
+            <button onClick={handleBulkDelete} className="flex items-center px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-semibold rounded-md transition-colors shadow-sm border border-red-500/20 cursor-pointer h-7">
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                Delete Selected ({selectedFiles.length})
+            </button>
+          )}
           <button onClick={open} className="flex items-center px-3 py-1.5 bg-brand-teal hover:bg-teal-400 text-black text-xs font-semibold rounded-md transition-colors shadow-sm cursor-pointer h-7">
             <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
             Upload File
