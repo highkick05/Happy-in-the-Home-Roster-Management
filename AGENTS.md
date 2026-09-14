@@ -9,6 +9,9 @@
 - **EXPIRY CRON ENGINE:** The "Automated Expiry Cron Engine" (which includes `checkExpiries`, the `cron.schedule("0 8 * * *")` block, and the startup `setTimeout` in `src/server.ts`) is **STRICTLY PROTECTED**. 
 - **DO NOT MODIFY OR DELETE:** Do not remove, refactor, comment out, or alter this engine under any circumstances. It is mission-critical for staff compliance and training alerts. Treat this block of code as read-only.
 
+- **DATABASE BACKUP ENGINE:** The "Automated Database Backup Engine" (which includes the `/api/admin/database/*` endpoints and the `cron.schedule("0 2 * * *")` backup task in `src/server.ts`) is **STRICTLY PROTECTED**.
+- **DO NOT MODIFY OR DELETE:** Do not remove, refactor, comment out, or alter the backup engine under any circumstances. It is mission-critical for data safety. Treat this block of code as read-only.
+
 ## File System & Upload Architecture Protection
 - **FILES SECTION ROUTING & LOGIC:** Do not modify, refactor, or delete routing logic, API endpoints (`/api/files/*`), or UI components related to the **Files** section (`src/components/Files/FilesView.tsx`). This includes how files are listed, previewed, downloaded, and managed.
 - **PROTECTED UPLOAD DOMAINS:** The following upload mechanisms and their specific filesystem paths/database syncing logic MUST NEVER be altered, refactored, or stripped:
