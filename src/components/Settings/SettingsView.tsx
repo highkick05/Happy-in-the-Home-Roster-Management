@@ -219,27 +219,60 @@ export default function SettingsView() {
   };
 
   
+  const [repairLogs, setRepairLogs] = useState<string[]>([]);
+  const [showRepairModal, setShowRepairModal] = useState(false);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showRepairModal && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [repairLogs, showRepairModal]);
+
   const handleRegeneratePdfs = async () => {
-    if (!window.confirm("Are you sure you want to regenerate all PAID invoice PDFs? This may take some time depending on the number of invoices.")) return;
+    if (!window.confirm("Are you sure you want to run the Repair Invoices engine?")) return;
     setGeneralLoading(true);
     setSuccessMsg('');
+    setShowRepairModal(true);
+    setRepairLogs(["Initializing Repair Engine..."]);
+    
     try {
       const token = localStorage.getItem('token');
       const res = await fetch('/api/admin/invoices/repair', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await res.json();
-      if (res.ok) {
-        setSuccessMsg(`Repaired! Fixed ${data.fixedDbRecords} paths, cleared ${data.deletedGhosts} ghosts, generated ${data.regeneratedPdfs} PDFs, and synced ${data.syncedFiles} files.`);
-      } else {
-        alert(data.error || 'Failed to regenerate PDFs');
+
+      const reader = res.body?.getReader();
+      if (!reader) {
+        throw new Error("No readable stream");
+      }
+
+      const decoder = new TextDecoder("utf-8");
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+        
+        for (const line of lines) {
+          if (line.startsWith('DONE|')) {
+            setSuccessMsg(line.split('|')[1]);
+          } else if (line.startsWith('ERROR|')) {
+            alert(line.split('|')[1]);
+          } else {
+            setRepairLogs(prev => [...prev, line]);
+          }
+        }
       }
     } catch (e) {
-      alert('Error regenerating PDFs');
+      alert('Error during repair process');
+      console.error(e);
     } finally {
       setGeneralLoading(false);
-      setTimeout(() => setSuccessMsg(''), 5000);
+      setTimeout(() => setSuccessMsg(''), 8000);
     }
   };
 
@@ -950,15 +983,12 @@ export default function SettingsView() {
                    <p className="text-xs text-slate-500">Default number of hours required for shift cancellation notice.</p>
                  </div>
               </div>
-                            <div className="pt-6 flex gap-4">
+                            <div className="pt-6">
                 <button type="submit" disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
                   <Save className="w-4 h-4 mr-2" />
                   {generalLoading ? 'Saving...' : 'Save Settings'}
                 </button>
-                <button type="button" onClick={handleRegeneratePdfs} disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-brand-navy border border-border-subtle text-[#E6EDF3] text-[13px] font-medium rounded-md hover:bg-brand-gray transition-colors disabled:opacity-50 shadow-sm">
-                  <RefreshCw className={`w-4 h-4 mr-2 ${generalLoading ? 'animate-spin' : ''}`} />
-                  Repair Invoices
-                </button>
+                
               </div>
             </form>
           </div>
