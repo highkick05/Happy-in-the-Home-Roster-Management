@@ -3256,6 +3256,8 @@ try {
                     req.query.folderPath = `/Staff/${nameDir}/Onboarding`;
                 } else if (req.query.context === "STAFF_VEHICLES") {
                     req.query.folderPath = `/Staff/${nameDir}/Vehicles`;
+                } else if (req.query.context === "STAFF_TRAINING") {
+                    req.query.folderPath = `/Staff/${nameDir}/Training`;
                 }
             }
         } catch(e) {
@@ -5737,6 +5739,269 @@ app.get("/api/health", (req, res) => {
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+
+  // Client Documents Endpoints
+  app.get("/api/clients/:id/documents", authenticateToken, (req: any, res: any) => {
+    try {
+      const clientId = req.params.id;
+      const client = db.prepare('SELECT first_name, last_name FROM clients WHERE id = ?').get(clientId) as any;
+      if (!client) return res.status(404).json({ error: "Client not found" });
+
+      const clientNameSafe = `${client.first_name} ${client.last_name}`.trim().replace(/[\\/]/g, "");
+      const baseDir = require('path').join(process.cwd(), 'uploads', 'Clients', clientNameSafe, 'Documents');
+
+      const docs: any[] = [];
+
+      const readCategory = (category: string) => {
+        const dir = require('path').join(baseDir, category);
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir);
+          for (const file of files) {
+            const stat = fs.statSync(require('path').join(dir, file));
+            if (stat.isFile()) {
+              docs.push({ name: file, category, size: stat.size });
+            }
+          }
+        }
+      };
+
+      readCategory('Templates');
+      readCategory('Completed');
+
+      res.json(docs);
+    } catch (error) {
+      logger.error("Error fetching documents:", error);
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  app.post("/api/clients/:id/documents/upload", authenticateToken, upload.single('file'), (req: any, res: any) => {
+    try {
+      const clientId = req.params.id;
+      const category = req.body.category || 'Completed';
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+      const client = db.prepare('SELECT first_name, last_name FROM clients WHERE id = ?').get(clientId) as any;
+      if (!client) return res.status(404).json({ error: "Client not found" });
+
+      const clientNameSafe = `${client.first_name} ${client.last_name}`.trim().replace(/[\\/]/g, "");
+      const targetDir = require('path').join(process.cwd(), 'uploads', 'Clients', clientNameSafe, 'Documents', category);
+
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+
+      const filename = req.file.originalname;
+      const finalPath = require('path').join(targetDir, filename);
+
+      fs.renameSync(req.file.path, finalPath);
+
+      const folderPath = `/Clients/${clientNameSafe}/Documents/${category}`;
+      const existing = db.prepare('SELECT id FROM files WHERE system_name = ? AND folder_path = ?').get(filename, folderPath) as any;
+      
+      if (!existing) {
+         db.prepare(`INSERT INTO files (original_name, system_name, size, folder_path, uploaded_by) VALUES (?, ?, ?, ?, ?)`).run(
+           filename, filename, req.file.size, folderPath, req.user?.userId || 1
+         );
+      } else {
+         db.prepare(`UPDATE files SET size = ?, date_issued = CURRENT_TIMESTAMP WHERE id = ?`).run(req.file.size, existing.id);
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      logger.error("Error uploading document:", error);
+      res.status(500).json({ error: "Failed to upload document" });
+    }
+  });
+
+  app.get("/api/clients/:id/documents/:name/download", (req: any, res: any) => {
+    try {
+      const clientId = req.params.id;
+      const filename = req.params.name;
+      
+      const client = db.prepare('SELECT first_name, last_name FROM clients WHERE id = ?').get(clientId) as any;
+      if (!client) return res.status(404).json({ error: "Client not found" });
+
+      const clientNameSafe = `${client.first_name} ${client.last_name}`.trim().replace(/[\\/]/g, "");
+      
+      let filePath = require('path').join(process.cwd(), 'uploads', 'Clients', clientNameSafe, 'Documents', 'Templates', filename);
+      if (!fs.existsSync(filePath)) {
+         filePath = require('path').join(process.cwd(), 'uploads', 'Clients', clientNameSafe, 'Documents', 'Completed', filename);
+      }
+      
+      if (!fs.existsSync(filePath)) {
+         return res.status(404).json({ error: "File not found" });
+      }
+
+      res.download(filePath, filename);
+    } catch (error) {
+      logger.error("Error downloading document:", error);
+      res.status(500).json({ error: "Failed to download document" });
+    }
+  });
+
+  app.delete("/api/clients/:id/documents/:name", authenticateToken, (req: any, res: any) => {
+    try {
+      const clientId = req.params.id;
+      const filename = req.params.name;
+      const category = req.query.category;
+      
+      const client = db.prepare('SELECT first_name, last_name FROM clients WHERE id = ?').get(clientId) as any;
+      if (!client) return res.status(404).json({ error: "Client not found" });
+
+      const clientNameSafe = `${client.first_name} ${client.last_name}`.trim().replace(/[\\/]/g, "");
+      const filePath = require('path').join(process.cwd(), 'uploads', 'Clients', clientNameSafe, 'Documents', category, filename);
+      
+      if (fs.existsSync(filePath)) {
+         fs.unlinkSync(filePath);
+      }
+
+      const folderPath = `/Clients/${clientNameSafe}/Documents/${category}`;
+      db.prepare('DELETE FROM files WHERE system_name = ? AND folder_path = ?').run(filename, folderPath);
+
+      res.json({ success: true });
+    } catch (error) {
+      logger.error("Error deleting document:", error);
+      res.status(500).json({ error: "Failed to delete document" });
+    }
+  });
+
+  
+  // -----------------------------------------------------
+  // TRAINING API
+  // -----------------------------------------------------
+
+  app.get('/api/training/modules', authenticateToken, (req: any, res: any) => {
+    try {
+      const modules = db.prepare('SELECT * FROM training_modules ORDER BY title ASC').all();
+      res.json(modules);
+    } catch (e) {
+      logger.error('Failed to get training modules', e);
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.get('/api/training/staff', authenticateToken, (req: any, res: any) => {
+    try {
+      let staffTraining;
+      if (req.user.role === 'ADMIN') {
+         staffTraining = db.prepare(`
+            SELECT st.*, u.first_name, u.last_name, u.avatar_url, m.title as module_title 
+            FROM staff_training st
+            JOIN users u ON st.staff_id = u.id
+            JOIN training_modules m ON st.training_module_id = m.id
+            ORDER BY st.created_at DESC
+         `).all();
+      } else {
+         staffTraining = db.prepare(`
+            SELECT st.*, u.first_name, u.last_name, u.avatar_url, m.title as module_title 
+            FROM staff_training st
+            JOIN users u ON st.staff_id = u.id
+            JOIN training_modules m ON st.training_module_id = m.id
+            WHERE st.staff_id = ?
+            ORDER BY st.created_at DESC
+         `).all(req.user.id);
+      }
+      res.json(staffTraining);
+    } catch (e) {
+      logger.error('Failed to get staff training', e);
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.post('/api/training/modules', authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { title, url, description, expiry_months, tags } = req.body;
+      const result = db.prepare('INSERT INTO training_modules (title, url, description, expiry_months, tags) VALUES (?, ?, ?, ?, ?)').run(
+        title, url, description, expiry_months || 0, tags
+      );
+      res.json({ id: result.lastInsertRowid });
+    } catch (e) {
+      logger.error('Failed to create training module', e);
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.put('/api/training/modules/:id', authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { title, url, description, expiry_months, tags } = req.body;
+      db.prepare('UPDATE training_modules SET title = ?, url = ?, description = ?, expiry_months = ?, tags = ? WHERE id = ?').run(
+        title, url, description, expiry_months || 0, tags, req.params.id
+      );
+      res.json({ success: true });
+    } catch (e) {
+      logger.error('Failed to update training module', e);
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.delete('/api/training/modules/:id', authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      db.prepare('DELETE FROM training_modules WHERE id = ?').run(req.params.id);
+      res.json({ success: true });
+    } catch (e) {
+      logger.error('Failed to delete training module', e);
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.post('/api/training/staff/upload', authenticateToken, upload.single('certificate'), (req: any, res: any) => {
+    try {
+      const { training_module_id, completion_date, expiry_date } = req.body;
+      let targetUserId = req.user.id;
+      if (req.user.role === 'ADMIN' && req.body.staff_id) {
+         targetUserId = req.body.staff_id;
+      }
+
+      let certificatePath = null;
+      if (req.file) {
+          const user = db.prepare('SELECT first_name, last_name FROM users WHERE id = ?').get(targetUserId) as any;
+          if (user) {
+              const nameDir = [user.first_name, user.last_name].filter(Boolean).join(" ").replace(/[\\/]/g, "");
+              const targetDir = require('path').join(process.cwd(), 'uploads', 'Staff', nameDir, 'Training');
+              if (!fs.existsSync(targetDir)) {
+                  fs.mkdirSync(targetDir, { recursive: true });
+              }
+              const filename = req.file.originalname;
+              const finalPath = require('path').join(targetDir, filename);
+              fs.renameSync(req.file.path, finalPath);
+              // Also add to global files table
+              const folderPath = `/Staff/${nameDir}/Training`;
+              const existing = db.prepare('SELECT id FROM files WHERE system_name = ? AND folder_path = ?').get(filename, folderPath);
+              let fileRecordId;
+              if (!existing) {
+                  const res = db.prepare(`INSERT INTO files (original_name, system_name, size, folder_path, uploaded_by) VALUES (?, ?, ?, ?, ?)`).run(
+                      filename, filename, req.file.size, folderPath, req.user.id
+                  );
+                  fileRecordId = res.lastInsertRowid;
+              } else {
+                  fileRecordId = existing.id;
+              }
+              certificatePath = `/api/files/download/${fileRecordId}`;
+
+          }
+      }
+
+      // Check if entry exists for this user and module
+      const existingRecord = db.prepare('SELECT id FROM staff_training WHERE staff_id = ? AND training_module_id = ?').get(targetUserId, training_module_id) as any;
+      
+      if (existingRecord) {
+         db.prepare('UPDATE staff_training SET status = ?, completion_date = ?, expiry_date = ?, certificate_file_path = COALESCE(?, certificate_file_path) WHERE id = ?').run(
+           'COMPLETED', completion_date, expiry_date || null, certificatePath, existingRecord.id
+         );
+      } else {
+         db.prepare('INSERT INTO staff_training (staff_id, training_module_id, status, completion_date, expiry_date, certificate_file_path) VALUES (?, ?, ?, ?, ?, ?)').run(
+           targetUserId, training_module_id, 'COMPLETED', completion_date, expiry_date || null, certificatePath
+         );
+      }
+
+      res.json({ success: true });
+    } catch (e) {
+      logger.error('Failed to upload staff training', e);
+      res.status(500).json({ error: 'Server error' });
     }
   });
 
@@ -15860,7 +16125,41 @@ function resolveFilePath(systemName) {
 
 
 
+  
+  // Sync historical Staff Training files into the database
+  try {
+    const uploadsDir = path.join(process.cwd(), 'uploads', 'Staff');
+    if (fs.existsSync(uploadsDir)) {
+      const staffDirs = fs.readdirSync(uploadsDir);
+      for (const staffDir of staffDirs) {
+        const staffPath = path.join(uploadsDir, staffDir);
+        if (fs.statSync(staffPath).isDirectory()) {
+          const trainingPath = path.join(staffPath, 'Training');
+          if (fs.existsSync(trainingPath) && fs.statSync(trainingPath).isDirectory()) {
+            const files = fs.readdirSync(trainingPath);
+            for (const file of files) {
+              const filePath = path.join(trainingPath, file);
+              if (fs.statSync(filePath).isFile()) {
+                const folderPath = `/Staff/${staffDir}/Training`;
+                const existing = db.prepare('SELECT id FROM files WHERE system_name = ? AND folder_path = ?').get(file, folderPath);
+                if (!existing) {
+                  const stat = fs.statSync(filePath);
+                  db.prepare(`INSERT INTO files (original_name, system_name, size, folder_path, uploaded_by) VALUES (?, ?, ?, ?, ?)`).run(
+                    file, file, stat.size, folderPath, 1
+                  );
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    logger.error('Failed to sync historical staff training files', e);
+  }
+
   // Setup Quote PDF route
+
   setupQuotePdfRoutes(app, db, authenticateToken);
 
   if (process.env.NODE_ENV !== "production") {
