@@ -30,10 +30,20 @@ const updateSW = registerSW({
   },
   onRegistered(r) {
     if (r) {
-      // Check every minute
+      // Check for updates immediately when the tab becomes visible or gains focus
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          r.update();
+        }
+      });
+      window.addEventListener('focus', () => {
+        r.update();
+      });
+
+      // Also check periodically in the background just in case
       setInterval(() => {
         r.update();
-      }, 60 * 1000); 
+      }, 5 * 60 * 1000); // Every 5 mins is safer to prevent looping
     }
   },
   onRegisterError(error) {
