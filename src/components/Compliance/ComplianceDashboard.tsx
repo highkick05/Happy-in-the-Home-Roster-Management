@@ -782,7 +782,7 @@ export default function ComplianceDashboard() {
                          return (
                            <tr key={row.id} className={idx % 2 === 0 ? 'bg-[#0E0E10]/40 hover:bg-brand-bg' : 'bg-brand-navy hover:bg-brand-bg transition-colors'}>
                              <td className="px-4 py-2 border-r border-border-subtle/30 font-mono text-xs text-[#8B949E] whitespace-nowrap">#{row.id}</td>
-                             <td className="px-4 py-2 border-r border-border-subtle/30 font-medium whitespace-nowrap">{row.client_first} {row.client_last}</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 font-medium whitespace-nowrap">{row.client_first_name} {row.client_last_name}</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap text-[#8B949E]">{row.start_time ? getLocalizedDateString(row.start_time) : 'N/A'}</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{startString} - {endString}</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap">
@@ -1100,7 +1100,7 @@ export default function ComplianceDashboard() {
                          return (
                            <tr key={row.id} className={idx % 2 === 0 ? 'bg-[#0E0E10]/40 hover:bg-brand-bg' : 'bg-brand-navy hover:bg-brand-bg transition-colors'}>
                              <td className="px-4 py-2 border-r border-border-subtle/30 font-mono text-xs text-[#8B949E] whitespace-nowrap">#{row.id}</td>
-                             <td className="px-4 py-2 border-r border-border-subtle/30 font-medium whitespace-nowrap">{row.staff_first} {row.staff_last}</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 font-medium whitespace-nowrap">{row.staff_first_name} {row.staff_last_name}</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap text-[#8B949E]">{row.start_time ? getLocalizedDateString(row.start_time) : 'N/A'}</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{startString} - {endString}</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap">
@@ -1108,7 +1108,7 @@ export default function ComplianceDashboard() {
                                  {row.funding_type === 'HOME_CARE' || row.funding_type === 'Home Care' || row.funding_type === 'HCP' ? 'Home Care' : 'NDIS'}
                                </span>
                              </td>
-                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap">{row.client_first} {row.client_last}</td>
+                             <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap">{row.client_first_name} {row.client_last_name}</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap font-mono text-xs">{Math.max(0, hrs).toFixed(2)}h</td>
                              <td className="px-4 py-2 border-r border-border-subtle/30 whitespace-nowrap">
                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold border ${noteBadgeCls}`}>
