@@ -57,6 +57,7 @@ export default function FilesView() {
   // 1. STATE MANAGEMENT & TOGGLES
   const [viewMode, setViewMode] = useLocalStorage<'list' | 'grid' | 'column'>('files_view_mode', 'list');
   const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<number[]>([]);
 
   const [columnWidth, setColumnWidth] = useLocalStorage('file_manager_col_width', 250);
   const [isResizing, setIsResizing] = useState(false);
@@ -263,6 +264,24 @@ export default function FilesView() {
     }
   };
 
+    const handleBulkDelete = async () => {
+    if (selectedFiles.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedFiles.length} file(s)?`)) return;
+    setLoading(true);
+    try {
+        await Promise.all(selectedFiles.map(id => 
+            fetch(`/api/files/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+        ));
+        setSelectedFiles([]);
+        fetchFiles();
+    } catch (e) {
+        console.error(e);
+        alert('Failed to delete some files');
+    } finally {
+        setLoading(false);
+    }
+  };
+
   const deleteFile = async (id: number) => {
     try {
       const res = await fetch(`/api/files/${id}`, {
@@ -430,6 +449,20 @@ export default function FilesView() {
               <table className="w-full text-left text-xs whitespace-nowrap">
                 <thead className="bg-[#0a0a0a] border-b border-white/[0.05] sticky top-0 z-10 backdrop-blur-md">
                   <tr>
+                    <th className="px-6 py-4 w-12 text-center" onClick={e => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        checked={currentFolderFiles.length > 0 && selectedFiles.length === currentFolderFiles.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedFiles(currentFolderFiles.map(f => f.id));
+                          } else {
+                            setSelectedFiles([]);
+                          }
+                        }}
+                        className="w-4 h-4 bg-black/20 border-white/20 rounded accent-brand-teal cursor-pointer"
+                      />
+                    </th>
                     <th className="px-6 py-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Name</th>
                     <th className="px-6 py-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider w-32">Size</th>
                     <th className="px-6 py-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider w-48">Date Modified</th>
@@ -440,7 +473,7 @@ export default function FilesView() {
                   {/* Parent Navigation */}
                   {currentPath !== '/' && (
                      <tr onClick={navigateUp} className="hover:bg-zinc-800/50 cursor-pointer transition-all group">
-                        <td className="px-6 py-4 flex items-center space-x-4">
+                        <td></td><td className="px-6 py-4 flex items-center space-x-4">
                           <div className="p-2 bg-zinc-800/80 rounded-lg group-hover:bg-brand-teal group-hover:text-white transition-colors duration-300">
                             <CornerLeftUp className="w-5 h-5 text-zinc-400 group-hover:text-white" />
                           </div>
@@ -455,6 +488,7 @@ export default function FilesView() {
                   {/* Subfolders */}
                   {subfolders.map(folder => (
                     <tr key={folder} onClick={() => navigateTo(folder)} className="hover:bg-zinc-800/40 cursor-pointer transition-all group">
+                      <td></td>
                       <td className="px-6 py-4 flex items-center space-x-4">
                         <FileThumbnail isFolder size="sm" />
                         <span className="font-semibold text-zinc-200 group-hover:text-white transition-colors">{folder}</span>
@@ -468,6 +502,20 @@ export default function FilesView() {
                   {/* Files */}
                   {currentFolderFiles.map(f => (
                     <tr key={f.id} onClick={() => setSelectedFileId(f.id)} className="hover:bg-zinc-800/30 cursor-pointer transition-all group">
+                      <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
+                        <input 
+                          type="checkbox"
+                          checked={selectedFiles.includes(f.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedFiles([...selectedFiles, f.id]);
+                            } else {
+                              setSelectedFiles(selectedFiles.filter(id => id !== f.id));
+                            }
+                          }}
+                          className="w-4 h-4 bg-black/20 border-white/20 rounded accent-brand-teal cursor-pointer"
+                        />
+                      </td>
                       <td className="px-6 py-4 flex items-center space-x-4">
                         <FileThumbnail file={f} size="sm" />
                         <span className="font-medium text-zinc-300 group-hover:text-white transition-colors">{f.original_name}</span>
