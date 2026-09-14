@@ -16186,6 +16186,7 @@ function resolveFilePath(systemName) {
       }
     }));
     app.get("*", (req: any, res: any) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.sendFile(path.join(distPath, "index.html"));
     });
     
