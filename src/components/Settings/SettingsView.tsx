@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download } from 'lucide-react';
+import {  Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download , RefreshCw } from 'lucide-react';
 import DatabaseSettings from './DatabaseSettings';
 import TestingChecklist from './TestingChecklist';
 import FundingTypesSettings from './FundingTypesSettings';
@@ -215,6 +215,31 @@ export default function SettingsView() {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  
+  const handleRegeneratePdfs = async () => {
+    if (!window.confirm("Are you sure you want to regenerate all PAID invoice PDFs? This may take some time depending on the number of invoices.")) return;
+    setGeneralLoading(true);
+    setSuccessMsg('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/admin/invoices/repair', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccessMsg(`Repaired! Fixed ${data.fixedDbRecords} paths, cleared ${data.deletedGhosts} ghosts, generated ${data.regeneratedPdfs} PDFs, and synced ${data.syncedFiles} files.`);
+      } else {
+        alert(data.error || 'Failed to regenerate PDFs');
+      }
+    } catch (e) {
+      alert('Error regenerating PDFs');
+    } finally {
+      setGeneralLoading(false);
+      setTimeout(() => setSuccessMsg(''), 5000);
     }
   };
 
@@ -925,10 +950,14 @@ export default function SettingsView() {
                    <p className="text-xs text-slate-500">Default number of hours required for shift cancellation notice.</p>
                  </div>
               </div>
-              <div className="pt-6">
+                            <div className="pt-6 flex gap-4">
                 <button type="submit" disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
                   <Save className="w-4 h-4 mr-2" />
                   {generalLoading ? 'Saving...' : 'Save Settings'}
+                </button>
+                <button type="button" onClick={handleRegeneratePdfs} disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-brand-navy border border-border-subtle text-[#E6EDF3] text-[13px] font-medium rounded-md hover:bg-brand-gray transition-colors disabled:opacity-50 shadow-sm">
+                  <RefreshCw className={`w-4 h-4 mr-2 ${generalLoading ? 'animate-spin' : ''}`} />
+                  Repair Invoices
                 </button>
               </div>
             </form>
