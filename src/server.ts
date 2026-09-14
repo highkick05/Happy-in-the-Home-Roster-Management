@@ -13436,8 +13436,8 @@ app.post(
           for (const fileRecord of fileRecords) {
             const sysFilePath = path.join(
               process.cwd(),
-              "data",
               "uploads",
+              (fileRecord.folder_path || '/').replace(/^\/+/, ''),
               fileRecord.system_name,
             );
             if (fs.existsSync(sysFilePath)) {
@@ -13450,7 +13450,7 @@ app.post(
           }
         }
 
-        if (status === "PAID") {
+        if (status === "PAID" && oldInvoice.status !== "PAID") {
           const invoiceRow = db
             .prepare("SELECT * FROM invoices WHERE id = ?")
             .get(id) as any;
@@ -13503,7 +13503,7 @@ app.post(
                   );
                   stmt.run(
                     `${data.invoiceNum}.pdf`,
-                    systemName,
+                    rawSystemName,
                     stats.size,
                     req.user.id,
                     folderPath,
