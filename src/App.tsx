@@ -359,7 +359,22 @@ function Layout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {(!isDesktopSidebarCollapsed || isMobileMenuOpen) && (
-          <div className="px-5 py-2 text-[10px] text-zinc-500/50 font-mono text-left tracking-wide select-none">
+          <div 
+            className="px-5 py-2 text-[10px] text-zinc-500/50 font-mono text-left tracking-wide select-none cursor-pointer hover:text-white transition-colors"
+            onClick={() => {
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                  for(let registration of registrations) {
+                    registration.unregister();
+                  }
+                  window.location.reload();
+                });
+              } else {
+                window.location.reload();
+              }
+            }}
+            title="Click to force update the app"
+          >
             v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'} (Auto-Update Verified! ✅)
           </div>
         )}
