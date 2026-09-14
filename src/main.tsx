@@ -25,9 +25,18 @@ createRoot(document.getElementById('root')!).render(
 const updateSW = registerSW({
   onRegistered(r) {
     if (r) {
+      // Check immediately
+      r.update();
+      
+      // Check every minute
       setInterval(() => {
         r.update();
-      }, 60 * 1000); // Check for updates every minute
+      }, 60 * 1000); 
+
+      // Check whenever the window regains focus
+      window.addEventListener('focus', () => {
+         r.update();
+      });
     }
   },
   onRegisterError(error) {
