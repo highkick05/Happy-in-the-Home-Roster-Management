@@ -23,20 +23,17 @@ createRoot(document.getElementById('root')!).render(
 
 
 const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    // When the PWA detects a new version, automatically click refresh for them!
+    updateSW(true);
+  },
   onRegistered(r) {
     if (r) {
-      // Check immediately
-      r.update();
-      
       // Check every minute
       setInterval(() => {
         r.update();
       }, 60 * 1000); 
-
-      // Check whenever the window regains focus
-      window.addEventListener('focus', () => {
-         r.update();
-      });
     }
   },
   onRegisterError(error) {

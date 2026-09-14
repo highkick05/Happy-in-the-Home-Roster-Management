@@ -361,21 +361,24 @@ function Layout({ children }: { children: React.ReactNode }) {
         {(!isDesktopSidebarCollapsed || isMobileMenuOpen) && (
           <div 
             className="px-5 py-2 text-[10px] text-zinc-500/50 font-mono text-left tracking-wide select-none cursor-pointer hover:text-white transition-colors"
-            onClick={() => {
+            onClick={async () => {
               if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                  for(let registration of registrations) {
-                    registration.unregister();
-                  }
-                  window.location.reload();
-                });
-              } else {
-                window.location.reload();
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for(let registration of registrations) {
+                  await registration.unregister();
+                }
               }
+              // Clear all caches
+              if ('caches' in window) {
+                 const cacheNames = await caches.keys();
+                 await Promise.all(cacheNames.map(name => caches.delete(name)));
+              }
+              // Hard reload the window bypassing the cache
+              window.location.href = window.location.href.split('#')[0] + '?v=' + new Date().getTime();
             }}
             title="Click to force update the app"
           >
-            v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'} (Auto-Update Verified! ✅)
+            v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'} (Force Reload)
           </div>
         )}
 
