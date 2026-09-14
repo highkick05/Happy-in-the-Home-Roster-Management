@@ -3244,7 +3244,28 @@ try {
     }
   });
 
-  app.post('/api/files', authenticateToken, upload.single('file'), (req: any, res: any) => {
+
+  const resolveDynamicFolder = (req: any, res: any, next: any) => {
+    if (req.query.context) {
+        const targetUserId = req.query.targetUserId || req.user?.id;
+        try {
+            const user = db.prepare("SELECT first_name, last_name FROM users WHERE id = ?").get(targetUserId) as any;
+            if (user) {
+                const nameDir = [user.first_name, user.last_name].filter(Boolean).join(" ");
+                if (req.query.context === "STAFF_ONBOARDING") {
+                    req.query.folderPath = `/Staff/${nameDir}/Onboarding`;
+                } else if (req.query.context === "STAFF_VEHICLES") {
+                    req.query.folderPath = `/Staff/${nameDir}/Vehicles`;
+                }
+            }
+        } catch(e) {
+            console.error("Failed dynamic folder route:", e);
+        }
+    }
+    next();
+  };
+
+  app.post('/api/files', authenticateToken, resolveDynamicFolder, upload.single('file'), (req: any, res: any) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     let folderPath = req.query.folderPath || '/';
     

@@ -206,7 +206,7 @@ export default function VehiclesView() {
     }
 
     try {
-      const res = await fetch(url, {
+      const res = await fetch(url.includes("?") ? url : `${url}?context=STAFF_VEHICLES&targetUserId=${newVehicle?.user_id || user?.id || ''}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -278,7 +278,7 @@ export default function VehiclesView() {
     }
 
     try {
-      const res = await fetch(url, {
+      const res = await fetch(url.includes("?") ? url : `${url}?context=STAFF_VEHICLES&targetUserId=${originalVehicle?.user_id || user?.id || ''}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,

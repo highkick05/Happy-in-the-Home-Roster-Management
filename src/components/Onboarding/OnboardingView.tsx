@@ -254,7 +254,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     if (contextUserId) formData.append('targetUserId', contextUserId.toString());
 
     try {
-      const res = await fetch(`/api/files`, {
+      const res = await fetch(`/api/files?context=STAFF_ONBOARDING&targetUserId=${contextUserId || ''}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData
