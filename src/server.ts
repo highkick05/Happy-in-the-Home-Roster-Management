@@ -15879,7 +15879,13 @@ function resolveFilePath(systemName) {
     });
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      setHeaders: (res, path) => {
+        if (path.endsWith('sw.js') || path.includes('workbox-') || path.endsWith('custom-sw.js') || path.endsWith('manifest.webmanifest')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
+      }
+    }));
     app.get("*", (req: any, res: any) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
