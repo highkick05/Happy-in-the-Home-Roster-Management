@@ -1107,10 +1107,14 @@ export default function SettingsView() {
                 </div>
               </div>
 
-              <div className="pt-6">
+              <div className="pt-6 flex gap-4">
                 <button type="submit" disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-brand-teal to-brand-green text-white text-[13px] font-medium rounded-md transition-colors disabled:opacity-50 shadow-sm">
                   <Save className="w-4 h-4 mr-2" />
                   {generalLoading ? 'Saving...' : 'Save Settings'}
+                </button>
+                <button type="button" onClick={handleRegeneratePdfs} disabled={generalLoading || user?.role !== 'ADMIN'} className="flex items-center px-5 py-2.5 bg-brand-navy border border-border-subtle text-[#E6EDF3] text-[13px] font-medium rounded-md hover:bg-brand-gray transition-colors disabled:opacity-50 shadow-sm">
+                  <RefreshCw className={`w-4 h-4 mr-2 ${generalLoading ? 'animate-spin' : ''}`} />
+                  Repair Invoices
                 </button>
               </div>
             </form>
