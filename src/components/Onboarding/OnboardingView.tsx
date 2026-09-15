@@ -30,6 +30,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isDraggingStep, setIsDraggingStep] = useState<Record<string, boolean>>({});
   const [sessionUploadedFiles, setSessionUploadedFiles] = useState<Record<string, boolean>>({});
+  const [dynamicSteps, setDynamicSteps] = useState<Step[]>([]);
   
 
   
