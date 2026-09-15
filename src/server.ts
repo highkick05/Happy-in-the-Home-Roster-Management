@@ -1052,6 +1052,18 @@ try {
       );
 
       
+      
+      CREATE TABLE IF NOT EXISTS onboarding_hub_steps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        position_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        media_url TEXT,
+        requires_expiry INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (position_id) REFERENCES positions(id) ON DELETE CASCADE
+      );
+
       CREATE TABLE IF NOT EXISTS positions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE
@@ -5298,6 +5310,49 @@ app.get("/api/health", (req, res) => {
     }
   });
   // --- End Travel Logs API ---
+
+  
+  // ADMIN ONBOARDING STEPS
+  app.get("/api/admin/onboarding-steps", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const steps = db.prepare("SELECT * FROM onboarding_hub_steps").all();
+      res.json(steps);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/onboarding-steps", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { position_id, title, description, media_url, requires_expiry } = req.body;
+      const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, title, description, media_url, requires_expiry) VALUES (?, ?, ?, ?, ?)");
+      const info = stmt.run(position_id, title, description || '', media_url || '', requires_expiry ? 1 : 0);
+      const newStep = db.prepare("SELECT * FROM onboarding_hub_steps WHERE id = ?").get(info.lastInsertRowid);
+      res.json(newStep);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/admin/onboarding-steps/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { title, description, media_url, requires_expiry } = req.body;
+      const stmt = db.prepare("UPDATE onboarding_hub_steps SET title = ?, description = ?, media_url = ?, requires_expiry = ? WHERE id = ?");
+      stmt.run(title, description || '', media_url || '', requires_expiry ? 1 : 0, req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/admin/onboarding-steps/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      db.prepare("DELETE FROM onboarding_hub_steps WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   app.get("/api/admin/staff-compliance", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
