@@ -12,6 +12,20 @@ interface StaffModalProps {
 }
 
 export default function StaffModal({ isOpen, onClose, onSave, token, staff }: StaffModalProps) {
+
+  const [positions, setPositions] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/positions', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data)) setPositions(data);
+        })
+        .catch(err => console.error("Failed to load positions", err));
+    }
+  }, [isOpen, token]);
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
