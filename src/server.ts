@@ -5389,14 +5389,14 @@ app.get("/api/health", (req, res) => {
     if (req.user.role !== "ADMIN") {
       const staff = db
         .prepare(
-          "SELECT id, first_name, last_name, role, avatar_url, primary_position, additional_positions FROM users WHERE role = ?",
+          "SELECT id, first_name, last_name, role, status, avatar_url, primary_position, additional_positions FROM users WHERE role = ?",
         )
         .all("STAFF");
       return res.json(staff);
     }
     const staff = db
       .prepare(
-        "SELECT id, email, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions FROM users",
+        "SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions FROM users",
       )
       .all();
     res.json(staff);
@@ -5521,11 +5521,12 @@ app.get("/api/health", (req, res) => {
       canSwitchAdmin,
       avatarUrl,
       primaryPosition,
+      additionalPositions,
     } = req.body;
     const { id } = req.params;
     try {
       const stmt = db.prepare(
-        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = ? WHERE id = ?",
+        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = ?, additional_positions = ? WHERE id = ?",
       );
       stmt.run(
         email,
@@ -5546,6 +5547,7 @@ app.get("/api/health", (req, res) => {
         canSwitchAdmin ? 1 : 0,
         avatarUrl || null,
         primaryPosition || null,
+        additionalPositions ? JSON.stringify(additionalPositions) : "[]",
         id,
       );
       res.json({
@@ -12606,7 +12608,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           .all();
         const staff = db
           .prepare(
-            "SELECT id, first_name, last_name FROM users WHERE role = 'STAFF' ORDER BY first_name ASC",
+            "SELECT id, first_name, last_name FROM users WHERE role = 'STAFF' AND status = 'ACTIVE' ORDER BY first_name ASC",
           )
           .all();
         const services = db
