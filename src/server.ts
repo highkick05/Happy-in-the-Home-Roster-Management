@@ -3312,14 +3312,14 @@ try {
          infoId = existing.id;
       } else {
          const stmt = db.prepare('INSERT INTO files (original_name, system_name, size, uploaded_by, folder_path, date_issued, date_expires) VALUES (?, ?, ?, ?, ?, ?, ?)');
-         const info = stmt.run(req.file.originalname, req.file.filename, req.file.size, targetUserId, folderPath, dateIssued, dateExpires);
+         const info = stmt.run(req.file.filename, req.file.filename, req.file.size, targetUserId, folderPath, dateIssued, dateExpires);
          infoId = info.lastInsertRowid;
       }
       
       // Clear notifications immediately upon successful document renewal/upload
       db.prepare(`DELETE FROM notifications WHERE user_id = ? AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON')`).run(targetUserId);
       
-      res.json({ success: true, id: infoId, date_issued: dateIssued, date_expires: dateExpires });
+      res.json({ success: true, id: infoId, name: req.file.filename, system_name: req.file.filename, date_issued: dateIssued, date_expires: dateExpires });
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: e.stack || e });
       res.status(500).json({ error: 'Internal Server Error' });
@@ -5027,7 +5027,7 @@ app.get("/api/health", (req, res) => {
         const validFileIds = new Set();
         const fileMetadata = new Map();
         existingFiles.forEach((f) => {
-          const filePath = resolveFilePath(f.system_name);
+          const filePath = path.join(process.cwd(), 'uploads', (f.folder_path || '/').replace(/^\/+/, ''), f.system_name);
           if (fs.existsSync(filePath)) {
             validFileIds.add(f.id);
             fileMetadata.set(f.id, f);
@@ -11557,7 +11557,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
               const fileInfo = db.prepare(
                 "INSERT INTO files (original_name, system_name, size, uploaded_by, region, folder_path) VALUES (?, ?, ?, ?, ?, ?)",
               ).run(
-                req.file.originalname,
+                req.file.filename,
                 systemName,
                 req.file.size,
                 req.user.id,

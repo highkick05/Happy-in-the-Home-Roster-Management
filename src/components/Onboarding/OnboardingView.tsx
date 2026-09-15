@@ -264,7 +264,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
       });
       const data = await res.json();
       if (res.ok && data.id) {
-        await updateProgress(stepId, 'completed', { type: 'add', file: { id: data.id, name: file.name } });
+        await updateProgress(stepId, 'completed', { type: 'add', file: { id: data.id, name: data.name || file.name } });
         setSessionUploadedFiles(prev => ({ ...prev, [stepId]: true }));
       } else {
         setUploadError(prev => ({ ...prev, [stepId]: 'Upload failed: ' + (data.error || 'Unknown error') }));
