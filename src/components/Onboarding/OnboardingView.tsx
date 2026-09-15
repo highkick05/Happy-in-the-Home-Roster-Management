@@ -419,10 +419,10 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
           </div>
         )}
         <div 
-          className="p-3 md:p-4 flex items-center justify-between cursor-pointer select-none"
+          className="px-3 py-2.5 flex items-center justify-between cursor-pointer select-none"
           onClick={() => setExpandedStep(isExpanded ? null : step.id)}
         >
-          <div className="flex items-center gap-4 text-white">
+          <div className="flex items-center gap-3 text-white">
             <div className={`w-8 h-8 rounded text-sm flex items-center justify-center shrink-0 border ${
               isCompleted 
                 ? 'bg-brand-green/10 border-brand-green/20 text-brand-green' 
@@ -616,7 +616,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
               )}
 
               {step.type === 'upload' ? (
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {/* ID & DATE PICKERS */}
                   <div className="flex flex-col gap-3 max-w-sm mb-4">
                     {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && (
@@ -795,13 +795,13 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
 
   return (
     <div className="flex-1 overflow-auto bg-black p-4 md:p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="mb-6 flex flex-col gap-1 border-b border-white/[0.05] pb-4">
+      <div className="max-w-4xl mx-auto space-y-4">
+        <div className="mb-4 flex flex-col gap-0.5 border-b border-white/[0.05] pb-3">
           <h1 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Onboarding Hub</h1>
           <p className="text-xs text-zinc-500">Complete your profile requirements to begin shifts</p>
         </div>
 
-        <div className="bg-[#111111] border border-white/[0.05] rounded-lg p-4 shadow-sm relative overflow-hidden mb-6">
+        <div className="bg-[#111111] border border-white/[0.05] rounded-lg p-3 shadow-sm relative overflow-hidden mb-4">
           <div className="flex justify-between text-[11px] font-medium mb-2">
             <span className="text-zinc-500 uppercase tracking-wider font-semibold">OVERALL PROGRESS</span>
             <span className="text-brand-teal">{progressPercent}% COMPLETE</span>
@@ -815,16 +815,16 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
         </div>
 
         {/* General/Home Care Steps List */}
-        <div className="space-y-4">
+        <div className="space-y-2">
           {dynamicSteps.map((step, index) => renderStepCard(step, index + 1))}
         </div>
 
         {/* NDIS Toggle Section */}
 
 
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex items-start gap-3 mt-6">
-          <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
-            <span className="font-bold text-lg">!</span>
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2.5 mt-4">
+          <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+            <span className="font-bold text-sm">!</span>
           </div>
           <div>
             <h4 className="font-medium text-sm text-amber-400 mb-0.5">IMPORTANT NOTE</h4>
