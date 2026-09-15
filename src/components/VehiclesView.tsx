@@ -193,6 +193,11 @@ export default function VehiclesView() {
     formData.append("file", file);
 
     let url = "/api/files";
+    
+    let customName = "";
+    if (field === "rego_evidence_url") customName = "Vehicle_Registration";
+    else if (field === "insurance_evidence_url") customName = "Vehicle_Insurance";
+    else if (field === "roadside_evidence_url") customName = "Vehicle_Roadside";
 
     if (newVehicle.ownership === "COMPANY") {
       url = "/api/files?folderPath=/Company%20Vehicles";
@@ -206,7 +211,11 @@ export default function VehiclesView() {
     }
 
     try {
-      const res = await fetch(url.includes("?") ? url : `${url}?context=STAFF_VEHICLES&targetUserId=${newVehicle?.user_id || user?.id || ''}`, {
+      let finalUrl = url.includes("?") 
+        ? `${url}&customName=${customName}` 
+        : `${url}?context=STAFF_VEHICLES&targetUserId=${newVehicle?.user_id || user?.id || ''}&customName=${customName}`;
+        
+      const res = await fetch(finalUrl, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -266,6 +275,11 @@ export default function VehiclesView() {
 
     let url = "/api/files";
 
+    let customName = "";
+    if (field === "rego_evidence_url") customName = "Vehicle_Registration";
+    else if (field === "insurance_evidence_url") customName = "Vehicle_Insurance";
+    else if (field === "roadside_evidence_url") customName = "Vehicle_Roadside";
+
     if (originalVehicle.ownership === "COMPANY") {
       url = "/api/files?folderPath=/Company%20Vehicles";
     } else {
@@ -278,7 +292,11 @@ export default function VehiclesView() {
     }
 
     try {
-      const res = await fetch(url.includes("?") ? url : `${url}?context=STAFF_VEHICLES&targetUserId=${originalVehicle?.user_id || user?.id || ''}`, {
+      let finalUrl = url.includes("?") 
+        ? `${url}&customName=${customName}` 
+        : `${url}?context=STAFF_VEHICLES&targetUserId=${originalVehicle?.user_id || user?.id || ''}&customName=${customName}`;
+
+      const res = await fetch(finalUrl, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,

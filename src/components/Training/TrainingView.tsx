@@ -98,8 +98,11 @@ export default function TrainingView() {
     if (expiryDate) formData.append('expiry_date', expiryDate);
     if (uploadFile) formData.append('certificate', uploadFile);
 
+    const mod = modules.find(m => m.id === uploadModuleId);
+    const customNameStr = mod ? encodeURIComponent(mod.title) : 'Training_Certificate';
+
     try {
-      const res = await fetch('/api/training/staff/upload', {
+      const res = await fetch(`/api/training/staff/upload?customName=${customNameStr}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData

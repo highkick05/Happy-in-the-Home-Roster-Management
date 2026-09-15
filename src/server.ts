@@ -116,7 +116,15 @@ const storage = multer.diskStorage({
     cb(null, targetDir);
   },
   filename: (req, file, cb) => {
-    cb(null, file.originalname);
+    let finalName = file.originalname;
+    if (req.query.customName) {
+      const ext = path.extname(file.originalname);
+      // Construct a safe filename based on customName
+      finalName = `${req.query.customName}${ext}`;
+      // Remove any illegal chars from finalName just in case
+      finalName = finalName.replace(/[^a-zA-Z0-9_\-\. ]/g, "_");
+    }
+    cb(null, finalName);
   },
 });
 
@@ -5812,7 +5820,7 @@ app.get("/api/health", (req, res) => {
         fs.mkdirSync(targetDir, { recursive: true });
       }
 
-      const filename = req.file.originalname;
+      const filename = req.file.filename;
       const finalPath = require('path').join(targetDir, filename);
 
       fs.renameSync(req.file.path, finalPath);
@@ -5983,7 +5991,7 @@ app.get("/api/health", (req, res) => {
               if (!fs.existsSync(targetDir)) {
                   fs.mkdirSync(targetDir, { recursive: true });
               }
-              const filename = req.file.originalname;
+              const filename = req.file.filename;
               const finalPath = require('path').join(targetDir, filename);
               fs.renameSync(req.file.path, finalPath);
               // Also add to global files table

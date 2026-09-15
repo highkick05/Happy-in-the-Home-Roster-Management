@@ -253,8 +253,11 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     if (expires) formData.append('date_expires', expires);
     if (contextUserId) formData.append('targetUserId', contextUserId.toString());
 
+    const stepDef = ONBOARDING_STEPS.find(s => s.id === stepId);
+    const customNameStr = stepDef ? encodeURIComponent(stepDef.title) : stepId;
+    
     try {
-      const res = await fetch(`/api/files?context=STAFF_ONBOARDING&targetUserId=${contextUserId || ''}`, {
+      const res = await fetch(`/api/files?context=STAFF_ONBOARDING&targetUserId=${contextUserId || ''}&customName=${customNameStr}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData
