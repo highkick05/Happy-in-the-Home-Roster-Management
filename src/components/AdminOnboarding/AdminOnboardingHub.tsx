@@ -14,6 +14,8 @@ interface Step {
   description: string;
   media_url: string;
   requires_expiry: number;
+  upload_required: number;
+  is_mandatory: number;
 }
 
 export default function AdminOnboardingHub() {
@@ -60,7 +62,9 @@ export default function AdminOnboardingHub() {
           title: 'New Onboarding Step',
           description: '',
           media_url: '',
-          requires_expiry: false
+          requires_expiry: 0,
+          upload_required: 1,
+          is_mandatory: 1
         })
       });
       const newStep = await res.json();

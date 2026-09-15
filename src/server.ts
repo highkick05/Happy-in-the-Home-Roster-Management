@@ -1060,6 +1060,8 @@ try {
         description TEXT,
         media_url TEXT,
         requires_expiry INTEGER DEFAULT 0,
+        upload_required INTEGER DEFAULT 1,
+        is_mandatory INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (position_id) REFERENCES positions(id) ON DELETE CASCADE
       );
@@ -1660,6 +1662,16 @@ try {
     `,
     ).run();
     console.log("[DEBUG] Completed funding_type backfill synchronization.");
+
+      try {
+        const tableInfo = db.prepare("PRAGMA table_info(onboarding_hub_steps)").all();
+        if (!tableInfo.some(c => c.name === 'upload_required')) {
+          db.exec("ALTER TABLE onboarding_hub_steps ADD COLUMN upload_required INTEGER DEFAULT 1;");
+          db.exec("ALTER TABLE onboarding_hub_steps ADD COLUMN is_mandatory INTEGER DEFAULT 1;");
+          console.log("[DEBUG] Added upload_required and is_mandatory to onboarding_hub_steps.");
+        }
+      } catch (e) { console.error(e); }
+
 
     const missingLogShifts = db
       .prepare(
@@ -5324,9 +5336,9 @@ app.get("/api/health", (req, res) => {
 
   app.post("/api/admin/onboarding-steps", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const { position_id, title, description, media_url, requires_expiry } = req.body;
-      const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, title, description, media_url, requires_expiry) VALUES (?, ?, ?, ?, ?)");
-      const info = stmt.run(position_id, title, description || '', media_url || '', requires_expiry ? 1 : 0);
+      const { position_id, title, description, media_url, requires_expiry, upload_required, is_mandatory } = req.body;
+      const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, title, description, media_url, requires_expiry, upload_required, is_mandatory) VALUES (?, ?, ?, ?, ?, ?, ?)");
+      const info = stmt.run(position_id, title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0);
       const newStep = db.prepare("SELECT * FROM onboarding_hub_steps WHERE id = ?").get(info.lastInsertRowid);
       res.json(newStep);
     } catch (error: any) {
@@ -5336,9 +5348,9 @@ app.get("/api/health", (req, res) => {
 
   app.put("/api/admin/onboarding-steps/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const { title, description, media_url, requires_expiry } = req.body;
-      const stmt = db.prepare("UPDATE onboarding_hub_steps SET title = ?, description = ?, media_url = ?, requires_expiry = ? WHERE id = ?");
-      stmt.run(title, description || '', media_url || '', requires_expiry ? 1 : 0, req.params.id);
+      const { title, description, media_url, requires_expiry, upload_required, is_mandatory } = req.body;
+      const stmt = db.prepare("UPDATE onboarding_hub_steps SET title = ?, description = ?, media_url = ?, requires_expiry = ?, upload_required = ?, is_mandatory = ? WHERE id = ?");
+      stmt.run(title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0, req.params.id);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

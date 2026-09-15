@@ -61,11 +61,12 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
       });
       const dynData = await dynRes.json();
       if (Array.isArray(dynData)) {
-        const mapped: Step[] = dynData.map(d => ({
+        const mapped: Step[] = dynData.map((d: any) => ({
           id: `dynamic_${d.id}`,
           title: d.title,
           description: d.description || '',
-          type: 'upload',
+          type: d.upload_required ? 'upload' : 'confirm',
+          optional: d.is_mandatory ? false : true,
           links: d.media_url ? [{ text: 'View Attached Media', url: d.media_url }] : []
         }));
         setDynamicSteps(mapped);
