@@ -3365,7 +3365,8 @@ try {
       }
 
       const filePath = path.join(process.cwd(), 'uploads', (file.folder_path || '/').replace(/^\/+/, ''), file.system_name);
-      if (fs.existsSync(filePath)) {
+      console.log("Checking path:", filePath, fs.existsSync(filePath));
+          if (fs.existsSync(filePath)) {
         if (req.query.preview === 'true') {
            res.sendFile(filePath);
         } else {
@@ -3389,7 +3390,8 @@ try {
            return res.status(403).json({ error: 'Forbidden' });
          }
          const filePath = path.join(process.cwd(), 'uploads', (file.folder_path || '/').replace(/^\/+/, ''), file.system_name);
-         if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (e) { console.warn('Failed to delete file', e); } }
+         console.log("Checking path:", filePath, fs.existsSync(filePath));
+          if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (e) { console.warn('Failed to delete file', e); } }
       }
       db.prepare('DELETE FROM files WHERE id = ?').run(id);
       res.json({ success: true });
@@ -4338,7 +4340,8 @@ function getUnreadChatCount(db: any, userId: number) {
 
   app.get("/api/assets/:filename", (req: any, res: any) => {
     const filePath = path.join(assetsDir, req.params.filename);
-    if (fs.existsSync(filePath)) {
+    console.log("Checking path:", filePath, fs.existsSync(filePath));
+          if (fs.existsSync(filePath)) {
       res.sendFile(filePath);
     } else {
       res.status(404).send("Not found");
@@ -5020,7 +5023,7 @@ app.get("/api/health", (req, res) => {
         const placeholders = fileIds.map(() => "?").join(",");
         const existingFiles = db
           .prepare(
-            `SELECT id, system_name, date_issued, date_expires FROM files WHERE id IN (${placeholders})`,
+            `SELECT id, system_name, date_issued, date_expires, folder_path FROM files WHERE id IN (${placeholders})`,
           )
           .all(...fileIds) as any[];
 
@@ -5028,6 +5031,7 @@ app.get("/api/health", (req, res) => {
         const fileMetadata = new Map();
         existingFiles.forEach((f) => {
           const filePath = path.join(process.cwd(), 'uploads', (f.folder_path || '/').replace(/^\/+/, ''), f.system_name);
+          console.log("Checking path:", filePath, fs.existsSync(filePath));
           if (fs.existsSync(filePath)) {
             validFileIds.add(f.id);
             fileMetadata.set(f.id, f);
@@ -5881,7 +5885,8 @@ app.get("/api/health", (req, res) => {
       const clientNameSafe = `${client.first_name} ${client.last_name}`.trim().replace(/[\\/]/g, "");
       const filePath = require('path').join(process.cwd(), 'uploads', 'Clients', clientNameSafe, 'Documents', category, filename);
       
-      if (fs.existsSync(filePath)) {
+      console.log("Checking path:", filePath, fs.existsSync(filePath));
+          if (fs.existsSync(filePath)) {
          fs.unlinkSync(filePath);
       }
 
@@ -10346,7 +10351,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
               "invoices",
                   inv.file_path,
                 );
-                if (fs.existsSync(filePath)) {
+                console.log("Checking path:", filePath, fs.existsSync(filePath));
+          if (fs.existsSync(filePath)) {
                   try {
                     fs.unlinkSync(filePath);
                   } catch (e) {
@@ -11103,7 +11109,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
               "invoices",
                 inv.file_path,
               );
-              if (fs.existsSync(filePath)) {
+              console.log("Checking path:", filePath, fs.existsSync(filePath));
+          if (fs.existsSync(filePath)) {
                 try {
                   fs.unlinkSync(filePath);
                 } catch (e) {
@@ -14862,6 +14869,7 @@ app.post(
           const filePath = path.join(targetDir, rawSystemName);
           
           // Skip if the physical PDF already exists!
+          console.log("Checking path:", filePath, fs.existsSync(filePath));
           if (fs.existsSync(filePath)) {
               // Ensure we still clean up any DB ghosts with double paths
               db.prepare("DELETE FROM files WHERE original_name = ? AND folder_path = ? AND system_name LIKE '%Clients/%'").run(`${data.invoiceNum}.pdf`, folderPath);
@@ -15261,7 +15269,8 @@ app.post(
     (req: any, res: any) => {
       const filename = req.params.filename;
       const filePath = path.join(process.cwd(), "invoices", filename);
-      if (fs.existsSync(filePath)) {
+      console.log("Checking path:", filePath, fs.existsSync(filePath));
+          if (fs.existsSync(filePath)) {
         res.download(filePath);
       } else {
         res.status(404).json({ error: "Invoice PDF not found" });
@@ -16694,6 +16703,7 @@ function resolveFilePath(systemName) {
           }
           
           const filePath = path.join(backupDir, filename);
+          console.log("Checking path:", filePath, fs.existsSync(filePath));
           if (fs.existsSync(filePath)) {
               res.download(filePath);
           } else {
