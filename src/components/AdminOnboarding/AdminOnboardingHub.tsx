@@ -97,16 +97,11 @@ export default function AdminOnboardingHub() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] p-6 lg:p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-lg bg-brand-teal/10 flex items-center justify-center border border-brand-teal/20 shadow-[0_0_15px_rgba(20,184,166,0.15)]">
-            <FileCheck className="w-5 h-5 text-brand-teal" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">Onboarding Hub Manager</h1>
-            <p className="text-zinc-400 text-sm mt-1">Design specific onboarding flows and requirements for different staff positions.</p>
-          </div>
+    <div className="flex-1 overflow-auto bg-black p-4 md:p-6">
+      <div className="max-w-6xl mx-auto space-y-4">
+        <div className="mb-4 flex flex-col gap-0.5 border-b border-white/[0.05] pb-3">
+          <h1 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Onboarding Hub Manager</h1>
+          <p className="text-xs text-zinc-500">Design specific onboarding flows and requirements for different staff positions</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
