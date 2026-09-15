@@ -419,11 +419,11 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
           </div>
         )}
         <div 
-          className="p-5 flex items-center justify-between cursor-pointer select-none"
+          className="p-3 md:p-4 flex items-center justify-between cursor-pointer select-none"
           onClick={() => setExpandedStep(isExpanded ? null : step.id)}
         >
           <div className="flex items-center gap-4 text-white">
-            <div className={`w-10 h-10 rounded-md flex items-center justify-center shrink-0 border ${
+            <div className={`w-8 h-8 rounded text-sm flex items-center justify-center shrink-0 border ${
               isCompleted 
                 ? 'bg-brand-green/10 border-brand-green/20 text-brand-green' 
                 : isExpanded 
@@ -624,12 +624,12 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                         <label className="block text-xs text-zinc-400 mb-1">ID Number / License Reference (Optional)</label>
                         <input 
                           type="text"
-                          className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded-lg px-3 py-2 text-white text-sm"
+                          className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded px-2.5 py-1.5 text-zinc-200 text-xs"
                           placeholder="Enter identifier..."
                           value={formDates[step.id]?.idNumber || ''}
                           onChange={(e: any) => setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], idNumber: e.target.value } }))}
                         />
-                        <p className="text-[10px] text-zinc-500 mt-1">Saved identifiers are automatically masked as [ID Number Redacted] for privacy.</p>
+                        <p className="text-[10px] text-zinc-600 mt-1">Saved identifiers are automatically masked as [ID Number Redacted] for privacy.</p>
                       </div>
                     )}
                     {['ndis_screening', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine', 'police_check'].includes(step.id) && (
@@ -637,13 +637,13 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                         <div className="flex items-center justify-between mb-1">
                           <label className="block text-xs text-zinc-400">Issue Date</label>
                           {progressData[step.id]?.files?.[0]?.date_expires && (
-                            <span className="text-xs text-brand-teal font-medium">
+                            <span className="text-[10px] text-brand-teal font-medium">
                               Current expires: {progressData[step.id].files![0].date_expires}
                             </span>
                           )}
                         </div>
                         <CustomDatePicker 
-                          className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded-lg px-3 py-2 text-white text-sm"
+                          className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded px-2.5 py-1.5 text-zinc-200 text-xs"
                           value={formDates[step.id]?.issued || ''}
                           onChange={(e: any) => setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], issued: e.target.value } }))}
                         />
@@ -654,13 +654,13 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                         <div className="flex items-center justify-between mb-1">
                           <label className="block text-xs text-zinc-400">Expiry Date</label>
                           {!['ndis_screening', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine', 'police_check'].includes(step.id) && progressData[step.id]?.files?.[0]?.date_expires && (
-                            <span className="text-xs text-brand-teal font-medium">
+                            <span className="text-[10px] text-brand-teal font-medium">
                               Current expires: {progressData[step.id].files![0].date_expires}
                             </span>
                           )}
                         </div>
                         <CustomDatePicker 
-                          className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded-lg px-3 py-2 text-white text-sm"
+                          className="w-full bg-[#1A1A1A] border border-white/[0.1] rounded px-2.5 py-1.5 text-zinc-200 text-xs"
                           value={formDates[step.id]?.expires || ''}
                           onChange={(e: any) => setFormDates(prev => ({ ...prev, [step.id]: { ...prev[step.id], expires: e.target.value } }))}
                         />
@@ -673,7 +673,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
 
                   <div className="space-y-3">
                     <label 
-                      className={`flex flex-col items-center justify-center gap-3 p-6 border-2 border-dashed rounded-lg transition-all text-center cursor-pointer ${
+                      className={`flex flex-col items-center justify-center gap-2 p-4 border border-dashed rounded-lg transition-all text-center cursor-pointer ${
                         isDraggingStep[step.id]
                           ? 'border-brand-teal bg-brand-teal/5 text-white'
                           : 'border-white/[0.12] bg-[#1A1A1C] hover:border-brand-teal/50 hover:bg-zinc-800/80 text-zinc-400 hover:text-zinc-200'
@@ -683,10 +683,10 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                         <Upload className="w-5 h-5 font-bold" />
                       </div>
                       <div className="space-y-1">
-                        <p className="font-semibold text-sm text-zinc-200">
+                        <p className="font-medium text-xs text-zinc-300">
                           Drag & drop document here, or <span className="text-brand-teal font-semibold hover:underline">browse files</span>
                         </p>
-                        <p className="text-[11px] text-[#8B949E]">Supports standard document & image formats</p>
+                        <p className="text-[10px] text-zinc-500">Supports standard document & image formats</p>
                       </div>
                       <input 
                         type="file" 
@@ -711,11 +711,11 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                       {progressData[step.id].files!.map((file: any) => {
                         const traffic = getTrafficLight(file.date_expires);
                         return (
-                          <div key={file.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-zinc-800 rounded-lg border border-white/[0.12] gap-2">
+                          <div key={file.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 bg-zinc-800/80 rounded border border-white/[0.08] gap-2">
                             <div className="flex flex-col gap-1">
                               <div className="flex items-center gap-3">
                                 <FileIcon className="w-4 h-4 text-brand-teal shrink-0" />
-                                <span className="text-[14px] font-medium text-white break-all">{file.name}</span>
+                                <span className="text-xs font-medium text-zinc-200 break-all">{file.name}</span>
                               </div>
                               {(file.date_issued || file.date_expires) && (
                                 <div className="flex items-center gap-2 ml-7">
@@ -794,19 +794,19 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   };
 
   return (
-    <div className="flex-1 overflow-auto bg-black p-4 md:p-8">
+    <div className="flex-1 overflow-auto bg-black p-4 md:p-6">
       <div className="max-w-4xl mx-auto space-y-6">
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-white mb-4 tracking-tight">Onboarding Hub</h1>
-          <p className="text-zinc-400">Complete your profile requirements to begin shifts</p>
+        <div className="mb-6 flex flex-col gap-1 border-b border-white/[0.05] pb-4">
+          <h1 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Onboarding Hub</h1>
+          <p className="text-xs text-zinc-500">Complete your profile requirements to begin shifts</p>
         </div>
 
-        <div className="bg-[#111111] border-t border-white/[0.05] rounded-xl p-6 shadow-lg relative overflow-hidden mb-8 mt-6">
-          <div className="flex justify-between text-sm font-medium mb-2">
-            <span className="text-zinc-400 uppercase tracking-wider text-xs font-semibold">OVERALL PROGRESS</span>
+        <div className="bg-[#111111] border border-white/[0.05] rounded-lg p-4 shadow-sm relative overflow-hidden mb-6">
+          <div className="flex justify-between text-[11px] font-medium mb-2">
+            <span className="text-zinc-500 uppercase tracking-wider font-semibold">OVERALL PROGRESS</span>
             <span className="text-brand-teal">{progressPercent}% COMPLETE</span>
           </div>
-          <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+          <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
             <div 
               className="h-full bg-indigo-500 transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
@@ -822,13 +822,13 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
         {/* NDIS Toggle Section */}
 
 
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-5 flex gap-4 mt-8">
-          <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
-            <span className="font-bold text-xl">!</span>
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex items-start gap-3 mt-6">
+          <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+            <span className="font-bold text-lg">!</span>
           </div>
           <div>
-            <h4 className="font-medium text-amber-400 mb-1">IMPORTANT NOTE</h4>
-            <p className="text-sm text-zinc-400 leading-relaxed">
+            <h4 className="font-medium text-sm text-amber-400 mb-0.5">IMPORTANT NOTE</h4>
+            <p className="text-xs text-zinc-400 leading-relaxed">
               All documents must be clear, legible, and current. Expired documents will not be accepted.
             </p>
           </div>
