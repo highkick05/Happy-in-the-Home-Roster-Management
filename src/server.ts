@@ -5352,6 +5352,39 @@ app.get("/api/health", (req, res) => {
     }
   });
 
+  
+  app.get("/api/positions", authenticateToken, (req: any, res: any) => {
+    try {
+      const positions = db.prepare("SELECT * FROM positions ORDER BY name ASC").all();
+      res.json(positions);
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  app.post("/api/admin/positions", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { name } = req.body;
+      if (!name) return res.status(400).json({ error: "Name is required" });
+      const info = db.prepare("INSERT INTO positions (name) VALUES (?)").run(name);
+      res.json({ id: info.lastInsertRowid, name });
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  app.delete("/api/admin/positions/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      db.prepare("DELETE FROM positions WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (e: any) {
+      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
   app.get("/api/staff", authenticateTokenOrWallboard, (req: any, res: any) => {
     if (req.user.role !== "ADMIN") {
       const staff = db
