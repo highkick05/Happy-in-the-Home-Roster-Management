@@ -4987,6 +4987,41 @@ app.get("/api/health", (req, res) => {
   );
 
   // --- Onboarding APIs ---
+  
+  app.get("/api/users/onboarding/dynamic-steps", authenticateToken, (req: any, res: any) => {
+    try {
+      let targetUserId = req.user.id;
+      if (req.user.role === "ADMIN" && req.query.userId) {
+        targetUserId = parseInt(req.query.userId, 10);
+      }
+      
+      const user = db.prepare("SELECT primary_position, additional_positions FROM users WHERE id = ?").get(targetUserId) as any;
+      if (!user) return res.json([]);
+      
+      const primary = user.primary_position || '';
+      let additionals = [];
+      try {
+        additionals = user.additional_positions ? JSON.parse(user.additional_positions) : [];
+      } catch(e) {}
+      
+      const allPositions = [primary, ...additionals].filter(Boolean);
+      if (allPositions.length === 0) return res.json([]);
+      
+      const placeholders = allPositions.map(() => '?').join(',');
+      const matchedPositions = db.prepare(`SELECT id, name FROM positions WHERE name IN (${placeholders})`).all(...allPositions);
+      
+      if (matchedPositions.length === 0) return res.json([]);
+      const positionIds = matchedPositions.map(p => p.id);
+      
+      const placeholdersIds = positionIds.map(() => '?').join(',');
+      const steps = db.prepare(`SELECT * FROM onboarding_hub_steps WHERE position_id IN (${placeholdersIds})`).all(...positionIds);
+      
+      res.json(steps);
+    } catch(e: any) {
+      res.status(500).json({error: e.message});
+    }
+  });
+
   app.get("/api/users/onboarding", authenticateToken, (req: any, res: any) => {
     try {
       let targetUserId = req.user.id;
@@ -5224,108 +5259,89 @@ app.get("/api/health", (req, res) => {
   });
   // --- End Travel Logs API ---
 
-  app.get(
-    "/api/admin/staff-compliance",
-    authenticateToken,
-    requireAdmin,
-    (req: any, res: any) => {
-      try {
-        const staffList = db
-          .prepare(
-            "SELECT id, first_name, last_name, email, onboarding_json FROM users WHERE role = 'STAFF'",
-          )
-          .all() as any[];
-        const allFiles = db
-          .prepare(
-            "SELECT id, date_issued, date_expires, original_name FROM files",
-          )
-          .all() as any[];
-        const filesMap = new Map(allFiles.map((f) => [f.id, f]));
+  app.get("/api/admin/staff-compliance", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const staffList = db.prepare("SELECT id, first_name, last_name, email, onboarding_json, primary_position, additional_positions FROM users WHERE role = 'STAFF'").all() as any[];
+      const allFiles = db.prepare("SELECT id, date_issued, date_expires, original_name FROM files").all() as any[];
+      const filesMap = new Map(allFiles.map((f) => [f.id, f]));
+      
+      const allPositions = db.prepare("SELECT * FROM positions").all() as any[];
+      const allSteps = db.prepare("SELECT * FROM onboarding_hub_steps").all() as any[];
 
-        const result = staffList.map((staff) => {
-          let onboardingData: any = {};
-          try {
-            onboardingData = staff.onboarding_json
-              ? JSON.parse(staff.onboarding_json)
-              : {};
-          } catch (err) {
-            onboardingData = {};
+      const result = staffList.map((staff) => {
+        let onboardingData: any = {};
+        try { onboardingData = staff.onboarding_json ? JSON.parse(staff.onboarding_json) : {}; } catch (e) {}
+
+        const primary = staff.primary_position || '';
+        let additionals = [];
+        try { additionals = staff.additional_positions ? JSON.parse(staff.additional_positions) : []; } catch(e) {}
+        
+        const staffPositionNames = [primary, ...additionals].filter(Boolean);
+        const matchedPositions = allPositions.filter(p => staffPositionNames.includes(p.name));
+        const posIds = matchedPositions.map(p => p.id);
+        
+        const staffSteps = allSteps.filter(s => posIds.includes(s.position_id));
+
+        const compliance: Record<string, any> = {};
+
+        for (const step of staffSteps) {
+          const key = 'dynamic_' + step.id;
+          const stepData = onboardingData[key] || {};
+          const files = stepData.files || [];
+          
+          if (files.length === 0) {
+            compliance[key] = { label: step.title, status: "MISSING", expiry: null, issued: null, fileName: null, fileId: null };
+            continue;
           }
 
-          const compliance: Record<string, any> = {};
-          const itemKeys = [
-            "tfn_super",
-            "ndis_screening",
-            "wwcc",
-            "vevo",
-            "ahpra",
-            "ndis_orientation",
-            "cpr",
-            "first_aid",
-            "manual_handling",
-            "driver_license",
-            "car_insurance",
-            "flu_shot",
-            "immunisation",
-            "covid_vaccine",
-            "police_check",
-          ];
+          const fileMeta = filesMap.get(files[0].id);
+          if (!fileMeta) {
+            compliance[key] = { label: step.title, status: "MISSING", expiry: null, issued: null, fileName: null, fileId: null };
+            continue;
+          }
 
-          itemKeys.forEach((key) => {
-            const step = onboardingData[key] || {};
-            let status = "MISSING";
-            let expiry: string | null = null;
-            let issued: string | null = null;
-            let fileName: string | null = null;
-
-            const stepFiles = step.files || [];
-            let fileId: number | null = null;
-            if (stepFiles.length > 0) {
-              const fInfo = stepFiles[0];
-              fileId = fInfo.id || null;
-              const fileMeta = filesMap.get(fInfo.id) as any;
-              if (fileMeta) {
-                expiry = fileMeta.date_expires || null;
-                issued = fileMeta.date_issued || null;
-                fileName = fileMeta.original_name || null;
-
-                if (expiry) {
-                  const expDate = new Date(expiry);
-                  const today = new Date();
-                  const diffTime = expDate.getTime() - today.getTime();
-                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                  if (diffDays <= 0) {
-                    status = "EXPIRED";
-                  } else if (diffDays <= 90) {
-                    status = "EXPIRING_SOON";
-                  } else {
-                    status = "VALID";
-                  }
-                } else {
-                  status = "VALID";
-                }
-              }
+          let status = "VALID";
+          let daysDiff = 999;
+          
+          if (step.requires_expiry === 1 && fileMeta.date_expires) {
+            const expDate = new Date(fileMeta.date_expires);
+            const today = new Date();
+            const diffTime = expDate.getTime() - today.getTime();
+            daysDiff = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (daysDiff <= 0) {
+              status = "EXPIRED";
+            } else if (daysDiff <= 30) {
+              status = "EXPIRING_SOON";
             }
+          }
 
-            compliance[key] = { status, expiry, issued, fileName, fileId };
-          });
-
-          return {
-            id: staff.id,
-            first_name: staff.first_name || staff.firstName || "",
-            last_name: staff.last_name || staff.lastName || "",
-            email: staff.email,
-            compliance,
+          compliance[key] = {
+            label: step.title,
+            status,
+            expiry: fileMeta.date_expires || null,
+            issued: fileMeta.date_issued || null,
+            fileName: fileMeta.original_name,
+            fileId: fileMeta.id,
+            daysUntilExpiry: daysDiff
           };
-        });
+        }
 
-        res.json(result);
-      } catch (e: any) {
-        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
-        res.status(500).json({ error: "Internal Server Error" });
-      }
-    },
-  );
+        return {
+          id: staff.id,
+          first_name: staff.first_name || staff.firstName || "",
+          last_name: staff.last_name || staff.lastName || "",
+          email: staff.email,
+          compliance,
+        };
+      });
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("Staff compliance error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 
   app.get("/api/users/names", authenticateToken, (req: any, res: any) => {
     try {
@@ -5340,14 +5356,14 @@ app.get("/api/health", (req, res) => {
     if (req.user.role !== "ADMIN") {
       const staff = db
         .prepare(
-          "SELECT id, first_name, last_name, role, avatar_url, primary_position FROM users WHERE role = ?",
+          "SELECT id, first_name, last_name, role, avatar_url, primary_position, additional_positions FROM users WHERE role = ?",
         )
         .all("STAFF");
       return res.json(staff);
     }
     const staff = db
       .prepare(
-        "SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, created_at, can_switch_admin, avatar_url, primary_position FROM users",
+        "SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, created_at, can_switch_admin, avatar_url, primary_position, additional_positions FROM users",
       )
       .all();
     res.json(staff);
@@ -5396,11 +5412,12 @@ app.get("/api/health", (req, res) => {
       canSwitchAdmin,
       avatarUrl,
       primaryPosition,
+      additionalPositions,
     } = req.body;
     try {
       const hash = bcrypt.hashSync(password, 10);
       const stmt = db.prepare(
-        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
       const info = stmt.run(
         email,
@@ -16209,144 +16226,7 @@ function resolveFilePath(systemName) {
   // ==========================================
   // EXPIRY ALERTS CRON ENGINE
   // ==========================================
-  const checkExpiries = () => {
-      try {
-          logger.info("Running daily Expiry Engine checks...");
-          const today = new Date();
-          const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN' OR can_switch_admin = 1").all() as any[];
-          
-          const getSmtpSettingsLocal = () => {
-            const row = db.prepare("SELECT * FROM settings WHERE `key` = 'smtp'").get() as any;
-            if (row && row.value) {
-              return JSON.parse(row.value);
-            }
-            return null;
-          };
-          
-          const smtpConfig = getSmtpSettingsLocal();
-          
-          // --- 1. COMPLIANCE DOCUMENTS ---
-          const staffList = db.prepare("SELECT id, first_name, last_name, email, onboarding_json FROM users WHERE role = 'STAFF'").all() as any[];
-          const allFiles = db.prepare("SELECT id, date_expires, original_name FROM files").all() as any[];
-          const filesMap = new Map(allFiles.map((f: any) => [f.id, f]));
-          
-          const complianceKeys = [
-              "tfn_super", "ndis_screening", "wwcc", "vevo", "ahpra",
-              "ndis_orientation", "cpr", "first_aid", "manual_handling",
-              "driver_license", "car_insurance", "flu_shot", "immunisation",
-              "covid_vaccine", "police_check"
-          ];
-          
-          const complianceNames: any = {
-              tfn_super: "TFN / Super", ndis_screening: "NDIS Worker Screening",
-              wwcc: "Working With Children Check", vevo: "VEVO / Visa",
-              ahpra: "AHPRA Registration", ndis_orientation: "NDIS Orientation Module",
-              cpr: "CPR Certificate", first_aid: "First Aid Certificate",
-              manual_handling: "Manual Handling", driver_license: "Driver License",
-              car_insurance: "Car Insurance", flu_shot: "Flu Shot",
-              immunisation: "Immunisation Record", covid_vaccine: "COVID-19 Vaccine",
-              police_check: "National Police Check"
-          };
-          
-          const sendNotification = (staff: any, type: string, title: string, message: string, link: string) => {
-              const staffId = staff.id;
-              // Check if we already sent this exact alert to the staff
-              const existing = db.prepare("SELECT id FROM notifications WHERE user_id = ? AND message = ? AND type = ?").get(staffId, message, type);
-              if (!existing) {
-                  // Notify staff in-app
-                  db.prepare("INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)").run(
-                      staffId, type, title, message, link
-                  );
-                  // Notify admins in-app
-                  for (const admin of admins) {
-                      const adminExisting = db.prepare("SELECT id FROM notifications WHERE user_id = ? AND message = ?").get(admin.id, message);
-                      if (!adminExisting) {
-                          db.prepare("INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)").run(
-                              admin.id, type, "Staff Expiry Alert", `${staff.first_name} ${staff.last_name}: ${message}`, `/staff`
-                          );
-                      }
-                  }
-                  
-                  // Optional: Send Email to staff if configured
-                  if (smtpConfig && smtpConfig.host && staff.email) {
-                      const transporter = getTransporter("system");
-                      transporter.sendMail({
-                          from: smtpConfig.from || '"System" <no-reply@happyinthehome.org>',
-                          to: staff.email,
-                          subject: title,
-                          text: `Hello ${staff.first_name},\n\n${message}\n\nPlease log in to the portal to review your compliance documents.\n\nThank you.`,
-                      }).catch((err: any) => logger.warn("Failed to send expiry email", err));
-                  }
-              }
-          };
 
-          for (const staff of staffList) {
-              let onboardingData: any = {};
-              try {
-                  if (staff.onboarding_json) onboardingData = JSON.parse(staff.onboarding_json);
-              } catch (e) {}
-              
-              for (const key of complianceKeys) {
-                  const step = onboardingData[key] || {};
-                  const stepFiles = step.files || [];
-                  if (stepFiles.length > 0) {
-                      const fInfo = stepFiles[0];
-                      const fileMeta = filesMap.get(fInfo.id);
-                      if (fileMeta && fileMeta.date_expires) {
-                          const expDate = new Date(fileMeta.date_expires);
-                          const diffTime = expDate.getTime() - today.getTime();
-                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                          
-                          const docName = complianceNames[key] || key;
-                          const link = `/compliance`;
-                          
-                          if (diffDays <= 0) {
-                              sendNotification(staff, "DOCUMENT_EXPIRED", "Compliance Document Expired", `Your ${docName} has expired.`, link);
-                          } else if (diffDays <= 30 && diffDays > 0) {
-                              sendNotification(staff, "DOCUMENT_EXPIRING_SOON", "Compliance Document Expiring Soon", `Your ${docName} is expiring in ${diffDays} day(s).`, link);
-                          }
-                      }
-                  }
-              }
-          }
-          
-          // --- 2. TRAINING MODULES ---
-          const staffTraining = db.prepare(`
-              SELECT st.*, m.title as module_title 
-              FROM staff_training st
-              JOIN training_modules m ON st.training_module_id = m.id
-              WHERE st.status = 'COMPLETED' AND st.expiry_date IS NOT NULL
-          `).all() as any[];
-          
-          for (const training of staffTraining) {
-              const expDate = new Date(training.expiry_date);
-              const diffTime = expDate.getTime() - today.getTime();
-              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              
-              const link = `/training`;
-              const staff = staffList.find((s: any) => s.id === training.staff_id);
-              if (!staff) continue;
-              
-              if (diffDays <= 0) {
-                  sendNotification(staff, "TRAINING_EXPIRED", "Training Module Expired", `Your training for ${training.module_title} has expired.`, link);
-              } else if (diffDays <= 30 && diffDays > 0) {
-                  sendNotification(staff, "TRAINING_EXPIRING_SOON", "Training Module Expiring Soon", `Your training for ${training.module_title} is expiring in ${diffDays} day(s).`, link);
-              }
-          }
-      } catch (err) {
-          logger.error("Error running Expiry Engine", err);
-      }
-  };
-
-  // Run the check every day at 8:00 AM server time
-  cron.schedule("0 8 * * *", () => {
-      checkExpiries();
-  });
-
-  // Run a quick check 5 seconds after server startup
-  setTimeout(() => {
-      checkExpiries();
-  }, 5000);
 
   // ==========================================
   // AUTO-REPAIR DUPLICATE FILES & COMPLIANCE LINKS
@@ -16713,6 +16593,78 @@ function resolveFilePath(systemName) {
           return res.status(401).json({ error: "Invalid token" });
       }
   });
+
+
+  const checkDynamicExpiries = () => {
+      try {
+          console.log("Running dynamic Expiry Engine checks...");
+          const today = new Date();
+          const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN' OR can_switch_admin = 1").all() as any[];
+          const getSmtpSettingsLocal = () => {
+            const row = db.prepare("SELECT * FROM settings WHERE `key` = 'smtp'").get() as any;
+            if (row && row.value) { return JSON.parse(row.value); }
+            return null;
+          };
+          const smtpConfig = getSmtpSettingsLocal();
+
+          const sendNotification = (staff: any, type: string, title: string, message: string, link: string) => {
+              const staffId = staff.id;
+              const existing = db.prepare("SELECT id FROM notifications WHERE user_id = ? AND message = ? AND type = ?").get(staffId, message, type);
+              if (!existing) {
+                  db.prepare("INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)").run(staffId, type, title, message, link);
+                  for (const admin of admins) {
+                      const adminExisting = db.prepare("SELECT id FROM notifications WHERE user_id = ? AND message = ?").get(admin.id, message);
+                      if (!adminExisting) {
+                          db.prepare("INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)").run(admin.id, type, "Staff Expiry Alert", `${staff.first_name} ${staff.last_name}: ${message}`, `/staff`);
+                      }
+                  }
+              }
+          };
+
+          const dynamicSteps = db.prepare("SELECT * FROM onboarding_hub_steps WHERE requires_expiry = 1").all() as any[];
+          if (dynamicSteps.length === 0) return;
+
+          const staffList = db.prepare("SELECT id, first_name, last_name, email, onboarding_json FROM users WHERE role = 'STAFF'").all() as any[];
+          const allFiles = db.prepare("SELECT id, date_expires, original_name FROM files").all() as any[];
+          const filesMap = new Map(allFiles.map(f => [f.id, f]));
+
+          for (const staff of staffList) {
+              let onboardingData: any = {};
+              try { if (staff.onboarding_json) onboardingData = JSON.parse(staff.onboarding_json); } catch (e) {}
+              
+              for (const stepDef of dynamicSteps) {
+                  const key = 'dynamic_' + stepDef.id;
+                  const step = onboardingData[key] || {};
+                  const stepFiles = step.files || [];
+                  if (stepFiles.length > 0) {
+                      const fInfo = stepFiles[0];
+                      const fileMeta = filesMap.get(fInfo.id) as any;
+                      if (fileMeta && fileMeta.date_expires) {
+                          const expDate = new Date(fileMeta.date_expires);
+                          const diffTime = expDate.getTime() - today.getTime();
+                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                          const link = `/onboarding`;
+                          
+                          if (diffDays <= 0) {
+                              sendNotification(staff, "EXPIRED", "Missing/Expired Credential", `${stepDef.title} has expired.`, link);
+                          } else if (diffDays <= 30) {
+                              sendNotification(staff, "WARNING", "Expiring Credential", `${stepDef.title} will expire in ${diffDays} days.`, link);
+                          }
+                      }
+                  }
+              }
+          }
+      } catch (e: any) {
+          console.error("Dynamic Expiry check failed:", e);
+      }
+  };
+
+  cron.schedule("0 8 * * *", () => {
+      checkDynamicExpiries();
+  });
+  setTimeout(() => {
+      checkDynamicExpiries();
+  }, 6000);
 
   cron.schedule("0 2 * * *", async () => {
       try {

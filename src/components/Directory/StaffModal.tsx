@@ -31,6 +31,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
     superMemberNumber: staff?.super_member_number || '',
     canSwitchAdmin: staff ? !!staff.can_switch_admin : false,
     primaryPosition: staff?.primary_position || '',
+    additionalPositions: (staff?.additional_positions ? JSON.parse(staff.additional_positions) : []) as string[],
     avatarUrl: getAvatarUrl(staff?.avatar_url || Math.random().toString(36).substring(7)),
   });
 
@@ -55,6 +56,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         superMemberNumber: staff?.super_member_number || '',
         canSwitchAdmin: !!staff.can_switch_admin,
         primaryPosition: staff.primary_position || '',
+        additionalPositions: (staff.additional_positions ? JSON.parse(staff.additional_positions) : []) as string[],
         avatarUrl: getAvatarUrl(staff.avatar_url || staff.first_name || 'Staff'),
       });
     } else {
@@ -213,6 +215,28 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                   <option value="ADMIN">Admin</option>
                 </select>
               </div>
+              <div className="md:col-span-2 pt-1 pb-3">
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Additional Positions</label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {positions.filter(p => p.name !== formData.primaryPosition).map(p => (
+                    <label key={p.id} className="flex items-center space-x-2 text-[12px] text-zinc-300">
+                      <input 
+                        type="checkbox" 
+                        checked={formData.additionalPositions.includes(p.name)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData(prev => ({ ...prev, additionalPositions: [...prev.additionalPositions, p.name] }));
+                          } else {
+                            setFormData(prev => ({ ...prev, additionalPositions: prev.additionalPositions.filter(name => name !== p.name) }));
+                          }
+                        }}
+                        className="rounded bg-black/40 border-white/[0.08] text-brand-blue focus:ring-brand-blue w-3.5 h-3.5"
+                      />
+                      <span>{p.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
               {formData.role === 'STAFF' && (
                 <div className="md:col-span-2 pt-1 pb-3 flex items-center">
                   <input
@@ -232,11 +256,9 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                 <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Primary Position</label>
                 <select name="primaryPosition" value={formData.primaryPosition} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
                   <option value="">Select a position...</option>
-                  <option value="Support Worker">Support Worker</option>
-                  <option value="Enrolled Nurse">Enrolled Nurse</option>
-                  <option value="Registered Nurse">Registered Nurse</option>
-                  <option value="Administration">Administration</option>
-                  <option value="Manager">Manager</option>
+                  {positions.map(p => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
                 </select>
               </div>
               <div>

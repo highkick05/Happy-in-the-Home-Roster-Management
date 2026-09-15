@@ -14,23 +14,7 @@ interface Step {
   optional?: boolean;
 }
 
-export const ONBOARDING_STEPS: Step[] = [
-  { id: 'tfn_super', title: 'Tax File Number Declaration & Superannuation Choice', description: 'Completed TFN and Super forms.', type: 'upload', links: [] },
-  { id: 'police_check', title: 'National Police Check', description: 'A National Police Check must be no older than 3 years and must be renewed every 3 years.', type: 'upload', links: [{ text: 'Apply for a National Police Check', url: 'https://wa-npc.verify.auspost.com.au/#/beforeStart/' }] },
-  { id: 'driver_license', title: 'Valid Driver\'s License', description: 'Annual check to visually inspect physical validity and current license status.', type: 'upload', links: [] },
-  { id: 'car_insurance', title: 'Comprehensive Car Insurance (with Business Use)', description: 'Annual renewal. Must verify explicit inclusion of "Business Use" or "Commuting/Work Travel".', type: 'upload', links: [] },
-  { id: 'wwcc', title: 'Working with Children Check (WWCC)', description: '3 years validity. Mandatory if supporting clients under the age of 18.', type: 'upload', links: [{ text: 'WWCC Information', url: 'https://www.aifs.gov.au/resources/resource-sheets/pre-employment-screening-working-children-checks-and-police-checks' }] },
-  { id: 'vevo', title: 'Right to Work / VEVO Check', description: 'Non-negotiable structural onboarding check. Monitored for visa holders; marked as static for citizens/PR.', type: 'upload', links: [], optional: true },
-  { id: 'ahpra', title: 'AHPRA Registration', description: 'Annual renewal (May 31st). Strictly mandatory for clinical nursing personnel.', type: 'upload', links: [{ text: 'AHPRA Registration', url: 'https://www.ahpra.gov.au/Registration.aspx' }], optional: true },
-  { id: 'cpr', title: 'HLTAID009 Provide CPR', description: 'Strictly annual renewal (every 12 months).', type: 'upload', links: [] },
-  { id: 'first_aid', title: 'HLTAID011 Provide First Aid', description: '3 years validity (every 36 months).', type: 'upload', links: [] },
-  { id: 'manual_handling', title: 'Manual Handling Competency', description: 'Strictly annual renewal (every 12 months).', type: 'upload', links: [] },
-  { id: 'flu_shot', title: 'Annual Influenza Vaccination', description: 'Annual renewal (must be updated before winter peak).', type: 'upload', links: [] },
-  { id: 'immunisation', title: 'Immunisation History', description: 'One-time onboarding baseline healthcare worker vaccines.', type: 'upload', links: [] },
-  { id: 'covid_vaccine', title: 'COVID Immunisation Evidence', description: 'Verified record at onboarding or inline with directives.', type: 'upload', links: [] },
-  { id: 'ndis_screening', title: 'NDIS Worker Screening Check (NWSC) Clearance', description: '5 years validity. Satisfies baseline Aged Care/Home Care worker screening without requiring a separate National Police Check.', type: 'upload', links: [{ text: 'NDIS Worker Screening', url: 'https://www.ndiscommission.gov.au/workers/worker-screening' }] },
-  { id: 'ndis_orientation', title: 'NDIS Worker Orientation Module Certificate', description: 'One-time mandatory onboarding check ("Quality, Safety and You").', type: 'upload', links: [{ text: 'Worker Orientation Module', url: 'https://www.ndiscommission.gov.au/workers/worker-training-modules-and-resources/worker-orientation-module' }] }
-];
+
 
 export default function OnboardingView({ targetUserId }: { targetUserId?: number }) {
   const { token, user } = useAuth();
@@ -46,18 +30,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isDraggingStep, setIsDraggingStep] = useState<Record<string, boolean>>({});
   const [sessionUploadedFiles, setSessionUploadedFiles] = useState<Record<string, boolean>>({});
-  const [ndisRelated, setNdisRelated] = useState<boolean>(() => {
-    return localStorage.getItem('ndis_related_work') === 'true';
-  });
+  
 
-  const handleNdisToggle = (val: boolean) => {
-    setNdisRelated(val);
-    localStorage.setItem('ndis_related_work', String(val));
-    // If turning off NDIS screening, collapse expanding if it is an NDIS step
-    if (!val && (expandedStep === 'ndis_screening' || expandedStep === 'ndis_orientation')) {
-      setExpandedStep(null);
-    }
-  };
+  
 
   const handleCopy = (text: string, fieldId: string) => {
     navigator.clipboard.writeText(text);
@@ -79,6 +54,23 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   };
 
   const fetchProgress = async () => {
+    try {
+      const dynRes = await fetch(`/api/users/onboarding/dynamic-steps${contextUserId ? `?userId=${contextUserId}` : ''}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const dynData = await dynRes.json();
+      if (Array.isArray(dynData)) {
+        const mapped: Step[] = dynData.map(d => ({
+          id: `dynamic_${d.id}`,
+          title: d.title,
+          description: d.description || '',
+          type: 'upload',
+          links: d.media_url ? [{ text: 'View Attached Media', url: d.media_url }] : []
+        }));
+        setDynamicSteps(mapped);
+      }
+    } catch(e) { console.error(e); }
+
     try {
       const url = contextUserId ? `/api/users/onboarding?userId=${contextUserId}` : '/api/users/onboarding';
       const res = await fetch(url, {
@@ -132,7 +124,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
 
     // Auto-complete if there is at least one file, auto-pending if empty (for upload type)
     let finalStatus = status;
-    const stepDef = ONBOARDING_STEPS.find(s => s.id === stepId);
+    const stepDef = dynamicSteps.find(s => s.id === stepId);
     if (stepDef?.type === 'upload') {
       finalStatus = newFiles.length > 0 ? 'completed' : 'pending';
     }
@@ -154,14 +146,8 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
         body: JSON.stringify({ data: newData, targetUserId: contextUserId })
       });
       
-      const generalSteps = ONBOARDING_STEPS.filter(s => {
-        if (s.id === 'ndis_screening' || s.id === 'ndis_orientation') return false;
-        return true;
-      });
-      const ndisSteps = ONBOARDING_STEPS.filter(s => {
-        return s.id === 'ndis_screening' || s.id === 'ndis_orientation';
-      });
-      const activeList = ndisRelated ? [...generalSteps, ...ndisSteps] : generalSteps;
+      
+      const activeList = dynamicSteps;
 
       const currentIndex = activeList.findIndex(s => s.id === stepId);
       if (!fileAction && currentIndex !== -1 && currentIndex < activeList.length - 1 && finalStatus === 'completed') {
@@ -253,7 +239,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     if (expires) formData.append('date_expires', expires);
     if (contextUserId) formData.append('targetUserId', contextUserId.toString());
 
-    const stepDef = ONBOARDING_STEPS.find(s => s.id === stepId);
+    const stepDef = dynamicSteps.find(s => s.id === stepId);
     const customNameStr = stepDef ? encodeURIComponent(stepDef.title) : stepId;
     
     try {
@@ -392,16 +378,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     return <div className="p-8 text-center text-zinc-400">Loading...</div>;
   }
 
-  const generalSteps = ONBOARDING_STEPS.filter(s => {
-    if (s.id === 'ndis_screening' || s.id === 'ndis_orientation') return false;
-    return true;
-  });
+  
 
-  const ndisSteps = ONBOARDING_STEPS.filter(s => {
-    return s.id === 'ndis_screening' || s.id === 'ndis_orientation';
-  });
-
-  const visibleSteps = ndisRelated ? [...generalSteps, ...ndisSteps] : generalSteps;
+  const visibleSteps = dynamicSteps;
 
   const mandatoryVisibleSteps = visibleSteps.filter(s => !s.optional);
   const completedVisibleCount = mandatoryVisibleSteps.filter(s => progressData[s.id]?.status === 'completed').length;
@@ -836,52 +815,11 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
 
         {/* General/Home Care Steps List */}
         <div className="space-y-4">
-          {generalSteps.map((step, index) => renderStepCard(step, index + 1))}
+          {dynamicSteps.map((step, index) => renderStepCard(step, index + 1))}
         </div>
 
         {/* NDIS Toggle Section */}
-        <div className="bg-[#111111] border border-white/[0.08] rounded-xl p-6 shadow-lg my-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-semibold text-white mb-1">Performing any NDIS RELATED WORK?</h3>
-              <p className="text-zinc-400 text-sm">
-                Toggle this if you support participant shifts involving NDIS care plan items to activate required screening compliance checks.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <span className={`text-sm font-semibold uppercase tracking-wider ${ndisRelated ? 'text-brand-teal' : 'text-zinc-500'}`}>
-                {ndisRelated ? 'YES' : 'NO'}
-              </span>
-              <button
-                type="button"
-                onClick={() => handleNdisToggle(!ndisRelated)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  ndisRelated ? 'bg-brand-teal' : 'bg-zinc-800'
-                }`}
-                role="switch"
-                aria-checked={ndisRelated}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    ndisRelated ? 'translate-x-[20px]' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-        </div>
 
-        {/* NDIS Related Subdivision */}
-        {ndisRelated && (
-          <div className="space-y-4 mt-8">
-            <div className="border-t border-white/[0.08] pt-6 mb-4">
-              <h2 className="text-md font-bold text-brand-teal uppercase tracking-wider">ONLY FOR NDIS RELATED WORK</h2>
-              <p className="text-xs text-zinc-500 mt-1">Please complete both NDIS specific compliance checks below.</p>
-            </div>
-            {ndisSteps.map((step, index) => renderStepCard(step, generalSteps.length + index + 1))}
-          </div>
-        )}
 
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-5 flex gap-4 mt-8">
           <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">

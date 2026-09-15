@@ -119,24 +119,6 @@ const formatRouteLog = (logStr: string | null, row?: any): string | null => {
   }
 };
 
-const ONBOARDING_STEP_LABELS: Record<string, string> = {
-  tfn_super: 'Tax File Number & Super',
-  ndis_screening: 'NDIS Screen Check (NWSC)',
-  wwcc: 'Working with Children Check (WWCC)',
-  vevo: 'Right to Work / VEVO',
-  ahpra: 'AHPRA Registration',
-  ndis_orientation: 'NDIS Orientation Module',
-  cpr: 'HLTAID009 CPR',
-  first_aid: 'HLTAID011 First Aid',
-  manual_handling: 'Manual Handling',
-  driver_license: "Driver's License",
-  car_insurance: 'Car Insurance (Business)',
-  flu_shot: 'Annual Influenza Vaccine',
-  immunisation: 'Immunisation History',
-  covid_vaccine: 'COVID Immunisation',
-  police_check: 'National Police Check'
-};
-
 export default function ComplianceDashboard() {
   const { token, user, settings } = useAuth();
   const [previewPhoto, setPreviewPhoto] = useState<{url: string, type: string} | null>(null);
@@ -1325,7 +1307,7 @@ export default function ComplianceDashboard() {
                               <span className="text-[11px] text-[#8B949E] font-normal">({staff.email})</span>
                             </div>
                             <div className="text-[11px] text-[#8B949E] flex items-center gap-2 border-l border-white/10 pl-3 m-0 whitespace-nowrap overflow-hidden text-ellipsis">
-                              <span>Compliance Stats: <strong className="text-[#E6EDF3] font-medium">{stats.totalUploaded} of {Object.keys(ONBOARDING_STEP_LABELS).length}</strong> items uploaded</span>
+                              <span>Compliance Stats: <strong className="text-[#E6EDF3] font-medium">{stats.totalUploaded} of {stats.totalItems}</strong> items uploaded</span>
                               <span>•</span>
                               <span>Missing: <strong className="text-[#E6EDF3] font-medium">{stats.missing}</strong> items</span>
                             </div>
@@ -1382,8 +1364,8 @@ export default function ComplianceDashboard() {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                              {Object.entries(ONBOARDING_STEP_LABELS).map(([key, label]) => {
-                                const item = (staff.compliance || {})[key] || { status: 'MISSING', expiry: null, issued: null, fileName: null, fileId: null };
+                              {Object.entries(staff.compliance || {}).map(([key, item]: [string, any]) => {
+                                const label = item.label || 'Unknown Document';
                                 
                                 let boxStyle = 'bg-brand-navy border-border-subtle';
                                 let textStyle = 'text-zinc-500';

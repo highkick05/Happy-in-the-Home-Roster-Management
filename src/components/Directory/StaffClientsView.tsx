@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { motion } from 'motion/react';
 import { Plus, Edit2, Ban, CheckCircle, UsersIcon, UserPlus, Calendar, FileText, Tractor, Sparkles, Zap, Wrench, Activity, Droplet, Apple, Footprints, Smile, Mic } from 'lucide-react';
 import StaffModal from './StaffModal';
+import PositionsModal from './PositionsModal';
 import ClientModal from './ClientModal';
 import ClientRosterModal from './ClientRosterModal';
 import ProviderModal from './ProviderModal';
@@ -139,6 +140,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [staffTab, setStaffTab] = useLocalStorage<'STAFF' | 'ADMIN'>('directory_staff_tab', 'STAFF');
 
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
+  const [isPositionsModalOpen, setIsPositionsModalOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
 
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
@@ -308,6 +310,14 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
             <div className="px-4 py-2 text-xs font-medium text-[#E6EDF3] flex items-center">
               {activeTab === 'CONTRACTORS' ? 'Services' : 'Providers'} <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-brand-navy border border-border-subtle text-[#8B949E]">{activeTab === 'CONTRACTORS' ? contractors.length : sortedProviders.length}</span>
             </div>
+          )}
+          {activeTab === 'STAFF' && (
+            <button 
+              onClick={() => setIsPositionsModalOpen(true)}
+              className="flex items-center px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs font-medium rounded-md transition-all border border-white/10 shrink-0"
+            >
+              Manage Positions
+            </button>
           )}
           <button 
             onClick={handleAddNew}
@@ -585,6 +595,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
         </div>
       </div>
 
+      <PositionsModal
+        isOpen={isPositionsModalOpen}
+        onClose={() => setIsPositionsModalOpen(false)}
+        token={token}
+      />
+      
       <StaffModal
         isOpen={isStaffModalOpen}
         onClose={() => setIsStaffModalOpen(false)}

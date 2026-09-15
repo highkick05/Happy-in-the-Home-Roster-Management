@@ -30,6 +30,7 @@ import ProfileView from './components/Profile/ProfileView';
 import ComplianceDashboard from './components/Compliance/ComplianceDashboard';
 import ActiveShiftModal from './components/Roster/ActiveShiftModal';
 import OnboardingView from './components/Onboarding/OnboardingView';
+import AdminOnboardingHub from './components/AdminOnboarding/AdminOnboardingHub';
 import UniversalPWAInstall from './components/UniversalPWAInstall';
 import NotificationsDropdown from './components/NotificationsDropdown';
 import LiveChatIcon from './components/LiveChatIcon';
@@ -321,7 +322,12 @@ function Layout({ children }: { children: React.ReactNode }) {
                 <NavLink replace={true} to="/invoices" className={getNavClasses} title="Invoicing">
                   <FileText className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Invoicing' : ''}
                 </NavLink>
-                <NavLink replace={true} to="/compliance" className={getNavClasses} title="Compliance">
+                {user?.role === 'ADMIN' && (
+              <NavLink replace={true} to="/admin-onboarding" className={getNavClasses} title="Admin Onboarding">
+                <FileCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
+              </NavLink>
+            )}
+            <NavLink replace={true} to="/compliance" className={getNavClasses} title="Compliance">
                   <FileCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Compliance' : ''}
                 </NavLink>
               </div>
@@ -522,6 +528,7 @@ export default function App() {
             <Route path="/files" element={<ProtectedRoute><Layout><FilesView /></Layout></ProtectedRoute>} />
             <Route path="/training" element={<ProtectedRoute><Layout><TrainingView /></Layout></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute staffOnly><Layout><OnboardingView /></Layout></ProtectedRoute>} />
+            <Route path="/admin-onboarding" element={<ProtectedRoute adminOnly><Layout><AdminOnboardingHub /></Layout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute adminOnly><Layout><SettingsView /></Layout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Layout><ProfileView /></Layout></ProtectedRoute>} />
           </Routes>
