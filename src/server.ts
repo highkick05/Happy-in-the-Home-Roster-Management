@@ -712,6 +712,21 @@ try {
     console.error("Migration error for users table:", e.message);
   }
 
+  try {
+    const usersCols = db.prepare("PRAGMA table_info(users)").all();
+    if (!usersCols.some(c => c.name === 'status')) {
+      db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'ACTIVE'");
+      console.log("Migrated users table to include status");
+    }
+    if (!usersCols.some(c => c.name === 'additional_positions')) {
+      db.exec("ALTER TABLE users ADD COLUMN additional_positions TEXT DEFAULT '[]'");
+      console.log("Migrated users table to include additional_positions");
+    }
+  } catch (e) {
+    console.error("Migration error for users table additional columns:", e.message);
+  }
+
+
   } catch (e: any) {
     console.warn("Migration warning for settings table:", e.message);
   }
@@ -1034,6 +1049,12 @@ try {
         allocated_hours REAL DEFAULT 0,
         FOREIGN KEY (agreement_id) REFERENCES ndis_service_agreements(id),
         FOREIGN KEY (service_id) REFERENCES services(id)
+      );
+
+      
+      CREATE TABLE IF NOT EXISTS positions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE
       );
 
       CREATE TABLE IF NOT EXISTS position_templates (
@@ -1563,6 +1584,25 @@ try {
     }
   } catch (err) {
     console.error("Migration error tags training_modules:", err);
+  }
+
+  
+  try {
+    const positionsCount = db.prepare("SELECT COUNT(*) as count FROM positions").get().count;
+    if (positionsCount === 0) {
+      const defaultPositions = [
+        'Support Worker',
+        'Enrolled Nurse',
+        'Registered Nurse',
+        'Administration',
+        'Manager'
+      ];
+      const insertPos = db.prepare("INSERT OR IGNORE INTO positions (name) VALUES (?)");
+      defaultPositions.forEach(p => insertPos.run(p));
+      console.log("Seeded default positions");
+    }
+  } catch(e) {
+    console.error("Error seeding positions:", e.message);
   }
 
   // Auto-assign avatars if missing
