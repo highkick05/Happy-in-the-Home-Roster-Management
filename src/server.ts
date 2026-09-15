@@ -5363,7 +5363,7 @@ app.get("/api/health", (req, res) => {
     }
     const staff = db
       .prepare(
-        "SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, created_at, can_switch_admin, avatar_url, primary_position, additional_positions FROM users",
+        "SELECT id, email, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions FROM users",
       )
       .all();
     res.json(staff);
@@ -12573,7 +12573,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           .all();
         const staff = db
           .prepare(
-            "SELECT id, first_name, last_name FROM users WHERE role = 'STAFF' AND status = 'ACTIVE' ORDER BY first_name ASC",
+            "SELECT id, first_name, last_name FROM users WHERE role = 'STAFF' ORDER BY first_name ASC",
           )
           .all();
         const services = db

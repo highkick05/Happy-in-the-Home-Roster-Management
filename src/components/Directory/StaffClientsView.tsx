@@ -348,7 +348,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               {activeTab === 'STAFF' && displayStaff.map(s => {
                 const initials = `${(s.first_name || '').charAt(0)}${(s.last_name || '').charAt(0)}`.toUpperCase();
                 return (
-                  <tr key={s.id} onClick={() => handleEditStaff(s)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${s.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
+                  <tr key={s.id} onClick={() => handleEditStaff(s)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer`}>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
                         {s.avatar_url ? (
@@ -403,7 +403,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               {activeTab === 'CLIENTS' && displayClients.map(c => {
                 const initials = `${(c.first_name || '').charAt(0)}${(c.last_name || '').charAt(0)}`.toUpperCase();
                 return (
-                  <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`, { replace: true })} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${c.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
+                  <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`, { replace: true })} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer`}>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
                         {c.avatar_url ? (
@@ -476,7 +476,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               {activeTab === 'CONTRACTORS' && contractors.map(c => {
                 const initials = (c.company_name || '').slice(0, 2).toUpperCase();
                 return (
-                  <tr key={c.id} onClick={() => handleEditContractor(c)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${c.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
+                  <tr key={c.id} onClick={() => handleEditContractor(c)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer`}>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
                         <div className="w-7 h-7 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal flex items-center justify-center text-[11px] font-semibold shrink-0">
@@ -526,7 +526,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               {activeTab === 'PROVIDERS' && sortedProviders.map(p => {
                 const initials = (p.company_name || '').slice(0, 2).toUpperCase();
                 return (
-                  <tr key={p.id} onClick={() => handleEditProvider(p)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer ${p.status === 'SUSPENDED' ? 'opacity-60' : ''}`}>
+                  <tr key={p.id} onClick={() => handleEditProvider(p)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer`}>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
                         <div className="w-7 h-7 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal flex items-center justify-center text-[11px] font-semibold shrink-0">
