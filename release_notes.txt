@@ -1,0 +1,21 @@
+### Automated Expiry Engine
+* Implemented a background cron engine that scans all staff compliance documents and training modules daily at 8:00 AM.
+* Automatically issues in-app Notification Bell alerts to staff and Admins for documents that are "Expiring Soon" (<30 days) or "Expired".
+* Dispatches email reminders automatically if SMTP is configured.
+* Strictly protected this engine in core agent instructions.
+
+### Automated Database Backups
+* Fully repaired the Database Backup system.
+* The "Download Current Database" feature now safely packages and serves live `.sqlite` files directly to the browser.
+* Implemented a 2:00 AM nightly automated backup cron job.
+* Added auto-cleanup logic to retain a rolling 30-day history of backups to conserve storage.
+* Protected the backup system from future architectural changes.
+
+### Progressive Web App (PWA) Reliability Updates
+* Fixed the infinite reload/flickering loop bug caused by stale service workers.
+* The "Force Reload" action now securely unregisters old workers and entirely clears `caches.keys()` before performing a hard-navigation refresh.
+* Restored the reassuring "(Auto-Update Active ✅)" green tick in the sidebar navigation.
+
+### Files & Interface
+* Fixed a bug where the "Delete Selected" bulk-action button would fail to render in the Files system.
+* Implemented comprehensive `AGENTS.md` rules strictly locking down the entire file and upload architecture from accidental AI modifications.
