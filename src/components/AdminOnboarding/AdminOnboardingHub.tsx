@@ -22,6 +22,23 @@ interface Step {
   expiry_years: number;
 }
 
+const getPreviewText = (desc: string) => {
+  if (!desc) return '';
+  try {
+    if (desc.trim().startsWith('{')) {
+      const data = JSON.parse(desc);
+      if (data.blocks) {
+        return data.blocks.map((b: any) => {
+          if (b.type === 'paragraph' || b.type === 'header') return b.data?.text || '';
+          if (b.type === 'list') return b.data?.items?.join(', ') || '';
+          return '';
+        }).filter(Boolean).join(' ').replace(/<[^>]*>?/gm, '');
+      }
+    }
+  } catch(e) {}
+  return desc.replace(/<[^>]*>?/gm, '');
+};
+
 export default function AdminOnboardingHub() {
   const { token } = useAuth();
   const [positions, setPositions] = useState<Position[]>([]);
@@ -442,11 +459,8 @@ export default function AdminOnboardingHub() {
                                 </div>
                               </div>
                               {step.description && (
-                                <div className="mt-1.5">
-                                  <EditorJSWrapper 
-                                    initialData={step.description}
-                                    readOnly={true}
-                                  />
+                                <div className="mt-1.5 text-[13px] text-zinc-400 leading-relaxed whitespace-pre-wrap line-clamp-2">
+                                  {getPreviewText(step.description)}
                                 </div>
                               )}
                             </div>

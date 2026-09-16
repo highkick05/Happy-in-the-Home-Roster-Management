@@ -53,16 +53,25 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
     if (typeof initialData === 'string') {
       try {
         parsedData = JSON.parse(initialData);
+        if (!parsedData || !Array.isArray(parsedData.blocks)) {
+           throw new Error("Invalid EditorJS format");
+        }
       } catch (e) {
-        // If it's a plain string, convert to paragraphs
+        // If it's a plain string or invalid, convert to paragraphs
+        const textToParse = typeof initialData === 'string' ? initialData : '';
+        const blocks = textToParse.split('\n').filter(Boolean).map((line, i) => ({
+          id: Math.random().toString(36).substr(2, 9) + i,
+          type: 'paragraph',
+          data: { text: line }
+        }));
+        
         parsedData = {
           time: Date.now(),
-          blocks: [
-            {
-              type: 'paragraph',
-              data: { text: initialData }
-            }
-          ],
+          blocks: blocks.length > 0 ? blocks : [{ 
+            id: Math.random().toString(36).substr(2, 9),
+            type: 'paragraph', 
+            data: { text: '' } 
+          }],
           version: '2.28.2'
         };
       }
@@ -206,15 +215,26 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
   const handleContainerClick = (e: React.MouseEvent) => {
     if (readOnly || !editorInstanceRef.current) return;
     const target = e.target as HTMLElement;
-    // If the user clicks the empty space padding around the editor (not an actual block)
-    if (target.classList.contains('editorjs-wrapper') || target.classList.contains('codex-editor') || target.classList.contains('codex-editor__redactor')) {
+    
+    // Ignore clicks on our custom toolbar
+    if (target.closest('.flex.items-center.justify-between.bg-brand-navy')) return;
+    
+    // Ignore if clicking on an image tool or interactive EditorJS UI
+    if (target.closest('.cdx-button') || target.closest('.image-tool')) return;
+
+    // Force focus on the editor if it doesn't already have it, or if clicking outside a block
+    setTimeout(() => {
       try {
-        editorInstanceRef.current.caret.setToLastBlock('end');
-        editorInstanceRef.current.focus(true);
-      } catch (err) {
-        console.error(err);
-      }
-    }
+        const active = document.activeElement;
+        // If the active element is not inside our editor container, OR it's the body (lost focus)
+        if (!active || active === document.body || !editorContainerRef.current?.contains(active)) {
+           if (editorInstanceRef.current) {
+             editorInstanceRef.current.caret.setToLastBlock('end');
+             editorInstanceRef.current.focus(true);
+           }
+        }
+      } catch (err) {}
+    }, 10);
   };
 
   return (
