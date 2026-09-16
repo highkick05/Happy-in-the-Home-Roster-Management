@@ -954,6 +954,16 @@ try {
 
   try {
     db.exec(`
+      ALTER TABLE onboarding_hub_steps ADD COLUMN expiry_years INTEGER DEFAULT 1;
+    `);
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
+    db.exec(`
       ALTER TABLE tasks ADD COLUMN attachments TEXT DEFAULT '[]';
     `);
   } catch (e: any) {
@@ -5331,6 +5341,7 @@ app.get("/api/health", (req, res) => {
       const steps = db.prepare("SELECT * FROM onboarding_hub_steps").all();
       res.json(steps);
     } catch (error: any) {
+      console.error("ONBOARDING API ERROR:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -5343,6 +5354,7 @@ app.get("/api/health", (req, res) => {
       const newStep = db.prepare("SELECT * FROM onboarding_hub_steps WHERE id = ?").get(info.lastInsertRowid);
       res.json(newStep);
     } catch (error: any) {
+      console.error("ONBOARDING API ERROR:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -5354,6 +5366,7 @@ app.get("/api/health", (req, res) => {
       stmt.run(title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0, expiry_years || 1, req.params.id);
       res.json({ success: true });
     } catch (error: any) {
+      console.error("ONBOARDING API ERROR:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -5363,6 +5376,7 @@ app.get("/api/health", (req, res) => {
       db.prepare("DELETE FROM onboarding_hub_steps WHERE id = ?").run(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
+      console.error("ONBOARDING API ERROR:", error);
       res.status(500).json({ error: error.message });
     }
   });
