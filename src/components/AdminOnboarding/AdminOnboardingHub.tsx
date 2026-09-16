@@ -104,7 +104,7 @@ export default function AdminOnboardingHub() {
 
   return (
     <div className="flex-1 overflow-auto bg-black p-4 md:p-6">
-      <div className="max-w-6xl mx-auto space-y-4">
+      <div className="w-full mx-auto space-y-4">
         <div className="mb-4 flex flex-col gap-0.5 border-b border-white/[0.05] pb-3">
           <h1 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Onboarding Hub Manager</h1>
           <p className="text-xs text-zinc-500">Design specific onboarding flows and requirements for different staff positions</p>
@@ -274,15 +274,23 @@ export default function AdminOnboardingHub() {
                             </div>
                           </div>
                         ) : (
-                          <div className="p-5 flex gap-4">
-                            <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 text-xs font-bold shrink-0 mt-1">
+                          <div 
+                            onClick={(e) => {
+                              // If they click on the delete button, don't trigger edit
+                              if ((e.target as HTMLElement).closest('button[title="Delete Step"]')) return;
+                              setIsEditing(step.id); 
+                              setEditForm(step);
+                            }}
+                            className="p-3 md:p-4 flex gap-3 cursor-pointer hover:bg-white/[0.02] transition-colors group relative items-center"
+                          >
+                            <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 text-[11px] font-bold shrink-0">
                               {idx + 1}
                             </div>
                             <div className="flex-1">
                               <div className="flex items-start justify-between">
                                 <div>
-                                  <h3 className="text-[15px] font-semibold text-white">{step.title}</h3>
-                                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                  <h3 className="text-[14px] font-semibold text-white group-hover:text-brand-teal transition-colors">{step.title}</h3>
+                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                                     {step.requires_expiry === 1 && (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase tracking-wider">
                                         <AlertCircle className="w-3 h-3" /> Expiry Tracked
