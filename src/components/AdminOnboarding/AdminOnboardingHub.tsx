@@ -49,46 +49,60 @@ export default function AdminOnboardingHub() {
 
   const currentSteps = steps.filter(s => s.position_id === selectedPositionId);
 
-  const handleAddStep = async () => {
+  const handleAddStep = () => {
     if (!selectedPositionId) return;
-    try {
-      const res = await fetch('/api/admin/onboarding-steps', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          position_id: selectedPositionId,
-          title: 'New Onboarding Step',
-          description: '',
-          media_url: '',
-          requires_expiry: 0,
-          expiry_years: 1,
-          upload_required: 1,
-          is_mandatory: 1
-        })
-      });
-      const newStep = await res.json();
-      setSteps(prev => [...prev, newStep]);
-      setIsEditing(newStep.id);
-      setEditForm(newStep);
-    } catch(e) {}
+    const tempId = -Date.now();
+    const newStep: any = {
+      id: tempId,
+      position_id: selectedPositionId,
+      title: 'New Onboarding Step',
+      description: '',
+      media_url: '',
+      requires_expiry: 0,
+      expiry_years: 1,
+      upload_required: 1,
+      is_mandatory: 1
+    };
+    setSteps(prev => [...prev, newStep]);
+    setIsEditing(tempId);
+    setEditForm(newStep);
   };
 
   const handleSaveStep = async (id: number) => {
     try {
-      await fetch(`/api/admin/onboarding-steps/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(editForm)
-      });
-      setSteps(prev => prev.map(s => s.id === id ? { ...s, ...editForm } as Step : s));
+      if (id < 0) {
+        // It's a new step, POST to create it
+        const res = await fetch('/api/admin/onboarding-steps', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(editForm)
+        });
+        const createdStep = await res.json();
+        setSteps(prev => prev.map(s => s.id === id ? createdStep : s));
+      } else {
+        // Existing step, PUT to update
+        await fetch(`/api/admin/onboarding-steps/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(editForm)
+        });
+        setSteps(prev => prev.map(s => s.id === id ? { ...s, ...editForm } as any : s));
+      }
       setIsEditing(null);
     } catch(e) {}
+  };
+
+  const handleCancelEdit = (id: number) => {
+    if (id < 0) {
+      setSteps(prev => prev.filter(s => s.id !== id));
+    }
+    setIsEditing(null);
   };
 
   const handleDeleteStep = async (id: number) => {
@@ -260,7 +274,7 @@ export default function AdminOnboardingHub() {
 
                             <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.05]">
                               <button 
-                                onClick={() => setIsEditing(null)}
+                                onClick={() => handleCancelEdit(step.id)}
                                 className="px-4 py-2 text-[13px] font-medium text-zinc-400 hover:text-white transition-colors"
                               >
                                 Cancel
