@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Save, FileCheck, Edit, Video, AlertCircle, Users, Briefcase, Globe } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PositionsModal from '../Directory/PositionsModal';
+import EditorJSWrapper from '../ProgressNotes/EditorJSWrapper';
 
 interface Position {
   id: number;
@@ -288,12 +289,13 @@ export default function AdminOnboardingHub() {
                             
                             <div>
                               <label className="block text-[11px] font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Instructions / Description</label>
-                              <textarea 
-                                value={editForm.description}
-                                onChange={e => setEditForm({...editForm, description: e.target.value})}
-                                rows={3}
-                                className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-white outline-none focus:border-brand-teal transition-colors resize-none"
-                              />
+                              <div className="border border-white/[0.08] rounded-lg overflow-hidden bg-black/40">
+                                <EditorJSWrapper 
+                                  initialData={editForm.description}
+                                  onChange={(data) => setEditForm({...editForm, description: JSON.stringify(data)})}
+                                  minHeight={250}
+                                />
+                              </div>
                             </div>
 
                             <div>
@@ -440,7 +442,12 @@ export default function AdminOnboardingHub() {
                                 </div>
                               </div>
                               {step.description && (
-                                <p className="text-[13px] text-zinc-400 mt-1.5 leading-relaxed whitespace-pre-wrap">{step.description}</p>
+                                <div className="mt-1.5">
+                                  <EditorJSWrapper 
+                                    initialData={step.description}
+                                    readOnly={true}
+                                  />
+                                </div>
                               )}
                             </div>
                           </div>

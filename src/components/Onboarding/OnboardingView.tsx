@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Upload, CheckCircle2, ChevronDown, ChevronUp, Link as LinkIcon, Download, Trash2, File as FileIcon, Info, Copy, Check, Users, Briefcase } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
+import EditorJSWrapper from '../ProgressNotes/EditorJSWrapper';
 
 type StepType = 'upload' | 'confirm';
 
@@ -425,6 +426,18 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   const completedVisibleCount = mandatoryVisibleSteps.filter(s => progressData[s.id]?.status === 'completed').length;
   const progressPercent = mandatoryVisibleSteps.length > 0 ? Math.round((completedVisibleCount / mandatoryVisibleSteps.length) * 100) : 0;
 
+  const getPreviewText = (desc: string) => {
+    try {
+      if (desc && desc.trim().startsWith('{')) {
+        const data = JSON.parse(desc);
+        if (data.blocks) {
+          return data.blocks.map((b: any) => b.data?.text || '').join(' ').replace(/<[^>]*>?/gm, '');
+        }
+      }
+    } catch(e) {}
+    return desc;
+  };
+
   const renderStepCard = (step: Step, stepNum: number) => {
     const isExpanded = expandedStep === step.id;
     const isCompleted = progressData[step.id]?.status === 'completed';
@@ -480,7 +493,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                 )}
               </h3>
               {!isExpanded && (
-                <p className="text-sm text-zinc-500">{step.description}</p>
+                <div className="text-sm text-zinc-500 line-clamp-1">{getPreviewText(step.description)}</div>
               )}
             </div>
           </div>
@@ -507,7 +520,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
         {isExpanded && (
           <div className="p-5 pt-0 mt-2 border-t border-white/[0.08]/50">
             <div className="mb-6 mt-4">
-              <p className="text-sm text-zinc-400 mb-4">{step.description}</p>
+              <div className="text-sm text-zinc-400 mb-4 [&_.editorjs-wrapper]:!bg-transparent [&_.editorjs-wrapper]:!px-0 [&_.editorjs-wrapper]:!py-0">
+                {step.description && <EditorJSWrapper initialData={step.description} readOnly={true} />}
+              </div>
               
               {step.id === 'ndis_screening' && (
                 <div className="mb-6 pb-2">
