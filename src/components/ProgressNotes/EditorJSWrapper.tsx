@@ -35,6 +35,12 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorInstanceRef = useRef<EditorJS | null>(null);
   const { token } = useAuth();
+  const onChangeRef = useRef(onChange);
+
+  // Keep onChangeRef up to date to prevent stale closures
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     if (!editorContainerRef.current) return;
@@ -89,7 +95,7 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
         }
       },
 
-      placeholder: 'Type your progress note here... Use drag & drop for images.',
+      placeholder: 'Type your instructions here...',
       tools: {
         paragraph: {
           class: Paragraph,
@@ -125,51 +131,16 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
         }
       },
       onChange: async (api) => {
-        if (onChange) {
+        if (onChangeRef.current) {
           const data = await api.saver.save();
-          onChange(data);
+          onChangeRef.current(data);
         }
       }
     });
 
     editorInstanceRef.current = editor;
 
-  
-  
-  const formatText = (command: string, value?: string) => {
-    document.execCommand(command, false, value);
-  };
-
-  const insertBlock = (type: string, data: any = {}) => {
-    if (editorInstanceRef.current) {
-      editorInstanceRef.current.blocks.insert(type, data);
-      editorInstanceRef.current.caret.setToBlock('end');
-    }
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    const formData = new FormData();
-    formData.append('image', file);
-    try {
-      const res = await fetch('/api/progress-notes/upload-image', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
-      });
-      const data = await res.json();
-      if (data.success && data.file) {
-        insertBlock('image', { file: data.file });
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  return (
-) => {
+    return () => {
       if (editorInstanceRef.current && typeof editorInstanceRef.current.destroy === 'function') {
         try {
           editorInstanceRef.current.destroy();
@@ -195,12 +166,11 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
     },
     setFocus: () => {
       if (editorInstanceRef.current) {
-        editorInstanceRef.current.focus();
+        editorInstanceRef.current.focus(true);
       }
     }
   }));
 
-  
   const formatText = (command: string, value?: string) => {
     document.execCommand(command, false, value);
   };
@@ -233,16 +203,30 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
     }
   };
 
+  const handleContainerClick = (e: React.MouseEvent) => {
+    if (readOnly || !editorInstanceRef.current) return;
+    const target = e.target as HTMLElement;
+    // If the user clicks the empty space padding around the editor (not an actual block)
+    if (target.classList.contains('editorjs-wrapper') || target.classList.contains('codex-editor') || target.classList.contains('codex-editor__redactor')) {
+      try {
+        editorInstanceRef.current.caret.setToLastBlock('end');
+        editorInstanceRef.current.focus(true);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
   return (
     <div className={`editorjs-container flex flex-col ${readOnly ? 'read-only' : ''}`}>
       {!readOnly && (
         <div className="flex items-center justify-between bg-brand-navy border-b border-border-subtle py-1 px-3">
           <div className="flex items-center gap-1">
-           <button type="button" onClick={() => insertBlock('header', { level: 1 })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Heading 1"><Heading1 size={15} /></button>
-           <button type="button" onClick={() => insertBlock('header', { level: 2 })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Heading 2"><Heading2 size={15} /></button>
+           <button type="button" onMouseDown={(e) => { e.preventDefault(); insertBlock('header', { level: 1 }); }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Heading 1"><Heading1 size={15} /></button>
+           <button type="button" onMouseDown={(e) => { e.preventDefault(); insertBlock('header', { level: 2 }); }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Heading 2"><Heading2 size={15} /></button>
            <div className="w-px h-4 bg-white/10 mx-1" />
-           <button type="button" onClick={() => insertBlock('list', { style: 'unordered' })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Bullet List"><ListIcon size={15} /></button>
-           <button type="button" onClick={() => insertBlock('list', { style: 'ordered' })} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Numbered List"><ListOrdered size={15} /></button>
+           <button type="button" onMouseDown={(e) => { e.preventDefault(); insertBlock('list', { style: 'unordered' }); }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Bullet List"><ListIcon size={15} /></button>
+           <button type="button" onMouseDown={(e) => { e.preventDefault(); insertBlock('list', { style: 'ordered' }); }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Numbered List"><ListOrdered size={15} /></button>
            <div className="w-px h-4 bg-white/10 mx-1" />
            <button type="button" onMouseDown={(e) => { e.preventDefault(); formatText('bold'); }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Bold"><Bold size={15} /></button>
            <button type="button" onMouseDown={(e) => { e.preventDefault(); formatText('italic'); }} className="p-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="Italic"><Italic size={15} /></button>
@@ -275,8 +259,9 @@ const EditorJSWrapper = forwardRef<EditorJSRef, EditorJSWrapperProps>(({ initial
         </div>
       )}
       <div 
-        className={`text-[14px] text-[#E6EDF3] leading-[1.4] [&>div]:mb-0 [&>div]:last:mb-0 block editorjs-wrapper bg-brand-bg px-6 py-2 rounded-b-none min-h-[100px] selection:bg-brand-blue/30 selection:text-white`}
+        className={`text-[14px] text-[#E6EDF3] leading-[1.4] [&>div]:mb-0 [&>div]:last:mb-0 block editorjs-wrapper bg-brand-bg px-6 py-2 rounded-b-none min-h-[100px] selection:bg-brand-blue/30 selection:text-white cursor-text`}
         ref={editorContainerRef} 
+        onClick={handleContainerClick}
       />
     </div>
   );
