@@ -336,6 +336,11 @@ export default function AdminOnboardingHub() {
                                         Optional
                                       </span>
                                     )}
+                                    {step.media_url && (
+                                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-brand-blue ml-1">
+                                        <Video className="w-3.5 h-3.5" /> Media Attached
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-1 transition-opacity">
@@ -348,12 +353,7 @@ export default function AdminOnboardingHub() {
                                 </div>
                               </div>
                               {step.description && (
-                                <p className="text-[13px] text-zinc-400 mt-2 leading-relaxed whitespace-pre-wrap">{step.description}</p>
-                              )}
-                              {step.media_url && (
-                                <div className="mt-3 flex items-center gap-2 text-[12px] text-brand-blue">
-                                  <Video className="w-3.5 h-3.5" /> Media Attached
-                                </div>
+                                <p className="text-[13px] text-zinc-400 mt-1.5 leading-relaxed whitespace-pre-wrap">{step.description}</p>
                               )}
                             </div>
                           </div>
