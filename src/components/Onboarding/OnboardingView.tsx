@@ -11,6 +11,7 @@ interface Step {
   description: string;
   type: StepType;
   links: { text: string; url: string }[];
+  media_url?: string;
   optional?: boolean;
   requires_expiry?: number;
   expiry_years?: number;
@@ -71,7 +72,8 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
           requires_expiry: d.requires_expiry,
           expiry_years: d.expiry_years || 1,
           optional: d.is_mandatory ? false : true,
-          links: d.media_url ? [{ text: 'View Attached Media', url: d.media_url }] : []
+          links: [],
+          media_url: d.media_url
         }));
         setDynamicSteps(mapped);
       }
@@ -629,6 +631,70 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                 </div>
               )}
               
+              
+              {/* Media Renderer */}
+              {step.media_url && (
+                <div className="mb-6 rounded-lg overflow-hidden border border-white/10 bg-black/40">
+                  {(() => {
+                    const url = step.media_url;
+                    const isExpanded = expandedStep === step.id;
+                    
+                    if (url.includes('youtube.com/watch?v=') || url.includes('youtu.be/')) {
+                      let videoId = '';
+                      if (url.includes('youtube.com/watch?v=')) {
+                        try {
+                           videoId = new URL(url).searchParams.get('v') || '';
+                        } catch(e) {}
+                      } else {
+                        videoId = url.split('youtu.be/')[1]?.split('?')[0] || '';
+                      }
+                      if (videoId) {
+                        return (
+                          <div className="relative w-full aspect-video">
+                            {isExpanded && (
+                              <iframe
+                                src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`}
+                                className="absolute inset-0 w-full h-full"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            )}
+                          </div>
+                        );
+                      }
+                    } else if (url.match(/\.(mp4|webm|ogg)$/i)) {
+                      return (
+                        <video 
+                          src={url} 
+                          controls 
+                          autoPlay={isExpanded}
+                          muted 
+                          className="w-full max-h-[400px] object-contain bg-black" 
+                        />
+                      );
+                    } else if (url.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
+                      return (
+                        <img 
+                          src={url} 
+                          alt="Attached Media" 
+                          className="w-full max-h-[400px] object-contain" 
+                        />
+                      );
+                    }
+                    
+                    // Fallback link if not recognized media
+                    return (
+                      <div className="p-4">
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-brand-teal hover:text-brand-teal transition-colors text-sm font-medium w-fit">
+                          <LinkIcon className="w-4 h-4" />
+                          View Attached Media
+                        </a>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
               {step.links.length > 0 && (
                 <div className="space-y-2 mb-6">
                   <h4 className="text-xs uppercase text-zinc-500 font-semibold mb-2">Helpful Links:</h4>
