@@ -337,10 +337,10 @@ export default function AdminOnboardingHub() {
                                       </span>
                                     )}
                                     {step.media_url && (
-                                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-brand-blue ml-1">
-                                        <Video className="w-3.5 h-3.5" /> Media Attached
-                                      </div>
-                                    )}
+                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-brand-blue/10 text-brand-blue border border-brand-blue/20 uppercase tracking-wider">
+                                         <Video className="w-3 h-3" /> Media Attached
+                                       </span>
+                                     )}
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-1 transition-opacity">
