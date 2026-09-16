@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Save, FileCheck, Edit, Video, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import PositionsModal from '../Directory/PositionsModal';
 
 interface Position {
   id: number;
@@ -26,17 +27,22 @@ export default function AdminOnboardingHub() {
   const [steps, setSteps] = useState<Step[]>([]);
   
   const [isEditing, setIsEditing] = useState<number | null>(null); // step id
+  const [isPositionsModalOpen, setIsPositionsModalOpen] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Step>>({});
 
-  useEffect(() => {
+  const fetchPositions = () => {
     fetch('/api/positions', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
           setPositions(data);
-          if (data.length > 0) setSelectedPositionId(data[0].id);
+          if (data.length > 0 && !selectedPositionId) setSelectedPositionId(data[0].id);
         }
       });
+  };
+
+  useEffect(() => {
+    fetchPositions();
   }, [token]);
 
   useEffect(() => {
@@ -126,8 +132,14 @@ export default function AdminOnboardingHub() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-1 bg-[#111111] rounded-xl border border-white/[0.08] overflow-hidden flex flex-col h-[calc(100vh-160px)]">
-            <div className="p-4 border-b border-white/[0.08] bg-black/20">
+            <div className="p-4 border-b border-white/[0.08] bg-black/20 flex items-center justify-between">
               <h2 className="text-[13px] font-semibold text-zinc-300 uppercase tracking-wider">Select Position</h2>
+              <button 
+                onClick={() => setIsPositionsModalOpen(true)}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs font-medium rounded-md transition-all border border-white/10"
+              >
+                Manage Positions
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-1">
               {positions.length === 0 ? (
@@ -355,6 +367,12 @@ export default function AdminOnboardingHub() {
           </div>
         </div>
       </div>
+    
+      <PositionsModal
+        isOpen={isPositionsModalOpen}
+        onClose={() => setIsPositionsModalOpen(false)}
+        onPositionsChange={fetchPositions}
+      />
     </div>
   );
 }

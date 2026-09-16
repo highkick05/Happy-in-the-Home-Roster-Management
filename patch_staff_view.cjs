@@ -1,9 +1,12 @@
 const fs = require('fs');
-const file = 'src/components/Directory/StaffClientsView.tsx';
-let content = fs.readFileSync(file, 'utf8');
+let content = fs.readFileSync('src/components/Directory/StaffClientsView.tsx', 'utf8');
 
-// The activeTab logic uses a prop named "type", but state variable is called "activeTab" which defaults to "type"
-// Find how activeTab is defined
-const activeTabRegex = /const \[activeTab, setActiveTab\] = useState<\'STAFF\' \| \'CLIENTS\' \| \'PROVIDERS\' \| \'CONTRACTORS\'>(.*)/;
-console.log(content.match(activeTabRegex));
+// The button might still be there if the regex failed.
+const buttonRegex = /\{\s*activeTab === 'STAFF' && \(\s*<button \s*onClick=\{\(\) => setIsPositionsModalOpen\(true\)\}[\s\S]*?Manage Positions\s*<\/button>\s*\)\s*\}/;
+content = content.replace(buttonRegex, '');
 
+// Remove component
+const componentRegex = /<PositionsModal[\s\S]*?onClose=\{\(\) => setIsPositionsModalOpen\(false\)\}[\s\S]*?\/>/;
+content = content.replace(componentRegex, '');
+
+fs.writeFileSync('src/components/Directory/StaffClientsView.tsx', content);

@@ -1,11 +1,16 @@
 const fs = require('fs');
-let content = fs.readFileSync('src/server.ts', 'utf8');
+let content = fs.readFileSync('src/components/AdminOnboarding/AdminOnboardingHub.tsx', 'utf8');
 
-const regex = /const \{ position_id, title, description, media_url, requires_expiry, upload_required, is_mandatory \} = req\.body;\s*const stmt = db\.prepare\("INSERT INTO onboarding_hub_steps \(position_id, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years\) VALUES \(\?, \?, \?, \?, \?, \?, \?, \?\)"\);\s*const info = stmt\.run\(position_id, title, description \|\| '', media_url \|\| '', requires_expiry \? 1 : 0, upload_required !== false \? 1 : 0, is_mandatory !== false \? 1 : 0\);/;
+// Add import
+const importPositionsModal = `import PositionsModal from '../Directory/PositionsModal';\n`;
+content = content.replace(/(import React.*?;\n)/, `$1${importPositionsModal}`);
 
-const replacement = `const { position_id, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years } = req.body;
-      const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-      const info = stmt.run(position_id, title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0, expiry_years || 1);`;
+// Add state
+const stateRegex = /const \[isEditing, setIsEditing\] = useState<number \| null>\(null\);/;
+const stateReplacement = `const [isEditing, setIsEditing] = useState<number | null>(null);\n  const [isPositionsModalOpen, setIsPositionsModalOpen] = useState(false);`;
+content = content.replace(stateRegex, stateReplacement);
 
-content = content.replace(regex, replacement);
-fs.writeFileSync('src/server.ts', content);
+// Add fetchPositions function if not exists, or pass an empty function if we can't easily refetch
+// Actually, I can see positions are fetched in `useEffect`. Let's find it.
+const fetchPositionsRegex = /const fetchPositions = async \(\) => \{[\s\S]*?\}\s*fetchPositions\(\);/m;
+// Let's modify the useEffect to make fetchPositions accessible.
