@@ -370,8 +370,11 @@ export default function AdminOnboardingHub() {
     
       <PositionsModal
         isOpen={isPositionsModalOpen}
-        onClose={() => setIsPositionsModalOpen(false)}
-        onPositionsChange={fetchPositions}
+        onClose={() => {
+          setIsPositionsModalOpen(false);
+          fetchPositions();
+        }}
+        token={token}
       />
     </div>
   );
