@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import RosterCalendar from './components/Roster/RosterCalendar';
-import { Briefcase, MessageSquare,  Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car, GraduationCap, Mail  } from 'lucide-react';
+import { Briefcase, MessageSquare,  Map, Calendar, Users, FileText, Settings, Home, LogOut, FolderOpen, User, UserCheck, FileCheck , Bell, ChevronLeft, ChevronRight, Activity, Building, Heart, ClipboardEdit, RefreshCw, Bookmark, CheckSquare , Car, GraduationCap, Mail  } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatNotificationProvider } from './context/ChatNotificationContext';
 import QuickLinksDrawer from './components/QuickLinksDrawer';
@@ -324,7 +324,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                 </NavLink>
                 {user?.role === 'ADMIN' && (
               <NavLink replace={true} to="/admin-onboarding" className={getNavClasses} title="Admin Onboarding">
-                <FileCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
+                <UserCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
               </NavLink>
             )}
             <NavLink replace={true} to="/compliance" className={getNavClasses} title="Compliance">
@@ -338,7 +338,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           <div className="space-y-0.5">
             {user?.role === 'STAFF' && (
               <NavLink replace={true} to="/onboarding" className={getNavClasses} title="Onboarding Hub">
-                <FileCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
+                <UserCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Onboarding Hub' : ''}
               </NavLink>
             )}
             <NavLink replace={true} to="/training" className={getNavClasses} title="Training">
