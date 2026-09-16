@@ -12,6 +12,8 @@ interface Step {
   type: StepType;
   links: { text: string; url: string }[];
   optional?: boolean;
+  requires_expiry?: number;
+  expiry_years?: number;
 }
 
 
@@ -66,6 +68,8 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
           title: d.title,
           description: d.description || '',
           type: d.upload_required ? 'upload' : 'confirm',
+          requires_expiry: d.requires_expiry,
+          expiry_years: d.expiry_years || 1,
           optional: d.is_mandatory ? false : true,
           links: d.media_url ? [{ text: 'View Attached Media', url: d.media_url }] : []
         }));
@@ -168,8 +172,22 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
     let issued = formDates[stepId]?.issued || '';
     let expires = formDates[stepId]?.expires || '';
     
+    const currentStep = dynamicSteps.find(s => s.id === stepId);
+    
     // VALIDATIONS & CALCULATIONS
     const today = new Date();
+
+    if (currentStep?.requires_expiry === 1 && !issued && !expires) {
+      setUploadError(prev => ({ ...prev, [stepId]: 'Please provide either an Issue Date or an Expiry Date.' }));
+      return;
+    }
+    
+    if (!expires && currentStep?.requires_expiry === 1 && issued) {
+        const years = currentStep.expiry_years || 1;
+        const d = new Date(issued);
+        d.setFullYear(d.getFullYear() + years);
+        expires = d.toISOString().split('T')[0];
+    }
     
     if (stepId === 'ndis_screening') {
       if (!issued) {
@@ -303,6 +321,19 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
   const handleDateUpdate = async (stepId: string, fileId: number) => {
     let issued = formDates[stepId]?.issued || '';
     let expires = formDates[stepId]?.expires || '';
+    
+    const currentStep = dynamicSteps.find(s => s.id === stepId);
+    if (currentStep?.requires_expiry === 1 && !issued && !expires) {
+      alert('Please provide either an Issue Date or an Expiry Date.');
+      return;
+    }
+    
+    if (!expires && currentStep?.requires_expiry === 1 && issued) {
+        const years = currentStep.expiry_years || 1;
+        const d = new Date(issued);
+        d.setFullYear(d.getFullYear() + years);
+        expires = d.toISOString().split('T')[0];
+    }
     
     if (stepId === 'wwcc' && !expires) {
       alert('Expiry date is required for Working with Children Check (WWCC).');
@@ -620,7 +651,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                 <div className="space-y-2">
                   {/* ID & DATE PICKERS */}
                   <div className="flex flex-col gap-3 max-w-sm mb-4">
-                    {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) && (
+                    {(['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance', 'flu_shot', 'immunisation', 'covid_vaccine'].includes(step.id) || (step.id.startsWith('dynamic_') && step.requires_expiry === 1)) && (
                       <div>
                         <label className="block text-xs text-zinc-400 mb-1">ID Number / License Reference (Optional)</label>
                         <input 
@@ -633,7 +664,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                         <p className="text-[10px] text-zinc-600 mt-1">Saved identifiers are automatically masked as [ID Number Redacted] for privacy.</p>
                       </div>
                     )}
-                    {['ndis_screening', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine', 'police_check'].includes(step.id) && (
+                    {(['ndis_screening', 'cpr', 'first_aid', 'manual_handling', 'flu_shot', 'immunisation', 'covid_vaccine', 'police_check'].includes(step.id) || (step.id.startsWith('dynamic_') && step.requires_expiry === 1)) && (
                       <div className="mb-2">
                         <div className="flex items-center justify-between mb-1">
                           <label className="block text-xs text-zinc-400">Issue Date</label>
@@ -650,7 +681,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                         />
                       </div>
                     )}
-                    {['wwcc', 'ahpra', 'driver_license', 'first_aid', 'cpr', 'manual_handling', 'car_insurance', 'flu_shot', 'police_check'].includes(step.id) && (
+                    {(['wwcc', 'ahpra', 'driver_license', 'first_aid', 'cpr', 'manual_handling', 'car_insurance', 'flu_shot', 'police_check'].includes(step.id) || (step.id.startsWith('dynamic_') && step.requires_expiry === 1)) && (
                       <div className="mb-2">
                         <div className="flex items-center justify-between mb-1">
                           <label className="block text-xs text-zinc-400">Expiry Date</label>
@@ -720,7 +751,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                               </div>
                               {(file.date_issued || file.date_expires) && (
                                 <div className="flex items-center gap-2 ml-7">
-                                  {['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance', 'flu_shot', 'immunisation', 'covid_vaccine', 'police_check'].includes(step.id) && (
+                                  {(['ndis_screening', 'wwcc', 'cpr', 'first_aid', 'manual_handling', 'vevo', 'ahpra', 'driver_license', 'car_insurance', 'flu_shot', 'immunisation', 'covid_vaccine', 'police_check'].includes(step.id) || (step.id.startsWith('dynamic_') && step.requires_expiry === 1)) && (
                                      <span className="text-xs text-zinc-500 font-mono">[ID Number Redacted]</span>
                                   )}
                                   {file.date_issued && <span className="text-xs text-zinc-400">Issued: {file.date_issued}</span>}

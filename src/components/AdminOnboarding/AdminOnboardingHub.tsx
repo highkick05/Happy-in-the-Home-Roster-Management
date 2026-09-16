@@ -16,6 +16,7 @@ interface Step {
   requires_expiry: number;
   upload_required: number;
   is_mandatory: number;
+  expiry_years: number;
 }
 
 export default function AdminOnboardingHub() {
@@ -63,6 +64,7 @@ export default function AdminOnboardingHub() {
           description: '',
           media_url: '',
           requires_expiry: 0,
+          expiry_years: 1,
           upload_required: 1,
           is_mandatory: 1
         })
@@ -207,7 +209,7 @@ export default function AdminOnboardingHub() {
                                 </div>
                                 <div>
                                   <span className="text-[13px] text-zinc-200 font-medium block">Upload Required</span>
-                                  <span className="text-[11px] text-zinc-500 block">Require staff to upload a document for this step.</span>
+                                  <span className="text-[11px] text-zinc-500 block">Require staff to upload a document. If unchecked, staff will instead check a box to confirm they have read and understood.</span>
                                 </div>
                               </div>
 
@@ -236,6 +238,23 @@ export default function AdminOnboardingHub() {
                                   <span className="text-[11px] text-zinc-500 block">Staff will receive alerts when documents uploaded here expire.</span>
                                 </div>
                               </div>
+                              {editForm.requires_expiry === 1 && (
+                                <div className="p-3 bg-black/20 border border-white/[0.05] rounded-lg mt-1">
+                                  <label className="block text-[11px] font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Expiry Duration</label>
+                                  <select
+                                    value={editForm.expiry_years || 1}
+                                    onChange={e => setEditForm({...editForm, expiry_years: parseInt(e.target.value)})}
+                                    className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-white outline-none focus:border-brand-teal transition-colors"
+                                  >
+                                    <option value={1}>1 Year</option>
+                                    <option value={2}>2 Years</option>
+                                    <option value={3}>3 Years</option>
+                                    <option value={4}>4 Years</option>
+                                    <option value={5}>5 Years</option>
+                                  </select>
+                                </div>
+                              )}
+
                             </div>
 
 

@@ -1062,6 +1062,7 @@ try {
         requires_expiry INTEGER DEFAULT 0,
         upload_required INTEGER DEFAULT 1,
         is_mandatory INTEGER DEFAULT 1,
+        expiry_years INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (position_id) REFERENCES positions(id) ON DELETE CASCADE
       );
@@ -5337,7 +5338,7 @@ app.get("/api/health", (req, res) => {
   app.post("/api/admin/onboarding-steps", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
       const { position_id, title, description, media_url, requires_expiry, upload_required, is_mandatory } = req.body;
-      const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, title, description, media_url, requires_expiry, upload_required, is_mandatory) VALUES (?, ?, ?, ?, ?, ?, ?)");
+      const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
       const info = stmt.run(position_id, title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0);
       const newStep = db.prepare("SELECT * FROM onboarding_hub_steps WHERE id = ?").get(info.lastInsertRowid);
       res.json(newStep);
@@ -5348,9 +5349,9 @@ app.get("/api/health", (req, res) => {
 
   app.put("/api/admin/onboarding-steps/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const { title, description, media_url, requires_expiry, upload_required, is_mandatory } = req.body;
-      const stmt = db.prepare("UPDATE onboarding_hub_steps SET title = ?, description = ?, media_url = ?, requires_expiry = ?, upload_required = ?, is_mandatory = ? WHERE id = ?");
-      stmt.run(title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0, req.params.id);
+      const { title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years } = req.body;
+      const stmt = db.prepare("UPDATE onboarding_hub_steps SET title = ?, description = ?, media_url = ?, requires_expiry = ?, upload_required = ?, is_mandatory = ?, expiry_years = ? WHERE id = ?");
+      stmt.run(title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0, expiry_years || 1, req.params.id);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -5396,6 +5397,14 @@ app.get("/api/health", (req, res) => {
           const stepData = onboardingData[key] || {};
           const files = stepData.files || [];
           
+          if (step.upload_required === 0) {
+            if (stepData.status === 'completed') {
+               compliance[key] = { label: step.title, status: "VALID", expiry: null, issued: null, fileName: "Confirmation Completed", fileId: null, isConfirmation: true };
+            } else {
+               compliance[key] = { label: step.title, status: "MISSING", expiry: null, issued: null, fileName: null, fileId: null, isConfirmation: true };
+            }
+            continue;
+          }
           if (files.length === 0) {
             compliance[key] = { label: step.title, status: "MISSING", expiry: null, issued: null, fileName: null, fileId: null };
             continue;
