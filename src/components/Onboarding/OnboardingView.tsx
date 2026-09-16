@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, CheckCircle2, ChevronDown, ChevronUp, Link as LinkIcon, Download, Trash2, File as FileIcon, Info, Copy, Check } from 'lucide-react';
+import { Upload, CheckCircle2, ChevronDown, ChevronUp, Link as LinkIcon, Download, Trash2, File as FileIcon, Info, Copy, Check, Users, Briefcase } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import CustomDatePicker from '../ui/CustomDatePicker';
 
@@ -15,6 +15,8 @@ interface Step {
   optional?: boolean;
   requires_expiry?: number;
   expiry_years?: number;
+  is_all_staff?: boolean;
+  position_name?: string | null;
 }
 
 
@@ -73,7 +75,9 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
           expiry_years: d.expiry_years || 1,
           optional: d.is_mandatory ? false : true,
           links: [],
-          media_url: d.media_url
+          media_url: d.media_url,
+          is_all_staff: d.is_all_staff === 1 || !d.position_id,
+          position_name: d.position_name || null
         }));
         setDynamicSteps(mapped);
       }
@@ -913,9 +917,58 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
         </div>
 
         {/* General/Home Care Steps List */}
-        <div className="space-y-2">
-          {dynamicSteps.map((step, index) => renderStepCard(step, index + 1))}
-        </div>
+        {(() => {
+          const allStaffSteps = dynamicSteps.filter(s => s.is_all_staff);
+          const positionSteps = dynamicSteps.filter(s => !s.is_all_staff);
+
+          return (
+            <div className="space-y-6">
+              {allStaffSteps.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-brand-teal" />
+                      <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-200">
+                        General Requirements (All Staff)
+                      </h2>
+                    </div>
+                    <span className="text-[11px] font-medium text-brand-teal bg-brand-teal/10 px-2 py-0.5 rounded border border-brand-teal/20">
+                      Universal Section
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {allStaffSteps.map((step, index) => renderStepCard(step, index + 1))}
+                  </div>
+                </div>
+              )}
+
+              {positionSteps.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-brand-teal" />
+                      <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-200">
+                        Position Requirements {positionSteps[0]?.position_name ? `• ${positionSteps[0].position_name}` : ''}
+                      </h2>
+                    </div>
+                    <span className="text-[11px] font-medium text-zinc-400 bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                      Role Specific
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {positionSteps.map((step, index) => renderStepCard(step, allStaffSteps.length + index + 1))}
+                  </div>
+                </div>
+              )}
+
+              {dynamicSteps.length === 0 && (
+                <div className="bg-[#111111] border border-white/[0.08] rounded-xl p-8 text-center text-zinc-500 text-sm">
+                  No onboarding steps currently required.
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* NDIS Toggle Section */}
 

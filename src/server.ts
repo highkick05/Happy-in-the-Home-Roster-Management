@@ -1065,7 +1065,8 @@ try {
       
       CREATE TABLE IF NOT EXISTS onboarding_hub_steps (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        position_id INTEGER NOT NULL,
+        position_id INTEGER,
+        is_all_staff INTEGER DEFAULT 0,
         title TEXT NOT NULL,
         description TEXT,
         media_url TEXT,
@@ -1675,13 +1676,43 @@ try {
     console.log("[DEBUG] Completed funding_type backfill synchronization.");
 
       try {
-        const tableInfo = db.prepare("PRAGMA table_info(onboarding_hub_steps)").all();
+        const tableInfo = db.prepare("PRAGMA table_info(onboarding_hub_steps)").all() as any[];
         if (!tableInfo.some(c => c.name === 'upload_required')) {
           db.exec("ALTER TABLE onboarding_hub_steps ADD COLUMN upload_required INTEGER DEFAULT 1;");
           db.exec("ALTER TABLE onboarding_hub_steps ADD COLUMN is_mandatory INTEGER DEFAULT 1;");
           console.log("[DEBUG] Added upload_required and is_mandatory to onboarding_hub_steps.");
         }
-      } catch (e) { console.error(e); }
+
+        const hasAllStaff = tableInfo.some(c => c.name === 'is_all_staff');
+        const posCol = tableInfo.find(c => c.name === 'position_id');
+        const posNotNull = posCol ? posCol.notnull === 1 : false;
+
+        if (!hasAllStaff || posNotNull) {
+          db.pragma("foreign_keys = OFF");
+          db.exec(`
+            CREATE TABLE IF NOT EXISTS onboarding_hub_steps_mig (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              position_id INTEGER,
+              is_all_staff INTEGER DEFAULT 0,
+              title TEXT NOT NULL,
+              description TEXT,
+              media_url TEXT,
+              requires_expiry INTEGER DEFAULT 0,
+              upload_required INTEGER DEFAULT 1,
+              is_mandatory INTEGER DEFAULT 1,
+              expiry_years INTEGER DEFAULT 1,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (position_id) REFERENCES positions(id) ON DELETE CASCADE
+            );
+            INSERT INTO onboarding_hub_steps_mig (id, position_id, is_all_staff, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years, created_at)
+              SELECT id, position_id, ${hasAllStaff ? 'is_all_staff' : '0'}, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years, created_at FROM onboarding_hub_steps;
+            DROP TABLE onboarding_hub_steps;
+            ALTER TABLE onboarding_hub_steps_mig RENAME TO onboarding_hub_steps;
+          `);
+          db.pragma("foreign_keys = ON");
+          console.log("[DEBUG] Successfully migrated onboarding_hub_steps to support is_all_staff and nullable position_id.");
+        }
+      } catch (e) { console.error("[DEBUG] Onboarding migration error:", e); }
 
 
     const missingLogShifts = db
@@ -5070,8 +5101,11 @@ app.get("/api/health", (req, res) => {
         targetUserId = parseInt(req.query.userId, 10);
       }
       
+      // 1. Fetch Global / All-Staff steps first
+      const globalSteps = db.prepare("SELECT * FROM onboarding_hub_steps WHERE is_all_staff = 1 ORDER BY id ASC").all() as any[];
+
       const user = db.prepare("SELECT primary_position, additional_positions FROM users WHERE id = ?").get(targetUserId) as any;
-      if (!user) return res.json([]);
+      if (!user) return res.json(globalSteps);
       
       const primary = user.primary_position || '';
       let additionals = [];
@@ -5080,18 +5114,24 @@ app.get("/api/health", (req, res) => {
       } catch(e) {}
       
       const allPositions = [primary, ...additionals].filter(Boolean);
-      if (allPositions.length === 0) return res.json([]);
+      if (allPositions.length === 0) return res.json(globalSteps);
       
       const placeholders = allPositions.map(() => '?').join(',');
-      const matchedPositions = db.prepare(`SELECT id, name FROM positions WHERE name IN (${placeholders})`).all(...allPositions);
+      const matchedPositions = db.prepare(`SELECT id, name FROM positions WHERE name IN (${placeholders})`).all(...allPositions) as any[];
       
-      if (matchedPositions.length === 0) return res.json([]);
+      if (matchedPositions.length === 0) return res.json(globalSteps);
       const positionIds = matchedPositions.map(p => p.id);
       
       const placeholdersIds = positionIds.map(() => '?').join(',');
-      const steps = db.prepare(`SELECT * FROM onboarding_hub_steps WHERE position_id IN (${placeholdersIds})`).all(...positionIds);
+      const positionSteps = db.prepare(`
+        SELECT s.*, p.name as position_name 
+        FROM onboarding_hub_steps s 
+        LEFT JOIN positions p ON s.position_id = p.id 
+        WHERE (s.is_all_staff = 0 OR s.is_all_staff IS NULL) AND s.position_id IN (${placeholdersIds}) 
+        ORDER BY s.id ASC
+      `).all(...positionIds) as any[];
       
-      res.json(steps);
+      res.json([...globalSteps, ...positionSteps]);
     } catch(e: any) {
       res.status(500).json({error: e.message});
     }
@@ -5348,9 +5388,11 @@ app.get("/api/health", (req, res) => {
 
   app.post("/api/admin/onboarding-steps", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const { position_id, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years } = req.body;
-      const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-      const info = stmt.run(position_id, title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0, expiry_years || 1);
+      const { position_id, is_all_staff, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years } = req.body;
+      const allStaffVal = (is_all_staff || position_id === null || position_id === undefined || position_id === 'all_staff') ? 1 : 0;
+      const posIdVal = allStaffVal === 1 ? null : position_id;
+      const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, is_all_staff, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      const info = stmt.run(posIdVal, allStaffVal, title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0, expiry_years || 1);
       const newStep = db.prepare("SELECT * FROM onboarding_hub_steps WHERE id = ?").get(info.lastInsertRowid);
       res.json(newStep);
     } catch (error: any) {
@@ -5402,7 +5444,7 @@ app.get("/api/health", (req, res) => {
         const matchedPositions = allPositions.filter(p => staffPositionNames.includes(p.name));
         const posIds = matchedPositions.map(p => p.id);
         
-        const staffSteps = allSteps.filter(s => posIds.includes(s.position_id));
+        const staffSteps = allSteps.filter(s => s.is_all_staff === 1 || posIds.includes(s.position_id));
 
         const compliance: Record<string, any> = {};
 

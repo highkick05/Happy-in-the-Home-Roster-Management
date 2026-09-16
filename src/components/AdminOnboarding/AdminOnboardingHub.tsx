@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, FileCheck, Edit, Video, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Save, FileCheck, Edit, Video, AlertCircle, Users, Briefcase, Globe } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PositionsModal from '../Directory/PositionsModal';
 
@@ -10,7 +10,8 @@ interface Position {
 
 interface Step {
   id: number;
-  position_id: number;
+  position_id: number | null;
+  is_all_staff?: number;
   title: string;
   description: string;
   media_url: string;
@@ -23,7 +24,7 @@ interface Step {
 export default function AdminOnboardingHub() {
   const { token } = useAuth();
   const [positions, setPositions] = useState<Position[]>([]);
-  const [selectedPositionId, setSelectedPositionId] = useState<number | null>(null);
+  const [selectedPositionId, setSelectedPositionId] = useState<number | 'all_staff' | null>('all_staff');
   const [steps, setSteps] = useState<Step[]>([]);
   
   const [isEditing, setIsEditing] = useState<number | null>(null); // step id
@@ -36,7 +37,6 @@ export default function AdminOnboardingHub() {
       .then(data => {
         if (Array.isArray(data)) {
           setPositions(data);
-          if (data.length > 0 && !selectedPositionId) setSelectedPositionId(data[0].id);
         }
       });
   };
@@ -53,15 +53,21 @@ export default function AdminOnboardingHub() {
       });
   }, [token]);
 
-  const currentSteps = steps.filter(s => s.position_id === selectedPositionId);
+  const currentSteps = selectedPositionId === 'all_staff'
+    ? steps.filter(s => s.is_all_staff === 1 || (!s.position_id && s.is_all_staff !== 0))
+    : steps.filter(s => s.position_id === selectedPositionId && !s.is_all_staff);
+
+  const allStaffStepsCount = steps.filter(s => s.is_all_staff === 1 || (!s.position_id && s.is_all_staff !== 0)).length;
 
   const handleAddStep = () => {
     if (!selectedPositionId) return;
     const tempId = -Date.now();
+    const isAllStaff = selectedPositionId === 'all_staff';
     const newStep: any = {
       id: tempId,
-      position_id: selectedPositionId,
-      title: 'New Onboarding Step',
+      position_id: isAllStaff ? null : selectedPositionId,
+      is_all_staff: isAllStaff ? 1 : 0,
+      title: isAllStaff ? 'General Staff Requirement' : 'New Onboarding Step',
       description: '',
       media_url: '',
       requires_expiry: 0,
@@ -78,13 +84,18 @@ export default function AdminOnboardingHub() {
     try {
       if (id < 0) {
         // It's a new step, POST to create it
+        const payload = {
+          ...editForm,
+          is_all_staff: selectedPositionId === 'all_staff' ? 1 : 0,
+          position_id: selectedPositionId === 'all_staff' ? null : selectedPositionId
+        };
         const res = await fetch('/api/admin/onboarding-steps', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify(editForm)
+          body: JSON.stringify(payload)
         });
         const createdStep = await res.json();
         setSteps(prev => prev.map(s => s.id === id ? createdStep : s));
@@ -127,55 +138,125 @@ export default function AdminOnboardingHub() {
       <div className="w-full mx-auto space-y-4">
         <div className="mb-4 flex flex-col gap-0.5 border-b border-white/[0.05] pb-3">
           <h1 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Onboarding Hub Manager</h1>
-          <p className="text-xs text-zinc-500">Design specific onboarding flows and requirements for different staff positions</p>
+          <p className="text-xs text-zinc-500">Design universal onboarding flows and role-specific requirements for your team</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-1 bg-[#111111] rounded-xl border border-white/[0.08] overflow-hidden flex flex-col h-[calc(100vh-160px)]">
             <div className="p-4 border-b border-white/[0.08] bg-black/20 flex items-center justify-between">
-              <h2 className="text-[13px] font-semibold text-zinc-300 uppercase tracking-wider">Select Position</h2>
+              <h2 className="text-[13px] font-semibold text-zinc-300 uppercase tracking-wider">Sections & Roles</h2>
               <button 
                 onClick={() => setIsPositionsModalOpen(true)}
-                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs font-medium rounded-md transition-all border border-white/10"
+                className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-white text-xs font-medium rounded-md transition-all border border-white/10"
               >
                 Manage Positions
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {positions.length === 0 ? (
-                <div className="text-sm text-zinc-500 text-center py-4">No positions available.</div>
-              ) : (
-                positions.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => setSelectedPositionId(p.id)}
-                    className={`w-full text-left px-4 py-3 rounded-lg text-[13px] transition-all flex items-center justify-between group ${
-                      selectedPositionId === p.id 
-                        ? 'bg-brand-teal/10 text-brand-teal border border-brand-teal/20' 
-                        : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200 border border-transparent'
-                    }`}
-                  >
-                    <span className="font-medium">{p.name}</span>
-                  </button>
-                ))
-              )}
+            
+            <div className="flex-1 overflow-y-auto p-2 space-y-3">
+              {/* Universal All Staff Section */}
+              <div className="space-y-1">
+                <div className="px-3 pt-1 pb-1 text-[11px] font-semibold tracking-wider text-zinc-500 uppercase flex items-center justify-between">
+                  <span>Universal Section</span>
+                  <span className="text-[10px] text-brand-teal/90 bg-brand-teal/10 px-1.5 py-0.5 rounded font-medium border border-brand-teal/20">
+                    Always First
+                  </span>
+                </div>
+                
+                <button
+                  onClick={() => setSelectedPositionId('all_staff')}
+                  className={`w-full text-left px-3.5 py-3 rounded-lg text-[13px] transition-all flex items-center justify-between group ${
+                    selectedPositionId === 'all_staff'
+                      ? 'bg-brand-teal/15 text-brand-teal border border-brand-teal/30 shadow-[0_0_15px_rgba(20,184,166,0.1)]' 
+                      : 'text-zinc-300 hover:bg-white/5 hover:text-white border border-white/[0.06] bg-white/[0.02]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
+                      selectedPositionId === 'all_staff' ? 'bg-brand-teal text-black' : 'bg-white/10 text-zinc-400 group-hover:text-zinc-200'
+                    }`}>
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-semibold leading-tight truncate">All Staff (General)</div>
+                      <div className="text-[11px] text-zinc-500 font-normal truncate">Applies to all staff</div>
+                    </div>
+                  </div>
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium shrink-0 ${
+                    selectedPositionId === 'all_staff'
+                      ? 'bg-brand-teal/20 text-brand-teal'
+                      : 'bg-white/5 text-zinc-400'
+                  }`}>
+                    {allStaffStepsCount}
+                  </span>
+                </button>
+              </div>
+
+              {/* Position Specific Flows */}
+              <div className="space-y-1 pt-2 border-t border-white/[0.06]">
+                <div className="px-3 pt-1 pb-1 text-[11px] font-semibold tracking-wider text-zinc-500 uppercase flex items-center justify-between">
+                  <span>By Position</span>
+                  <span className="text-[10px] text-zinc-500 font-normal">{positions.length} Positions</span>
+                </div>
+                {positions.length === 0 ? (
+                  <div className="text-sm text-zinc-500 text-center py-4">No positions available.</div>
+                ) : (
+                  positions.map(p => {
+                    const stepCount = steps.filter(s => s.position_id === p.id && !s.is_all_staff).length;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => setSelectedPositionId(p.id)}
+                        className={`w-full text-left px-3.5 py-2.5 rounded-lg text-[13px] transition-all flex items-center justify-between group ${
+                          selectedPositionId === p.id 
+                            ? 'bg-brand-teal/10 text-brand-teal border border-brand-teal/20' 
+                            : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200 border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate pr-2">
+                          <Briefcase className="w-3.5 h-3.5 opacity-60 shrink-0" />
+                          <span className="font-medium truncate">{p.name}</span>
+                        </div>
+                        <span className={`text-[11px] px-1.5 py-0.5 rounded-full shrink-0 ${
+                          selectedPositionId === p.id ? 'bg-brand-teal/20 text-brand-teal' : 'bg-white/5 text-zinc-500'
+                        }`}>
+                          {stepCount}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
 
           <div className="lg:col-span-3 bg-[#111111] rounded-xl border border-white/[0.08] overflow-hidden flex flex-col h-[calc(100vh-160px)]">
             {!selectedPositionId ? (
               <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
-                Select a position to configure its onboarding steps.
+                Select a section or position to configure its onboarding steps.
               </div>
             ) : (
               <>
                 <div className="p-4 border-b border-white/[0.08] bg-black/20 flex justify-between items-center">
-                  <h2 className="text-[14px] font-medium text-white flex items-center gap-2">
-                    Steps for <span className="text-brand-teal font-semibold">{positions.find(p => p.id === selectedPositionId)?.name}</span>
-                  </h2>
+                  <div className="flex flex-col gap-0.5">
+                    <h2 className="text-[14px] font-medium text-white flex items-center gap-2">
+                      Steps for{' '}
+                      <span className="text-brand-teal font-semibold">
+                        {selectedPositionId === 'all_staff' 
+                          ? 'All Staff (General)' 
+                          : positions.find(p => p.id === selectedPositionId)?.name}
+                      </span>
+                    </h2>
+                    <span className="text-[11px] text-zinc-500">
+                      {selectedPositionId === 'all_staff'
+                        ? 'Configurable universal requirements that show as the first section for all staff members'
+                        : 'Role-specific onboarding steps for staff assigned to this position'}
+                    </span>
+                  </div>
+                  
                   <button 
                     onClick={handleAddStep}
-                    className="flex items-center px-3 py-1.5 bg-brand-teal hover:bg-brand-teal/90 text-black text-xs font-semibold rounded-md transition-all shadow-sm"
+                    className="flex items-center px-3 py-1.5 bg-brand-teal hover:bg-brand-teal/90 text-black text-xs font-semibold rounded-md transition-all shadow-sm shrink-0"
                   >
                     <Plus className="w-4 h-4 mr-1.5" /> Add Step
                   </button>
@@ -185,7 +266,11 @@ export default function AdminOnboardingHub() {
                   {currentSteps.length === 0 ? (
                     <div className="text-center py-12 border-2 border-dashed border-white/5 rounded-xl">
                       <FileCheck className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
-                      <p className="text-zinc-400 text-sm">No onboarding steps defined for this position.</p>
+                      <p className="text-zinc-400 text-sm">
+                        {selectedPositionId === 'all_staff'
+                          ? 'No universal onboarding steps defined yet. Click "Add Step" to create one.'
+                          : 'No onboarding steps defined for this position.'}
+                      </p>
                     </div>
                   ) : (
                     currentSteps.map((step, idx) => (
@@ -218,12 +303,11 @@ export default function AdminOnboardingHub() {
                                 <input 
                                   value={editForm.media_url}
                                   onChange={e => setEditForm({...editForm, media_url: e.target.value})}
-                                  placeholder="e.g. https://youtube.com/... or https://example.com/image.png"
+                                  placeholder="e.g. https://youtube.com/... or https://example.com/video.mp4"
                                   className="w-full bg-black/40 border border-white/[0.08] rounded-lg pl-9 pr-3 py-2 text-[13px] text-white outline-none focus:border-brand-teal transition-colors"
                                 />
                               </div>
                             </div>
-
 
                             <div className="grid grid-cols-1 gap-2 pt-2 pb-3">
                               <div 
@@ -283,7 +367,6 @@ export default function AdminOnboardingHub() {
 
                             </div>
 
-
                             <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.05]">
                               <button 
                                 onClick={() => handleCancelEdit(step.id)}
@@ -302,7 +385,6 @@ export default function AdminOnboardingHub() {
                         ) : (
                           <div 
                             onClick={(e) => {
-                              // If they click on the delete button, don't trigger edit
                               if ((e.target as HTMLElement).closest('button[title="Delete Step"]')) return;
                               setIsEditing(step.id); 
                               setEditForm(step);
@@ -317,6 +399,11 @@ export default function AdminOnboardingHub() {
                                 <div>
                                   <h3 className="text-[14px] font-semibold text-white group-hover:text-brand-teal transition-colors">{step.title}</h3>
                                   <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    {selectedPositionId === 'all_staff' && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-brand-teal/10 text-brand-teal border border-brand-teal/20 uppercase tracking-wider">
+                                        <Users className="w-3 h-3" /> All Staff
+                                      </span>
+                                    )}
                                     {step.requires_expiry === 1 && (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase tracking-wider">
                                         <AlertCircle className="w-3 h-3" /> Expiry Tracked
