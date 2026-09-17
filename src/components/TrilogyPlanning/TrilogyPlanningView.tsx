@@ -113,20 +113,20 @@ export default function TrilogyPlanningView() {
 
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto w-full animate-in fade-in zoom-in-95 duration-200">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[#E6EDF3] mb-2 tracking-tight">Trilogy Planning Summary</h1>
-        <p className="text-[#8B949E] text-sm">Extract completed shifts and group them into fixed date blocks for Trilogy Care portal input.</p>
+    <div className="p-4 md:p-6 max-w-6xl mx-auto w-full animate-in fade-in zoom-in-95 duration-200">
+      <div className="mb-6">
+        <h1 className="text-xl font-bold text-[#E6EDF3] mb-1.5 tracking-tight">Trilogy Planning Summary</h1>
+        <p className="text-[#8B949E] text-xs">Extract completed shifts and group them into fixed date blocks for Trilogy Care portal input.</p>
       </div>
 
-      <div className="bg-[#151515] border border-white/[0.05] rounded-2xl p-6 mb-8 shadow-sm">
-        <div className="flex flex-col md:flex-row items-end gap-4">
+      <div className="bg-[#151515] border border-white/[0.05] rounded-xl p-4 mb-6 shadow-sm">
+        <div className="flex flex-col md:flex-row items-end gap-3">
           <div className="flex-1 w-full md:max-w-md">
-            <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-2">Home Care Client</label>
+            <label className="block text-[10px] font-bold text-[#8B949E] uppercase tracking-wider mb-1.5">Home Care Client</label>
             <select 
               value={selectedClient} 
               onChange={e => setSelectedClient(e.target.value)}
-              className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-4 py-2.5 text-[14px] text-white outline-none focus:border-brand-teal transition-colors hover:border-white/[0.15]"
+              className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-xs font-semibold tracking-wide text-white outline-none focus:border-brand-teal transition-colors hover:border-white/[0.15]"
             >
               <option value="">Select a client...</option>
               {clients.map(c => (
@@ -136,11 +136,11 @@ export default function TrilogyPlanningView() {
           </div>
           
           <div className="flex-1 w-full md:max-w-md">
-            <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-2">Budget Quarter</label>
+            <label className="block text-[10px] font-bold text-[#8B949E] uppercase tracking-wider mb-1.5">Budget Quarter</label>
             <select 
               value={selectedQuarterIndex} 
               onChange={e => setSelectedQuarterIndex(Number(e.target.value))}
-              className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-4 py-2.5 text-[14px] text-white outline-none focus:border-brand-teal transition-colors hover:border-white/[0.15]"
+              className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-xs font-semibold tracking-wide text-white outline-none focus:border-brand-teal transition-colors hover:border-white/[0.15]"
             >
               {quarters.map((q, idx) => (
                 <option key={idx} value={idx}>
@@ -153,31 +153,31 @@ export default function TrilogyPlanningView() {
       </div>
 
       {results.length > 0 ? (
-        <div className="space-y-8">
+        <div className="space-y-4">
           {results.map((serviceGroup, idx) => (
-            <div key={idx} className="bg-[#151515] border border-white/[0.05] rounded-2xl overflow-hidden shadow-sm">
-              <div className="px-6 py-4 bg-black/40 border-b border-white/[0.05]">
-                <h3 className="text-[15px] font-semibold text-[#E6EDF3]">{serviceGroup.service_name}</h3>
+            <div key={idx} className="bg-[#151515] border border-white/[0.05] rounded-xl overflow-hidden shadow-sm">
+              <div className="px-4 py-2.5 bg-black/40 border-b border-white/[0.05]">
+                <h3 className="text-xs font-semibold tracking-wide text-[#E6EDF3]">{serviceGroup.service_name}</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-white/[0.05] bg-black/20">
-                      <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider">Dates</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Rate</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Hours / Week</th>
+                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Dates</th>
+                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Rate</th>
+                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Hours / Week</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/[0.05]">
                     {serviceGroup.blocks.map((block: any, bIdx: number) => (
                       <tr key={bIdx} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="px-6 py-3 text-[14px] text-[#E6EDF3]">
+                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#E6EDF3]">
                           {block.start_date ? format(new Date(block.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
-                          <span className="mx-2 text-[#8B949E]">to</span>
+                          <span className="mx-1.5 text-zinc-500/80">to</span>
                           {block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
                         </td>
-                        <td className="px-6 py-3 text-[14px] text-[#8B949E] text-right font-mono">${block.rate?.toFixed(2)}</td>
-                        <td className="px-6 py-3 text-[14px] text-brand-teal text-right font-medium">{block.hours_per_week} hrs</td>
+                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#8B949E] text-right">${block.rate?.toFixed(2)}</td>
+                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.hours_per_week} hrs</td>
                       </tr>
                     ))}
                   </tbody>
@@ -187,8 +187,8 @@ export default function TrilogyPlanningView() {
           ))}
         </div>
       ) : (
-        <div className="bg-[#151515] border border-white/[0.05] rounded-2xl p-16 text-center shadow-sm">
-          <p className="text-[#8B949E] text-sm">
+        <div className="bg-[#151515] border border-white/[0.05] rounded-xl p-8 text-center shadow-sm">
+          <p className="text-[#8B949E] text-xs font-semibold tracking-wide">
             {isLoading ? 'Loading data...' : 'No data generated. Ensure the selected client has COMPLETED shifts in this quarter.'}
           </p>
         </div>
