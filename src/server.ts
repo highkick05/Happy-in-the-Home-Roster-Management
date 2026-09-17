@@ -6241,11 +6241,11 @@ app.get("/api/health", (req, res) => {
               publicholiday_hours: shift.dayType === 'publicholiday' ? shift.hours : 0
             };
           } else {
-            // Break block if effective base rate changes or if it enters a new week
+            // Break block only if it enters a new week
             const currentWeek = getWeekIdentifier(currentBlock.start_date);
             const shiftWeek = getWeekIdentifier(shiftStart);
 
-            if (shift.effectiveBaseRate !== currentBlock.rate || currentWeek !== shiftWeek) {
+            if (currentWeek !== shiftWeek) {
               blocks.push(currentBlock);
               currentBlock = {
                 rate: shift.effectiveBaseRate,
@@ -6257,7 +6257,7 @@ app.get("/api/health", (req, res) => {
                 publicholiday_hours: shift.dayType === 'publicholiday' ? shift.hours : 0
               };
             } else {
-              // Extend block within the same week and same rate
+              // Extend block within the same week
               currentBlock.end_date = shiftEnd > currentBlock.end_date ? shiftEnd : currentBlock.end_date;
               if (shift.dayType === 'weekday') currentBlock.weekday_hours += shift.hours;
               else if (shift.dayType === 'saturday') currentBlock.saturday_hours += shift.hours;
