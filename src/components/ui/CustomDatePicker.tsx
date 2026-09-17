@@ -82,6 +82,65 @@ export function CustomDatePicker({
     setDateValue(parsedDate || null);
   }, [selected, value]);
 
+  useEffect(() => {
+    if (!show) return;
+
+    const highlightToday = () => {
+      const popup = datepickerRef.current?.querySelector('.custom-datepicker-popup');
+      if (!popup) return;
+      
+      const headerBtn = popup.querySelector('.flex.justify-between.mb-2 button:nth-child(2)');
+      if (!headerBtn) return;
+
+      const today = new Date();
+      const currentMonth = new Intl.DateTimeFormat('en', { month: 'long' }).format(today);
+      const currentYear = today.getFullYear().toString();
+      
+      const days = popup.querySelectorAll('.grid.w-64.grid-cols-7 span');
+      const todayDateString = today.getDate().toString();
+
+      if (headerBtn.textContent?.includes(currentMonth) && headerBtn.textContent?.includes(currentYear)) {
+        days.forEach(day => {
+          const isOutOfMonth = day.classList.contains('text-zinc-600') || day.classList.contains('text-gray-500');
+          if (day.textContent?.trim() === todayDateString && !isOutOfMonth) {
+             if (!day.classList.contains('bg-brand-teal')) { 
+                day.classList.add('bg-white/[0.15]', 'text-brand-teal', 'ring-1', 'ring-brand-teal/[0.5]');
+             } else {
+                day.classList.remove('bg-white/[0.15]', 'text-brand-teal', 'ring-1', 'ring-brand-teal/[0.5]');
+             }
+          } else {
+             day.classList.remove('bg-white/[0.15]', 'text-brand-teal', 'ring-1', 'ring-brand-teal/[0.5]');
+          }
+        });
+      } else {
+         days.forEach(day => day.classList.remove('bg-white/[0.15]', 'text-brand-teal', 'ring-1', 'ring-brand-teal/[0.5]'));
+      }
+    };
+
+    let observer: MutationObserver | null = null;
+    let timer: NodeJS.Timeout;
+
+    const initObserver = () => {
+       const popup = datepickerRef.current?.querySelector('.custom-datepicker-popup');
+       if (popup) {
+          highlightToday();
+          observer = new MutationObserver(() => {
+             highlightToday();
+          });
+          observer.observe(popup, { childList: true, subtree: true, characterData: true });
+       } else {
+          timer = setTimeout(initObserver, 50);
+       }
+    };
+
+    initObserver();
+
+    return () => {
+      clearTimeout(timer);
+      if (observer) observer.disconnect();
+    };
+  }, [show]);
+
   const handleChange = (selectedDate: Date) => {
     setDateValue(selectedDate);
     
