@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Datepicker from 'tailwind-datepicker-react';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 export interface CustomDatePickerProps {
   selected?: Date | null;
@@ -169,8 +169,23 @@ export function CustomDatePicker({
             id={id}
             required={required}
           />
-          <div className="absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none text-zinc-400">
-             <Calendar className="w-4 h-4" />
+          <div className="absolute inset-y-0 right-0 flex items-center pr-1 text-zinc-400">
+             {dateValue ? (
+               <button 
+                 type="button" 
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   setDateValue(null);
+                   if (onDateChange) onDateChange(null);
+                   if (onChange) onChange({ target: { value: '', name: name || '' } });
+                 }} 
+                 className="p-1 hover:text-white transition-colors cursor-pointer z-10 rounded-full hover:bg-white/10"
+               >
+                 <X className="w-3.5 h-3.5" />
+               </button>
+             ) : (
+               <Calendar className="w-4 h-4 pointer-events-none" />
+             )}
           </div>
         </div>
       </Datepicker>
