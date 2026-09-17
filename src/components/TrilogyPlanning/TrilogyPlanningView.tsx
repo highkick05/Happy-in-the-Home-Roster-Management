@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { format } from 'date-fns';
 
 export default function TrilogyPlanningView() {
   const { token } = useAuth();
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [selectedQuarterIndex, setSelectedQuarterIndex] = useState<number>(1); // Default to Q1 or current
   const [results, setResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -18,7 +18,8 @@ export default function TrilogyPlanningView() {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
-        const hcClients = data.filter((c: any) => c.funding_type === 'Home Care');
+        // Fix for funding_type matching
+        const hcClients = data.filter((c: any) => c.funding_type === 'Home Care' || c.funding_type === 'HCP' || c.funding_type === 'HOME_CARE');
         setClients(hcClients);
       } catch (e) {
         console.error(e);
@@ -26,10 +27,65 @@ export default function TrilogyPlanningView() {
     };
     fetchClients();
   }, [token]);
+
+  // Generate Quarters based on selected client
+  const quarters = useMemo(() => {
+    const now = new Date();
+    // Determine Financial Year start year (FY starts 30 Jun)
+    const isPastJun30 = now.getMonth() > 5 || (now.getMonth() === 5 && now.getDate() >= 30);
+    const fyStartYear = isPastJun30 ? now.getFullYear() : now.getFullYear() - 1;
+
+    const baseQuarters = [
+      { id: 1, label: "Quarter 1", start: new Date(fyStartYear, 5, 30), end: new Date(fyStartYear, 8, 30) },
+      { id: 2, label: "Quarter 2", start: new Date(fyStartYear, 8, 30), end: new Date(fyStartYear, 11, 31) },
+      { id: 3, label: "Quarter 3", start: new Date(fyStartYear, 11, 31), end: new Date(fyStartYear + 1, 2, 31) },
+      { id: 4, label: "Quarter 4", start: new Date(fyStartYear + 1, 2, 31), end: new Date(fyStartYear + 1, 5, 30) }
+    ];
+
+    const client = clients.find(c => c.id.toString() === selectedClient);
+    
+    return baseQuarters.map(q => {
+      let qStart = q.start;
+      // Bridging quarter logic
+      if (client && client.joined_date) {
+        const joined = new Date(client.joined_date);
+        if (!isNaN(joined.getTime()) && joined >= q.start && joined < q.end) {
+          qStart = joined;
+        }
+      }
+
+      const isCurrent = now >= q.start && now < q.end;
+      const displayLabel = `${q.label}: ${format(qStart, 'd MMM')} - ${format(q.end, 'd MMM yyyy')}`;
+      
+      return {
+        ...q,
+        actualStart: qStart,
+        displayLabel,
+        isCurrent
+      };
+    });
+  }, [clients, selectedClient]);
+
+  // Set default quarter on load
+  useEffect(() => {
+    if (quarters.length > 0) {
+      const current = quarters.findIndex(q => q.isCurrent);
+      if (current !== -1) {
+        setSelectedQuarterIndex(current);
+      }
+    }
+  }, [quarters]);
   
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedClient || !startDate || !endDate) return;
+    if (!selectedClient) return;
+    
+    const activeQuarter = quarters[selectedQuarterIndex];
+    if (!activeQuarter) return;
+
+    // Convert dates to YYYY-MM-DD for API
+    const startDate = activeQuarter.actualStart.toISOString().split('T')[0];
+    const endDate = activeQuarter.end.toISOString().split('T')[0];
     
     setIsLoading(true);
     try {
@@ -57,7 +113,7 @@ export default function TrilogyPlanningView() {
 
       <div className="bg-[#151515] border border-white/[0.05] rounded-2xl p-6 mb-8 shadow-sm">
         <form onSubmit={handleSearch} className="flex flex-col md:flex-row items-end gap-4">
-          <div className="flex-1 w-full">
+          <div className="flex-1 w-full md:max-w-md">
             <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-2">Home Care Client</label>
             <select 
               value={selectedClient} 
@@ -71,29 +127,26 @@ export default function TrilogyPlanningView() {
               ))}
             </select>
           </div>
-          <div className="w-full md:w-48">
-            <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-2">Start Date</label>
-            <input 
-              type="date" 
-              value={startDate}
-              onChange={e => setStartDate(e.target.value)}
+          
+          <div className="flex-1 w-full md:max-w-md">
+            <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-2">Budget Quarter</label>
+            <select 
+              value={selectedQuarterIndex} 
+              onChange={e => setSelectedQuarterIndex(Number(e.target.value))}
               required
-              className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-4 py-2.5 text-[14px] text-white outline-none focus:border-brand-teal transition-colors [color-scheme:dark] hover:border-white/[0.15]"
-            />
+              className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-4 py-2.5 text-[14px] text-white outline-none focus:border-brand-teal transition-colors hover:border-white/[0.15]"
+            >
+              {quarters.map((q, idx) => (
+                <option key={idx} value={idx}>
+                  {q.displayLabel} {q.isCurrent ? ' (Current quarter)' : ''}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="w-full md:w-48">
-            <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-2">End Date</label>
-            <input 
-              type="date" 
-              value={endDate}
-              onChange={e => setEndDate(e.target.value)}
-              required
-              className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-4 py-2.5 text-[14px] text-white outline-none focus:border-brand-teal transition-colors [color-scheme:dark] hover:border-white/[0.15]"
-            />
-          </div>
+
           <button 
             type="submit" 
-            disabled={isLoading}
+            disabled={isLoading || !selectedClient}
             className="w-full md:w-auto h-[42px] px-6 bg-[#E6EDF3] hover:bg-white text-black font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(230,237,243,0.1)] hover:shadow-[0_0_20px_rgba(230,237,243,0.2)]"
           >
             <Search className="w-4 h-4" />
@@ -120,15 +173,15 @@ export default function TrilogyPlanningView() {
                   <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
                     <td className="px-6 py-4 text-[14px] text-[#E6EDF3] font-medium">{row.service_name}</td>
                     <td className="px-6 py-4 text-[14px] text-[#8B949E] text-right font-mono">${row.rate?.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-[14px] text-[#8B949E] text-center">{row.start_date}</td>
-                    <td className="px-6 py-4 text-[14px] text-[#8B949E] text-center">{row.end_date}</td>
+                    <td className="px-6 py-4 text-[14px] text-[#8B949E] text-center">{row.start_date ? format(new Date(row.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}</td>
+                    <td className="px-6 py-4 text-[14px] text-[#8B949E] text-center">{row.end_date ? format(new Date(row.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}</td>
                     <td className="px-6 py-4 text-[14px] text-brand-teal text-right font-medium">{row.hours_per_week} hrs</td>
                   </tr>
                 ))
               ) : (
                 <tr>
                   <td colSpan={5} className="px-6 py-16 text-center text-[#8B949E] text-sm">
-                    {isLoading ? 'Loading data...' : 'No data generated. Select a client and date range to view summary.'}
+                    {isLoading ? 'Loading data...' : 'No data generated. Select a client and quarter to view summary.'}
                   </td>
                 </tr>
               )}
