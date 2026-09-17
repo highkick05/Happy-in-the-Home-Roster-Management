@@ -6136,7 +6136,9 @@ app.get("/api/health", (req, res) => {
       const query = `
         SELECT 
           srv.name as service_name,
-          srv.rate as rate,
+          srv.rate as base_rate,
+          srv.rates_json,
+          s.services_json,
           s.start_time,
           s.end_time,
           (julianday(s.end_time) - julianday(s.start_time)) * 24 as hours
@@ -6153,8 +6155,57 @@ app.get("/api/health", (req, res) => {
       
       const shifts = db.prepare(query).all(`%${client_name}%`, start_date, end_date) as any[];
       
+      const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+      const settingsMap: any = {};
+      settingsRows.forEach((r) => {
+        try {
+          settingsMap[r.key] = JSON.parse(r.value);
+        } catch {
+          settingsMap[r.key] = r.value;
+        }
+      });
+      const state = settingsMap.state || "WA";
+      const hd = new Holidays("AU", state);
+
       const servicesMap: Record<string, any[]> = {};
       for (const shift of shifts) {
+        const start = new Date(shift.start_time);
+        const dayOfWeek = start.getDay();
+        const localDateStr = start.toISOString().split('T')[0];
+        
+        const isPublicHoliday = hd
+            .getHolidays(start.getFullYear())
+            .some(
+              (h: any) =>
+                h.type === "public" && h.date.startsWith(localDateStr),
+            );
+            
+        let dayType = 'weekday';
+        if (isPublicHoliday) dayType = 'publicholiday';
+        else if (dayOfWeek === 0) dayType = 'sunday';
+        else if (dayOfWeek === 6) dayType = 'saturday';
+        
+        shift.dayType = dayType;
+        
+        let effectiveBaseRate = shift.base_rate;
+        try {
+           if (shift.rates_json) {
+              const rates = JSON.parse(shift.rates_json);
+              if (rates["Weekday"]) effectiveBaseRate = Number(rates["Weekday"]);
+           }
+        } catch(e) {}
+        
+        try {
+           if (shift.services_json) {
+              const sData = JSON.parse(shift.services_json);
+              if (Array.isArray(sData) && sData.length > 0 && sData[0].rateOverride) {
+                 effectiveBaseRate = Number(sData[0].rateOverride);
+              }
+           }
+        } catch(e) {}
+        
+        shift.effectiveBaseRate = effectiveBaseRate;
+
         if (!servicesMap[shift.service_name]) {
           servicesMap[shift.service_name] = [];
         }
@@ -6181,28 +6232,37 @@ app.get("/api/health", (req, res) => {
           
           if (!currentBlock) {
             currentBlock = {
-              rate: shift.rate,
+              rate: shift.effectiveBaseRate,
               start_date: shiftStart,
               end_date: shiftEnd,
-              total_hours: shift.hours
+              weekday_hours: shift.dayType === 'weekday' ? shift.hours : 0,
+              saturday_hours: shift.dayType === 'saturday' ? shift.hours : 0,
+              sunday_hours: shift.dayType === 'sunday' ? shift.hours : 0,
+              publicholiday_hours: shift.dayType === 'publicholiday' ? shift.hours : 0
             };
           } else {
-            // Break block if rate changes or if it enters a new week
+            // Break block if effective base rate changes or if it enters a new week
             const currentWeek = getWeekIdentifier(currentBlock.start_date);
             const shiftWeek = getWeekIdentifier(shiftStart);
 
-            if (shift.rate !== currentBlock.rate || currentWeek !== shiftWeek) {
+            if (shift.effectiveBaseRate !== currentBlock.rate || currentWeek !== shiftWeek) {
               blocks.push(currentBlock);
               currentBlock = {
-                rate: shift.rate,
+                rate: shift.effectiveBaseRate,
                 start_date: shiftStart,
                 end_date: shiftEnd,
-                total_hours: shift.hours
+                weekday_hours: shift.dayType === 'weekday' ? shift.hours : 0,
+                saturday_hours: shift.dayType === 'saturday' ? shift.hours : 0,
+                sunday_hours: shift.dayType === 'sunday' ? shift.hours : 0,
+                publicholiday_hours: shift.dayType === 'publicholiday' ? shift.hours : 0
               };
             } else {
               // Extend block within the same week and same rate
               currentBlock.end_date = shiftEnd > currentBlock.end_date ? shiftEnd : currentBlock.end_date;
-              currentBlock.total_hours += shift.hours;
+              if (shift.dayType === 'weekday') currentBlock.weekday_hours += shift.hours;
+              else if (shift.dayType === 'saturday') currentBlock.saturday_hours += shift.hours;
+              else if (shift.dayType === 'sunday') currentBlock.sunday_hours += shift.hours;
+              else if (shift.dayType === 'publicholiday') currentBlock.publicholiday_hours += shift.hours;
             }
           }
         }
@@ -6215,7 +6275,10 @@ app.get("/api/health", (req, res) => {
             rate: b.rate,
             start_date: b.start_date.toISOString().split('T')[0],
             end_date: b.end_date.toISOString().split('T')[0],
-            hours_per_week: Number(b.total_hours.toFixed(2))
+            weekday_hours: Number(b.weekday_hours.toFixed(2)),
+            saturday_hours: Number(b.saturday_hours.toFixed(2)),
+            sunday_hours: Number(b.sunday_hours.toFixed(2)),
+            publicholiday_hours: Number(b.publicholiday_hours.toFixed(2))
           };
         });
         
