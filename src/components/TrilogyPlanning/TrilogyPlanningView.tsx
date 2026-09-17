@@ -152,40 +152,45 @@ export default function TrilogyPlanningView() {
         </div>
       </div>
 
-      <div className="bg-[#151515] border border-white/[0.05] rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-white/[0.05] bg-black/20">
-                <th className="px-6 py-4 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider">Service Name</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Rate</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-center">Start Date</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-center">End Date</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Hours / Week</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.05]">
-              {results.length > 0 ? (
-                results.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-6 py-4 text-[14px] text-[#E6EDF3] font-medium">{row.service_name}</td>
-                    <td className="px-6 py-4 text-[14px] text-[#8B949E] text-right font-mono">${row.rate?.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-[14px] text-[#8B949E] text-center">{row.start_date ? format(new Date(row.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}</td>
-                    <td className="px-6 py-4 text-[14px] text-[#8B949E] text-center">{row.end_date ? format(new Date(row.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}</td>
-                    <td className="px-6 py-4 text-[14px] text-brand-teal text-right font-medium">{row.hours_per_week} hrs</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center text-[#8B949E] text-sm">
-                    {isLoading ? 'Loading data...' : 'No data generated. Ensure the selected client has COMPLETED shifts in this quarter.'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {results.length > 0 ? (
+        <div className="space-y-8">
+          {results.map((serviceGroup, idx) => (
+            <div key={idx} className="bg-[#151515] border border-white/[0.05] rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-6 py-4 bg-black/40 border-b border-white/[0.05]">
+                <h3 className="text-[15px] font-semibold text-[#E6EDF3]">{serviceGroup.service_name}</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/[0.05] bg-black/20">
+                      <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider">Rate</th>
+                      <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-center">Start Date</th>
+                      <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-center">End Date</th>
+                      <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Hours / Week</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.05]">
+                    {serviceGroup.blocks.map((block: any, bIdx: number) => (
+                      <tr key={bIdx} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="px-6 py-3 text-[14px] text-[#8B949E] font-mono">${block.rate?.toFixed(2)}</td>
+                        <td className="px-6 py-3 text-[14px] text-[#8B949E] text-center">{block.start_date ? format(new Date(block.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}</td>
+                        <td className="px-6 py-3 text-[14px] text-[#8B949E] text-center">{block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}</td>
+                        <td className="px-6 py-3 text-[14px] text-brand-teal text-right font-medium">{block.hours_per_week} hrs</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      ) : (
+        <div className="bg-[#151515] border border-white/[0.05] rounded-2xl p-16 text-center shadow-sm">
+          <p className="text-[#8B949E] text-sm">
+            {isLoading ? 'Loading data...' : 'No data generated. Ensure the selected client has COMPLETED shifts in this quarter.'}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

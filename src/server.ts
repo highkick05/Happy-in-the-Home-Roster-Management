@@ -6137,9 +6137,9 @@ app.get("/api/health", (req, res) => {
         SELECT 
           srv.name as service_name,
           srv.rate as rate,
-          MIN(DATE(s.start_time)) as start_date,
-          MAX(DATE(s.start_time)) as end_date,
-          SUM((julianday(s.end_time) - julianday(s.start_time)) * 24) as total_hours
+          s.start_time,
+          s.end_time,
+          (julianday(s.end_time) - julianday(s.start_time)) * 24 as hours
         FROM shifts s
         JOIN clients c ON s.client_id = c.id
         JOIN services srv ON s.service_id = srv.id
@@ -6148,29 +6148,80 @@ app.get("/api/health", (req, res) => {
           AND DATE(s.start_time) <= ?
           AND s.status = 'COMPLETED'
           AND c.funding_type IN ('Home Care', 'HCP', 'HOME_CARE')
-        GROUP BY service_name, rate
-        ORDER BY service_name ASC, start_date ASC
+        ORDER BY service_name ASC, s.start_time ASC
       `;
       
-      const rows = db.prepare(query).all(`%${client_name}%`, start_date, end_date) as any[];
+      const shifts = db.prepare(query).all(`%${client_name}%`, start_date, end_date) as any[];
       
-      const formattedRows = rows.map((row) => {
-         const start = new Date(row.start_date);
-         const end = new Date(row.end_date);
-         
-         const msInDay = 1000 * 60 * 60 * 24;
-         const days = Math.floor((end.getTime() - start.getTime()) / msInDay) + 1;
-         
-         const weeks = days <= 1 ? 1 : (days / 7);
-         const hoursPerWeek = row.total_hours / weeks;
-         
-         return {
-           ...row,
-           hours_per_week: Number(hoursPerWeek.toFixed(2))
-         };
-      });
+      const servicesMap: Record<string, any[]> = {};
+      for (const shift of shifts) {
+        if (!servicesMap[shift.service_name]) {
+          servicesMap[shift.service_name] = [];
+        }
+        servicesMap[shift.service_name].push(shift);
+      }
       
-      res.json(formattedRows);
+      const formattedData = [];
+      
+      for (const [serviceName, serviceShifts] of Object.entries(servicesMap)) {
+        const blocks = [];
+        let currentBlock: any = null;
+        
+        for (const shift of serviceShifts) {
+          const shiftStart = new Date(shift.start_time);
+          const shiftEnd = new Date(shift.end_time);
+          
+          if (!currentBlock) {
+            currentBlock = {
+              rate: shift.rate,
+              start_date: shiftStart,
+              end_date: shiftEnd,
+              total_hours: shift.hours
+            };
+          } else {
+            const daysDiff = (shiftStart.getTime() - currentBlock.end_date.getTime()) / (1000 * 60 * 60 * 24);
+            
+            // Break block if rate changes or if gap is > 14 days
+            if (shift.rate !== currentBlock.rate || daysDiff > 14) {
+              blocks.push(currentBlock);
+              currentBlock = {
+                rate: shift.rate,
+                start_date: shiftStart,
+                end_date: shiftEnd,
+                total_hours: shift.hours
+              };
+            } else {
+              // Extend block
+              currentBlock.end_date = shiftEnd > currentBlock.end_date ? shiftEnd : currentBlock.end_date;
+              currentBlock.total_hours += shift.hours;
+            }
+          }
+        }
+        if (currentBlock) {
+          blocks.push(currentBlock);
+        }
+        
+        const formattedBlocks = blocks.map(b => {
+          const msInDay = 1000 * 60 * 60 * 24;
+          const days = Math.floor((b.end_date.getTime() - b.start_date.getTime()) / msInDay) + 1;
+          const weeks = days <= 1 ? 1 : (days / 7);
+          const hoursPerWeek = b.total_hours / weeks;
+          
+          return {
+            rate: b.rate,
+            start_date: b.start_date.toISOString().split('T')[0],
+            end_date: b.end_date.toISOString().split('T')[0],
+            hours_per_week: Number(hoursPerWeek.toFixed(2))
+          };
+        });
+        
+        formattedData.push({
+          service_name: serviceName,
+          blocks: formattedBlocks
+        });
+      }
+      
+      res.json(formattedData);
     } catch (error: any) {
       logger.error(`Trilogy summary error: ${error}`, { error: error.stack || error });
       res.status(500).json({ error: "Internal Server Error" });
