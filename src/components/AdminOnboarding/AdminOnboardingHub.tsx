@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, FileCheck, Edit, Video, AlertCircle, Users, Briefcase, Globe } from 'lucide-react';
+import { Plus, Trash2, Save, FileCheck, Edit, Video, AlertCircle, Users, Briefcase, Globe, Upload, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PositionsModal from '../Directory/PositionsModal';
 import EditorJSWrapper from '../ProgressNotes/EditorJSWrapper';
@@ -48,6 +48,36 @@ export default function AdminOnboardingHub() {
   const [isEditing, setIsEditing] = useState<number | null>(null); // step id
   const [isPositionsModalOpen, setIsPositionsModalOpen] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Step>>({});
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingMedia(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const res = await fetch('/api/files?folderPath=/System/OnboardingMedia', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success && data.id) {
+         setEditForm(prev => ({ ...prev, media_url: `/api/files/download/${data.id}` }));
+      } else {
+         alert('Failed to upload media.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('An error occurred during upload.');
+    } finally {
+      setIsUploadingMedia(false);
+      if (e.target) e.target.value = ''; // Reset input
+    }
+  };
 
   const fetchPositions = () => {
     fetch('/api/positions', { headers: { Authorization: `Bearer ${token}` } })
@@ -317,14 +347,27 @@ export default function AdminOnboardingHub() {
 
                             <div>
                               <label className="block text-[11px] font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Media URL (Video/Image Link)</label>
-                              <div className="flex relative">
-                                <Video className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
-                                <input 
-                                  value={editForm.media_url}
-                                  onChange={e => setEditForm({...editForm, media_url: e.target.value})}
-                                  placeholder="e.g. https://youtube.com/... or https://example.com/video.mp4"
-                                  className="w-full bg-black/40 border border-white/[0.08] rounded-lg pl-9 pr-3 py-2 text-[13px] text-white outline-none focus:border-brand-teal transition-colors"
-                                />
+                              <div className="flex gap-2">
+                                <div className="flex relative flex-1">
+                                  <Video className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
+                                  <input 
+                                    value={editForm.media_url}
+                                    onChange={e => setEditForm({...editForm, media_url: e.target.value})}
+                                    placeholder="e.g. https://youtube.com/... or https://example.com/video.mp4"
+                                    className="w-full bg-black/40 border border-white/[0.08] rounded-lg pl-9 pr-3 py-2 text-[13px] text-white outline-none focus:border-brand-teal transition-colors"
+                                  />
+                                </div>
+                                <label className="flex items-center gap-2 px-4 py-2 bg-brand-teal/10 hover:bg-brand-teal/20 text-brand-teal border border-brand-teal/20 rounded-lg cursor-pointer transition-colors text-[13px] font-medium whitespace-nowrap">
+                                  {isUploadingMedia ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                  Upload Media
+                                  <input 
+                                    type="file" 
+                                    accept="video/*,image/*" 
+                                    className="hidden"
+                                    onChange={handleMediaUpload}
+                                    disabled={isUploadingMedia}
+                                  />
+                                </label>
                               </div>
                             </div>
 
