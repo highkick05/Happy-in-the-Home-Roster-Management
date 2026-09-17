@@ -6163,6 +6163,14 @@ app.get("/api/health", (req, res) => {
       
       const formattedData = [];
       
+      const getWeekIdentifier = (d: Date) => {
+        const date = new Date(d);
+        date.setHours(0, 0, 0, 0);
+        const day = date.getDay();
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1); 
+        return new Date(date.setDate(diff)).getTime();
+      };
+
       for (const [serviceName, serviceShifts] of Object.entries(servicesMap)) {
         const blocks = [];
         let currentBlock: any = null;
@@ -6179,8 +6187,11 @@ app.get("/api/health", (req, res) => {
               total_hours: shift.hours
             };
           } else {
-            // Break block if rate changes
-            if (shift.rate !== currentBlock.rate) {
+            // Break block if rate changes or if it enters a new week
+            const currentWeek = getWeekIdentifier(currentBlock.start_date);
+            const shiftWeek = getWeekIdentifier(shiftStart);
+
+            if (shift.rate !== currentBlock.rate || currentWeek !== shiftWeek) {
               blocks.push(currentBlock);
               currentBlock = {
                 rate: shift.rate,
@@ -6189,7 +6200,7 @@ app.get("/api/health", (req, res) => {
                 total_hours: shift.hours
               };
             } else {
-              // Extend block
+              // Extend block within the same week and same rate
               currentBlock.end_date = shiftEnd > currentBlock.end_date ? shiftEnd : currentBlock.end_date;
               currentBlock.total_hours += shift.hours;
             }
@@ -6200,16 +6211,11 @@ app.get("/api/health", (req, res) => {
         }
         
         const formattedBlocks = blocks.map(b => {
-          const msInDay = 1000 * 60 * 60 * 24;
-          const days = Math.floor((b.end_date.getTime() - b.start_date.getTime()) / msInDay) + 1;
-          const weeks = days <= 1 ? 1 : (days / 7);
-          const hoursPerWeek = b.total_hours / weeks;
-          
           return {
             rate: b.rate,
             start_date: b.start_date.toISOString().split('T')[0],
             end_date: b.end_date.toISOString().split('T')[0],
-            hours_per_week: Number(hoursPerWeek.toFixed(2))
+            hours_per_week: Number(b.total_hours.toFixed(2))
           };
         });
         
