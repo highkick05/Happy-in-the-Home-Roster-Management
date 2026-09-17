@@ -163,42 +163,47 @@ export default function TrilogyPlanningView() {
       </div>
 
       {results.length > 0 ? (
-        <div className="space-y-4">
-          {results.map((serviceGroup, idx) => (
-            <div key={idx} className="bg-[#151515] border border-white/[0.05] rounded-xl overflow-hidden shadow-sm">
-              <div className="px-4 py-2.5 bg-black/40 border-b border-white/[0.05]">
-                <h3 className="text-xs font-semibold tracking-wide text-[#E6EDF3]">{serviceGroup.service_name}</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-white/[0.05] bg-black/20">
-                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Dates</th>
-                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Base Rate</th>
-                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Weekday Hrs</th>
-                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sat Hrs</th>
-                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sun Hrs</th>
-                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">PH Hrs</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/[0.05]">
-                    {serviceGroup.blocks.map((block: any, bIdx: number) => (
-                      <tr key={bIdx} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#E6EDF3]">
-                          {block.start_date ? format(new Date(block.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
-                          <span className="mx-1.5 text-zinc-500/80">to</span>
-                          {block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
-                        </td>
-                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#8B949E] text-right">${block.rate?.toFixed(2)}</td>
-                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.weekday_hours > 0 ? `${block.weekday_hours} hrs` : '-'}</td>
-                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.saturday_hours > 0 ? `${block.saturday_hours} hrs` : '-'}</td>
-                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.sunday_hours > 0 ? `${block.sunday_hours} hrs` : '-'}</td>
-                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.publicholiday_hours > 0 ? `${block.publicholiday_hours} hrs` : '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+        <div className="space-y-8">
+          {results.map((monthGroup, mIdx) => (
+            <div key={mIdx} className="space-y-4">
+              <h2 className="text-lg font-bold text-white tracking-wide uppercase">{monthGroup.month}</h2>
+              {monthGroup.services.map((serviceGroup: any, idx: number) => (
+                <div key={idx} className="bg-[#151515] border border-white/[0.05] rounded-xl overflow-hidden shadow-sm">
+                  <div className="px-4 py-2.5 bg-black/40 border-b border-white/[0.05]">
+                    <h3 className="text-xs font-semibold tracking-wide text-[#E6EDF3]">{serviceGroup.service_name}</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-white/[0.05] bg-black/20">
+                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Dates</th>
+                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Base Rate</th>
+                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Weekday Hrs</th>
+                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sat Hrs</th>
+                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sun Hrs</th>
+                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">PH Hrs</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/[0.05]">
+                        {serviceGroup.blocks.map((block: any, bIdx: number) => (
+                          <tr key={bIdx} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#E6EDF3]">
+                              {block.start_date ? format(new Date(block.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
+                              <span className="mx-1.5 text-zinc-500/80">to</span>
+                              {block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
+                            </td>
+                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#8B949E] text-right">${block.rate?.toFixed(2)}</td>
+                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.weekday_hours > 0 ? `${block.weekday_hours} hrs` : '-'}</td>
+                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.saturday_hours > 0 ? `${block.saturday_hours} hrs` : '-'}</td>
+                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.sunday_hours > 0 ? `${block.sunday_hours} hrs` : '-'}</td>
+                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.publicholiday_hours > 0 ? `${block.publicholiday_hours} hrs` : '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
         </div>
