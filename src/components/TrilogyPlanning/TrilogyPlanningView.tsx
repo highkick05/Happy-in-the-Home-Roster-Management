@@ -6,11 +6,21 @@ import { format } from 'date-fns';
 export default function TrilogyPlanningView() {
   const { token } = useAuth();
   const [clients, setClients] = useState<any[]>([]);
-  const [selectedClient, setSelectedClient] = useState('');
+  const [selectedClient, setSelectedClient] = useState(() => {
+    return localStorage.getItem('trilogyPlanningSelectedClient') || '';
+  });
   const [selectedQuarterIndex, setSelectedQuarterIndex] = useState<number>(1); // Default to Q1 or current
   const [results, setResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
+  useEffect(() => {
+    if (selectedClient) {
+      localStorage.setItem('trilogyPlanningSelectedClient', selectedClient);
+    } else {
+      localStorage.removeItem('trilogyPlanningSelectedClient');
+    }
+  }, [selectedClient]);
+
   useEffect(() => {
     const fetchClients = async () => {
       try {
