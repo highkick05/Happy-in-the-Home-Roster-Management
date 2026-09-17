@@ -176,6 +176,7 @@ export default function TrilogyPlanningView() {
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="border-b border-white/[0.05] bg-black/20">
+                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Week</th>
                           <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Dates</th>
                           <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Base Rate</th>
                           <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Weekday Hrs</th>
@@ -187,7 +188,10 @@ export default function TrilogyPlanningView() {
                       <tbody className="divide-y divide-white/[0.05]">
                         {serviceGroup.blocks.map((block: any, bIdx: number) => (
                           <tr key={bIdx} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#E6EDF3]">
+                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal whitespace-nowrap">
+                              {block.week_of_month ? `Week ${block.week_of_month}` : '-'}
+                            </td>
+                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#E6EDF3] whitespace-nowrap">
                               {block.start_date ? format(new Date(block.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
                               <span className="mx-1.5 text-zinc-500/80">to</span>
                               {block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}

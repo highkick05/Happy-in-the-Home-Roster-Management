@@ -6284,11 +6284,18 @@ app.get("/api/health", (req, res) => {
             blocks.push(currentBlock);
           }
           
+          const getWeekOfMonth = (d: Date) => {
+            const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
+            const adjustedFirstDay = firstDay === 0 ? 6 : firstDay - 1;
+            return Math.ceil((d.getDate() + adjustedFirstDay) / 7);
+          };
+          
           const formattedBlocks = blocks.map(b => {
             return {
               rate: b.rate,
               start_date: b.start_date.toISOString().split('T')[0],
               end_date: b.end_date.toISOString().split('T')[0],
+              week_of_month: getWeekOfMonth(b.start_date),
               weekday_hours: Number(b.weekday_hours.toFixed(2)),
               saturday_hours: Number(b.saturday_hours.toFixed(2)),
               sunday_hours: Number(b.sunday_hours.toFixed(2)),
