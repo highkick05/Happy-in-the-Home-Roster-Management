@@ -6147,7 +6147,7 @@ app.get("/api/health", (req, res) => {
           AND DATE(s.start_time) >= ?
           AND DATE(s.start_time) <= ?
           AND s.status = 'COMPLETED'
-          AND c.funding_type = 'Home Care'
+          AND c.funding_type IN ('Home Care', 'HCP', 'HOME_CARE')
         GROUP BY service_name, rate
         ORDER BY service_name ASC, start_date ASC
       `;

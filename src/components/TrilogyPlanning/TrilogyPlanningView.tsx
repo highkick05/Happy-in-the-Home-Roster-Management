@@ -76,11 +76,13 @@ export default function TrilogyPlanningView() {
     }
   }, [quarters]);
   
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedClient) return;
+  const fetchSummary = async (clientId: string, quarterIndex: number) => {
+    if (!clientId) {
+      setResults([]);
+      return;
+    }
     
-    const activeQuarter = quarters[selectedQuarterIndex];
+    const activeQuarter = quarters[quarterIndex];
     if (!activeQuarter) return;
 
     // Convert dates to YYYY-MM-DD for API
@@ -89,7 +91,7 @@ export default function TrilogyPlanningView() {
     
     setIsLoading(true);
     try {
-      const client = clients.find(c => c.id.toString() === selectedClient);
+      const client = clients.find(c => c.id.toString() === clientId);
       const clientName = client ? `${client.first_name} ${client.last_name}` : '';
       
       const res = await fetch(`/api/reports/trilogy-summary?client_name=${encodeURIComponent(clientName)}&start_date=${startDate}&end_date=${endDate}`, {
@@ -99,10 +101,16 @@ export default function TrilogyPlanningView() {
       setResults(data);
     } catch (e) {
       console.error(e);
+      setResults([]);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchSummary(selectedClient, selectedQuarterIndex);
+  }, [selectedClient, selectedQuarterIndex, quarters]);
+
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto w-full animate-in fade-in zoom-in-95 duration-200">
@@ -112,13 +120,12 @@ export default function TrilogyPlanningView() {
       </div>
 
       <div className="bg-[#151515] border border-white/[0.05] rounded-2xl p-6 mb-8 shadow-sm">
-        <form onSubmit={handleSearch} className="flex flex-col md:flex-row items-end gap-4">
+        <div className="flex flex-col md:flex-row items-end gap-4">
           <div className="flex-1 w-full md:max-w-md">
             <label className="block text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-2">Home Care Client</label>
             <select 
               value={selectedClient} 
               onChange={e => setSelectedClient(e.target.value)}
-              required
               className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-4 py-2.5 text-[14px] text-white outline-none focus:border-brand-teal transition-colors hover:border-white/[0.15]"
             >
               <option value="">Select a client...</option>
@@ -133,7 +140,6 @@ export default function TrilogyPlanningView() {
             <select 
               value={selectedQuarterIndex} 
               onChange={e => setSelectedQuarterIndex(Number(e.target.value))}
-              required
               className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-4 py-2.5 text-[14px] text-white outline-none focus:border-brand-teal transition-colors hover:border-white/[0.15]"
             >
               {quarters.map((q, idx) => (
@@ -143,16 +149,7 @@ export default function TrilogyPlanningView() {
               ))}
             </select>
           </div>
-
-          <button 
-            type="submit" 
-            disabled={isLoading || !selectedClient}
-            className="w-full md:w-auto h-[42px] px-6 bg-[#E6EDF3] hover:bg-white text-black font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(230,237,243,0.1)] hover:shadow-[0_0_20px_rgba(230,237,243,0.2)]"
-          >
-            <Search className="w-4 h-4" />
-            {isLoading ? 'Generating...' : 'Generate Summary'}
-          </button>
-        </form>
+        </div>
       </div>
 
       <div className="bg-[#151515] border border-white/[0.05] rounded-2xl overflow-hidden shadow-sm">
@@ -181,7 +178,7 @@ export default function TrilogyPlanningView() {
               ) : (
                 <tr>
                   <td colSpan={5} className="px-6 py-16 text-center text-[#8B949E] text-sm">
-                    {isLoading ? 'Loading data...' : 'No data generated. Select a client and quarter to view summary.'}
+                    {isLoading ? 'Loading data...' : 'No data generated. Ensure the selected client has COMPLETED shifts in this quarter.'}
                   </td>
                 </tr>
               )}
