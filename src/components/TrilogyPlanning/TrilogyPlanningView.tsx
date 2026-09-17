@@ -164,8 +164,11 @@ export default function TrilogyPlanningView() {
                   <thead>
                     <tr className="border-b border-white/[0.05] bg-black/20">
                       <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Dates</th>
-                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Rate</th>
-                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Hours / Week</th>
+                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Base Rate</th>
+                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Weekday Hrs</th>
+                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sat Hrs</th>
+                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sun Hrs</th>
+                      <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">PH Hrs</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/[0.05]">
@@ -177,7 +180,10 @@ export default function TrilogyPlanningView() {
                           {block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
                         </td>
                         <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#8B949E] text-right">${block.rate?.toFixed(2)}</td>
-                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.hours_per_week} hrs</td>
+                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.weekday_hours > 0 ? `${block.weekday_hours} hrs` : '-'}</td>
+                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.saturday_hours > 0 ? `${block.saturday_hours} hrs` : '-'}</td>
+                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.sunday_hours > 0 ? `${block.sunday_hours} hrs` : '-'}</td>
+                        <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.publicholiday_hours > 0 ? `${block.publicholiday_hours} hrs` : '-'}</td>
                       </tr>
                     ))}
                   </tbody>
