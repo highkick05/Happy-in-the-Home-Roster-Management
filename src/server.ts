@@ -6146,7 +6146,7 @@ app.get("/api/health", (req, res) => {
         WHERE (c.first_name || ' ' || c.last_name LIKE ?)
           AND DATE(s.start_time) >= ?
           AND DATE(s.start_time) <= ?
-          AND s.status = 'COMPLETED'
+          AND (s.status = 'COMPLETED' OR (s.status = 'CANCELLED' AND EXISTS (SELECT 1 FROM invoices i WHERE i.shift_id = s.id)))
           AND c.funding_type IN ('Home Care', 'HCP', 'HOME_CARE')
         ORDER BY service_name ASC, s.start_time ASC
       `;

@@ -189,7 +189,7 @@ export default function TrilogyPlanningView() {
       ) : (
         <div className="bg-[#151515] border border-white/[0.05] rounded-xl p-8 text-center shadow-sm">
           <p className="text-[#8B949E] text-xs font-semibold tracking-wide">
-            {isLoading ? 'Loading data...' : 'No data generated. Ensure the selected client has COMPLETED shifts in this quarter.'}
+            {isLoading ? 'Loading data...' : 'No data generated. Ensure the selected client has COMPLETED (or charged CANCELLED) shifts in this quarter.'}
           </p>
         </div>
       )}
