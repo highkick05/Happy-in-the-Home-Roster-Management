@@ -6129,6 +6129,54 @@ app.get("/api/health", (req, res) => {
   // TRAINING API
   // -----------------------------------------------------
 
+  app.get("/api/reports/trilogy-summary", authenticateToken, requireAdmin, (req: any, res: any) => {
+    const { client_name, start_date, end_date } = req.query;
+    
+    try {
+      const query = `
+        SELECT 
+          srv.name as service_name,
+          srv.rate as rate,
+          MIN(DATE(s.start_time)) as start_date,
+          MAX(DATE(s.start_time)) as end_date,
+          SUM((julianday(s.end_time) - julianday(s.start_time)) * 24) as total_hours
+        FROM shifts s
+        JOIN clients c ON s.client_id = c.id
+        JOIN services srv ON s.service_id = srv.id
+        WHERE (c.first_name || ' ' || c.last_name LIKE ?)
+          AND DATE(s.start_time) >= ?
+          AND DATE(s.start_time) <= ?
+          AND s.status = 'COMPLETED'
+          AND c.funding_type = 'Home Care'
+        GROUP BY service_name, rate
+        ORDER BY service_name ASC, start_date ASC
+      `;
+      
+      const rows = db.prepare(query).all(`%${client_name}%`, start_date, end_date) as any[];
+      
+      const formattedRows = rows.map((row) => {
+         const start = new Date(row.start_date);
+         const end = new Date(row.end_date);
+         
+         const msInDay = 1000 * 60 * 60 * 24;
+         const days = Math.floor((end.getTime() - start.getTime()) / msInDay) + 1;
+         
+         const weeks = days <= 1 ? 1 : (days / 7);
+         const hoursPerWeek = row.total_hours / weeks;
+         
+         return {
+           ...row,
+           hours_per_week: Number(hoursPerWeek.toFixed(2))
+         };
+      });
+      
+      res.json(formattedRows);
+    } catch (error: any) {
+      logger.error(`Trilogy summary error: ${error}`, { error: error.stack || error });
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
   app.get('/api/training/modules', authenticateToken, (req: any, res: any) => {
     try {
       const modules = db.prepare('SELECT * FROM training_modules ORDER BY title ASC').all();

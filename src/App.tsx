@@ -31,6 +31,7 @@ import ComplianceDashboard from './components/Compliance/ComplianceDashboard';
 import ActiveShiftModal from './components/Roster/ActiveShiftModal';
 import OnboardingView from './components/Onboarding/OnboardingView';
 import AdminOnboardingHub from './components/AdminOnboarding/AdminOnboardingHub';
+import TrilogyPlanningView from './components/TrilogyPlanning/TrilogyPlanningView';
 import UniversalPWAInstall from './components/UniversalPWAInstall';
 import NotificationsDropdown from './components/NotificationsDropdown';
 import LiveChatIcon from './components/LiveChatIcon';
@@ -331,6 +332,12 @@ function Layout({ children }: { children: React.ReactNode }) {
                   <FileCheck className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Compliance' : ''}
                 </NavLink>
               </div>
+              <div className={`text-[10px] font-bold text-zinc-500/80 mb-0.5 mt-2 px-2 uppercase tracking-wider ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? 'hidden' : 'block'}`}>Trilogy Care</div>
+              <div className="space-y-0.5">
+                <NavLink replace={true} to="/trilogy/planning" className={getNavClasses} title="Trilogy Planning">
+                  <Calendar className={`w-5 h-5 ${isDesktopSidebarCollapsed && !isMobileMenuOpen ? '' : 'mr-3'}`} /> {!isDesktopSidebarCollapsed || isMobileMenuOpen ? 'Trilogy Planning' : ''}
+                </NavLink>
+              </div>
             </>
           )}
 
@@ -522,6 +529,7 @@ export default function App() {
             <Route path="/providers" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="PROVIDERS" /></Layout></ProtectedRoute>} />
             <Route path="/services" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="CONTRACTORS" /></Layout></ProtectedRoute>} />
             <Route path="/invoices" element={<ProtectedRoute adminOnly><Layout><InvoicingView /></Layout></ProtectedRoute>} />
+            <Route path="/trilogy/planning" element={<ProtectedRoute adminOnly><Layout><TrilogyPlanningView /></Layout></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute adminOnly><Layout><StaffActivityReport /></Layout></ProtectedRoute>} />
             <Route path="/progress-notes" element={<ProtectedRoute><Layout><ProgressNotesView /></Layout></ProtectedRoute>} />
             <Route path="/compliance" element={<ProtectedRoute adminOnly><Layout><ComplianceDashboard /></Layout></ProtectedRoute>} />
