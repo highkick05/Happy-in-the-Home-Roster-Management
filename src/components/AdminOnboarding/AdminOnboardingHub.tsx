@@ -458,11 +458,6 @@ export default function AdminOnboardingHub() {
                                   </button>
                                 </div>
                               </div>
-                              {step.description && (
-                                <div className="mt-1.5 text-[13px] text-zinc-400 leading-relaxed whitespace-pre-wrap line-clamp-2">
-                                  {getPreviewText(step.description)}
-                                </div>
-                              )}
                             </div>
                           </div>
                         )}
