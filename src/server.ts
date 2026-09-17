@@ -6179,10 +6179,8 @@ app.get("/api/health", (req, res) => {
               total_hours: shift.hours
             };
           } else {
-            const daysDiff = (shiftStart.getTime() - currentBlock.end_date.getTime()) / (1000 * 60 * 60 * 24);
-            
-            // Break block if rate changes or if gap is > 14 days
-            if (shift.rate !== currentBlock.rate || daysDiff > 14) {
+            // Break block if rate changes
+            if (shift.rate !== currentBlock.rate) {
               blocks.push(currentBlock);
               currentBlock = {
                 rate: shift.rate,
