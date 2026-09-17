@@ -655,8 +655,17 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
               {step.media_url && (
                 <div className="mb-6 rounded-lg overflow-hidden border border-white/10 bg-black/40">
                   {(() => {
-                    const url = step.media_url;
+                    let url = step.media_url;
+                    
+                    // Auto-append token for internal protected files so img/video tags can load them
+                    if (url.startsWith('/api/files/download/')) {
+                       const separator = url.includes('?') ? '&' : '?';
+                       url = `${url}${separator}token=${token}&preview=true`;
+                    }
+
                     const isExpanded = expandedStep === step.id;
+                    
+                    const urlWithoutQuery = url.split('?')[0];
                     
                     if (url.includes('youtube.com/watch?v=') || url.includes('youtu.be/')) {
                       let videoId = '';
@@ -681,7 +690,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                           </div>
                         );
                       }
-                    } else if (url.match(/\.(mp4|webm|ogg)$/i)) {
+                    } else if (urlWithoutQuery.match(/\.(mp4|webm|ogg|mov)$/i)) {
                       return (
                         <video 
                           src={url} 
@@ -691,7 +700,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                           className="w-full max-h-[400px] object-contain bg-black" 
                         />
                       );
-                    } else if (url.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
+                    } else if (urlWithoutQuery.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
                       return (
                         <img 
                           src={url} 

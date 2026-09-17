@@ -66,7 +66,7 @@ export default function AdminOnboardingHub() {
       });
       const data = await res.json();
       if (data.success && data.id) {
-         setEditForm(prev => ({ ...prev, media_url: `/api/files/download/${data.id}` }));
+         setEditForm(prev => ({ ...prev, media_url: `/api/files/download/${data.id}/${encodeURIComponent(data.name)}` }));
       } else {
          alert('Failed to upload media.');
       }

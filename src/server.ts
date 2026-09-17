@@ -3459,7 +3459,7 @@ try {
     }
   });
 
-  app.get('/api/files/download/:id', authenticateToken, (req: any, res: any) => {
+  app.get('/api/files/download/:id/:filename?', authenticateToken, (req: any, res: any) => {
     const { id } = req.params;
     try {
       const file = db.prepare('SELECT * FROM files WHERE id = ?').get(id) as any;
