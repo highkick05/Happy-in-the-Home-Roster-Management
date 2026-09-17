@@ -6219,6 +6219,12 @@ app.get("/api/health", (req, res) => {
         });
       }
       
+      formattedData.sort((a: any, b: any) => {
+        const aStart = a.blocks.length > 0 ? new Date(a.blocks[0].start_date).getTime() : 0;
+        const bStart = b.blocks.length > 0 ? new Date(b.blocks[0].start_date).getTime() : 0;
+        return aStart - bStart;
+      });
+
       res.json(formattedData);
     } catch (error: any) {
       logger.error(`Trilogy summary error: ${error}`, { error: error.stack || error });

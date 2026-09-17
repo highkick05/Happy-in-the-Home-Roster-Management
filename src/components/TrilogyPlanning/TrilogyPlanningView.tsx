@@ -163,18 +163,20 @@ export default function TrilogyPlanningView() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-white/[0.05] bg-black/20">
-                      <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider">Rate</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-center">Start Date</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-center">End Date</th>
+                      <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider">Dates</th>
+                      <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Rate</th>
                       <th className="px-6 py-3 text-[11px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Hours / Week</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/[0.05]">
                     {serviceGroup.blocks.map((block: any, bIdx: number) => (
                       <tr key={bIdx} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="px-6 py-3 text-[14px] text-[#8B949E] font-mono">${block.rate?.toFixed(2)}</td>
-                        <td className="px-6 py-3 text-[14px] text-[#8B949E] text-center">{block.start_date ? format(new Date(block.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}</td>
-                        <td className="px-6 py-3 text-[14px] text-[#8B949E] text-center">{block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}</td>
+                        <td className="px-6 py-3 text-[14px] text-[#E6EDF3]">
+                          {block.start_date ? format(new Date(block.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
+                          <span className="mx-2 text-[#8B949E]">to</span>
+                          {block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
+                        </td>
+                        <td className="px-6 py-3 text-[14px] text-[#8B949E] text-right font-mono">${block.rate?.toFixed(2)}</td>
                         <td className="px-6 py-3 text-[14px] text-brand-teal text-right font-medium">{block.hours_per_week} hrs</td>
                       </tr>
                     ))}
