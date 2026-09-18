@@ -130,7 +130,7 @@ export interface TrilogyPortalPlannedService {
 // Sequences of consecutive matching weeks are combined into exact multi-week spans,
 // while individual/varying weeks are maintained as standalone 1-week planned services.
 // Every scheduled shift fits between a start date and end date with zero bulk-add distortions.
-const getTrilogyAccuratePlannedServices = (monthResults: any[], quarterStartStr?: string, quarterEndStr?: string): TrilogyPortalPlannedService[] => {
+export const getTrilogyAccuratePlannedServices = (monthResults: any[], quarterStartStr?: string, quarterEndStr?: string): TrilogyPortalPlannedService[] => {
   if (!monthResults || monthResults.length === 0) return [];
 
   const serviceMap = new Map<string, any[]>();
@@ -188,109 +188,61 @@ const getTrilogyAccuratePlannedServices = (monthResults: any[], quarterStartStr?
     // Sort chronologically by start_date
     blocks.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
 
-    let i = 0;
-    while (i < blocks.length) {
-      const cur = blocks[i];
-      const seq = [cur];
-      let j = i + 1;
+    // 1. Group blocks into contiguous runs of consecutive calendar weeks with matching rates
+    const runs: any[][] = [];
+    let currentRun: any[] = [];
 
-      while (j < blocks.length) {
-        const prev = seq[seq.length - 1];
-        const candidate = blocks[j];
-
+    for (const b of blocks) {
+      if (currentRun.length === 0) {
+        currentRun.push(b);
+      } else {
+        const prev = currentRun[currentRun.length - 1];
         const prevWdRate = Number(prev.weekday_rate ?? prev.rate ?? 0);
-        const candWdRate = Number(candidate.weekday_rate ?? candidate.rate ?? 0);
+        const candWdRate = Number(b.weekday_rate ?? b.rate ?? 0);
         const prevSatRate = Number(prev.saturday_rate ?? prev.rate ?? 0);
-        const candSatRate = Number(candidate.saturday_rate ?? candidate.rate ?? 0);
+        const candSatRate = Number(b.saturday_rate ?? b.rate ?? 0);
         const prevSunRate = Number(prev.sunday_rate ?? prev.rate ?? 0);
-        const candSunRate = Number(candidate.sunday_rate ?? candidate.rate ?? 0);
+        const candSunRate = Number(b.sunday_rate ?? b.rate ?? 0);
         const prevPhRate = Number(prev.publicholiday_rate ?? prev.rate ?? 0);
-        const candPhRate = Number(candidate.publicholiday_rate ?? candidate.rate ?? 0);
+        const candPhRate = Number(b.publicholiday_rate ?? b.rate ?? 0);
 
-        const isMatch =
-          areConsecutiveWeeks(prev, candidate) &&
+        const isConsecutive = areConsecutiveWeeks(prev, b);
+        const ratesMatch =
           Math.abs(prevWdRate - candWdRate) < 0.01 &&
           Math.abs(prevSatRate - candSatRate) < 0.01 &&
           Math.abs(prevSunRate - candSunRate) < 0.01 &&
-          Math.abs(prevPhRate - candPhRate) < 0.01 &&
-          isBlockHoursEqual(prev, candidate);
+          Math.abs(prevPhRate - candPhRate) < 0.01;
 
-        if (isMatch) {
-          seq.push(candidate);
-          j++;
+        if (isConsecutive && ratesMatch) {
+          currentRun.push(b);
         } else {
-          break;
+          runs.push(currentRun);
+          currentRun = [b];
         }
       }
+    }
+    if (currentRun.length > 0) {
+      runs.push(currentRun);
+    }
 
-      if (seq.length >= 2) {
-        // Multi-week consecutive span of identical hours and rates
-        const first = seq[0];
-        const last = seq[seq.length - 1];
-        const wHrs = Number(first.weekday_hours || 0);
-        const satHrs = Number(first.saturday_hours || 0);
-        const sunHrs = Number(first.sunday_hours || 0);
-        const phHrs = Number(first.publicholiday_hours || 0);
-        const weeklyHrs = Number((wHrs + satHrs + sunHrs + phHrs).toFixed(2));
-        const totalHrs = Number((weeklyHrs * seq.length).toFixed(2));
+    // 2. Process each consecutive run into planned service entries (consecutive or standalone)
+    for (const run of runs) {
+      if (run.length === 0) continue;
 
-        const wdRate = Number(first.weekday_rate ?? first.rate ?? 0);
-        const satRate = Number(first.saturday_rate ?? first.rate ?? 0);
-        const sunRate = Number(first.sunday_rate ?? first.rate ?? 0);
-        const phRate = Number(first.publicholiday_rate ?? first.rate ?? 0);
+      const first = run[0];
+      const wdRate = Number(first.weekday_rate ?? first.rate ?? 0);
+      const satRate = Number(first.saturday_rate ?? first.rate ?? 0);
+      const sunRate = Number(first.sunday_rate ?? first.rate ?? 0);
+      const phRate = Number(first.publicholiday_rate ?? first.rate ?? 0);
 
-        const wdAmount = Number((wHrs * wdRate).toFixed(2));
-        const satAmount = Number((satHrs * satRate).toFixed(2));
-        const sunAmount = Number((sunHrs * sunRate).toFixed(2));
-        const phAmount = Number((phHrs * phRate).toFixed(2));
-        const weeklyAmount = Number((wdAmount + satAmount + sunAmount + phAmount).toFixed(2));
-        const dailyAmount = Number((weeklyAmount / 7).toFixed(2));
-        const totalCost = Number((weeklyAmount * seq.length).toFixed(2));
-
-        allEntries.push({
-          id: `consec-${serviceName.replace(/\s+/g, '-').toLowerCase()}-${first.start_date}-${seq.length}`,
-          service_name: serviceName,
-          type: 'consecutive',
-          typeLabel: `${seq.length} Weeks (Consecutive)`,
-          week_count: seq.length,
-          startDateShifts: first.start_date,
-          endDateShifts: last.end_date,
-          startDateWeek: (quarterStartStr && getMondayDateStr(first.start_date) < quarterStartStr) ? quarterStartStr : getMondayDateStr(first.start_date),
-          endDateWeek: (quarterEndStr && getSundayDateStr(last.end_date) > quarterEndStr) ? quarterEndStr : getSundayDateStr(last.end_date),
-          rate: wdRate,
-          weekday_rate: wdRate,
-          saturday_rate: satRate,
-          sunday_rate: sunRate,
-          publicholiday_rate: phRate,
-          weekday_hours: wHrs,
-          saturday_hours: satHrs,
-          sunday_hours: sunHrs,
-          publicholiday_hours: phHrs,
-          weekly_hours: weeklyHrs,
-          weekday_amount: wdAmount,
-          saturday_amount: satAmount,
-          sunday_amount: sunAmount,
-          publicholiday_amount: phAmount,
-          weekly_amount: weeklyAmount,
-          daily_amount: dailyAmount,
-          total_hours: totalHrs,
-          total_cost: totalCost,
-          monthLabel: first.month
-        });
-        i = j;
-      } else {
+      if (run.length === 1) {
         // Standalone 1-week planned service
-        const b = cur;
+        const b = run[0];
         const wHrs = Number(b.weekday_hours || 0);
         const satHrs = Number(b.saturday_hours || 0);
         const sunHrs = Number(b.sunday_hours || 0);
         const phHrs = Number(b.publicholiday_hours || 0);
         const weeklyHrs = Number((wHrs + satHrs + sunHrs + phHrs).toFixed(2));
-
-        const wdRate = Number(b.weekday_rate ?? b.rate ?? 0);
-        const satRate = Number(b.saturday_rate ?? b.rate ?? 0);
-        const sunRate = Number(b.sunday_rate ?? b.rate ?? 0);
-        const phRate = Number(b.publicholiday_rate ?? b.rate ?? 0);
 
         const wdAmount = Number((wHrs * wdRate).toFixed(2));
         const satAmount = Number((satHrs * satRate).toFixed(2));
@@ -325,11 +277,281 @@ const getTrilogyAccuratePlannedServices = (monthResults: any[], quarterStartStr?
           publicholiday_amount: phAmount,
           weekly_amount: weeklyAmount,
           daily_amount: dailyAmount,
-          total_hours: weeklyHrs,
-          total_cost: weeklyAmount,
+          total_hours: Number((b.total_hours ?? weeklyHrs).toFixed(2)),
+          total_cost: Number((b.weekly_amount ?? weeklyAmount).toFixed(2)),
           monthLabel: b.month
         });
-        i++;
+        continue;
+      }
+
+      // Multi-week run: determine candidate patterns
+      const patternCounts = new Map<string, { count: number; pat: any; totalHrs: number }>();
+      for (const w of run) {
+        const wd = Number(w.weekday_hours || 0);
+        const sat = Number(w.saturday_hours || 0);
+        const sun = Number(w.sunday_hours || 0);
+        const ph = Number(w.publicholiday_hours || 0);
+        const key = `${wd}|${sat}|${sun}|${ph}`;
+        const cur = patternCounts.get(key) || {
+          count: 0,
+          pat: { weekday_hours: wd, saturday_hours: sat, sunday_hours: sun, publicholiday_hours: ph },
+          totalHrs: wd + sat + sun + ph
+        };
+        cur.count++;
+        patternCounts.set(key, cur);
+      }
+
+      const sortedPatterns = Array.from(patternCounts.values()).sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return b.totalHrs - a.totalHrs;
+      });
+
+      const dominant = sortedPatterns[0].pat;
+
+      // Helper to check if week w is compatible as a partial boundary or variation of dominant pattern
+      const isCompatibleWithDominant = (w: any, isStartBoundary: boolean, isEndBoundary: boolean) => {
+        const wd = Number(w.weekday_hours || 0);
+        const sat = Number(w.saturday_hours || 0);
+        const sun = Number(w.sunday_hours || 0);
+        const ph = Number(w.publicholiday_hours || 0);
+
+        // Exact match
+        if (
+          Math.abs(wd - dominant.weekday_hours) < 0.01 &&
+          Math.abs(sat - dominant.saturday_hours) < 0.01 &&
+          Math.abs(sun - dominant.sunday_hours) < 0.01 &&
+          Math.abs(ph - dominant.publicholiday_hours) < 0.01
+        ) {
+          return true;
+        }
+
+        // Partial start boundary week (e.g. starts Tue-Sun, or start of quarter, hours <= dominant)
+        if (isStartBoundary) {
+          if (
+            wd <= dominant.weekday_hours + 0.01 &&
+            sat <= dominant.saturday_hours + 0.01 &&
+            sun <= dominant.sunday_hours + 0.01 &&
+            ph <= dominant.publicholiday_hours + 0.01
+          ) {
+            return true;
+          }
+        }
+
+        // Partial end boundary week (e.g. ends Mon-Sat, or end of quarter/active week, hours <= dominant)
+        if (isEndBoundary) {
+          if (
+            wd <= dominant.weekday_hours + 0.01 &&
+            sat <= dominant.saturday_hours + 0.01 &&
+            sun <= dominant.sunday_hours + 0.01 &&
+            ph <= dominant.publicholiday_hours + 0.01
+          ) {
+            return true;
+          }
+        }
+
+        // Public holiday variation where total hours <= dominant total hours
+        const totalW = wd + sat + sun + ph;
+        const totalDom = dominant.weekday_hours + dominant.saturday_hours + dominant.sunday_hours + dominant.publicholiday_hours;
+        if (totalW > 0 && totalW <= totalDom + 0.01) {
+          return true;
+        }
+
+        return false;
+      };
+
+      let allCompatible = true;
+      for (let k = 0; k < run.length; k++) {
+        if (!isCompatibleWithDominant(run[k], k === 0, k === run.length - 1)) {
+          allCompatible = false;
+          break;
+        }
+      }
+
+      if (allCompatible) {
+        // Entire run forms a single continuous multi-week planned service
+        const firstWeek = run[0];
+        const lastWeek = run[run.length - 1];
+
+        const wHrs = Number(dominant.weekday_hours || 0);
+        const satHrs = Number(dominant.saturday_hours || 0);
+        const sunHrs = Number(dominant.sunday_hours || 0);
+        const phHrs = Number(dominant.publicholiday_hours || 0);
+        const weeklyHrs = Number((wHrs + satHrs + sunHrs + phHrs).toFixed(2));
+
+        const wdAmount = Number((wHrs * wdRate).toFixed(2));
+        const satAmount = Number((satHrs * satRate).toFixed(2));
+        const sunAmount = Number((sunHrs * sunRate).toFixed(2));
+        const phAmount = Number((phHrs * phRate).toFixed(2));
+        const weeklyAmount = Number((wdAmount + satAmount + sunAmount + phAmount).toFixed(2));
+        const dailyAmount = Number((weeklyAmount / 7).toFixed(2));
+
+        const totalHrs = Number(run.reduce((sum: number, b: any) => sum + Number(b.total_hours || 0), 0).toFixed(2));
+        const totalCost = Number(run.reduce((sum: number, b: any) => sum + Number(b.weekly_amount || 0), 0).toFixed(2));
+
+        allEntries.push({
+          id: `consec-${serviceName.replace(/\s+/g, '-').toLowerCase()}-${firstWeek.start_date}-${run.length}`,
+          service_name: serviceName,
+          type: 'consecutive',
+          typeLabel: `${run.length} Consecutive Weeks`,
+          week_count: run.length,
+          startDateShifts: firstWeek.start_date,
+          endDateShifts: lastWeek.end_date,
+          startDateWeek: (quarterStartStr && getMondayDateStr(firstWeek.start_date) < quarterStartStr) ? quarterStartStr : getMondayDateStr(firstWeek.start_date),
+          endDateWeek: (quarterEndStr && getSundayDateStr(lastWeek.end_date) > quarterEndStr) ? quarterEndStr : getSundayDateStr(lastWeek.end_date),
+          rate: wdRate,
+          weekday_rate: wdRate,
+          saturday_rate: satRate,
+          sunday_rate: sunRate,
+          publicholiday_rate: phRate,
+          weekday_hours: wHrs,
+          saturday_hours: satHrs,
+          sunday_hours: sunHrs,
+          publicholiday_hours: phHrs,
+          weekly_hours: weeklyHrs,
+          weekday_amount: wdAmount,
+          saturday_amount: satAmount,
+          sunday_amount: sunAmount,
+          publicholiday_amount: phAmount,
+          weekly_amount: weeklyAmount,
+          daily_amount: dailyAmount,
+          total_hours: totalHrs,
+          total_cost: totalCost,
+          monthLabel: firstWeek.month === lastWeek.month ? firstWeek.month : `${firstWeek.month} - ${lastWeek.month}`
+        });
+      } else {
+        // Group consecutive blocks with matching hours, then merge boundary weeks if compatible
+        const segments: any[][] = [];
+        let curSeg = [run[0]];
+        for (let k = 1; k < run.length; k++) {
+          if (isBlockHoursEqual(curSeg[curSeg.length - 1], run[k])) {
+            curSeg.push(run[k]);
+          } else {
+            segments.push(curSeg);
+            curSeg = [run[k]];
+          }
+        }
+        if (curSeg.length > 0) segments.push(curSeg);
+
+        // Merge single-week partial boundary segments into adjacent multi-week segments if compatible
+        const finalSegments: any[][] = [];
+        let sIdx = 0;
+        while (sIdx < segments.length) {
+          const seg = segments[sIdx];
+          const nextSeg = segments[sIdx + 1];
+
+          if (seg.length === 1 && nextSeg && nextSeg.length >= 2) {
+            const nextPat = nextSeg[0];
+            const w = seg[0];
+            if (
+              Number(w.weekday_hours || 0) <= Number(nextPat.weekday_hours || 0) + 0.01 &&
+              Number(w.saturday_hours || 0) <= Number(nextPat.saturday_hours || 0) + 0.01 &&
+              Number(w.sunday_hours || 0) <= Number(nextPat.sunday_hours || 0) + 0.01 &&
+              Number(w.publicholiday_hours || 0) <= Number(nextPat.publicholiday_hours || 0) + 0.01
+            ) {
+              nextSeg.unshift(w);
+              sIdx++;
+              continue;
+            }
+          }
+
+          if (finalSegments.length > 0 && seg.length === 1) {
+            const prevSeg = finalSegments[finalSegments.length - 1];
+            const prevPat = prevSeg[prevSeg.length - 1];
+            const w = seg[0];
+            if (
+              Number(w.weekday_hours || 0) <= Number(prevPat.weekday_hours || 0) + 0.01 &&
+              Number(w.saturday_hours || 0) <= Number(prevPat.saturday_hours || 0) + 0.01 &&
+              Number(w.sunday_hours || 0) <= Number(prevPat.sunday_hours || 0) + 0.01 &&
+              Number(w.publicholiday_hours || 0) <= Number(prevPat.publicholiday_hours || 0) + 0.01
+            ) {
+              prevSeg.push(w);
+              sIdx++;
+              continue;
+            }
+          }
+
+          finalSegments.push(seg);
+          sIdx++;
+        }
+
+        for (const seg of finalSegments) {
+          const isConsecutive = seg.length >= 2;
+          const firstWeek = seg[0];
+          const lastWeek = seg[seg.length - 1];
+
+          // Determine representative pattern for this segment
+          const pCounts = new Map<string, { count: number; pat: any; totalHrs: number }>();
+          for (const w of seg) {
+            const wd = Number(w.weekday_hours || 0);
+            const sat = Number(w.saturday_hours || 0);
+            const sun = Number(w.sunday_hours || 0);
+            const ph = Number(w.publicholiday_hours || 0);
+            const key = `${wd}|${sat}|${sun}|${ph}`;
+            const cur = pCounts.get(key) || {
+              count: 0,
+              pat: { weekday_hours: wd, saturday_hours: sat, sunday_hours: sun, publicholiday_hours: ph },
+              totalHrs: wd + sat + sun + ph
+            };
+            cur.count++;
+            pCounts.set(key, cur);
+          }
+          const sortedPats = Array.from(pCounts.values()).sort((a, b) => {
+            if (b.count !== a.count) return b.count - a.count;
+            return b.totalHrs - a.totalHrs;
+          });
+          const repPat = sortedPats[0].pat;
+
+          const wHrs = Number(repPat.weekday_hours || 0);
+          const satHrs = Number(repPat.saturday_hours || 0);
+          const sunHrs = Number(repPat.sunday_hours || 0);
+          const phHrs = Number(repPat.publicholiday_hours || 0);
+          const weeklyHrs = Number((wHrs + satHrs + sunHrs + phHrs).toFixed(2));
+
+          const wdAmount = Number((wHrs * wdRate).toFixed(2));
+          const satAmount = Number((satHrs * satRate).toFixed(2));
+          const sunAmount = Number((sunHrs * sunRate).toFixed(2));
+          const phAmount = Number((phHrs * phRate).toFixed(2));
+          const weeklyAmount = Number((wdAmount + satAmount + sunAmount + phAmount).toFixed(2));
+          const dailyAmount = Number((weeklyAmount / 7).toFixed(2));
+
+          const totalHrs = Number(seg.reduce((sum: number, b: any) => sum + Number(b.total_hours || 0), 0).toFixed(2));
+          const totalCost = Number(seg.reduce((sum: number, b: any) => sum + Number(b.weekly_amount || 0), 0).toFixed(2));
+
+          allEntries.push({
+            id: isConsecutive
+              ? `consec-${serviceName.replace(/\s+/g, '-').toLowerCase()}-${firstWeek.start_date}-${seg.length}`
+              : `standalone-${serviceName.replace(/\s+/g, '-').toLowerCase()}-${firstWeek.start_date}`,
+            service_name: serviceName,
+            type: isConsecutive ? 'consecutive' : 'standalone',
+            typeLabel: isConsecutive ? `${seg.length} Consecutive Weeks` : '1 Week (Standalone)',
+            week_count: seg.length,
+            startDateShifts: firstWeek.start_date,
+            endDateShifts: lastWeek.end_date,
+            startDateWeek: (quarterStartStr && getMondayDateStr(firstWeek.start_date) < quarterStartStr) ? quarterStartStr : getMondayDateStr(firstWeek.start_date),
+            endDateWeek: (quarterEndStr && getSundayDateStr(lastWeek.end_date) > quarterEndStr) ? quarterEndStr : getSundayDateStr(lastWeek.end_date),
+            rate: wdRate,
+            weekday_rate: wdRate,
+            saturday_rate: satRate,
+            sunday_rate: sunRate,
+            publicholiday_rate: phRate,
+            weekday_hours: wHrs,
+            saturday_hours: satHrs,
+            sunday_hours: sunHrs,
+            publicholiday_hours: phHrs,
+            weekly_hours: weeklyHrs,
+            weekday_amount: wdAmount,
+            saturday_amount: satAmount,
+            sunday_amount: sunAmount,
+            publicholiday_amount: phAmount,
+            weekly_amount: weeklyAmount,
+            daily_amount: dailyAmount,
+            total_hours: totalHrs,
+            total_cost: totalCost,
+            monthLabel: isConsecutive
+              ? (firstWeek.month === lastWeek.month ? firstWeek.month : `${firstWeek.month} - ${lastWeek.month}`)
+              : firstWeek.month
+          });
+        }
       }
     }
   }
