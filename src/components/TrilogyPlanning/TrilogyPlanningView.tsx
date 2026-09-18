@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Search, RefreshCw, BookOpen, CheckCircle2, Calendar, ArrowRight, Layers, FileText, Copy, Check } from 'lucide-react';
+import { Search, RefreshCw, BookOpen, CheckCircle2, Calendar, ArrowRight, Layers, FileText, Copy, Check, ChevronDown, ChevronUp, AlertCircle, Sparkles, SlidersHorizontal, Info } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { format } from 'date-fns';
 
@@ -220,6 +220,165 @@ const getQuarterNonConsecutiveBlocks = (monthResults: any[]): NonConsecutiveBloc
   return nonConsecutiveBlocks;
 };
 
+export interface TrilogyPlannedServiceEntry {
+  id: string;
+  service_name: string;
+  rate: number;
+  startDateShifts: string;       // yyyy-MM-dd
+  endDateShifts: string;         // yyyy-MM-dd
+  startDateQuarter: string;      // yyyy-MM-dd
+  endDateQuarter: string;        // yyyy-MM-dd
+  weekday_hours: number;
+  saturday_hours: number;
+  sunday_hours: number;
+  publicholiday_hours: number;
+  total_hours: number;
+  total_cost: number;
+  shift_count: number;
+  hasRateChange: boolean;
+  rateTierIndex: number;
+  totalRateTiers: number;
+}
+
+// Generate Trilogy planned services grouped by Service Name and spanned across dates (separated only if the rate changes)
+const getTrilogyDateSpannedServices = (monthResults: any[], currentQuarter?: any): TrilogyPlannedServiceEntry[] => {
+  if (!monthResults || monthResults.length === 0) return [];
+
+  const serviceMap = new Map<string, any[]>();
+
+  for (const monthGroup of monthResults) {
+    for (const service of monthGroup.services || []) {
+      const sName = service.service_name;
+      if (!serviceMap.has(sName)) {
+        serviceMap.set(sName, []);
+      }
+      for (const block of service.blocks || []) {
+        if (hasAnyHours(block)) {
+          serviceMap.get(sName)!.push({
+            ...block,
+            month: monthGroup.month
+          });
+        }
+      }
+    }
+  }
+
+  const entries: TrilogyPlannedServiceEntry[] = [];
+  const sortedServiceNames = Array.from(serviceMap.keys()).sort();
+
+  for (const serviceName of sortedServiceNames) {
+    const blocks = serviceMap.get(serviceName) || [];
+    if (blocks.length === 0) continue;
+
+    // Sort blocks chronologically by start_date
+    blocks.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+
+    // Group blocks into continuous spans by rate
+    const spans: Array<{
+      rate: number;
+      startDateShifts: string;
+      endDateShifts: string;
+      weekday_hours: number;
+      saturday_hours: number;
+      sunday_hours: number;
+      publicholiday_hours: number;
+      shift_count: number;
+    }> = [];
+
+    let cur: any = null;
+
+    for (const b of blocks) {
+      const rate = Number(b.rate || 0);
+      if (!cur) {
+        cur = {
+          rate,
+          startDateShifts: b.start_date,
+          endDateShifts: b.end_date,
+          weekday_hours: Number(b.weekday_hours || 0),
+          saturday_hours: Number(b.saturday_hours || 0),
+          sunday_hours: Number(b.sunday_hours || 0),
+          publicholiday_hours: Number(b.publicholiday_hours || 0),
+          shift_count: 1
+        };
+      } else if (Math.abs(cur.rate - rate) < 0.001) {
+        // Same rate: extend span
+        if (b.end_date > cur.endDateShifts) cur.endDateShifts = b.end_date;
+        if (b.start_date < cur.startDateShifts) cur.startDateShifts = b.start_date;
+        cur.weekday_hours += Number(b.weekday_hours || 0);
+        cur.saturday_hours += Number(b.saturday_hours || 0);
+        cur.sunday_hours += Number(b.sunday_hours || 0);
+        cur.publicholiday_hours += Number(b.publicholiday_hours || 0);
+        cur.shift_count += 1;
+      } else {
+        // Rate changed: push previous span and start new rate span
+        spans.push(cur);
+        cur = {
+          rate,
+          startDateShifts: b.start_date,
+          endDateShifts: b.end_date,
+          weekday_hours: Number(b.weekday_hours || 0),
+          saturday_hours: Number(b.saturday_hours || 0),
+          sunday_hours: Number(b.sunday_hours || 0),
+          publicholiday_hours: Number(b.publicholiday_hours || 0),
+          shift_count: 1
+        };
+      }
+    }
+    if (cur) {
+      spans.push(cur);
+    }
+
+    const qStart = currentQuarter ? format(new Date(currentQuarter.actualStart), 'yyyy-MM-dd') : (spans[0]?.startDateShifts || '');
+    const qEnd = currentQuarter ? format(new Date(currentQuarter.end), 'yyyy-MM-dd') : (spans[spans.length - 1]?.endDateShifts || '');
+
+    spans.forEach((span, idx) => {
+      const wHrs = Number(span.weekday_hours.toFixed(2));
+      const satHrs = Number(span.saturday_hours.toFixed(2));
+      const sunHrs = Number(span.sunday_hours.toFixed(2));
+      const phHrs = Number(span.publicholiday_hours.toFixed(2));
+      const totalHrs = Number((wHrs + satHrs + sunHrs + phHrs).toFixed(2));
+      const totalCost = Number((totalHrs * span.rate).toFixed(2));
+
+      let sDateQ = span.startDateShifts;
+      let eDateQ = span.endDateShifts;
+      if (spans.length === 1) {
+        sDateQ = qStart;
+        eDateQ = qEnd;
+      } else {
+        if (idx === 0) {
+          sDateQ = qStart;
+          eDateQ = span.endDateShifts;
+        } else if (idx === spans.length - 1) {
+          sDateQ = span.startDateShifts;
+          eDateQ = qEnd;
+        }
+      }
+
+      entries.push({
+        id: `plan-${serviceName.replace(/\s+/g, '-').toLowerCase()}-${span.rate}-${idx}`,
+        service_name: serviceName,
+        rate: span.rate,
+        startDateShifts: span.startDateShifts,
+        endDateShifts: span.endDateShifts,
+        startDateQuarter: sDateQ,
+        endDateQuarter: eDateQ,
+        weekday_hours: wHrs,
+        saturday_hours: satHrs,
+        sunday_hours: sunHrs,
+        publicholiday_hours: phHrs,
+        total_hours: totalHrs,
+        total_cost: totalCost,
+        shift_count: span.shift_count,
+        hasRateChange: spans.length > 1,
+        rateTierIndex: idx + 1,
+        totalRateTiers: spans.length
+      });
+    });
+  }
+
+  return entries;
+};
+
 export default function TrilogyPlanningView() {
   const { token } = useAuth();
   const [clients, setClients] = useState<any[]>([]);
@@ -230,6 +389,8 @@ export default function TrilogyPlanningView() {
   const [results, setResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [dateSpanMode, setDateSpanMode] = useState<'shifts' | 'quarter'>('shifts');
+  const [showWeeklyBreakdown, setShowWeeklyBreakdown] = useState<boolean>(false);
 
   const handleCopyText = (id: string, text: string) => {
     if (navigator?.clipboard?.writeText) {
@@ -532,278 +693,51 @@ export default function TrilogyPlanningView() {
             </div>
           ))}
 
-          {/* Consecutive Matching Week Blocks Summary at the bottom of each budget quarter */}
-          {(() => {
-            const consecutiveSummaries = getQuarterConsecutiveSummaries(results);
-            if (consecutiveSummaries.length === 0) return null;
-
-            return (
-              <div className="pt-4 border-t border-white/[0.08] space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <h2 className="text-base font-bold text-white tracking-wide uppercase flex items-center gap-2">
-                      <span>Matching Consecutive Week Blocks Summary</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-teal/20 text-brand-teal border border-brand-teal/30 normal-case tracking-normal">
-                        {consecutiveSummaries.length} {consecutiveSummaries.length === 1 ? 'block sequence' : 'block sequences'} found
-                      </span>
-                    </h2>
-                    <p className="text-[#8B949E] text-xs mt-0.5">
-                      Combined date ranges from the start of the consecutive week blocks to the last date of the ending consecutive week blocks for Trilogy Care portal entry.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-[#151515] border border-brand-teal/30 rounded-xl overflow-hidden shadow-md">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-white/[0.08] bg-black/40">
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Service Description</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Consecutive Range</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-center">Duration</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Base Rate</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Weekday Hrs / Wk</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sat Hrs / Wk</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sun Hrs / Wk</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">PH Hrs / Wk</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/[0.05]">
-                        {consecutiveSummaries.map((summary, sIdx) => (
-                          <tr key={sIdx} className="hover:bg-brand-teal/[0.04] transition-colors">
-                            <td className="px-4 py-3 text-xs font-semibold tracking-wide text-[#E6EDF3] border-l-2 border-brand-teal pl-3.5">
-                              <div className="flex flex-col">
-                                <span>{summary.service_name}</span>
-                                {summary.month && (
-                                  <span className="text-[10px] text-[#8B949E] font-normal">{summary.month}</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-xs font-semibold tracking-wide text-white whitespace-nowrap">
-                              <span className="text-brand-teal font-bold">
-                                {format(new Date(summary.start_date + 'T12:00:00Z'), 'd MMM yyyy')}
-                              </span>
-                              <span className="mx-2 text-zinc-500/80 font-normal">to</span>
-                              <span className="text-brand-teal font-bold">
-                                {format(new Date(summary.end_date + 'T12:00:00Z'), 'd MMM yyyy')}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-xs font-semibold tracking-wide text-center whitespace-nowrap">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded bg-white/[0.06] text-white text-[11px] font-medium border border-white/[0.08]">
-                                {summary.week_count} consecutive weeks
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-xs font-semibold tracking-wide text-[#8B949E] text-right whitespace-nowrap">
-                              ${summary.rate?.toFixed(2)}
-                            </td>
-                            <td className="px-4 py-3 text-xs font-bold tracking-wide text-right text-brand-teal whitespace-nowrap">
-                              {summary.weekday_hours > 0 ? `${summary.weekday_hours} hrs` : '-'}
-                            </td>
-                            <td className="px-4 py-3 text-xs font-bold tracking-wide text-right text-brand-teal whitespace-nowrap">
-                              {summary.saturday_hours > 0 ? `${summary.saturday_hours} hrs` : '-'}
-                            </td>
-                            <td className="px-4 py-3 text-xs font-bold tracking-wide text-right text-brand-teal whitespace-nowrap">
-                              {summary.sunday_hours > 0 ? `${summary.sunday_hours} hrs` : '-'}
-                            </td>
-                            <td className="px-4 py-3 text-xs font-bold tracking-wide text-right text-brand-teal whitespace-nowrap">
-                              {summary.publicholiday_hours > 0 ? `${summary.publicholiday_hours} hrs` : '-'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Non-Consecutive / Standalone Service Week Blocks Summary underneath */}
-          {(() => {
-            const nonConsecutiveBlocks = getQuarterNonConsecutiveBlocks(results);
-            if (nonConsecutiveBlocks.length === 0) return null;
-
-            return (
-              <div className="pt-4 border-t border-white/[0.08] space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <h2 className="text-base font-bold text-white tracking-wide uppercase flex items-center gap-2">
-                      <span>Non-Consecutive Week Blocks Summary</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/[0.08] text-[#E6EDF3] border border-white/[0.12] normal-case tracking-normal">
-                        {nonConsecutiveBlocks.length} {nonConsecutiveBlocks.length === 1 ? 'block' : 'blocks'}
-                      </span>
-                    </h2>
-                    <p className="text-[#8B949E] text-xs mt-0.5">
-                      Individual service week blocks that were not part of a consecutive matching sequence.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-[#151515] border border-white/[0.08] rounded-xl overflow-hidden shadow-md">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-white/[0.08] bg-black/40">
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Service Description</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Week</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Dates</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Base Rate</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Weekday Hrs</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sat Hrs</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sun Hrs</th>
-                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">PH Hrs</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/[0.05]">
-                        {nonConsecutiveBlocks.map((block, nIdx) => (
-                          <tr key={nIdx} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-[#E6EDF3]">
-                              <div className="flex flex-col">
-                                <span>{block.service_name}</span>
-                                {block.month && (
-                                  <span className="text-[10px] text-[#8B949E] font-normal">{block.month}</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-brand-teal whitespace-nowrap">
-                              {block.week_of_month ? `Week ${block.week_of_month}` : '-'}
-                            </td>
-                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-[#E6EDF3] whitespace-nowrap">
-                              {block.start_date ? format(new Date(block.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
-                              <span className="mx-1.5 text-zinc-500/80">to</span>
-                              {block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
-                            </td>
-                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-[#8B949E] text-right whitespace-nowrap">
-                              ${block.rate?.toFixed(2)}
-                            </td>
-                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-right text-brand-teal whitespace-nowrap">
-                              {block.weekday_hours > 0 ? `${block.weekday_hours} hrs` : '-'}
-                            </td>
-                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-right text-brand-teal whitespace-nowrap">
-                              {block.saturday_hours > 0 ? `${block.saturday_hours} hrs` : '-'}
-                            </td>
-                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-right text-brand-teal whitespace-nowrap">
-                              {block.sunday_hours > 0 ? `${block.sunday_hours} hrs` : '-'}
-                            </td>
-                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-right text-brand-teal whitespace-nowrap">
-                              {block.publicholiday_hours > 0 ? `${block.publicholiday_hours} hrs` : '-'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Direct Data to Enter into Trilogy Care Portal */}
+          {/* Planned Services to Enter into Trilogy Care Portal (Date-Spanned by Service Name & Rate Tier) */}
           {(() => {
             const clientObj = clients.find(c => c.id.toString() === selectedClient);
             const clientName = clientObj ? `${clientObj.first_name} ${clientObj.last_name}` : 'the selected client';
             const currentQuarter = quarters[selectedQuarterIndex];
             const quarterLabel = currentQuarter ? currentQuarter.displayLabel : 'this budget quarter';
+            const plannedEntries = getTrilogyDateSpannedServices(results, currentQuarter);
             const consecutiveSummaries = getQuarterConsecutiveSummaries(results);
             const nonConsecutiveBlocks = getQuarterNonConsecutiveBlocks(results);
 
-            // Construct list of entries to enter into Trilogy
-            const plannedEntries: Array<{
-              id: string;
-              type: 'Consecutive Multi-Week' | 'Single Week';
-              service_name: string;
-              startDateStr: string;
-              endDateStr: string;
-              startDateRaw: string;
-              endDateRaw: string;
-              rate: number;
-              weekday_hours: number;
-              saturday_hours: number;
-              sunday_hours: number;
-              publicholiday_hours: number;
-              total_hours_per_week: number;
-              weeksCount: number;
-              total_quarter_hours: number;
-              total_quarter_cost: number;
-              note?: string;
-            }> = [];
+            if (plannedEntries.length === 0) return null;
 
-            // Add consecutive summaries
-            consecutiveSummaries.forEach((c, idx) => {
-              const startFormatted = format(new Date(c.start_date + 'T12:00:00Z'), 'dd/MM/yyyy');
-              const endFormatted = format(new Date(c.end_date + 'T12:00:00Z'), 'dd/MM/yyyy');
-              const weeklyHours = c.weekday_hours + c.saturday_hours + c.sunday_hours + c.publicholiday_hours;
-              const totalQHours = weeklyHours * c.week_count;
-              const totalCost = totalQHours * (c.rate || 0);
-
-              plannedEntries.push({
-                id: `entry-consec-${idx}`,
-                type: 'Consecutive Multi-Week',
-                service_name: c.service_name,
-                startDateStr: startFormatted,
-                endDateStr: endFormatted,
-                startDateRaw: c.start_date,
-                endDateRaw: c.end_date,
-                rate: c.rate || 0,
-                weekday_hours: c.weekday_hours,
-                saturday_hours: c.saturday_hours,
-                sunday_hours: c.sunday_hours,
-                publicholiday_hours: c.publicholiday_hours,
-                total_hours_per_week: weeklyHours,
-                weeksCount: c.week_count,
-                total_quarter_hours: totalQHours,
-                total_quarter_cost: totalCost,
-                note: `${c.week_count} consecutive weeks with identical weekly hours`
-              });
-            });
-
-            // Add non-consecutive blocks
-            nonConsecutiveBlocks.forEach((b, idx) => {
-              const startFormatted = b.start_date ? format(new Date(b.start_date + 'T12:00:00Z'), 'dd/MM/yyyy') : '-';
-              const endFormatted = b.end_date ? format(new Date(b.end_date + 'T12:00:00Z'), 'dd/MM/yyyy') : '-';
-              const weeklyHours = b.weekday_hours + b.saturday_hours + b.sunday_hours + b.publicholiday_hours;
-              const totalCost = weeklyHours * (b.rate || 0);
-
-              plannedEntries.push({
-                id: `entry-nonconsec-${idx}`,
-                type: 'Single Week',
-                service_name: b.service_name,
-                startDateStr: startFormatted,
-                endDateStr: endFormatted,
-                startDateRaw: b.start_date,
-                endDateRaw: b.end_date,
-                rate: b.rate || 0,
-                weekday_hours: b.weekday_hours,
-                saturday_hours: b.saturday_hours,
-                sunday_hours: b.sunday_hours,
-                publicholiday_hours: b.publicholiday_hours,
-                total_hours_per_week: weeklyHours,
-                weeksCount: 1,
-                total_quarter_hours: weeklyHours,
-                total_quarter_cost: totalCost,
-                note: b.week_of_month ? `Week ${b.week_of_month} (${b.month || ''})` : undefined
-              });
-            });
+            const totalPlannedQuarterHours = plannedEntries.reduce((acc, curr) => acc + curr.total_hours, 0);
+            const totalPlannedQuarterCost = plannedEntries.reduce((acc, curr) => acc + curr.total_cost, 0);
+            const rateChangeServicesCount = plannedEntries.filter(e => e.hasRateChange).length;
 
             const copyAllPlannedData = () => {
               const lines = [
-                `TRILOGY CARE PLANNED SERVICES DATA TO ENTER`,
+                `TRILOGY CARE PLANNED SERVICES — DATA TO ENTER`,
                 `Client: ${clientName}`,
                 `Quarter: ${quarterLabel}`,
-                `Total Planned Entries: ${plannedEntries.length}`,
+                `Date Mode: ${dateSpanMode === 'shifts' ? 'Actual Shift Dates' : 'Full Quarter Dates'}`,
+                `Total Planned Services to Enter: ${plannedEntries.length}`,
+                `Total Planned Hours: ${totalPlannedQuarterHours.toFixed(2)} hrs`,
+                `Total Estimated Value: $${totalPlannedQuarterCost.toFixed(2)}`,
                 `--------------------------------------------------`,
                 ...plannedEntries.map((e, idx) => {
+                  const sDate = dateSpanMode === 'shifts'
+                    ? format(new Date(e.startDateShifts + 'T12:00:00Z'), 'dd/MM/yyyy')
+                    : format(new Date(e.startDateQuarter + 'T12:00:00Z'), 'dd/MM/yyyy');
+                  const eDate = dateSpanMode === 'shifts'
+                    ? format(new Date(e.endDateShifts + 'T12:00:00Z'), 'dd/MM/yyyy')
+                    : format(new Date(e.endDateQuarter + 'T12:00:00Z'), 'dd/MM/yyyy');
+
                   return [
-                    `[Entry #${idx + 1}] (${e.type})`,
-                    `Service: ${e.service_name}`,
-                    `Dates: ${e.startDateStr} to ${e.endDateStr}`,
-                    `Base Rate: $${e.rate.toFixed(2)}`,
+                    `[Planned Service #${idx + 1}] ${e.service_name}`,
+                    `Dates: ${sDate} to ${eDate}`,
+                    `Base Rate: $${e.rate.toFixed(2)} / hr`,
                     `Weekday Hours: ${e.weekday_hours}`,
                     `Saturday Hours: ${e.saturday_hours}`,
                     `Sunday Hours: ${e.sunday_hours}`,
                     `Public Holiday Hours: ${e.publicholiday_hours}`,
-                    `Weekly Total: ${e.total_hours_per_week} hrs/wk${e.weeksCount > 1 ? ` (${e.weeksCount} weeks = ${e.total_quarter_hours} hrs)` : ''}`,
-                    `Estimated Total: $${e.total_quarter_cost.toFixed(2)}`,
+                    `Total Hours: ${e.total_hours} hrs`,
+                    `Estimated Total: $${e.total_cost.toFixed(2)}`,
+                    e.hasRateChange ? `Rate Tier: Tier ${e.rateTierIndex} of ${e.totalRateTiers} ($${e.rate.toFixed(2)})` : `Rate Tier: Constant rate across span`,
                     `--------------------------------------------------`
                   ].join('\n');
                 })
@@ -811,52 +745,108 @@ export default function TrilogyPlanningView() {
               handleCopyText('copy-all-data', lines.join('\n'));
             };
 
-            if (plannedEntries.length === 0) return null;
-
             return (
-              <div className="pt-6 border-t border-white/[0.08] space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="pt-6 border-t border-white/[0.08] space-y-5">
+                {/* Header & Controls */}
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                   <div>
                     <h2 className="text-base font-bold text-white tracking-wide uppercase flex items-center gap-2">
                       <Layers className="w-4 h-4 text-brand-teal" />
-                      <span>Trilogy Care Planned Services — Data to Enter</span>
+                      <span>Services to Add to Trilogy Care Coordinator Portal</span>
                       <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-brand-teal/20 text-brand-teal border border-brand-teal/30">
-                        {plannedEntries.length} {plannedEntries.length === 1 ? 'Planned Service Entry' : 'Planned Service Entries'}
+                        {plannedEntries.length} {plannedEntries.length === 1 ? 'Service' : 'Services'}
                       </span>
                     </h2>
-                    <p className="text-[#8B949E] text-xs mt-0.5">
-                      Exact fields and values ready to enter directly into the Trilogy Care Coordinator portal for <span className="text-white font-semibold">{clientName}</span> ({quarterLabel}).
+                    <p className="text-[#8B949E] text-xs mt-1">
+                      Data to enter into <span className="text-white font-semibold">{clientName}</span>'s budget for {quarterLabel}. Services span continuous dates and only split if the rate changes.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Date Span Toggle */}
+                    <div className="inline-flex p-0.5 bg-black/60 border border-white/[0.1] rounded-lg text-xs font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setDateSpanMode('shifts')}
+                        className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                          dateSpanMode === 'shifts'
+                            ? 'bg-brand-teal text-black font-bold shadow-sm'
+                            : 'text-[#8B949E] hover:text-white'
+                        }`}
+                        title="Span from the earliest scheduled shift date to the latest scheduled shift date"
+                      >
+                        Actual Shift Dates
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDateSpanMode('quarter')}
+                        className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                          dateSpanMode === 'quarter'
+                            ? 'bg-brand-teal text-black font-bold shadow-sm'
+                            : 'text-[#8B949E] hover:text-white'
+                        }`}
+                        title="Align date span to the client's budget quarter start and end dates"
+                      >
+                        Full Quarter Dates
+                      </button>
+                    </div>
+
+                    {/* Copy All Data Button */}
                     <button
                       type="button"
                       onClick={copyAllPlannedData}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-teal text-black text-xs font-bold hover:bg-brand-teal/90 transition-colors shadow-sm cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-teal text-black text-xs font-bold hover:bg-brand-teal/90 transition-colors shadow-sm cursor-pointer"
+                      title="Copy all planned services data to clipboard"
                     >
                       {copiedId === 'copy-all-data' ? (
                         <>
                           <Check className="w-3.5 h-3.5 text-black" />
-                          <span>Copied All Data!</span>
+                          <span>Copied All!</span>
                         </>
                       ) : (
                         <>
                           <Copy className="w-3.5 h-3.5 text-black" />
-                          <span>Copy All Entries</span>
+                          <span>Copy All Services</span>
                         </>
                       )}
                     </button>
                   </div>
                 </div>
 
-                {/* Table View of Exact Portal Data to Enter */}
-                <div className="bg-[#151515] border border-brand-teal/25 rounded-xl overflow-hidden shadow-md">
-                  <div className="px-4 py-3 bg-black/40 border-b border-white/[0.08] flex items-center justify-between">
+                {/* Key Metrics Banner */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#151515] border border-brand-teal/20 rounded-xl p-3.5">
+                  <div>
+                    <span className="text-[10px] text-[#8B949E] uppercase font-bold tracking-wider block">Total Services</span>
+                    <span className="text-base font-bold text-white font-mono mt-0.5 block">{plannedEntries.length} to add</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#8B949E] uppercase font-bold tracking-wider block">Quarter Hours</span>
+                    <span className="text-base font-bold text-brand-teal font-mono mt-0.5 block">{totalPlannedQuarterHours.toFixed(2)} hrs</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#8B949E] uppercase font-bold tracking-wider block">Estimated Value</span>
+                    <span className="text-base font-bold text-white font-mono mt-0.5 block">${totalPlannedQuarterCost.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#8B949E] uppercase font-bold tracking-wider block">Rate Structure</span>
+                    <span className="text-xs font-semibold text-[#E6EDF3] mt-1 block">
+                      {rateChangeServicesCount > 0 ? (
+                        <span className="text-amber-400 font-bold">Includes rate changes</span>
+                      ) : (
+                        <span className="text-emerald-400 font-bold">Constant rates across quarter</span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Table View of Date-Spanned Planned Services */}
+                <div className="bg-[#151515] border border-brand-teal/30 rounded-xl overflow-hidden shadow-md">
+                  <div className="px-4 py-2.5 bg-black/50 border-b border-white/[0.08] flex items-center justify-between">
                     <span className="text-xs font-bold text-brand-teal uppercase tracking-wider">
-                      Portal Line Items ({plannedEntries.length})
+                      Planned Services List ({plannedEntries.length})
                     </span>
                     <span className="text-[11px] text-[#8B949E]">
-                      Click any <Copy className="w-3 h-3 inline text-zinc-400" /> icon to copy the specific field value
+                      Click any <Copy className="w-3 h-3 inline text-zinc-400" /> icon to copy that value for entry into Trilogy
                     </span>
                   </div>
 
@@ -873,258 +863,362 @@ export default function TrilogyPlanningView() {
                           <th className="px-3.5 py-2.5 text-right">Sat Hrs</th>
                           <th className="px-3.5 py-2.5 text-right">Sun Hrs</th>
                           <th className="px-3.5 py-2.5 text-right">PH Hrs</th>
-                          <th className="px-3.5 py-2.5 text-right">Weekly Total</th>
-                          <th className="px-3.5 py-2.5 text-center">Type / Span</th>
+                          <th className="px-3.5 py-2.5 text-right">Total Hrs</th>
+                          <th className="px-3.5 py-2.5 text-right">Est. Cost</th>
+                          <th className="px-3.5 py-2.5 text-center">Rate Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/[0.05] text-xs">
-                        {plannedEntries.map((entry, idx) => (
-                          <tr key={entry.id} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="px-3.5 py-3 text-center text-[#8B949E] font-mono text-[11px]">
-                              {idx + 1}
-                            </td>
+                        {plannedEntries.map((entry, idx) => {
+                          const sDate = dateSpanMode === 'shifts'
+                            ? format(new Date(entry.startDateShifts + 'T12:00:00Z'), 'dd/MM/yyyy')
+                            : format(new Date(entry.startDateQuarter + 'T12:00:00Z'), 'dd/MM/yyyy');
+                          const eDate = dateSpanMode === 'shifts'
+                            ? format(new Date(entry.endDateShifts + 'T12:00:00Z'), 'dd/MM/yyyy')
+                            : format(new Date(entry.endDateQuarter + 'T12:00:00Z'), 'dd/MM/yyyy');
 
-                            {/* Service Description with Copy */}
-                            <td className="px-3.5 py-3 font-semibold text-white">
-                              <div className="flex items-center gap-1.5 group">
-                                <span className="text-[#E6EDF3]">{entry.service_name}</span>
-                                <button
-                                  type="button"
-                                  title="Copy Service Name"
-                                  onClick={() => handleCopyText(`svc-${entry.id}`, entry.service_name)}
-                                  className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5"
-                                >
-                                  {copiedId === `svc-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
-                                </button>
-                              </div>
-                              {entry.note && (
-                                <span className="text-[10px] text-zinc-500 block mt-0.5 font-normal">
-                                  {entry.note}
+                          return (
+                            <tr key={entry.id} className="hover:bg-white/[0.02] transition-colors">
+                              <td className="px-3.5 py-3 text-center text-[#8B949E] font-mono text-[11px]">
+                                {idx + 1}
+                              </td>
+
+                              {/* Service Name */}
+                              <td className="px-3.5 py-3 font-semibold text-white">
+                                <div className="flex items-center gap-1.5 group">
+                                  <span className="text-[#E6EDF3]">{entry.service_name}</span>
+                                  <button
+                                    type="button"
+                                    title="Copy Service Name"
+                                    onClick={() => handleCopyText(`t-svc-${entry.id}`, entry.service_name)}
+                                    className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                  >
+                                    {copiedId === `t-svc-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                  </button>
+                                </div>
+                                {entry.hasRateChange && (
+                                  <span className="text-[10px] text-amber-400 font-normal block mt-0.5">
+                                    Rate Tier {entry.rateTierIndex} of {entry.totalRateTiers}
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Start Date */}
+                              <td className="px-3.5 py-3 whitespace-nowrap">
+                                <div className="flex items-center gap-1.5 group">
+                                  <span className="font-mono text-brand-teal font-semibold">{sDate}</span>
+                                  <button
+                                    type="button"
+                                    title="Copy Start Date"
+                                    onClick={() => handleCopyText(`t-sd-${entry.id}`, sDate)}
+                                    className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                  >
+                                    {copiedId === `t-sd-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                  </button>
+                                </div>
+                              </td>
+
+                              {/* End Date */}
+                              <td className="px-3.5 py-3 whitespace-nowrap">
+                                <div className="flex items-center gap-1.5 group">
+                                  <span className="font-mono text-brand-teal font-semibold">{eDate}</span>
+                                  <button
+                                    type="button"
+                                    title="Copy End Date"
+                                    onClick={() => handleCopyText(`t-ed-${entry.id}`, eDate)}
+                                    className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                  >
+                                    {copiedId === `t-ed-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                  </button>
+                                </div>
+                              </td>
+
+                              {/* Base Rate */}
+                              <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                                <div className="inline-flex items-center gap-1 group">
+                                  <span className="text-[#E6EDF3] font-mono font-semibold">${entry.rate.toFixed(2)}</span>
+                                  <button
+                                    type="button"
+                                    title="Copy Base Rate"
+                                    onClick={() => handleCopyText(`t-rate-${entry.id}`, entry.rate.toFixed(2))}
+                                    className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                  >
+                                    {copiedId === `t-rate-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                  </button>
+                                </div>
+                              </td>
+
+                              {/* Weekday Hours */}
+                              <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                                <div className="inline-flex items-center gap-1 group">
+                                  <span className={`font-mono font-bold ${entry.weekday_hours > 0 ? 'text-white' : 'text-zinc-600'}`}>
+                                    {entry.weekday_hours > 0 ? entry.weekday_hours : '0'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    title="Copy Weekday Hours"
+                                    onClick={() => handleCopyText(`t-wd-${entry.id}`, entry.weekday_hours.toString())}
+                                    className="text-zinc-600 hover:text-brand-teal opacity-40 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                  >
+                                    {copiedId === `t-wd-${entry.id}` ? <Check className="w-2.5 h-2.5 text-brand-teal" /> : <Copy className="w-2.5 h-2.5" />}
+                                  </button>
+                                </div>
+                              </td>
+
+                              {/* Saturday Hours */}
+                              <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                                <div className="inline-flex items-center gap-1 group">
+                                  <span className={`font-mono font-bold ${entry.saturday_hours > 0 ? 'text-white' : 'text-zinc-600'}`}>
+                                    {entry.saturday_hours > 0 ? entry.saturday_hours : '0'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    title="Copy Saturday Hours"
+                                    onClick={() => handleCopyText(`t-sat-${entry.id}`, entry.saturday_hours.toString())}
+                                    className="text-zinc-600 hover:text-brand-teal opacity-40 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                  >
+                                    {copiedId === `t-sat-${entry.id}` ? <Check className="w-2.5 h-2.5 text-brand-teal" /> : <Copy className="w-2.5 h-2.5" />}
+                                  </button>
+                                </div>
+                              </td>
+
+                              {/* Sunday Hours */}
+                              <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                                <div className="inline-flex items-center gap-1 group">
+                                  <span className={`font-mono font-bold ${entry.sunday_hours > 0 ? 'text-white' : 'text-zinc-600'}`}>
+                                    {entry.sunday_hours > 0 ? entry.sunday_hours : '0'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    title="Copy Sunday Hours"
+                                    onClick={() => handleCopyText(`t-sun-${entry.id}`, entry.sunday_hours.toString())}
+                                    className="text-zinc-600 hover:text-brand-teal opacity-40 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                  >
+                                    {copiedId === `t-sun-${entry.id}` ? <Check className="w-2.5 h-2.5 text-brand-teal" /> : <Copy className="w-2.5 h-2.5" />}
+                                  </button>
+                                </div>
+                              </td>
+
+                              {/* Public Holiday Hours */}
+                              <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                                <div className="inline-flex items-center gap-1 group">
+                                  <span className={`font-mono font-bold ${entry.publicholiday_hours > 0 ? 'text-white' : 'text-zinc-600'}`}>
+                                    {entry.publicholiday_hours > 0 ? entry.publicholiday_hours : '0'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    title="Copy Public Holiday Hours"
+                                    onClick={() => handleCopyText(`t-ph-${entry.id}`, entry.publicholiday_hours.toString())}
+                                    className="text-zinc-600 hover:text-brand-teal opacity-40 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                  >
+                                    {copiedId === `t-ph-${entry.id}` ? <Check className="w-2.5 h-2.5 text-brand-teal" /> : <Copy className="w-2.5 h-2.5" />}
+                                  </button>
+                                </div>
+                              </td>
+
+                              {/* Total Hours */}
+                              <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                                <span className="font-mono font-bold text-brand-teal">
+                                  {entry.total_hours} hrs
                                 </span>
-                              )}
-                            </td>
+                              </td>
 
-                            {/* Start Date */}
-                            <td className="px-3.5 py-3 whitespace-nowrap">
-                              <div className="flex items-center gap-1.5 group">
-                                <span className="font-mono text-brand-teal font-semibold">{entry.startDateStr}</span>
-                                <button
-                                  type="button"
-                                  title="Copy Start Date"
-                                  onClick={() => handleCopyText(`sd-${entry.id}`, entry.startDateStr)}
-                                  className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5"
-                                >
-                                  {copiedId === `sd-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
-                                </button>
-                              </div>
-                            </td>
-
-                            {/* End Date */}
-                            <td className="px-3.5 py-3 whitespace-nowrap">
-                              <div className="flex items-center gap-1.5 group">
-                                <span className="font-mono text-brand-teal font-semibold">{entry.endDateStr}</span>
-                                <button
-                                  type="button"
-                                  title="Copy End Date"
-                                  onClick={() => handleCopyText(`ed-${entry.id}`, entry.endDateStr)}
-                                  className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5"
-                                >
-                                  {copiedId === `ed-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
-                                </button>
-                              </div>
-                            </td>
-
-                            {/* Base Rate */}
-                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
-                              <div className="inline-flex items-center gap-1 group">
-                                <span className="text-[#E6EDF3] font-mono">${entry.rate.toFixed(2)}</span>
-                                <button
-                                  type="button"
-                                  title="Copy Rate"
-                                  onClick={() => handleCopyText(`rate-${entry.id}`, entry.rate.toFixed(2))}
-                                  className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5"
-                                >
-                                  {copiedId === `rate-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
-                                </button>
-                              </div>
-                            </td>
-
-                            {/* Weekday Hours */}
-                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
-                              <span className={`font-mono font-bold ${entry.weekday_hours > 0 ? 'text-white' : 'text-zinc-600'}`}>
-                                {entry.weekday_hours > 0 ? entry.weekday_hours : '0'}
-                              </span>
-                            </td>
-
-                            {/* Saturday Hours */}
-                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
-                              <span className={`font-mono font-bold ${entry.saturday_hours > 0 ? 'text-white' : 'text-zinc-600'}`}>
-                                {entry.saturday_hours > 0 ? entry.saturday_hours : '0'}
-                              </span>
-                            </td>
-
-                            {/* Sunday Hours */}
-                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
-                              <span className={`font-mono font-bold ${entry.sunday_hours > 0 ? 'text-white' : 'text-zinc-600'}`}>
-                                {entry.sunday_hours > 0 ? entry.sunday_hours : '0'}
-                              </span>
-                            </td>
-
-                            {/* PH Hours */}
-                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
-                              <span className={`font-mono font-bold ${entry.publicholiday_hours > 0 ? 'text-white' : 'text-zinc-600'}`}>
-                                {entry.publicholiday_hours > 0 ? entry.publicholiday_hours : '0'}
-                              </span>
-                            </td>
-
-                            {/* Weekly Total */}
-                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
-                              <span className="font-mono font-bold text-brand-teal">
-                                {entry.total_hours_per_week} hrs
-                              </span>
-                            </td>
-
-                            {/* Type / Span */}
-                            <td className="px-3.5 py-3 text-center whitespace-nowrap">
-                              {entry.type === 'Consecutive Multi-Week' ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-teal/15 text-brand-teal text-[10px] font-bold border border-brand-teal/30">
-                                  {entry.weeksCount} Wks Recurring
+                              {/* Est Cost */}
+                              <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                                <span className="font-mono font-bold text-[#E6EDF3]">
+                                  ${entry.total_cost.toFixed(2)}
                                 </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.08] text-[#8B949E] text-[10px] font-medium border border-white/[0.1]">
-                                  Single Week
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+
+                              {/* Rate Status */}
+                              <td className="px-3.5 py-3 text-center whitespace-nowrap">
+                                {entry.hasRateChange ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-[10px] font-bold border border-amber-500/30">
+                                    Rate Tier {entry.rateTierIndex} of {entry.totalRateTiers}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                                    Single Rate Span
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 </div>
 
-                {/* Individual Entry Detail Cards for Quick Field-by-Field Entry */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {plannedEntries.map((entry, idx) => (
-                    <div
-                      key={`card-${entry.id}`}
-                      className="bg-[#151515] border border-white/[0.08] hover:border-brand-teal/40 rounded-xl p-4 transition-all shadow-sm flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-3 border-b border-white/[0.06] pb-2.5">
-                          <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-full bg-brand-teal/20 text-brand-teal flex items-center justify-center text-xs font-bold">
-                              {idx + 1}
-                            </span>
-                            <span className="text-xs font-bold text-white uppercase tracking-wider">
-                              Entry #{idx + 1}
-                            </span>
-                          </div>
-                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${entry.type === 'Consecutive Multi-Week' ? 'bg-brand-teal/20 text-brand-teal border border-brand-teal/30' : 'bg-white/[0.08] text-[#8B949E] border border-white/[0.1]'}`}>
-                            {entry.type === 'Consecutive Multi-Week' ? `${entry.weeksCount} Wks Multi-Span` : 'Single Week'}
-                          </span>
-                        </div>
-
-                        <div className="space-y-2.5 text-xs">
-                          {/* Service Description */}
-                          <div className="flex items-start justify-between gap-2 p-2 rounded bg-black/40 border border-white/[0.04]">
-                            <span className="text-[#8B949E] text-[11px] shrink-0">Service Name:</span>
-                            <div className="flex items-center gap-1.5 text-right font-semibold text-white">
-                              <span>{entry.service_name}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleCopyText(`c-svc-${entry.id}`, entry.service_name)}
-                                className="text-zinc-500 hover:text-brand-teal p-0.5"
-                                title="Copy"
-                              >
-                                {copiedId === `c-svc-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Date Span */}
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="p-2 rounded bg-black/40 border border-white/[0.04]">
-                              <span className="text-[#8B949E] text-[10px] block uppercase font-bold">Start Date:</span>
-                              <div className="flex items-center justify-between mt-0.5">
-                                <span className="font-mono text-brand-teal font-bold">{entry.startDateStr}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopyText(`c-sd-${entry.id}`, entry.startDateStr)}
-                                  className="text-zinc-500 hover:text-brand-teal p-0.5"
-                                  title="Copy"
-                                >
-                                  {copiedId === `c-sd-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="p-2 rounded bg-black/40 border border-white/[0.04]">
-                              <span className="text-[#8B949E] text-[10px] block uppercase font-bold">End Date:</span>
-                              <div className="flex items-center justify-between mt-0.5">
-                                <span className="font-mono text-brand-teal font-bold">{entry.endDateStr}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopyText(`c-ed-${entry.id}`, entry.endDateStr)}
-                                  className="text-zinc-500 hover:text-brand-teal p-0.5"
-                                  title="Copy"
-                                >
-                                  {copiedId === `c-ed-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Base Rate */}
-                          <div className="flex items-center justify-between p-2 rounded bg-black/40 border border-white/[0.04]">
-                            <span className="text-[#8B949E] text-[11px]">Base Rate:</span>
-                            <div className="flex items-center gap-1.5 font-mono font-bold text-white">
-                              <span>${entry.rate.toFixed(2)} / hr</span>
-                              <button
-                                type="button"
-                                onClick={() => handleCopyText(`c-rate-${entry.id}`, entry.rate.toFixed(2))}
-                                className="text-zinc-500 hover:text-brand-teal p-0.5"
-                                title="Copy"
-                              >
-                                {copiedId === `c-rate-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Hours Breakdown Box */}
-                          <div className="p-2.5 rounded bg-black/60 border border-brand-teal/20">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-brand-teal block mb-1.5">
-                              Weekly Recurring Hours to Enter:
-                            </span>
-                            <div className="grid grid-cols-4 gap-1.5 text-center">
-                              <div className="bg-white/[0.03] p-1.5 rounded">
-                                <span className="text-[9px] text-[#8B949E] block uppercase">Weekday</span>
-                                <span className="font-mono font-bold text-white text-xs">{entry.weekday_hours}</span>
-                              </div>
-                              <div className="bg-white/[0.03] p-1.5 rounded">
-                                <span className="text-[9px] text-[#8B949E] block uppercase">Saturday</span>
-                                <span className="font-mono font-bold text-white text-xs">{entry.saturday_hours}</span>
-                              </div>
-                              <div className="bg-white/[0.03] p-1.5 rounded">
-                                <span className="text-[9px] text-[#8B949E] block uppercase">Sunday</span>
-                                <span className="font-mono font-bold text-white text-xs">{entry.sunday_hours}</span>
-                              </div>
-                              <div className="bg-white/[0.03] p-1.5 rounded">
-                                <span className="text-[9px] text-[#8B949E] block uppercase">Pub Hol</span>
-                                <span className="font-mono font-bold text-white text-xs">{entry.publicholiday_hours}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Card Footer Summary */}
-                      <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between text-[11px] text-[#8B949E]">
-                        <span>Weekly Total: <strong className="text-white">{entry.total_hours_per_week} hrs/wk</strong></span>
-                        <span>Estimated Value: <strong className="text-brand-teal">${entry.total_quarter_cost.toFixed(2)}</strong></span>
-                      </div>
+                {/* Optional Collapsible Accordion: Weekly Consecutive & Non-Consecutive Block Breakdown */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowWeeklyBreakdown(!showWeeklyBreakdown)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-[#151515] hover:bg-[#1c1c1c] border border-white/[0.08] rounded-xl text-xs font-semibold text-[#8B949E] hover:text-white transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-brand-teal" />
+                      <span>Optional: View Weekly Consecutive & Non-Consecutive Breakdown</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-white/[0.06] text-zinc-400">
+                        {consecutiveSummaries.length} consecutive + {nonConsecutiveBlocks.length} standalone blocks
+                      </span>
                     </div>
-                  ))}
+                    <div className="flex items-center gap-1.5 text-zinc-400">
+                      <span className="text-[11px]">{showWeeklyBreakdown ? 'Hide weekly details' : 'Show weekly details'}</span>
+                      {showWeeklyBreakdown ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </div>
+                  </button>
+
+                  {showWeeklyBreakdown && (
+                    <div className="mt-4 space-y-6 animate-fadeIn">
+                      {/* Matching Consecutive Week Blocks Summary */}
+                      {consecutiveSummaries.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-brand-teal" />
+                              <span>Matching Consecutive Week Blocks Summary</span>
+                            </h4>
+                            <span className="text-[10px] text-[#8B949E]">
+                              {consecutiveSummaries.length} sequences
+                            </span>
+                          </div>
+                          <div className="bg-[#151515] border border-brand-teal/30 rounded-xl overflow-hidden shadow-md">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse">
+                                <thead>
+                                  <tr className="border-b border-white/[0.08] bg-black/40 text-[10px] font-bold text-[#8B949E] uppercase">
+                                    <th className="px-4 py-2.5">Service Description</th>
+                                    <th className="px-4 py-2.5">Consecutive Range</th>
+                                    <th className="px-4 py-2.5 text-center">Duration</th>
+                                    <th className="px-4 py-2.5 text-right">Base Rate</th>
+                                    <th className="px-4 py-2.5 text-right">Weekday Hrs / Wk</th>
+                                    <th className="px-4 py-2.5 text-right">Sat Hrs / Wk</th>
+                                    <th className="px-4 py-2.5 text-right">Sun Hrs / Wk</th>
+                                    <th className="px-4 py-2.5 text-right">PH Hrs / Wk</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/[0.05] text-xs">
+                                  {consecutiveSummaries.map((summary, sIdx) => (
+                                    <tr key={sIdx} className="hover:bg-brand-teal/[0.04] transition-colors">
+                                      <td className="px-4 py-3 font-semibold text-[#E6EDF3] border-l-2 border-brand-teal pl-3.5">
+                                        <div className="flex flex-col">
+                                          <span>{summary.service_name}</span>
+                                          {summary.month && (
+                                            <span className="text-[10px] text-[#8B949E] font-normal">{summary.month}</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3 font-semibold text-white whitespace-nowrap">
+                                        <span className="text-brand-teal font-bold font-mono">
+                                          {format(new Date(summary.start_date + 'T12:00:00Z'), 'd MMM yyyy')}
+                                        </span>
+                                        <span className="mx-2 text-zinc-500/80 font-normal">to</span>
+                                        <span className="text-brand-teal font-bold font-mono">
+                                          {format(new Date(summary.end_date + 'T12:00:00Z'), 'd MMM yyyy')}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-white/[0.06] text-white text-[11px] font-medium border border-white/[0.08]">
+                                          {summary.week_count} consecutive weeks
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-3 font-mono text-[#8B949E] text-right whitespace-nowrap">
+                                        ${summary.rate?.toFixed(2)}
+                                      </td>
+                                      <td className="px-4 py-3 font-mono text-right text-brand-teal font-bold whitespace-nowrap">
+                                        {summary.weekday_hours > 0 ? `${summary.weekday_hours} hrs` : '-'}
+                                      </td>
+                                      <td className="px-4 py-3 font-mono text-right text-brand-teal font-bold whitespace-nowrap">
+                                        {summary.saturday_hours > 0 ? `${summary.saturday_hours} hrs` : '-'}
+                                      </td>
+                                      <td className="px-4 py-3 font-mono text-right text-brand-teal font-bold whitespace-nowrap">
+                                        {summary.sunday_hours > 0 ? `${summary.sunday_hours} hrs` : '-'}
+                                      </td>
+                                      <td className="px-4 py-3 font-mono text-right text-brand-teal font-bold whitespace-nowrap">
+                                        {summary.publicholiday_hours > 0 ? `${summary.publicholiday_hours} hrs` : '-'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Non-Consecutive / Standalone Week Blocks Summary */}
+                      {nonConsecutiveBlocks.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-zinc-400" />
+                              <span>Non-Consecutive / Standalone Week Blocks Summary</span>
+                            </h4>
+                            <span className="text-[10px] text-[#8B949E]">
+                              {nonConsecutiveBlocks.length} blocks
+                            </span>
+                          </div>
+                          <div className="bg-[#151515] border border-white/[0.08] rounded-xl overflow-hidden shadow-md">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse">
+                                <thead>
+                                  <tr className="border-b border-white/[0.08] bg-black/40 text-[10px] font-bold text-[#8B949E] uppercase">
+                                    <th className="px-4 py-2.5">Service Description</th>
+                                    <th className="px-4 py-2.5">Week</th>
+                                    <th className="px-4 py-2.5">Dates</th>
+                                    <th className="px-4 py-2.5 text-right">Base Rate</th>
+                                    <th className="px-4 py-2.5 text-right">Weekday Hrs</th>
+                                    <th className="px-4 py-2.5 text-right">Sat Hrs</th>
+                                    <th className="px-4 py-2.5 text-right">Sun Hrs</th>
+                                    <th className="px-4 py-2.5 text-right">PH Hrs</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/[0.05] text-xs">
+                                  {nonConsecutiveBlocks.map((block, nIdx) => (
+                                    <tr key={nIdx} className="hover:bg-white/[0.02] transition-colors">
+                                      <td className="px-4 py-2.5 font-semibold text-[#E6EDF3]">
+                                        <div className="flex flex-col">
+                                          <span>{block.service_name}</span>
+                                          {block.month && (
+                                            <span className="text-[10px] text-[#8B949E] font-normal">{block.month}</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-2.5 font-semibold text-brand-teal whitespace-nowrap">
+                                        {block.week_of_month ? `Week ${block.week_of_month}` : '-'}
+                                      </td>
+                                      <td className="px-4 py-2.5 font-mono text-[#E6EDF3] whitespace-nowrap">
+                                        {block.start_date ? format(new Date(block.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
+                                        <span className="mx-1.5 text-zinc-500/80 font-normal">to</span>
+                                        {block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
+                                      </td>
+                                      <td className="px-4 py-2.5 font-mono text-[#8B949E] text-right whitespace-nowrap">
+                                        ${block.rate?.toFixed(2)}
+                                      </td>
+                                      <td className="px-4 py-2.5 font-mono text-right text-brand-teal whitespace-nowrap">
+                                        {block.weekday_hours > 0 ? `${block.weekday_hours} hrs` : '-'}
+                                      </td>
+                                      <td className="px-4 py-2.5 font-mono text-right text-brand-teal whitespace-nowrap">
+                                        {block.saturday_hours > 0 ? `${block.saturday_hours} hrs` : '-'}
+                                      </td>
+                                      <td className="px-4 py-2.5 font-mono text-right text-brand-teal whitespace-nowrap">
+                                        {block.sunday_hours > 0 ? `${block.sunday_hours} hrs` : '-'}
+                                      </td>
+                                      <td className="px-4 py-2.5 font-mono text-right text-brand-teal whitespace-nowrap">
+                                        {block.publicholiday_hours > 0 ? `${block.publicholiday_hours} hrs` : '-'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
