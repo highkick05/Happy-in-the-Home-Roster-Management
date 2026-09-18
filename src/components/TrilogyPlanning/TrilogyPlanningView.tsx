@@ -25,10 +25,10 @@ import { format } from 'date-fns';
 const isBlockHoursEqual = (b1: any, b2: any) => {
   if (!b1 || !b2) return false;
   return (
-    Number(b1.weekday_hours || 0) === Number(b2.weekday_hours || 0) &&
-    Number(b1.saturday_hours || 0) === Number(b2.saturday_hours || 0) &&
-    Number(b1.sunday_hours || 0) === Number(b2.sunday_hours || 0) &&
-    Number(b1.publicholiday_hours || 0) === Number(b2.publicholiday_hours || 0)
+    Math.abs(Number(b1.weekday_hours || 0) - Number(b2.weekday_hours || 0)) < 0.01 &&
+    Math.abs(Number(b1.saturday_hours || 0) - Number(b2.saturday_hours || 0)) < 0.01 &&
+    Math.abs(Number(b1.sunday_hours || 0) - Number(b2.sunday_hours || 0)) < 0.01 &&
+    Math.abs(Number(b1.publicholiday_hours || 0) - Number(b2.publicholiday_hours || 0)) < 0.01
   );
 };
 
@@ -156,8 +156,34 @@ const getTrilogyAccuratePlannedServices = (monthResults: any[], quarterStartStr?
   const sortedServiceNames = Array.from(serviceMap.keys()).sort();
 
   for (const serviceName of sortedServiceNames) {
-    const blocks = serviceMap.get(serviceName) || [];
-    if (blocks.length === 0) continue;
+    const rawBlocks = serviceMap.get(serviceName) || [];
+    if (rawBlocks.length === 0) continue;
+
+    // Consolidate any blocks belonging to the same calendar week (Monday to Sunday)
+    // to guarantee month-transition shifts (e.g. 30 June / 1 July) form a single intact week
+    const weekMap = new Map<string, any>();
+    for (const block of rawBlocks) {
+      const monStr = getMondayDateStr(block.start_date);
+      if (!weekMap.has(monStr)) {
+        weekMap.set(monStr, { ...block });
+      } else {
+        const existing = weekMap.get(monStr)!;
+        if (block.start_date < existing.start_date) existing.start_date = block.start_date;
+        if (block.end_date > existing.end_date) existing.end_date = block.end_date;
+        existing.weekday_hours = Number(((existing.weekday_hours || 0) + (block.weekday_hours || 0)).toFixed(2));
+        existing.saturday_hours = Number(((existing.saturday_hours || 0) + (block.saturday_hours || 0)).toFixed(2));
+        existing.sunday_hours = Number(((existing.sunday_hours || 0) + (block.sunday_hours || 0)).toFixed(2));
+        existing.publicholiday_hours = Number(((existing.publicholiday_hours || 0) + (block.publicholiday_hours || 0)).toFixed(2));
+        existing.total_hours = Number(((existing.total_hours || 0) + (block.total_hours || 0)).toFixed(2));
+        existing.weekly_amount = Number(((existing.weekly_amount || 0) + (block.weekly_amount || 0)).toFixed(2));
+        existing.daily_amount = Number((existing.weekly_amount / 7).toFixed(2));
+        if (block.weekday_rate && !existing.weekday_rate) existing.weekday_rate = block.weekday_rate;
+        if (block.saturday_rate && !existing.saturday_rate) existing.saturday_rate = block.saturday_rate;
+        if (block.sunday_rate && !existing.sunday_rate) existing.sunday_rate = block.sunday_rate;
+        if (block.publicholiday_rate && !existing.publicholiday_rate) existing.publicholiday_rate = block.publicholiday_rate;
+      }
+    }
+    const blocks = Array.from(weekMap.values());
 
     // Sort chronologically by start_date
     blocks.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());

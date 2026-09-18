@@ -6203,7 +6203,18 @@ app.get("/api/health", (req, res) => {
       
       const shifts = db.prepare(query).all(...queryParams) as any[];
 
-      const monthsMap: Record<string, Record<string, any[]>> = {};
+      const getMondayDateStr = (dateStr: string) => {
+        const parts = dateStr.split('T')[0].split('-').map(Number);
+        if (parts.length !== 3) return dateStr;
+        const [y, m, d] = parts;
+        const dt = new Date(Date.UTC(y, m - 1, d));
+        const day = dt.getUTCDay();
+        const diff = dt.getUTCDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), diff));
+        return monday.toISOString().split('T')[0];
+      };
+
+      const servicesMap: Record<string, any[]> = {};
 
       for (const shift of shifts) {
         const shiftStart = new Date(shift.start_time);
@@ -6216,7 +6227,6 @@ app.get("/api/health", (req, res) => {
 
         const zonedDate = toZonedTime(shiftStart, timezone);
         const dayOfWeek = zonedDate.getDay();
-        const monthKey = formatInTimeZone(shiftStart, timezone, 'MMMM yyyy');
         
         const isPublicHoliday = hd
             .getHolidays(zonedDate.getFullYear())
@@ -6273,38 +6283,43 @@ app.get("/api/health", (req, res) => {
 
         shift.effectiveBaseRate = weekdayRate;
 
-        if (!monthsMap[monthKey]) {
-          monthsMap[monthKey] = {};
+        if (!servicesMap[shift.service_name]) {
+          servicesMap[shift.service_name] = [];
         }
-        if (!monthsMap[monthKey][shift.service_name]) {
-          monthsMap[monthKey][shift.service_name] = [];
-        }
-        monthsMap[monthKey][shift.service_name].push(shift);
+        servicesMap[shift.service_name].push(shift);
       }
       
-      const formattedData = [];
-      
-      const getWeekIdentifier = (d: Date) => {
-        const date = new Date(d);
-        date.setHours(0, 0, 0, 0);
-        const day = date.getDay();
-        const diff = date.getDate() - day + (day === 0 ? -6 : 1); 
-        return new Date(date.setDate(diff)).getTime();
-      };
+      const servicesData = [];
 
-      for (const [monthKey, servicesMap] of Object.entries(monthsMap)) {
-        const servicesData = [];
+      for (const [serviceName, serviceShifts] of Object.entries(servicesMap)) {
+        const blocks: any[] = [];
+        let currentBlock: any = null;
         
-        for (const [serviceName, serviceShifts] of Object.entries(servicesMap)) {
-          const blocks = [];
-          let currentBlock: any = null;
+        for (const shift of serviceShifts) {
+          const shiftDateStr = shift.shiftDateStr;
+          const shiftWeekKey = getMondayDateStr(shiftDateStr);
           
-          for (const shift of serviceShifts) {
-            const shiftDateStr = shift.shiftDateStr;
-            const zonedDate = shift.zonedDate;
-            
-            if (!currentBlock) {
+          if (!currentBlock) {
+            currentBlock = {
+              weekKey: shiftWeekKey,
+              rate: shift.effectiveBaseRate,
+              weekday_rate: shift.weekdayRate,
+              saturday_rate: shift.saturdayRate,
+              sunday_rate: shift.sundayRate,
+              publicholiday_rate: shift.publicholidayRate,
+              start_date_str: shiftDateStr,
+              end_date_str: shiftDateStr,
+              weekday_hours: shift.dayType === 'weekday' ? shift.hours : 0,
+              saturday_hours: shift.dayType === 'saturday' ? shift.hours : 0,
+              sunday_hours: shift.dayType === 'sunday' ? shift.hours : 0,
+              publicholiday_hours: shift.dayType === 'publicholiday' ? shift.hours : 0
+            };
+          } else {
+            // Break block only if it enters a new calendar week (Monday to Sunday)
+            if (currentBlock.weekKey !== shiftWeekKey) {
+              blocks.push(currentBlock);
               currentBlock = {
+                weekKey: shiftWeekKey,
                 rate: shift.effectiveBaseRate,
                 weekday_rate: shift.weekdayRate,
                 saturday_rate: shift.saturdayRate,
@@ -6312,109 +6327,86 @@ app.get("/api/health", (req, res) => {
                 publicholiday_rate: shift.publicholidayRate,
                 start_date_str: shiftDateStr,
                 end_date_str: shiftDateStr,
-                start_date: zonedDate,
-                end_date: zonedDate,
                 weekday_hours: shift.dayType === 'weekday' ? shift.hours : 0,
                 saturday_hours: shift.dayType === 'saturday' ? shift.hours : 0,
                 sunday_hours: shift.dayType === 'sunday' ? shift.hours : 0,
                 publicholiday_hours: shift.dayType === 'publicholiday' ? shift.hours : 0
               };
             } else {
-              // Break block only if it enters a new week
-              const currentWeek = getWeekIdentifier(currentBlock.start_date);
-              const shiftWeek = getWeekIdentifier(zonedDate);
-
-              if (currentWeek !== shiftWeek) {
-                blocks.push(currentBlock);
-                currentBlock = {
-                  rate: shift.effectiveBaseRate,
-                  weekday_rate: shift.weekdayRate,
-                  saturday_rate: shift.saturdayRate,
-                  sunday_rate: shift.sundayRate,
-                  publicholiday_rate: shift.publicholidayRate,
-                  start_date_str: shiftDateStr,
-                  end_date_str: shiftDateStr,
-                  start_date: zonedDate,
-                  end_date: zonedDate,
-                  weekday_hours: shift.dayType === 'weekday' ? shift.hours : 0,
-                  saturday_hours: shift.dayType === 'saturday' ? shift.hours : 0,
-                  sunday_hours: shift.dayType === 'sunday' ? shift.hours : 0,
-                  publicholiday_hours: shift.dayType === 'publicholiday' ? shift.hours : 0
-                };
-              } else {
-                // Extend block within the same week
-                if (shiftDateStr < currentBlock.start_date_str) {
-                  currentBlock.start_date_str = shiftDateStr;
-                  currentBlock.start_date = zonedDate;
-                }
-                if (shiftDateStr > currentBlock.end_date_str) {
-                  currentBlock.end_date_str = shiftDateStr;
-                  currentBlock.end_date = zonedDate;
-                }
-                if (shift.dayType === 'weekday') currentBlock.weekday_hours += shift.hours;
-                else if (shift.dayType === 'saturday') currentBlock.saturday_hours += shift.hours;
-                else if (shift.dayType === 'sunday') currentBlock.sunday_hours += shift.hours;
-                else if (shift.dayType === 'publicholiday') currentBlock.publicholiday_hours += shift.hours;
+              // Extend block within the same calendar week
+              if (shiftDateStr < currentBlock.start_date_str) {
+                currentBlock.start_date_str = shiftDateStr;
+              }
+              if (shiftDateStr > currentBlock.end_date_str) {
+                currentBlock.end_date_str = shiftDateStr;
+              }
+              if (shift.dayType === 'weekday') {
+                currentBlock.weekday_hours += shift.hours;
+                if (shift.weekdayRate) currentBlock.weekday_rate = shift.weekdayRate;
+              } else if (shift.dayType === 'saturday') {
+                currentBlock.saturday_hours += shift.hours;
+                if (shift.saturdayRate) currentBlock.saturday_rate = shift.saturdayRate;
+              } else if (shift.dayType === 'sunday') {
+                currentBlock.sunday_hours += shift.hours;
+                if (shift.sundayRate) currentBlock.sunday_rate = shift.sundayRate;
+              } else if (shift.dayType === 'publicholiday') {
+                currentBlock.publicholiday_hours += shift.hours;
+                if (shift.publicholidayRate) currentBlock.publicholiday_rate = shift.publicholidayRate;
               }
             }
           }
-          if (currentBlock) {
-            blocks.push(currentBlock);
-          }
-          
-          const getWeekOfMonth = (d: Date) => {
-            const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
-            const adjustedFirstDay = firstDay === 0 ? 6 : firstDay - 1;
-            return Math.ceil((d.getDate() + adjustedFirstDay) / 7);
-          };
-          
-          const formattedBlocks = blocks.map((b: any) => {
-            const wHrs = Number((b.weekday_hours || 0).toFixed(2));
-            const satHrs = Number((b.saturday_hours || 0).toFixed(2));
-            const sunHrs = Number((b.sunday_hours || 0).toFixed(2));
-            const phHrs = Number((b.publicholiday_hours || 0).toFixed(2));
-            const totalHrs = Number((wHrs + satHrs + sunHrs + phHrs).toFixed(2));
-            const weeklyAmount = Number((
-              (wHrs * (b.weekday_rate || b.rate || 0)) +
-              (satHrs * (b.saturday_rate || b.rate || 0)) +
-              (sunHrs * (b.sunday_rate || b.rate || 0)) +
-              (phHrs * (b.publicholiday_rate || b.rate || 0))
-            ).toFixed(2));
-
-            return {
-              rate: b.rate,
-              weekday_rate: b.weekday_rate || b.rate,
-              saturday_rate: b.saturday_rate || b.rate,
-              sunday_rate: b.sunday_rate || b.rate,
-              publicholiday_rate: b.publicholiday_rate || b.rate,
-              start_date: b.start_date_str,
-              end_date: b.end_date_str,
-              week_of_month: getWeekOfMonth(b.start_date),
-              weekday_hours: wHrs,
-              saturday_hours: satHrs,
-              sunday_hours: sunHrs,
-              publicholiday_hours: phHrs,
-              total_hours: totalHrs,
-              weekly_amount: weeklyAmount,
-              daily_amount: Number((weeklyAmount / 7).toFixed(2))
-            };
-          });
-          
-          servicesData.push({
-            service_name: serviceName,
-            blocks: formattedBlocks
-          });
+        }
+        if (currentBlock) {
+          blocks.push(currentBlock);
         }
         
-        formattedData.push({
-            month: monthKey,
-            services: servicesData
+        const formattedBlocks = blocks.map((b: any) => {
+          const wHrs = Number((b.weekday_hours || 0).toFixed(2));
+          const satHrs = Number((b.saturday_hours || 0).toFixed(2));
+          const sunHrs = Number((b.sunday_hours || 0).toFixed(2));
+          const phHrs = Number((b.publicholiday_hours || 0).toFixed(2));
+          const totalHrs = Number((wHrs + satHrs + sunHrs + phHrs).toFixed(2));
+          const wdRate = Number(b.weekday_rate || b.rate || 0);
+          const satRate = Number(b.saturday_rate || b.rate || 0);
+          const sunRate = Number(b.sunday_rate || b.rate || 0);
+          const phRate = Number(b.publicholiday_rate || b.rate || 0);
+          const weeklyAmount = Number((
+            (wHrs * wdRate) +
+            (satHrs * satRate) +
+            (sunHrs * sunRate) +
+            (phHrs * phRate)
+          ).toFixed(2));
+
+          return {
+            rate: b.rate,
+            weekday_rate: wdRate,
+            saturday_rate: satRate,
+            sunday_rate: sunRate,
+            publicholiday_rate: phRate,
+            start_date: b.start_date_str,
+            end_date: b.end_date_str,
+            weekday_hours: wHrs,
+            saturday_hours: satHrs,
+            sunday_hours: sunHrs,
+            publicholiday_hours: phHrs,
+            total_hours: totalHrs,
+            weekly_amount: weeklyAmount,
+            daily_amount: Number((weeklyAmount / 7).toFixed(2))
+          };
+        });
+        
+        servicesData.push({
+          service_name: serviceName,
+          blocks: formattedBlocks
         });
       }
       
-      formattedData.sort((a: any, b: any) => {
-        return new Date(a.month).getTime() - new Date(b.month).getTime();
-      });
+      const formattedData = [
+        {
+          month: "Quarterly Planning",
+          services: servicesData
+        }
+      ];
 
       res.json(formattedData);
     } catch (error: any) {
