@@ -6133,11 +6133,12 @@ app.get("/api/health", (req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    const { client_name, start_date, end_date } = req.query;
+    const { client_name, client_id, start_date, end_date } = req.query;
     
     try {
-      const query = `
+      let query = `
         SELECT 
+          s.id as shift_id,
           srv.name as service_name,
           srv.rate as base_rate,
           srv.rates_json,
@@ -6148,15 +6149,26 @@ app.get("/api/health", (req, res) => {
         FROM shifts s
         JOIN clients c ON s.client_id = c.id
         JOIN services srv ON s.service_id = srv.id
-        WHERE (c.first_name || ' ' || c.last_name LIKE ?)
+        WHERE `;
+      
+      const queryParams: any[] = [];
+      if (client_id) {
+        query += `s.client_id = ? `;
+        queryParams.push(client_id);
+      } else {
+        query += `(c.first_name || ' ' || c.last_name LIKE ?) `;
+        queryParams.push(`%${client_name || ''}%`);
+      }
+      query += `
           AND DATE(s.start_time) >= ?
           AND DATE(s.start_time) <= ?
-          AND (s.status = 'COMPLETED' OR (s.status = 'CANCELLED' AND EXISTS (SELECT 1 FROM invoices i WHERE i.shift_id = s.id)))
+          AND (s.status = 'COMPLETED' OR (s.status = 'CANCELLED' AND EXISTS (SELECT 1 FROM invoices i WHERE i.shift_id = s.id OR i.merged_into_shift_id = s.id)))
           AND c.funding_type IN ('Home Care', 'HCP', 'HOME_CARE')
         ORDER BY service_name ASC, s.start_time ASC
       `;
+      queryParams.push(start_date, end_date);
       
-      const shifts = db.prepare(query).all(`%${client_name}%`, start_date, end_date) as any[];
+      const shifts = db.prepare(query).all(...queryParams) as any[];
       
       const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
       const settingsMap: any = {};
@@ -6198,24 +6210,44 @@ app.get("/api/health", (req, res) => {
         
         shift.dayType = dayType;
         
-        let effectiveBaseRate = shift.base_rate;
-        try {
-           if (shift.rates_json) {
-              const rates = JSON.parse(shift.rates_json);
-              if (rates["Weekday"]) effectiveBaseRate = Number(rates["Weekday"]);
-           }
-        } catch(e) {}
-        
+        let ratesObj: any = {};
+        if (shift.rates_json) {
+          try {
+            ratesObj = JSON.parse(shift.rates_json);
+          } catch(e) {}
+        }
+        const baseRate = Number(shift.base_rate) || 0;
+        let weekdayRate = ratesObj["Weekday"] !== undefined ? Number(ratesObj["Weekday"]) : baseRate;
+        let saturdayRate = ratesObj["Saturday"] !== undefined ? Number(ratesObj["Saturday"]) : weekdayRate;
+        let sundayRate = ratesObj["Sunday"] !== undefined ? Number(ratesObj["Sunday"]) : weekdayRate;
+        let publicholidayRate = ratesObj["Public Holiday"] !== undefined ? Number(ratesObj["Public Holiday"]) : weekdayRate;
+
         try {
            if (shift.services_json) {
               const sData = JSON.parse(shift.services_json);
               if (Array.isArray(sData) && sData.length > 0 && sData[0].rateOverride) {
-                 effectiveBaseRate = Number(sData[0].rateOverride);
+                 const override = Number(sData[0].rateOverride);
+                 if (!isNaN(override) && override > 0) {
+                    weekdayRate = override;
+                    if (ratesObj["Saturday"] === undefined) saturdayRate = override;
+                    if (ratesObj["Sunday"] === undefined) sundayRate = override;
+                    if (ratesObj["Public Holiday"] === undefined) publicholidayRate = override;
+                 }
               }
            }
         } catch(e) {}
         
-        shift.effectiveBaseRate = effectiveBaseRate;
+        shift.weekdayRate = weekdayRate;
+        shift.saturdayRate = saturdayRate;
+        shift.sundayRate = sundayRate;
+        shift.publicholidayRate = publicholidayRate;
+
+        if (dayType === 'publicholiday') shift.effectiveRate = publicholidayRate;
+        else if (dayType === 'sunday') shift.effectiveRate = sundayRate;
+        else if (dayType === 'saturday') shift.effectiveRate = saturdayRate;
+        else shift.effectiveRate = weekdayRate;
+
+        shift.effectiveBaseRate = weekdayRate;
 
         if (!monthsMap[monthKey]) {
           monthsMap[monthKey] = {};
@@ -6250,6 +6282,10 @@ app.get("/api/health", (req, res) => {
             if (!currentBlock) {
               currentBlock = {
                 rate: shift.effectiveBaseRate,
+                weekday_rate: shift.weekdayRate,
+                saturday_rate: shift.saturdayRate,
+                sunday_rate: shift.sundayRate,
+                publicholiday_rate: shift.publicholidayRate,
                 start_date: shiftStart,
                 end_date: shiftEnd,
                 weekday_hours: shift.dayType === 'weekday' ? shift.hours : 0,
@@ -6266,6 +6302,10 @@ app.get("/api/health", (req, res) => {
                 blocks.push(currentBlock);
                 currentBlock = {
                   rate: shift.effectiveBaseRate,
+                  weekday_rate: shift.weekdayRate,
+                  saturday_rate: shift.saturdayRate,
+                  sunday_rate: shift.sundayRate,
+                  publicholiday_rate: shift.publicholidayRate,
                   start_date: shiftStart,
                   end_date: shiftEnd,
                   weekday_hours: shift.dayType === 'weekday' ? shift.hours : 0,
@@ -6293,16 +6333,35 @@ app.get("/api/health", (req, res) => {
             return Math.ceil((d.getDate() + adjustedFirstDay) / 7);
           };
           
-          const formattedBlocks = blocks.map(b => {
+          const formattedBlocks = blocks.map((b: any) => {
+            const wHrs = Number((b.weekday_hours || 0).toFixed(2));
+            const satHrs = Number((b.saturday_hours || 0).toFixed(2));
+            const sunHrs = Number((b.sunday_hours || 0).toFixed(2));
+            const phHrs = Number((b.publicholiday_hours || 0).toFixed(2));
+            const totalHrs = Number((wHrs + satHrs + sunHrs + phHrs).toFixed(2));
+            const weeklyAmount = Number((
+              (wHrs * (b.weekday_rate || b.rate || 0)) +
+              (satHrs * (b.saturday_rate || b.rate || 0)) +
+              (sunHrs * (b.sunday_rate || b.rate || 0)) +
+              (phHrs * (b.publicholiday_rate || b.rate || 0))
+            ).toFixed(2));
+
             return {
               rate: b.rate,
+              weekday_rate: b.weekday_rate || b.rate,
+              saturday_rate: b.saturday_rate || b.rate,
+              sunday_rate: b.sunday_rate || b.rate,
+              publicholiday_rate: b.publicholiday_rate || b.rate,
               start_date: b.start_date.toISOString().split('T')[0],
               end_date: b.end_date.toISOString().split('T')[0],
               week_of_month: getWeekOfMonth(b.start_date),
-              weekday_hours: Number(b.weekday_hours.toFixed(2)),
-              saturday_hours: Number(b.saturday_hours.toFixed(2)),
-              sunday_hours: Number(b.sunday_hours.toFixed(2)),
-              publicholiday_hours: Number(b.publicholiday_hours.toFixed(2))
+              weekday_hours: wHrs,
+              saturday_hours: satHrs,
+              sunday_hours: sunHrs,
+              publicholiday_hours: phHrs,
+              total_hours: totalHrs,
+              weekly_amount: weeklyAmount,
+              daily_amount: Number((weeklyAmount / 7).toFixed(2))
             };
           });
           
