@@ -105,6 +105,19 @@ interface ConsecutiveSummaryRow {
   publicholiday_hours: number;
 }
 
+interface NonConsecutiveBlockRow {
+  service_name: string;
+  month?: string;
+  week_of_month?: string | number;
+  start_date: string;
+  end_date: string;
+  rate: number;
+  weekday_hours: number;
+  saturday_hours: number;
+  sunday_hours: number;
+  publicholiday_hours: number;
+}
+
 // Extract all consecutive matching week sequences across the quarter
 const getQuarterConsecutiveSummaries = (monthResults: any[]): ConsecutiveSummaryRow[] => {
   const summaries: ConsecutiveSummaryRow[] = [];
@@ -173,6 +186,38 @@ const getQuarterConsecutiveSummaries = (monthResults: any[]): ConsecutiveSummary
   }
 
   return summaries;
+};
+
+// Extract all service week blocks that were NOT part of consecutive matching sequences
+const getQuarterNonConsecutiveBlocks = (monthResults: any[]): NonConsecutiveBlockRow[] => {
+  const nonConsecutiveBlocks: NonConsecutiveBlockRow[] = [];
+
+  for (const monthGroup of monthResults) {
+    for (const service of monthGroup.services || []) {
+      const blocks = service.blocks || [];
+      const highlightInfo = getBlockHighlightGroups(blocks);
+
+      blocks.forEach((block: any, idx: number) => {
+        // If not highlighted (not part of a consecutive matching sequence) and has hours
+        if (!highlightInfo[idx]?.isHighlighted && hasAnyHours(block)) {
+          nonConsecutiveBlocks.push({
+            service_name: service.service_name,
+            month: monthGroup.month,
+            week_of_month: block.week_of_month,
+            start_date: block.start_date,
+            end_date: block.end_date,
+            rate: block.rate,
+            weekday_hours: Number(block.weekday_hours || 0),
+            saturday_hours: Number(block.saturday_hours || 0),
+            sunday_hours: Number(block.sunday_hours || 0),
+            publicholiday_hours: Number(block.publicholiday_hours || 0)
+          });
+        }
+      });
+    }
+  }
+
+  return nonConsecutiveBlocks;
 };
 
 export default function TrilogyPlanningView() {
@@ -553,6 +598,86 @@ export default function TrilogyPlanningView() {
                             </td>
                             <td className="px-4 py-3 text-xs font-bold tracking-wide text-right text-brand-teal whitespace-nowrap">
                               {summary.publicholiday_hours > 0 ? `${summary.publicholiday_hours} hrs` : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Non-Consecutive / Standalone Service Week Blocks Summary underneath */}
+          {(() => {
+            const nonConsecutiveBlocks = getQuarterNonConsecutiveBlocks(results);
+            if (nonConsecutiveBlocks.length === 0) return null;
+
+            return (
+              <div className="pt-4 border-t border-white/[0.08] space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <h2 className="text-base font-bold text-white tracking-wide uppercase flex items-center gap-2">
+                      <span>Non-Consecutive Week Blocks Summary</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/[0.08] text-[#E6EDF3] border border-white/[0.12] normal-case tracking-normal">
+                        {nonConsecutiveBlocks.length} {nonConsecutiveBlocks.length === 1 ? 'block' : 'blocks'}
+                      </span>
+                    </h2>
+                    <p className="text-[#8B949E] text-xs mt-0.5">
+                      Individual service week blocks that were not part of a consecutive matching sequence.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-[#151515] border border-white/[0.08] rounded-xl overflow-hidden shadow-md">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-white/[0.08] bg-black/40">
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Service Description</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Week</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Dates</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Base Rate</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Weekday Hrs</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sat Hrs</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sun Hrs</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">PH Hrs</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/[0.05]">
+                        {nonConsecutiveBlocks.map((block, nIdx) => (
+                          <tr key={nIdx} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-[#E6EDF3]">
+                              <div className="flex flex-col">
+                                <span>{block.service_name}</span>
+                                {block.month && (
+                                  <span className="text-[10px] text-[#8B949E] font-normal">{block.month}</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-brand-teal whitespace-nowrap">
+                              {block.week_of_month ? `Week ${block.week_of_month}` : '-'}
+                            </td>
+                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-[#E6EDF3] whitespace-nowrap">
+                              {block.start_date ? format(new Date(block.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
+                              <span className="mx-1.5 text-zinc-500/80">to</span>
+                              {block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
+                            </td>
+                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-[#8B949E] text-right whitespace-nowrap">
+                              ${block.rate?.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-right text-brand-teal whitespace-nowrap">
+                              {block.weekday_hours > 0 ? `${block.weekday_hours} hrs` : '-'}
+                            </td>
+                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-right text-brand-teal whitespace-nowrap">
+                              {block.saturday_hours > 0 ? `${block.saturday_hours} hrs` : '-'}
+                            </td>
+                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-right text-brand-teal whitespace-nowrap">
+                              {block.sunday_hours > 0 ? `${block.sunday_hours} hrs` : '-'}
+                            </td>
+                            <td className="px-4 py-2.5 text-xs font-semibold tracking-wide text-right text-brand-teal whitespace-nowrap">
+                              {block.publicholiday_hours > 0 ? `${block.publicholiday_hours} hrs` : '-'}
                             </td>
                           </tr>
                         ))}
