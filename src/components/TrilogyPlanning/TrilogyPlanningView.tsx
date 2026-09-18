@@ -3,6 +3,95 @@ import { Search } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { format } from 'date-fns';
 
+// Helper to compare weekday, Saturday, Sunday, and Public Holidays hours values
+const isBlockHoursEqual = (b1: any, b2: any) => {
+  if (!b1 || !b2) return false;
+  return (
+    Number(b1.weekday_hours || 0) === Number(b2.weekday_hours || 0) &&
+    Number(b1.saturday_hours || 0) === Number(b2.saturday_hours || 0) &&
+    Number(b1.sunday_hours || 0) === Number(b2.sunday_hours || 0) &&
+    Number(b1.publicholiday_hours || 0) === Number(b2.publicholiday_hours || 0)
+  );
+};
+
+// Check if block has any scheduled hours (avoids matching empty 0-hour blocks)
+const hasAnyHours = (b: any) => {
+  if (!b) return false;
+  return (
+    Number(b.weekday_hours || 0) > 0 ||
+    Number(b.saturday_hours || 0) > 0 ||
+    Number(b.sunday_hours || 0) > 0 ||
+    Number(b.publicholiday_hours || 0) > 0
+  );
+};
+
+// Determines if two blocks represent consecutive weeks
+const areConsecutiveWeeks = (b1: any, b2: any) => {
+  if (!b1 || !b2) return false;
+  if (b1.week_of_month != null && b2.week_of_month != null) {
+    return Math.abs(Number(b2.week_of_month) - Number(b1.week_of_month)) === 1;
+  }
+  if (b1.start_date && b2.start_date) {
+    const d1 = new Date(b1.start_date + 'T12:00:00Z').getTime();
+    const d2 = new Date(b2.start_date + 'T12:00:00Z').getTime();
+    const diffDays = Math.round(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24));
+    return diffDays >= 5 && diffDays <= 9;
+  }
+  return true;
+};
+
+// Compute highlight information for blocks in a service group
+const getBlockHighlightGroups = (blocks: any[]) => {
+  const highlightInfo: { 
+    isHighlighted: boolean; 
+    groupId: number | null; 
+    isFirstInGroup: boolean; 
+    isLastInGroup: boolean;
+  }[] = blocks.map(() => ({
+    isHighlighted: false,
+    groupId: null,
+    isFirstInGroup: false,
+    isLastInGroup: false
+  }));
+
+  let currentGroupId = 0;
+  let inGroup = false;
+
+  for (let i = 0; i < blocks.length - 1; i++) {
+    const current = blocks[i];
+    const next = blocks[i + 1];
+
+    const isMatch = 
+      hasAnyHours(current) && 
+      hasAnyHours(next) && 
+      areConsecutiveWeeks(current, next) && 
+      isBlockHoursEqual(current, next);
+
+    if (isMatch) {
+      if (!inGroup) {
+        currentGroupId++;
+        inGroup = true;
+        highlightInfo[i].isHighlighted = true;
+        highlightInfo[i].groupId = currentGroupId;
+        highlightInfo[i].isFirstInGroup = true;
+      }
+      highlightInfo[i + 1].isHighlighted = true;
+      highlightInfo[i + 1].groupId = currentGroupId;
+    } else {
+      if (inGroup) {
+        highlightInfo[i].isLastInGroup = true;
+        inGroup = false;
+      }
+    }
+  }
+
+  if (inGroup && blocks.length > 0) {
+    highlightInfo[blocks.length - 1].isLastInGroup = true;
+  }
+
+  return highlightInfo;
+};
+
 export default function TrilogyPlanningView() {
   const { token } = useAuth();
   const [clients, setClients] = useState<any[]>([]);
@@ -167,47 +256,119 @@ export default function TrilogyPlanningView() {
           {results.map((monthGroup, mIdx) => (
             <div key={mIdx} className="space-y-4">
               <h2 className="text-lg font-bold text-white tracking-wide uppercase">{monthGroup.month}</h2>
-              {monthGroup.services.map((serviceGroup: any, idx: number) => (
-                <div key={idx} className="bg-[#151515] border border-white/[0.05] rounded-xl overflow-hidden shadow-sm">
-                  <div className="px-4 py-2.5 bg-black/40 border-b border-white/[0.05]">
-                    <h3 className="text-xs font-semibold tracking-wide text-[#E6EDF3]">{serviceGroup.service_name}</h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-white/[0.05] bg-black/20">
-                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Week</th>
-                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Dates</th>
-                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Base Rate</th>
-                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Weekday Hrs</th>
-                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sat Hrs</th>
-                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sun Hrs</th>
-                          <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">PH Hrs</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/[0.05]">
-                        {serviceGroup.blocks.map((block: any, bIdx: number) => (
-                          <tr key={bIdx} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal whitespace-nowrap">
-                              {block.week_of_month ? `Week ${block.week_of_month}` : '-'}
-                            </td>
-                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#E6EDF3] whitespace-nowrap">
-                              {block.start_date ? format(new Date(block.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
-                              <span className="mx-1.5 text-zinc-500/80">to</span>
-                              {block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
-                            </td>
-                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#8B949E] text-right">${block.rate?.toFixed(2)}</td>
-                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.weekday_hours > 0 ? `${block.weekday_hours} hrs` : '-'}</td>
-                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.saturday_hours > 0 ? `${block.saturday_hours} hrs` : '-'}</td>
-                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.sunday_hours > 0 ? `${block.sunday_hours} hrs` : '-'}</td>
-                            <td className="px-4 py-2 text-xs font-semibold tracking-wide text-brand-teal text-right">{block.publicholiday_hours > 0 ? `${block.publicholiday_hours} hrs` : '-'}</td>
+              {monthGroup.services.map((serviceGroup: any, idx: number) => {
+                const highlightInfo = getBlockHighlightGroups(serviceGroup.blocks || []);
+                const hasHighlights = highlightInfo.some(h => h.isHighlighted);
+
+                return (
+                  <div key={idx} className="bg-[#151515] border border-white/[0.05] rounded-xl overflow-hidden shadow-sm">
+                    <div className="px-4 py-2.5 bg-black/40 border-b border-white/[0.05] flex items-center justify-between">
+                      <h3 className="text-xs font-semibold tracking-wide text-[#E6EDF3]">{serviceGroup.service_name}</h3>
+                      {hasHighlights && (
+                        <span className="text-[10px] font-medium text-brand-teal flex items-center gap-1.5 bg-brand-teal/10 px-2 py-0.5 rounded border border-brand-teal/20">
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-teal animate-pulse" />
+                          Identical consecutive weeks highlighted
+                        </span>
+                      )}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-white/[0.05] bg-black/20">
+                            <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Week</th>
+                            <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Dates</th>
+                            <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Base Rate</th>
+                            <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Weekday Hrs</th>
+                            <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sat Hrs</th>
+                            <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sun Hrs</th>
+                            <th className="px-4 py-2 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">PH Hrs</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-white/[0.05]">
+                          {serviceGroup.blocks.map((block: any, bIdx: number) => {
+                            const info = highlightInfo[bIdx];
+                            const isHighlighted = info?.isHighlighted;
+                            const isEvenGroup = info?.groupId ? info.groupId % 2 === 0 : false;
+
+                            return (
+                              <tr 
+                                key={bIdx} 
+                                className={`transition-colors ${
+                                  isHighlighted 
+                                    ? (isEvenGroup 
+                                        ? 'bg-sky-500/[0.08] hover:bg-sky-500/[0.14]' 
+                                        : 'bg-brand-teal/[0.09] hover:bg-brand-teal/[0.15]') 
+                                    : 'hover:bg-white/[0.02]'
+                                }`}
+                              >
+                                <td className={`px-4 py-2 text-xs font-semibold tracking-wide whitespace-nowrap transition-colors ${
+                                  isHighlighted 
+                                    ? (isEvenGroup ? 'border-l-2 border-sky-400 pl-3.5' : 'border-l-2 border-brand-teal pl-3.5') 
+                                    : ''
+                                }`}>
+                                  <div className="flex items-center gap-2">
+                                    <span className={isHighlighted ? (isEvenGroup ? 'text-sky-300 font-bold' : 'text-brand-teal font-bold') : 'text-brand-teal'}>
+                                      {block.week_of_month ? `Week ${block.week_of_month}` : '-'}
+                                    </span>
+                                    {isHighlighted && (
+                                      <span 
+                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                                          isEvenGroup 
+                                            ? 'bg-sky-400/20 text-sky-300 border border-sky-400/30' 
+                                            : 'bg-brand-teal/20 text-brand-teal border border-brand-teal/30'
+                                        }`}
+                                        title="Consecutive week with identical weekday, Sat, Sun, and PH hours"
+                                      >
+                                        Matching
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#E6EDF3] whitespace-nowrap">
+                                  {block.start_date ? format(new Date(block.start_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
+                                  <span className="mx-1.5 text-zinc-500/80">to</span>
+                                  {block.end_date ? format(new Date(block.end_date + 'T12:00:00Z'), 'd MMM yyyy') : '-'}
+                                </td>
+                                <td className="px-4 py-2 text-xs font-semibold tracking-wide text-[#8B949E] text-right">
+                                  ${block.rate?.toFixed(2)}
+                                </td>
+                                <td className={`px-4 py-2 text-xs font-semibold tracking-wide text-right ${
+                                  isHighlighted 
+                                    ? (isEvenGroup ? 'text-sky-300 font-bold' : 'text-brand-teal font-bold') 
+                                    : 'text-brand-teal'
+                                }`}>
+                                  {block.weekday_hours > 0 ? `${block.weekday_hours} hrs` : '-'}
+                                </td>
+                                <td className={`px-4 py-2 text-xs font-semibold tracking-wide text-right ${
+                                  isHighlighted 
+                                    ? (isEvenGroup ? 'text-sky-300 font-bold' : 'text-brand-teal font-bold') 
+                                    : 'text-brand-teal'
+                                }`}>
+                                  {block.saturday_hours > 0 ? `${block.saturday_hours} hrs` : '-'}
+                                </td>
+                                <td className={`px-4 py-2 text-xs font-semibold tracking-wide text-right ${
+                                  isHighlighted 
+                                    ? (isEvenGroup ? 'text-sky-300 font-bold' : 'text-brand-teal font-bold') 
+                                    : 'text-brand-teal'
+                                }`}>
+                                  {block.sunday_hours > 0 ? `${block.sunday_hours} hrs` : '-'}
+                                </td>
+                                <td className={`px-4 py-2 text-xs font-semibold tracking-wide text-right ${
+                                  isHighlighted 
+                                    ? (isEvenGroup ? 'text-sky-300 font-bold' : 'text-brand-teal font-bold') 
+                                    : 'text-brand-teal'
+                                }`}>
+                                  {block.publicholiday_hours > 0 ? `${block.publicholiday_hours} hrs` : '-'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ))}
         </div>

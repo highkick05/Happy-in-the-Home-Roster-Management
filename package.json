@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "postinstall": "PLAYWRIGHT_BROWSERS_PATH=0 DEBIAN_FRONTEND=noninteractive npx playwright install chromium --with-deps",
+    "postinstall": "PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium || true",
     "dev": "tsx src/server.ts",
     "build": "vite build && tsx ./scripts/build-server.ts",
     "start": "PLAYWRIGHT_BROWSERS_PATH=0 node dist/server.cjs",
@@ -103,7 +103,6 @@
     "ts-jest": "^29.4.11",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3",
     "vite-plugin-pwa": "^1.3.0"
   }
 }
