@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Search, RefreshCw } from 'lucide-react';
+import { Search, RefreshCw, BookOpen, CheckCircle2, Calendar, ArrowRight, Layers, FileText } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { format } from 'date-fns';
 
@@ -683,6 +683,152 @@ export default function TrilogyPlanningView() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Instructions for Creating Planned Services in Trilogy Care Coordinator Portal */}
+          {(() => {
+            const clientObj = clients.find(c => c.id.toString() === selectedClient);
+            const clientName = clientObj ? `${clientObj.first_name} ${clientObj.last_name}` : 'the selected client';
+            const currentQuarter = quarters[selectedQuarterIndex];
+            const quarterLabel = currentQuarter ? currentQuarter.displayLabel : 'this budget quarter';
+            const consecutiveSummaries = getQuarterConsecutiveSummaries(results);
+            const nonConsecutiveBlocks = getQuarterNonConsecutiveBlocks(results);
+            const totalPlannedServices = consecutiveSummaries.length + nonConsecutiveBlocks.length;
+
+            return (
+              <div className="pt-6 border-t border-white/[0.08] space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-bold text-white tracking-wide uppercase flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-brand-teal" />
+                      <span>How to Create Planned Services in Trilogy Care Portal</span>
+                    </h2>
+                    <p className="text-[#8B949E] text-xs mt-0.5">
+                      Step-by-step instructions to create planned services for <span className="text-white font-semibold">{clientName}</span> for <span className="text-brand-teal font-semibold">{quarterLabel}</span> using the summary tables above.
+                    </p>
+                  </div>
+                  {totalPlannedServices > 0 && (
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-teal/10 border border-brand-teal/25 text-xs text-brand-teal font-medium self-start sm:self-auto">
+                      <Layers className="w-3.5 h-3.5" />
+                      <span><strong>{totalPlannedServices}</strong> planned service {totalPlannedServices === 1 ? 'entry' : 'entries'} to create</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-[#151515] border border-white/[0.08] rounded-xl p-5 md:p-6 shadow-md space-y-6">
+                  {/* Overview Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-black/40 border border-brand-teal/30 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-brand-teal uppercase tracking-wider flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          1. Consecutive Services ({consecutiveSummaries.length})
+                        </span>
+                        <span className="text-[10px] bg-brand-teal/20 text-brand-teal px-2 py-0.5 rounded font-bold">
+                          Multi-Week Range
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#8B949E] leading-relaxed">
+                        For matching consecutive weeks, create <strong className="text-white">one single planned service</strong> covering the entire start-to-end date span with the recurring weekly hours.
+                      </p>
+                    </div>
+
+                    <div className="bg-black/40 border border-white/[0.1] rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-[#E6EDF3] uppercase tracking-wider flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-zinc-400" />
+                          2. Non-Consecutive Services ({nonConsecutiveBlocks.length})
+                        </span>
+                        <span className="text-[10px] bg-white/[0.08] text-[#8B949E] px-2 py-0.5 rounded font-bold">
+                          Individual Weeks
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#8B949E] leading-relaxed">
+                        For standalone or varying weeks, create <strong className="text-white">separate planned service entries</strong> for each specific week block and its respective hours.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step-by-Step Flow */}
+                  <div className="space-y-4 pt-2">
+                    <h3 className="text-xs font-bold text-[#8B949E] uppercase tracking-wider">Step-by-Step Portal Entry Workflow</h3>
+
+                    <div className="space-y-3">
+                      {/* Step 1 */}
+                      <div className="flex gap-3.5 p-3.5 rounded-lg bg-black/30 border border-white/[0.04]">
+                        <div className="w-6 h-6 rounded-full bg-brand-teal/20 border border-brand-teal/40 text-brand-teal flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                          1
+                        </div>
+                        <div className="flex-1 text-xs">
+                          <h4 className="font-bold text-white mb-1">Open Client in Trilogy Care Coordinator Portal</h4>
+                          <p className="text-[#8B949E] leading-relaxed">
+                            Log in to the Trilogy Care Coordinator portal, search for <strong className="text-white">{clientName}</strong>, and navigate to their <strong>Planned Services</strong> section for <strong>{quarterLabel}</strong>.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Step 2 */}
+                      <div className="flex gap-3.5 p-3.5 rounded-lg bg-black/30 border border-white/[0.04]">
+                        <div className="w-6 h-6 rounded-full bg-brand-teal/20 border border-brand-teal/40 text-brand-teal flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                          2
+                        </div>
+                        <div className="flex-1 text-xs space-y-2">
+                          <h4 className="font-bold text-white">Enter Consecutive Week Services (From Matching Summary)</h4>
+                          <p className="text-[#8B949E] leading-relaxed">
+                            For each row in the <strong className="text-brand-teal">Matching Consecutive Week Blocks Summary</strong>:
+                          </p>
+                          <ul className="list-disc list-inside space-y-1 text-[#8B949E] pl-1">
+                            <li><strong className="text-white">Choose Service Name:</strong> Select the exact service description (e.g. <em>{consecutiveSummaries[0]?.service_name || 'Assistance with the self-administration of medication'}</em>).</li>
+                            <li><strong className="text-white">Start Date & End Date:</strong> Enter the combined date range (e.g. <em>{consecutiveSummaries[0] ? `${format(new Date(consecutiveSummaries[0].start_date + 'T12:00:00Z'), 'dd/MM/yyyy')} to ${format(new Date(consecutiveSummaries[0].end_date + 'T12:00:00Z'), 'dd/MM/yyyy')}` : 'from start date to ending date'}</em>).</li>
+                            <li><strong className="text-white">Base Rate:</strong> Enter the hourly base rate (e.g. <em>${consecutiveSummaries[0]?.rate?.toFixed(2) || '88.00'}</em>).</li>
+                            <li><strong className="text-white">Enter Weekly Hours Separately:</strong> Enter the weekly recurring hours into their corresponding fields:
+                              <span className="block mt-1 pl-4 text-brand-teal font-medium">
+                                • Weekday Hours • Saturday Hours • Sunday Hours • Public Holiday Hours
+                              </span>
+                            </li>
+                          </ul>
+                          <div className="p-2.5 rounded bg-brand-teal/[0.06] border border-brand-teal/20 text-[11px] text-[#A6E3E9] mt-2">
+                            💡 <strong>Coordinator Tip:</strong> Because the weekly hours are identical across all consecutive weeks in this sequence, entering this single date span lets Trilogy automatically schedule all weeks in one entry without entering each week separately.
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Step 3 */}
+                      <div className="flex gap-3.5 p-3.5 rounded-lg bg-black/30 border border-white/[0.04]">
+                        <div className="w-6 h-6 rounded-full bg-brand-teal/20 border border-brand-teal/40 text-brand-teal flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                          3
+                        </div>
+                        <div className="flex-1 text-xs space-y-2">
+                          <h4 className="font-bold text-white">Enter Non-Consecutive / Standalone Services</h4>
+                          <p className="text-[#8B949E] leading-relaxed">
+                            For each row in the <strong className="text-white">Non-Consecutive Week Blocks Summary</strong>:
+                          </p>
+                          <ul className="list-disc list-inside space-y-1 text-[#8B949E] pl-1">
+                            <li><strong className="text-white">Choose Service Name:</strong> Select the service for that row.</li>
+                            <li><strong className="text-white">Start Date & End Date:</strong> Enter the specific week's start and end dates (e.g. <em>{nonConsecutiveBlocks[0] ? `${format(new Date(nonConsecutiveBlocks[0].start_date + 'T12:00:00Z'), 'dd/MM/yyyy')} to ${format(new Date(nonConsecutiveBlocks[0].end_date + 'T12:00:00Z'), 'dd/MM/yyyy')}` : 'specific week start and end'}</em>).</li>
+                            <li><strong className="text-white">Base Rate:</strong> Enter the hourly base rate.</li>
+                            <li><strong className="text-white">Hours:</strong> Enter the specific Weekday, Saturday, Sunday, and Public Holiday hours recorded for that individual week.</li>
+                          </ul>
+                        </div>
+                      </div>
+
+                      {/* Step 4 */}
+                      <div className="flex gap-3.5 p-3.5 rounded-lg bg-black/30 border border-white/[0.04]">
+                        <div className="w-6 h-6 rounded-full bg-brand-teal/20 border border-brand-teal/40 text-brand-teal flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                          4
+                        </div>
+                        <div className="flex-1 text-xs">
+                          <h4 className="font-bold text-white mb-1">Verify Totals & Save</h4>
+                          <p className="text-[#8B949E] leading-relaxed">
+                            Confirm that the total hours and service categories in the Trilogy portal match the shift logs in this quarter, then save and finalize the planned services.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
