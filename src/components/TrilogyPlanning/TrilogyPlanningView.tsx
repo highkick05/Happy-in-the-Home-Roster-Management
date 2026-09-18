@@ -43,31 +43,50 @@ const hasAnyHours = (b: any) => {
   );
 };
 
+// Format a YYYY-MM-DD string to DD/MM/YYYY reliably without any timezone conversion skew
+const formatDateToDisplay = (dateStr: string) => {
+  if (!dateStr) return '-';
+  const parts = dateStr.split('T')[0].split('-');
+  if (parts.length === 3) {
+    const [y, m, d] = parts;
+    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+  }
+  return dateStr;
+};
+
 // Calculate the Monday date string (yyyy-MM-dd) for any given date
 const getMondayDateStr = (dateStr: string) => {
-  const d = new Date(dateStr + 'T12:00:00Z');
-  const day = d.getUTCDay();
-  const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), diff));
-  return format(monday, 'yyyy-MM-dd');
+  const parts = dateStr.split('T')[0].split('-').map(Number);
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const day = dt.getUTCDay();
+  const diff = dt.getUTCDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), diff));
+  return monday.toISOString().split('T')[0];
 };
 
 // Calculate the Sunday date string (yyyy-MM-dd) for any given date
 const getSundayDateStr = (dateStr: string) => {
-  const d = new Date(dateStr + 'T12:00:00Z');
-  const day = d.getUTCDay();
-  const diff = d.getUTCDate() + (day === 0 ? 0 : 7 - day);
-  const sunday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), diff));
-  return format(sunday, 'yyyy-MM-dd');
+  const parts = dateStr.split('T')[0].split('-').map(Number);
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const day = dt.getUTCDay();
+  const diff = dt.getUTCDate() + (day === 0 ? 0 : 7 - day);
+  const sunday = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), diff));
+  return sunday.toISOString().split('T')[0];
 };
 
 // Determines if two blocks represent consecutive calendar weeks
 const areConsecutiveWeeks = (b1: any, b2: any) => {
   if (!b1 || !b2) return false;
   if (b1.start_date && b2.start_date) {
-    const mon1 = new Date(getMondayDateStr(b1.start_date) + 'T12:00:00Z').getTime();
-    const mon2 = new Date(getMondayDateStr(b2.start_date) + 'T12:00:00Z').getTime();
-    const diffDays = Math.round((mon2 - mon1) / (1000 * 60 * 60 * 24));
+    const mon1Str = getMondayDateStr(b1.start_date);
+    const mon2Str = getMondayDateStr(b2.start_date);
+    const p1 = mon1Str.split('-').map(Number);
+    const p2 = mon2Str.split('-').map(Number);
+    const diffDays = Math.round((Date.UTC(p2[0], p2[1] - 1, p2[2]) - Date.UTC(p1[0], p1[1] - 1, p1[2])) / (1000 * 60 * 60 * 24));
     return diffDays === 7;
   }
   if (b1.week_of_month != null && b2.week_of_month != null) {
@@ -111,7 +130,7 @@ export interface TrilogyPortalPlannedService {
 // Sequences of consecutive matching weeks are combined into exact multi-week spans,
 // while individual/varying weeks are maintained as standalone 1-week planned services.
 // Every scheduled shift fits between a start date and end date with zero bulk-add distortions.
-const getTrilogyAccuratePlannedServices = (monthResults: any[]): TrilogyPortalPlannedService[] => {
+const getTrilogyAccuratePlannedServices = (monthResults: any[], quarterStartStr?: string, quarterEndStr?: string): TrilogyPortalPlannedService[] => {
   if (!monthResults || monthResults.length === 0) return [];
 
   const serviceMap = new Map<string, any[]>();
@@ -210,8 +229,8 @@ const getTrilogyAccuratePlannedServices = (monthResults: any[]): TrilogyPortalPl
           week_count: seq.length,
           startDateShifts: first.start_date,
           endDateShifts: last.end_date,
-          startDateWeek: getMondayDateStr(first.start_date),
-          endDateWeek: getSundayDateStr(last.end_date),
+          startDateWeek: (quarterStartStr && getMondayDateStr(first.start_date) < quarterStartStr) ? quarterStartStr : getMondayDateStr(first.start_date),
+          endDateWeek: (quarterEndStr && getSundayDateStr(last.end_date) > quarterEndStr) ? quarterEndStr : getSundayDateStr(last.end_date),
           rate: wdRate,
           weekday_rate: wdRate,
           saturday_rate: satRate,
@@ -262,8 +281,8 @@ const getTrilogyAccuratePlannedServices = (monthResults: any[]): TrilogyPortalPl
           week_count: 1,
           startDateShifts: b.start_date,
           endDateShifts: b.end_date,
-          startDateWeek: getMondayDateStr(b.start_date),
-          endDateWeek: getSundayDateStr(b.end_date),
+          startDateWeek: (quarterStartStr && getMondayDateStr(b.start_date) < quarterStartStr) ? quarterStartStr : getMondayDateStr(b.start_date),
+          endDateWeek: (quarterEndStr && getSundayDateStr(b.end_date) > quarterEndStr) ? quarterEndStr : getSundayDateStr(b.end_date),
           rate: wdRate,
           weekday_rate: wdRate,
           saturday_rate: satRate,
@@ -301,7 +320,7 @@ const getTrilogyAccuratePlannedServices = (monthResults: any[]): TrilogyPortalPl
 };
 
 export default function TrilogyPlanningView() {
-  const { token } = useAuth();
+  const { token, settings } = useAuth();
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState(() => {
     return localStorage.getItem('trilogyPlanningSelectedClient') || '';
@@ -356,41 +375,57 @@ export default function TrilogyPlanningView() {
     fetchClients();
   }, [fetchClients]);
 
-  // Generate Quarters based on selected client
+  // Generate Quarters based on selected client and configured business timezone
   const quarters = useMemo(() => {
-    const now = new Date();
-    const isPastJun30 = now.getMonth() > 5 || (now.getMonth() === 5 && now.getDate() >= 30);
-    const fyStartYear = isPastJun30 ? now.getFullYear() : now.getFullYear() - 1;
+    const timezone = settings?.timezone || 'Australia/Perth';
+
+    let todayStr = '';
+    try {
+      todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    } catch {
+      todayStr = new Date().toISOString().split('T')[0];
+    }
+    const [currentYearStr, currentMonthStr, currentDayStr] = todayStr.split('-');
+    const curYear = parseInt(currentYearStr, 10);
+    const curMonth = parseInt(currentMonthStr, 10);
+    const curDay = parseInt(currentDayStr, 10);
+
+    const isPastJun30 = curMonth > 6 || (curMonth === 6 && curDay >= 30);
+    const fyStartYear = isPastJun30 ? curYear : curYear - 1;
 
     const baseQuarters = [
-      { id: 1, label: "Quarter 1", start: new Date(fyStartYear, 5, 30), end: new Date(fyStartYear, 8, 30) },
-      { id: 2, label: "Quarter 2", start: new Date(fyStartYear, 8, 30), end: new Date(fyStartYear, 11, 31) },
-      { id: 3, label: "Quarter 3", start: new Date(fyStartYear, 11, 31), end: new Date(fyStartYear + 1, 2, 31) },
-      { id: 4, label: "Quarter 4", start: new Date(fyStartYear + 1, 2, 31), end: new Date(fyStartYear + 1, 5, 30) }
+      { id: 1, label: "Quarter 1", startDateStr: `${fyStartYear}-06-30`, endDateStr: `${fyStartYear}-09-30`, displayRange: `30 Jun - 30 Sep ${fyStartYear}` },
+      { id: 2, label: "Quarter 2", startDateStr: `${fyStartYear}-09-30`, endDateStr: `${fyStartYear}-12-31`, displayRange: `30 Sep - 31 Dec ${fyStartYear}` },
+      { id: 3, label: "Quarter 3", startDateStr: `${fyStartYear}-12-31`, endDateStr: `${fyStartYear + 1}-03-31`, displayRange: `31 Dec ${fyStartYear} - 31 Mar ${fyStartYear + 1}` },
+      { id: 4, label: "Quarter 4", startDateStr: `${fyStartYear + 1}-03-31`, endDateStr: `${fyStartYear + 1}-06-30`, displayRange: `31 Mar - 30 Jun ${fyStartYear + 1}` }
     ];
 
     const client = clients.find(c => c.id.toString() === selectedClient);
     
     return baseQuarters.map(q => {
-      let qStart = q.start;
+      let actualStartDateStr = q.startDateStr;
       if (client && client.joined_date) {
-        const joined = new Date(client.joined_date);
-        if (!isNaN(joined.getTime()) && joined >= q.start && joined < q.end) {
-          qStart = joined;
+        const joinedStr = client.joined_date.split('T')[0];
+        if (joinedStr >= q.startDateStr && joinedStr <= q.endDateStr) {
+          actualStartDateStr = joinedStr;
         }
       }
 
-      const isCurrent = now >= q.start && now < q.end;
-      const displayLabel = `${q.label}: ${format(qStart, 'd MMM')} - ${format(q.end, 'd MMM yyyy')}`;
+      const isCurrent = todayStr >= q.startDateStr && todayStr <= q.endDateStr;
+      
+      let displayLabel = `${q.label}: ${q.displayRange}`;
+      if (actualStartDateStr !== q.startDateStr) {
+        displayLabel = `${q.label}: ${formatDateToDisplay(actualStartDateStr)} - ${formatDateToDisplay(q.endDateStr)}`;
+      }
       
       return {
         ...q,
-        actualStart: qStart,
+        actualStartDateStr,
         displayLabel,
         isCurrent
       };
     });
-  }, [clients, selectedClient]);
+  }, [clients, selectedClient, settings]);
 
   // Set default quarter on load
   useEffect(() => {
@@ -411,8 +446,8 @@ export default function TrilogyPlanningView() {
     const activeQuarter = quarters[quarterIndex];
     if (!activeQuarter) return;
 
-    const startDate = activeQuarter.actualStart.toISOString().split('T')[0];
-    const endDate = activeQuarter.end.toISOString().split('T')[0];
+    const startDate = activeQuarter.actualStartDateStr;
+    const endDate = activeQuarter.endDateStr;
     
     setIsLoading(true);
     try {
@@ -451,8 +486,8 @@ export default function TrilogyPlanningView() {
 
   // Compute all accurate planned services
   const allPlannedServices = useMemo(() => {
-    return getTrilogyAccuratePlannedServices(results);
-  }, [results]);
+    return getTrilogyAccuratePlannedServices(results, currentQuarter?.actualStartDateStr, currentQuarter?.endDateStr);
+  }, [results, currentQuarter]);
 
   const distinctServices = useMemo(() => {
     return Array.from(new Set(allPlannedServices.map(s => s.service_name))).sort();
@@ -482,7 +517,10 @@ export default function TrilogyPlanningView() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesName = entry.service_name.toLowerCase().includes(q);
-        const matchesDate = entry.startDateShifts.includes(q) || entry.endDateShifts.includes(q);
+        const matchesDate = entry.startDateShifts.includes(q) || 
+          entry.endDateShifts.includes(q) || 
+          formatDateToDisplay(entry.startDateShifts).includes(q) || 
+          formatDateToDisplay(entry.endDateShifts).includes(q);
         if (!matchesName && !matchesDate) return false;
       }
       return true;
@@ -501,11 +539,11 @@ export default function TrilogyPlanningView() {
       `==================================================`,
       ...displayedEntries.map((e, idx) => {
         const sDate = dateSpanMode === 'shifts'
-          ? format(new Date(e.startDateShifts + 'T12:00:00Z'), 'dd/MM/yyyy')
-          : format(new Date(e.startDateWeek + 'T12:00:00Z'), 'dd/MM/yyyy');
+          ? formatDateToDisplay(e.startDateShifts)
+          : formatDateToDisplay(e.startDateWeek);
         const eDate = dateSpanMode === 'shifts'
-          ? format(new Date(e.endDateShifts + 'T12:00:00Z'), 'dd/MM/yyyy')
-          : format(new Date(e.endDateWeek + 'T12:00:00Z'), 'dd/MM/yyyy');
+          ? formatDateToDisplay(e.endDateShifts)
+          : formatDateToDisplay(e.endDateWeek);
 
         return [
           `[Item #${idx + 1}]`,
@@ -801,11 +839,11 @@ export default function TrilogyPlanningView() {
               <div className="space-y-4">
                 {displayedEntries.map((entry, idx) => {
                   const sDate = dateSpanMode === 'shifts'
-                    ? format(new Date(entry.startDateShifts + 'T12:00:00Z'), 'dd/MM/yyyy')
-                    : format(new Date(entry.startDateWeek + 'T12:00:00Z'), 'dd/MM/yyyy');
+                    ? formatDateToDisplay(entry.startDateShifts)
+                    : formatDateToDisplay(entry.startDateWeek);
                   const eDate = dateSpanMode === 'shifts'
-                    ? format(new Date(entry.endDateShifts + 'T12:00:00Z'), 'dd/MM/yyyy')
-                    : format(new Date(entry.endDateWeek + 'T12:00:00Z'), 'dd/MM/yyyy');
+                    ? formatDateToDisplay(entry.endDateShifts)
+                    : formatDateToDisplay(entry.endDateWeek);
 
                   const isConsecutive = entry.type === 'consecutive';
 
@@ -1210,11 +1248,11 @@ export default function TrilogyPlanningView() {
                     <tbody className="divide-y divide-white/[0.05] text-xs">
                       {displayedEntries.map((entry, idx) => {
                         const sDate = dateSpanMode === 'shifts'
-                          ? format(new Date(entry.startDateShifts + 'T12:00:00Z'), 'dd/MM/yyyy')
-                          : format(new Date(entry.startDateWeek + 'T12:00:00Z'), 'dd/MM/yyyy');
+                          ? formatDateToDisplay(entry.startDateShifts)
+                          : formatDateToDisplay(entry.startDateWeek);
                         const eDate = dateSpanMode === 'shifts'
-                          ? format(new Date(entry.endDateShifts + 'T12:00:00Z'), 'dd/MM/yyyy')
-                          : format(new Date(entry.endDateWeek + 'T12:00:00Z'), 'dd/MM/yyyy');
+                          ? formatDateToDisplay(entry.endDateShifts)
+                          : formatDateToDisplay(entry.endDateWeek);
 
                         const isConsecutive = entry.type === 'consecutive';
 
@@ -1499,12 +1537,12 @@ export default function TrilogyPlanningView() {
                   <span className="text-zinc-500">•</span>
                   <span className="text-zinc-300">Dates: <strong className="text-white font-mono">
                     {dateSpanMode === 'shifts' 
-                      ? format(new Date(calculatorModalItem.startDateShifts + 'T12:00:00Z'), 'dd/MM/yyyy') 
-                      : format(new Date(calculatorModalItem.startDateWeek + 'T12:00:00Z'), 'dd/MM/yyyy')} 
+                      ? formatDateToDisplay(calculatorModalItem.startDateShifts) 
+                      : formatDateToDisplay(calculatorModalItem.startDateWeek)} 
                     {' to '} 
                     {dateSpanMode === 'shifts' 
-                      ? format(new Date(calculatorModalItem.endDateShifts + 'T12:00:00Z'), 'dd/MM/yyyy') 
-                      : format(new Date(calculatorModalItem.endDateWeek + 'T12:00:00Z'), 'dd/MM/yyyy')}
+                      ? formatDateToDisplay(calculatorModalItem.endDateShifts) 
+                      : formatDateToDisplay(calculatorModalItem.endDateWeek)}
                   </strong></span>
                 </div>
                 <span className="text-[11px] font-bold text-brand-teal">

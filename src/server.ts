@@ -16,7 +16,7 @@ import db from "../db.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import multer from "multer";
-import { fromZonedTime } from 'date-fns-tz';
+import { fromZonedTime, toZonedTime, formatInTimeZone } from 'date-fns-tz';
 
 function getHistoricalServiceData(db, srv, shiftDateStr) {
   if (!srv || srv.type !== 'NDIS') return { rate: srv?.rate, rates_json: srv?.rates_json };
@@ -6136,6 +6136,20 @@ app.get("/api/health", (req, res) => {
     const { client_name, client_id, start_date, end_date } = req.query;
     
     try {
+      const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+      const settingsMap: any = {};
+      settingsRows.forEach((r) => {
+        try {
+          settingsMap[r.key] = JSON.parse(r.value);
+        } catch {
+          settingsMap[r.key] = r.value;
+        }
+      });
+      const rawTz = settingsMap.timezone || "Australia/Perth";
+      const timezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
+      const state = settingsMap.state || "WA";
+      const hd = new Holidays("AU", state);
+
       let query = `
         SELECT 
           s.id as shift_id,
@@ -6159,48 +6173,56 @@ app.get("/api/health", (req, res) => {
         query += `(c.first_name || ' ' || c.last_name LIKE ?) `;
         queryParams.push(`%${client_name || ''}%`);
       }
+
+      // Convert start_date and end_date in the configured business timezone to UTC for database query
+      if (start_date && end_date) {
+        const startUtc = fromZonedTime(`${start_date}T00:00:00`, timezone).toISOString();
+        const endUtc = fromZonedTime(`${end_date}T23:59:59.999`, timezone).toISOString();
+        query += `
+            AND (
+              (s.start_time >= ? AND s.start_time <= ?)
+              OR (DATE(s.start_time) >= ? AND DATE(s.start_time) <= ?)
+            )
+        `;
+        queryParams.push(startUtc, endUtc, start_date, end_date);
+      } else if (start_date) {
+        const startUtc = fromZonedTime(`${start_date}T00:00:00`, timezone).toISOString();
+        query += ` AND (s.start_time >= ? OR DATE(s.start_time) >= ?) `;
+        queryParams.push(startUtc, start_date);
+      } else if (end_date) {
+        const endUtc = fromZonedTime(`${end_date}T23:59:59.999`, timezone).toISOString();
+        query += ` AND (s.start_time <= ? OR DATE(s.start_time) <= ?) `;
+        queryParams.push(endUtc, end_date);
+      }
+
       query += `
-          AND DATE(s.start_time) >= ?
-          AND DATE(s.start_time) <= ?
           AND (s.status = 'COMPLETED' OR (s.status = 'CANCELLED' AND EXISTS (SELECT 1 FROM invoices i WHERE i.shift_id = s.id OR i.merged_into_shift_id = s.id)))
           AND c.funding_type IN ('Home Care', 'HCP', 'HOME_CARE')
         ORDER BY service_name ASC, s.start_time ASC
       `;
-      queryParams.push(start_date, end_date);
       
       const shifts = db.prepare(query).all(...queryParams) as any[];
-      
-      const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
-      const settingsMap: any = {};
-      settingsRows.forEach((r) => {
-        try {
-          settingsMap[r.key] = JSON.parse(r.value);
-        } catch {
-          settingsMap[r.key] = r.value;
-        }
-      });
-      const state = settingsMap.state || "WA";
-      const hd = new Holidays("AU", state);
 
       const monthsMap: Record<string, Record<string, any[]>> = {};
-      
-      const getMonthKey = (d: Date) => {
-          const m = d.toLocaleString('en-US', { month: 'long' });
-          const y = d.getFullYear();
-          return `${m} ${y}`;
-      };
 
       for (const shift of shifts) {
-        const start = new Date(shift.start_time);
-        const dayOfWeek = start.getDay();
-        const localDateStr = start.toISOString().split('T')[0];
-        const monthKey = getMonthKey(start);
+        const shiftStart = new Date(shift.start_time);
+        const shiftDateStr = formatInTimeZone(shiftStart, timezone, 'yyyy-MM-dd');
+        
+        // Strict timezone-aware boundary check:
+        // Do not include any shift that occurred before start_date or after end_date in the configured timezone
+        if (start_date && shiftDateStr < String(start_date)) continue;
+        if (end_date && shiftDateStr > String(end_date)) continue;
+
+        const zonedDate = toZonedTime(shiftStart, timezone);
+        const dayOfWeek = zonedDate.getDay();
+        const monthKey = formatInTimeZone(shiftStart, timezone, 'MMMM yyyy');
         
         const isPublicHoliday = hd
-            .getHolidays(start.getFullYear())
+            .getHolidays(zonedDate.getFullYear())
             .some(
               (h: any) =>
-                h.type === "public" && h.date.startsWith(localDateStr),
+                h.type === "public" && h.date.startsWith(shiftDateStr),
             );
             
         let dayType = 'weekday';
@@ -6209,6 +6231,8 @@ app.get("/api/health", (req, res) => {
         else if (dayOfWeek === 6) dayType = 'saturday';
         
         shift.dayType = dayType;
+        shift.shiftDateStr = shiftDateStr;
+        shift.zonedDate = zonedDate;
         
         let ratesObj: any = {};
         if (shift.rates_json) {
@@ -6276,8 +6300,8 @@ app.get("/api/health", (req, res) => {
           let currentBlock: any = null;
           
           for (const shift of serviceShifts) {
-            const shiftStart = new Date(shift.start_time);
-            const shiftEnd = new Date(shift.end_time);
+            const shiftDateStr = shift.shiftDateStr;
+            const zonedDate = shift.zonedDate;
             
             if (!currentBlock) {
               currentBlock = {
@@ -6286,8 +6310,10 @@ app.get("/api/health", (req, res) => {
                 saturday_rate: shift.saturdayRate,
                 sunday_rate: shift.sundayRate,
                 publicholiday_rate: shift.publicholidayRate,
-                start_date: shiftStart,
-                end_date: shiftEnd,
+                start_date_str: shiftDateStr,
+                end_date_str: shiftDateStr,
+                start_date: zonedDate,
+                end_date: zonedDate,
                 weekday_hours: shift.dayType === 'weekday' ? shift.hours : 0,
                 saturday_hours: shift.dayType === 'saturday' ? shift.hours : 0,
                 sunday_hours: shift.dayType === 'sunday' ? shift.hours : 0,
@@ -6296,7 +6322,7 @@ app.get("/api/health", (req, res) => {
             } else {
               // Break block only if it enters a new week
               const currentWeek = getWeekIdentifier(currentBlock.start_date);
-              const shiftWeek = getWeekIdentifier(shiftStart);
+              const shiftWeek = getWeekIdentifier(zonedDate);
 
               if (currentWeek !== shiftWeek) {
                 blocks.push(currentBlock);
@@ -6306,8 +6332,10 @@ app.get("/api/health", (req, res) => {
                   saturday_rate: shift.saturdayRate,
                   sunday_rate: shift.sundayRate,
                   publicholiday_rate: shift.publicholidayRate,
-                  start_date: shiftStart,
-                  end_date: shiftEnd,
+                  start_date_str: shiftDateStr,
+                  end_date_str: shiftDateStr,
+                  start_date: zonedDate,
+                  end_date: zonedDate,
                   weekday_hours: shift.dayType === 'weekday' ? shift.hours : 0,
                   saturday_hours: shift.dayType === 'saturday' ? shift.hours : 0,
                   sunday_hours: shift.dayType === 'sunday' ? shift.hours : 0,
@@ -6315,7 +6343,14 @@ app.get("/api/health", (req, res) => {
                 };
               } else {
                 // Extend block within the same week
-                currentBlock.end_date = shiftEnd > currentBlock.end_date ? shiftEnd : currentBlock.end_date;
+                if (shiftDateStr < currentBlock.start_date_str) {
+                  currentBlock.start_date_str = shiftDateStr;
+                  currentBlock.start_date = zonedDate;
+                }
+                if (shiftDateStr > currentBlock.end_date_str) {
+                  currentBlock.end_date_str = shiftDateStr;
+                  currentBlock.end_date = zonedDate;
+                }
                 if (shift.dayType === 'weekday') currentBlock.weekday_hours += shift.hours;
                 else if (shift.dayType === 'saturday') currentBlock.saturday_hours += shift.hours;
                 else if (shift.dayType === 'sunday') currentBlock.sunday_hours += shift.hours;
@@ -6352,8 +6387,8 @@ app.get("/api/health", (req, res) => {
               saturday_rate: b.saturday_rate || b.rate,
               sunday_rate: b.sunday_rate || b.rate,
               publicholiday_rate: b.publicholiday_rate || b.rate,
-              start_date: b.start_date.toISOString().split('T')[0],
-              end_date: b.end_date.toISOString().split('T')[0],
+              start_date: b.start_date_str,
+              end_date: b.end_date_str,
               week_of_month: getWeekOfMonth(b.start_date),
               weekday_hours: wHrs,
               saturday_hours: satHrs,
