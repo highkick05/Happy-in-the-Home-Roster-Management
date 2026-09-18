@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Search, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { format } from 'date-fns';
 
@@ -110,22 +110,24 @@ export default function TrilogyPlanningView() {
     }
   }, [selectedClient]);
 
-  useEffect(() => {
-    const fetchClients = async () => {
-      try {
-        const res = await fetch('/api/clients', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const data = await res.json();
-        // Fix for funding_type matching
-        const hcClients = data.filter((c: any) => c.funding_type === 'Home Care' || c.funding_type === 'HCP' || c.funding_type === 'HOME_CARE');
-        setClients(hcClients);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    fetchClients();
+  const fetchClients = useCallback(async () => {
+    try {
+      const res = await fetch('/api/clients', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store'
+      });
+      const data = await res.json();
+      // Fix for funding_type matching
+      const hcClients = data.filter((c: any) => c.funding_type === 'Home Care' || c.funding_type === 'HCP' || c.funding_type === 'HOME_CARE');
+      setClients(hcClients);
+    } catch (e) {
+      console.error(e);
+    }
   }, [token]);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
 
   // Generate Quarters based on selected client
   const quarters = useMemo(() => {
@@ -175,7 +177,7 @@ export default function TrilogyPlanningView() {
     }
   }, [quarters]);
   
-  const fetchSummary = async (clientId: string, quarterIndex: number) => {
+  const fetchSummary = useCallback(async (clientId: string, quarterIndex: number) => {
     if (!clientId) {
       setResults([]);
       return;
@@ -193,8 +195,9 @@ export default function TrilogyPlanningView() {
       const client = clients.find(c => c.id.toString() === clientId);
       const clientName = client ? `${client.first_name} ${client.last_name}` : '';
       
-      const res = await fetch(`/api/reports/trilogy-summary?client_name=${encodeURIComponent(clientName)}&start_date=${startDate}&end_date=${endDate}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await fetch(`/api/reports/trilogy-summary?client_name=${encodeURIComponent(clientName)}&start_date=${startDate}&end_date=${endDate}&_t=${Date.now()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store'
       });
       const data = await res.json();
       setResults(data);
@@ -204,18 +207,36 @@ export default function TrilogyPlanningView() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [quarters, clients, token]);
 
   useEffect(() => {
     fetchSummary(selectedClient, selectedQuarterIndex);
-  }, [selectedClient, selectedQuarterIndex, quarters]);
+  }, [selectedClient, selectedQuarterIndex, fetchSummary]);
 
+  const handleRefresh = async () => {
+    await Promise.all([
+      fetchClients(),
+      fetchSummary(selectedClient, selectedQuarterIndex)
+    ]);
+  };
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto w-full animate-in fade-in zoom-in-95 duration-200">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-[#E6EDF3] mb-1.5 tracking-tight">Trilogy Planning Summary</h1>
-        <p className="text-[#8B949E] text-xs">Extract completed shifts and group them into fixed date blocks for Trilogy Care portal input.</p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-[#E6EDF3] mb-1.5 tracking-tight">Trilogy Planning Summary</h1>
+          <p className="text-[#8B949E] text-xs">Extract completed shifts and group them into fixed date blocks for Trilogy Care portal input.</p>
+        </div>
+        <button
+          id="refresh-trilogy-summary-btn"
+          onClick={handleRefresh}
+          disabled={isLoading}
+          className="inline-flex items-center gap-2 self-start sm:self-auto px-3.5 py-2 bg-brand-teal text-[#0D1117] hover:bg-brand-teal-hover active:scale-[0.98] transition-all text-xs font-bold rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          title="Refresh Trilogy planning data"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>{isLoading ? 'Refreshing...' : 'Refresh'}</span>
+        </button>
       </div>
 
       <div className="bg-[#151515] border border-white/[0.05] rounded-xl p-4 mb-6 shadow-sm">
@@ -223,6 +244,7 @@ export default function TrilogyPlanningView() {
           <div className="flex-1 w-full md:max-w-md">
             <label className="block text-[10px] font-bold text-[#8B949E] uppercase tracking-wider mb-1.5">Home Care Client</label>
             <select 
+              id="trilogy-client-select"
               value={selectedClient} 
               onChange={e => setSelectedClient(e.target.value)}
               className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-xs font-semibold tracking-wide text-white outline-none focus:border-brand-teal transition-colors hover:border-white/[0.15]"
@@ -237,6 +259,7 @@ export default function TrilogyPlanningView() {
           <div className="flex-1 w-full md:max-w-md">
             <label className="block text-[10px] font-bold text-[#8B949E] uppercase tracking-wider mb-1.5">Budget Quarter</label>
             <select 
+              id="trilogy-quarter-select"
               value={selectedQuarterIndex} 
               onChange={e => setSelectedQuarterIndex(Number(e.target.value))}
               className="w-full bg-black/40 border border-white/[0.08] rounded-lg px-3 py-2 text-xs font-semibold tracking-wide text-white outline-none focus:border-brand-teal transition-colors hover:border-white/[0.15]"

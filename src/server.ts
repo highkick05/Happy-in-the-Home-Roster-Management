@@ -6130,6 +6130,9 @@ app.get("/api/health", (req, res) => {
   // -----------------------------------------------------
 
   app.get("/api/reports/trilogy-summary", authenticateToken, requireAdmin, (req: any, res: any) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     const { client_name, start_date, end_date } = req.query;
     
     try {
