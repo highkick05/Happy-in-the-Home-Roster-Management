@@ -961,7 +961,7 @@ export default function TrilogyPlanningView() {
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-[10px] font-bold text-[#8B949E] uppercase tracking-wider flex items-center gap-1">
                                 <Calculator className="w-3 h-3 text-brand-teal" />
-                                Trilogy Rate Calculator (Screenshot 3)
+                                Trilogy Rate Calculator
                               </span>
                               <span className="text-[10px] text-zinc-500 font-mono">
                                 Frequency: Weekly
