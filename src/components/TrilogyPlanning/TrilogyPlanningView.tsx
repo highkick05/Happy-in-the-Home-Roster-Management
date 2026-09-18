@@ -25,19 +25,19 @@ const hasAnyHours = (b: any) => {
   );
 };
 
-// Determines if two blocks represent consecutive weeks
+// Determines if two blocks represent consecutive calendar weeks
 const areConsecutiveWeeks = (b1: any, b2: any) => {
   if (!b1 || !b2) return false;
-  if (b1.week_of_month != null && b2.week_of_month != null) {
-    return Math.abs(Number(b2.week_of_month) - Number(b1.week_of_month)) === 1;
-  }
   if (b1.start_date && b2.start_date) {
     const d1 = new Date(b1.start_date + 'T12:00:00Z').getTime();
     const d2 = new Date(b2.start_date + 'T12:00:00Z').getTime();
     const diffDays = Math.round(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24));
     return diffDays >= 5 && diffDays <= 9;
   }
-  return true;
+  if (b1.week_of_month != null && b2.week_of_month != null) {
+    return Math.abs(Number(b2.week_of_month) - Number(b1.week_of_month)) === 1;
+  }
+  return false;
 };
 
 // Compute highlight information for blocks in a service group
@@ -90,6 +90,89 @@ const getBlockHighlightGroups = (blocks: any[]) => {
   }
 
   return highlightInfo;
+};
+
+interface ConsecutiveSummaryRow {
+  service_name: string;
+  month?: string;
+  start_date: string;
+  end_date: string;
+  week_count: number;
+  rate: number;
+  weekday_hours: number;
+  saturday_hours: number;
+  sunday_hours: number;
+  publicholiday_hours: number;
+}
+
+// Extract all consecutive matching week sequences across the quarter
+const getQuarterConsecutiveSummaries = (monthResults: any[]): ConsecutiveSummaryRow[] => {
+  const summaries: ConsecutiveSummaryRow[] = [];
+
+  // Iterate each month and its services
+  for (const monthGroup of monthResults) {
+    for (const service of monthGroup.services || []) {
+      const blocks = service.blocks || [];
+      if (blocks.length < 2) continue;
+
+      let seq: any[] = [];
+
+      for (let i = 0; i < blocks.length - 1; i++) {
+        const cur = blocks[i];
+        const next = blocks[i + 1];
+
+        const isMatch =
+          hasAnyHours(cur) &&
+          hasAnyHours(next) &&
+          areConsecutiveWeeks(cur, next) &&
+          isBlockHoursEqual(cur, next);
+
+        if (isMatch) {
+          if (seq.length === 0) {
+            seq.push(cur);
+          }
+          seq.push(next);
+        } else {
+          if (seq.length >= 2) {
+            const first = seq[0];
+            const last = seq[seq.length - 1];
+            summaries.push({
+              service_name: service.service_name,
+              month: monthGroup.month,
+              start_date: first.start_date,
+              end_date: last.end_date,
+              week_count: seq.length,
+              rate: first.rate,
+              weekday_hours: Number(first.weekday_hours || 0),
+              saturday_hours: Number(first.saturday_hours || 0),
+              sunday_hours: Number(first.sunday_hours || 0),
+              publicholiday_hours: Number(first.publicholiday_hours || 0)
+            });
+            seq = [];
+          }
+        }
+      }
+
+      if (seq.length >= 2) {
+        const first = seq[0];
+        const last = seq[seq.length - 1];
+        summaries.push({
+          service_name: service.service_name,
+          month: monthGroup.month,
+          start_date: first.start_date,
+          end_date: last.end_date,
+          week_count: seq.length,
+          rate: first.rate,
+          weekday_hours: Number(first.weekday_hours || 0),
+          saturday_hours: Number(first.saturday_hours || 0),
+          sunday_hours: Number(first.sunday_hours || 0),
+          publicholiday_hours: Number(first.publicholiday_hours || 0)
+        });
+      }
+    }
+  }
+
+  return summaries;
 };
 
 export default function TrilogyPlanningView() {
@@ -394,6 +477,92 @@ export default function TrilogyPlanningView() {
               })}
             </div>
           ))}
+
+          {/* Consecutive Matching Week Blocks Summary at the bottom of each budget quarter */}
+          {(() => {
+            const consecutiveSummaries = getQuarterConsecutiveSummaries(results);
+            if (consecutiveSummaries.length === 0) return null;
+
+            return (
+              <div className="pt-4 border-t border-white/[0.08] space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <h2 className="text-base font-bold text-white tracking-wide uppercase flex items-center gap-2">
+                      <span>Matching Consecutive Week Blocks Summary</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-teal/20 text-brand-teal border border-brand-teal/30 normal-case tracking-normal">
+                        {consecutiveSummaries.length} {consecutiveSummaries.length === 1 ? 'block sequence' : 'block sequences'} found
+                      </span>
+                    </h2>
+                    <p className="text-[#8B949E] text-xs mt-0.5">
+                      Combined date ranges from the start of the consecutive week blocks to the last date of the ending consecutive week blocks for Trilogy Care portal entry.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-[#151515] border border-brand-teal/30 rounded-xl overflow-hidden shadow-md">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-white/[0.08] bg-black/40">
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Service Description</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Consecutive Range</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-center">Duration</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Base Rate</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Weekday Hrs / Wk</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sat Hrs / Wk</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">Sun Hrs / Wk</th>
+                          <th className="px-4 py-2.5 text-[10px] font-bold text-[#8B949E] uppercase tracking-wider text-right">PH Hrs / Wk</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/[0.05]">
+                        {consecutiveSummaries.map((summary, sIdx) => (
+                          <tr key={sIdx} className="hover:bg-brand-teal/[0.04] transition-colors">
+                            <td className="px-4 py-3 text-xs font-semibold tracking-wide text-[#E6EDF3] border-l-2 border-brand-teal pl-3.5">
+                              <div className="flex flex-col">
+                                <span>{summary.service_name}</span>
+                                {summary.month && (
+                                  <span className="text-[10px] text-[#8B949E] font-normal">{summary.month}</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-xs font-semibold tracking-wide text-white whitespace-nowrap">
+                              <span className="text-brand-teal font-bold">
+                                {format(new Date(summary.start_date + 'T12:00:00Z'), 'd MMM yyyy')}
+                              </span>
+                              <span className="mx-2 text-zinc-500/80 font-normal">to</span>
+                              <span className="text-brand-teal font-bold">
+                                {format(new Date(summary.end_date + 'T12:00:00Z'), 'd MMM yyyy')}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs font-semibold tracking-wide text-center whitespace-nowrap">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded bg-white/[0.06] text-white text-[11px] font-medium border border-white/[0.08]">
+                                {summary.week_count} consecutive weeks
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs font-semibold tracking-wide text-[#8B949E] text-right whitespace-nowrap">
+                              ${summary.rate?.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-3 text-xs font-bold tracking-wide text-right text-brand-teal whitespace-nowrap">
+                              {summary.weekday_hours > 0 ? `${summary.weekday_hours} hrs` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-xs font-bold tracking-wide text-right text-brand-teal whitespace-nowrap">
+                              {summary.saturday_hours > 0 ? `${summary.saturday_hours} hrs` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-xs font-bold tracking-wide text-right text-brand-teal whitespace-nowrap">
+                              {summary.sunday_hours > 0 ? `${summary.sunday_hours} hrs` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-xs font-bold tracking-wide text-right text-brand-teal whitespace-nowrap">
+                              {summary.publicholiday_hours > 0 ? `${summary.publicholiday_hours} hrs` : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       ) : (
         <div className="bg-[#151515] border border-white/[0.05] rounded-xl p-8 text-center shadow-sm">
