@@ -330,7 +330,7 @@ export default function TrilogyPlanningView() {
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [dateSpanMode, setDateSpanMode] = useState<'shifts' | 'week'>('shifts');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'consecutive' | 'standalone'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'consecutive' | 'standalone' | 'active_week'>('all');
   const [serviceFilter, setServiceFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -489,9 +489,47 @@ export default function TrilogyPlanningView() {
     return getTrilogyAccuratePlannedServices(results, currentQuarter?.actualStartDateStr, currentQuarter?.endDateStr);
   }, [results, currentQuarter]);
 
+  // Current week boundaries in configured business timezone
+  const currentWeekRange = useMemo(() => {
+    const timezone = settings?.timezone || 'Australia/Perth';
+    let todayStr = '';
+    try {
+      todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    } catch {
+      todayStr = new Date().toISOString().split('T')[0];
+    }
+    const mondayStr = getMondayDateStr(todayStr);
+    const sundayStr = getSundayDateStr(todayStr);
+    return {
+      todayStr,
+      mondayStr,
+      sundayStr,
+      formattedMonday: formatDateToDisplay(mondayStr),
+      formattedSunday: formatDateToDisplay(sundayStr)
+    };
+  }, [settings]);
+
+  // Determines if a planned service falls in the current week
+  const isEntryActiveThisWeek = useCallback((entry: TrilogyPortalPlannedService | null | undefined) => {
+    if (!entry || !currentWeekRange.mondayStr || !currentWeekRange.sundayStr) return false;
+    const sShift = entry.startDateShifts;
+    const eShift = entry.endDateShifts;
+    const sWeek = entry.startDateWeek;
+    const eWeek = entry.endDateWeek;
+
+    const matchShift = Boolean(sShift && eShift && sShift <= currentWeekRange.sundayStr && eShift >= currentWeekRange.mondayStr);
+    const matchWeek = Boolean(sWeek && eWeek && sWeek <= currentWeekRange.sundayStr && eWeek >= currentWeekRange.mondayStr);
+
+    return matchShift || matchWeek;
+  }, [currentWeekRange]);
+
   const distinctServices = useMemo(() => {
     return Array.from(new Set(allPlannedServices.map(s => s.service_name))).sort();
   }, [allPlannedServices]);
+
+  const activeThisWeekCount = useMemo(() => {
+    return allPlannedServices.filter(isEntryActiveThisWeek).length;
+  }, [allPlannedServices, isEntryActiveThisWeek]);
 
   const consecutiveCount = useMemo(() => {
     return allPlannedServices.filter(s => s.type === 'consecutive').length;
@@ -512,7 +550,9 @@ export default function TrilogyPlanningView() {
   // Filter planned services
   const displayedEntries = useMemo(() => {
     return allPlannedServices.filter(entry => {
-      if (typeFilter !== 'all' && entry.type !== typeFilter) return false;
+      if (typeFilter === 'consecutive' && entry.type !== 'consecutive') return false;
+      if (typeFilter === 'standalone' && entry.type !== 'standalone') return false;
+      if (typeFilter === 'active_week' && !isEntryActiveThisWeek(entry)) return false;
       if (serviceFilter !== 'all' && entry.service_name !== serviceFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -525,7 +565,7 @@ export default function TrilogyPlanningView() {
       }
       return true;
     });
-  }, [allPlannedServices, typeFilter, serviceFilter, searchQuery]);
+  }, [allPlannedServices, typeFilter, serviceFilter, searchQuery, isEntryActiveThisWeek]);
 
   const copyAllPlannedData = () => {
     const lines = [
@@ -699,6 +739,21 @@ export default function TrilogyPlanningView() {
                     </button>
                     <button
                       type="button"
+                      onClick={() => setTypeFilter(typeFilter === 'active_week' ? 'all' : 'active_week')}
+                      className={`px-3.5 py-1.5 rounded-md transition-all cursor-pointer flex items-center gap-2 font-bold ${
+                        typeFilter === 'active_week'
+                          ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-500/40'
+                          : activeThisWeekCount > 0
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/60 hover:bg-emerald-500/30'
+                            : 'text-[#8B949E] hover:text-white'
+                      }`}
+                      title={`Filter to planned services active in the current week (${currentWeekRange.formattedMonday} - ${currentWeekRange.formattedSunday})`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${activeThisWeekCount > 0 ? 'bg-emerald-400 animate-ping' : 'bg-zinc-600'}`}></span>
+                      <span>Active This Week ({activeThisWeekCount})</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setTypeFilter('consecutive')}
                       className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
                         typeFilter === 'consecutive'
@@ -846,6 +901,7 @@ export default function TrilogyPlanningView() {
                     : formatDateToDisplay(entry.endDateWeek);
 
                   const isConsecutive = entry.type === 'consecutive';
+                  const isActive = isEntryActiveThisWeek(entry);
 
                   const rowSummaryText = [
                     `Service: ${entry.service_name}`,
@@ -864,19 +920,51 @@ export default function TrilogyPlanningView() {
                   return (
                     <div 
                       key={entry.id}
-                      className={`bg-[#151515] border rounded-xl overflow-hidden shadow-sm transition-all ${
-                        isConsecutive 
-                          ? 'border-brand-teal/30 hover:border-brand-teal/50' 
-                          : 'border-white/[0.08] hover:border-white/[0.15]'
+                      className={`rounded-xl overflow-hidden transition-all relative ${
+                        isActive
+                          ? 'bg-[#0b1b13] border-2 border-emerald-400 border-l-[8px] border-l-emerald-400 shadow-[0_0_35px_rgba(16,185,129,0.35)] ring-2 ring-emerald-400/60'
+                          : isConsecutive 
+                            ? 'bg-[#151515] border border-brand-teal/30 hover:border-brand-teal/50 shadow-sm' 
+                            : 'bg-[#151515] border border-white/[0.08] hover:border-white/[0.15] shadow-sm'
                       }`}
                     >
+                      {/* Active Week Banner */}
+                      {isActive && (
+                        <div className="bg-emerald-500 text-black px-4 py-2 flex flex-wrap items-center justify-between font-black text-xs shadow-md tracking-wider">
+                          <div className="flex items-center gap-2">
+                            <span className="relative flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-black opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-black"></span>
+                            </span>
+                            <span>ACTIVE THIS WEEK — CURRENT SCHEDULED PERIOD ({currentWeekRange.formattedMonday} – {currentWeekRange.formattedSunday})</span>
+                          </div>
+                          <span className="bg-black text-emerald-300 text-[10px] font-mono font-extrabold px-2.5 py-0.5 rounded uppercase tracking-wider">
+                            Live Week
+                          </span>
+                        </div>
+                      )}
+
                       {/* Card Header: Service Description & Badges */}
-                      <div className="px-4 py-3 bg-black/40 border-b border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-white/[0.06] text-[#8B949E]">
+                      <div className={`px-4 py-3 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                        isActive
+                          ? 'bg-gradient-to-r from-emerald-950 via-emerald-900/60 to-black/70 border-emerald-400/50'
+                          : 'bg-black/40 border-white/[0.06]'
+                      }`}>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-[11px] font-mono font-black px-2 py-0.5 rounded ${
+                            isActive
+                              ? 'bg-emerald-400 text-black shadow-sm'
+                              : 'bg-white/[0.06] text-[#8B949E]'
+                          }`}>
                             #{idx + 1}
                           </span>
-                          <h3 className="text-sm font-bold text-white tracking-wide flex items-center gap-1.5 group">
+                          {isActive && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-400 text-black text-xs font-black shadow-md uppercase tracking-wide">
+                              <span className="w-2 h-2 rounded-full bg-black"></span>
+                              Active This Week
+                            </span>
+                          )}
+                          <h3 className={`text-sm font-bold tracking-wide flex items-center gap-1.5 group ${isActive ? 'text-emerald-100' : 'text-white'}`}>
                             <span>{entry.service_name}</span>
                             <button
                               type="button"
@@ -920,49 +1008,72 @@ export default function TrilogyPlanningView() {
                       {/* Card Body: Split between Fixed Dates configuration and Rate Calculator */}
                       <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-5">
                         {/* Left Column: Fixed Dates Entry (Screenshot 2) */}
-                        <div className="lg:col-span-4 space-y-3.5 bg-black/30 p-3.5 rounded-lg border border-white/[0.04]">
+                        <div className={`lg:col-span-4 space-y-3.5 p-3.5 rounded-lg border transition-all ${
+                          isActive 
+                            ? 'bg-[#082216] border-2 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.25)] ring-1 ring-emerald-400/50' 
+                            : 'bg-black/30 border-white/[0.04]'
+                        }`}>
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">
+                            <span className={`text-[10px] font-black uppercase tracking-wider ${isActive ? 'text-emerald-300' : 'text-[#8B949E]'}`}>
                               Plan Type & Dates
                             </span>
-                            <span className="text-[10px] font-semibold text-brand-teal bg-brand-teal/10 px-1.5 py-0.5 rounded border border-brand-teal/20">
-                              Fixed Dates
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {isActive && (
+                                <span className="text-[10px] font-black text-black bg-emerald-400 px-2 py-0.5 rounded shadow-sm uppercase tracking-wider">
+                                  Current Week
+                                </span>
+                              )}
+                              <span className="text-[10px] font-semibold text-brand-teal bg-brand-teal/10 px-1.5 py-0.5 rounded border border-brand-teal/20">
+                                Fixed Dates
+                              </span>
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-2 gap-3">
                             {/* Start Date */}
-                            <div className="bg-[#111111] p-2.5 rounded border border-white/[0.06]">
-                              <span className="text-[9px] text-[#8B949E] uppercase tracking-wider block font-bold mb-1">
+                            <div className={`p-2.5 rounded border transition-colors ${
+                              isActive ? 'bg-[#031b11] border-2 border-emerald-400 shadow-sm' : 'bg-[#111111] border-white/[0.06]'
+                            }`}>
+                              <span className={`text-[9px] uppercase tracking-wider block font-black mb-1 ${
+                                isActive ? 'text-emerald-300' : 'text-[#8B949E]'
+                              }`}>
                                 Start Date
                               </span>
-                              <div className="flex items-center justify-between font-mono font-bold text-xs text-white">
+                              <div className={`flex items-center justify-between font-mono font-black text-xs ${
+                                isActive ? 'text-emerald-200' : 'text-white'
+                              }`}>
                                 <span>{sDate}</span>
                                 <button
                                   type="button"
                                   title="Copy Start Date (dd/mm/yyyy)"
                                   onClick={() => handleCopyText(`c-sdate-${entry.id}`, sDate)}
-                                  className="text-zinc-500 hover:text-brand-teal p-0.5 cursor-pointer"
+                                  className={`p-0.5 cursor-pointer ${isActive ? 'text-emerald-300 hover:text-white' : 'text-zinc-500 hover:text-brand-teal'}`}
                                 >
-                                  {copiedId === `c-sdate-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                  {copiedId === `c-sdate-${entry.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                                 </button>
                               </div>
                             </div>
 
                             {/* End Date */}
-                            <div className="bg-[#111111] p-2.5 rounded border border-white/[0.06]">
-                              <span className="text-[9px] text-[#8B949E] uppercase tracking-wider block font-bold mb-1">
+                            <div className={`p-2.5 rounded border transition-colors ${
+                              isActive ? 'bg-[#031b11] border-2 border-emerald-400 shadow-sm' : 'bg-[#111111] border-white/[0.06]'
+                            }`}>
+                              <span className={`text-[9px] uppercase tracking-wider block font-black mb-1 ${
+                                isActive ? 'text-emerald-300' : 'text-[#8B949E]'
+                              }`}>
                                 End Date
                               </span>
-                              <div className="flex items-center justify-between font-mono font-bold text-xs text-white">
+                              <div className={`flex items-center justify-between font-mono font-black text-xs ${
+                                isActive ? 'text-emerald-200' : 'text-white'
+                              }`}>
                                 <span>{eDate}</span>
                                 <button
                                   type="button"
                                   title="Copy End Date (dd/mm/yyyy)"
                                   onClick={() => handleCopyText(`c-edate-${entry.id}`, eDate)}
-                                  className="text-zinc-500 hover:text-brand-teal p-0.5 cursor-pointer"
+                                  className={`p-0.5 cursor-pointer ${isActive ? 'text-emerald-300 hover:text-white' : 'text-zinc-500 hover:text-brand-teal'}`}
                                 >
-                                  {copiedId === `c-edate-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                  {copiedId === `c-edate-${entry.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                                 </button>
                               </div>
                             </div>
@@ -1255,6 +1366,7 @@ export default function TrilogyPlanningView() {
                           : formatDateToDisplay(entry.endDateWeek);
 
                         const isConsecutive = entry.type === 'consecutive';
+                        const isActive = isEntryActiveThisWeek(entry);
 
                         const rowSummaryText = [
                           `Service: ${entry.service_name}`,
@@ -1274,19 +1386,31 @@ export default function TrilogyPlanningView() {
                           <tr
                             key={entry.id}
                             className={`transition-colors ${
-                              isConsecutive
-                                ? 'hover:bg-brand-teal/[0.04]'
-                                : 'hover:bg-white/[0.02]'
+                              isActive
+                                ? 'bg-emerald-950/60 hover:bg-emerald-950/80 border-l-[8px] border-l-emerald-400 border-b border-emerald-500/40'
+                                : isConsecutive
+                                  ? 'hover:bg-brand-teal/[0.04]'
+                                  : 'hover:bg-white/[0.02]'
                             }`}
                           >
-                            <td className="px-3 py-3 text-center text-[#8B949E] font-mono text-[11px]">
-                              {idx + 1}
+                            <td className="px-3 py-3 text-center font-mono text-[11px]">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span className={isActive ? 'text-emerald-300 font-bold' : 'text-[#8B949E]'}>{idx + 1}</span>
+                                {isActive && (
+                                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" title="Active This Week" />
+                                )}
+                              </div>
                             </td>
 
                             {/* Service Name */}
                             <td className="px-3 py-3 font-semibold text-white">
-                              <div className="flex items-center gap-1.5 group">
-                                <span className="text-[#E6EDF3] max-w-xs truncate" title={entry.service_name}>
+                              <div className="flex items-center gap-2 group flex-wrap">
+                                {isActive && (
+                                  <span className="inline-flex items-center gap-1 bg-emerald-400 text-black text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
+                                    Active
+                                  </span>
+                                )}
+                                <span className={`max-w-xs truncate ${isActive ? 'text-emerald-100 font-bold' : 'text-[#E6EDF3]'}`} title={entry.service_name}>
                                   {entry.service_name}
                                 </span>
                                 <button
@@ -1302,45 +1426,60 @@ export default function TrilogyPlanningView() {
 
                             {/* Type / Span */}
                             <td className="px-3 py-3 text-center whitespace-nowrap">
-                              {isConsecutive ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-teal/15 text-brand-teal text-[11px] font-semibold border border-brand-teal/30">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  {entry.week_count} Weeks
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] text-zinc-300 text-[11px] font-medium border border-white/[0.08]">
-                                  <Calendar className="w-3 h-3 text-zinc-400" />
-                                  1 Week
-                                </span>
-                              )}
+                              <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                {isConsecutive ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-teal/15 text-brand-teal text-[11px] font-semibold border border-brand-teal/30">
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    {entry.week_count} Weeks
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] text-zinc-300 text-[11px] font-medium border border-white/[0.08]">
+                                    <Calendar className="w-3 h-3 text-zinc-400" />
+                                    1 Week
+                                  </span>
+                                )}
+                                {isActive && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-400 text-black text-[10px] font-black uppercase tracking-wider shadow">
+                                    Active Week
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             {/* Start Date */}
                             <td className="px-3 py-3 whitespace-nowrap">
-                              <div className="inline-flex items-center gap-1 font-mono font-bold text-white group">
+                              <div className={`inline-flex items-center gap-1 font-mono font-bold group ${
+                                isActive ? 'text-emerald-200 bg-[#031b11] px-2 py-1 rounded border border-emerald-400' : 'text-white'
+                              }`}>
                                 <span>{sDate}</span>
                                 <button
                                   type="button"
                                   title="Copy Start Date"
                                   onClick={() => handleCopyText(`t-sdate-${entry.id}`, sDate)}
-                                  className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                  className={`opacity-80 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer ${
+                                    isActive ? 'text-emerald-300 hover:text-white' : 'text-zinc-500 hover:text-brand-teal'
+                                  }`}
                                 >
-                                  {copiedId === `t-sdate-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                  {copiedId === `t-sdate-${entry.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                                 </button>
                               </div>
                             </td>
 
                             {/* End Date */}
                             <td className="px-3 py-3 whitespace-nowrap">
-                              <div className="inline-flex items-center gap-1 font-mono font-bold text-white group">
+                              <div className={`inline-flex items-center gap-1 font-mono font-bold group ${
+                                isActive ? 'text-emerald-200 bg-[#031b11] px-2 py-1 rounded border border-emerald-400' : 'text-white'
+                              }`}>
                                 <span>{eDate}</span>
                                 <button
                                   type="button"
                                   title="Copy End Date"
                                   onClick={() => handleCopyText(`t-edate-${entry.id}`, eDate)}
-                                  className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                  className={`opacity-80 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer ${
+                                    isActive ? 'text-emerald-300 hover:text-white' : 'text-zinc-500 hover:text-brand-teal'
+                                  }`}
                                 >
-                                  {copiedId === `t-edate-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                  {copiedId === `t-edate-${entry.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                                 </button>
                               </div>
                             </td>
@@ -1545,9 +1684,17 @@ export default function TrilogyPlanningView() {
                       : formatDateToDisplay(calculatorModalItem.endDateWeek)}
                   </strong></span>
                 </div>
-                <span className="text-[11px] font-bold text-brand-teal">
-                  {calculatorModalItem.typeLabel}
-                </span>
+                <div className="flex items-center gap-2">
+                  {isEntryActiveThisWeek(calculatorModalItem) && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-400 text-black text-[11px] font-black uppercase tracking-wider shadow">
+                      <span className="w-2 h-2 rounded-full bg-black"></span>
+                      Active This Week
+                    </span>
+                  )}
+                  <span className="text-[11px] font-bold text-brand-teal">
+                    {calculatorModalItem.typeLabel}
+                  </span>
+                </div>
               </div>
 
               {/* Rate Calculator Table (Screenshot 3) */}
