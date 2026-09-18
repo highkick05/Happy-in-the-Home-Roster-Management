@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Search, RefreshCw, BookOpen, CheckCircle2, Calendar, ArrowRight, Layers, FileText } from 'lucide-react';
+import { Search, RefreshCw, BookOpen, CheckCircle2, Calendar, ArrowRight, Layers, FileText, Copy, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { format } from 'date-fns';
 
@@ -229,6 +229,15 @@ export default function TrilogyPlanningView() {
   const [selectedQuarterIndex, setSelectedQuarterIndex] = useState<number>(1); // Default to Q1 or current
   const [results, setResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyText = (id: string, text: string) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  };
   
   useEffect(() => {
     if (selectedClient) {
@@ -689,7 +698,7 @@ export default function TrilogyPlanningView() {
             );
           })()}
 
-          {/* Instructions for Creating Planned Services in Trilogy Care Coordinator Portal */}
+          {/* Direct Data to Enter into Trilogy Care Portal */}
           {(() => {
             const clientObj = clients.find(c => c.id.toString() === selectedClient);
             const clientName = clientObj ? `${clientObj.first_name} ${clientObj.last_name}` : 'the selected client';
@@ -697,139 +706,425 @@ export default function TrilogyPlanningView() {
             const quarterLabel = currentQuarter ? currentQuarter.displayLabel : 'this budget quarter';
             const consecutiveSummaries = getQuarterConsecutiveSummaries(results);
             const nonConsecutiveBlocks = getQuarterNonConsecutiveBlocks(results);
-            const totalPlannedServices = consecutiveSummaries.length + nonConsecutiveBlocks.length;
+
+            // Construct list of entries to enter into Trilogy
+            const plannedEntries: Array<{
+              id: string;
+              type: 'Consecutive Multi-Week' | 'Single Week';
+              service_name: string;
+              startDateStr: string;
+              endDateStr: string;
+              startDateRaw: string;
+              endDateRaw: string;
+              rate: number;
+              weekday_hours: number;
+              saturday_hours: number;
+              sunday_hours: number;
+              publicholiday_hours: number;
+              total_hours_per_week: number;
+              weeksCount: number;
+              total_quarter_hours: number;
+              total_quarter_cost: number;
+              note?: string;
+            }> = [];
+
+            // Add consecutive summaries
+            consecutiveSummaries.forEach((c, idx) => {
+              const startFormatted = format(new Date(c.start_date + 'T12:00:00Z'), 'dd/MM/yyyy');
+              const endFormatted = format(new Date(c.end_date + 'T12:00:00Z'), 'dd/MM/yyyy');
+              const weeklyHours = c.weekday_hours + c.saturday_hours + c.sunday_hours + c.publicholiday_hours;
+              const totalQHours = weeklyHours * c.week_count;
+              const totalCost = totalQHours * (c.rate || 0);
+
+              plannedEntries.push({
+                id: `entry-consec-${idx}`,
+                type: 'Consecutive Multi-Week',
+                service_name: c.service_name,
+                startDateStr: startFormatted,
+                endDateStr: endFormatted,
+                startDateRaw: c.start_date,
+                endDateRaw: c.end_date,
+                rate: c.rate || 0,
+                weekday_hours: c.weekday_hours,
+                saturday_hours: c.saturday_hours,
+                sunday_hours: c.sunday_hours,
+                publicholiday_hours: c.publicholiday_hours,
+                total_hours_per_week: weeklyHours,
+                weeksCount: c.week_count,
+                total_quarter_hours: totalQHours,
+                total_quarter_cost: totalCost,
+                note: `${c.week_count} consecutive weeks with identical weekly hours`
+              });
+            });
+
+            // Add non-consecutive blocks
+            nonConsecutiveBlocks.forEach((b, idx) => {
+              const startFormatted = b.start_date ? format(new Date(b.start_date + 'T12:00:00Z'), 'dd/MM/yyyy') : '-';
+              const endFormatted = b.end_date ? format(new Date(b.end_date + 'T12:00:00Z'), 'dd/MM/yyyy') : '-';
+              const weeklyHours = b.weekday_hours + b.saturday_hours + b.sunday_hours + b.publicholiday_hours;
+              const totalCost = weeklyHours * (b.rate || 0);
+
+              plannedEntries.push({
+                id: `entry-nonconsec-${idx}`,
+                type: 'Single Week',
+                service_name: b.service_name,
+                startDateStr: startFormatted,
+                endDateStr: endFormatted,
+                startDateRaw: b.start_date,
+                endDateRaw: b.end_date,
+                rate: b.rate || 0,
+                weekday_hours: b.weekday_hours,
+                saturday_hours: b.saturday_hours,
+                sunday_hours: b.sunday_hours,
+                publicholiday_hours: b.publicholiday_hours,
+                total_hours_per_week: weeklyHours,
+                weeksCount: 1,
+                total_quarter_hours: weeklyHours,
+                total_quarter_cost: totalCost,
+                note: b.week_of_month ? `Week ${b.week_of_month} (${b.month || ''})` : undefined
+              });
+            });
+
+            const copyAllPlannedData = () => {
+              const lines = [
+                `TRILOGY CARE PLANNED SERVICES DATA TO ENTER`,
+                `Client: ${clientName}`,
+                `Quarter: ${quarterLabel}`,
+                `Total Planned Entries: ${plannedEntries.length}`,
+                `--------------------------------------------------`,
+                ...plannedEntries.map((e, idx) => {
+                  return [
+                    `[Entry #${idx + 1}] (${e.type})`,
+                    `Service: ${e.service_name}`,
+                    `Dates: ${e.startDateStr} to ${e.endDateStr}`,
+                    `Base Rate: $${e.rate.toFixed(2)}`,
+                    `Weekday Hours: ${e.weekday_hours}`,
+                    `Saturday Hours: ${e.saturday_hours}`,
+                    `Sunday Hours: ${e.sunday_hours}`,
+                    `Public Holiday Hours: ${e.publicholiday_hours}`,
+                    `Weekly Total: ${e.total_hours_per_week} hrs/wk${e.weeksCount > 1 ? ` (${e.weeksCount} weeks = ${e.total_quarter_hours} hrs)` : ''}`,
+                    `Estimated Total: $${e.total_quarter_cost.toFixed(2)}`,
+                    `--------------------------------------------------`
+                  ].join('\n');
+                })
+              ];
+              handleCopyText('copy-all-data', lines.join('\n'));
+            };
+
+            if (plannedEntries.length === 0) return null;
 
             return (
               <div className="pt-6 border-t border-white/[0.08] space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <h2 className="text-base font-bold text-white tracking-wide uppercase flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-brand-teal" />
-                      <span>How to Create Planned Services in Trilogy Care Portal</span>
+                      <Layers className="w-4 h-4 text-brand-teal" />
+                      <span>Trilogy Care Planned Services — Data to Enter</span>
+                      <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-brand-teal/20 text-brand-teal border border-brand-teal/30">
+                        {plannedEntries.length} {plannedEntries.length === 1 ? 'Planned Service Entry' : 'Planned Service Entries'}
+                      </span>
                     </h2>
                     <p className="text-[#8B949E] text-xs mt-0.5">
-                      Step-by-step instructions to create planned services for <span className="text-white font-semibold">{clientName}</span> for <span className="text-brand-teal font-semibold">{quarterLabel}</span> using the summary tables above.
+                      Exact fields and values ready to enter directly into the Trilogy Care Coordinator portal for <span className="text-white font-semibold">{clientName}</span> ({quarterLabel}).
                     </p>
                   </div>
-                  {totalPlannedServices > 0 && (
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-teal/10 border border-brand-teal/25 text-xs text-brand-teal font-medium self-start sm:self-auto">
-                      <Layers className="w-3.5 h-3.5" />
-                      <span><strong>{totalPlannedServices}</strong> planned service {totalPlannedServices === 1 ? 'entry' : 'entries'} to create</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={copyAllPlannedData}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-teal text-black text-xs font-bold hover:bg-brand-teal/90 transition-colors shadow-sm cursor-pointer"
+                    >
+                      {copiedId === 'copy-all-data' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-black" />
+                          <span>Copied All Data!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-black" />
+                          <span>Copy All Entries</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
 
-                <div className="bg-[#151515] border border-white/[0.08] rounded-xl p-5 md:p-6 shadow-md space-y-6">
-                  {/* Overview Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-black/40 border border-brand-teal/30 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-brand-teal uppercase tracking-wider flex items-center gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          1. Consecutive Services ({consecutiveSummaries.length})
-                        </span>
-                        <span className="text-[10px] bg-brand-teal/20 text-brand-teal px-2 py-0.5 rounded font-bold">
-                          Multi-Week Range
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#8B949E] leading-relaxed">
-                        For matching consecutive weeks, create <strong className="text-white">one single planned service</strong> covering the entire start-to-end date span with the recurring weekly hours.
-                      </p>
-                    </div>
-
-                    <div className="bg-black/40 border border-white/[0.1] rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-[#E6EDF3] uppercase tracking-wider flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-zinc-400" />
-                          2. Non-Consecutive Services ({nonConsecutiveBlocks.length})
-                        </span>
-                        <span className="text-[10px] bg-white/[0.08] text-[#8B949E] px-2 py-0.5 rounded font-bold">
-                          Individual Weeks
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#8B949E] leading-relaxed">
-                        For standalone or varying weeks, create <strong className="text-white">separate planned service entries</strong> for each specific week block and its respective hours.
-                      </p>
-                    </div>
+                {/* Table View of Exact Portal Data to Enter */}
+                <div className="bg-[#151515] border border-brand-teal/25 rounded-xl overflow-hidden shadow-md">
+                  <div className="px-4 py-3 bg-black/40 border-b border-white/[0.08] flex items-center justify-between">
+                    <span className="text-xs font-bold text-brand-teal uppercase tracking-wider">
+                      Portal Line Items ({plannedEntries.length})
+                    </span>
+                    <span className="text-[11px] text-[#8B949E]">
+                      Click any <Copy className="w-3 h-3 inline text-zinc-400" /> icon to copy the specific field value
+                    </span>
                   </div>
 
-                  {/* Step-by-Step Flow */}
-                  <div className="space-y-4 pt-2">
-                    <h3 className="text-xs font-bold text-[#8B949E] uppercase tracking-wider">Step-by-Step Portal Entry Workflow</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-white/[0.08] bg-black/60 text-[#8B949E] text-[10px] font-bold uppercase tracking-wider">
+                          <th className="px-3.5 py-2.5 w-10 text-center">#</th>
+                          <th className="px-3.5 py-2.5">Service Description</th>
+                          <th className="px-3.5 py-2.5">Start Date</th>
+                          <th className="px-3.5 py-2.5">End Date</th>
+                          <th className="px-3.5 py-2.5 text-right">Base Rate</th>
+                          <th className="px-3.5 py-2.5 text-right">Weekday Hrs</th>
+                          <th className="px-3.5 py-2.5 text-right">Sat Hrs</th>
+                          <th className="px-3.5 py-2.5 text-right">Sun Hrs</th>
+                          <th className="px-3.5 py-2.5 text-right">PH Hrs</th>
+                          <th className="px-3.5 py-2.5 text-right">Weekly Total</th>
+                          <th className="px-3.5 py-2.5 text-center">Type / Span</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/[0.05] text-xs">
+                        {plannedEntries.map((entry, idx) => (
+                          <tr key={entry.id} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="px-3.5 py-3 text-center text-[#8B949E] font-mono text-[11px]">
+                              {idx + 1}
+                            </td>
 
-                    <div className="space-y-3">
-                      {/* Step 1 */}
-                      <div className="flex gap-3.5 p-3.5 rounded-lg bg-black/30 border border-white/[0.04]">
-                        <div className="w-6 h-6 rounded-full bg-brand-teal/20 border border-brand-teal/40 text-brand-teal flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                          1
-                        </div>
-                        <div className="flex-1 text-xs">
-                          <h4 className="font-bold text-white mb-1">Open Client in Trilogy Care Coordinator Portal</h4>
-                          <p className="text-[#8B949E] leading-relaxed">
-                            Log in to the Trilogy Care Coordinator portal, search for <strong className="text-white">{clientName}</strong>, and navigate to their <strong>Planned Services</strong> section for <strong>{quarterLabel}</strong>.
-                          </p>
-                        </div>
-                      </div>
+                            {/* Service Description with Copy */}
+                            <td className="px-3.5 py-3 font-semibold text-white">
+                              <div className="flex items-center gap-1.5 group">
+                                <span className="text-[#E6EDF3]">{entry.service_name}</span>
+                                <button
+                                  type="button"
+                                  title="Copy Service Name"
+                                  onClick={() => handleCopyText(`svc-${entry.id}`, entry.service_name)}
+                                  className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5"
+                                >
+                                  {copiedId === `svc-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                              {entry.note && (
+                                <span className="text-[10px] text-zinc-500 block mt-0.5 font-normal">
+                                  {entry.note}
+                                </span>
+                              )}
+                            </td>
 
-                      {/* Step 2 */}
-                      <div className="flex gap-3.5 p-3.5 rounded-lg bg-black/30 border border-white/[0.04]">
-                        <div className="w-6 h-6 rounded-full bg-brand-teal/20 border border-brand-teal/40 text-brand-teal flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                          2
-                        </div>
-                        <div className="flex-1 text-xs space-y-2">
-                          <h4 className="font-bold text-white">Enter Consecutive Week Services (From Matching Summary)</h4>
-                          <p className="text-[#8B949E] leading-relaxed">
-                            For each row in the <strong className="text-brand-teal">Matching Consecutive Week Blocks Summary</strong>:
-                          </p>
-                          <ul className="list-disc list-inside space-y-1 text-[#8B949E] pl-1">
-                            <li><strong className="text-white">Choose Service Name:</strong> Select the exact service description (e.g. <em>{consecutiveSummaries[0]?.service_name || 'Assistance with the self-administration of medication'}</em>).</li>
-                            <li><strong className="text-white">Start Date & End Date:</strong> Enter the combined date range (e.g. <em>{consecutiveSummaries[0] ? `${format(new Date(consecutiveSummaries[0].start_date + 'T12:00:00Z'), 'dd/MM/yyyy')} to ${format(new Date(consecutiveSummaries[0].end_date + 'T12:00:00Z'), 'dd/MM/yyyy')}` : 'from start date to ending date'}</em>).</li>
-                            <li><strong className="text-white">Base Rate:</strong> Enter the hourly base rate (e.g. <em>${consecutiveSummaries[0]?.rate?.toFixed(2) || '88.00'}</em>).</li>
-                            <li><strong className="text-white">Enter Weekly Hours Separately:</strong> Enter the weekly recurring hours into their corresponding fields:
-                              <span className="block mt-1 pl-4 text-brand-teal font-medium">
-                                • Weekday Hours • Saturday Hours • Sunday Hours • Public Holiday Hours
+                            {/* Start Date */}
+                            <td className="px-3.5 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-1.5 group">
+                                <span className="font-mono text-brand-teal font-semibold">{entry.startDateStr}</span>
+                                <button
+                                  type="button"
+                                  title="Copy Start Date"
+                                  onClick={() => handleCopyText(`sd-${entry.id}`, entry.startDateStr)}
+                                  className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5"
+                                >
+                                  {copiedId === `sd-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* End Date */}
+                            <td className="px-3.5 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-1.5 group">
+                                <span className="font-mono text-brand-teal font-semibold">{entry.endDateStr}</span>
+                                <button
+                                  type="button"
+                                  title="Copy End Date"
+                                  onClick={() => handleCopyText(`ed-${entry.id}`, entry.endDateStr)}
+                                  className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5"
+                                >
+                                  {copiedId === `ed-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Base Rate */}
+                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1 group">
+                                <span className="text-[#E6EDF3] font-mono">${entry.rate.toFixed(2)}</span>
+                                <button
+                                  type="button"
+                                  title="Copy Rate"
+                                  onClick={() => handleCopyText(`rate-${entry.id}`, entry.rate.toFixed(2))}
+                                  className="text-zinc-500 hover:text-brand-teal opacity-60 group-hover:opacity-100 transition-opacity p-0.5"
+                                >
+                                  {copiedId === `rate-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Weekday Hours */}
+                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                              <span className={`font-mono font-bold ${entry.weekday_hours > 0 ? 'text-white' : 'text-zinc-600'}`}>
+                                {entry.weekday_hours > 0 ? entry.weekday_hours : '0'}
                               </span>
-                            </li>
-                          </ul>
-                          <div className="p-2.5 rounded bg-brand-teal/[0.06] border border-brand-teal/20 text-[11px] text-[#A6E3E9] mt-2">
-                            💡 <strong>Coordinator Tip:</strong> Because the weekly hours are identical across all consecutive weeks in this sequence, entering this single date span lets Trilogy automatically schedule all weeks in one entry without entering each week separately.
+                            </td>
+
+                            {/* Saturday Hours */}
+                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                              <span className={`font-mono font-bold ${entry.saturday_hours > 0 ? 'text-white' : 'text-zinc-600'}`}>
+                                {entry.saturday_hours > 0 ? entry.saturday_hours : '0'}
+                              </span>
+                            </td>
+
+                            {/* Sunday Hours */}
+                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                              <span className={`font-mono font-bold ${entry.sunday_hours > 0 ? 'text-white' : 'text-zinc-600'}`}>
+                                {entry.sunday_hours > 0 ? entry.sunday_hours : '0'}
+                              </span>
+                            </td>
+
+                            {/* PH Hours */}
+                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                              <span className={`font-mono font-bold ${entry.publicholiday_hours > 0 ? 'text-white' : 'text-zinc-600'}`}>
+                                {entry.publicholiday_hours > 0 ? entry.publicholiday_hours : '0'}
+                              </span>
+                            </td>
+
+                            {/* Weekly Total */}
+                            <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                              <span className="font-mono font-bold text-brand-teal">
+                                {entry.total_hours_per_week} hrs
+                              </span>
+                            </td>
+
+                            {/* Type / Span */}
+                            <td className="px-3.5 py-3 text-center whitespace-nowrap">
+                              {entry.type === 'Consecutive Multi-Week' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-brand-teal/15 text-brand-teal text-[10px] font-bold border border-brand-teal/30">
+                                  {entry.weeksCount} Wks Recurring
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.08] text-[#8B949E] text-[10px] font-medium border border-white/[0.1]">
+                                  Single Week
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Individual Entry Detail Cards for Quick Field-by-Field Entry */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {plannedEntries.map((entry, idx) => (
+                    <div
+                      key={`card-${entry.id}`}
+                      className="bg-[#151515] border border-white/[0.08] hover:border-brand-teal/40 rounded-xl p-4 transition-all shadow-sm flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-3 border-b border-white/[0.06] pb-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-brand-teal/20 text-brand-teal flex items-center justify-center text-xs font-bold">
+                              {idx + 1}
+                            </span>
+                            <span className="text-xs font-bold text-white uppercase tracking-wider">
+                              Entry #{idx + 1}
+                            </span>
+                          </div>
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${entry.type === 'Consecutive Multi-Week' ? 'bg-brand-teal/20 text-brand-teal border border-brand-teal/30' : 'bg-white/[0.08] text-[#8B949E] border border-white/[0.1]'}`}>
+                            {entry.type === 'Consecutive Multi-Week' ? `${entry.weeksCount} Wks Multi-Span` : 'Single Week'}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2.5 text-xs">
+                          {/* Service Description */}
+                          <div className="flex items-start justify-between gap-2 p-2 rounded bg-black/40 border border-white/[0.04]">
+                            <span className="text-[#8B949E] text-[11px] shrink-0">Service Name:</span>
+                            <div className="flex items-center gap-1.5 text-right font-semibold text-white">
+                              <span>{entry.service_name}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyText(`c-svc-${entry.id}`, entry.service_name)}
+                                className="text-zinc-500 hover:text-brand-teal p-0.5"
+                                title="Copy"
+                              >
+                                {copiedId === `c-svc-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Date Span */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="p-2 rounded bg-black/40 border border-white/[0.04]">
+                              <span className="text-[#8B949E] text-[10px] block uppercase font-bold">Start Date:</span>
+                              <div className="flex items-center justify-between mt-0.5">
+                                <span className="font-mono text-brand-teal font-bold">{entry.startDateStr}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyText(`c-sd-${entry.id}`, entry.startDateStr)}
+                                  className="text-zinc-500 hover:text-brand-teal p-0.5"
+                                  title="Copy"
+                                >
+                                  {copiedId === `c-sd-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="p-2 rounded bg-black/40 border border-white/[0.04]">
+                              <span className="text-[#8B949E] text-[10px] block uppercase font-bold">End Date:</span>
+                              <div className="flex items-center justify-between mt-0.5">
+                                <span className="font-mono text-brand-teal font-bold">{entry.endDateStr}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyText(`c-ed-${entry.id}`, entry.endDateStr)}
+                                  className="text-zinc-500 hover:text-brand-teal p-0.5"
+                                  title="Copy"
+                                >
+                                  {copiedId === `c-ed-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Base Rate */}
+                          <div className="flex items-center justify-between p-2 rounded bg-black/40 border border-white/[0.04]">
+                            <span className="text-[#8B949E] text-[11px]">Base Rate:</span>
+                            <div className="flex items-center gap-1.5 font-mono font-bold text-white">
+                              <span>${entry.rate.toFixed(2)} / hr</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyText(`c-rate-${entry.id}`, entry.rate.toFixed(2))}
+                                className="text-zinc-500 hover:text-brand-teal p-0.5"
+                                title="Copy"
+                              >
+                                {copiedId === `c-rate-${entry.id}` ? <Check className="w-3 h-3 text-brand-teal" /> : <Copy className="w-3 h-3" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Hours Breakdown Box */}
+                          <div className="p-2.5 rounded bg-black/60 border border-brand-teal/20">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-brand-teal block mb-1.5">
+                              Weekly Recurring Hours to Enter:
+                            </span>
+                            <div className="grid grid-cols-4 gap-1.5 text-center">
+                              <div className="bg-white/[0.03] p-1.5 rounded">
+                                <span className="text-[9px] text-[#8B949E] block uppercase">Weekday</span>
+                                <span className="font-mono font-bold text-white text-xs">{entry.weekday_hours}</span>
+                              </div>
+                              <div className="bg-white/[0.03] p-1.5 rounded">
+                                <span className="text-[9px] text-[#8B949E] block uppercase">Saturday</span>
+                                <span className="font-mono font-bold text-white text-xs">{entry.saturday_hours}</span>
+                              </div>
+                              <div className="bg-white/[0.03] p-1.5 rounded">
+                                <span className="text-[9px] text-[#8B949E] block uppercase">Sunday</span>
+                                <span className="font-mono font-bold text-white text-xs">{entry.sunday_hours}</span>
+                              </div>
+                              <div className="bg-white/[0.03] p-1.5 rounded">
+                                <span className="text-[9px] text-[#8B949E] block uppercase">Pub Hol</span>
+                                <span className="font-mono font-bold text-white text-xs">{entry.publicholiday_hours}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Step 3 */}
-                      <div className="flex gap-3.5 p-3.5 rounded-lg bg-black/30 border border-white/[0.04]">
-                        <div className="w-6 h-6 rounded-full bg-brand-teal/20 border border-brand-teal/40 text-brand-teal flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                          3
-                        </div>
-                        <div className="flex-1 text-xs space-y-2">
-                          <h4 className="font-bold text-white">Enter Non-Consecutive / Standalone Services</h4>
-                          <p className="text-[#8B949E] leading-relaxed">
-                            For each row in the <strong className="text-white">Non-Consecutive Week Blocks Summary</strong>:
-                          </p>
-                          <ul className="list-disc list-inside space-y-1 text-[#8B949E] pl-1">
-                            <li><strong className="text-white">Choose Service Name:</strong> Select the service for that row.</li>
-                            <li><strong className="text-white">Start Date & End Date:</strong> Enter the specific week's start and end dates (e.g. <em>{nonConsecutiveBlocks[0] ? `${format(new Date(nonConsecutiveBlocks[0].start_date + 'T12:00:00Z'), 'dd/MM/yyyy')} to ${format(new Date(nonConsecutiveBlocks[0].end_date + 'T12:00:00Z'), 'dd/MM/yyyy')}` : 'specific week start and end'}</em>).</li>
-                            <li><strong className="text-white">Base Rate:</strong> Enter the hourly base rate.</li>
-                            <li><strong className="text-white">Hours:</strong> Enter the specific Weekday, Saturday, Sunday, and Public Holiday hours recorded for that individual week.</li>
-                          </ul>
-                        </div>
-                      </div>
-
-                      {/* Step 4 */}
-                      <div className="flex gap-3.5 p-3.5 rounded-lg bg-black/30 border border-white/[0.04]">
-                        <div className="w-6 h-6 rounded-full bg-brand-teal/20 border border-brand-teal/40 text-brand-teal flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                          4
-                        </div>
-                        <div className="flex-1 text-xs">
-                          <h4 className="font-bold text-white mb-1">Verify Totals & Save</h4>
-                          <p className="text-[#8B949E] leading-relaxed">
-                            Confirm that the total hours and service categories in the Trilogy portal match the shift logs in this quarter, then save and finalize the planned services.
-                          </p>
-                        </div>
+                      {/* Card Footer Summary */}
+                      <div className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between text-[11px] text-[#8B949E]">
+                        <span>Weekly Total: <strong className="text-white">{entry.total_hours_per_week} hrs/wk</strong></span>
+                        <span>Estimated Value: <strong className="text-brand-teal">${entry.total_quarter_cost.toFixed(2)}</strong></span>
                       </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             );
