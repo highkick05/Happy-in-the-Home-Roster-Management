@@ -26,6 +26,20 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
     }
   }, [isOpen, token]);
 
+  const parseAdditionalPositions = (val: any): string[] => {
+    if (!val) return [];
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') {
+      try {
+        const parsed = JSON.parse(val);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -45,7 +59,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
     superMemberNumber: staff?.super_member_number || '',
     canSwitchAdmin: staff ? !!staff.can_switch_admin : false,
     primaryPosition: staff?.primary_position || '',
-    additionalPositions: (staff?.additional_positions ? JSON.parse(staff.additional_positions) : []) as string[],
+    additionalPositions: parseAdditionalPositions(staff?.additional_positions),
     avatarUrl: getAvatarUrl(staff?.avatar_url || Math.random().toString(36).substring(7)),
   });
 
@@ -70,7 +84,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         superMemberNumber: staff?.super_member_number || '',
         canSwitchAdmin: !!staff.can_switch_admin,
         primaryPosition: staff.primary_position || '',
-        additionalPositions: (staff.additional_positions ? JSON.parse(staff.additional_positions) : []) as string[],
+        additionalPositions: parseAdditionalPositions(staff.additional_positions),
         avatarUrl: getAvatarUrl(staff.avatar_url || staff.first_name || 'Staff'),
       });
     } else {
@@ -90,15 +104,26 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         bankAcc: '',
         taxNumber: '',
         superFundName: '',
-        superMemberNumber: staff?.super_member_number || '',
-    canSwitchAdmin: staff ? !!staff.can_switch_admin : false,
+        superMemberNumber: '',
+        canSwitchAdmin: false,
+        primaryPosition: '',
+        additionalPositions: [],
         avatarUrl: getAvatarUrl(Math.random().toString(36).substring(7)),
       });
     }
   }, [staff, isOpen]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    if (name === 'primaryPosition') {
+      setFormData(prev => ({
+        ...prev,
+        primaryPosition: value,
+        additionalPositions: (prev.additionalPositions || []).filter(p => p !== value)
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -230,18 +255,27 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                 </select>
               </div>
               <div className="md:col-span-2 pt-1 pb-3">
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Primary Position</label>
+                <select name="primaryPosition" value={formData.primaryPosition} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+                  <option value="">Select a position...</option>
+                  {positions.map(p => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2 pt-1 pb-3">
                 <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Additional Positions</label>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   {positions.filter(p => p.name !== formData.primaryPosition).map(p => (
                     <label key={p.id} className="flex items-center space-x-2 text-[12px] text-zinc-300">
                       <input 
                         type="checkbox" 
-                        checked={formData.additionalPositions.includes(p.name)}
+                        checked={(formData.additionalPositions || []).includes(p.name)}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setFormData(prev => ({ ...prev, additionalPositions: [...prev.additionalPositions, p.name] }));
+                            setFormData(prev => ({ ...prev, additionalPositions: [...(prev.additionalPositions || []), p.name] }));
                           } else {
-                            setFormData(prev => ({ ...prev, additionalPositions: prev.additionalPositions.filter(name => name !== p.name) }));
+                            setFormData(prev => ({ ...prev, additionalPositions: (prev.additionalPositions || []).filter(name => name !== p.name) }));
                           }
                         }}
                         className="rounded bg-black/40 border-white/[0.08] text-brand-blue focus:ring-brand-blue w-3.5 h-3.5"
@@ -266,15 +300,6 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                   </label>
                 </div>
               )}
-              <div className="md:col-span-2 pt-1 pb-3">
-                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Primary Position</label>
-                <select name="primaryPosition" value={formData.primaryPosition} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
-                  <option value="">Select a position...</option>
-                  {positions.map(p => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
               <div>
                 <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">First Name *</label>
                 <input required name="firstName" value={formData.firstName} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
