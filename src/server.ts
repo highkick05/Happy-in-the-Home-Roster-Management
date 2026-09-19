@@ -97,6 +97,10 @@ const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
+const AVATARS_DIR = path.join(UPLOADS_DIR, "avatars");
+if (!fs.existsSync(AVATARS_DIR)) {
+  fs.mkdirSync(AVATARS_DIR, { recursive: true });
+}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -4391,6 +4395,66 @@ function getUnreadChatCount(db: any, userId: number) {
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(400).json({ error: "Failed to update profile" });
+    }
+  });
+
+  // Avatar Upload Endpoint (supports multipart file or base64 JSON payload)
+  app.post(
+    "/api/avatar/upload",
+    authenticateToken,
+    (req: any, res: any, next: any) => {
+      if (req.is("multipart/form-data")) {
+        upload.single("avatar")(req, res, next);
+      } else {
+        next();
+      }
+    },
+    (req: any, res: any) => {
+      try {
+        const avatarsDir = path.join(process.cwd(), "uploads", "avatars");
+        if (!fs.existsSync(avatarsDir)) {
+          fs.mkdirSync(avatarsDir, { recursive: true });
+        }
+
+        if (req.file) {
+          const ext = path.extname(req.file.originalname) || ".jpg";
+          const filename = `avatar-${Date.now()}-${Math.random().toString(36).substring(2, 9)}${ext}`;
+          const targetPath = path.join(avatarsDir, filename);
+          fs.copyFileSync(req.file.path, targetPath);
+          if (req.file.path !== targetPath && fs.existsSync(req.file.path)) {
+            try {
+              fs.unlinkSync(req.file.path);
+            } catch (e) {}
+          }
+          return res.json({ url: `/api/avatar/${filename}` });
+        } else if (req.body && req.body.image) {
+          const base64Match = req.body.image.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+          const ext = base64Match && base64Match[1] === "png" ? ".png" : ".jpg";
+          const base64Data = base64Match ? base64Match[2] : req.body.image.replace(/^data:image\/\w+;base64,/, "");
+          const buffer = Buffer.from(base64Data, "base64");
+          const filename = `avatar-${Date.now()}-${Math.random().toString(36).substring(2, 9)}${ext}`;
+          const targetPath = path.join(avatarsDir, filename);
+          fs.writeFileSync(targetPath, buffer);
+          return res.json({ url: `/api/avatar/${filename}` });
+        } else {
+          return res.status(400).json({ error: "No image provided" });
+        }
+      } catch (err: any) {
+        logger.error(`Failed to upload avatar: ${err}`);
+        res.status(500).json({ error: "Failed to upload avatar" });
+      }
+    }
+  );
+
+  // Serve Avatar Images
+  app.get("/api/avatar/:filename", (req: any, res: any) => {
+    const filename = path.basename(req.params.filename);
+    const filePath = path.join(process.cwd(), "uploads", "avatars", filename);
+    if (fs.existsSync(filePath)) {
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.sendFile(filePath);
+    } else {
+      res.status(404).send("Avatar not found");
     }
   });
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import { getAvatarUrl } from '../../utils/avatar';
+import AvatarSelector from '../ui/AvatarSelector';
 
 interface StaffModalProps {
   isOpen: boolean;
@@ -174,76 +175,12 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                     <form id="staff-form" onSubmit={handleSubmit} className="space-y-6 pb-64">
             
                                     {/* Profile Avatar Selection */}
-            <div className="space-y-3">
-              <label className="block text-xs font-medium text-zinc-400">Profile Avatar</label>
-              <div className="flex items-center gap-4">
-                <img src={getAvatarUrl(formData.avatarUrl)} alt="Selected Avatar" className="w-16 h-16 rounded-full bg-[#151515] border border-white/[0.08] object-cover" />
-                <div className="flex-1 overflow-x-auto custom-scrollbar pb-2 pt-1 flex gap-2">
-                  {[
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Doctor",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Nurse",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Medic",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Healer",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Therapist",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Surgeon",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Caregiver",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Health",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Pulse",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Life",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Smile",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Happy",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Joy",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Laugh",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Grin",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Beam",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Cheer",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Delight",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Glad",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Merry",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Sunny",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Warm",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Kind",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Gentle",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Caring",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Support",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Help",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Aid",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Cure",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Mend",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Practitioner",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Specialist",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Clinician",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Physician",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Orderly",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Attendant",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Midwife",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Paramedic",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Responder",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Rescuer",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Guardian",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Protector",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Angel",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Hero",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Lifesaver",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Wellness",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Comfort",
-                    "https://api.dicebear.com/9.x/pixel-art/svg?seed=Relief",
-                    "https://api.dicebear.com/9.x/big-ears/svg?seed=Soothe",
-                    "https://api.dicebear.com/9.x/adventurer/svg?seed=Calm"
-                  ].map(url => {
-                    return (
-                      <img 
-                        key={url} 
-                        src={url} 
-                        alt="avatar option"
-                        className={`w-12 h-12 rounded-full cursor-pointer shrink-0 transition-all object-cover ${formData.avatarUrl === url ? 'ring-2 ring-brand-blue scale-110' : 'opacity-60 hover:opacity-100 hover:scale-105'}`}
-                        onClick={() => setFormData(prev => ({ ...prev, avatarUrl: url }))}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+            <AvatarSelector
+              value={formData.avatarUrl}
+              onChange={(url) => setFormData((prev: any) => ({ ...prev, avatarUrl: url }))}
+              token={token}
+              label="Profile Avatar"
+            />
 
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

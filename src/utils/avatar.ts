@@ -3,12 +3,8 @@ export function getAvatarUrl(seedOrUrl: string): string {
   
   if (!seedOrUrl) return defaultUrl;
   
-  if (seedOrUrl.startsWith('data:')) {
+  if (seedOrUrl.startsWith('data:') || seedOrUrl.startsWith('http') || seedOrUrl.startsWith('/')) {
     return seedOrUrl;
-  }
-  
-  if (seedOrUrl.startsWith('http')) {
-     return seedOrUrl;
   }
 
   let seed = seedOrUrl;
