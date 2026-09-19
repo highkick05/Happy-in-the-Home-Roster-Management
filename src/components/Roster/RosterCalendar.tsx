@@ -840,10 +840,10 @@ export default function RosterCalendar() {
     }
     if (event.status === 'COMPLETED') backgroundColor = '#a3e635'; // brand-green
     if (isInProgress) {
-      backgroundColor = '#0284c7'; // solid electric ocean blue
-      border = isSelected ? '2px solid white' : '1.5px solid #10b981';
+      backgroundColor = '#f59e0b'; // warm golden amber
+      border = isSelected ? '2px solid white' : '1.5px solid #d97706';
     }
-    if (event.status === 'PENDING_SYNC') backgroundColor = '#f59e0b'; // amber-500
+    if (event.status === 'PENDING_SYNC') backgroundColor = '#f97316'; // orange-500
     if (event.status === 'CANCELLED') backgroundColor = '#ef4444'; // red-500
     
     if (event.isRespiteWrapper) {
@@ -857,7 +857,7 @@ export default function RosterCalendar() {
     const className = classList.join(' ');
 
     let textColor: string | undefined;
-    if (event.status === 'COMPLETED' || event.status === 'PENDING_SYNC') {
+    if (event.status === 'COMPLETED' || event.status === 'PENDING_SYNC' || isInProgress) {
       textColor = '#0b1120';
     } else {
       textColor = 'white';
@@ -876,7 +876,7 @@ export default function RosterCalendar() {
         fontWeight: 600,
         boxShadow: isSelected
           ? '0 0 0 2px rgba(14, 165, 233, 0.5)'
-          : (isInProgress ? '0 0 10px rgba(16, 185, 129, 0.45)' : undefined),
+          : (isInProgress ? '0 0 10px rgba(245, 158, 11, 0.45)' : undefined),
       },
     };
   };
@@ -924,12 +924,12 @@ export default function RosterCalendar() {
             </div>
           )}
           {event.status === 'IN_PROGRESS' && (
-            <span className="inline-flex items-center gap-1 mr-1 px-1.5 py-0.5 rounded bg-black/40 border border-emerald-400/60 shadow-sm relative z-10 select-none shrink-0">
+            <span className="inline-flex items-center gap-1 mr-1.5 px-1.5 py-0.5 rounded-full bg-black/25 border border-black/20 shadow-xs relative z-10 select-none shrink-0">
               <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-600 opacity-90"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-600"></span>
               </span>
-              <span className="text-[9px] font-bold tracking-wider text-emerald-300 uppercase leading-none">LIVE</span>
+              <span className="text-[9px] font-black tracking-wider text-slate-950 uppercase leading-none">LIVE</span>
             </span>
           )}
           <span className="truncate relative z-10">{title}</span>
@@ -1021,8 +1021,8 @@ export default function RosterCalendar() {
          containerClass += 'opacity-80 border-l-[6px] border-brand-green bg-brand-green/10 hover:bg-brand-green/20';
          badgeClass = 'text-brand-green bg-brand-green/20 border-brand-green/30';
       } else if (isInProgress) {
-         containerClass += 'border-l-[6px] border-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 ring-1 ring-emerald-500/30 in-progress-agenda-item ';
-         badgeClass = 'in-progress-agenda-badge border text-emerald-300';
+         containerClass += 'border-l-[6px] border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 ring-1 ring-amber-500/30 in-progress-agenda-item ';
+         badgeClass = 'in-progress-agenda-badge border text-amber-300';
          badgeLabel = 'In Progress';
       } else {
          containerClass += 'border-l-[6px] border-zinc-700 bg-zinc-800/20 hover:bg-zinc-800/40';
@@ -1117,8 +1117,8 @@ export default function RosterCalendar() {
               <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 mr-4 md:mr-0 inline-flex items-center gap-1.5 rounded-full border ${badgeClass}`}>
                 {isInProgress && (
                   <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400"></span>
                   </span>
                 )}
                 {badgeLabel}

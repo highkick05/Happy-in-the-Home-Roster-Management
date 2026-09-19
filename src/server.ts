@@ -10113,8 +10113,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                 let bgColor = '#0ea5e9'; // PUBLISHED
                 if (shift.status === 'DRAFT') bgColor = '#52525b';
                 if (shift.status === 'COMPLETED') bgColor = '#a3e635';
-                if (shift.status === 'IN_PROGRESS') bgColor = '#38bdf8';
-                if (shift.status === 'PENDING_SYNC') bgColor = '#f59e0b';
+                if (shift.status === 'IN_PROGRESS') bgColor = '#f59e0b';
+                if (shift.status === 'PENDING_SYNC') bgColor = '#f97316';
                 if (shift.status === 'CANCELLED') bgColor = '#ef4444';
                 if (shift.isRespiteWrapper) bgColor = '#8b5cf6';
                 

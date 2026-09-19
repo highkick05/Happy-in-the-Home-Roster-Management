@@ -386,42 +386,42 @@ input:-webkit-autofill:active {
   animation: subtle-stripe-slide 2s linear infinite !important;
 }
 
-/* In-Progress Shift: Solid electric ocean blue with a live emerald perimeter glow */
+/* In-Progress Shift: Warm golden amber with a gentle live amber halo */
 @keyframes in-progress-live-glow {
   0%, 100% {
-    box-shadow: 0 0 0 1.5px #10b981, 0 0 8px rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 0 1px #d97706, 0 0 6px rgba(245, 158, 11, 0.35);
   }
   50% {
-    box-shadow: 0 0 0 1.5px #34d399, 0 0 14px rgba(52, 211, 153, 0.7);
+    box-shadow: 0 0 0 1.5px #f59e0b, 0 0 14px rgba(245, 158, 11, 0.65);
   }
 }
 
 .in-progress-shift-animated,
 .rbc-event.in-progress-shift-animated {
-  background-color: #0284c7 !important;
-  color: #ffffff !important;
-  border: 1.5px solid #10b981 !important;
+  background-color: #f59e0b !important;
+  color: #0b1120 !important;
+  border: 1.5px solid #d97706 !important;
   animation: in-progress-live-glow 2.5s ease-in-out infinite !important;
 }
 
 .in-progress-agenda-item {
-  border-left-color: #10b981 !important;
+  border-left-color: #f59e0b !important;
 }
 
 .in-progress-agenda-badge {
-  background-color: rgba(16, 185, 129, 0.18) !important;
-  border-color: rgba(16, 185, 129, 0.45) !important;
-  color: #34d399 !important;
+  background-color: rgba(245, 158, 11, 0.18) !important;
+  border-color: rgba(245, 158, 11, 0.45) !important;
+  color: #fbbf24 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .in-progress-shift-animated,
   .rbc-event.in-progress-shift-animated {
     animation: none !important;
-    background-color: #0284c7 !important;
-    color: #ffffff !important;
-    border: 1.5px solid #10b981 !important;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5) !important;
+    background-color: #f59e0b !important;
+    color: #0b1120 !important;
+    border: 1.5px solid #d97706 !important;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.5) !important;
   }
   .in-progress-agenda-item,
   .in-progress-agenda-badge {
