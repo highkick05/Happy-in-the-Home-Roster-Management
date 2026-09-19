@@ -386,18 +386,29 @@ input:-webkit-autofill:active {
   animation: subtle-stripe-slide 2s linear infinite !important;
 }
 
-/* In-Progress Shift: pulses back and forth slightly quicker, turning partially towards green (stopping before full lime green) and returning to published blue */
+/* In-Progress Shift: smoothly pulses from published blue to full completed green and back in a shorter amount of time */
 @keyframes in-progress-color-shift {
-  0%, 100% {
+  0%, 15%, 100% {
     background-color: #0ea5e9; /* published blue */
     color: #ffffff;
     box-shadow: 0 0 0 0 rgba(14, 165, 233, 0);
   }
-  50% {
-    /* Blend toward green, stopping well before full completed lime green (#a3e635) */
-    background-color: #10b981; /* vibrant emerald/sea green */
+  32% {
     color: #ffffff;
-    box-shadow: 0 0 10px 2px rgba(16, 185, 129, 0.4);
+  }
+  38% {
+    color: #0b1120;
+  }
+  50%, 65% {
+    background-color: #a3e635; /* completed green */
+    color: #0b1120;
+    box-shadow: 0 0 10px 2px rgba(163, 230, 53, 0.45);
+  }
+  78% {
+    color: #0b1120;
+  }
+  84% {
+    color: #ffffff;
   }
 }
 
@@ -409,24 +420,24 @@ input:-webkit-autofill:active {
 }
 
 @keyframes in-progress-agenda-border {
-  0%, 100% {
+  0%, 15%, 100% {
     border-left-color: #0ea5e9;
   }
-  50% {
-    border-left-color: #10b981;
+  50%, 65% {
+    border-left-color: #a3e635;
   }
 }
 
 @keyframes in-progress-agenda-badge {
-  0%, 100% {
+  0%, 15%, 100% {
     background-color: rgba(14, 165, 233, 0.18);
     border-color: rgba(14, 165, 233, 0.4);
     color: #38bdf8;
   }
-  50% {
-    background-color: rgba(16, 185, 129, 0.22);
-    border-color: rgba(16, 185, 129, 0.5);
-    color: #34d399;
+  50%, 65% {
+    background-color: rgba(163, 230, 53, 0.22);
+    border-color: rgba(163, 230, 53, 0.5);
+    color: #a3e635;
   }
 }
 
