@@ -38,7 +38,7 @@ CREATE TABLE users (
         super_fund_name TEXT,
         super_member_number TEXT,
         primary_position TEXT
-      , can_switch_admin INTEGER DEFAULT 0, last_active_role TEXT, avatar_url TEXT, last_chat_read DATETIME);
+      , can_switch_admin INTEGER DEFAULT 0, last_active_role TEXT, avatar_url TEXT, last_chat_read DATETIME, joined_date TEXT, created_at DATETIME);
 
 CREATE TABLE providers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,7 +50,9 @@ CREATE TABLE providers (
         address TEXT,
         provider_type TEXT,
         management_fee REAL DEFAULT 0,
-        can_email_invoices INTEGER DEFAULT 1
+        can_email_invoices INTEGER DEFAULT 1,
+        joined_date TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
 CREATE TABLE contractors (
@@ -61,7 +63,9 @@ CREATE TABLE contractors (
         email TEXT,
         phone TEXT,
         address TEXT,
-        contractor_type TEXT
+        contractor_type TEXT,
+        joined_date TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
 CREATE TABLE clients (

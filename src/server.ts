@@ -224,7 +224,9 @@ async function startServer() {
         tax_number TEXT,
         super_fund_name TEXT,
         super_member_number TEXT,
-        primary_position TEXT
+        primary_position TEXT,
+        joined_date TEXT,
+        created_at DATETIME
       );
 
       CREATE TABLE IF NOT EXISTS providers (
@@ -239,7 +241,9 @@ async function startServer() {
         management_fee REAL DEFAULT 0,
         can_email_invoices INTEGER DEFAULT 1,
         submission_method TEXT DEFAULT 'manual',
-        is_test_mode_enabled INTEGER DEFAULT 0
+        is_test_mode_enabled INTEGER DEFAULT 0,
+        joined_date TEXT,
+        created_at DATETIME
       );
       CREATE TABLE IF NOT EXISTS contractors (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -249,7 +253,9 @@ async function startServer() {
         email TEXT,
         phone TEXT,
         address TEXT,
-        contractor_type TEXT
+        contractor_type TEXT,
+        joined_date TEXT,
+        created_at DATETIME
       );
 
       CREATE TABLE IF NOT EXISTS clients (
@@ -717,7 +723,7 @@ try {
   }
 
   try {
-    const usersCols = db.prepare("PRAGMA table_info(users)").all();
+    const usersCols = db.prepare("PRAGMA table_info(users)").all() as any[];
     if (!usersCols.some(c => c.name === 'status')) {
       db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'ACTIVE'");
       console.log("Migrated users table to include status");
@@ -726,7 +732,63 @@ try {
       db.exec("ALTER TABLE users ADD COLUMN additional_positions TEXT DEFAULT '[]'");
       console.log("Migrated users table to include additional_positions");
     }
-  } catch (e) {
+    if (!usersCols.some(c => c.name === 'created_at')) {
+      db.exec("ALTER TABLE users ADD COLUMN created_at DATETIME");
+      console.log("Migrated users table to include created_at");
+    }
+    if (!usersCols.some(c => c.name === 'joined_date')) {
+      db.exec("ALTER TABLE users ADD COLUMN joined_date TEXT");
+      console.log("Migrated users table to include joined_date");
+    }
+
+    const provCols = db.prepare("PRAGMA table_info(providers)").all() as any[];
+    if (!provCols.some(c => c.name === 'created_at')) {
+      db.exec("ALTER TABLE providers ADD COLUMN created_at DATETIME");
+    }
+    if (!provCols.some(c => c.name === 'joined_date')) {
+      db.exec("ALTER TABLE providers ADD COLUMN joined_date TEXT");
+    }
+
+    const contCols = db.prepare("PRAGMA table_info(contractors)").all() as any[];
+    if (!contCols.some(c => c.name === 'created_at')) {
+      db.exec("ALTER TABLE contractors ADD COLUMN created_at DATETIME");
+    }
+    if (!contCols.some(c => c.name === 'joined_date')) {
+      db.exec("ALTER TABLE contractors ADD COLUMN joined_date TEXT");
+    }
+
+    // Backfill joined_date & created_at for users where missing
+    const usersToBackfill = db.prepare("SELECT id FROM users WHERE joined_date IS NULL OR joined_date = '' OR created_at IS NULL").all() as any[];
+    for (const u of usersToBackfill) {
+      const earliestShift = db.prepare("SELECT MIN(start_time) as first_shift FROM shifts WHERE staff_id = ?").get(u.id) as any;
+      if (earliestShift && earliestShift.first_shift) {
+        const shiftDate = new Date(earliestShift.first_shift);
+        if (!isNaN(shiftDate.getTime())) {
+          const dStr = shiftDate.toISOString().split('T')[0];
+          db.prepare("UPDATE users SET joined_date = COALESCE(NULLIF(joined_date, ''), ?), created_at = COALESCE(created_at, ?) WHERE id = ?").run(dStr, earliestShift.first_shift, u.id);
+          continue;
+        }
+      }
+      const earliestNote = db.prepare("SELECT MIN(created_at) as first_note FROM progress_notes WHERE author_id = ?").get(u.id) as any;
+      if (earliestNote && earliestNote.first_note) {
+        const noteDate = new Date(earliestNote.first_note);
+        if (!isNaN(noteDate.getTime())) {
+          const dStr = noteDate.toISOString().split('T')[0];
+          db.prepare("UPDATE users SET joined_date = COALESCE(NULLIF(joined_date, ''), ?), created_at = COALESCE(created_at, ?) WHERE id = ?").run(dStr, earliestNote.first_note, u.id);
+          continue;
+        }
+      }
+      const nowIso = new Date().toISOString();
+      const nowStr = nowIso.split('T')[0];
+      db.prepare("UPDATE users SET joined_date = COALESCE(NULLIF(joined_date, ''), ?), created_at = COALESCE(created_at, ?) WHERE id = ?").run(nowStr, nowIso, u.id);
+    }
+
+    const nowIso = new Date().toISOString();
+    const nowStr = nowIso.split('T')[0];
+    db.prepare("UPDATE providers SET joined_date = COALESCE(NULLIF(joined_date, ''), ?), created_at = COALESCE(created_at, ?) WHERE joined_date IS NULL OR joined_date = '' OR created_at IS NULL").run(nowStr, nowIso);
+    db.prepare("UPDATE contractors SET joined_date = COALESCE(NULLIF(joined_date, ''), ?), created_at = COALESCE(created_at, ?) WHERE joined_date IS NULL OR joined_date = '' OR created_at IS NULL").run(nowStr, nowIso);
+
+  } catch (e: any) {
     console.error("Migration error for users table additional columns:", e.message);
   }
 
@@ -5622,17 +5684,33 @@ app.get("/api/health", (req, res) => {
   });
 
   app.get("/api/staff", authenticateTokenOrWallboard, (req: any, res: any) => {
+    const joinedExpr = `COALESCE(
+      NULLIF(joined_date, ''),
+      (SELECT date(MIN(start_time)) FROM shifts WHERE shifts.staff_id = users.id),
+      (SELECT date(MIN(created_at)) FROM progress_notes WHERE progress_notes.author_id = users.id),
+      date(created_at),
+      date('now')
+    ) AS joined_date`;
+
+    const createdExpr = `COALESCE(
+      NULLIF(created_at, ''),
+      (SELECT MIN(start_time) FROM shifts WHERE shifts.staff_id = users.id),
+      (SELECT MIN(created_at) FROM progress_notes WHERE progress_notes.author_id = users.id),
+      joined_date,
+      datetime('now')
+    ) AS created_at`;
+
     if (req.user.role !== "ADMIN") {
       const staff = db
         .prepare(
-          "SELECT id, first_name, last_name, role, status, avatar_url, primary_position, additional_positions FROM users WHERE role = ?",
+          `SELECT id, first_name, last_name, role, status, avatar_url, primary_position, additional_positions, ${joinedExpr}, ${createdExpr} FROM users WHERE role = ?`,
         )
         .all("STAFF");
       return res.json(staff);
     }
     const staff = db
       .prepare(
-        "SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions FROM users",
+        `SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, ${joinedExpr}, ${createdExpr} FROM users`,
       )
       .all();
     res.json(staff);
@@ -5682,11 +5760,14 @@ app.get("/api/health", (req, res) => {
       avatarUrl,
       primaryPosition,
       additionalPositions,
+      joinedDate,
     } = req.body;
     try {
       const hash = bcrypt.hashSync(password, 10);
+      const nowIso = new Date().toISOString();
+      const safeJoinedDate = joinedDate ? String(joinedDate).split('T')[0] : nowIso.split('T')[0];
       const stmt = db.prepare(
-        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, joined_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
       const info = stmt.run(
         email,
@@ -5708,7 +5789,9 @@ app.get("/api/health", (req, res) => {
         canSwitchAdmin ? 1 : 0,
         avatarUrl || null,
         primaryPosition || null,
-        additionalPositions ? JSON.stringify(additionalPositions) : "[]"
+        additionalPositions ? JSON.stringify(additionalPositions) : "[]",
+        safeJoinedDate,
+        nowIso
       );
       res.json({
         id: info.lastInsertRowid,
@@ -5727,6 +5810,8 @@ app.get("/api/health", (req, res) => {
         taxNumber,
         superFundName,
         superMemberNumber,
+        joined_date: safeJoinedDate,
+        created_at: nowIso,
       });
     } catch (e: any) {
       if (e.code === "SQLITE_CONSTRAINT_UNIQUE") {
@@ -5759,11 +5844,13 @@ app.get("/api/health", (req, res) => {
       avatarUrl,
       primaryPosition,
       additionalPositions,
+      joinedDate,
     } = req.body;
     const { id } = req.params;
     try {
+      const safeJoinedDate = joinedDate ? String(joinedDate).split('T')[0] : null;
       const stmt = db.prepare(
-        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = ?, additional_positions = ? WHERE id = ?",
+        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = ?, additional_positions = ?, joined_date = COALESCE(?, joined_date) WHERE id = ?",
       );
       stmt.run(
         email,
@@ -5785,6 +5872,7 @@ app.get("/api/health", (req, res) => {
         avatarUrl || null,
         primaryPosition || null,
         additionalPositions ? JSON.stringify(additionalPositions) : "[]",
+        safeJoinedDate,
         id,
       );
       res.json({
@@ -5804,6 +5892,7 @@ app.get("/api/health", (req, res) => {
         taxNumber,
         superFundName,
         superMemberNumber,
+        joined_date: safeJoinedDate,
       });
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });

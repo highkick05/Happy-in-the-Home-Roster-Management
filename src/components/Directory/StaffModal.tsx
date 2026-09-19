@@ -50,6 +50,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
     phone: '',
     address: '',
     dob: '',
+    joinedDate: '',
     emergencyContactName: '',
     emergencyContactPhone: '',
     bankName: '',
@@ -75,6 +76,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         phone: staff.phone || '',
         address: staff.address || '',
         dob: staff.dob || '',
+        joinedDate: staff.joined_date ? staff.joined_date.split('T')[0] : (staff.created_at ? new Date(staff.created_at).toISOString().split('T')[0] : ''),
         emergencyContactName: staff.emergency_contact_name || '',
         emergencyContactPhone: staff.emergency_contact_phone || '',
         bankName: staff.bank_name || '',
@@ -98,6 +100,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         phone: '',
         address: '',
         dob: '',
+        joinedDate: new Date().toISOString().split('T')[0],
         emergencyContactName: '',
         emergencyContactPhone: '',
         bankName: '',
@@ -260,7 +263,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Phone *</label>
                 <input required name="phone" value={formData.phone} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
@@ -268,6 +271,10 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
               <div>
                 <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Date of Birth</label>
                 <CustomDatePicker align="right" position="bottom" name="dob" value={formData.dob} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+              </div>
+              <div>
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Joined Date</label>
+                <CustomDatePicker align="right" position="bottom" name="joinedDate" value={formData.joinedDate} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
               </div>
             </div>
 

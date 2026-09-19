@@ -121,6 +121,13 @@ const ServiceIcon = ({ type }: { type: string }) => {
   }
 };
 
+const formatJoinedDate = (dateVal?: any): string | null => {
+  if (!dateVal) return null;
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString();
+};
+
 export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 'CLIENTS' | 'PROVIDERS' | 'CONTRACTORS' }) {
   const { token, user } = useAuth();
   const navigate = useNavigate();
@@ -357,7 +364,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                               </span>
                             )}
                           </div>
-                          <div className="text-[#8B949E] text-xs mt-0.5">Joined {new Date(s.created_at).toLocaleDateString()}</div>
+                          <div className="text-[#8B949E] text-xs mt-0.5">
+                            {(() => {
+                              const joinedStr = formatJoinedDate(s.joined_date || s.created_at);
+                              return joinedStr ? `Joined ${joinedStr}` : (s.primary_position || (s.role === 'ADMIN' ? 'Administrator' : 'Staff Member'));
+                            })()}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -413,7 +425,14 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                             )}
                           </div>
                           <div className="text-[#8B949E] text-xs mt-0.5">
-                            Joined {new Date(c.joined_date || c.created_at).toLocaleDateString()} {c.dob ? `• DOB: ${new Date(c.dob).toLocaleDateString()}` : ''}
+                            {(() => {
+                              const joinedStr = formatJoinedDate(c.joined_date || c.created_at);
+                              const dobStr = formatJoinedDate(c.dob);
+                              if (joinedStr && dobStr) return `Joined ${joinedStr} • DOB: ${dobStr}`;
+                              if (joinedStr) return `Joined ${joinedStr}`;
+                              if (dobStr) return `DOB: ${dobStr}`;
+                              return c.funding_type ? `${c.funding_type} Client` : 'Active Client';
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -481,7 +500,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                               </span>
                             )}
                           </div>
-                          <div className="text-[#8B949E] text-xs mt-0.5">Joined {new Date(c.created_at || Date.now()).toLocaleDateString()}</div>
+                          <div className="text-[#8B949E] text-xs mt-0.5">
+                            {(() => {
+                              const joinedStr = formatJoinedDate(c.joined_date || c.created_at);
+                              return joinedStr ? `Joined ${joinedStr}` : (c.contractor_type || 'Contractor');
+                            })()}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -531,7 +555,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                               </span>
                             )}
                           </div>
-                          <div className="text-[#8B949E] text-xs mt-0.5">Joined {new Date(p.created_at).toLocaleDateString()}</div>
+                          <div className="text-[#8B949E] text-xs mt-0.5">
+                            {(() => {
+                              const joinedStr = formatJoinedDate(p.joined_date || p.created_at);
+                              return joinedStr ? `Joined ${joinedStr}` : (p.provider_type || 'Provider');
+                            })()}
+                          </div>
                         </div>
                       </div>
                     </td>

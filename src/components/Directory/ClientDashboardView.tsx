@@ -191,9 +191,17 @@ export default function ClientDashboardView() {
                 </span>
               )}
             </h2>
-            <div className="text-[#8B949E] text-sm mt-1">
-              Joined {new Date(client.joined_date || client.created_at).toLocaleDateString()}
-            </div>
+            {(() => {
+              const dateVal = client.joined_date || client.created_at;
+              if (!dateVal) return null;
+              const d = new Date(dateVal);
+              if (isNaN(d.getTime())) return null;
+              return (
+                <div className="text-[#8B949E] text-sm mt-1">
+                  Joined {d.toLocaleDateString()}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -288,12 +296,17 @@ export default function ClientDashboardView() {
                   <Home className="w-4 h-4 text-[#8B949E] shrink-0 mt-0.5" />
                   <span className="text-[#E6EDF3] leading-relaxed">{client.address || 'No address provided'}</span>
                 </div>
-                {client.dob && (
-                  <div className="flex items-start space-x-3 text-sm">
-                    <Calendar className="w-4 h-4 text-[#8B949E] shrink-0 mt-0.5" />
-                    <span className="text-[#E6EDF3]">DOB: {new Date(client.dob).toLocaleDateString()}</span>
-                  </div>
-                )}
+                {(() => {
+                  if (!client.dob) return null;
+                  const d = new Date(client.dob);
+                  if (isNaN(d.getTime())) return null;
+                  return (
+                    <div className="flex items-start space-x-3 text-sm">
+                      <Calendar className="w-4 h-4 text-[#8B949E] shrink-0 mt-0.5" />
+                      <span className="text-[#E6EDF3]">DOB: {d.toLocaleDateString()}</span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
