@@ -827,8 +827,10 @@ export default function RosterCalendar() {
     }
 
     const isSelected = multiSelectMode && selectedEventIds.has(event.id);
+    const isInProgress = event.status === 'IN_PROGRESS';
+    const isUnassigned = !event.staffId && !event.isRespiteWrapper;
 
-    let backgroundColor = '#0ea5e9'; // brand-blue
+    let backgroundColor: string | undefined = '#0ea5e9'; // brand-blue
     let border = isSelected ? '2px solid white' : 'none';
     let backgroundImage = 'none';
 
@@ -837,7 +839,10 @@ export default function RosterCalendar() {
       border = isSelected ? '2px solid white' : '1px dashed #a1a1aa'; // zinc-400
     }
     if (event.status === 'COMPLETED') backgroundColor = '#a3e635'; // brand-green
-    if (event.status === 'IN_PROGRESS') backgroundColor = '#38bdf8'; // light blue
+    if (isInProgress) {
+      // In-progress shifts slowly transition colours between published blue and completed green via CSS animation
+      backgroundColor = undefined;
+    }
     if (event.status === 'PENDING_SYNC') backgroundColor = '#f59e0b'; // amber-500
     if (event.status === 'CANCELLED') backgroundColor = '#ef4444'; // red-500
     
@@ -846,21 +851,32 @@ export default function RosterCalendar() {
       border = isSelected ? '2px solid white' : '1px inset #7c3aed';
     }
 
-    const isUnassigned = !event.staffId && !event.isRespiteWrapper;
-    let className = isUnassigned ? 'unassigned-shift-animated' : '';
+    const classList: string[] = [];
+    if (isUnassigned) classList.push('unassigned-shift-animated');
+    if (isInProgress) classList.push('in-progress-shift-animated');
+    const className = classList.join(' ');
+
+    let textColor: string | undefined;
+    if (isInProgress) {
+      textColor = undefined; // animated between white and dark slate via CSS keyframes for optimal contrast
+    } else if (event.status === 'COMPLETED' || event.status === 'PENDING_SYNC') {
+      textColor = '#0b1120';
+    } else {
+      textColor = 'white';
+    }
 
     return {
       className,
       style: {
         backgroundColor,
         borderRadius: '6px',
-        opacity: isSelected ? 1 : 0.9,
-        color: (event.status === 'COMPLETED' || event.status === 'PENDING_SYNC') ? '#0b1120' : 'white',
+        opacity: isSelected ? 1 : (isInProgress ? 1 : 0.9),
+        color: textColor,
         border,
         display: 'block',
         fontSize: '12px',
         fontWeight: 600,
-        boxShadow: isSelected ? '0 0 0 2px rgba(14, 165, 233, 0.5)' : 'none',
+        boxShadow: isSelected ? '0 0 0 2px rgba(14, 165, 233, 0.5)' : undefined,
       },
     };
   };
@@ -996,8 +1012,8 @@ export default function RosterCalendar() {
          containerClass += 'opacity-80 border-l-[6px] border-brand-green bg-brand-green/10 hover:bg-brand-green/20';
          badgeClass = 'text-brand-green bg-brand-green/20 border-brand-green/30';
       } else if (isInProgress) {
-         containerClass += 'border-l-[6px] border-blue-400 bg-blue-500/10 hover:bg-blue-500/20 ring-1 ring-blue-500/30';
-         badgeClass = 'text-blue-400 bg-blue-500/20 border-blue-500/30';
+         containerClass += 'border-l-[6px] border-blue-400 bg-blue-500/10 hover:bg-blue-500/20 ring-1 ring-blue-500/30 in-progress-agenda-item ';
+         badgeClass = 'in-progress-agenda-badge border';
          badgeLabel = 'In Progress';
       } else {
          containerClass += 'border-l-[6px] border-zinc-700 bg-zinc-800/20 hover:bg-zinc-800/40';
