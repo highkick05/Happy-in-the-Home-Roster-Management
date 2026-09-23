@@ -11477,10 +11477,22 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         ? (shift.client_address.split(',')[1]?.trim() || shift.client_address)
         : null;
 
+      const rawTz = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
+      let portalTimezone = "Australia/Perth";
+      if (rawTz && rawTz.value) {
+        try {
+          const parsed = JSON.parse(rawTz.value);
+          portalTimezone = String(parsed || "").replace(/['"]+/g, "").trim() || "Australia/Perth";
+        } catch {
+          portalTimezone = String(rawTz.value).replace(/['"]+/g, "").trim() || "Australia/Perth";
+        }
+      }
+
       res.json({
         id: shift.id,
         start_time: shift.start_time,
         end_time: shift.end_time,
+        timezone: portalTimezone,
         status: shift.status,
         service_name: shift.service_name,
         service_type: shift.service_type,
@@ -11612,16 +11624,31 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
 
       const claimUrl = `${appUrl}/shifts/claim/${shift.id}`;
 
+      // Resolve portal timezone from settings (default to Australia/Perth)
+      const rawTz = settings.timezone || "Australia/Perth";
+      const portalTimezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "").trim() : (rawTz || "Australia/Perth");
+
       const startDate = new Date(shift.start_time);
       const endDate = new Date(shift.end_time);
       const formattedDate = startDate.toLocaleDateString('en-GB', {
         weekday: 'long',
         day: '2-digit',
         month: 'long',
-        year: 'numeric'
+        year: 'numeric',
+        timeZone: portalTimezone
       });
-      const formattedStartTime = startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const formattedEndTime = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const formattedStartTime = startDate.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: portalTimezone
+      });
+      const formattedEndTime = endDate.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: portalTimezone
+      });
       const durationHours = ((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60)).toFixed(2);
       const serviceTitle = shift.service_name || shift.service_type || "Support & Care";
       const serviceType = shift.service_type || shift.service_name || "Support & Care";
@@ -11871,16 +11898,28 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         const client = db.prepare("SELECT first_name, last_name FROM clients WHERE id = ?").get(currentShift.client_id) as any;
         const clientName = client ? `${client.first_name} ${client.last_name}` : "Client";
 
+        const rawTz = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
+        let portalTimezone = "Australia/Perth";
+        if (rawTz && rawTz.value) {
+          try {
+            const parsed = JSON.parse(rawTz.value);
+            portalTimezone = String(parsed || "").replace(/['"]+/g, "").trim() || "Australia/Perth";
+          } catch {
+            portalTimezone = String(rawTz.value).replace(/['"]+/g, "").trim() || "Australia/Perth";
+          }
+        }
+
         const startDate = new Date(currentShift.start_time);
         const endDate = new Date(currentShift.end_time);
         const formattedDate = startDate.toLocaleDateString('en-GB', {
           weekday: 'short',
           day: '2-digit',
           month: 'short',
-          year: 'numeric'
+          year: 'numeric',
+          timeZone: portalTimezone
         });
-        const formattedStartTime = startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const formattedEndTime = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const formattedStartTime = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: portalTimezone });
+        const formattedEndTime = endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: portalTimezone });
         const shiftTiming = `${formattedDate} (${formattedStartTime} - ${formattedEndTime})`;
 
         // Notify claiming staff

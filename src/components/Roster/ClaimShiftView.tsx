@@ -7,6 +7,7 @@ interface ShiftClaimDetails {
   id: number;
   start_time: string;
   end_time: string;
+  timezone?: string;
   service_name?: string;
   service_type?: string;
   client_suburb?: string;
@@ -106,7 +107,8 @@ export default function ClaimShiftView() {
         weekday: 'long',
         day: '2-digit',
         month: 'long',
-        year: 'numeric'
+        year: 'numeric',
+        timeZone: shift?.timezone || 'Australia/Perth'
       });
     } catch {
       return startStr;
@@ -117,8 +119,9 @@ export default function ClaimShiftView() {
     try {
       const s = new Date(startStr);
       const e = new Date(endStr);
-      const startFmt = s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const endFmt = e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const tz = shift?.timezone || 'Australia/Perth';
+      const startFmt = s.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz });
+      const endFmt = e.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz });
       const durationHours = ((e.getTime() - s.getTime()) / (1000 * 60 * 60)).toFixed(2);
       return `${startFmt} - ${endFmt} (${durationHours} hrs)`;
     } catch {
