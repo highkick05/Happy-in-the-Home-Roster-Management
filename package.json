@@ -38,6 +38,7 @@
     "awesome-quotes": "^0.2.1",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.11.1",
+    "clicksend": "^7.0.0",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "crypto": "^1.0.1",

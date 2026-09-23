@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import {  Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download , RefreshCw } from 'lucide-react';
+import {  Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download , RefreshCw, MessageSquare } from 'lucide-react';
 import DatabaseSettings from './DatabaseSettings';
 import TestingChecklist from './TestingChecklist';
 import FundingTypesSettings from './FundingTypesSettings';
@@ -9,7 +9,7 @@ import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 export default function SettingsView() {
   const { token, user, updateSettings } = useAuth();
-  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'CHAT' | 'EMAIL' | 'EMAIL_WIDGET' | 'FUNDING_TYPES' | 'DATABASE' | 'TESTING'>('settings_active_tab', 'GENERAL');
+  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'CHAT' | 'EMAIL' | 'EMAIL_WIDGET' | 'FUNDING_TYPES' | 'DATABASE' | 'TESTING' | 'SMS'>('settings_active_tab', 'GENERAL');
   const [services, setServices] = useState<any[]>([]);
   const [priceLists, setPriceLists] = useState<any[]>([]);
   const [showPriceListModal, setShowPriceListModal] = useState(false);
@@ -72,6 +72,8 @@ export default function SettingsView() {
     smtpPassInvoices: '',
     smtpFromInvoices: '',
     smtpSecurityInvoices: 'STARTTLS',
+    clicksend_username: '',
+    clicksend_api_key: '',
     invoiceEmailSignature: `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; max-width: 450px;">
   <tbody><tr>
     <td style="padding-bottom: 20px;">
@@ -171,7 +173,7 @@ export default function SettingsView() {
   };
 
   useEffect(() => {
-    if (activeTab === 'GENERAL' || activeTab === 'BILLING' || activeTab === 'BRANDING' || activeTab === 'EMAIL' || activeTab === 'CHAT') fetchSettings();
+    if (activeTab === 'GENERAL' || activeTab === 'BILLING' || activeTab === 'BRANDING' || activeTab === 'EMAIL' || activeTab === 'CHAT' || activeTab === 'SMS') fetchSettings();
     if (activeTab === 'CHAT') fetchChatMediaFiles();
     if (activeTab === 'NDIS' || activeTab === 'HOME_CARE') fetchServices(activeTab);
     if (activeTab === 'NDIS') fetchPriceLists();
@@ -848,6 +850,13 @@ export default function SettingsView() {
               <Database className="w-3.5 h-3.5" />
               Database
             </button>
+            <button
+              onClick={() => setActiveTab('SMS')}
+              className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider flex items-center gap-2 ${activeTab === 'SMS' ? 'bg-brand-bg text-[#E6EDF3] shadow-sm' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              SMS Settings (ClickSend)
+            </button>
           </>
         )}
       </div>
@@ -1124,6 +1133,22 @@ export default function SettingsView() {
         
         {activeTab === 'EMAIL' && (
           <div className="p-4 max-w-4xl">
+            <div className="flex border-b border-border-subtle mb-6 gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('EMAIL')}
+                className="pb-2.5 px-3 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 border-brand-teal text-[#E6EDF3]"
+              >
+                Tab 1: Email Settings
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('SMS')}
+                className="pb-2.5 px-3 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 border-transparent text-[#8B949E] hover:text-[#E6EDF3]"
+              >
+                Tab 2: SMS Settings (ClickSend)
+              </button>
+            </div>
             <div className="mb-4">
               <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">Email Settings</h3>
               <p className="text-xs text-[#8B949E] mt-0">Configure your SMTP server settings for sending emails (password resets, invoices, compliance alerts).</p>
@@ -1242,6 +1267,85 @@ export default function SettingsView() {
                   )}
                 </div>
               )}
+            </form>
+          </div>
+        )}
+
+        {activeTab === 'SMS' && (
+          <div className="p-4 max-w-4xl">
+            <div className="flex border-b border-border-subtle mb-6 gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('EMAIL')}
+                className="pb-2.5 px-3 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 border-transparent text-[#8B949E] hover:text-[#E6EDF3]"
+              >
+                Tab 1: Email Settings
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('SMS')}
+                className="pb-2.5 px-3 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 border-brand-teal text-[#E6EDF3]"
+              >
+                Tab 2: SMS Settings (ClickSend)
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">SMS Settings (ClickSend)</h3>
+              <p className="text-xs text-[#8B949E] mt-0">
+                Configure your ClickSend credentials to broadcast available shift offers and notifications via SMS directly to support workers.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveSettings} className="space-y-4">
+              {successMsg && (
+                <div className="p-3 bg-brand-green/20 text-brand-green border border-brand-green/50 rounded-md text-sm">
+                  {successMsg}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">
+                    ClickSend Username
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.clicksend_username || ''}
+                    onChange={(e) =>
+                      setSettings({ ...settings, clicksend_username: e.target.value })
+                    }
+                    className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]"
+                    placeholder="e.g. clicksend_user or user@email.com"
+                  />
+                </div>
+
+                <div className="col-span-1">
+                  <label className="block text-xs font-medium text-[#8B949E] mb-2">
+                    ClickSend API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={settings.clicksend_api_key || ''}
+                    onChange={(e) =>
+                      setSettings({ ...settings, clicksend_api_key: e.target.value })
+                    }
+                    className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal transition-colors placeholder-[#8B949E]"
+                    placeholder="Enter ClickSend API key"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end">
+                <button
+                  type="submit"
+                  disabled={generalLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-brand-teal text-[#0D1117] font-medium text-xs rounded-md hover:bg-brand-teal/90 transition-colors disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {generalLoading ? 'Saving...' : 'Save Settings'}
+                </button>
+              </div>
             </form>
           </div>
         )}

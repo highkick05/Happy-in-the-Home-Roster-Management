@@ -1,5 +1,6 @@
 import "express-async-errors";
 import webpush from 'web-push';
+import clicksend from 'clicksend';
 
 import { getUnreadCount } from "./getUnreadEmails";
 const VAPID_PUBLIC_KEY = 'BJJipdW8yPjurHatAx-yKuxglYM9TVFau8jQUsbPK5ybbYUotCGx6Y3zd6sOCQkeWBsfrHYHgwZYKzwp8BBv2_0';
@@ -703,6 +704,20 @@ try {
       );
     `);
     console.log("[DEBUG] Created settings table if missing");
+    try {
+      const settingsCols = db.prepare("PRAGMA table_info(settings)").all() as any[];
+      if (!settingsCols.some(c => c.name === 'id')) {
+        db.exec("ALTER TABLE settings ADD COLUMN id INTEGER DEFAULT 1");
+      }
+      if (!settingsCols.some(c => c.name === 'clicksend_username')) {
+        db.exec("ALTER TABLE settings ADD COLUMN clicksend_username TEXT");
+      }
+      if (!settingsCols.some(c => c.name === 'clicksend_api_key')) {
+        db.exec("ALTER TABLE settings ADD COLUMN clicksend_api_key TEXT");
+      }
+    } catch(migErr: any) {
+      console.warn("Migration notice for settings table:", migErr.message);
+    }
 
   try {
     const usersCols = db.pragma("table_info(users)") as any[];
@@ -4788,7 +4803,7 @@ function getUnreadChatCount(db: any, userId: number) {
 
   app.get("/api/settings", authenticateToken, requireAdmin, (req, res) => {
     try {
-      const rows = db.prepare("SELECT key, value FROM settings").all() as any[];
+      const rows = db.prepare("SELECT * FROM settings").all() as any[];
       const settings = rows.reduce(
         (acc, row) => {
           let parsed = row.value;
@@ -4799,6 +4814,18 @@ function getUnreadChatCount(db: any, userId: number) {
         },
         {} as any,
       );
+
+      // Check if clicksend_username or clicksend_api_key are populated in the columns
+      const clicksendRow = rows.find(r => r.clicksend_username !== undefined && r.clicksend_username !== null);
+      if (clicksendRow) {
+        if (!settings.clicksend_username && clicksendRow.clicksend_username) {
+          settings.clicksend_username = clicksendRow.clicksend_username;
+        }
+        if (!settings.clicksend_api_key && clicksendRow.clicksend_api_key) {
+          settings.clicksend_api_key = clicksendRow.clicksend_api_key;
+        }
+      }
+
       res.json(settings);
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -4871,7 +4898,7 @@ function getUnreadChatCount(db: any, userId: number) {
     }
   });
 
-  app.put("/api/settings", authenticateToken, requireAdmin, (req, res) => {
+  const handleSaveSettingsRequest = (req: any, res: any) => {
     try {
       const settings = req.body;
       const stmt = db.prepare(
@@ -4883,12 +4910,32 @@ function getUnreadChatCount(db: any, userId: number) {
         }
       });
       insertMany(settings);
+
+      // Persist clicksend_username and clicksend_api_key to table columns if present
+      const cUsername = settings.clicksend_username !== undefined ? settings.clicksend_username : settings.clicksendUsername;
+      const cApiKey = settings.clicksend_api_key !== undefined ? settings.clicksend_api_key : settings.clicksendApiKey;
+
+      if (cUsername !== undefined || cApiKey !== undefined) {
+        try {
+          db.prepare(`
+            UPDATE settings 
+            SET clicksend_username = COALESCE(?, clicksend_username),
+                clicksend_api_key = COALESCE(?, clicksend_api_key)
+          `).run(cUsername !== undefined ? cUsername : null, cApiKey !== undefined ? cApiKey : null);
+        } catch (colErr: any) {
+          logger.warn(`Could not update settings clicksend columns: ${colErr.message}`);
+        }
+      }
+
       res.json({ success: true, settings });
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: "Internal Server Error" });
     }
-  });
+  };
+
+  app.put("/api/settings", authenticateToken, requireAdmin, handleSaveSettingsRequest);
+  app.post("/api/settings", authenticateToken, requireAdmin, handleSaveSettingsRequest);
   app.get("/api/emails/unread-count", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const stmt = db.prepare("SELECT value FROM settings WHERE key = ?");
@@ -11478,19 +11525,18 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         return res.status(400).json({ error: "This shift is already assigned to a staff member." });
       }
 
-      // Query exact email addresses for selected staff profiles
+      // Query contact info (email and mobile/phone) for selected staff profiles
       const placeholders = staff_ids.map(() => '?').join(',');
       const staffList = db.prepare(`
-        SELECT id, first_name, last_name, email 
+        SELECT id, first_name, last_name, email, phone as mobile_number, phone 
         FROM users 
         WHERE id IN (${placeholders}) 
           AND status != 'INACTIVE' 
-          AND email IS NOT NULL 
-          AND email != ''
+          AND ((email IS NOT NULL AND email != '') OR (phone IS NOT NULL AND phone != ''))
       `).all(...staff_ids) as any[];
 
       if (staffList.length === 0) {
-        return res.status(400).json({ error: "None of the selected staff have a valid active email address." });
+        return res.status(400).json({ error: "None of the selected staff have a valid active email or mobile number." });
       }
 
       // Retrieve SMTP credentials from settings or environment
@@ -11517,6 +11563,41 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         },
       });
 
+      // Retrieve ClickSend credentials directly from settings WHERE id = 1
+      let clicksendUsername = "";
+      let clicksendApiKey = "";
+      try {
+        const csRow = db.prepare("SELECT clicksend_username, clicksend_api_key FROM settings WHERE id = 1 LIMIT 1").get() as any;
+        if (csRow) {
+          clicksendUsername = (csRow.clicksend_username || "").trim();
+          clicksendApiKey = (csRow.clicksend_api_key || "").trim();
+        }
+      } catch (err: any) {
+        logger.warn(`ClickSend query by id=1 notice: ${err.message}`);
+      }
+
+      if (!clicksendUsername || !clicksendApiKey) {
+        try {
+          if (settings.clicksend_username) clicksendUsername = String(settings.clicksend_username).trim();
+          if (settings.clicksend_api_key) clicksendApiKey = String(settings.clicksend_api_key).trim();
+          if (!clicksendUsername && settings.clicksendUsername) clicksendUsername = String(settings.clicksendUsername).trim();
+          if (!clicksendApiKey && settings.clicksendApiKey) clicksendApiKey = String(settings.clicksendApiKey).trim();
+        } catch {}
+      }
+
+      // Initialize ClickSend dynamically
+      let smsApi: any = null;
+      if (clicksendUsername && clicksendApiKey) {
+        try {
+          const SmsApiClass = (clicksend as any).SmsApi || (clicksend as any).default?.SmsApi;
+          if (SmsApiClass) {
+            smsApi = new SmsApiClass(clicksendUsername, clicksendApiKey);
+          }
+        } catch (csInitErr: any) {
+          logger.error(`Error initializing ClickSend SmsApi: ${csInitErr}`);
+        }
+      }
+
       const appUrl =
         req.headers.origin ||
         (req.headers.referer ? new URL(req.headers.referer).origin : null) ||
@@ -11538,14 +11619,65 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       const formattedEndTime = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const durationHours = ((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60)).toFixed(2);
       const serviceTitle = shift.service_name || shift.service_type || "Support & Care";
+      const serviceType = shift.service_type || shift.service_name || "Support & Care";
       const fullAddress = shift.client_address ? shift.client_address.trim() : '';
       const clientSuburb = fullAddress
         ? (fullAddress.split(',')[1]?.trim() || fullAddress)
         : '';
       const area = clientSuburb ? `(${clientSuburb})` : '';
 
-      let sentCount = 0;
+      // Prepare SMS formatted text matching the exact requirement
+      const shiftTime = `${formattedStartTime} - ${formattedEndTime}`;
+      const clientFullAddress = fullAddress || "Client Address";
+
+      let emailSentCount = 0;
+      let smsSentCount = 0;
       for (const staff of staffList) {
+        const smsMessage = `Hello ${staff.first_name}, HAPPY IN THE HOME: New ${serviceType} shift available on ${formattedDate}, ${shiftTime} at ${clientFullAddress}. Claim it first here: ${claimUrl}`;
+
+        // SMS Dispatch via ClickSend
+        const mobile = (staff.mobile_number || staff.phone || "").trim();
+        if (mobile) {
+          try {
+            if (smsApi) {
+              await smsApi.sendSms({
+                sendSmsRequest: {
+                  messages: [
+                    {
+                      to: mobile,
+                      body: smsMessage,
+                      source: "node"
+                    }
+                  ]
+                }
+              });
+              smsSentCount++;
+            } else if (clicksendUsername && clicksendApiKey) {
+              const authHeader = 'Basic ' + Buffer.from(`${clicksendUsername}:${clicksendApiKey}`).toString('base64');
+              await fetch('https://rest.clicksend.com/v3/sms/send', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': authHeader
+                },
+                body: JSON.stringify({
+                  messages: [
+                    {
+                      to: mobile,
+                      body: smsMessage,
+                      source: 'node'
+                    }
+                  ]
+                })
+              });
+              smsSentCount++;
+            } else {
+              logger.warn(`ClickSend credentials not configured. Skipping SMS to ${staff.first_name} (${mobile}).`);
+            }
+          } catch (smsErr) {
+            logger.error(`Failed to send SMS to ${staff.first_name} (${mobile}): ${smsErr}`);
+          }
+        }
         const emailHtml = `
 <!DOCTYPE html>
 <html>
@@ -11647,22 +11779,25 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
 </html>
         `;
 
-        try {
-          await transporter.sendMail({
-            from: '"Happy in the Home" <info@happyinthehome.org>',
-            to: staff.email,
-            subject: `Available Shift Offer: ${serviceTitle} - ${formattedDate} ${area}`.trim(),
-            html: emailHtml,
-          });
-          sentCount++;
-        } catch (mailErr) {
-          logger.error(`Failed to send broadcast email to ${staff.email}: ${mailErr}`);
+        if (staff.email) {
+          try {
+            await transporter.sendMail({
+              from: '"Happy in the Home" <info@happyinthehome.org>',
+              to: staff.email,
+              subject: `Available Shift Offer: ${serviceTitle} - ${formattedDate} ${area}`.trim(),
+              html: emailHtml,
+            });
+            emailSentCount++;
+          } catch (mailErr) {
+            logger.error(`Failed to send broadcast email to ${staff.email}: ${mailErr}`);
+          }
         }
       }
 
       res.json({
         success: true,
-        dispatchedCount: sentCount,
+        dispatchedCount: emailSentCount,
+        smsDispatchedCount: smsSentCount,
         totalSelected: staffList.length
       });
     } catch (e: any) {
