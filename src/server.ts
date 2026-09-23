@@ -11585,13 +11585,18 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         } catch {}
       }
 
-      // Initialize ClickSend dynamically
+      // Initialize ClickSend dynamically with proper Configuration
       let smsApi: any = null;
       if (clicksendUsername && clicksendApiKey) {
         try {
+          const ConfigurationClass = (clicksend as any).Configuration || (clicksend as any).default?.Configuration;
           const SmsApiClass = (clicksend as any).SmsApi || (clicksend as any).default?.SmsApi;
-          if (SmsApiClass) {
-            smsApi = new SmsApiClass(clicksendUsername, clicksendApiKey);
+          if (ConfigurationClass && SmsApiClass) {
+            const config = new ConfigurationClass({
+              username: clicksendUsername,
+              password: clicksendApiKey,
+            });
+            smsApi = new SmsApiClass(config);
           }
         } catch (csInitErr: any) {
           logger.error(`Error initializing ClickSend SmsApi: ${csInitErr}`);
@@ -11636,8 +11641,11 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         const smsMessage = `Hello ${staff.first_name}, HAPPY IN THE HOME: New ${serviceType} shift available on ${formattedDate}, ${shiftTime} at ${clientFullAddress}. Claim it first here: ${claimUrl}`;
 
         // SMS Dispatch via ClickSend
-        const mobile = (staff.mobile_number || staff.phone || "").trim();
+        let mobile = (staff.mobile_number || staff.phone || "").trim().replace(/[\s\-\(\)]/g, '');
         if (mobile) {
+          if (mobile.startsWith('0') && mobile.length === 10) {
+            mobile = '+61' + mobile.slice(1);
+          }
           try {
             if (smsApi) {
               await smsApi.sendSms({
@@ -11654,7 +11662,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
               smsSentCount++;
             } else if (clicksendUsername && clicksendApiKey) {
               const authHeader = 'Basic ' + Buffer.from(`${clicksendUsername}:${clicksendApiKey}`).toString('base64');
-              await fetch('https://rest.clicksend.com/v3/sms/send', {
+              const csRes = await fetch('https://rest.clicksend.com/v3/sms/send', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -11670,7 +11678,12 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                   ]
                 })
               });
-              smsSentCount++;
+              if (csRes.ok) {
+                smsSentCount++;
+              } else {
+                const errBody = await csRes.text();
+                logger.error(`ClickSend REST API error (${csRes.status}): ${errBody}`);
+              }
             } else {
               logger.warn(`ClickSend credentials not configured. Skipping SMS to ${staff.first_name} (${mobile}).`);
             }

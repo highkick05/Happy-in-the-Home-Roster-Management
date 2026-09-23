@@ -1133,22 +1133,6 @@ export default function SettingsView() {
         
         {activeTab === 'EMAIL' && (
           <div className="p-4 max-w-4xl">
-            <div className="flex border-b border-border-subtle mb-6 gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab('EMAIL')}
-                className="pb-2.5 px-3 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 border-brand-teal text-[#E6EDF3]"
-              >
-                Tab 1: Email Settings
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('SMS')}
-                className="pb-2.5 px-3 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 border-transparent text-[#8B949E] hover:text-[#E6EDF3]"
-              >
-                Tab 2: SMS Settings (ClickSend)
-              </button>
-            </div>
             <div className="mb-4">
               <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">Email Settings</h3>
               <p className="text-xs text-[#8B949E] mt-0">Configure your SMTP server settings for sending emails (password resets, invoices, compliance alerts).</p>
@@ -1273,23 +1257,6 @@ export default function SettingsView() {
 
         {activeTab === 'SMS' && (
           <div className="p-4 max-w-4xl">
-            <div className="flex border-b border-border-subtle mb-6 gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab('EMAIL')}
-                className="pb-2.5 px-3 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 border-transparent text-[#8B949E] hover:text-[#E6EDF3]"
-              >
-                Tab 1: Email Settings
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('SMS')}
-                className="pb-2.5 px-3 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 border-brand-teal text-[#E6EDF3]"
-              >
-                Tab 2: SMS Settings (ClickSend)
-              </button>
-            </div>
-
             <div className="mb-4">
               <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">SMS Settings (ClickSend)</h3>
               <p className="text-xs text-[#8B949E] mt-0">
