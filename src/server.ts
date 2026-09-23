@@ -11718,6 +11718,18 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         const client = db.prepare("SELECT first_name, last_name FROM clients WHERE id = ?").get(currentShift.client_id) as any;
         const clientName = client ? `${client.first_name} ${client.last_name}` : "Client";
 
+        const startDate = new Date(currentShift.start_time);
+        const endDate = new Date(currentShift.end_time);
+        const formattedDate = startDate.toLocaleDateString('en-GB', {
+          weekday: 'short',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        });
+        const formattedStartTime = startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const formattedEndTime = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const shiftTiming = `${formattedDate} (${formattedStartTime} - ${formattedEndTime})`;
+
         // Notify claiming staff
         db.prepare(
           "INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)"
@@ -11725,12 +11737,12 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           staffId,
           "SHIFT_CLAIMED",
           "Shift Confirmed",
-          `You have successfully claimed the shift with ${clientName}.`,
+          `You have successfully claimed the shift with ${clientName} on ${shiftTiming}.`,
           "/roster"
         );
 
         // Notify admins that the shift was claimed
-        const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN'").all() as any[];
+        const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN' OR can_switch_admin = 1").all() as any[];
         const insertAdminNotif = db.prepare(
           "INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)"
         );
@@ -11739,7 +11751,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
             admin.id,
             "SHIFT_CLAIMED",
             "Shift Claimed",
-            `${staffName} has claimed the unassigned shift with ${clientName}.`,
+            `${staffName} has claimed the unassigned shift with ${clientName} on ${shiftTiming}.`,
             "/roster"
           );
         }
