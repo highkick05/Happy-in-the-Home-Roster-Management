@@ -10,6 +10,7 @@ interface ShiftClaimDetails {
   service_name?: string;
   service_type?: string;
   client_suburb?: string;
+  client_address?: string;
   notes?: string;
   status: string;
   is_unassigned: boolean;
@@ -267,14 +268,14 @@ export default function ClaimShiftView() {
                   </div>
                 </div>
 
-                {shift.client_suburb && (
+                {(shift.client_address || shift.client_suburb) && (
                   <div className="flex items-start gap-3">
                     <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 mt-0.5">
                       <MapPin className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider">Location / Suburb</p>
-                      <p className="text-sm font-bold text-zinc-100">{shift.client_suburb}</p>
+                      <p className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider">Location</p>
+                      <p className="text-sm font-bold text-zinc-100">{shift.client_address || shift.client_suburb}</p>
                     </div>
                   </div>
                 )}

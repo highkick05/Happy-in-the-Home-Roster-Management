@@ -11538,8 +11538,9 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       const formattedEndTime = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const durationHours = ((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60)).toFixed(2);
       const serviceTitle = shift.service_name || shift.service_type || "Support & Care";
-      const clientSuburb = shift.client_address
-        ? (shift.client_address.split(',')[1]?.trim() || shift.client_address)
+      const fullAddress = shift.client_address ? shift.client_address.trim() : '';
+      const clientSuburb = fullAddress
+        ? (fullAddress.split(',')[1]?.trim() || fullAddress)
         : '';
       const area = clientSuburb ? `(${clientSuburb})` : '';
 
@@ -11602,10 +11603,10 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                         <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #71717a;">Time:</td>
                         <td style="font-size: 14px; font-weight: 600; color: #e4e4e7;">${formattedStartTime} - ${formattedEndTime} <span style="font-size: 12px; color: #a1a1aa;">(${durationHours} hrs)</span></td>
                       </tr>
-                      ${clientSuburb ? `
+                      ${fullAddress ? `
                       <tr>
                         <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #71717a;">Location:</td>
-                        <td style="font-size: 14px; font-weight: 600; color: #e4e4e7;">${clientSuburb}</td>
+                        <td style="font-size: 14px; font-weight: 600; color: #e4e4e7;">${fullAddress}</td>
                       </tr>` : ''}
                     </table>
                   </td>
