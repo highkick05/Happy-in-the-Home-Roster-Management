@@ -11494,7 +11494,12 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       }
 
       // Retrieve SMTP credentials from settings or environment
-      const settings = (db.prepare("SELECT * FROM settings WHERE id = 1").get() as any) || {};
+      const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+      const settings = settingsRows.reduce((acc, row) => {
+        let parsed = row.value;
+        try { parsed = JSON.parse(row.value); } catch {}
+        return { ...acc, [row.key]: parsed };
+      }, {} as any);
       const smtpPass = process.env.SMTP_PASS || process.env.SMTP_PASSWORD || settings.smtpPass || settings.smtpPassInvoices || "";
 
       // Stalwart SMTP STARTTLS Transport on Port 587
