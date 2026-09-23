@@ -11411,7 +11411,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
     try {
       const shift = db.prepare(`
         SELECT s.id, s.start_time, s.end_time, s.status, s.staff_id, s.notes,
-               c.first_name as client_first_name, c.suburb as client_suburb,
+               c.first_name as client_first_name, c.address as client_address,
                srv.name as service_name, srv.type as service_type,
                u.first_name as staff_first_name, u.last_name as staff_last_name
         FROM shifts s
@@ -11426,6 +11426,9 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       }
 
       const is_unassigned = !shift.staff_id;
+      const client_suburb = shift.client_address
+        ? (shift.client_address.split(',')[1]?.trim() || shift.client_address)
+        : null;
 
       res.json({
         id: shift.id,
@@ -11434,7 +11437,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         status: shift.status,
         service_name: shift.service_name,
         service_type: shift.service_type,
-        client_suburb: shift.client_suburb,
+        client_suburb: client_suburb,
+        client_address: shift.client_address,
         notes: shift.notes,
         is_unassigned: is_unassigned,
         assigned_staff_name: !is_unassigned && shift.staff_first_name ? `${shift.staff_first_name} ${shift.staff_last_name}` : null
@@ -11458,7 +11462,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       const shift = db.prepare(`
         SELECT s.*, 
                c.first_name as client_first_name, c.last_name as client_last_name,
-               c.suburb as client_suburb,
+               c.address as client_address,
                srv.name as service_name, srv.type as service_type
         FROM shifts s
         LEFT JOIN clients c ON s.client_id = c.id
@@ -11529,7 +11533,10 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       const formattedEndTime = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const durationHours = ((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60)).toFixed(2);
       const serviceTitle = shift.service_name || shift.service_type || "Support & Care";
-      const area = shift.client_suburb ? `(${shift.client_suburb})` : '';
+      const clientSuburb = shift.client_address
+        ? (shift.client_address.split(',')[1]?.trim() || shift.client_address)
+        : '';
+      const area = clientSuburb ? `(${clientSuburb})` : '';
 
       let sentCount = 0;
       for (const staff of staffList) {
@@ -11590,10 +11597,10 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                         <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #71717a;">Time:</td>
                         <td style="font-size: 14px; font-weight: 600; color: #e4e4e7;">${formattedStartTime} - ${formattedEndTime} <span style="font-size: 12px; color: #a1a1aa;">(${durationHours} hrs)</span></td>
                       </tr>
-                      ${shift.client_suburb ? `
+                      ${clientSuburb ? `
                       <tr>
                         <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #71717a;">Location:</td>
-                        <td style="font-size: 14px; font-weight: 600; color: #e4e4e7;">${shift.client_suburb}</td>
+                        <td style="font-size: 14px; font-weight: 600; color: #e4e4e7;">${clientSuburb}</td>
                       </tr>` : ''}
                     </table>
                   </td>
@@ -11654,7 +11661,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       });
     } catch (e: any) {
       logger.error(`API Error in shift broadcast: ${e}`);
-      res.status(500).json({ error: "Internal Server Error" });
+      res.status(500).json({ error: e.message || "Internal Server Error" });
     }
   });
 
