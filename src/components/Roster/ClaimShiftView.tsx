@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { CheckCircle2, AlertCircle, Clock, Calendar, Briefcase, MapPin, ArrowRight, UserCheck, ShieldAlert, Home } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Clock, Calendar, Briefcase, MapPin, ArrowRight, UserCheck, ShieldAlert, Home, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface ShiftClaimDetails {
@@ -8,6 +8,7 @@ interface ShiftClaimDetails {
   start_time: string;
   end_time: string;
   timezone?: string;
+  client_name?: string;
   service_name?: string;
   service_type?: string;
   client_suburb?: string;
@@ -270,6 +271,18 @@ export default function ClaimShiftView() {
                     </p>
                   </div>
                 </div>
+
+                {shift.client_name && (
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 mt-0.5">
+                      <User className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider">Client</p>
+                      <p className="text-sm font-bold text-zinc-100">{shift.client_name}</p>
+                    </div>
+                  </div>
+                )}
 
                 {(shift.client_address || shift.client_suburb) && (
                   <div className="flex items-start gap-3">

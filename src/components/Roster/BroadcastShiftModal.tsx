@@ -216,9 +216,14 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
             </div>
 
             {shift.clientName && (
-              <div className="pt-2 border-t border-white/[0.04] flex items-center gap-2 text-xs text-zinc-400">
-                <User className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                <span>Client: <strong className="text-zinc-200">{shift.clientName}</strong></span>
+              <div className="pt-2 border-t border-white/[0.04] flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-400">
+                <div className="flex items-center gap-2">
+                  <User className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                  <span>Client: <strong className="text-zinc-100 font-semibold">{shift.clientName}</strong></span>
+                </div>
+                <span className="text-[11px] text-zinc-500 italic">
+                  Included in Email & SMS broadcast
+                </span>
               </div>
             )}
           </div>

@@ -11477,6 +11477,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         ? (shift.client_address.split(',')[1]?.trim() || shift.client_address)
         : null;
 
+      const clientFullName = [shift.client_first_name, shift.client_last_name].filter(Boolean).join(" ").trim() || "Client";
+
       const rawTz = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
       let portalTimezone = "Australia/Perth";
       if (rawTz && rawTz.value) {
@@ -11493,6 +11495,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         start_time: shift.start_time,
         end_time: shift.end_time,
         timezone: portalTimezone,
+        client_name: clientFullName,
         status: shift.status,
         service_name: shift.service_name,
         service_type: shift.service_type,
@@ -11661,11 +11664,12 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       // Prepare SMS formatted text matching the exact requirement
       const shiftTime = `${formattedStartTime} - ${formattedEndTime}`;
       const clientFullAddress = fullAddress || "Client Address";
+      const clientFullName = [shift.client_first_name, shift.client_last_name].filter(Boolean).join(" ").trim() || "Client";
 
       let emailSentCount = 0;
       let smsSentCount = 0;
       for (const staff of staffList) {
-        const smsMessage = `Hello ${staff.first_name}, HAPPY IN THE HOME: New ${serviceType} shift available on ${formattedDate}, ${shiftTime} at ${clientFullAddress}. Claim it first here: ${claimUrl}`;
+        const smsMessage = `Hello ${staff.first_name}, HAPPY IN THE HOME: New ${serviceType} shift for ${clientFullName} available on ${formattedDate}, ${shiftTime} at ${clientFullAddress}. Claim it first here: ${claimUrl}`;
 
         // SMS Dispatch via ClickSend
         let mobile = (staff.mobile_number || staff.phone || "").trim().replace(/[\s\-\(\)]/g, '');
@@ -11760,7 +11764,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                 Hello <strong>${staff.first_name}</strong>,
               </p>
               <p style="margin: 0 0 24px 0; font-size: 14px; color: #a1a1aa; line-height: 1.6;">
-                A new unassigned shift is available on the roster and has been offered to you. This opportunity is available on a <strong>first-come, first-served</strong> basis.
+                A new unassigned shift for <strong>${clientFullName}</strong> is available on the roster and has been offered to you. This opportunity is available on a <strong>first-come, first-served</strong> basis.
               </p>
 
               <!-- Shift Details Card -->
@@ -11769,8 +11773,12 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                   <td style="padding: 20px;">
                     <table width="100%" cellpadding="6" cellspacing="0">
                       <tr>
+                        <td width="32%" style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #71717a;">Client:</td>
+                        <td style="font-size: 14px; font-weight: 700; color: #ffffff;">${clientFullName}</td>
+                      </tr>
+                      <tr>
                         <td width="32%" style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #71717a;">Service Type:</td>
-                        <td style="font-size: 14px; font-weight: 700; color: #ffffff;">${serviceTitle}</td>
+                        <td style="font-size: 14px; font-weight: 600; color: #e4e4e7;">${serviceTitle}</td>
                       </tr>
                       <tr>
                         <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #71717a;">Date:</td>
@@ -11829,7 +11837,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
             await transporter.sendMail({
               from: '"Happy in the Home" <info@happyinthehome.org>',
               to: staff.email,
-              subject: `Available Shift Offer: ${serviceTitle} - ${formattedDate} ${area}`.trim(),
+              subject: `Available Shift Offer: ${serviceTitle} for ${clientFullName} - ${formattedDate} ${area}`.trim(),
               html: emailHtml,
             });
             emailSentCount++;
