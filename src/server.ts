@@ -11648,7 +11648,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           }
           try {
             if (smsApi) {
-              await smsApi.sendSms({
+              const csRes = await smsApi.sendSms({
                 sendSmsRequest: {
                   messages: [
                     {
@@ -11659,6 +11659,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                   ]
                 }
               });
+              const msgInfo = csRes?.data?.data?.messages?.[0];
+              logger.info(`[ClickSend] SMS dispatched to ${staff.first_name} (${mobile}) | Status: ${msgInfo?.status || 'QUEUED'} | ID: ${msgInfo?.message_id || 'N/A'}`);
               smsSentCount++;
             } else if (clicksendUsername && clicksendApiKey) {
               const authHeader = 'Basic ' + Buffer.from(`${clicksendUsername}:${clicksendApiKey}`).toString('base64');
@@ -11679,6 +11681,9 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                 })
               });
               if (csRes.ok) {
+                const csJson = await csRes.json().catch(() => ({}));
+                const msgInfo = csJson?.data?.messages?.[0];
+                logger.info(`[ClickSend] SMS dispatched via REST to ${staff.first_name} (${mobile}) | Status: ${msgInfo?.status || 'QUEUED'} | ID: ${msgInfo?.message_id || 'N/A'}`);
                 smsSentCount++;
               } else {
                 const errBody = await csRes.text();
