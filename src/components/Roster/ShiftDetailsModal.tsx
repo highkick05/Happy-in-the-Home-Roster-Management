@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, Trash2, CheckCircle, Edit, Cast, Undo2, ArrowDown, FileText, Copy } from 'lucide-react';
+import { X, Trash2, CheckCircle, Edit, Cast, Undo2, ArrowDown, FileText, Copy, Radio } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ShiftEvent } from './types';
+import BroadcastShiftModal from './BroadcastShiftModal';
 
 interface ShiftDetailsModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
   const [clientGaveNotice, setClientGaveNotice] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [internalHolidays, setInternalHolidays] = React.useState<any[]>([]);
+  const [showBroadcastModal, setShowBroadcastModal] = React.useState(false);
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -412,6 +414,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
   const isAdmin = user?.role === 'ADMIN';
   const isAssignedStaff = user?.id === shift.staffId;
   const canEdit = isAdmin; // Staff cannot edit shifts anymore
+  const isUnassigned = !shift.staffId || shift.staffName === 'Unassigned' || !shift.staffName;
 
   const handleBackgroundClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -939,6 +942,16 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                 </button>
               )}
 
+              {isAdmin && isUnassigned && !shift.isRespiteWrapper && (
+                <button 
+                  onClick={() => setShowBroadcastModal(true)}
+                  className="w-full flex items-center justify-center px-4 py-3 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 rounded-xl text-sm md:text-base font-bold transition-all shadow-sm active:scale-95"
+                >
+                  <Radio className="w-5 h-5 mr-2 text-purple-400" />
+                  Broadcast Shift
+                </button>
+              )}
+
               {isAdmin && (
                 <button 
                   onClick={handleDelete}
@@ -952,6 +965,18 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
           )}
         </div>
       </div>
+
+      {showBroadcastModal && (
+        <BroadcastShiftModal
+          isOpen={showBroadcastModal}
+          onClose={() => setShowBroadcastModal(false)}
+          shift={shift}
+          onBroadcastSuccess={() => {
+            setShowBroadcastModal(false);
+            if (onSave) onSave();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -41,6 +41,7 @@ import ChatView from './components/Chat/ChatView';
 import VehiclesView from './components/VehiclesView';
 import EmailView from './components/Email/EmailView';
 import EmailFloatingWidget from './components/Email/EmailFloatingWidget';
+import ClaimShiftView from './components/Roster/ClaimShiftView';
 import { getAvatarUrl } from './utils/avatar';
 
 
@@ -514,6 +515,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPasswordView />} />
             <Route path="/reset-password/:token" element={<ResetPasswordView />} />
+            <Route path="/shifts/claim/:id" element={<ClaimShiftView />} />
             <Route path="/kiosk/wallboard" element={<WallboardView />} />
             <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
             <Route path="/email" element={<ProtectedRoute adminOnly><Layout><EmailView /></Layout></ProtectedRoute>} />

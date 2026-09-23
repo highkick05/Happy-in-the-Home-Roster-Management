@@ -11405,6 +11405,345 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
     },
   );
 
+  // Shift Broadcast Details (for Claim screen)
+  app.get("/api/shifts/:id/claim-details", (req: any, res: any) => {
+    const { id } = req.params;
+    try {
+      const shift = db.prepare(`
+        SELECT s.id, s.start_time, s.end_time, s.status, s.staff_id, s.notes,
+               c.first_name as client_first_name, c.suburb as client_suburb,
+               srv.name as service_name, srv.type as service_type,
+               u.first_name as staff_first_name, u.last_name as staff_last_name
+        FROM shifts s
+        LEFT JOIN clients c ON s.client_id = c.id
+        LEFT JOIN services srv ON s.service_id = srv.id
+        LEFT JOIN users u ON s.staff_id = u.id
+        WHERE s.id = ?
+      `).get(id) as any;
+
+      if (!shift) {
+        return res.status(404).json({ error: "Shift not found" });
+      }
+
+      const is_unassigned = !shift.staff_id;
+
+      res.json({
+        id: shift.id,
+        start_time: shift.start_time,
+        end_time: shift.end_time,
+        status: shift.status,
+        service_name: shift.service_name,
+        service_type: shift.service_type,
+        client_suburb: shift.client_suburb,
+        notes: shift.notes,
+        is_unassigned: is_unassigned,
+        assigned_staff_name: !is_unassigned && shift.staff_first_name ? `${shift.staff_first_name} ${shift.staff_last_name}` : null
+      });
+    } catch (e: any) {
+      logger.error(`API Error in shift claim-details: ${e}`);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  // Shift Broadcast Dispatch (Admin only)
+  app.post("/api/shifts/:id/broadcast", authenticateToken, requireAdmin, async (req: any, res: any) => {
+    const { id } = req.params;
+    const { staff_ids } = req.body;
+
+    if (!Array.isArray(staff_ids) || staff_ids.length === 0) {
+      return res.status(400).json({ error: "At least one staff member must be selected" });
+    }
+
+    try {
+      const shift = db.prepare(`
+        SELECT s.*, 
+               c.first_name as client_first_name, c.last_name as client_last_name,
+               c.suburb as client_suburb,
+               srv.name as service_name, srv.type as service_type
+        FROM shifts s
+        LEFT JOIN clients c ON s.client_id = c.id
+        LEFT JOIN services srv ON s.service_id = srv.id
+        WHERE s.id = ?
+      `).get(id) as any;
+
+      if (!shift) {
+        return res.status(404).json({ error: "Shift not found" });
+      }
+
+      if (shift.staff_id) {
+        return res.status(400).json({ error: "This shift is already assigned to a staff member." });
+      }
+
+      // Query exact email addresses for selected staff profiles
+      const placeholders = staff_ids.map(() => '?').join(',');
+      const staffList = db.prepare(`
+        SELECT id, first_name, last_name, email 
+        FROM users 
+        WHERE id IN (${placeholders}) 
+          AND status != 'INACTIVE' 
+          AND email IS NOT NULL 
+          AND email != ''
+      `).all(...staff_ids) as any[];
+
+      if (staffList.length === 0) {
+        return res.status(400).json({ error: "None of the selected staff have a valid active email address." });
+      }
+
+      // Retrieve SMTP credentials from settings or environment
+      const settings = (db.prepare("SELECT * FROM settings WHERE id = 1").get() as any) || {};
+      const smtpPass = process.env.SMTP_PASS || process.env.SMTP_PASSWORD || settings.smtpPass || settings.smtpPassInvoices || "";
+
+      // Stalwart SMTP STARTTLS Transport on Port 587
+      const transporter = nodemailer.createTransport({
+        host: "mail.happyinthehome.org",
+        port: 587,
+        secure: false, // STARTTLS requires secure: false
+        requireTLS: true,
+        auth: {
+          user: "info@happyinthehome.org",
+          pass: smtpPass,
+        },
+        tls: {
+          rejectUnauthorized: false, // Allow self-hosted TLS certificates
+        },
+      });
+
+      const appUrl =
+        req.headers.origin ||
+        (req.headers.referer ? new URL(req.headers.referer).origin : null) ||
+        process.env.APP_URL ||
+        process.env.BASE_URL ||
+        "https://care.happyinthehome.org";
+
+      const claimUrl = `${appUrl}/shifts/claim/${shift.id}`;
+
+      const startDate = new Date(shift.start_time);
+      const endDate = new Date(shift.end_time);
+      const formattedDate = startDate.toLocaleDateString('en-GB', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      });
+      const formattedStartTime = startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const formattedEndTime = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const durationHours = ((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60)).toFixed(2);
+      const serviceTitle = shift.service_name || shift.service_type || "Support & Care";
+      const area = shift.client_suburb ? `(${shift.client_suburb})` : '';
+
+      let sentCount = 0;
+      for (const staff of staffList) {
+        const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Available Shift Offer</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #09090b; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f4f4f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #09090b; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" max-width="600" cellpadding="0" cellspacing="0" style="max-width: 580px; background-color: #121316; border: 1px solid #27272a; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+          <!-- Header Banner -->
+          <tr>
+            <td style="padding: 28px 32px; background: linear-gradient(135deg, #18181b 0%, #09090b 100%); border-bottom: 1px solid #27272a;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td>
+                    <span style="display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #a855f7; margin-bottom: 6px;">Support Worker Portal</span>
+                    <h1 style="margin: 0; font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">HAPPY IN THE HOME</h1>
+                  </td>
+                  <td align="right">
+                    <span style="display: inline-block; padding: 4px 10px; background-color: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.35); border-radius: 20px; font-size: 11px; font-weight: 700; color: #c084fc; text-transform: uppercase;">New Offer</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px;">
+              <p style="margin: 0 0 16px 0; font-size: 16px; color: #e4e4e7; line-height: 1.5;">
+                Hello <strong>${staff.first_name}</strong>,
+              </p>
+              <p style="margin: 0 0 24px 0; font-size: 14px; color: #a1a1aa; line-height: 1.6;">
+                A new unassigned shift is available on the roster and has been offered to you. This opportunity is available on a <strong>first-come, first-served</strong> basis.
+              </p>
+
+              <!-- Shift Details Card -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #18181b; border: 1px solid #27272a; border-radius: 12px; margin-bottom: 28px;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <table width="100%" cellpadding="6" cellspacing="0">
+                      <tr>
+                        <td width="32%" style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #71717a;">Service Type:</td>
+                        <td style="font-size: 14px; font-weight: 700; color: #ffffff;">${serviceTitle}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #71717a;">Date:</td>
+                        <td style="font-size: 14px; font-weight: 600; color: #e4e4e7;">${formattedDate}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #71717a;">Time:</td>
+                        <td style="font-size: 14px; font-weight: 600; color: #e4e4e7;">${formattedStartTime} - ${formattedEndTime} <span style="font-size: 12px; color: #a1a1aa;">(${durationHours} hrs)</span></td>
+                      </tr>
+                      ${shift.client_suburb ? `
+                      <tr>
+                        <td style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #71717a;">Location:</td>
+                        <td style="font-size: 14px; font-weight: 600; color: #e4e4e7;">${shift.client_suburb}</td>
+                      </tr>` : ''}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Call to Action Button -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
+                <tr>
+                  <td align="center">
+                    <a href="${claimUrl}" target="_blank" style="display: inline-block; width: 85%; padding: 14px 28px; background-color: #9333ea; color: #ffffff; text-align: center; text-decoration: none; font-size: 15px; font-weight: 700; border-radius: 12px; box-shadow: 0 4px 14px rgba(147, 51, 234, 0.4);">
+                      Accept Shift
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0; font-size: 12px; color: #71717a; text-align: center; line-height: 1.5;">
+                Or copy and paste this link into your browser:<br>
+                <a href="${claimUrl}" style="color: #c084fc; text-decoration: underline; word-break: break-all;">${claimUrl}</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 32px; background-color: #0f1012; border-top: 1px solid #27272a; text-align: center;">
+              <p style="margin: 0; font-size: 11px; color: #52525b;">
+                Happy in the Home Care & Support • <a href="mailto:info@happyinthehome.org" style="color: #71717a; text-decoration: none;">info@happyinthehome.org</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+        `;
+
+        try {
+          await transporter.sendMail({
+            from: '"Happy in the Home" <info@happyinthehome.org>',
+            to: staff.email,
+            subject: `Available Shift Offer: ${serviceTitle} - ${formattedDate} ${area}`.trim(),
+            html: emailHtml,
+          });
+          sentCount++;
+        } catch (mailErr) {
+          logger.error(`Failed to send broadcast email to ${staff.email}: ${mailErr}`);
+        }
+      }
+
+      res.json({
+        success: true,
+        dispatchedCount: sentCount,
+        totalSelected: staffList.length
+      });
+    } catch (e: any) {
+      logger.error(`API Error in shift broadcast: ${e}`);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  // Shift Atomic Claim (First-come, first-served with race condition protection)
+  app.post("/api/shifts/:id/claim", authenticateToken, (req: any, res: any) => {
+    const { id } = req.params;
+    const staffId = req.user.id;
+
+    try {
+      // First, verify shift existence
+      const currentShift = db.prepare("SELECT * FROM shifts WHERE id = ?").get(id) as any;
+      if (!currentShift) {
+        return res.status(404).json({ error: "Shift not found" });
+      }
+
+      // Check if already filled before attempting update
+      if (currentShift.staff_id !== null && currentShift.staff_id !== undefined) {
+        return res.status(409).json({
+          error: "This shift has already been filled. Thank you!",
+          alreadyFilled: true
+        });
+      }
+
+      // ATOMIC CONDITIONAL UPDATE:
+      // Prevents race conditions when multiple staff click Accept at the same time.
+      // Only the first transaction to run will match WHERE staff_id IS NULL and succeed (changes = 1).
+      // Any subsequent request will match 0 rows (changes = 0).
+      const updateResult = db.prepare(`
+        UPDATE shifts 
+        SET staff_id = ?, 
+            status = 'PUBLISHED',
+            custom_staff_name = NULL
+        WHERE id = ? AND staff_id IS NULL
+      `).run(staffId, id);
+
+      if (updateResult.changes === 0) {
+        // Someone else claimed it a fraction of a second earlier
+        return res.status(409).json({
+          error: "This shift has already been filled. Thank you!",
+          alreadyFilled: true
+        });
+      }
+
+      // Record in notifications and logs
+      try {
+        const staff = db.prepare("SELECT first_name, last_name FROM users WHERE id = ?").get(staffId) as any;
+        const staffName = staff ? `${staff.first_name} ${staff.last_name}` : "Support Worker";
+        const client = db.prepare("SELECT first_name, last_name FROM clients WHERE id = ?").get(currentShift.client_id) as any;
+        const clientName = client ? `${client.first_name} ${client.last_name}` : "Client";
+
+        // Notify claiming staff
+        db.prepare(
+          "INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)"
+        ).run(
+          staffId,
+          "SHIFT_CLAIMED",
+          "Shift Confirmed",
+          `You have successfully claimed the shift with ${clientName}.`,
+          "/roster"
+        );
+
+        // Notify admins that the shift was claimed
+        const admins = db.prepare("SELECT id FROM users WHERE role = 'ADMIN'").all() as any[];
+        const insertAdminNotif = db.prepare(
+          "INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)"
+        );
+        for (const admin of admins) {
+          insertAdminNotif.run(
+            admin.id,
+            "SHIFT_CLAIMED",
+            "Shift Claimed",
+            `${staffName} has claimed the unassigned shift with ${clientName}.`,
+            "/roster"
+          );
+        }
+      } catch (logErr) {
+        logger.error(`Error sending claim notifications: ${logErr}`);
+      }
+
+      res.json({
+        success: true,
+        message: "Shift claimed successfully"
+      });
+    } catch (e: any) {
+      logger.error(`API Error in shift claim: ${e}`);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
   app.post("/api/shifts/:id/start", authenticateToken, (req: any, res: any) => {
     const { id } = req.params;
     const { odometer_start_reading, odometer_start_photo, actual_start_time } =
