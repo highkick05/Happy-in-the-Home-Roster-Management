@@ -3986,16 +3986,19 @@ function getUnreadChatCount(db: any, userId: number) {
   app.post("/api/push/subscribe", authenticateToken, (req, res) => {
     try {
       const { subscription } = req.body;
+      if (!subscription || !subscription.endpoint || !subscription.keys) {
+        return res.status(400).json({ error: "Invalid subscription payload" });
+      }
       const { endpoint, keys } = subscription;
       
-      const existing = db.prepare("SELECT id FROM push_subscriptions WHERE endpoint = ? AND user_id = ?").get(endpoint, req.user.id);
-      
-      if (!existing) {
-        db.prepare(`
-          INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) 
-          VALUES (?, ?, ?, ?)
-        `).run(req.user.id, endpoint, keys.p256dh, keys.auth);
-      }
+      db.prepare(`
+        INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) 
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(endpoint) DO UPDATE SET
+          user_id = excluded.user_id,
+          p256dh = excluded.p256dh,
+          auth = excluded.auth
+      `).run(req.user.id, endpoint, keys.p256dh, keys.auth);
       
       res.status(201).json({ success: true });
     } catch (e: any) {
