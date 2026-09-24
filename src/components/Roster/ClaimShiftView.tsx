@@ -114,6 +114,7 @@ export default function ClaimShiftView() {
       // Success
       setClaimedStaffName(data.claimedStaffName || shift?.intended_staff?.full_name || null);
       setIsSuccess(true);
+      window.dispatchEvent(new CustomEvent('refresh-notifications'));
     } catch (err: any) {
       console.error('Error claiming shift:', err);
       setErrorMessage(err.message || 'Failed to claim shift. Please try again.');

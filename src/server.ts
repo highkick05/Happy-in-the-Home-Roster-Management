@@ -3653,8 +3653,8 @@ try {
       let query = "SELECT * FROM notifications WHERE user_id = ?";
       if (req.user.role === 'ADMIN') {
         query = "SELECT * FROM notifications WHERE user_id = ? OR user_id = 0";
-      } else if (req.user.role !== 'ADMIN') {
-        query += " AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON', 'TRAINING_REQUIRED', 'TRAINING', 'TRAINING_EXPIRED', 'TRAINING_EXPIRING_SOON')";
+      } else {
+        query += " AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON', 'TRAINING_REQUIRED', 'TRAINING', 'TRAINING_EXPIRED', 'TRAINING_EXPIRING_SOON', 'SHIFT_CLAIMED', 'SHIFT_CONFIRMED', 'SHIFT_CANCELLED', 'SHIFT_ASSIGNED', 'SHIFT_MODIFIED', 'SHIFT_UPDATE') AND title != 'Shift Claimed'";
       }
       query += " ORDER BY created_at DESC LIMIT 50";
       
@@ -3678,7 +3678,7 @@ try {
       try {
         if (req.user.role !== 'ADMIN') {
            db.prepare(
-             "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0 AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON', 'TRAINING_REQUIRED', 'TRAINING', 'TRAINING_EXPIRED', 'TRAINING_EXPIRING_SOON')"
+             "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0 AND type IN ('DOCUMENT_EXPIRED', 'DOCUMENT_EXPIRING_SOON', 'TRAINING_REQUIRED', 'TRAINING', 'TRAINING_EXPIRED', 'TRAINING_EXPIRING_SOON', 'SHIFT_CLAIMED', 'SHIFT_CONFIRMED', 'SHIFT_CANCELLED', 'SHIFT_ASSIGNED', 'SHIFT_MODIFIED', 'SHIFT_UPDATE') AND title != 'Shift Claimed'"
            ).run(req.user.id);
         } else {
            db.prepare(
@@ -12256,6 +12256,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           "INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)"
         );
         for (const admin of admins) {
+          // If the claiming user is an admin or can_switch_admin, they already received "Shift Confirmed" above
+          if (Number(admin.id) === Number(staffId)) continue;
           insertAdminNotif.run(
             admin.id,
             "SHIFT_CLAIMED",

@@ -46,11 +46,17 @@ export default function NotificationsDropdown() {
       fetchNotifications();
     };
 
+    const handleFocus = () => {
+      fetchNotifications();
+    };
+
     window.addEventListener('refresh-notifications', handleRefresh);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('refresh-notifications', handleRefresh);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [token]);
 
@@ -101,7 +107,10 @@ export default function NotificationsDropdown() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button 
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen) fetchNotifications();
+          setIsOpen(!isOpen);
+        }}
         className="relative p-1.5 rounded-full hover:bg-white/[0.04] transition-colors focus:outline-none focus:ring-2 focus:ring-brand-teal"
       >
         <Bell className={`w-[18px] h-[18px] transition-colors ${notifications.some(n => n.type === 'ALERT' && n.is_read === 0) ? 'text-red-500 animate-pulse' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`} />
