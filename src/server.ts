@@ -1408,6 +1408,14 @@ try {
         changed_by_user_id INTEGER NOT NULL,
         FOREIGN KEY (changed_by_user_id) REFERENCES users (id)
       );
+      CREATE TABLE IF NOT EXISTS shift_claim_tokens (
+        code TEXT PRIMARY KEY,
+        shift_id INTEGER NOT NULL,
+        staff_id INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME
+      );
+      CREATE INDEX IF NOT EXISTS idx_shift_claim_tokens_lookup ON shift_claim_tokens(code, shift_id);
     `);
     console.log("[DEBUG] Completed client_ledger_entries table setup.");
 
@@ -11606,33 +11614,65 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         }
       }
 
-      // If a claim token is provided in query, verify it and retrieve intended staff recipient
+      // If a claim code or token is provided in query, verify it and retrieve intended staff recipient
       let intendedStaff: any = null;
       let tokenValid = false;
       let tokenError: string | null = null;
 
-      if (req.query.token) {
-        try {
-          const decoded = jwt.verify(String(req.query.token), JWT_SECRET) as any;
-          if (decoded && decoded.type === "shift_claim" && Number(decoded.shiftId) === Number(id)) {
-            const recipientUser = db.prepare("SELECT id, first_name, last_name, email FROM users WHERE id = ?").get(decoded.staffId) as any;
-            if (recipientUser) {
-              intendedStaff = {
-                id: recipientUser.id,
-                first_name: recipientUser.first_name,
-                last_name: recipientUser.last_name,
-                full_name: `${recipientUser.first_name} ${recipientUser.last_name}`.trim(),
-                email: recipientUser.email
-              };
-              tokenValid = true;
+      const rawCode = (req.query.c || req.query.code || req.query.token) ? String(req.query.c || req.query.code || req.query.token).trim() : null;
+
+      if (rawCode) {
+        let recipientStaffId: number | null = null;
+
+        if (rawCode.length <= 32) {
+          // Short database claim code
+          try {
+            const tokenRow = db.prepare(`
+              SELECT staff_id, expires_at 
+              FROM shift_claim_tokens 
+              WHERE code = ? AND shift_id = ?
+            `).get(rawCode, id) as any;
+
+            if (tokenRow) {
+              if (tokenRow.expires_at && new Date(tokenRow.expires_at).getTime() < Date.now()) {
+                tokenError = "Shift offer link has expired.";
+              } else {
+                recipientStaffId = Number(tokenRow.staff_id);
+              }
             } else {
-              tokenError = "Staff member associated with this link no longer exists.";
+              tokenError = "Invalid shift offer link for this shift.";
             }
-          } else {
-            tokenError = "Invalid shift offer link for this shift.";
+          } catch (tokDbErr: any) {
+            tokenError = "Failed to verify shift offer link.";
           }
-        } catch (tokErr: any) {
-          tokenError = "Shift offer link has expired or is invalid.";
+        } else {
+          // Legacy JWT token fallback
+          try {
+            const decoded = jwt.verify(rawCode, JWT_SECRET) as any;
+            if (decoded && decoded.type === "shift_claim" && Number(decoded.shiftId) === Number(id)) {
+              recipientStaffId = Number(decoded.staffId);
+            } else {
+              tokenError = "Invalid shift offer link for this shift.";
+            }
+          } catch (tokErr: any) {
+            tokenError = "Shift offer link has expired or is invalid.";
+          }
+        }
+
+        if (recipientStaffId) {
+          const recipientUser = db.prepare("SELECT id, first_name, last_name, email FROM users WHERE id = ?").get(recipientStaffId) as any;
+          if (recipientUser) {
+            intendedStaff = {
+              id: recipientUser.id,
+              first_name: recipientUser.first_name,
+              last_name: recipientUser.last_name,
+              full_name: `${recipientUser.first_name} ${recipientUser.last_name}`.trim(),
+              email: recipientUser.email
+            };
+            tokenValid = true;
+          } else {
+            tokenError = "Staff member associated with this link no longer exists.";
+          }
         }
       }
 
@@ -11821,19 +11861,22 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       let emailSentCount = 0;
       let smsSentCount = 0;
       for (const staff of staffList) {
-        // Generate secure recipient-bound claim token
-        const claimToken = jwt.sign(
-          {
-            type: "shift_claim",
-            shiftId: Number(shift.id),
-            staffId: Number(staff.id),
-            staffName: `${staff.first_name} ${staff.last_name}`.trim(),
-            email: staff.email,
-          },
-          JWT_SECRET,
-          { expiresIn: "7d" }
-        );
-        const claimUrl = `${appUrl}/shifts/claim/${shift.id}?token=${claimToken}`;
+        // Generate secure short claim code (8 characters hex)
+        let claimCode = crypto.randomBytes(4).toString("hex");
+        try {
+          db.prepare(`
+            INSERT OR REPLACE INTO shift_claim_tokens (code, shift_id, staff_id, expires_at)
+            VALUES (?, ?, ?, datetime('now', '+7 days'))
+          `).run(claimCode, Number(shift.id), Number(staff.id));
+        } catch {
+          claimCode = crypto.randomBytes(4).toString("hex");
+          db.prepare(`
+            INSERT OR REPLACE INTO shift_claim_tokens (code, shift_id, staff_id, expires_at)
+            VALUES (?, ?, ?, datetime('now', '+7 days'))
+          `).run(claimCode, Number(shift.id), Number(staff.id));
+        }
+
+        const claimUrl = `${appUrl}/shifts/claim/${shift.id}?c=${claimCode}`;
 
         const smsMessage = `Hello ${staff.first_name}, HAPPY IN THE HOME: New ${serviceType} shift for ${clientFullName} available on ${formattedDate}, ${shiftTime} at ${clientFullAddress}. Claim it first here: ${claimUrl}`;
 
@@ -12039,7 +12082,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
   // Shift Atomic Claim (First-come, first-served with race condition protection & identity safety)
   app.post("/api/shifts/:id/claim", (req: any, res: any) => {
     const { id } = req.params;
-    const claimToken = req.body?.claim_token || req.query?.token;
+    const rawClaim = req.body?.claim_code || req.body?.claim_token || req.query?.c || req.query?.code || req.query?.token;
 
     // Check if user is currently logged in via Bearer auth header
     let currentUser: any = null;
@@ -12057,21 +12100,45 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
     let targetStaffId: number | null = null;
     let targetStaffName = "Support Worker";
 
-    // 1. If a claim token is provided, verify it cryptographically
-    if (claimToken) {
-      try {
-        const decodedClaim = jwt.verify(String(claimToken), JWT_SECRET) as any;
-        if (decodedClaim.type !== "shift_claim" || Number(decodedClaim.shiftId) !== Number(id)) {
-          return res.status(400).json({ error: "Invalid shift offer token" });
+    // 1. If a claim code or token is provided, verify it
+    if (rawClaim) {
+      const claimStr = String(rawClaim).trim();
+      if (claimStr.length <= 32) {
+        // Short database claim code
+        const tokenRow = db.prepare(`
+          SELECT staff_id, expires_at 
+          FROM shift_claim_tokens 
+          WHERE code = ? AND shift_id = ?
+        `).get(claimStr, id) as any;
+
+        if (!tokenRow) {
+          return res.status(400).json({ error: "Invalid shift offer link" });
         }
-        targetStaffId = Number(decodedClaim.staffId);
+        if (tokenRow.expires_at && new Date(tokenRow.expires_at).getTime() < Date.now()) {
+          return res.status(400).json({ error: "Shift offer link has expired" });
+        }
+        targetStaffId = Number(tokenRow.staff_id);
         const intendedUser = db.prepare("SELECT id, first_name, last_name FROM users WHERE id = ?").get(targetStaffId) as any;
         if (!intendedUser) {
           return res.status(404).json({ error: "Staff member for this shift offer not found" });
         }
         targetStaffName = `${intendedUser.first_name} ${intendedUser.last_name}`.trim();
-      } catch (err: any) {
-        return res.status(400).json({ error: "Shift offer link has expired or is invalid" });
+      } else {
+        // Legacy JWT verification
+        try {
+          const decodedClaim = jwt.verify(claimStr, JWT_SECRET) as any;
+          if (decodedClaim.type !== "shift_claim" || Number(decodedClaim.shiftId) !== Number(id)) {
+            return res.status(400).json({ error: "Invalid shift offer token" });
+          }
+          targetStaffId = Number(decodedClaim.staffId);
+          const intendedUser = db.prepare("SELECT id, first_name, last_name FROM users WHERE id = ?").get(targetStaffId) as any;
+          if (!intendedUser) {
+            return res.status(404).json({ error: "Staff member for this shift offer not found" });
+          }
+          targetStaffName = `${intendedUser.first_name} ${intendedUser.last_name}`.trim();
+        } catch (err: any) {
+          return res.status(400).json({ error: "Shift offer link has expired or is invalid" });
+        }
       }
     }
 

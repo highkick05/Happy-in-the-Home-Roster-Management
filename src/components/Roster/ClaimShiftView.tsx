@@ -31,7 +31,7 @@ interface ShiftClaimDetails {
 export default function ClaimShiftView() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
-  const claimToken = searchParams.get('token');
+  const claimCode = searchParams.get('c') || searchParams.get('code') || searchParams.get('token');
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -49,7 +49,7 @@ export default function ClaimShiftView() {
     setIsLoading(true);
     setErrorMessage(null);
 
-    const query = claimToken ? `?token=${encodeURIComponent(claimToken)}` : '';
+    const query = claimCode ? `?c=${encodeURIComponent(claimCode)}` : '';
     fetch(`/api/shifts/${id}/claim-details${query}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
@@ -71,7 +71,7 @@ export default function ClaimShiftView() {
         setErrorMessage(err.message || 'Unable to retrieve shift details.');
       })
       .finally(() => setIsLoading(false));
-  }, [id, token, claimToken]);
+  }, [id, token, claimCode]);
 
   const handleAcceptShift = async () => {
     setIsClaiming(true);
@@ -89,7 +89,8 @@ export default function ClaimShiftView() {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          claim_token: claimToken || undefined
+          claim_code: claimCode || undefined,
+          claim_token: claimCode || undefined
         })
       });
 
@@ -388,7 +389,7 @@ export default function ClaimShiftView() {
                 </div>
               ) : !token ? (
                 // User is not logged in on this browser
-                intendedStaff && claimToken ? (
+                intendedStaff && claimCode ? (
                   // Valid token for intended staff
                   <div className="space-y-3">
                     <button
