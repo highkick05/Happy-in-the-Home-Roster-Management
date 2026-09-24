@@ -710,7 +710,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                 let grandTotal = 0;
 
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
                     {sData.map((sd: any, idx: number) => {
                       const sIdStr = String(sd.serviceId);
                       const fullService = servicesList.find(s => String(s.id) === sIdStr);
@@ -781,37 +781,46 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                       grandTotal += subtotal;
 
                       return (
-                        <div key={idx} className="bg-[#121214] p-4 rounded-xl border border-white/[0.08] text-sm md:text-base shadow-sm">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-zinc-500 font-medium">Service</span>
-                            <div className="flex items-center gap-1.5 ml-4 text-right">
-                              <span className="text-zinc-200 truncate font-bold" title={serviceName}>{serviceName}</span>
+                        <div key={idx} className="bg-[#121214] p-4 rounded-xl border border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm hover:border-white/[0.12] transition-colors">
+                          <div className="flex-1 min-w-0 pr-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm md:text-base font-bold text-white break-words">
+                                {serviceName}
+                              </span>
                               {isTravelOrTransport && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-teal/20 text-brand-teal border border-brand-teal/30 whitespace-nowrap" title="NDIA Standard Travel Protection Active ($1.00/KM)">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-brand-teal/20 text-brand-teal border border-brand-teal/30 whitespace-nowrap" title="NDIA Standard Travel Protection Active ($1.00/KM)">
                                   Protected $1/KM
                                 </span>
                               )}
                             </div>
+                            {fullService?.code && (
+                              <span className="text-xs text-zinc-400 font-mono block mt-1">
+                                {fullService.code}
+                              </span>
+                            )}
                           </div>
-                          <div className="flex justify-between mb-2">
-                            <span className="text-zinc-500 font-medium">Duration/Qty</span>
-                            <span className="text-zinc-200 font-medium">{qty.toFixed(2)} {unit}</span>
-                          </div>
-                          <div className="flex justify-between mb-3">
-                            <span className="text-zinc-500 font-medium">Rate</span>
-                            <span className="text-zinc-200 font-medium">${finalRate.toFixed(2)} / {unit}</span>
-                          </div>
-                          <div className="flex justify-between pt-3 border-t border-white/[0.08]/80 font-bold">
-                            <span className="text-zinc-400 uppercase tracking-widest text-xs mt-1">Total</span>
-                            <span className="text-brand-teal text-lg">${subtotal.toFixed(2)}</span>
+
+                          <div className="flex items-center justify-between md:justify-end gap-6 sm:gap-8 pt-3 md:pt-0 border-t md:border-t-0 border-white/[0.06] shrink-0 text-left md:text-right">
+                            <div>
+                              <span className="block text-[11px] uppercase tracking-wider text-zinc-500 font-medium">Duration/Qty</span>
+                              <span className="text-sm md:text-base font-semibold text-zinc-200">{qty.toFixed(2)} {unit}</span>
+                            </div>
+                            <div>
+                              <span className="block text-[11px] uppercase tracking-wider text-zinc-500 font-medium">Rate</span>
+                              <span className="text-sm md:text-base font-semibold text-zinc-200">${finalRate.toFixed(2)} / {unit}</span>
+                            </div>
+                            <div className="min-w-[90px] text-right">
+                              <span className="block text-[11px] uppercase tracking-wider text-zinc-400 font-medium">Total</span>
+                              <span className="text-base md:text-lg font-bold text-brand-teal">${subtotal.toFixed(2)}</span>
+                            </div>
                           </div>
                         </div>
                       );
                     })}
                     {sData.length > 1 && (
-                       <div className="md:col-span-2 flex justify-between items-center p-4 md:p-5 bg-indigo-900/10 rounded-xl border border-brand-teal/30 font-bold mb-4 shadow-sm">
+                       <div className="flex justify-between items-center p-4 md:p-5 bg-indigo-900/10 rounded-xl border border-brand-teal/30 font-bold mt-4 shadow-sm">
                          <span className="text-brand-teal uppercase tracking-widest text-sm">Grand Total</span>
-                         <span className="text-brand-teal text-xl">${grandTotal.toFixed(2)}</span>
+                         <span className="text-brand-teal text-xl md:text-2xl">${grandTotal.toFixed(2)}</span>
                        </div>
                     )}
                   </div>
