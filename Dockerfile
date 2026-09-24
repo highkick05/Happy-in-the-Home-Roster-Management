@@ -6,8 +6,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y python3 build-essential git && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-# Use ci for repeatable builds and faster installation
-RUN npm install --legacy-peer-deps
+# Use ci for repeatable builds and faster installation; ensure platform native binaries install
+RUN npm install --legacy-peer-deps --include=optional
 
 COPY . .
 # Build React frontend and Node backend
