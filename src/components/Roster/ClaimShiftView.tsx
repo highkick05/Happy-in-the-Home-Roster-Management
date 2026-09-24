@@ -159,6 +159,12 @@ export default function ClaimShiftView() {
     Number(user.id) !== Number(intendedStaff.id)
   );
 
+  // Safely resolve the currently signed-in staff member's display name
+  const currentLoggedInName = user
+    ? `${(user as any).firstName || (user as any).first_name || ''} ${(user as any).lastName || (user as any).last_name || ''}`.trim() || user.email || 'Current User'
+    : 'Current User';
+  const currentLoggedInFirstName = (user as any)?.firstName || (user as any)?.first_name || currentLoggedInName;
+
   return (
     <div className="min-h-screen bg-[#0B0E14] text-zinc-100 flex flex-col justify-center items-center p-4 relative overflow-hidden">
       {/* Background glow effects */}
@@ -171,8 +177,12 @@ export default function ClaimShiftView() {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-semibold uppercase tracking-wider mb-2">
             HAPPY IN THE HOME
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white">Shift Broadcast Offer</h1>
-          <p className="text-xs text-zinc-400 mt-1">First-come, first-served shift opportunity</p>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+            {shift?.client_name ? `Shift Offer: ${shift.client_name}` : 'Shift Broadcast Offer'}
+          </h1>
+          <p className="text-xs sm:text-sm text-zinc-400 mt-1">
+            {shift?.client_name ? `Available care opportunity for ${shift.client_name}` : 'First-come, first-served shift opportunity'}
+          </p>
         </div>
 
         {/* Main Card */}
@@ -254,13 +264,13 @@ export default function ClaimShiftView() {
                     <div>
                       <h3 className="text-sm font-bold text-amber-300">Account Mismatch Detected</h3>
                       <p className="text-xs text-zinc-300 mt-1 leading-relaxed">
-                        You are currently signed into the portal as <strong className="text-white">{user?.first_name} {user?.last_name}</strong>.
+                        You are currently signed into the portal as <strong className="text-white">{currentLoggedInName}</strong>.
                       </p>
                       <p className="text-xs text-zinc-300 mt-1 leading-relaxed">
                         However, this shift offer was broadcast specifically to <strong className="text-purple-300">{intendedStaff?.full_name}</strong>.
                       </p>
                       <p className="text-[11px] text-zinc-400 mt-1.5">
-                        To prevent claiming shifts under someone else's name, you cannot accept this shift as {user?.first_name}. Please switch to {intendedStaff?.full_name}'s account.
+                        To prevent claiming shifts under someone else's name, you cannot accept this shift as {currentLoggedInFirstName}. Please switch to {intendedStaff?.full_name}'s account.
                       </p>
                     </div>
                   </div>
@@ -321,62 +331,65 @@ export default function ClaimShiftView() {
               )}
 
               {/* Shift Key Details */}
-              <div className="space-y-4 divide-y divide-white/[0.06]">
-                <div className="flex items-start gap-3 pt-1">
-                  <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 mt-0.5">
-                    <Calendar className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider">Date</p>
-                    <p className="text-sm font-bold text-zinc-100">{formatShiftDate(shift.start_time)}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 pt-3">
-                  <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 mt-0.5">
-                    <Clock className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider">Shift Time</p>
-                    <p className="text-sm font-bold text-zinc-100">{formatShiftTime(shift.start_time, shift.end_time)}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 pt-3">
-                  <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 mt-0.5">
-                    <Briefcase className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider">Service Type</p>
-                    <p className="text-sm font-bold text-zinc-100">
-                      {shift.service_name || shift.service_type || 'Standard Care & Support'}
-                    </p>
-                  </div>
-                </div>
-
+              <div className="space-y-4">
+                {/* Prominent Client Card at Top */}
                 {shift.client_name && (
-                  <div className="flex items-start gap-3 pt-3">
-                    <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 mt-0.5">
-                      <User className="w-4 h-4" />
+                  <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-purple-500/15 to-purple-900/10 border border-purple-500/30 rounded-xl">
+                    <div className="p-2 rounded-lg bg-purple-500/20 text-purple-300 shrink-0">
+                      <User className="w-5 h-5" />
                     </div>
-                    <div>
-                      <p className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider">Client</p>
-                      <p className="text-sm font-bold text-zinc-100">{shift.client_name}</p>
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase font-bold text-purple-300 tracking-wider">Client Name</p>
+                      <p className="text-base sm:text-lg font-black text-white truncate">{shift.client_name}</p>
                     </div>
                   </div>
                 )}
 
-                {(shift.client_address || shift.client_suburb) && (
-                  <div className="flex items-start gap-3 pt-3">
+                <div className="space-y-4 divide-y divide-white/[0.06]">
+                  <div className="flex items-start gap-3 pt-1">
                     <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 mt-0.5">
-                      <MapPin className="w-4 h-4" />
+                      <Calendar className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider">Location</p>
-                      <p className="text-sm font-bold text-zinc-100">{shift.client_address || shift.client_suburb}</p>
+                      <p className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider">Date</p>
+                      <p className="text-sm font-bold text-zinc-100">{formatShiftDate(shift.start_time)}</p>
                     </div>
                   </div>
-                )}
+
+                  <div className="flex items-start gap-3 pt-3">
+                    <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 mt-0.5">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider">Shift Time</p>
+                      <p className="text-sm font-bold text-zinc-100">{formatShiftTime(shift.start_time, shift.end_time)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 pt-3">
+                    <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 mt-0.5">
+                      <Briefcase className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider">Service Type</p>
+                      <p className="text-sm font-bold text-zinc-100">
+                        {shift.service_name || shift.service_type || 'Standard Care & Support'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {(shift.client_address || shift.client_suburb) && (
+                    <div className="flex items-start gap-3 pt-3">
+                      <div className="p-2 rounded-lg bg-zinc-800 text-zinc-300 shrink-0 mt-0.5">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider">Location</p>
+                        <p className="text-sm font-bold text-zinc-100">{shift.client_address || shift.client_suburb}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Action Buttons Section */}
