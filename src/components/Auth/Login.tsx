@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [searchParams] = useSearchParams();
+  const redirectPath = searchParams.get('redirect') || '/';
+  const initialEmail = searchParams.get('email') || '';
+
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,10 +17,16 @@ export default function Login() {
   const navigate = useNavigate();
 
   React.useEffect(() => {
-    if (user) {
-      navigate('/', { replace: true });
+    if (initialEmail && !email) {
+      setEmail(initialEmail);
     }
-  }, [user, navigate]);
+  }, [initialEmail]);
+
+  React.useEffect(() => {
+    if (user) {
+      navigate(redirectPath, { replace: true });
+    }
+  }, [user, navigate, redirectPath]);
 
   React.useEffect(() => {
     fetch('/api/public-settings')
@@ -48,7 +58,7 @@ export default function Login() {
       if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission().catch(() => {});
       }
-      navigate('/', { replace: true });
+      navigate(redirectPath, { replace: true });
     } catch (err: any) {
       setError(err.message);
     } finally {

@@ -11573,7 +11573,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
     try {
       const shift = db.prepare(`
         SELECT s.id, s.start_time, s.end_time, s.status, s.staff_id, s.notes,
-               c.first_name as client_first_name, c.address as client_address,
+               c.first_name as client_first_name, c.last_name as client_last_name,
+               c.address as client_address,
                srv.name as service_name, srv.type as service_type,
                u.first_name as staff_first_name, u.last_name as staff_last_name
         FROM shifts s
@@ -11605,6 +11606,36 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         }
       }
 
+      // If a claim token is provided in query, verify it and retrieve intended staff recipient
+      let intendedStaff: any = null;
+      let tokenValid = false;
+      let tokenError: string | null = null;
+
+      if (req.query.token) {
+        try {
+          const decoded = jwt.verify(String(req.query.token), JWT_SECRET) as any;
+          if (decoded && decoded.type === "shift_claim" && Number(decoded.shiftId) === Number(id)) {
+            const recipientUser = db.prepare("SELECT id, first_name, last_name, email FROM users WHERE id = ?").get(decoded.staffId) as any;
+            if (recipientUser) {
+              intendedStaff = {
+                id: recipientUser.id,
+                first_name: recipientUser.first_name,
+                last_name: recipientUser.last_name,
+                full_name: `${recipientUser.first_name} ${recipientUser.last_name}`.trim(),
+                email: recipientUser.email
+              };
+              tokenValid = true;
+            } else {
+              tokenError = "Staff member associated with this link no longer exists.";
+            }
+          } else {
+            tokenError = "Invalid shift offer link for this shift.";
+          }
+        } catch (tokErr: any) {
+          tokenError = "Shift offer link has expired or is invalid.";
+        }
+      }
+
       res.json({
         id: shift.id,
         start_time: shift.start_time,
@@ -11618,7 +11649,10 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         client_address: shift.client_address,
         notes: shift.notes,
         is_unassigned: is_unassigned,
-        assigned_staff_name: !is_unassigned && shift.staff_first_name ? `${shift.staff_first_name} ${shift.staff_last_name}` : null
+        assigned_staff_name: !is_unassigned && shift.staff_first_name ? `${shift.staff_first_name} ${shift.staff_last_name}` : null,
+        intended_staff: intendedStaff,
+        token_valid: tokenValid,
+        token_error: tokenError
       });
     } catch (e: any) {
       logger.error(`API Error in shift claim-details: ${e}`);
@@ -11745,8 +11779,6 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         process.env.BASE_URL ||
         "https://care.happyinthehome.org";
 
-      const claimUrl = `${appUrl}/shifts/claim/${shift.id}`;
-
       // Resolve portal timezone from settings (default to Australia/Perth)
       const rawTz = settings.timezone || "Australia/Perth";
       const portalTimezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "").trim() : (rawTz || "Australia/Perth");
@@ -11789,6 +11821,20 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       let emailSentCount = 0;
       let smsSentCount = 0;
       for (const staff of staffList) {
+        // Generate secure recipient-bound claim token
+        const claimToken = jwt.sign(
+          {
+            type: "shift_claim",
+            shiftId: Number(shift.id),
+            staffId: Number(staff.id),
+            staffName: `${staff.first_name} ${staff.last_name}`.trim(),
+            email: staff.email,
+          },
+          JWT_SECRET,
+          { expiresIn: "7d" }
+        );
+        const claimUrl = `${appUrl}/shifts/claim/${shift.id}?token=${claimToken}`;
+
         const smsMessage = `Hello ${staff.first_name}, HAPPY IN THE HOME: New ${serviceType} shift for ${clientFullName} available on ${formattedDate}, ${shiftTime} at ${clientFullAddress}. Claim it first here: ${claimUrl}`;
 
         // SMS Dispatch via ClickSend
@@ -11990,10 +12036,73 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
     }
   });
 
-  // Shift Atomic Claim (First-come, first-served with race condition protection)
-  app.post("/api/shifts/:id/claim", authenticateToken, (req: any, res: any) => {
+  // Shift Atomic Claim (First-come, first-served with race condition protection & identity safety)
+  app.post("/api/shifts/:id/claim", (req: any, res: any) => {
     const { id } = req.params;
-    const staffId = req.user.id;
+    const claimToken = req.body?.claim_token || req.query?.token;
+
+    // Check if user is currently logged in via Bearer auth header
+    let currentUser: any = null;
+    const authHeader = req.headers["authorization"];
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const bearerToken = authHeader.split(" ")[1];
+      try {
+        const decodedAuth = jwt.verify(bearerToken, JWT_SECRET) as any;
+        if (decodedAuth && decodedAuth.id) {
+          currentUser = decodedAuth;
+        }
+      } catch {}
+    }
+
+    let targetStaffId: number | null = null;
+    let targetStaffName = "Support Worker";
+
+    // 1. If a claim token is provided, verify it cryptographically
+    if (claimToken) {
+      try {
+        const decodedClaim = jwt.verify(String(claimToken), JWT_SECRET) as any;
+        if (decodedClaim.type !== "shift_claim" || Number(decodedClaim.shiftId) !== Number(id)) {
+          return res.status(400).json({ error: "Invalid shift offer token" });
+        }
+        targetStaffId = Number(decodedClaim.staffId);
+        const intendedUser = db.prepare("SELECT id, first_name, last_name FROM users WHERE id = ?").get(targetStaffId) as any;
+        if (!intendedUser) {
+          return res.status(404).json({ error: "Staff member for this shift offer not found" });
+        }
+        targetStaffName = `${intendedUser.first_name} ${intendedUser.last_name}`.trim();
+      } catch (err: any) {
+        return res.status(400).json({ error: "Shift offer link has expired or is invalid" });
+      }
+    }
+
+    // 2. Strict account check: prevent claiming as someone else!
+    if (currentUser) {
+      if (targetStaffId !== null) {
+        // Broadcast offer was targeted to targetStaffId.
+        // Prevent claiming if logged in as a different user account!
+        if (Number(currentUser.id) !== targetStaffId) {
+          const loggedInUser = db.prepare("SELECT first_name, last_name FROM users WHERE id = ?").get(currentUser.id) as any;
+          const loggedInName = loggedInUser ? `${loggedInUser.first_name} ${loggedInUser.last_name}`.trim() : "Current User";
+          return res.status(409).json({
+            error: `Account mismatch: You are currently signed in as ${loggedInName}. This shift offer is reserved exclusively for ${targetStaffName}. Please switch accounts to claim this shift.`,
+            accountMismatch: true,
+            loggedInName,
+            targetStaffName
+          });
+        }
+      } else {
+        // No claim token provided - claiming as the logged in staff member
+        targetStaffId = Number(currentUser.id);
+      }
+    } else {
+      // User is not logged in with an active session token
+      if (targetStaffId === null) {
+        return res.status(401).json({ error: "Please log in to your staff account to claim this shift." });
+      }
+      // targetStaffId is verified from the cryptographic claim token!
+    }
+
+    const staffId = targetStaffId;
 
     try {
       // First, verify shift existence
@@ -12033,7 +12142,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
       // Record in notifications and logs
       try {
         const staff = db.prepare("SELECT first_name, last_name FROM users WHERE id = ?").get(staffId) as any;
-        const staffName = staff ? `${staff.first_name} ${staff.last_name}` : "Support Worker";
+        const staffName = staff ? `${staff.first_name} ${staff.last_name}` : targetStaffName;
         const client = db.prepare("SELECT first_name, last_name FROM clients WHERE id = ?").get(currentShift.client_id) as any;
         const clientName = client ? `${client.first_name} ${client.last_name}` : "Client";
 
@@ -12092,7 +12201,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
 
       res.json({
         success: true,
-        message: "Shift claimed successfully"
+        message: "Shift claimed successfully",
+        claimedStaffName: targetStaffName
       });
     } catch (e: any) {
       logger.error(`API Error in shift claim: ${e}`);
