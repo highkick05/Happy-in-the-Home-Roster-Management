@@ -438,7 +438,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             <DateTimer />
           </header>
         )}
-        <main className={`flex-1 ${location.pathname.includes('/travel-logs') || location.pathname.includes('/vehicles') || location.pathname.includes('/roster') || location.pathname.includes('/kiosk') || location.pathname.includes('/files') || location.pathname.includes('/chat') || location.pathname.includes('/email') ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-auto'} print:overflow-visible ${location.pathname.includes('/files') || location.pathname.includes('/chat') || location.pathname.includes('/email') ? 'p-0' : location.pathname.includes('/roster') || location.pathname.includes('/kiosk') ? 'p-0 md:pt-4 md:pb-6 md:px-8' : 'p-4 md:pt-4 md:pb-6 md:px-8'} print:p-0 relative`}>
+        <main className={`flex-1 ${location.pathname.includes('/travel-logs') || location.pathname.includes('/vehicles') || location.pathname.includes('/roster') || location.pathname.includes('/kiosk') || location.pathname.includes('/files') || location.pathname.includes('/chat') || location.pathname.includes('/email') || location.pathname.includes('/documents') ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-auto'} print:overflow-visible ${location.pathname.includes('/files') || location.pathname.includes('/chat') || location.pathname.includes('/email') || location.pathname.includes('/documents') ? 'p-0' : location.pathname.includes('/roster') || location.pathname.includes('/kiosk') ? 'p-0 md:pt-4 md:pb-6 md:px-8' : 'p-4 md:pt-4 md:pb-6 md:px-8'} print:p-0 relative`}>
           {children}
         </main>
       </div>
