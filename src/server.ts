@@ -4898,6 +4898,121 @@ function getUnreadChatCount(db: any, userId: number) {
     }
   });
 
+  app.get("/api/settings/clicksend/status", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      let username = "";
+      let apiKey = "";
+      try {
+        const csRow = db.prepare("SELECT clicksend_username, clicksend_api_key FROM settings WHERE id = 1 LIMIT 1").get() as any;
+        username = (csRow?.clicksend_username || "").trim();
+        apiKey = (csRow?.clicksend_api_key || "").trim();
+      } catch {}
+
+      if (!username || !apiKey) {
+        username = process.env.CLICKSEND_USERNAME || "";
+        apiKey = process.env.CLICKSEND_API_KEY || "";
+      }
+
+      if (!username || !apiKey) {
+        return res.status(400).json({ error: "ClickSend username or API key is not configured in Settings." });
+      }
+
+      const authHeader = 'Basic ' + Buffer.from(`${username}:${apiKey}`).toString('base64');
+      
+      const accountRes = await fetch('https://rest.clicksend.com/v3/account', {
+        headers: { 'Authorization': authHeader }
+      });
+      const accountJson = await accountRes.json().catch(() => ({}));
+
+      const historyRes = await fetch('https://rest.clicksend.com/v3/sms/history?limit=10', {
+        headers: { 'Authorization': authHeader }
+      });
+      const historyJson = await historyRes.json().catch(() => ({}));
+
+      res.json({
+        success: true,
+        account: accountJson?.data || {},
+        recentMessages: historyJson?.data?.data || []
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to query ClickSend status." });
+    }
+  });
+
+  app.post("/api/settings/test-sms", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      let { mobile, message, includeUrl, username, apiKey } = req.body;
+      if (!username || !apiKey) {
+        try {
+          const csRow = db.prepare("SELECT clicksend_username, clicksend_api_key FROM settings WHERE id = 1 LIMIT 1").get() as any;
+          username = (csRow?.clicksend_username || "").trim();
+          apiKey = (csRow?.clicksend_api_key || "").trim();
+        } catch {}
+      }
+      if (!username || !apiKey) {
+        username = process.env.CLICKSEND_USERNAME || "";
+        apiKey = process.env.CLICKSEND_API_KEY || "";
+      }
+
+      if (!username || !apiKey) {
+        return res.status(400).json({ error: "ClickSend credentials not configured." });
+      }
+
+      if (!mobile) {
+        return res.status(400).json({ error: "Destination mobile number is required." });
+      }
+
+      let cleanMobile = String(mobile).trim().replace(/[\s\-\(\)]/g, '');
+      if (cleanMobile.startsWith('0') && cleanMobile.length === 10) {
+        cleanMobile = '+61' + cleanMobile.slice(1);
+      }
+
+      const smsText = message || (includeUrl
+        ? `HAPPY IN THE HOME: Test SMS with portal link: https://dev.happyinthehome.org`
+        : `HAPPY IN THE HOME: Test SMS gateway check. If received, ClickSend is configured successfully!`);
+
+      const authHeader = 'Basic ' + Buffer.from(`${username}:${apiKey}`).toString('base64');
+      const csRes = await fetch('https://rest.clicksend.com/v3/sms/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authHeader
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              to: cleanMobile,
+              body: smsText,
+              source: 'node'
+            }
+          ]
+        })
+      });
+
+      const csJson = await csRes.json().catch(() => ({}));
+      const msgInfo = csJson?.data?.messages?.[0];
+
+      // Fetch updated account info to see remaining balance
+      const accountRes = await fetch('https://rest.clicksend.com/v3/account', {
+        headers: { 'Authorization': authHeader }
+      });
+      const accountJson = await accountRes.json().catch(() => ({}));
+
+      res.json({
+        success: csRes.ok,
+        status: csRes.status,
+        sentTo: cleanMobile,
+        messageId: msgInfo?.message_id,
+        messageStatus: msgInfo?.status,
+        cost: csJson?.data?.total_price,
+        account: accountJson?.data || {},
+        details: csJson
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to dispatch test SMS." });
+    }
+  });
+
   const handleSaveSettingsRequest = (req: any, res: any) => {
     try {
       const settings = req.body;
@@ -11600,6 +11715,11 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         } catch {}
       }
 
+      if (!clicksendUsername || !clicksendApiKey) {
+        clicksendUsername = clicksendUsername || process.env.CLICKSEND_USERNAME || "";
+        clicksendApiKey = clicksendApiKey || process.env.CLICKSEND_API_KEY || "";
+      }
+
       // Initialize ClickSend dynamically with proper Configuration
       let smsApi: any = null;
       if (clicksendUsername && clicksendApiKey) {
@@ -11690,8 +11810,14 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                   ]
                 }
               });
-              const msgInfo = csRes?.data?.data?.messages?.[0];
-              logger.info(`[ClickSend] SMS dispatched to ${staff.first_name} (${mobile}) | Status: ${msgInfo?.status || 'QUEUED'} | ID: ${msgInfo?.message_id || 'N/A'}`);
+              const dataObj = csRes?.data || csRes?.body;
+              const msgInfo = dataObj?.data?.messages?.[0] || dataObj?.messages?.[0];
+              const blockedCount = dataObj?.data?.blocked_count || 0;
+              const totalPrice = dataObj?.data?.total_price || 0;
+              logger.info(`[ClickSend] SMS dispatched to ${staff.first_name} (${mobile}) | Status: ${msgInfo?.status || 'QUEUED'} | ID: ${msgInfo?.message_id || 'N/A'} | Blocked: ${blockedCount} | Cost: ${totalPrice}`);
+              if (msgInfo?.status === 'SUCCESS') {
+                logger.info(`[ClickSend Delivery Note] Message ID ${msgInfo?.message_id} was queued by ClickSend. If not delivered to the mobile device, check ClickSend Dashboard > SMS > History. On new/trial accounts, ClickSend pauses SMS containing URLs until reviewed by support ("WaitApproval").`);
+              }
               smsSentCount++;
             } else if (clicksendUsername && clicksendApiKey) {
               const authHeader = 'Basic ' + Buffer.from(`${clicksendUsername}:${clicksendApiKey}`).toString('base64');
@@ -11714,7 +11840,12 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
               if (csRes.ok) {
                 const csJson = await csRes.json().catch(() => ({}));
                 const msgInfo = csJson?.data?.messages?.[0];
-                logger.info(`[ClickSend] SMS dispatched via REST to ${staff.first_name} (${mobile}) | Status: ${msgInfo?.status || 'QUEUED'} | ID: ${msgInfo?.message_id || 'N/A'}`);
+                const blockedCount = csJson?.data?.blocked_count || 0;
+                const totalPrice = csJson?.data?.total_price || 0;
+                logger.info(`[ClickSend] SMS dispatched via REST to ${staff.first_name} (${mobile}) | Status: ${msgInfo?.status || 'QUEUED'} | ID: ${msgInfo?.message_id || 'N/A'} | Blocked: ${blockedCount} | Cost: ${totalPrice}`);
+                if (msgInfo?.status === 'SUCCESS') {
+                  logger.info(`[ClickSend Delivery Note] Message ID ${msgInfo?.message_id} was queued by ClickSend. If not delivered to the mobile device, check ClickSend Dashboard > SMS > History. On new/trial accounts, ClickSend pauses SMS containing URLs until reviewed by support ("WaitApproval").`);
+                }
                 smsSentCount++;
               } else {
                 const errBody = await csRes.text();

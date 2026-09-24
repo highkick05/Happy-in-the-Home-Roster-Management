@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import {  Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download , RefreshCw, MessageSquare } from 'lucide-react';
+import {  Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download , RefreshCw, MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import DatabaseSettings from './DatabaseSettings';
 import TestingChecklist from './TestingChecklist';
 import FundingTypesSettings from './FundingTypesSettings';
@@ -23,6 +23,62 @@ export default function SettingsView() {
   const [generalLoading, setGeneralLoading] = useState(false);
   const [testingEmailType, setTestingEmailType] = useState<'system' | 'invoices' | null>(null);
   const [testEmailResult, setTestEmailResult] = useState<{success: boolean, message: string, details?: string} | null>(null);
+
+  const [testSmsMobile, setTestSmsMobile] = useState('');
+  const [testSmsIncludeUrl, setTestSmsIncludeUrl] = useState(false);
+  const [testSmsLoading, setTestSmsLoading] = useState(false);
+  const [testSmsResult, setTestSmsResult] = useState<any>(null);
+  const [clicksendStatusLoading, setClicksendStatusLoading] = useState(false);
+  const [clicksendStatus, setClicksendStatus] = useState<any>(null);
+  const [clicksendStatusError, setClicksendStatusError] = useState<string | null>(null);
+
+  const handleCheckClicksendStatus = async () => {
+    setClicksendStatusLoading(true);
+    setClicksendStatusError(null);
+    try {
+      const res = await fetch('/api/settings/clicksend/status', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setClicksendStatus(data);
+      } else {
+        setClicksendStatusError(data.error || 'Failed to check ClickSend status');
+      }
+    } catch (err: any) {
+      setClicksendStatusError(err.message || 'Network error querying ClickSend');
+    } finally {
+      setClicksendStatusLoading(false);
+    }
+  };
+
+  const handleSendTestSms = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testSmsMobile) return;
+    setTestSmsLoading(true);
+    setTestSmsResult(null);
+    try {
+      const res = await fetch('/api/settings/test-sms', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          mobile: testSmsMobile,
+          includeUrl: testSmsIncludeUrl,
+          username: settings.clicksend_username,
+          apiKey: settings.clicksend_api_key
+        })
+      });
+      const data = await res.json();
+      setTestSmsResult(data);
+    } catch (err: any) {
+      setTestSmsResult({ error: err.message || 'Failed to dispatch test SMS' });
+    } finally {
+      setTestSmsLoading(false);
+    }
+  };
 
   const handleTestEmail = async (type: 'system' | 'invoices') => {
     setTestingEmailType(type);
@@ -1314,6 +1370,169 @@ export default function SettingsView() {
                 </button>
               </div>
             </form>
+
+            {/* ClickSend Diagnostic & Test Panel */}
+            <div className="mt-8 border-t border-border-subtle pt-6 space-y-6">
+              <div>
+                <h4 className="text-sm font-semibold text-[#E6EDF3] flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-brand-teal" />
+                  ClickSend Diagnostics & Test Dispatch
+                </h4>
+                <p className="text-xs text-[#8B949E] mt-1">
+                  Test SMS gateway connectivity, check remaining account balance, and inspect ClickSend message delivery status.
+                </p>
+              </div>
+
+              {/* Status / Balance Card */}
+              <div className="bg-brand-navy border border-border-subtle rounded-xl p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs text-[#8B949E] block">Account Status & Balance</span>
+                    {clicksendStatus?.account ? (
+                      <span className="text-base font-bold text-white">
+                        {clicksendStatus.account.balance !== undefined ? `$${Number(clicksendStatus.account.balance).toFixed(2)} ${clicksendStatus.account.currency || 'AUD'}` : 'Active'}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-zinc-400 italic">Click below to check account balance and recent ClickSend receipts</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCheckClicksendStatus}
+                    disabled={clicksendStatusLoading}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-white/[0.08] text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${clicksendStatusLoading ? 'animate-spin' : ''}`} />
+                    {clicksendStatusLoading ? 'Checking...' : 'Check Balance & Status'}
+                  </button>
+                </div>
+
+                {clicksendStatusError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-300 text-xs rounded-lg flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+                    <span>{clicksendStatusError}</span>
+                  </div>
+                )}
+
+                {clicksendStatus?.recentMessages && clicksendStatus.recentMessages.length > 0 && (
+                  <div className="mt-3 border-t border-white/[0.06] pt-3">
+                    <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-2">
+                      Recent ClickSend Dispatch Log (From ClickSend Gateway)
+                    </span>
+                    <div className="space-y-1.5 overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="text-[#8B949E] border-b border-white/[0.06]">
+                            <th className="pb-1">To</th>
+                            <th className="pb-1">Status</th>
+                            <th className="pb-1">Message ID</th>
+                            <th className="pb-1">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/[0.04]">
+                          {clicksendStatus.recentMessages.map((m: any, idx: number) => {
+                            const isWaitApproval = m.status === 'WaitApproval';
+                            const isDelivered = m.status === 'Delivered' || m.status === 'SUCCESS';
+                            return (
+                              <tr key={m.message_id || idx} className="text-zinc-300">
+                                <td className="py-1 font-mono text-[11px]">{m.to}</td>
+                                <td className="py-1">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                    isWaitApproval ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                                    isDelivered ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                                    'bg-zinc-700 text-zinc-300'
+                                  }`}>
+                                    {m.status || 'UNKNOWN'}
+                                  </span>
+                                </td>
+                                <td className="py-1 font-mono text-[10px] text-zinc-500">{m.message_id}</td>
+                                <td className="py-1 text-[11px] text-zinc-400">
+                                  {m.date ? new Date(m.date * 1000).toLocaleString() : 'N/A'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Send Test SMS Form */}
+              <div className="bg-brand-navy border border-border-subtle rounded-xl p-4 space-y-4">
+                <span className="text-xs font-semibold text-[#E6EDF3] block">
+                  Send Test SMS Message
+                </span>
+
+                <form onSubmit={handleSendTestSms} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-[#8B949E] mb-1">
+                      Recipient Mobile Number (e.g. 0448909774 or +61448909774)
+                    </label>
+                    <input
+                      type="text"
+                      value={testSmsMobile}
+                      onChange={(e) => setTestSmsMobile(e.target.value)}
+                      placeholder="e.g. 0448909774"
+                      className="w-full bg-black/40 border border-border-subtle rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:ring-1 focus:ring-brand-teal"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="testSmsIncludeUrl"
+                      checked={testSmsIncludeUrl}
+                      onChange={(e) => setTestSmsIncludeUrl(e.target.checked)}
+                      className="rounded border-zinc-700 bg-zinc-800 text-brand-teal focus:ring-brand-teal"
+                    />
+                    <label htmlFor="testSmsIncludeUrl" className="text-xs text-zinc-300 cursor-pointer">
+                      Include Portal URL link in test SMS
+                    </label>
+                  </div>
+
+                  <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg text-xs text-purple-200/90 flex items-start gap-2">
+                    <Info className="w-4 h-4 shrink-0 text-purple-400 mt-0.5" />
+                    <span>
+                      <strong>Important ClickSend URL Policy:</strong> ClickSend automatically pauses SMS messages containing links/URLs on new or trial accounts for fraud protection (status shows as <code>WaitApproval</code> in ClickSend). Testing with the box unchecked sends plain text to confirm direct handset delivery.
+                    </span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={testSmsLoading || !testSmsMobile}
+                    className="flex items-center gap-2 px-4 py-2 bg-brand-teal text-[#0D1117] font-medium text-xs rounded-md hover:bg-brand-teal/90 transition-colors disabled:opacity-50"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    {testSmsLoading ? 'Dispatching Test SMS...' : 'Send Test SMS'}
+                  </button>
+                </form>
+
+                {testSmsResult && (
+                  <div className={`p-4 rounded-xl text-xs border space-y-2 ${
+                    testSmsResult.success ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'bg-red-500/10 border-red-500/30 text-red-200'
+                  }`}>
+                    <div className="flex items-center gap-2 font-semibold">
+                      {testSmsResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <AlertCircle className="w-4 h-4 text-red-400" />}
+                      <span>{testSmsResult.success ? 'ClickSend Gateway Accepted Message' : 'Dispatch Failed'}</span>
+                    </div>
+                    {testSmsResult.messageId && (
+                      <p className="font-mono text-[11px] text-zinc-300">Message ID: {testSmsResult.messageId} | Status: {testSmsResult.messageStatus}</p>
+                    )}
+                    {testSmsResult.account?.balance !== undefined && (
+                      <p className="text-zinc-300">Remaining Balance: ${Number(testSmsResult.account.balance).toFixed(2)} {testSmsResult.account.currency || 'AUD'}</p>
+                    )}
+                    {testSmsResult.note && (
+                      <p className="text-zinc-400 italic pt-1 border-t border-white/[0.08]">{testSmsResult.note}</p>
+                    )}
+                    {testSmsResult.error && (
+                      <p className="text-red-300 font-medium">{testSmsResult.error}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
