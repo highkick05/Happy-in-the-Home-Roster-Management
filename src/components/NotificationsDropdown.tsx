@@ -18,31 +18,9 @@ export default function NotificationsDropdown() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [activeTooltip, setActiveTooltip] = useState<{ title: string; message: string; top: number; left: number } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { token, settings } = useAuth();
   const navigate = useNavigate();
-
-  const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>, notif: Notification) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const tooltipWidth = 320;
-    let left = rect.left - tooltipWidth - 12;
-    if (left < 12) {
-      left = Math.max(12, Math.min(window.innerWidth - tooltipWidth - 12, rect.left));
-    }
-    let top = Math.min(window.innerHeight - 200, Math.max(70, rect.top));
-
-    setActiveTooltip({
-      title: notif.title,
-      message: notif.message,
-      top,
-      left
-    });
-  };
-
-  const handleMouseLeave = () => {
-    setActiveTooltip(null);
-  };
 
   const fetchNotifications = async () => {
     if (!token) return;
@@ -115,7 +93,6 @@ export default function NotificationsDropdown() {
       }
     }
     setIsOpen(false);
-    setActiveTooltip(null);
     if (notif.link) {
       navigate(notif.link);
     }
@@ -124,10 +101,7 @@ export default function NotificationsDropdown() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button 
-        onClick={() => {
-          setIsOpen(!isOpen);
-          if (isOpen) setActiveTooltip(null);
-        }}
+        onClick={() => setIsOpen(!isOpen)}
         className="relative p-1.5 rounded-full hover:bg-white/[0.04] transition-colors focus:outline-none focus:ring-2 focus:ring-brand-teal"
       >
         <Bell className={`w-[18px] h-[18px] transition-colors ${notifications.some(n => n.type === 'ALERT' && n.is_read === 0) ? 'text-red-500 animate-pulse' : 'text-[#8B949E] hover:text-[#E6EDF3]'}`} />
@@ -152,7 +126,7 @@ export default function NotificationsDropdown() {
             )}
           </div>
           
-          <div className="overflow-y-auto flex-1 p-2 space-y-1" onScroll={() => setActiveTooltip(null)}>
+          <div className="overflow-y-auto flex-1 p-2 space-y-1">
             {notifications.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-[#8B949E]">
                 No notifications
@@ -164,8 +138,6 @@ export default function NotificationsDropdown() {
                 <div 
                   key={notif.id}
                   onClick={() => handleNotificationClick(notif)}
-                  onMouseEnter={(e) => handleMouseEnter(e, notif)}
-                  onMouseLeave={handleMouseLeave}
                   className={`p-3 rounded-md cursor-pointer transition-colors ${
                     isAlert
                       ? (notif.is_read === 0 ? 'bg-red-500/10 border border-red-500' : 'hover:bg-white/[0.02] border border-red-500/30 bg-red-500/5')
@@ -198,26 +170,6 @@ export default function NotificationsDropdown() {
               );
             })
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Floating Hover Text Popup for full unclipped message */}
-      {isOpen && activeTooltip && (
-        <div 
-          className="fixed z-[120] w-80 max-w-[calc(100vw-32px)] p-3.5 bg-[#161B22] border border-border-subtle rounded-xl shadow-2xl text-xs text-[#E6EDF3] backdrop-blur-md pointer-events-none animate-in fade-in zoom-in-95 duration-100 ring-1 ring-white/10"
-          style={{ top: activeTooltip.top, left: activeTooltip.left }}
-        >
-          <div className="font-semibold text-white mb-1.5 flex items-center gap-1.5 text-xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-brand-teal"></span>
-            {activeTooltip.title}
-          </div>
-          <p className="text-zinc-300 leading-relaxed whitespace-pre-wrap text-[11.5px] break-words">
-            {activeTooltip.message}
-          </p>
-          <div className="mt-2 pt-2 border-t border-white/[0.06] text-[10px] text-zinc-500 italic flex items-center justify-between">
-            <span>Full notification text</span>
-            <span className="text-brand-teal font-medium">Click to navigate</span>
           </div>
         </div>
       )}
