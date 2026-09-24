@@ -10805,6 +10805,13 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                          sd.serviceRatesJson = hist.rates_json;
                      }
                  }
+                 const sNameLower = (sd.serviceName || '').toLowerCase();
+                 const sCodeLower = (sd.serviceCode || '').toLowerCase();
+                 if (sNameLower.includes('provider travel') || sNameLower.includes('activity based transport') || sCodeLower.includes('travel')) {
+                     sd.serviceUnit = 'KM';
+                     sd.serviceRate = 1.00;
+                     sd.serviceRatesJson = null;
+                 }
              }
           }
           s.servicesData = parsed;
@@ -10839,6 +10846,13 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                          sd.serviceUnit = srv.unit;
                          sd.serviceRatesJson = hist.rates_json;
                      }
+               }
+               const sNameLower = (sd.serviceName || '').toLowerCase();
+               const sCodeLower = (sd.serviceCode || '').toLowerCase();
+               if (sNameLower.includes('provider travel') || sNameLower.includes('activity based transport') || sCodeLower.includes('travel')) {
+                   sd.serviceUnit = 'KM';
+                   sd.serviceRate = 1.00;
+                   sd.serviceRatesJson = null;
                }
            }
         }
@@ -10977,6 +10991,12 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
             .get(sData.serviceId) as any;
           if (srv) {
             const name = srv.name.toLowerCase();
+            const isTravelOrTransport = name.includes("activity based transport") || name.includes("provider travel");
+            if (isTravelOrTransport) {
+              if (sData.rateOverride === undefined || sData.rateOverride === null || sData.rateOverride === '' || isNaN(Number(sData.rateOverride))) {
+                sData.rateOverride = 1.00;
+              }
+            }
             if (name.includes("activity based transport")) {
               isAbtApproved = true;
               if (!is_historical) sData.qtyOverride = 0;
@@ -11378,6 +11398,12 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
               .get(sData.serviceId) as any;
             if (srv) {
               const name = srv.name.toLowerCase();
+              const isTravelOrTransport = name.includes("activity based transport") || name.includes("provider travel");
+              if (isTravelOrTransport) {
+                if (sData.rateOverride === undefined || sData.rateOverride === null || sData.rateOverride === '' || isNaN(Number(sData.rateOverride))) {
+                  sData.rateOverride = 1.00;
+                }
+              }
               if (name.includes("activity based transport")) {
                 isAbtApproved = true;
                 const isHist = is_historical || (is_historical === undefined && existing.status === 'COMPLETED');

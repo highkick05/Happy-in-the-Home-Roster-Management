@@ -715,15 +715,28 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                       const sIdStr = String(sd.serviceId);
                       const fullService = servicesList.find(s => String(s.id) === sIdStr);
                       const serviceName = fullService ? fullService.name : (sd.serviceName || sd.customName || sd.name || (idx === 0 ? shift.serviceName : 'Unknown Service'));
-                      const unit = fullService ? (fullService.unit || 'Hour') : (sd.serviceUnit || shift.serviceUnit || 'Hour');
-                      const serviceType = (sd.serviceType || shift.serviceType) || (fullService ? fullService.type : 'Unknown');
-                      const ratesJson = (sd.serviceRatesJson || shift.serviceRatesJson) || (fullService ? fullService.rates_json : null);
+
+                      const lowerName = (serviceName || '').toLowerCase();
+                      const codeLower = `${sd.serviceCode || ''} ${fullService?.code || ''}`.toLowerCase();
+                      const isProviderTravel = lowerName.includes('provider travel') || lowerName.includes('travel - provider') || codeLower.includes('travel');
+                      const isABT = lowerName.includes('activity based transport') || lowerName.includes('activity-based transport') || lowerName.includes('activity based') || lowerName === 'abt';
+                      const isTravelOrTransport = isProviderTravel || isABT;
+
+                      const unit = isTravelOrTransport ? 'KM' : (fullService ? (fullService.unit || 'Hour') : (sd.serviceUnit || (idx === 0 ? shift.serviceUnit : 'Hour')));
+                      const serviceType = (sd.serviceType || (idx === 0 ? shift.serviceType : undefined)) || (fullService ? fullService.type : 'Unknown');
+                      const ratesJson = isTravelOrTransport ? null : ((sd.serviceRatesJson || (idx === 0 ? shift.serviceRatesJson : null)) || (fullService ? fullService.rates_json : null));
 
                       const startMs = new Date(shift.start).getTime();
                       const endMs = new Date(shift.end).getTime();
                       const hours = Math.max(0, (endMs - startMs) / (1000 * 60 * 60));
                       
-                      let baseRate = Number((sd.serviceRate !== undefined && sd.serviceRate !== null) ? sd.serviceRate : (shift.serviceRate !== undefined && shift.serviceRate !== null ? shift.serviceRate : (fullService ? fullService.rate : 0)));
+                      let baseRate = Number(
+                        (sd.serviceRate !== undefined && sd.serviceRate !== null)
+                          ? sd.serviceRate
+                          : (idx === 0 && shift.serviceRate !== undefined && shift.serviceRate !== null)
+                            ? shift.serviceRate
+                            : (fullService ? fullService.rate : 0)
+                      );
                       let dayOfWeek = new Date(shift.start).getDay();
                       let finalRate = baseRate;
                       
@@ -734,7 +747,16 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                       const dateStr = `${yyyy}-${mm}-${dd}`;
                       const isPublicHoliday = internalHolidays.some((h: any) => h.date && h.date.startsWith(dateStr));
                       
-                      if (serviceType === 'HOME_CARE' && ratesJson) {
+                      if (isTravelOrTransport) {
+                        // Hardened Rate Protection: Pinned to NDIA $1.00/KM standard allowance unless a custom override is explicitly provided
+                        let travelRate = 1.00;
+                        if (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== '' && !isNaN(Number(sd.rateOverride))) {
+                          travelRate = Number(sd.rateOverride);
+                        } else if (fullService && Number(fullService.rate) > 0 && Number(fullService.rate) <= 10) {
+                          travelRate = Number(fullService.rate);
+                        }
+                        finalRate = travelRate;
+                      } else if (serviceType === 'HOME_CARE' && ratesJson) {
                          try {
                             const rates = JSON.parse(ratesJson);
                             if (isPublicHoliday && rates['Public Holiday']) finalRate = Number(rates['Public Holiday']);
@@ -750,7 +772,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                          } catch(e) {}
                       }
 
-                      if (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== '') {
+                      if (!isTravelOrTransport && sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== '') {
                         finalRate = Number(sd.rateOverride);
                       }
                       
@@ -760,9 +782,16 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
 
                       return (
                         <div key={idx} className="bg-[#121214] p-4 rounded-xl border border-white/[0.08] text-sm md:text-base shadow-sm">
-                          <div className="flex justify-between mb-2">
+                          <div className="flex justify-between items-center mb-2">
                             <span className="text-zinc-500 font-medium">Service</span>
-                            <span className="text-zinc-200 ml-4 text-right truncate font-bold" title={serviceName}>{serviceName}</span>
+                            <div className="flex items-center gap-1.5 ml-4 text-right">
+                              <span className="text-zinc-200 truncate font-bold" title={serviceName}>{serviceName}</span>
+                              {isTravelOrTransport && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-teal/20 text-brand-teal border border-brand-teal/30 whitespace-nowrap" title="NDIA Standard Travel Protection Active ($1.00/KM)">
+                                  Protected $1/KM
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="flex justify-between mb-2">
                             <span className="text-zinc-500 font-medium">Duration/Qty</span>
@@ -770,7 +799,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                           </div>
                           <div className="flex justify-between mb-3">
                             <span className="text-zinc-500 font-medium">Rate</span>
-                            <span className="text-zinc-200 font-medium">${finalRate.toFixed(2)}</span>
+                            <span className="text-zinc-200 font-medium">${finalRate.toFixed(2)} / {unit}</span>
                           </div>
                           <div className="flex justify-between pt-3 border-t border-white/[0.08]/80 font-bold">
                             <span className="text-zinc-400 uppercase tracking-widest text-xs mt-1">Total</span>
