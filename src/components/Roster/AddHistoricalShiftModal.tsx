@@ -80,11 +80,13 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
       setStartOdometer(initialData?.startOdometer ? Number(initialData.startOdometer).toString() : '');
       setEndOdometer(initialData?.endOdometer ? Number(initialData.endOdometer).toString() : '');
       
+      let calculatedHours: number | null = null;
       if (startD && startT && endD && endT) {
          const start = new Date(`${startD}T${startT}:00`);
          const end = new Date(`${endD}T${endT}:00`);
          if (end >= start) {
             const h = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+            calculatedHours = h;
             setDurationStr(h % 1 === 0 ? h.toString() : h.toFixed(2));
          } else {
             setDurationStr('');
@@ -93,16 +95,20 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
          setDurationStr('');
       }
       
+      const defaultQty = calculatedHours !== null ? (calculatedHours % 1 === 0 ? calculatedHours : Number(calculatedHours.toFixed(2))) : undefined;
+
       if (initialData?.servicesData && initialData.servicesData.length > 0) {
         setServicesData(initialData.servicesData.map((s: any) => ({
           ...s,
-          serviceId: String(s.serviceId)
+          serviceId: String(s.serviceId),
+          qtyOverride: s.qtyOverride ?? s.qty
         })));
       } else {
         setServicesData([
           {
             id: initialData?.id,
-            serviceId: initialData?.serviceId || ''
+            serviceId: initialData?.serviceId || '',
+            qtyOverride: defaultQty
           }
         ]);
       }
@@ -177,12 +183,47 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
     return servicesList.filter(s => selectedClient.service_ids.includes(s.id) || selectedServiceIds.includes(s.id));
   }, [selectedClient, servicesList, servicesData]);
 
+  const isMainShiftService = (s: ServiceFormEntry) => {
+    const { name } = getServiceDetails(s);
+    const lowerName = (name || '').toLowerCase();
+    const isProviderTravel = lowerName.includes('provider travel');
+    const isABT = lowerName.includes('activity based transport');
+    return !isProviderTravel && !isABT;
+  };
+
+  const syncDurationAndServices = (newStartD: string, newStartT: string, newEndD: string, newEndT: string) => {
+    if (newStartD && newStartT && newEndD && newEndT) {
+      const start = new Date(`${newStartD}T${newStartT}:00`);
+      const end = new Date(`${newEndD}T${newEndT}:00`);
+      if (end >= start) {
+        const diffHrs = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        const formattedDur = diffHrs % 1 === 0 ? diffHrs.toString() : parseFloat(diffHrs.toFixed(2)).toString();
+        setDurationStr(formattedDur);
+
+        const newQty = diffHrs % 1 === 0 ? diffHrs : parseFloat(diffHrs.toFixed(2));
+        setServicesData(prev => prev.map(s => {
+          if (isMainShiftService(s)) {
+            return {
+              ...s,
+              qtyOverride: newQty
+            };
+          }
+          return s;
+        }));
+        return;
+      }
+    }
+    setDurationStr('');
+  };
+
   if (!isOpen) return null;
 
   const handleAddServiceEntry = () => {
+    const dur = parseFloat(durationStr);
+    const initialQty = !isNaN(dur) && dur > 0 ? (dur % 1 === 0 ? dur : parseFloat(dur.toFixed(2))) : undefined;
     setServicesData(prev => [
       ...prev,
-      { serviceId: '' }
+      { serviceId: '', qtyOverride: initialQty }
     ]);
   };
 
@@ -194,6 +235,13 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
     setServicesData(prev => {
       const copy = [...prev];
       copy[index] = { ...copy[index], [field]: value };
+      if (field === 'serviceId') {
+        const entry = copy[index];
+        const dur = parseFloat(durationStr);
+        if (!isNaN(dur) && dur > 0 && isMainShiftService(entry)) {
+          entry.qtyOverride = dur % 1 === 0 ? dur : parseFloat(dur.toFixed(2));
+        }
+      }
       return copy;
     });
   };
@@ -201,77 +249,49 @@ export default function AddHistoricalShiftModal({ isOpen, onClose, onSave, staff
   const handleStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const newStartT = e.target.value;
      setStartTime(newStartT);
-     const hrs = parseFloat(durationStr);
-     if (!isNaN(hrs) && hrs > 0 && startDate && newStartT) {
-         const start = new Date(`${startDate}T${newStartT}:00`);
-         const end = new Date(start.getTime() + hrs * 60 * 60 * 1000);
-         setEndDate(end.toLocaleDateString('en-CA'));
-         setEndTime(end.toTimeString().slice(0, 5));
-     } else if (startDate && newStartT && endDate && endTime) {
-         const start = new Date(`${startDate}T${newStartT}:00`);
-         const end = new Date(`${endDate}T${endTime}:00`);
-         if (end >= start) {
-            const h = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-            setDurationStr(h % 1 === 0 ? h.toString() : h.toFixed(2));
-         }
-     }
+     syncDurationAndServices(startDate, newStartT, endDate, endTime);
   };
 
   const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const newStartD = e.target.value;
      setStartDate(newStartD);
-     const hrs = parseFloat(durationStr);
-     if (!isNaN(hrs) && hrs > 0 && newStartD && startTime) {
-         const start = new Date(`${newStartD}T${startTime}:00`);
-         const end = new Date(start.getTime() + hrs * 60 * 60 * 1000);
-         setEndDate(end.toLocaleDateString('en-CA'));
-         setEndTime(end.toTimeString().slice(0, 5));
-     } else if (newStartD && startTime && endDate && endTime) {
-         const start = new Date(`${newStartD}T${startTime}:00`);
-         const end = new Date(`${endDate}T${endTime}:00`);
-         if (end >= start) {
-            const h = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-            setDurationStr(h % 1 === 0 ? h.toString() : h.toFixed(2));
-         }
-     }
+     syncDurationAndServices(newStartD, startTime, endDate, endTime);
   };
 
   const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const val = e.target.value;
      setDurationStr(val);
      const hrs = parseFloat(val);
-     if (!isNaN(hrs) && hrs >= 0 && startDate && startTime) {
-         const start = new Date(`${startDate}T${startTime}:00`);
-         const end = new Date(start.getTime() + hrs * 60 * 60 * 1000);
-         setEndDate(end.toLocaleDateString('en-CA'));
-         setEndTime(end.toTimeString().slice(0, 5));
+     if (!isNaN(hrs) && hrs >= 0) {
+         if (startDate && startTime) {
+             const start = new Date(`${startDate}T${startTime}:00`);
+             const end = new Date(start.getTime() + hrs * 60 * 60 * 1000);
+             setEndDate(end.toLocaleDateString('en-CA'));
+             setEndTime(end.toTimeString().slice(0, 5));
+         }
+         const newQty = hrs % 1 === 0 ? hrs : parseFloat(hrs.toFixed(2));
+         setServicesData(prev => prev.map(s => {
+           if (isMainShiftService(s)) {
+             return {
+               ...s,
+               qtyOverride: newQty
+             };
+           }
+           return s;
+         }));
      }
   };
 
   const handleEndTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const newEndT = e.target.value;
      setEndTime(newEndT);
-     if (startDate && startTime && endDate && newEndT) {
-         const start = new Date(`${startDate}T${startTime}:00`);
-         const end = new Date(`${endDate}T${newEndT}:00`);
-         if (end >= start) {
-            const h = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-            setDurationStr(h % 1 === 0 ? h.toString() : h.toFixed(2));
-         }
-     }
+     syncDurationAndServices(startDate, startTime, endDate, newEndT);
   };
 
   const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const newEndD = e.target.value;
      setEndDate(newEndD);
-     if (startDate && startTime && newEndD && endTime) {
-         const start = new Date(`${startDate}T${startTime}:00`);
-         const end = new Date(`${newEndD}T${endTime}:00`);
-         if (end >= start) {
-            const h = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-            setDurationStr(h % 1 === 0 ? h.toString() : h.toFixed(2));
-         }
-     }
+     syncDurationAndServices(startDate, startTime, newEndD, endTime);
   };
 
   const saveData = async (ignoreConflicts = false) => {
