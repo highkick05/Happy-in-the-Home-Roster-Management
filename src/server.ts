@@ -5870,10 +5870,11 @@ app.get("/api/health", (req, res) => {
       datetime('now')
     ) AS created_at`;
 
-    if (req.user.role !== "ADMIN") {
+    const requestedRole = req.query.role ? String(req.query.role).toUpperCase() : null;
+    if (req.user.role !== "ADMIN" || requestedRole === "STAFF") {
       const staff = db
         .prepare(
-          `SELECT id, first_name, last_name, role, status, avatar_url, primary_position, additional_positions, ${joinedExpr}, ${createdExpr} FROM users WHERE role = ?`,
+          `SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, ${joinedExpr}, ${createdExpr} FROM users WHERE role = ?`,
         )
         .all("STAFF");
       return res.json(staff);
@@ -11736,6 +11737,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         FROM users 
         WHERE id IN (${placeholders}) 
           AND status != 'INACTIVE' 
+          AND role = 'STAFF'
           AND ((email IS NOT NULL AND email != '') OR (phone IS NOT NULL AND phone != ''))
       `).all(...staff_ids) as any[];
 

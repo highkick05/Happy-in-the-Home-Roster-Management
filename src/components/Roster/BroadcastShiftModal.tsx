@@ -42,7 +42,7 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
 
     setIsLoading(true);
     setError(null);
-    fetch('/api/staff', {
+    fetch('/api/staff?role=STAFF', {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -50,9 +50,15 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
       .then(async (res) => {
         if (!res.ok) throw new Error('Failed to load staff list');
         const data = await res.json();
-        // Filter to active staff members who have valid email addresses
+        // Filter strictly to active staff members (excluding admin accounts) who have valid email addresses
         const activeStaff = (Array.isArray(data) ? data : [])
-          .filter((s: StaffMember) => s.status !== 'INACTIVE' && s.email && s.email.trim() !== '')
+          .filter((s: StaffMember) => 
+            s.status !== 'INACTIVE' && 
+            s.role !== 'ADMIN' &&
+            (s.role || '').toUpperCase() === 'STAFF' &&
+            s.email && 
+            s.email.trim() !== ''
+          )
           .sort((a: StaffMember, b: StaffMember) => 
             (a.first_name || '').localeCompare(b.first_name || '')
           );
