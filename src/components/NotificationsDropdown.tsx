@@ -154,7 +154,6 @@ export default function NotificationsDropdown() {
                   </div>
                   <p 
                     className="text-xs text-[#8B949E] line-clamp-3 leading-relaxed hover:text-[#E6EDF3] transition-colors"
-                    title={notif.message}
                   >
                     {notif.message}
                   </p>
