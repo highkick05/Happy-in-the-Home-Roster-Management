@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp } from 'lucide-react';
+import { Bot, Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2 } from 'lucide-react';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -8,6 +8,7 @@ export interface ChatMessage {
 
 export default function AiChatWidget() {
   const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -121,7 +122,11 @@ export default function AiChatWidget() {
         <div
           role="dialog"
           aria-label="AI Care & Rostering Assistant"
-          className="fixed bottom-[80px] right-[20px] z-50 w-[350px] sm:w-[380px] max-w-[calc(100vw-32px)] h-[500px] max-h-[calc(100vh-100px)] bg-brand-navy border border-border-subtle rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl animate-in fade-in slide-in-from-bottom-3 duration-200"
+          className={`fixed bottom-[80px] right-[20px] z-50 bg-brand-navy border border-border-subtle rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-bottom-3 ${
+            isExpanded
+              ? 'w-[94vw] sm:w-[680px] md:w-[820px] lg:w-[920px] h-[82vh] sm:h-[720px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-100px)]'
+              : 'w-[350px] sm:w-[380px] max-w-[calc(100vw-32px)] h-[500px] max-h-[calc(100vh-100px)]'
+          }`}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-brand-bg/90 border-b border-border-subtle shrink-0">
@@ -153,6 +158,19 @@ export default function AiChatWidget() {
               )}
               <button
                 type="button"
+                onClick={() => setIsExpanded(prev => !prev)}
+                title={isExpanded ? "Collapse window" : "Expand window"}
+                aria-label={isExpanded ? "Collapse chat window" : "Expand chat window"}
+                className="p-1.5 text-[#8B949E] hover:text-white hover:bg-white/[0.05] rounded-md transition-colors"
+              >
+                {isExpanded ? (
+                  <Minimize2 className="w-4 h-4" />
+                ) : (
+                  <Maximize2 className="w-4 h-4" />
+                )}
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsOpen(false)}
                 title="Close chat"
                 className="p-1.5 text-[#8B949E] hover:text-white hover:bg-white/[0.05] rounded-md transition-colors"
@@ -178,30 +196,32 @@ export default function AiChatWidget() {
                   </p>
                 </div>
 
-                <div className="space-y-2 mt-4 text-left">
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-[#8B949E] px-1">
+                <div className="mt-4 text-left">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-[#8B949E] px-1 mb-2">
                     Quick suggestions
                   </p>
-                  {suggestedPrompts.map((item, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleSubmit(undefined, item.prompt)}
-                      className="w-full text-left p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] hover:border-brand-teal/30 transition-all flex items-start gap-2.5 group cursor-pointer"
-                    >
-                      <span className="p-1 rounded-md bg-white/[0.04] group-hover:bg-brand-teal/10 transition-colors">
-                        {item.icon}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-white group-hover:text-brand-teal transition-colors">
-                          {item.title}
+                  <div className={`space-y-2 ${isExpanded ? 'md:space-y-0 md:grid md:grid-cols-3 md:gap-3' : ''}`}>
+                    {suggestedPrompts.map((item, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSubmit(undefined, item.prompt)}
+                        className="w-full text-left p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] hover:border-brand-teal/30 transition-all flex items-start gap-2.5 group cursor-pointer"
+                      >
+                        <span className="p-1 rounded-md bg-white/[0.04] group-hover:bg-brand-teal/10 transition-colors">
+                          {item.icon}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-white group-hover:text-brand-teal transition-colors">
+                            {item.title}
+                          </div>
+                          <div className="text-[11px] text-[#8B949E] truncate">
+                            {item.desc}
+                          </div>
                         </div>
-                        <div className="text-[11px] text-[#8B949E] truncate">
-                          {item.desc}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (
