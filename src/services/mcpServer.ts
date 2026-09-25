@@ -22,6 +22,395 @@ export function formatToAustralianDate(isoDateStr: string): string {
 }
 
 /**
+ * Core Database Integration Helper: Fetches complete Client Budget Configuration
+ * Connects directly to Client Dashboard > Edit Profile and Budget
+ * Handles both Home Care Package (HCP) / Support at Home (SAH) and NDIS Service Agreements.
+ */
+export function getClientBudgetDetails(
+  db: Database.Database,
+  client: any,
+  quarterStartDate?: string,
+  quarterEndDate?: string,
+  customQuarterlyBudget?: number
+) {
+  // 1. Determine active quarter and cycle dates
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const quarters = [
+    { start: new Date(currentYear, 0, 1), end: new Date(currentYear, 2, 31) }, // Q1 Jan-Mar
+    { start: new Date(currentYear, 3, 1), end: new Date(currentYear, 5, 30) }, // Q2 Apr-Jun
+    { start: new Date(currentYear, 6, 1), end: new Date(currentYear, 8, 30) }, // Q3 Jul-Sep
+    { start: new Date(currentYear, 9, 1), end: new Date(currentYear, 11, 31) } // Q4 Oct-Dec
+  ];
+  const activeQuarter = quarters.find(q => now >= q.start && now <= q.end) || quarters[0];
+
+  let cycleStart = quarterStartDate ? new Date(`${quarterStartDate}T00:00:00`) : new Date(activeQuarter.start);
+  let cycleEnd = quarterEndDate ? new Date(`${quarterEndDate}T23:59:59`) : new Date(activeQuarter.end);
+
+  // Active client budget settings from client_budgets table
+  const activeClientBudget = db.prepare(
+    `SELECT * FROM client_budgets WHERE client_id = ? AND status = 'ACTIVE' LIMIT 1`
+  ).get(client.id) as any;
+
+  // If dates were not manually provided in prompt, check for custom dates or client joined_date
+  if (!quarterStartDate) {
+    if (client.joined_date) {
+      const joined = new Date(client.joined_date);
+      if (!isNaN(joined.getTime()) && joined >= activeQuarter.start && joined <= activeQuarter.end) {
+        cycleStart = joined;
+      }
+    }
+    if (activeClientBudget?.cycle_start_date) {
+      const cs = new Date(`${activeClientBudget.cycle_start_date}T00:00:00`);
+      if (!isNaN(cs.getTime())) cycleStart = cs;
+    }
+  }
+
+  if (!quarterEndDate && activeClientBudget?.cycle_end_date) {
+    const ce = new Date(`${activeClientBudget.cycle_end_date}T23:59:59`);
+    if (!isNaN(ce.getTime())) cycleEnd = ce;
+  }
+
+  const startIso = cycleStart.toISOString().split("T")[0];
+  const endIso = cycleEnd.toISOString().split("T")[0];
+
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const totalDays = Math.max(1, Math.floor((cycleEnd.getTime() - cycleStart.getTime()) / msPerDay) + 1);
+  const totalWeeks = Math.max(1, parseFloat((totalDays / 7).toFixed(1)));
+
+  // Remaining days and weeks relative to today
+  const effectiveStartMs = Math.max(now.getTime(), cycleStart.getTime());
+  const remainingDays = Math.max(0, Math.ceil((cycleEnd.getTime() - effectiveStartMs) / msPerDay));
+  const remainingWeeks = Math.max(0.1, parseFloat((remainingDays / 7).toFixed(1)));
+
+  const fundingTypeUpper = String(client.funding_type || '').toUpperCase();
+  const isHomeCare = fundingTypeUpper === 'HOME_CARE' || fundingTypeUpper === 'HOME CARE' || Boolean(client.home_care_sub_type);
+
+  // Query funding rates from settings table (or default Australian standard schedule)
+  const settingsRows = db.prepare("SELECT key, value FROM settings WHERE key IN ('hcpFundingLevels', 'sahFundingLevels')").all() as any[];
+  const settingsMap: Record<string, any> = {};
+  for (const row of settingsRows) {
+    try {
+      settingsMap[row.key] = JSON.parse(row.value);
+    } catch {
+      settingsMap[row.key] = row.value;
+    }
+  }
+
+  const hcpLevels = settingsMap.hcpFundingLevels || [
+    { level: 'Level 1', amountDaily: 30.10 },
+    { level: 'Level 2', amountDaily: 52.93 },
+    { level: 'Level 3', amountDaily: 115.22 },
+    { level: 'Level 4', amountDaily: 174.68 }
+  ];
+
+  const sahLevels = settingsMap.sahFundingLevels || [
+    { level: 'Class 1', amountDaily: 29.40 },
+    { level: 'Class 2', amountDaily: 43.93 },
+    { level: 'Class 3', amountDaily: 60.18 },
+    { level: 'Class 4', amountDaily: 81.36 },
+    { level: 'Class 5', amountDaily: 108.76 },
+    { level: 'Class 6', amountDaily: 131.82 },
+    { level: 'Class 7', amountDaily: 159.31 },
+    { level: 'Class 8', amountDaily: 213.99 }
+  ];
+
+  if (isHomeCare) {
+    const subType = client.home_care_sub_type || 'HCP';
+    const levelOrClass = client.home_care_level_or_class || 'Level 1';
+    let dailyRate = 0;
+
+    if (subType === 'SAH') {
+      const match = sahLevels.find((l: any) => l.level === levelOrClass);
+      dailyRate = match ? Number(match.amountDaily) : 29.40;
+    } else {
+      const match = hcpLevels.find((l: any) => l.level === levelOrClass);
+      dailyRate = match ? Number(match.amountDaily) : 30.10;
+    }
+
+    // Exact cycle allocation as displayed in the Client Budget section (totalDays * dailyRate)
+    const totalCycleAllocation = customQuarterlyBudget !== undefined && customQuarterlyBudget > 0
+      ? customQuarterlyBudget
+      : parseFloat((totalDays * dailyRate).toFixed(2));
+
+    const historicalInternalConsumptions = Number(activeClientBudget?.historical_internal_consumptions || 0);
+    const spendAsOfDate = activeClientBudget?.spend_as_of_date || '';
+    const startingRolloverBalance = Number(activeClientBudget?.starting_rollover_balance || 0);
+    const rolloverSpentSoFar = Number(activeClientBudget?.rollover_spent_so_far || 0);
+    const actualUnspentRemaining = parseFloat((startingRolloverBalance - rolloverSpentSoFar).toFixed(2));
+
+    const careCoordPercent = Number(client.care_coordination_fee ?? 20);
+    const managementFeePercent = Number(client.management_fee ?? 0);
+
+    // Query client shifts in cycle
+    const shifts = db.prepare(
+      `SELECT s.id, s.start_time, s.end_time, s.status, s.services_json,
+              s.service_id, srv.name as service_name, srv.rate as service_rate, srv.unit as service_unit
+       FROM shifts s
+       LEFT JOIN services srv ON s.service_id = srv.id
+       WHERE s.client_id = ?
+         AND s.start_time >= ?
+         AND s.start_time <= ?
+         AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID', 'DRAFT')
+       ORDER BY s.start_time ASC`
+    ).all(client.id, `${startIso}T00:00:00`, `${endIso}T23:59:59`) as any[];
+
+    let liveShiftsCost = 0;
+    let completedCount = 0;
+    let scheduledCount = 0;
+    let totalCommittedHours = 0;
+
+    for (const shift of shifts) {
+      const isCompleted = UPPER(shift.status) === 'COMPLETED';
+      if (isCompleted) completedCount++;
+      else scheduledCount++;
+
+      const startMs = new Date(shift.start_time).getTime();
+      const endMs = new Date(shift.end_time).getTime();
+      const durationHrs = Math.max(0, (endMs - startMs) / 3600000);
+      totalCommittedHours += durationHrs;
+
+      const shiftDateOnly = String(shift.start_time).split('T')[0];
+      // Skip shifts already accounted for in pre-system historical adjustments
+      if (spendAsOfDate && shiftDateOnly <= spendAsOfDate) {
+        continue;
+      }
+
+      let baseShiftCost = 0;
+      let parsedServices: any[] = [];
+      if (shift.services_json) {
+        try { parsedServices = JSON.parse(shift.services_json); } catch {}
+      }
+
+      if (Array.isArray(parsedServices) && parsedServices.length > 0) {
+        for (const sd of parsedServices) {
+          const srv = sd.serviceId ? db.prepare("SELECT rate, unit FROM services WHERE id = ?").get(sd.serviceId) as any : null;
+          const effectiveRate = Number(sd.rateOverride ?? srv?.rate ?? 0);
+          const isKm = (sd.serviceUnit || srv?.unit || '').toUpperCase() === 'KM';
+          const qty = Number(sd.qtyOverride ?? (isKm ? 0 : durationHrs));
+          baseShiftCost += qty * effectiveRate;
+        }
+      } else {
+        const baseRate = Number(shift.service_rate || 0);
+        baseShiftCost = durationHrs * baseRate;
+      }
+
+      // Apply Care Coordination & Management loadings
+      const coordFee = baseShiftCost * (careCoordPercent / 100);
+      const subtotalWithCoord = baseShiftCost + coordFee;
+      const mgmtFee = subtotalWithCoord * (managementFeePercent / 100);
+      const totalShiftWithFees = subtotalWithCoord + mgmtFee;
+
+      liveShiftsCost += totalShiftWithFees;
+    }
+
+    // External ledger items
+    let externalEntriesCost = 0;
+    try {
+      const externalEntries = db.prepare(
+        `SELECT * FROM client_ledger_entries 
+         WHERE client_id = ? AND date >= ? AND date <= ?`
+      ).all(client.id, startIso, endIso) as any[];
+
+      for (const ent of externalEntries) {
+        const entDateOnly = String(ent.date).split('T')[0];
+        if (spendAsOfDate && entDateOnly <= spendAsOfDate) continue;
+        externalEntriesCost += Number(ent.grand_total || (Number(ent.base_amount || 0) + Number(ent.care_coord_fee || 0) + Number(ent.management_fee || 0)));
+      }
+    } catch {}
+
+    const liveInternalConsumptions = parseFloat((liveShiftsCost + externalEntriesCost).toFixed(2));
+    const totalCombinedSpent = parseFloat((historicalInternalConsumptions + liveInternalConsumptions).toFixed(2));
+    const remainingBalance = parseFloat((totalCycleAllocation - totalCombinedSpent).toFixed(2));
+    const burnRatePercentage = totalCycleAllocation > 0
+      ? `${((totalCombinedSpent / totalCycleAllocation) * 100).toFixed(2)}%`
+      : '0.00%';
+
+    const averageWeeklySpend = totalWeeks > 0 ? parseFloat((totalCombinedSpent / totalWeeks).toFixed(2)) : 0;
+    const averageWeeklyHours = totalWeeks > 0 ? parseFloat((totalCommittedHours / totalWeeks).toFixed(2)) : 0;
+
+    return {
+      clientName: `${client.first_name} ${client.last_name}`,
+      clientId: client.id,
+      fundingType: "HOME_CARE",
+      fundingCategory: "Home Care Package / Support at Home",
+      fundingPackage: `${subType} ${levelOrClass}`,
+      dailyFundingRate: dailyRate,
+      cycleStartISO: startIso,
+      cycleEndISO: endIso,
+      cycleStartAU: formatToAustralianDate(startIso),
+      cycleEndAU: formatToAustralianDate(endIso),
+      totalCycleDays: totalDays,
+      totalCycleWeeks: totalWeeks,
+      remainingWeeks,
+      totalCycleAllocation,
+      totalQuarterlyBudget: totalCycleAllocation,
+      historicalPreSystemSpend: historicalInternalConsumptions,
+      spendAsOfDateAU: spendAsOfDate ? formatToAustralianDate(spendAsOfDate) : null,
+      liveInternalSpend: liveInternalConsumptions,
+      totalCombinedSpent,
+      totalUsedFunds: totalCombinedSpent,
+      remainingBalance,
+      remainingFunds: remainingBalance,
+      unspentFundsPool: {
+        startingRolloverBalance,
+        rolloverSpentSoFar,
+        unspentPoolRemaining: actualUnspentRemaining
+      },
+      burnRatePercentage,
+      averageWeeklySpend,
+      averageWeeklyHours,
+      totalCommittedHours: parseFloat(totalCommittedHours.toFixed(2)),
+      shiftCount: shifts.length,
+      statusBreakdown: {
+        completedShifts: completedCount,
+        scheduledShifts: scheduledCount
+      }
+    };
+  } else {
+    // 2. NDIS Client Profile & Service Agreements
+    const agreement = db.prepare(
+      `SELECT * FROM ndis_service_agreements 
+       WHERE client_id = ? AND UPPER(status) != 'ARCHIVED' 
+       ORDER BY start_date DESC LIMIT 1`
+    ).get(client.id) as any;
+
+    let totalAgreementValue = 0;
+    let agreementStartDate = startIso;
+    let agreementEndDate = endIso;
+    let itemsBreakdown: any[] = [];
+    let agreementName = "NDIS Standard Allocation";
+
+    if (agreement) {
+      agreementName = agreement.name;
+      totalAgreementValue = Number(agreement.total_budget || 0);
+      agreementStartDate = agreement.start_date || startIso;
+      agreementEndDate = agreement.end_date || endIso;
+
+      try {
+        const agreementItems = db.prepare(
+          `SELECT nai.*, s.code as supportItemCode, s.name as supportItemName 
+           FROM ndis_service_agreement_items nai
+           LEFT JOIN services s ON nai.service_id = s.id
+           WHERE nai.agreement_id = ?`
+        ).all(agreement.id) as any[];
+
+        itemsBreakdown = agreementItems.map(it => ({
+          serviceName: it.supportItemName || "NDIS Support",
+          supportItemCode: it.supportItemCode || "",
+          allocatedHours: Number(it.allocated_hours || 0),
+          allocatedBudget: Number(it.allocated_budget || 0)
+        }));
+      } catch {}
+    }
+
+    const agrStartMs = new Date(agreementStartDate).getTime();
+    const agrEndMs = new Date(agreementEndDate).getTime();
+    const agreementTotalDays = Math.max(1, Math.floor((agrEndMs - agrStartMs) / msPerDay) + 1);
+
+    const proratedQuarterBudget = customQuarterlyBudget !== undefined && customQuarterlyBudget > 0
+      ? customQuarterlyBudget
+      : (totalAgreementValue > 0
+          ? parseFloat(((totalAgreementValue / agreementTotalDays) * totalDays).toFixed(2))
+          : 0);
+
+    // Shifts
+    const shifts = db.prepare(
+      `SELECT s.id, s.start_time, s.end_time, s.status, s.services_json,
+              s.service_id, srv.name as service_name, srv.rate as service_rate, srv.unit as service_unit
+       FROM shifts s
+       LEFT JOIN services srv ON s.service_id = srv.id
+       WHERE s.client_id = ?
+         AND s.start_time >= ?
+         AND s.start_time <= ?
+         AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID', 'DRAFT')
+       ORDER BY s.start_time ASC`
+    ).all(client.id, `${startIso}T00:00:00`, `${endIso}T23:59:59`) as any[];
+
+    let totalQuarterClaimed = 0;
+    let completedCount = 0;
+    let scheduledCount = 0;
+    let totalCommittedHours = 0;
+
+    for (const shift of shifts) {
+      const isCompleted = UPPER(shift.status) === 'COMPLETED';
+      if (isCompleted) completedCount++;
+      else scheduledCount++;
+
+      const startMs = new Date(shift.start_time).getTime();
+      const endMs = new Date(shift.end_time).getTime();
+      const durationHrs = Math.max(0, (endMs - startMs) / 3600000);
+      totalCommittedHours += durationHrs;
+
+      let shiftCost = 0;
+      let parsedServices: any[] = [];
+      if (shift.services_json) {
+        try { parsedServices = JSON.parse(shift.services_json); } catch {}
+      }
+
+      if (Array.isArray(parsedServices) && parsedServices.length > 0) {
+        for (const sd of parsedServices) {
+          const srv = sd.serviceId ? db.prepare("SELECT rate, unit FROM services WHERE id = ?").get(sd.serviceId) as any : null;
+          const effectiveRate = Number(sd.rateOverride ?? srv?.rate ?? 0);
+          const isKm = (sd.serviceUnit || srv?.unit || '').toUpperCase() === 'KM';
+          const qty = Number(sd.qtyOverride ?? (isKm ? 0 : durationHrs));
+          shiftCost += qty * effectiveRate;
+        }
+      } else {
+        const baseRate = Number(shift.service_rate || 0);
+        shiftCost = durationHrs * baseRate;
+      }
+
+      totalQuarterClaimed += shiftCost;
+    }
+
+    const quarterClaimed = parseFloat(totalQuarterClaimed.toFixed(2));
+    const quarterRemaining = parseFloat((proratedQuarterBudget - quarterClaimed).toFixed(2));
+    const burnRatePercentage = proratedQuarterBudget > 0
+      ? `${((quarterClaimed / proratedQuarterBudget) * 100).toFixed(2)}%`
+      : '0.00%';
+
+    const averageWeeklySpend = totalWeeks > 0 ? parseFloat((quarterClaimed / totalWeeks).toFixed(2)) : 0;
+    const averageWeeklyHours = totalWeeks > 0 ? parseFloat((totalCommittedHours / totalWeeks).toFixed(2)) : 0;
+
+    return {
+      clientName: `${client.first_name} ${client.last_name}`,
+      clientId: client.id,
+      fundingType: "NDIS",
+      fundingCategory: "NDIS (National Disability Insurance Scheme)",
+      fundingPackage: agreement ? `NDIS Agreement: ${agreementName}` : "NDIS Standard Allocation",
+      agreementName,
+      totalAgreementValue,
+      agreementStartDateAU: formatToAustralianDate(agreementStartDate),
+      agreementEndDateAU: formatToAustralianDate(agreementEndDate),
+      cycleStartISO: startIso,
+      cycleEndISO: endIso,
+      cycleStartAU: formatToAustralianDate(startIso),
+      cycleEndAU: formatToAustralianDate(endIso),
+      totalCycleDays: totalDays,
+      totalCycleWeeks: totalWeeks,
+      remainingWeeks,
+      proratedQuarterBudget,
+      totalQuarterlyBudget: proratedQuarterBudget,
+      totalCombinedSpent: quarterClaimed,
+      totalUsedFunds: quarterClaimed,
+      remainingBalance: quarterRemaining,
+      remainingFunds: quarterRemaining,
+      agreementItems: itemsBreakdown,
+      burnRatePercentage,
+      averageWeeklySpend,
+      averageWeeklyHours,
+      totalCommittedHours: parseFloat(totalCommittedHours.toFixed(2)),
+      shiftCount: shifts.length,
+      statusBreakdown: {
+        completedShifts: completedCount,
+        scheduledShifts: scheduledCount
+      }
+    };
+  }
+}
+
+/**
  * Pure Analytical Logic for Tool A: analyze_client_funds
  */
 export function analyzeClientFundsLogic(
@@ -30,17 +419,19 @@ export function analyzeClientFundsLogic(
     clientName,
     quarterStartDate,
     quarterEndDate,
-    totalQuarterlyBudget
+    totalQuarterlyBudget,
+    customQuarterlyBudget
   }: {
     clientName: string;
-    quarterStartDate: string;
-    quarterEndDate: string;
-    totalQuarterlyBudget: number;
+    quarterStartDate?: string;
+    quarterEndDate?: string;
+    totalQuarterlyBudget?: number;
+    customQuarterlyBudget?: number;
   }
 ) {
   // 1. Locate client using parameterized query
   const client = db.prepare(
-    `SELECT id, first_name, last_name, funding_type 
+    `SELECT *
      FROM clients 
      WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
         OR first_name LIKE ? 
@@ -55,94 +446,11 @@ export function analyzeClientFundsLogic(
     };
   }
 
-  // 2. Query all shifts (both COMPLETED and SCHEDULED/PUBLISHED) within the date range
-  const startIso = `${quarterStartDate}T00:00:00.000Z`;
-  const endIso = `${quarterEndDate}T23:59:59.999Z`;
+  // 2. Compute complete budget details using client's profile & budget settings
+  const budgetBudgetParam = customQuarterlyBudget ?? totalQuarterlyBudget;
+  const budgetDetails = getClientBudgetDetails(db, client, quarterStartDate, quarterEndDate, budgetBudgetParam);
 
-  const shifts = db.prepare(
-    `SELECT s.id, s.start_time, s.end_time, s.status, s.services_json,
-            s.service_id, srv.name as service_name, srv.rate as service_rate, srv.unit as service_unit
-     FROM shifts s
-     LEFT JOIN services srv ON s.service_id = srv.id
-     WHERE s.client_id = ?
-       AND s.start_time >= ?
-       AND s.start_time <= ?
-       AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID')
-     ORDER BY s.start_time ASC`
-  ).all(client.id, startIso, endIso) as any[];
-
-  let totalUsedFunds = 0;
-  let totalHours = 0;
-  let completedCount = 0;
-  let scheduledCount = 0;
-
-  for (const shift of shifts) {
-    const isCompleted = UPPER(shift.status) === 'COMPLETED';
-    if (isCompleted) {
-      completedCount++;
-    } else {
-      scheduledCount++;
-    }
-
-    const startMs = new Date(shift.start_time).getTime();
-    const endMs = new Date(shift.end_time).getTime();
-    const durationHrs = Math.max(0, (endMs - startMs) / 3600000);
-    totalHours += durationHrs;
-
-    let shiftCost = 0;
-    let parsedServices: any[] = [];
-    if (shift.services_json) {
-      try {
-        parsedServices = JSON.parse(shift.services_json);
-      } catch (e) {}
-    }
-
-    if (Array.isArray(parsedServices) && parsedServices.length > 0) {
-      for (const sd of parsedServices) {
-        const srv = sd.serviceId ? db.prepare("SELECT rate, unit FROM services WHERE id = ?").get(sd.serviceId) as any : null;
-        const effectiveRate = Number(sd.rateOverride ?? srv?.rate ?? 0);
-        const isKm = (sd.serviceUnit || srv?.unit || '').toUpperCase() === 'KM';
-        const qty = Number(sd.qtyOverride ?? (isKm ? 0 : durationHrs));
-        shiftCost += qty * effectiveRate;
-      }
-    } else {
-      const baseRate = Number(shift.service_rate || 0);
-      shiftCost = durationHrs * baseRate;
-    }
-
-    totalUsedFunds += shiftCost;
-  }
-
-  // 3. Compute quarter weeks and average burn metrics
-  const quarterStartMs = new Date(quarterStartDate).getTime();
-  const quarterEndMs = new Date(quarterEndDate).getTime();
-  const quarterTotalWeeks = Math.max(1, (quarterEndMs - quarterStartMs) / (7 * 24 * 3600 * 1000));
-  const remainingFunds = parseFloat((totalQuarterlyBudget - totalUsedFunds).toFixed(2));
-  const averageWeeklyHours = parseFloat((totalHours / quarterTotalWeeks).toFixed(2));
-  const averageWeeklySpend = parseFloat((totalUsedFunds / quarterTotalWeeks).toFixed(2));
-
-  return {
-    clientName: `${client.first_name} ${client.last_name}`,
-    clientId: client.id,
-    fundingType: client.funding_type || "Trilogy Care / HCP",
-    quarterStartDate,
-    quarterEndDate,
-    quarterStartDateAU: formatToAustralianDate(quarterStartDate),
-    quarterEndDateAU: formatToAustralianDate(quarterEndDate),
-    quarterTotalWeeks: parseFloat(quarterTotalWeeks.toFixed(1)),
-    totalQuarterlyBudget,
-    totalUsedFunds: parseFloat(totalUsedFunds.toFixed(2)),
-    remainingFunds,
-    burnRatePercentage: `${((totalUsedFunds / totalQuarterlyBudget) * 100).toFixed(2)}%`,
-    totalCommittedHours: parseFloat(totalHours.toFixed(2)),
-    averageWeeklyHours,
-    averageWeeklySpend,
-    shiftCount: shifts.length,
-    statusBreakdown: {
-      completedShifts: completedCount,
-      scheduledShifts: scheduledCount
-    }
-  };
+  return budgetDetails;
 }
 
 /**
@@ -157,14 +465,14 @@ export function optimizeQuarterlyRosterLogic(
     remainingFunds
   }: {
     clientName: string;
-    quarterStartDate: string;
-    quarterEndDate: string;
-    remainingFunds: number;
+    quarterStartDate?: string;
+    quarterEndDate?: string;
+    remainingFunds?: number;
   }
 ) {
   // 1. Locate client
   const client = db.prepare(
-    `SELECT id, first_name, last_name, funding_type 
+    `SELECT *
      FROM clients 
      WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
         OR first_name LIKE ? 
@@ -179,9 +487,15 @@ export function optimizeQuarterlyRosterLogic(
     };
   }
 
+  // Retrieve actual budget details if remainingFunds was not manually specified
+  const budgetDetails = getClientBudgetDetails(db, client, quarterStartDate, quarterEndDate);
+  const effectiveRemainingFunds = remainingFunds !== undefined ? remainingFunds : budgetDetails.remainingFunds;
+  const effectiveStartDate = quarterStartDate || budgetDetails.cycleStartISO;
+  const effectiveEndDate = quarterEndDate || budgetDetails.cycleEndISO;
+
   // 2. Query client shifts to establish baseline weekly pattern
-  const startIso = `${quarterStartDate}T00:00:00.000Z`;
-  const endIso = `${quarterEndDate}T23:59:59.999Z`;
+  const startIso = `${effectiveStartDate}T00:00:00.000Z`;
+  const endIso = `${effectiveEndDate}T23:59:59.999Z`;
 
   const shifts = db.prepare(
     `SELECT s.id, s.start_time, s.end_time, s.services_json,
@@ -191,7 +505,7 @@ export function optimizeQuarterlyRosterLogic(
      WHERE s.client_id = ?
        AND s.start_time >= ?
        AND s.start_time <= ?
-       AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID')`
+       AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID', 'DRAFT')`
   ).all(client.id, startIso, endIso) as any[];
 
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -224,20 +538,15 @@ export function optimizeQuarterlyRosterLogic(
   }
 
   // 3. Calculate remaining weeks in the quarter
-  const nowMs = Date.now();
-  const quarterStartMs = new Date(quarterStartDate).getTime();
-  const quarterEndMs = new Date(quarterEndDate).getTime();
-  const effectiveStartMs = Math.max(nowMs, quarterStartMs);
-  const remainingMs = Math.max(0, quarterEndMs - effectiveStartMs);
-  const remainingWeeks = Math.max(0.1, parseFloat((remainingMs / (7 * 24 * 3600 * 1000)).toFixed(2)));
+  const remainingWeeks = budgetDetails.remainingWeeks;
 
   // 4. Calculate weekly surplus budget
-  const weeklySurplusBudget = parseFloat((remainingFunds / remainingWeeks).toFixed(2));
+  const weeklySurplusBudget = parseFloat((effectiveRemainingFunds / remainingWeeks).toFixed(2));
   const primaryStandardRate = rateCount > 0 ? parseFloat((totalStandardRates / rateCount).toFixed(2)) : 65.47;
   const additionalAffordableHoursPerWeek = parseFloat(Math.max(0, weeklySurplusBudget / primaryStandardRate).toFixed(2));
 
   // Compute baseline weekly hours
-  const quarterWeeks = Math.max(1, (quarterEndMs - quarterStartMs) / (7 * 24 * 3600 * 1000));
+  const quarterWeeks = budgetDetails.totalCycleWeeks;
   const baselinePattern = Object.values(patternMap).map(p => ({
     dayOfWeek: p.dayOfWeek,
     serviceName: p.serviceName,
@@ -251,11 +560,15 @@ export function optimizeQuarterlyRosterLogic(
 
   return {
     clientName: `${client.first_name} ${client.last_name}`,
-    quarterStartDate,
-    quarterEndDate,
-    quarterStartDateAU: formatToAustralianDate(quarterStartDate),
-    quarterEndDateAU: formatToAustralianDate(quarterEndDate),
-    remainingFunds,
+    fundingPackage: budgetDetails.fundingPackage,
+    dailyFundingRate: (budgetDetails as any).dailyFundingRate,
+    totalCycleAllocation: budgetDetails.totalCycleAllocation,
+    totalCombinedSpent: budgetDetails.totalCombinedSpent,
+    quarterStartDate: effectiveStartDate,
+    quarterEndDate: effectiveEndDate,
+    quarterStartDateAU: formatToAustralianDate(effectiveStartDate),
+    quarterEndDateAU: formatToAustralianDate(effectiveEndDate),
+    remainingFunds: effectiveRemainingFunds,
     remainingWeeksInQuarter: remainingWeeks,
     weeklySurplusBudget,
     currentWeeklyBaseline: baselinePattern,
@@ -264,7 +577,7 @@ export function optimizeQuarterlyRosterLogic(
     primaryStandardRate,
     additionalAffordableHoursPerWeek,
     recommendedMaxWeeklyHours: parseFloat((totalBaselineWeeklyHours + additionalAffordableHoursPerWeek).toFixed(2)),
-    optimizationSummary: `The client has $${remainingFunds.toFixed(2)} remaining across ${remainingWeeks} remaining weeks ($${weeklySurplusBudget.toFixed(2)}/week surplus). At a standard rate of $${primaryStandardRate.toFixed(2)}/hr, they can safely afford an additional ${additionalAffordableHoursPerWeek} hours per week without exceeding their Trilogy Care quarterly budget.`
+    optimizationSummary: `The client has $${effectiveRemainingFunds.toFixed(2)} remaining across ${remainingWeeks} remaining weeks ($${weeklySurplusBudget.toFixed(2)}/week surplus). At a standard rate of $${primaryStandardRate.toFixed(2)}/hr, they can safely afford an additional ${additionalAffordableHoursPerWeek} hours per week without exceeding their quarterly budget.`
   };
 }
 
@@ -285,19 +598,19 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
     /**
      * Tool A: analyze_client_funds
-     * Analyzes client funds for a quarterly budget cycle (Trilogy Care).
+     * Analyzes client funds for a quarterly budget cycle based on Client Dashboard > Edit Profile and Budget.
      */
     server.tool(
       "analyze_client_funds",
       {
         clientName: z.string().describe("Full or partial name of the client to analyze"),
-        quarterStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be ISO 8601 date YYYY-MM-DD").describe("Start date of the 3-month quarter (YYYY-MM-DD)"),
-        quarterEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be ISO 8601 date YYYY-MM-DD").describe("End date of the 3-month quarter (YYYY-MM-DD)"),
-        totalQuarterlyBudget: z.number().positive().describe("Total allocated funding budget for this quarter in AUD")
+        quarterStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be ISO 8601 date YYYY-MM-DD").optional().describe("Start date of the 3-month quarter (YYYY-MM-DD)"),
+        quarterEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be ISO 8601 date YYYY-MM-DD").optional().describe("End date of the 3-month quarter (YYYY-MM-DD)"),
+        customQuarterlyBudget: z.number().positive().optional().describe("Optional manual budget override in AUD")
       },
       async (args) => {
         try {
-          const result = analyzeClientFundsLogic(db, args);
+          const result = analyzeClientFundsLogic(db, args as any);
           return {
             content: [{
               type: "text",
@@ -317,19 +630,19 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
     /**
      * Tool B: optimize_quarterly_roster
-     * Analyzes client baseline weekly schedule and calculates surplus rostering capacity.
+     * Analyzes client baseline weekly schedule and calculates surplus rostering capacity based on actual budget.
      */
     server.tool(
       "optimize_quarterly_roster",
       {
         clientName: z.string().describe("Full or partial name of the client to optimize"),
-        quarterStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be ISO 8601 date YYYY-MM-DD").describe("Start date of the 3-month quarter (YYYY-MM-DD)"),
-        quarterEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be ISO 8601 date YYYY-MM-DD").describe("End date of the 3-month quarter (YYYY-MM-DD)"),
-        remainingFunds: z.number().describe("Remaining surplus budget for the rest of the quarter in AUD")
+        quarterStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be ISO 8601 date YYYY-MM-DD").optional().describe("Start date of the 3-month quarter (YYYY-MM-DD)"),
+        quarterEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be ISO 8601 date YYYY-MM-DD").optional().describe("End date of the 3-month quarter (YYYY-MM-DD)"),
+        remainingFunds: z.number().optional().describe("Remaining surplus budget for the rest of the quarter in AUD (auto-calculated from client budget if omitted)")
       },
       async (args) => {
         try {
-          const result = optimizeQuarterlyRosterLogic(db, args);
+          const result = optimizeQuarterlyRosterLogic(db, args as any);
           return {
             content: [{
               type: "text",
@@ -341,6 +654,52 @@ export function setupMcpServer(app: Express, db: Database.Database) {
             content: [{
               type: "text",
               text: JSON.stringify({ error: error.message || "Failed to optimize quarterly roster" })
+            }]
+          };
+        }
+      }
+    );
+
+    /**
+     * Tool C: get_client_budget_profile
+     * Direct query to Client Dashboard > Edit Profile and Budget settings.
+     */
+    server.tool(
+      "get_client_budget_profile",
+      {
+        clientName: z.string().describe("Full or partial name of the client")
+      },
+      async (args) => {
+        try {
+          const client = db.prepare(
+            `SELECT * FROM clients 
+             WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
+                OR first_name LIKE ? 
+                OR last_name LIKE ?
+             LIMIT 1`
+          ).get(`%${args.clientName.trim()}%`, `%${args.clientName.trim()}%`, `%${args.clientName.trim()}%`) as any;
+
+          if (!client) {
+            return {
+              content: [{
+                type: "text",
+                text: JSON.stringify({ error: `Client '${args.clientName}' not found in database.` })
+              }]
+            };
+          }
+
+          const budget = getClientBudgetDetails(db, client);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(budget, null, 2)
+            }]
+          };
+        } catch (error: any) {
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ error: error.message || "Failed to get client budget profile" })
             }]
           };
         }
@@ -580,45 +939,70 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           const analyzeClientFundsDeclaration = {
             name: "analyze_client_funds",
-            description: "Query shifts table and calculate total used funds, remaining funds, and current average weekly hours for a client in a 3-month quarter (Trilogy Care cycle). Dates must be ISO YYYY-MM-DD.",
+            description: "Query client budget configuration (Home Care Package / Support at Home daily rate or NDIS Service Agreement) and shifts to calculate total cycle allocation, combined spent funds, remaining balance, unspent pool, burn rate, and roster baseline. Dates must be ISO YYYY-MM-DD.",
             parameters: {
               type: Type.OBJECT,
               properties: {
                 clientName: { type: Type.STRING, description: "Client full or partial name" },
-                quarterStartDate: { type: Type.STRING, description: "Start date of 3-month quarter (YYYY-MM-DD)" },
-                quarterEndDate: { type: Type.STRING, description: "End date of 3-month quarter (YYYY-MM-DD)" },
-                totalQuarterlyBudget: { type: Type.NUMBER, description: "Total allocated funding budget for this quarter in AUD" }
+                quarterStartDate: { type: Type.STRING, description: "Optional start date of 3-month quarter/cycle (YYYY-MM-DD)" },
+                quarterEndDate: { type: Type.STRING, description: "Optional end date of 3-month quarter/cycle (YYYY-MM-DD)" },
+                customQuarterlyBudget: { type: Type.NUMBER, description: "Optional manual budget override if user specifically requested a custom budget in AUD" }
               },
-              required: ["clientName", "quarterStartDate", "quarterEndDate", "totalQuarterlyBudget"]
+              required: ["clientName"]
             }
           };
 
           const optimizeQuarterlyRosterDeclaration = {
             name: "optimize_quarterly_roster",
-            description: "Analyze client baseline weekly shift schedule and calculate surplus budget and additional affordable hours per week without exceeding budget limit.",
+            description: "Analyze client baseline weekly shift schedule and calculate surplus budget and additional affordable hours per week based on their actual Home Care or NDIS budget allocation.",
             parameters: {
               type: Type.OBJECT,
               properties: {
                 clientName: { type: Type.STRING, description: "Client full or partial name" },
-                quarterStartDate: { type: Type.STRING, description: "Start date of quarter (YYYY-MM-DD)" },
-                quarterEndDate: { type: Type.STRING, description: "End date of quarter (YYYY-MM-DD)" },
-                remainingFunds: { type: Type.NUMBER, description: "Remaining surplus funds in AUD" }
+                quarterStartDate: { type: Type.STRING, description: "Optional start date of quarter (YYYY-MM-DD)" },
+                quarterEndDate: { type: Type.STRING, description: "Optional end date of quarter (YYYY-MM-DD)" },
+                remainingFunds: { type: Type.NUMBER, description: "Optional remaining surplus funds in AUD (if omitted, calculated automatically from client budget)" }
               },
-              required: ["clientName", "quarterStartDate", "quarterEndDate", "remainingFunds"]
+              required: ["clientName"]
+            }
+          };
+
+          const getClientBudgetProfileDeclaration = {
+            name: "get_client_budget_profile",
+            description: "Retrieve complete budget and profile configuration from Clients Dashboard (Edit Profile & Budget) for a client, including funding type (Home Care HCP/SAH or NDIS), package level/class, daily rate, cycle allocation, pre-system spend adjustments, live internal spend, remaining balance, and unspent funds pool.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                clientName: { type: Type.STRING, description: "Client full or partial name" }
+              },
+              required: ["clientName"]
             }
           };
 
           let systemInstruction = `You are Happy, the friendly, supportive, and knowledgeable AI portal assistant for HAPPY IN THE HOME ("Happy in the Home Portal Assistant").
 When introducing yourself or when asked who you are, greet the user warmly: "Hi! My name is Happy, your Happy in the Home Portal Assistant!"
-You specialize in 3-month quarterly budgets, NDIS & Home Care funding, and roster optimization.
+You specialize in 3-month quarterly budgets, NDIS & Home Care funding (HCP and Support at Home), and roster optimization.
 
-CRITICAL FORMATTING & FINANCIAL RULES:
-1. All dates in your natural-language responses to users MUST strictly use Australian standard DD/MM/YYYY formatting.
-2. In all backend tool calls, you must strictly pass ISO 8601 YYYY-MM-DD format.
-3. Currency must always be formatted in AUD ($X.XX).
-4. Client budgets are completely individualized. NEVER assume a hardcoded or generic default quarterly budget. When analyzing funds, use the specific budget provided by the user or calculate the exact spent/scheduled costs from actual shifts. If the user asks for a burn rate calculation without specifying their allocated budget, compute the exact spent and scheduled totals and ask for their specific quarter budget.
-5. If the user does not specify dates for the quarter, use the current active calendar quarter dates (e.g. 2026-07-01 to 2026-09-30).
-6. If the user asks to analyze funds, check burn rate, or optimize a roster without specifying which client they want to analyze, do NOT call tools with empty or assumed client names. Instead, ask warmly: "Which client would you like to analyze? Please select a client or let me know their name."`;
+CRITICAL FINANCIAL & BUDGET INTEGRATION RULES:
+1. You have direct database integration with client budget configurations from the Clients section (under Clients Dashboard > Edit Profile and Budget).
+2. For Home Care Package (HCP) & Support at Home (SAH) clients:
+   - Their budget is derived from their package level/class (e.g. HCP Level 4, Level 3, Level 2, Level 1 or SAH Class 1-8) and official daily funding rate (e.g. $174.68/day for Level 4).
+   - Total Cycle Allocation is calculated as: cycle days * daily rate (e.g. 92 days * $174.68 = $16,070.56 for Q3).
+   - Total Combined Spent includes Historical Adjustments (Pre-System Spend entered under Edit Profile & Budget) plus Live Internal Consumptions (shifts and external ledger items).
+   - Remaining Balance is: Total Cycle Allocation - Total Combined Spent.
+   - Unspent Funds Pool is also tracked: Starting Rollover Balance minus Spent From Pool So Far.
+3. For NDIS clients:
+   - Their budget is derived from their active NDIS Service Agreement (total agreement value, support category line items, claimed funds, and remaining balance).
+   - Quarterly allocation is prorated across the quarter based on the agreement duration.
+4. When reporting financial figures:
+   - ALWAYS state the client's funding package (e.g., "HCP Level 4 • $174.68 / day" or "NDIS Service Agreement").
+   - Clearly present the Total Cycle Allocation / Quarterly Budget, Total Combined Spent (with breakdown of Pre-System and Live spend if applicable), and Remaining Balance.
+   - Mention the Unspent Funds Pool if rollover funds exist.
+   - Highlight the budget burn rate, remaining weeks, and affordable weekly hours without exceeding budget.
+5. All dates in your natural-language responses to users MUST strictly use Australian standard DD/MM/YYYY formatting.
+6. In all backend tool calls, you must strictly pass ISO 8601 YYYY-MM-DD format.
+7. Currency must always be formatted in AUD ($X.XX).
+8. If the user asks to analyze funds, check burn rate, or optimize a roster without specifying which client they want to analyze, do NOT call tools with empty or assumed client names. Instead, ask warmly: "Which client would you like to analyze? Please select a client or let me know their name."`;
 
           if (aiConfig.ai_custom_instructions) {
             systemInstruction += `\n\nADDITIONAL CARE COORDINATION GUIDELINES:\n${aiConfig.ai_custom_instructions}`;
@@ -633,7 +1017,8 @@ CRITICAL FORMATTING & FINANCIAL RULES:
                 {
                   functionDeclarations: [
                     analyzeClientFundsDeclaration,
-                    optimizeQuarterlyRosterDeclaration
+                    optimizeQuarterlyRosterDeclaration,
+                    getClientBudgetProfileDeclaration
                   ]
                 }
               ]
@@ -654,6 +1039,20 @@ CRITICAL FORMATTING & FINANCIAL RULES:
                 toolOutput = analyzeClientFundsLogic(db, call.args as any);
               } else if (call.name === "optimize_quarterly_roster") {
                 toolOutput = optimizeQuarterlyRosterLogic(db, call.args as any);
+              } else if (call.name === "get_client_budget_profile") {
+                const cName = String((call.args as any)?.clientName || '');
+                const clientRecord = db.prepare(
+                  `SELECT * FROM clients 
+                   WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
+                      OR first_name LIKE ? 
+                      OR last_name LIKE ?
+                   LIMIT 1`
+                ).get(`%${cName.trim()}%`, `%${cName.trim()}%`, `%${cName.trim()}%`) as any;
+                if (!clientRecord) {
+                  toolOutput = { error: `Client '${cName}' not found in database.` };
+                } else {
+                  toolOutput = getClientBudgetDetails(db, clientRecord);
+                }
               }
               toolResults.push({ tool: call.name, output: toolOutput });
 
@@ -680,7 +1079,15 @@ CRITICAL FORMATTING & FINANCIAL RULES:
               ],
               config: {
                 systemInstruction: `You are Happy, the Happy in the Home Portal Assistant. Summarize the tool result into a clear, friendly, and professional recommendation for care coordinators.
-Remember: All dates must strictly be formatted in the Australian standard DD/MM/YYYY. Display all financial amounts in AUD ($). Highlight burn rate, remaining weeks, and affordable hours per week.`
+Remember: All dates must strictly be formatted in the Australian standard DD/MM/YYYY. Display all financial amounts in AUD ($).
+Always clearly display:
+- Client Name & Funding Package (e.g., "Gary Rodwell • HCP Level 4 • $174.68 / day" or "NDIS Service Agreement")
+- Total Cycle Allocation / Quarterly Budget (based on days and daily rate or agreement)
+- Total Combined Spent (showing Historical/Pre-system and Live Internal spend)
+- Remaining Balance
+- Unspent Funds Pool (if available)
+- Burn Rate percentage and Remaining Weeks
+- Affordable hours per week and recommendation for care coordinators.`
               }
             });
 
@@ -721,13 +1128,11 @@ Remember: All dates must strictly be formatted in the Australian standard DD/MM/
 
       if (matchedClient) {
         const clientName = `${matchedClient.first_name} ${matchedClient.last_name}`;
-        const totalQuarterlyBudget = 13500; // Typical HCP quarterly budget baseline
 
         const analysis = analyzeClientFundsLogic(db, {
           clientName,
           quarterStartDate,
-          quarterEndDate,
-          totalQuarterlyBudget
+          quarterEndDate
         });
 
         if (!analysis.error) {
@@ -738,19 +1143,31 @@ Remember: All dates must strictly be formatted in the Australian standard DD/MM/
             remainingFunds: analysis.remainingFunds
           });
 
-          const reply = `📊 **Quarterly Budget Analysis for ${clientName}**
-• **Funding Cycle:** ${formatToAustralianDate(quarterStartDate)} to ${formatToAustralianDate(quarterEndDate)} (${analysis.quarterTotalWeeks} weeks)
-• **Quarterly Budget:** $${analysis.totalQuarterlyBudget.toFixed(2)} AUD
-• **Total Funds Committed/Used:** $${analysis.totalUsedFunds.toFixed(2)} (${analysis.burnRatePercentage} burn rate)
-• **Remaining Funds:** $${analysis.remainingFunds.toFixed(2)} AUD
-• **Current Average Weekly Hours:** ${analysis.averageWeeklyHours} hrs/week ($${analysis.averageWeeklySpend}/week)
-• **Shift Count:** ${analysis.shiftCount} shifts (${analysis.statusBreakdown.completedShifts} completed, ${analysis.statusBreakdown.scheduledShifts} scheduled)
+          let reply = `📊 **Budget & Funding Analysis for ${clientName}**\n` +
+            `• **Funding Package:** ${analysis.fundingPackage || analysis.fundingCategory || analysis.fundingType}\n` +
+            (analysis.dailyFundingRate ? `• **Daily Funding Rate:** $${analysis.dailyFundingRate.toFixed(2)} / day\n` : '') +
+            `• **Active Cycle:** ${analysis.cycleStartAU || formatToAustralianDate(quarterStartDate)} to ${analysis.cycleEndAU || formatToAustralianDate(quarterEndDate)} (${analysis.totalCycleDays || 92} days • ${analysis.totalCycleWeeks || 13} weeks)\n` +
+            `• **Total Cycle Allocation:** $${analysis.totalQuarterlyBudget.toFixed(2)} AUD\n` +
+            `• **Total Combined Spent:** $${analysis.totalCombinedSpent.toFixed(2)} AUD (${analysis.burnRatePercentage} burn rate)\n`;
 
-💡 **Rostering Recommendation:**
-${optimization.optimizationSummary}
-• **Baseline Weekly Hours:** ${optimization.baselineWeeklyHours} hrs/week
-• **Additional Affordable Hours:** +${optimization.additionalAffordableHoursPerWeek} hrs/week
-• **Recommended Max Weekly Hours:** ${optimization.recommendedMaxWeeklyHours} hrs/week`;
+          if (analysis.historicalPreSystemSpend > 0) {
+            reply += `  - *Pre-System Historical Spend:* $${analysis.historicalPreSystemSpend.toFixed(2)} AUD` + (analysis.spendAsOfDateAU ? ` (as of ${analysis.spendAsOfDateAU})` : '') + `\n` +
+                     `  - *Live System Consumptions:* $${analysis.liveInternalSpend.toFixed(2)} AUD\n`;
+          }
+
+          reply += `• **Remaining Balance:** $${analysis.remainingFunds.toFixed(2)} AUD (${analysis.remainingWeeks} weeks remaining)\n`;
+
+          if (analysis.unspentFundsPool && (analysis.unspentFundsPool.startingRolloverBalance > 0 || analysis.unspentFundsPool.unspentPoolRemaining > 0)) {
+            reply += `• **Unspent Funds Pool:** $${analysis.unspentFundsPool.unspentPoolRemaining.toFixed(2)} AUD remaining ($${analysis.unspentFundsPool.startingRolloverBalance.toFixed(2)} rollover - $${analysis.unspentFundsPool.rolloverSpentSoFar.toFixed(2)} spent)\n`;
+          }
+
+          reply += `• **Average Weekly Hours:** ${analysis.averageWeeklyHours} hrs/week ($${analysis.averageWeeklySpend}/week)\n` +
+            `• **Shift Activity:** ${analysis.shiftCount} shifts (${analysis.statusBreakdown.completedShifts} completed, ${analysis.statusBreakdown.scheduledShifts} scheduled)\n\n` +
+            `💡 **Rostering & Budget Recommendation:**\n` +
+            `${optimization.optimizationSummary}\n` +
+            `• **Baseline Weekly Hours:** ${optimization.baselineWeeklyHours} hrs/week\n` +
+            `• **Additional Affordable Hours:** +${optimization.additionalAffordableHoursPerWeek} hrs/week\n` +
+            `• **Recommended Max Weekly Hours:** ${optimization.recommendedMaxWeeklyHours} hrs/week`;
 
           return res.json({ reply, analysis, optimization });
         }
@@ -759,14 +1176,15 @@ ${optimization.optimizationSummary}
       // General fallback reply
       const firstClients = clients.slice(0, 4).map(c => `${c.first_name} ${c.last_name}`).join(", ");
       return res.json({
-        reply: `👋 Hello! I am the Happy in the Home AI Assistant, equipped with Model Context Protocol (MCP) analytical tools.
+        reply: `👋 Hello! I am Happy, your Happy in the Home Portal Assistant!
+I have direct integration with your portal's client budgets (from Clients Dashboard > Edit Profile and Budget).
 
 You can ask me to:
 • **Analyze Client Funds:** e.g., *"Analyze funds for ${firstClients ? firstClients.split(',')[0] : 'a client'}"*
-• **Optimize Quarterly Rosters:** e.g., *"Optimize roster budget for Trilogy Care"*
-• **Assess Burn Rates:** Review used vs. remaining funds across 3-month funding periods.
+• **Optimize Quarterly Rosters:** e.g., *"Optimize roster for ${firstClients ? firstClients.split(',')[0] : 'a client'}"*
+• **Check Burn Rates & Rollover:** Review cycle allocations, daily rates, pre-system adjustments, and unspent pools.
 
-*All dates are displayed in the Australian standard DD/MM/YYYY.*`
+*All dates are displayed in Australian standard DD/MM/YYYY.*`
       });
 
     } catch (err: any) {
