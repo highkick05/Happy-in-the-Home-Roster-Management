@@ -10,7 +10,6 @@ export default function ClientBudgetSwitchboard() {
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
   const [fundingType, setFundingType] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'NDIS' | 'HOME_CARE'>('HOME_CARE');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,16 +20,12 @@ export default function ClientBudgetSwitchboard() {
       })
         .then(res => res.json())
         .then(data => {
-          const rawType = data.funding_type || 'HOME_CARE';
-          setFundingType(rawType);
-          const isClientNdis = String(rawType).trim().toUpperCase() === 'NDIS';
-          setActiveTab(isClientNdis ? 'NDIS' : 'HOME_CARE');
+          setFundingType(data.funding_type || 'HOME_CARE');
           setLoading(false);
         })
         .catch(err => {
           console.error("Failed to load client funding type", err);
           setFundingType('HOME_CARE');
-          setActiveTab('HOME_CARE');
           setLoading(false);
         });
     }
@@ -44,48 +39,20 @@ export default function ClientBudgetSwitchboard() {
     );
   }
 
+  const isClientNdis = String(fundingType || '').trim().toUpperCase() === 'NDIS';
+
   return (
     <motion.div 
       initial={{ opacity: 0 }} 
       animate={{ opacity: 1 }} 
       exit={{ opacity: 0 }} 
-      className="w-full h-full flex flex-col bg-brand-navy text-[#E6EDF3] p-6 lg:p-8 overflow-hidden relative"
+      className="w-full h-full flex flex-col bg-brand-navy text-[#E6EDF3] p-6 lg:p-8 overflow-hidden"
     >
-      {/* Framework Mode Toggle (NDIS Service Agreement vs Home Care Package) */}
-      <div className="flex items-center justify-end mb-3 shrink-0">
-        <div className="inline-flex items-center p-1 bg-black/40 border border-white/10 rounded-lg text-xs font-medium">
-          <button
-            type="button"
-            onClick={() => setActiveTab('NDIS')}
-            className={`px-3 py-1 rounded-md transition-colors ${
-              activeTab === 'NDIS'
-                ? 'bg-brand-blue text-white shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            NDIS Service Agreement
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('HOME_CARE')}
-            className={`px-3 py-1 rounded-md transition-colors ${
-              activeTab === 'HOME_CARE'
-                ? 'bg-brand-blue text-white shadow-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            Home Care Package / SAH
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        {activeTab === 'NDIS' ? (
-          <NdisBudgetView />
-        ) : (
-          <HomeCareBudgetView />
-        )}
-      </div>
+      {isClientNdis ? (
+        <NdisBudgetView />
+      ) : (
+        <HomeCareBudgetView />
+      )}
     </motion.div>
   );
 }
