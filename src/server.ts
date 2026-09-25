@@ -55,6 +55,7 @@ import { calculateProviderTravel } from "./utils/travelCalculator.js";
 import { calculateHomeCareTravel } from "./utils/homeCareCalculator.js";
 import { calculateAbtTravel } from "./utils/abtCalculator.js";
 import { recalculateDayTravelForStaff } from "./services/travelEngine.js";
+import { setupMcpServer } from "./services/mcpServer.js";
 
 const logger = winston.createLogger({
   level: "info",
@@ -1907,6 +1908,9 @@ try {
   );
 
   const JWT_SECRET = process.env.JWT_SECRET || "happyinthehome-secret-key-123";
+
+  // Mount Model Context Protocol (MCP) Server for intelligent care & budget optimization
+  setupMcpServer(app, db);
 
   // --- Google Routes & Travel Logic ---
 
