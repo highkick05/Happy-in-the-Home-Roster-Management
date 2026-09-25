@@ -1016,16 +1016,18 @@ export function getHomeCareClientsBudgetSummaryLogic(db: Database.Database) {
 
   for (const client of effectiveClients) {
     const budget = getClientBudgetDetails(db, client, quarterStartDate, quarterEndDate) as any;
-    const allocation = budget.totalCycleAllocation || 0;
-    const spent = budget.totalCombinedSpent || 0;
-    const remaining = budget.remainingBalance || 0;
-    const unspentPool = budget.unspentFundsPool || 0;
+    const allocation = Number(budget.totalCycleAllocation) || 0;
+    const spent = Number(budget.totalCombinedSpent) || 0;
+    const remaining = Number(budget.remainingBalance) || 0;
+    const unspentRemaining = typeof budget.unspentFundsPool === 'object' && budget.unspentFundsPool !== null
+      ? (Number(budget.unspentFundsPool.unspentPoolRemaining) || 0)
+      : (Number(budget.unspentFundsPool) || 0);
     const burnRate = budget.burnRatePercentage || 0;
 
     grandTotalAllocation += allocation;
     grandTotalSpent += spent;
     grandTotalRemaining += remaining;
-    grandTotalUnspentPool += unspentPool;
+    grandTotalUnspentPool += unspentRemaining;
 
     let healthStatus = "ON_TRACK";
     if (burnRate > 100) healthStatus = "EXCEEDED";
@@ -1043,7 +1045,7 @@ export function getHomeCareClientsBudgetSummaryLogic(db: Database.Database) {
       totalLiveSpend: budget.liveInternalSpend || 0,
       totalCombinedSpend: spent,
       remainingBalance: remaining,
-      unspentFundsPool: unspentPool,
+      unspentFundsPool: unspentRemaining,
       burnRatePercentage: burnRate,
       remainingWeeks: budget.remainingWeeks || 0,
       budgetHealth: healthStatus,
