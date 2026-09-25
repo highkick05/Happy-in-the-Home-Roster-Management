@@ -1077,6 +1077,88 @@ export function setupMcpServer(app: Express, db: Database.Database) {
   });
 
   /**
+   * Helper to format raw Gemini API and system errors into warm, user-friendly messages
+   * for care coordinators, managers, and non-technical staff.
+   */
+  function formatUserFriendlyAiError(err: any): string {
+    if (!err) {
+      return "Happy ran into a momentary hiccup while processing your request. Please try asking again in a moment!";
+    }
+
+    const rawMessage = typeof err === 'string' ? err : (err.message || String(err));
+    let parsedError: any = null;
+
+    try {
+      const jsonMatch = rawMessage.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedError = JSON.parse(jsonMatch[0]);
+      }
+    } catch {
+      // not JSON
+    }
+
+    const code = err.status || err.code || parsedError?.error?.code;
+    const status = err.status || parsedError?.error?.status || "";
+    const innerMsg = parsedError?.error?.message || rawMessage;
+
+    // 1. High Demand / 503 / UNAVAILABLE
+    if (
+      code === 503 ||
+      status === "UNAVAILABLE" ||
+      /high demand/i.test(innerMsg) ||
+      /spikes in demand/i.test(innerMsg) ||
+      /service unavailable/i.test(innerMsg) ||
+      /temporarily unavailable/i.test(innerMsg)
+    ) {
+      return "I'm currently experiencing high demand and taking a quick breather! 🌤️ Spikes in demand are usually temporary — please wait a moment and try asking again.";
+    }
+
+    // 2. Quota / Rate limit (429)
+    if (
+      code === 429 ||
+      /quota/i.test(innerMsg) ||
+      /resource has been exhausted/i.test(innerMsg) ||
+      /rate limit/i.test(innerMsg)
+    ) {
+      return "We've temporarily reached the AI query rate limit. ⏳ Please wait a minute and try your question again.";
+    }
+
+    // 3. Invalid API Key / Auth (400, 401, 403)
+    if (
+      (code === 400 && /API key/i.test(innerMsg)) ||
+      code === 401 ||
+      code === 403 ||
+      /API key not valid/i.test(innerMsg) ||
+      /permission denied/i.test(innerMsg) ||
+      /unauthenticated/i.test(innerMsg)
+    ) {
+      return "There is an issue with the AI API key configuration. 🔑 Please verify your Gemini API key in Settings > AI Settings or contact your administrator.";
+    }
+
+    // 4. Model not found (404)
+    if (code === 404 || /model.*not found/i.test(innerMsg)) {
+      return "The configured AI model is temporarily unavailable. ⚙️ Please verify the selected model in Settings > AI Settings.";
+    }
+
+    // 5. Network / Timeout issues
+    if (
+      /network/i.test(innerMsg) ||
+      /fetch failed/i.test(innerMsg) ||
+      /ETIMEDOUT/i.test(innerMsg) ||
+      /ECONNREFUSED/i.test(innerMsg)
+    ) {
+      return "Unable to reach the AI service right now. 🌐 Please check your internet connection and try again shortly.";
+    }
+
+    // 6. If clean message is already user-friendly (no JSON or technical jargon)
+    if (innerMsg && !innerMsg.includes("{") && !innerMsg.includes("}") && !innerMsg.toLowerCase().includes("syntaxerror") && innerMsg.length < 200) {
+      return innerMsg;
+    }
+
+    return "I ran into a momentary hiccup while processing that query. 🌤️ Please try asking again in a moment!";
+  }
+
+  /**
    * POST /api/ai/test
    * Tests real-time connectivity between backend and Google Gemini using the saved database key.
    */
@@ -1125,7 +1207,7 @@ export function setupMcpServer(app: Express, db: Database.Database) {
       res.status(500).json({
         success: false,
         latencyMs,
-        error: err.message || "Failed to communicate with Google Gemini API"
+        error: formatUserFriendlyAiError(err)
       });
     }
   });
@@ -1416,7 +1498,7 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
         } catch (geminiError: any) {
           console.error("[AI Chat] Gemini API call failed:", geminiError?.message || geminiError);
           return res.status(500).json({
-            error: `Gemini API Error: ${geminiError?.message || "Failed to generate AI response. Please verify your API key in Settings > AI Settings."}`
+            error: formatUserFriendlyAiError(geminiError)
           });
         }
 
@@ -1552,7 +1634,7 @@ You can ask me to:
 
     } catch (err: any) {
       console.error("[AI Chat] Error in /api/chat:", err);
-      res.status(500).json({ error: err.message || "Failed to process chat message" });
+      res.status(500).json({ error: formatUserFriendlyAiError(err) });
     }
   });
 

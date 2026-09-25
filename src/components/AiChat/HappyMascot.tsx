@@ -43,14 +43,14 @@ export default function HappyMascot({
   const getContainerAnimation = () => {
     if (!animated) return 'none';
     if (isThinking) return 'happyThinkingBob 1.6s ease-in-out infinite';
-    if (isJumping || mood === 'jumping') return 'happyJumpJoy 1.05s ease-in-out infinite';
-    if (mood === 'celebrating') return 'happySpinCelebrate 1.3s cubic-bezier(0.34, 1.56, 0.64, 1) infinite';
+    if (mood === 'celebrating') return 'happySpinCelebrate 1.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
     if (mood === 'giggling') return 'happyGiggle 0.85s ease-in-out infinite';
     if (mood === 'curious') return 'happyCuriousTilt 2.2s ease-in-out infinite';
     if (mood === 'waving') return 'happyWave 1.4s ease-in-out infinite';
     if (mood === 'shimmy') return 'happyShimmy 1.1s ease-in-out infinite';
     if (mood === 'nodding') return 'happyNod 1.25s ease-in-out infinite';
-    return 'happyPeriodicMovement 12s ease-in-out infinite';
+    if (mood === 'jumping' || isJumping) return 'happyJumpJoy 1.05s ease-in-out infinite';
+    return 'happyPeriodicMovement 7s ease-in-out infinite';
   };
 
   return (
@@ -292,34 +292,15 @@ export default function HappyMascot({
           }
         }
         @keyframes happyPeriodicMovement {
-          0%, 75%, 100% {
+          0%, 100% {
             transform: translateY(0px) rotate(0deg);
           }
-          35% {
-            transform: translateY(-3px) rotate(2deg);
+          33% {
+            transform: translateY(-4px) rotate(2deg) scale(1.02, 0.98);
           }
-          78% {
-            transform: translateY(2px) scale(1.12, 0.88);
+          66% {
+            transform: translateY(1px) rotate(-2deg) scale(0.98, 1.02);
           }
-          82% {
-            transform: translateY(-14px) scale(0.9, 1.12) rotate(-5deg);
-          }
-          86% {
-            transform: translateY(1px) scale(1.08, 0.92);
-          }
-          90% {
-            transform: translateY(-8px) scale(0.94, 1.06) rotate(5deg);
-          }
-          94% {
-            transform: translateY(-1px) rotate(-2deg);
-          }
-          97% {
-            transform: translateY(0px) scale(1, 1);
-          }
-        }
-        .happy-mascot-container {
-          animation: ${getContainerAnimation()};
-          will-change: transform;
         }
         .happy-glow {
           animation: ${animated ? 'happyPulseGlow 4s ease-in-out infinite' : 'none'};
@@ -354,8 +335,14 @@ export default function HappyMascot({
       `}</style>
 
       <svg
+        key={`mascot-svg-${mood}-${isJumping ? 'jump' : 'rest'}-${isThinking ? 'think' : 'ready'}`}
         viewBox="0 0 100 100"
-        className="w-full h-full happy-mascot-container happy-glow overflow-visible"
+        className="w-full h-full happy-glow overflow-visible"
+        style={{
+          animation: getContainerAnimation(),
+          transformOrigin: '50% 50%',
+          willChange: 'transform',
+        }}
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >

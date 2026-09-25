@@ -104,10 +104,10 @@ export default function AiChatWidget() {
 
   // Helper to trigger lively animations from Happy's repertoire
   const triggerLivelyAnimation = (preferredMood?: MascotMood, durationMs = 2600) => {
-    const repertoire: MascotMood[] = ['jumping', 'celebrating', 'giggling', 'curious', 'waving', 'shimmy', 'nodding'];
+    const repertoire: MascotMood[] = ['waving', 'celebrating', 'shimmy', 'giggling', 'curious', 'nodding', 'jumping'];
     const chosenMood = preferredMood || repertoire[Math.floor(Math.random() * repertoire.length)];
     setMascotMood(chosenMood);
-    setIsMascotJumping(chosenMood === 'jumping' || chosenMood === 'celebrating');
+    setIsMascotJumping(chosenMood === 'jumping');
     setTimeout(() => {
       setMascotMood('idle');
       setIsMascotJumping(false);
@@ -124,16 +124,16 @@ export default function AiChatWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Periodic lively repertoire: Happy performs jumps, spins, giggles, waves, tilts, and shimmies every 22-30 seconds
+  // 1. Periodic lively repertoire: Happy performs jumps, spins, giggles, waves, tilts, and shimmies every 16 seconds
   useEffect(() => {
-    // Initial cheerful wave after 5 seconds of page load
+    // Initial cheerful welcome wave shortly after page load so Happy's animation is immediately visible
     const initialJumpTimer = setTimeout(() => {
       triggerLivelyAnimation('waving', 2800);
-    }, 5000);
+    }, 1200);
 
     const jumpInterval = setInterval(() => {
       triggerLivelyAnimation();
-    }, 24000);
+    }, 16000);
 
     return () => {
       clearTimeout(initialJumpTimer);
@@ -228,6 +228,92 @@ export default function AiChatWidget() {
     }
   }, [isOpen, messages, isLoading, selectedAction, showClientPicker]);
 
+  const formatUserFriendlyChatError = (err: any): string => {
+    let raw = '';
+    if (typeof err === 'string') {
+      raw = err;
+    } else if (err?.message) {
+      raw = err.message;
+    } else {
+      raw = String(err || '');
+    }
+
+    // Strip common noisy technical prefixes
+    raw = raw.replace(/^Error:\s*/i, '').replace(/^Gemini API Error:\s*/i, '').trim();
+
+    // Try extracting inner JSON if embedded (e.g. {"error":{"code":503,"message":"..."}})
+    let parsed: any = null;
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        // not valid JSON
+      }
+    }
+
+    const code = parsed?.error?.code || (raw.includes('503') ? 503 : raw.includes('429') ? 429 : 0);
+    const status = parsed?.error?.status || '';
+    const innerMsg = parsed?.error?.message || raw;
+
+    // 1. High Demand / 503 / UNAVAILABLE
+    if (
+      code === 503 ||
+      status === 'UNAVAILABLE' ||
+      /high demand/i.test(innerMsg) ||
+      /spikes in demand/i.test(innerMsg) ||
+      /temporarily unavailable/i.test(innerMsg) ||
+      /service unavailable/i.test(innerMsg)
+    ) {
+      return "I'm currently experiencing high demand and taking a quick breather! 🌤️\n\nSpikes in demand are usually temporary — please wait a few moments and try your question again.";
+    }
+
+    // 2. Quota / Rate limit (429)
+    if (
+      code === 429 ||
+      /quota/i.test(innerMsg) ||
+      /resource has been exhausted/i.test(innerMsg) ||
+      /rate limit/i.test(innerMsg)
+    ) {
+      return "We've temporarily reached the AI query limit for this minute. ⏳\n\nPlease wait just a moment and try asking again.";
+    }
+
+    // 3. API key / Auth issues
+    if (
+      (code === 400 && /API key/i.test(innerMsg)) ||
+      code === 401 ||
+      code === 403 ||
+      /API key/i.test(innerMsg) ||
+      /permission denied/i.test(innerMsg)
+    ) {
+      return "It looks like the Gemini API key needs attention. 🔑\n\nPlease verify your API key in **Settings > AI Settings** or check with your portal administrator.";
+    }
+
+    // 4. Model not found
+    if (code === 404 || /model.*not found/i.test(innerMsg)) {
+      return "The selected AI model is currently unavailable. ⚙️\n\nPlease check the active model configuration in **Settings > AI Settings**.";
+    }
+
+    // 5. Network / Server connection errors
+    if (
+      /failed to fetch/i.test(innerMsg) ||
+      /network/i.test(innerMsg) ||
+      /ETIMEDOUT/i.test(innerMsg) ||
+      /ECONNREFUSED/i.test(innerMsg) ||
+      /status 502/i.test(innerMsg) ||
+      /status 504/i.test(innerMsg)
+    ) {
+      return "I had trouble connecting to the server. 🌐\n\nPlease check your internet connection or try again in a few seconds.";
+    }
+
+    // If the message is already clean and user-friendly (no JSON or technical stack traces)
+    if (raw && !raw.includes('{') && !raw.includes('}') && !raw.toLowerCase().includes('syntaxerror') && raw.length < 250) {
+      return raw;
+    }
+
+    return "I ran into a momentary hiccup while processing that query. 🌤️\n\nPlease try asking again in a moment!";
+  };
+
   const handleSubmit = async (e?: React.FormEvent, customPrompt?: string) => {
     if (e) e.preventDefault();
     const query = (customPrompt !== undefined ? customPrompt : input).trim();
@@ -289,11 +375,13 @@ export default function AiChatWidget() {
       triggerLivelyAnimation('celebrating', 2200);
     } catch (err: any) {
       console.error('Error during AI chat submit:', err);
+      const friendlyContent = formatUserFriendlyChatError(err);
       const errorMessage: ChatMessage = {
         role: 'assistant',
-        content: `Error: ${err.message || 'Failed to communicate with AI service. Please verify server connection.'}`
+        content: friendlyContent
       };
       setMessages(prev => [...prev, errorMessage]);
+      triggerLivelyAnimation('curious', 2000);
     } finally {
       setIsLoading(false);
     }
@@ -927,20 +1015,22 @@ export default function AiChatWidget() {
         }}
         onMouseEnter={() => {
           if (mascotMood === 'idle') {
-            triggerLivelyAnimation(Math.random() > 0.5 ? 'giggling' : 'shimmy', 1800);
+            const hoverRepertoire: MascotMood[] = ['celebrating', 'giggling', 'shimmy', 'waving', 'nodding'];
+            const randomMood = hoverRepertoire[Math.floor(Math.random() * hoverRepertoire.length)];
+            triggerLivelyAnimation(randomMood, 2200);
           }
         }}
         aria-label="Open Happy in the Home Portal Assistant"
         title="Chat with Happy - Portal Assistant"
-        className={`fixed bottom-[20px] right-[20px] z-50 w-13 h-13 rounded-full bg-brand-navy hover:bg-brand-navy/90 border border-brand-teal/50 hover:border-brand-teal shadow-2xl text-white flex items-center justify-center transition-all group focus:outline-none focus:ring-2 focus:ring-brand-teal/50 print:hidden cursor-pointer ${
-          isMascotJumping
-            ? 'animate-bounce shadow-brand-teal/60 ring-2 ring-brand-teal/60 scale-105'
+        className={`fixed bottom-[20px] right-[20px] z-50 w-14 h-14 rounded-full bg-brand-navy hover:bg-brand-navy/90 border border-brand-teal/50 hover:border-brand-teal shadow-2xl text-white flex items-center justify-center transition-all group focus:outline-none focus:ring-2 focus:ring-brand-teal/50 print:hidden cursor-pointer ${
+          mascotMood !== 'idle'
+            ? 'shadow-brand-teal/70 ring-2 ring-brand-teal/60 scale-105'
             : 'hover:scale-105 active:scale-95'
         }`}
       >
         <span className="relative flex items-center justify-center">
           <HappyMascot 
-            size="sm" 
+            size="md" 
             isJumping={isMascotJumping}
             mood={mascotMood}
             className="transition-transform group-hover:scale-110" 
