@@ -641,31 +641,39 @@ CRITICAL FORMATTING & FINANCIAL RULES:
           // Check if Gemini requested a function call
           const functionCalls = response.functionCalls;
           if (functionCalls && functionCalls.length > 0) {
-            const call = functionCalls[0];
-            let toolOutput: any = {};
+            const modelContent = response.candidates?.[0]?.content;
+            const functionResponseParts: any[] = [];
+            const toolResults: any[] = [];
 
-            if (call.name === "analyze_client_funds") {
-              toolOutput = analyzeClientFundsLogic(db, call.args as any);
-            } else if (call.name === "optimize_quarterly_roster") {
-              toolOutput = optimizeQuarterlyRosterLogic(db, call.args as any);
+            for (const call of functionCalls) {
+              let toolOutput: any = {};
+
+              if (call.name === "analyze_client_funds") {
+                toolOutput = analyzeClientFundsLogic(db, call.args as any);
+              } else if (call.name === "optimize_quarterly_roster") {
+                toolOutput = optimizeQuarterlyRosterLogic(db, call.args as any);
+              }
+              toolResults.push({ tool: call.name, output: toolOutput });
+
+              functionResponseParts.push({
+                functionResponse: {
+                  name: call.name,
+                  response: { result: toolOutput },
+                  id: (call as any).id
+                }
+              });
             }
 
             // Return function output to Gemini for final natural-language recommendation
+            // preserving model turn with thoughtSignature to prevent thought signature errors
             const followUp = await ai.models.generateContent({
               model: activeModel,
               contents: [
                 { role: "user", parts: [{ text: userQuery }] },
-                { role: "model", parts: [{ functionCall: call }] },
+                modelContent,
                 {
                   role: "user",
-                  parts: [
-                    {
-                      functionResponse: {
-                        name: call.name,
-                        response: { result: toolOutput }
-                      }
-                    }
-                  ]
+                  parts: functionResponseParts
                 }
               ],
               config: {
@@ -675,8 +683,8 @@ Remember: All dates must strictly be formatted in the Australian standard DD/MM/
             });
 
             return res.json({
-              reply: followUp.text || JSON.stringify(toolOutput, null, 2),
-              toolResult: toolOutput
+              reply: followUp.text || JSON.stringify(toolResults[0]?.output, null, 2),
+              toolResult: toolResults.length === 1 ? toolResults[0].output : toolResults
             });
           }
 
