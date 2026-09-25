@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2 } from 'lucide-react';
+import { Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import HappyMascot from './HappyMascot';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -123,7 +124,7 @@ export default function AiChatWidget() {
       {isOpen && (
         <div
           role="dialog"
-          aria-label="AI Care & Rostering Assistant"
+          aria-label="Happy in the Home Portal Assistant"
           className={`fixed bottom-[80px] right-[20px] z-50 bg-brand-navy border border-border-subtle rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-bottom-3 ${
             isExpanded
               ? 'w-[94vw] sm:w-[680px] md:w-[820px] lg:w-[920px] h-[82vh] sm:h-[720px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-100px)]'
@@ -133,17 +134,17 @@ export default function AiChatWidget() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-brand-bg/90 border-b border-border-subtle shrink-0">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-brand-teal/20 border border-brand-teal/40 flex items-center justify-center text-brand-teal">
-                <Sparkles className="w-4 h-4 text-brand-teal animate-pulse" />
+              <div className="w-9 h-9 rounded-xl bg-white/[0.04] border border-brand-teal/30 flex items-center justify-center shadow-inner">
+                <HappyMascot size="sm" />
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-white tracking-wide flex items-center gap-1.5">
-                  AI Assistant
+                  Happy
                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                     MCP Ready
                   </span>
                 </h3>
-                <p className="text-[11px] text-[#8B949E]">Trilogy Care & Rostering Budget</p>
+                <p className="text-[11px] text-teal-300/90 font-medium">Happy in the Home Portal Assistant</p>
               </div>
             </div>
 
@@ -153,7 +154,7 @@ export default function AiChatWidget() {
                   type="button"
                   onClick={handleClearChat}
                   title="Clear conversation"
-                  className="p-1.5 text-[#8B949E] hover:text-white hover:bg-white/[0.05] rounded-md transition-colors"
+                  className="p-1.5 text-[#8B949E] hover:text-white hover:bg-white/[0.05] rounded-md transition-colors cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
@@ -163,7 +164,7 @@ export default function AiChatWidget() {
                 onClick={() => setIsExpanded(prev => !prev)}
                 title={isExpanded ? "Collapse window" : "Expand window"}
                 aria-label={isExpanded ? "Collapse chat window" : "Expand chat window"}
-                className="p-1.5 text-[#8B949E] hover:text-white hover:bg-white/[0.05] rounded-md transition-colors"
+                className="p-1.5 text-[#8B949E] hover:text-white hover:bg-white/[0.05] rounded-md transition-colors cursor-pointer"
               >
                 {isExpanded ? (
                   <Minimize2 className="w-4 h-4" />
@@ -175,7 +176,7 @@ export default function AiChatWidget() {
                 type="button"
                 onClick={() => setIsOpen(false)}
                 title="Close chat"
-                className="p-1.5 text-[#8B949E] hover:text-white hover:bg-white/[0.05] rounded-md transition-colors"
+                className="p-1.5 text-[#8B949E] hover:text-white hover:bg-white/[0.05] rounded-md transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -187,14 +188,18 @@ export default function AiChatWidget() {
             {messages.length === 0 ? (
               <div className="h-full flex flex-col justify-between py-2 text-center">
                 <div className="pt-3">
-                  <div className="w-12 h-12 rounded-2xl bg-brand-teal/10 border border-brand-teal/20 mx-auto flex items-center justify-center text-brand-teal mb-3 shadow-inner">
-                    <Bot className="w-6 h-6 text-brand-teal" />
+                  <div className="mx-auto flex items-center justify-center mb-2.5">
+                    <HappyMascot size="xl" />
                   </div>
-                  <h4 className="text-sm font-semibold text-white mb-1">
-                    Happy in the Home AI
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-teal/15 border border-brand-teal/30 text-teal-300 text-xs font-semibold mb-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    Hi! My name is Happy
+                  </div>
+                  <h4 className="text-sm font-bold text-white mb-1">
+                    Happy in the Home Portal Assistant
                   </h4>
-                  <p className="text-xs text-[#8B949E] px-4 leading-relaxed">
-                    Powered by Model Context Protocol (MCP) analytical tools for 3-month quarterly budgets & roster planning.
+                  <p className="text-xs text-[#8B949E] px-4 leading-relaxed max-w-sm mx-auto">
+                    I'm your assistant for 3-month quarterly budgets, Trilogy Care & HCP funding, roster planning, and live portal analytics.
                   </p>
                 </div>
 
@@ -235,8 +240,15 @@ export default function AiChatWidget() {
                       key={index}
                       className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
                     >
-                      <div className="text-[10px] text-[#8B949E] mb-1 px-1">
-                        {isUser ? 'You' : 'Care AI Assistant'}
+                      <div className="text-[10px] text-[#8B949E] mb-1 px-1 flex items-center gap-1.5">
+                        {isUser ? (
+                          'You'
+                        ) : (
+                          <>
+                            <HappyMascot size="xs" animated={false} />
+                            <span className="font-semibold text-teal-300">Happy</span>
+                          </>
+                        )}
                       </div>
                       <div
                         className={`rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed break-words max-w-[88%] ${
@@ -262,10 +274,13 @@ export default function AiChatWidget() {
                 {/* Loading typing indicator */}
                 {isLoading && (
                   <div className="flex flex-col items-start animate-in fade-in duration-200">
-                    <div className="text-[10px] text-[#8B949E] mb-1 px-1">Care AI Assistant</div>
+                    <div className="text-[10px] text-[#8B949E] mb-1 px-1 flex items-center gap-1.5">
+                      <HappyMascot size="xs" isThinking />
+                      <span className="font-semibold text-teal-300">Happy</span>
+                    </div>
                     <div className="bg-white/[0.05] border border-white/[0.08] rounded-2xl rounded-tl-xs px-3.5 py-2.5 text-xs text-[#8B949E] flex items-center gap-2 shadow-sm">
                       <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-teal" />
-                      <span>Analyzing quarterly data & roster...</span>
+                      <span>Happy is analyzing quarterly data & roster...</span>
                     </div>
                   </div>
                 )}
@@ -284,7 +299,7 @@ export default function AiChatWidget() {
               type="text"
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder="Ask about client funds, burn rate..."
+              placeholder="Ask Happy about client funds, burn rate..."
               disabled={isLoading}
               className="flex-1 bg-black/40 border border-white/[0.1] rounded-xl px-3.5 py-2 text-xs sm:text-[13px] text-white placeholder-zinc-500 focus:outline-none focus:border-brand-teal/70 focus:ring-1 focus:ring-brand-teal/40 transition-colors disabled:opacity-50"
             />
@@ -308,11 +323,12 @@ export default function AiChatWidget() {
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
-        aria-label="Open AI Assistant"
-        className="fixed bottom-[20px] right-[20px] z-50 w-12 h-12 rounded-full bg-brand-navy hover:bg-brand-navy/90 border border-brand-teal/40 hover:border-brand-teal shadow-xl text-white flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 group focus:outline-none focus:ring-2 focus:ring-brand-teal/50 print:hidden cursor-pointer"
+        aria-label="Open Happy in the Home Portal Assistant"
+        title="Chat with Happy - Portal Assistant"
+        className="fixed bottom-[20px] right-[20px] z-50 w-13 h-13 rounded-full bg-brand-navy hover:bg-brand-navy/90 border border-brand-teal/50 hover:border-brand-teal shadow-2xl text-white flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 group focus:outline-none focus:ring-2 focus:ring-brand-teal/50 print:hidden cursor-pointer"
       >
         <span className="relative flex items-center justify-center">
-          <Bot className="w-5 h-5 text-brand-teal transition-transform group-hover:scale-110" />
+          <HappyMascot size="sm" className="transition-transform group-hover:scale-110" />
           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-brand-navy animate-pulse" />
         </span>
       </button>
