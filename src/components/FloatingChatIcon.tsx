@@ -52,7 +52,7 @@ export default function FloatingChatIcon() {
       )}
       
       {!isOpen && (
-        <div className="fixed bottom-6 right-4 z-[9999] lg:hidden flex flex-col items-end gap-2">
+        <div className="fixed bottom-24 right-4 z-[9999] lg:hidden flex flex-col items-end gap-2">
           <button 
             onClick={() => {
               if ('Notification' in window && Notification.permission === 'default') {

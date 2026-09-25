@@ -8,8 +8,10 @@ export default function EmailFloatingWidget() {
   const [accounts, setAccounts] = useState<{ username: string; count: number }[]>([]);
   const [isHovering, setIsHovering] = useState(false);
 
+  const isAdmin = user?.role?.toUpperCase() === 'ADMIN';
+
   useEffect(() => {
-    if (user?.role !== 'ADMIN') return;
+    if (!isAdmin) return;
 
     const fetchUnreadCount = async () => {
       try {
@@ -35,11 +37,11 @@ export default function EmailFloatingWidget() {
     return () => clearInterval(interval);
   }, [user?.role]);
 
-  if (user?.role !== 'ADMIN') return null;
+  if (!isAdmin) return null;
   if (unreadCount === null) return null;
 
   return (
-    <div className="fixed bottom-20 lg:bottom-6 right-4 lg:right-6 z-50 print:hidden flex flex-col items-end">
+    <div className="fixed bottom-[20px] right-[90px] z-50 print:hidden flex flex-col items-end">
       {isHovering && accounts.length > 0 && (
         <div className="mb-2 bg-brand-navy border border-border-subtle shadow-xl rounded-lg p-3 w-64 animate-in fade-in slide-in-from-bottom-2">
           <h4 className="text-xs font-semibold text-[#E6EDF3] mb-2 uppercase tracking-wider">Unread Emails</h4>

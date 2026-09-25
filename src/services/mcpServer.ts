@@ -3,6 +3,270 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { z } from "zod";
 import type { Express, Request, Response } from "express";
 import type Database from "better-sqlite3";
+import { GoogleGenAI, Type } from "@google/genai";
+
+function UPPER(str: any): string {
+  return String(str || "").toUpperCase();
+}
+
+/**
+ * Format ISO YYYY-MM-DD date to Australian DD/MM/YYYY
+ */
+export function formatToAustralianDate(isoDateStr: string): string {
+  if (!isoDateStr) return "";
+  const [year, month, day] = isoDateStr.split("-");
+  if (year && month && day) {
+    return `${day}/${month}/${year}`;
+  }
+  return isoDateStr;
+}
+
+/**
+ * Pure Analytical Logic for Tool A: analyze_client_funds
+ */
+export function analyzeClientFundsLogic(
+  db: Database.Database,
+  {
+    clientName,
+    quarterStartDate,
+    quarterEndDate,
+    totalQuarterlyBudget
+  }: {
+    clientName: string;
+    quarterStartDate: string;
+    quarterEndDate: string;
+    totalQuarterlyBudget: number;
+  }
+) {
+  // 1. Locate client using parameterized query
+  const client = db.prepare(
+    `SELECT id, first_name, last_name, funding_type 
+     FROM clients 
+     WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
+        OR first_name LIKE ? 
+        OR last_name LIKE ?
+     LIMIT 1`
+  ).get(`%${clientName.trim()}%`, `%${clientName.trim()}%`, `%${clientName.trim()}%`) as any;
+
+  if (!client) {
+    return {
+      error: `Client '${clientName}' not found in the database.`,
+      clientName
+    };
+  }
+
+  // 2. Query all shifts (both COMPLETED and SCHEDULED/PUBLISHED) within the date range
+  const startIso = `${quarterStartDate}T00:00:00.000Z`;
+  const endIso = `${quarterEndDate}T23:59:59.999Z`;
+
+  const shifts = db.prepare(
+    `SELECT s.id, s.start_time, s.end_time, s.status, s.services_json,
+            s.service_id, srv.name as service_name, srv.rate as service_rate, srv.unit as service_unit
+     FROM shifts s
+     LEFT JOIN services srv ON s.service_id = srv.id
+     WHERE s.client_id = ?
+       AND s.start_time >= ?
+       AND s.start_time <= ?
+       AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID')
+     ORDER BY s.start_time ASC`
+  ).all(client.id, startIso, endIso) as any[];
+
+  let totalUsedFunds = 0;
+  let totalHours = 0;
+  let completedCount = 0;
+  let scheduledCount = 0;
+
+  for (const shift of shifts) {
+    const isCompleted = UPPER(shift.status) === 'COMPLETED';
+    if (isCompleted) {
+      completedCount++;
+    } else {
+      scheduledCount++;
+    }
+
+    const startMs = new Date(shift.start_time).getTime();
+    const endMs = new Date(shift.end_time).getTime();
+    const durationHrs = Math.max(0, (endMs - startMs) / 3600000);
+    totalHours += durationHrs;
+
+    let shiftCost = 0;
+    let parsedServices: any[] = [];
+    if (shift.services_json) {
+      try {
+        parsedServices = JSON.parse(shift.services_json);
+      } catch (e) {}
+    }
+
+    if (Array.isArray(parsedServices) && parsedServices.length > 0) {
+      for (const sd of parsedServices) {
+        const srv = sd.serviceId ? db.prepare("SELECT rate, unit FROM services WHERE id = ?").get(sd.serviceId) as any : null;
+        const effectiveRate = Number(sd.rateOverride ?? srv?.rate ?? 0);
+        const isKm = (sd.serviceUnit || srv?.unit || '').toUpperCase() === 'KM';
+        const qty = Number(sd.qtyOverride ?? (isKm ? 0 : durationHrs));
+        shiftCost += qty * effectiveRate;
+      }
+    } else {
+      const baseRate = Number(shift.service_rate || 0);
+      shiftCost = durationHrs * baseRate;
+    }
+
+    totalUsedFunds += shiftCost;
+  }
+
+  // 3. Compute quarter weeks and average burn metrics
+  const quarterStartMs = new Date(quarterStartDate).getTime();
+  const quarterEndMs = new Date(quarterEndDate).getTime();
+  const quarterTotalWeeks = Math.max(1, (quarterEndMs - quarterStartMs) / (7 * 24 * 3600 * 1000));
+  const remainingFunds = parseFloat((totalQuarterlyBudget - totalUsedFunds).toFixed(2));
+  const averageWeeklyHours = parseFloat((totalHours / quarterTotalWeeks).toFixed(2));
+  const averageWeeklySpend = parseFloat((totalUsedFunds / quarterTotalWeeks).toFixed(2));
+
+  return {
+    clientName: `${client.first_name} ${client.last_name}`,
+    clientId: client.id,
+    fundingType: client.funding_type || "Trilogy Care / HCP",
+    quarterStartDate,
+    quarterEndDate,
+    quarterStartDateAU: formatToAustralianDate(quarterStartDate),
+    quarterEndDateAU: formatToAustralianDate(quarterEndDate),
+    quarterTotalWeeks: parseFloat(quarterTotalWeeks.toFixed(1)),
+    totalQuarterlyBudget,
+    totalUsedFunds: parseFloat(totalUsedFunds.toFixed(2)),
+    remainingFunds,
+    burnRatePercentage: `${((totalUsedFunds / totalQuarterlyBudget) * 100).toFixed(2)}%`,
+    totalCommittedHours: parseFloat(totalHours.toFixed(2)),
+    averageWeeklyHours,
+    averageWeeklySpend,
+    shiftCount: shifts.length,
+    statusBreakdown: {
+      completedShifts: completedCount,
+      scheduledShifts: scheduledCount
+    }
+  };
+}
+
+/**
+ * Pure Analytical Logic for Tool B: optimize_quarterly_roster
+ */
+export function optimizeQuarterlyRosterLogic(
+  db: Database.Database,
+  {
+    clientName,
+    quarterStartDate,
+    quarterEndDate,
+    remainingFunds
+  }: {
+    clientName: string;
+    quarterStartDate: string;
+    quarterEndDate: string;
+    remainingFunds: number;
+  }
+) {
+  // 1. Locate client
+  const client = db.prepare(
+    `SELECT id, first_name, last_name, funding_type 
+     FROM clients 
+     WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
+        OR first_name LIKE ? 
+        OR last_name LIKE ?
+     LIMIT 1`
+  ).get(`%${clientName.trim()}%`, `%${clientName.trim()}%`, `%${clientName.trim()}%`) as any;
+
+  if (!client) {
+    return {
+      error: `Client '${clientName}' not found in the database.`,
+      clientName
+    };
+  }
+
+  // 2. Query client shifts to establish baseline weekly pattern
+  const startIso = `${quarterStartDate}T00:00:00.000Z`;
+  const endIso = `${quarterEndDate}T23:59:59.999Z`;
+
+  const shifts = db.prepare(
+    `SELECT s.id, s.start_time, s.end_time, s.services_json,
+            s.service_id, srv.name as service_name, srv.rate as service_rate
+     FROM shifts s
+     LEFT JOIN services srv ON s.service_id = srv.id
+     WHERE s.client_id = ?
+       AND s.start_time >= ?
+       AND s.start_time <= ?
+       AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID')`
+  ).all(client.id, startIso, endIso) as any[];
+
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const patternMap: Record<string, { dayOfWeek: string; serviceName: string; totalHours: number; count: number; rate: number }> = {};
+  let totalStandardRates = 0;
+  let rateCount = 0;
+
+  for (const shift of shifts) {
+    const shiftDate = new Date(shift.start_time);
+    const dayName = dayNames[shiftDate.getUTCDay()];
+    const sName = shift.service_name || "Standard Care Service";
+    const sRate = Number(shift.service_rate || 65.47);
+
+    const durationHrs = Math.max(0, (new Date(shift.end_time).getTime() - shiftDate.getTime()) / 3600000);
+    const key = `${dayName}_${sName}`;
+
+    if (!patternMap[key]) {
+      patternMap[key] = {
+        dayOfWeek: dayName,
+        serviceName: sName,
+        totalHours: 0,
+        count: 0,
+        rate: sRate
+      };
+    }
+    patternMap[key].totalHours += durationHrs;
+    patternMap[key].count += 1;
+    totalStandardRates += sRate;
+    rateCount++;
+  }
+
+  // 3. Calculate remaining weeks in the quarter
+  const nowMs = Date.now();
+  const quarterStartMs = new Date(quarterStartDate).getTime();
+  const quarterEndMs = new Date(quarterEndDate).getTime();
+  const effectiveStartMs = Math.max(nowMs, quarterStartMs);
+  const remainingMs = Math.max(0, quarterEndMs - effectiveStartMs);
+  const remainingWeeks = Math.max(0.1, parseFloat((remainingMs / (7 * 24 * 3600 * 1000)).toFixed(2)));
+
+  // 4. Calculate weekly surplus budget
+  const weeklySurplusBudget = parseFloat((remainingFunds / remainingWeeks).toFixed(2));
+  const primaryStandardRate = rateCount > 0 ? parseFloat((totalStandardRates / rateCount).toFixed(2)) : 65.47;
+  const additionalAffordableHoursPerWeek = parseFloat(Math.max(0, weeklySurplusBudget / primaryStandardRate).toFixed(2));
+
+  // Compute baseline weekly hours
+  const quarterWeeks = Math.max(1, (quarterEndMs - quarterStartMs) / (7 * 24 * 3600 * 1000));
+  const baselinePattern = Object.values(patternMap).map(p => ({
+    dayOfWeek: p.dayOfWeek,
+    serviceName: p.serviceName,
+    averageWeeklyHours: parseFloat((p.totalHours / quarterWeeks).toFixed(2)),
+    unitRate: p.rate,
+    estimatedWeeklyCost: parseFloat(((p.totalHours / quarterWeeks) * p.rate).toFixed(2))
+  }));
+
+  const totalBaselineWeeklyHours = parseFloat(baselinePattern.reduce((acc, p) => acc + p.averageWeeklyHours, 0).toFixed(2));
+  const totalBaselineWeeklyCost = parseFloat(baselinePattern.reduce((acc, p) => acc + p.estimatedWeeklyCost, 0).toFixed(2));
+
+  return {
+    clientName: `${client.first_name} ${client.last_name}`,
+    quarterStartDate,
+    quarterEndDate,
+    quarterStartDateAU: formatToAustralianDate(quarterStartDate),
+    quarterEndDateAU: formatToAustralianDate(quarterEndDate),
+    remainingFunds,
+    remainingWeeksInQuarter: remainingWeeks,
+    weeklySurplusBudget,
+    currentWeeklyBaseline: baselinePattern,
+    baselineWeeklyHours: totalBaselineWeeklyHours,
+    baselineWeeklyCost: totalBaselineWeeklyCost,
+    primaryStandardRate,
+    additionalAffordableHoursPerWeek,
+    recommendedMaxWeeklyHours: parseFloat((totalBaselineWeeklyHours + additionalAffordableHoursPerWeek).toFixed(2)),
+    optimizationSummary: `The client has $${remainingFunds.toFixed(2)} remaining across ${remainingWeeks} remaining weeks ($${weeklySurplusBudget.toFixed(2)}/week surplus). At a standard rate of $${primaryStandardRate.toFixed(2)}/hr, they can safely afford an additional ${additionalAffordableHoursPerWeek} hours per week without exceeding their Trilogy Care quarterly budget.`
+  };
+}
 
 /**
  * Model Context Protocol (MCP) Server for Happy in the Home
@@ -31,117 +295,9 @@ export function setupMcpServer(app: Express, db: Database.Database) {
         quarterEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be ISO 8601 date YYYY-MM-DD").describe("End date of the 3-month quarter (YYYY-MM-DD)"),
         totalQuarterlyBudget: z.number().positive().describe("Total allocated funding budget for this quarter in AUD")
       },
-      async ({ clientName, quarterStartDate, quarterEndDate, totalQuarterlyBudget }) => {
+      async (args) => {
         try {
-          // 1. Locate client using parameterized query
-          const client = db.prepare(
-            `SELECT id, first_name, last_name, funding_type 
-             FROM clients 
-             WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
-                OR first_name LIKE ? 
-                OR last_name LIKE ?
-             LIMIT 1`
-          ).get(`%${clientName.trim()}%`, `%${clientName.trim()}%`, `%${clientName.trim()}%`) as any;
-
-          if (!client) {
-            return {
-              content: [{
-                type: "text",
-                text: JSON.stringify({
-                  error: `Client '${clientName}' not found in the database.`,
-                  clientName
-                }, null, 2)
-              }]
-            };
-          }
-
-          // 2. Query all shifts (both COMPLETED and SCHEDULED/PUBLISHED) within the date range
-          const startIso = `${quarterStartDate}T00:00:00.000Z`;
-          const endIso = `${quarterEndDate}T23:59:59.999Z`;
-
-          const shifts = db.prepare(
-            `SELECT s.id, s.start_time, s.end_time, s.status, s.services_json,
-                    s.service_id, srv.name as service_name, srv.rate as service_rate, srv.unit as service_unit
-             FROM shifts s
-             LEFT JOIN services srv ON s.service_id = srv.id
-             WHERE s.client_id = ?
-               AND s.start_time >= ?
-               AND s.start_time <= ?
-               AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID')
-             ORDER BY s.start_time ASC`
-          ).all(client.id, startIso, endIso) as any[];
-
-          let totalUsedFunds = 0;
-          let totalHours = 0;
-          let completedCount = 0;
-          let scheduledCount = 0;
-
-          for (const shift of shifts) {
-            const isCompleted = UPPER(shift.status) === 'COMPLETED';
-            if (isCompleted) {
-              completedCount++;
-            } else {
-              scheduledCount++;
-            }
-
-            const startMs = new Date(shift.start_time).getTime();
-            const endMs = new Date(shift.end_time).getTime();
-            const durationHrs = Math.max(0, (endMs - startMs) / 3600000);
-            totalHours += durationHrs;
-
-            let shiftCost = 0;
-            let parsedServices: any[] = [];
-            if (shift.services_json) {
-              try {
-                parsedServices = JSON.parse(shift.services_json);
-              } catch (e) {}
-            }
-
-            if (Array.isArray(parsedServices) && parsedServices.length > 0) {
-              for (const sd of parsedServices) {
-                const srv = sd.serviceId ? db.prepare("SELECT rate, unit FROM services WHERE id = ?").get(sd.serviceId) as any : null;
-                const effectiveRate = Number(sd.rateOverride ?? srv?.rate ?? 0);
-                const isKm = (sd.serviceUnit || srv?.unit || '').toUpperCase() === 'KM';
-                const qty = Number(sd.qtyOverride ?? (isKm ? 0 : durationHrs));
-                shiftCost += qty * effectiveRate;
-              }
-            } else {
-              const baseRate = Number(shift.service_rate || 0);
-              shiftCost = durationHrs * baseRate;
-            }
-
-            totalUsedFunds += shiftCost;
-          }
-
-          // 3. Compute quarter weeks and average burn metrics
-          const quarterStartMs = new Date(quarterStartDate).getTime();
-          const quarterEndMs = new Date(quarterEndDate).getTime();
-          const quarterTotalWeeks = Math.max(1, (quarterEndMs - quarterStartMs) / (7 * 24 * 3600 * 1000));
-          const remainingFunds = parseFloat((totalQuarterlyBudget - totalUsedFunds).toFixed(2));
-          const averageWeeklyHours = parseFloat((totalHours / quarterTotalWeeks).toFixed(2));
-          const averageWeeklySpend = parseFloat((totalUsedFunds / quarterTotalWeeks).toFixed(2));
-
-          const result = {
-            clientName: `${client.first_name} ${client.last_name}`,
-            clientId: client.id,
-            fundingType: client.funding_type || "Trilogy Care / HCP",
-            quarterStartDate,
-            quarterEndDate,
-            quarterTotalWeeks: parseFloat(quarterTotalWeeks.toFixed(1)),
-            totalQuarterlyBudget,
-            totalUsedFunds: parseFloat(totalUsedFunds.toFixed(2)),
-            remainingFunds,
-            burnRatePercentage: `${((totalUsedFunds / totalQuarterlyBudget) * 100).toFixed(2)}%`,
-            totalCommittedHours: parseFloat(totalHours.toFixed(2)),
-            averageWeeklyHours,
-            averageWeeklySpend,
-            shiftCount: shifts.length,
-            statusBreakdown: {
-              completedShifts: completedCount,
-              scheduledShifts: scheduledCount
-            }
-          };
-
+          const result = analyzeClientFundsLogic(db, args);
           return {
             content: [{
               type: "text",
@@ -171,116 +327,9 @@ export function setupMcpServer(app: Express, db: Database.Database) {
         quarterEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be ISO 8601 date YYYY-MM-DD").describe("End date of the 3-month quarter (YYYY-MM-DD)"),
         remainingFunds: z.number().describe("Remaining surplus budget for the rest of the quarter in AUD")
       },
-      async ({ clientName, quarterStartDate, quarterEndDate, remainingFunds }) => {
+      async (args) => {
         try {
-          // 1. Locate client
-          const client = db.prepare(
-            `SELECT id, first_name, last_name, funding_type 
-             FROM clients 
-             WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
-                OR first_name LIKE ? 
-                OR last_name LIKE ?
-             LIMIT 1`
-          ).get(`%${clientName.trim()}%`, `%${clientName.trim()}%`, `%${clientName.trim()}%`) as any;
-
-          if (!client) {
-            return {
-              content: [{
-                type: "text",
-                text: JSON.stringify({
-                  error: `Client '${clientName}' not found in the database.`,
-                  clientName
-                }, null, 2)
-              }]
-            };
-          }
-
-          // 2. Query client shifts to establish baseline weekly pattern
-          const startIso = `${quarterStartDate}T00:00:00.000Z`;
-          const endIso = `${quarterEndDate}T23:59:59.999Z`;
-
-          const shifts = db.prepare(
-            `SELECT s.id, s.start_time, s.end_time, s.services_json,
-                    s.service_id, srv.name as service_name, srv.rate as service_rate
-             FROM shifts s
-             LEFT JOIN services srv ON s.service_id = srv.id
-             WHERE s.client_id = ?
-               AND s.start_time >= ?
-               AND s.start_time <= ?
-               AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID')`
-          ).all(client.id, startIso, endIso) as any[];
-
-          const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-          const patternMap: Record<string, { dayOfWeek: string; serviceName: string; totalHours: number; count: number; rate: number }> = {};
-          let totalStandardRates = 0;
-          let rateCount = 0;
-
-          for (const shift of shifts) {
-            const shiftDate = new Date(shift.start_time);
-            const dayName = dayNames[shiftDate.getUTCDay()];
-            const sName = shift.service_name || "Standard Care Service";
-            const sRate = Number(shift.service_rate || 65.47);
-
-            const durationHrs = Math.max(0, (new Date(shift.end_time).getTime() - shiftDate.getTime()) / 3600000);
-            const key = `${dayName}_${sName}`;
-
-            if (!patternMap[key]) {
-              patternMap[key] = {
-                dayOfWeek: dayName,
-                serviceName: sName,
-                totalHours: 0,
-                count: 0,
-                rate: sRate
-              };
-            }
-            patternMap[key].totalHours += durationHrs;
-            patternMap[key].count += 1;
-            totalStandardRates += sRate;
-            rateCount++;
-          }
-
-          // 3. Calculate remaining weeks in the quarter
-          const nowMs = Date.now();
-          const quarterStartMs = new Date(quarterStartDate).getTime();
-          const quarterEndMs = new Date(quarterEndDate).getTime();
-          const effectiveStartMs = Math.max(nowMs, quarterStartMs);
-          const remainingMs = Math.max(0, quarterEndMs - effectiveStartMs);
-          const remainingWeeks = Math.max(0.1, parseFloat((remainingMs / (7 * 24 * 3600 * 1000)).toFixed(2)));
-
-          // 4. Calculate weekly surplus budget
-          const weeklySurplusBudget = parseFloat((remainingFunds / remainingWeeks).toFixed(2));
-          const primaryStandardRate = rateCount > 0 ? parseFloat((totalStandardRates / rateCount).toFixed(2)) : 65.47;
-          const additionalAffordableHoursPerWeek = parseFloat(Math.max(0, weeklySurplusBudget / primaryStandardRate).toFixed(2));
-
-          // Compute baseline weekly hours
-          const quarterWeeks = Math.max(1, (quarterEndMs - quarterStartMs) / (7 * 24 * 3600 * 1000));
-          const baselinePattern = Object.values(patternMap).map(p => ({
-            dayOfWeek: p.dayOfWeek,
-            serviceName: p.serviceName,
-            averageWeeklyHours: parseFloat((p.totalHours / quarterWeeks).toFixed(2)),
-            unitRate: p.rate,
-            estimatedWeeklyCost: parseFloat(((p.totalHours / quarterWeeks) * p.rate).toFixed(2))
-          }));
-
-          const totalBaselineWeeklyHours = parseFloat(baselinePattern.reduce((acc, p) => acc + p.averageWeeklyHours, 0).toFixed(2));
-          const totalBaselineWeeklyCost = parseFloat(baselinePattern.reduce((acc, p) => acc + p.estimatedWeeklyCost, 0).toFixed(2));
-
-          const result = {
-            clientName: `${client.first_name} ${client.last_name}`,
-            quarterStartDate,
-            quarterEndDate,
-            remainingFunds,
-            remainingWeeksInQuarter: remainingWeeks,
-            weeklySurplusBudget,
-            currentWeeklyBaseline: baselinePattern,
-            baselineWeeklyHours: totalBaselineWeeklyHours,
-            baselineWeeklyCost: totalBaselineWeeklyCost,
-            primaryStandardRate,
-            additionalAffordableHoursPerWeek,
-            recommendedMaxWeeklyHours: parseFloat((totalBaselineWeeklyHours + additionalAffordableHoursPerWeek).toFixed(2)),
-            optimizationSummary: `The client has $${remainingFunds.toFixed(2)} remaining across ${remainingWeeks} remaining weeks ($${weeklySurplusBudget.toFixed(2)}/week surplus). At a standard rate of $${primaryStandardRate.toFixed(2)}/hr, they can safely afford an additional ${additionalAffordableHoursPerWeek} hours per week without exceeding their Trilogy Care quarterly budget.`
-          };
-
+          const result = optimizeQuarterlyRosterLogic(db, args);
           return {
             content: [{
               type: "text",
@@ -353,9 +402,208 @@ export function setupMcpServer(app: Express, db: Database.Database) {
     }
   });
 
-  console.log("[MCP] Model Context Protocol Server mounted on /sse and /messages");
-}
+  /**
+   * POST /api/chat
+   * AI & MCP conversational interface for the frontend chat widget.
+   * Handles LLM queries, tool execution, and returns natural-language recommendations
+   * formatted strictly with Australian DD/MM/YYYY dates.
+   */
+  app.post("/api/chat", async (req: Request, res: Response) => {
+    try {
+      const { message, messages } = req.body;
+      const userQuery = (message || (Array.isArray(messages) && messages[messages.length - 1]?.content) || "").trim();
 
-function UPPER(str: any): string {
-  return String(str || "").toUpperCase();
+      if (!userQuery) {
+        return res.status(400).json({ error: "Message is required." });
+      }
+
+      // Check if Gemini API is configured
+      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+      if (geminiApiKey) {
+        try {
+          const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+          const analyzeClientFundsDeclaration = {
+            name: "analyze_client_funds",
+            description: "Query shifts table and calculate total used funds, remaining funds, and current average weekly hours for a client in a 3-month quarter (Trilogy Care cycle). Dates must be ISO YYYY-MM-DD.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                clientName: { type: Type.STRING, description: "Client full or partial name" },
+                quarterStartDate: { type: Type.STRING, description: "Start date of 3-month quarter (YYYY-MM-DD)" },
+                quarterEndDate: { type: Type.STRING, description: "End date of 3-month quarter (YYYY-MM-DD)" },
+                totalQuarterlyBudget: { type: Type.NUMBER, description: "Total allocated funding budget for this quarter in AUD" }
+              },
+              required: ["clientName", "quarterStartDate", "quarterEndDate", "totalQuarterlyBudget"]
+            }
+          };
+
+          const optimizeQuarterlyRosterDeclaration = {
+            name: "optimize_quarterly_roster",
+            description: "Analyze client baseline weekly shift schedule and calculate surplus budget and additional affordable hours per week without exceeding budget limit.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                clientName: { type: Type.STRING, description: "Client full or partial name" },
+                quarterStartDate: { type: Type.STRING, description: "Start date of quarter (YYYY-MM-DD)" },
+                quarterEndDate: { type: Type.STRING, description: "End date of quarter (YYYY-MM-DD)" },
+                remainingFunds: { type: Type.NUMBER, description: "Remaining surplus funds in AUD" }
+              },
+              required: ["clientName", "quarterStartDate", "quarterEndDate", "remainingFunds"]
+            }
+          };
+
+          const systemInstruction = `You are the care management and rostering AI assistant for HAPPY IN THE HOME.
+You specialize in Home Care Packages (HCP) and Trilogy Care quarterly funding cycles.
+
+CRITICAL FORMATTING RULES:
+1. All dates in your natural-language responses to users MUST strictly use Australian standard DD/MM/YYYY formatting.
+2. In all backend tool calls, you must strictly pass ISO 8601 YYYY-MM-DD format.
+3. Currency must be displayed in AUD ($X.XX).
+4. If the user asks about a client's funds, burn rate, or rostering capacity, use the available tools to compute exact numbers.
+5. If the user does not specify a quarter date range, assume the current 3-month Trilogy Care quarter:
+   Current Quarter: 2026-07-01 to 2026-09-30 (or standard Level 1-4 HCP budget if not specified, e.g. Level 3 ~$13,500/quarter).`;
+
+          const response = await ai.models.generateContent({
+            model: "gemini-3.8-flash",
+            contents: userQuery,
+            config: {
+              systemInstruction,
+              tools: [
+                {
+                  functionDeclarations: [
+                    analyzeClientFundsDeclaration,
+                    optimizeQuarterlyRosterDeclaration
+                  ]
+                }
+              ]
+            }
+          });
+
+          // Check if Gemini requested a function call
+          const functionCalls = response.functionCalls;
+          if (functionCalls && functionCalls.length > 0) {
+            const call = functionCalls[0];
+            let toolOutput: any = {};
+
+            if (call.name === "analyze_client_funds") {
+              toolOutput = analyzeClientFundsLogic(db, call.args as any);
+            } else if (call.name === "optimize_quarterly_roster") {
+              toolOutput = optimizeQuarterlyRosterLogic(db, call.args as any);
+            }
+
+            // Return function output to Gemini for final natural-language recommendation
+            const followUp = await ai.models.generateContent({
+              model: "gemini-3.8-flash",
+              contents: [
+                { role: "user", parts: [{ text: userQuery }] },
+                { role: "model", parts: [{ functionCall: call }] },
+                {
+                  role: "user",
+                  parts: [
+                    {
+                      functionResponse: {
+                        name: call.name,
+                        response: { result: toolOutput }
+                      }
+                    }
+                  ]
+                }
+              ],
+              config: {
+                systemInstruction: `You are the care assistant for Happy in the Home. Summarize the tool result into a clear, professional recommendation for care coordinators.
+Remember: All dates must strictly be formatted in the Australian standard DD/MM/YYYY. Display all financial amounts in AUD ($). Highlight burn rate, remaining weeks, and affordable hours per week.`
+              }
+            });
+
+            return res.json({
+              reply: followUp.text || JSON.stringify(toolOutput, null, 2),
+              toolResult: toolOutput
+            });
+          }
+
+          if (response.text) {
+            return res.json({ reply: response.text });
+          }
+        } catch (geminiError: any) {
+          console.warn("[AI Chat] Gemini API call failed, using analytical fallback:", geminiError?.message || geminiError);
+        }
+      }
+
+      // Intelligent Fallback: Check if user mentioned any client or general budget query
+      const clients = db.prepare("SELECT id, first_name, last_name, funding_type FROM clients").all() as any[];
+      const lowerQuery = userQuery.toLowerCase();
+      const matchedClient = clients.find(c =>
+        lowerQuery.includes(`${c.first_name} ${c.last_name}`.toLowerCase()) ||
+        lowerQuery.includes(c.first_name.toLowerCase()) ||
+        (c.last_name && lowerQuery.includes(c.last_name.toLowerCase()))
+      );
+
+      // Default quarter dates (ISO)
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentQuarter = Math.floor(now.getMonth() / 3);
+      const qStartMonth = String(currentQuarter * 3 + 1).padStart(2, '0');
+      const qEndMonth = String(currentQuarter * 3 + 3).padStart(2, '0');
+      const quarterStartDate = `${currentYear}-${qStartMonth}-01`;
+      const lastDayOfQ = new Date(currentYear, currentQuarter * 3 + 3, 0).getDate();
+      const quarterEndDate = `${currentYear}-${qEndMonth}-${lastDayOfQ}`;
+
+      if (matchedClient) {
+        const clientName = `${matchedClient.first_name} ${matchedClient.last_name}`;
+        const totalQuarterlyBudget = 13500; // Typical HCP quarterly budget baseline
+
+        const analysis = analyzeClientFundsLogic(db, {
+          clientName,
+          quarterStartDate,
+          quarterEndDate,
+          totalQuarterlyBudget
+        });
+
+        if (!analysis.error) {
+          const optimization = optimizeQuarterlyRosterLogic(db, {
+            clientName,
+            quarterStartDate,
+            quarterEndDate,
+            remainingFunds: analysis.remainingFunds
+          });
+
+          const reply = `📊 **Quarterly Budget Analysis for ${clientName}**
+• **Funding Cycle:** ${formatToAustralianDate(quarterStartDate)} to ${formatToAustralianDate(quarterEndDate)} (${analysis.quarterTotalWeeks} weeks)
+• **Quarterly Budget:** $${analysis.totalQuarterlyBudget.toFixed(2)} AUD
+• **Total Funds Committed/Used:** $${analysis.totalUsedFunds.toFixed(2)} (${analysis.burnRatePercentage} burn rate)
+• **Remaining Funds:** $${analysis.remainingFunds.toFixed(2)} AUD
+• **Current Average Weekly Hours:** ${analysis.averageWeeklyHours} hrs/week ($${analysis.averageWeeklySpend}/week)
+• **Shift Count:** ${analysis.shiftCount} shifts (${analysis.statusBreakdown.completedShifts} completed, ${analysis.statusBreakdown.scheduledShifts} scheduled)
+
+💡 **Rostering Recommendation:**
+${optimization.optimizationSummary}
+• **Baseline Weekly Hours:** ${optimization.baselineWeeklyHours} hrs/week
+• **Additional Affordable Hours:** +${optimization.additionalAffordableHoursPerWeek} hrs/week
+• **Recommended Max Weekly Hours:** ${optimization.recommendedMaxWeeklyHours} hrs/week`;
+
+          return res.json({ reply, analysis, optimization });
+        }
+      }
+
+      // General fallback reply
+      const firstClients = clients.slice(0, 4).map(c => `${c.first_name} ${c.last_name}`).join(", ");
+      return res.json({
+        reply: `👋 Hello! I am the Happy in the Home AI Assistant, equipped with Model Context Protocol (MCP) analytical tools.
+
+You can ask me to:
+• **Analyze Client Funds:** e.g., *"Analyze funds for ${firstClients ? firstClients.split(',')[0] : 'a client'}"*
+• **Optimize Quarterly Rosters:** e.g., *"Optimize roster budget for Trilogy Care"*
+• **Assess Burn Rates:** Review used vs. remaining funds across 3-month funding periods.
+
+*All dates are displayed in the Australian standard DD/MM/YYYY.*`
+      });
+
+    } catch (err: any) {
+      console.error("[AI Chat] Error in /api/chat:", err);
+      res.status(500).json({ error: err.message || "Failed to process chat message" });
+    }
+  });
+
+  console.log("[MCP] Model Context Protocol Server mounted on /sse, /messages, and /api/chat");
 }

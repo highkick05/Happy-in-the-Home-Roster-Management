@@ -41,6 +41,7 @@ import ChatView from './components/Chat/ChatView';
 import VehiclesView from './components/VehiclesView';
 import EmailView from './components/Email/EmailView';
 import EmailFloatingWidget from './components/Email/EmailFloatingWidget';
+import AiChatWidget from './components/AiChat/AiChatWidget';
 import ClaimShiftView from './components/Roster/ClaimShiftView';
 import { getAvatarUrl } from './utils/avatar';
 
@@ -446,7 +447,8 @@ function Layout({ children }: { children: React.ReactNode }) {
       {/* Quick Links Floating Hover Tab */}
       {user?.role === 'ADMIN' && <QuickLinksDrawer />}
       <FloatingChatIcon />
-      {user?.role === 'ADMIN' && !location.pathname.includes('/chat') && <EmailFloatingWidget />}
+      {(user?.role === 'ADMIN' || user?.role === 'admin') && !location.pathname.includes('/chat') && <EmailFloatingWidget />}
+      <AiChatWidget />
     </div>
   );
 }
