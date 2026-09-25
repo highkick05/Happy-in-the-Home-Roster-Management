@@ -168,13 +168,13 @@ export default function AiChatWidget() {
       title: "Optimize Roster",
       desc: "Calculate surplus hours & weekly baseline",
       icon: <Calendar className="w-3.5 h-3.5 text-emerald-400" />,
-      promptTemplate: (name: string) => `Optimize quarterly roster for ${name}`
+      promptTemplate: (name: string) => `Optimize quarterly roster for ${name} for the current quarter`
     },
     {
       title: "Budget Burn Rate",
       desc: "Assess remaining weeks & weekly spend",
       icon: <TrendingUp className="w-3.5 h-3.5 text-sky-400" />,
-      promptTemplate: (name: string) => `Assess budget burn rate and remaining funding weeks for ${name}`
+      promptTemplate: (name: string) => `Assess budget burn rate and remaining funding weeks for ${name} for the current quarter`
     }
   ];
 

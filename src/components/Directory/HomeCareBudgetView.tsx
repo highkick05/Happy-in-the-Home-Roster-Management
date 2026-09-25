@@ -5,6 +5,58 @@ import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Fl
 import CustomDatePicker from '../ui/CustomDatePicker';
 import { motion } from 'motion/react';
 
+// Official Home Care Financial Year Quarters (matching Trilogy Care & Home Care budgets)
+const getHomeCareQuarters = (refDate = new Date()) => {
+  const curYear = refDate.getFullYear();
+  const curMonth = refDate.getMonth() + 1; // 1-12
+  const curDay = refDate.getDate();
+  const isPastJun30 = curMonth > 6 || (curMonth === 6 && curDay >= 30);
+  const fyStartYear = isPastJun30 ? curYear : curYear - 1;
+
+  const quarters = [
+    {
+      id: 1,
+      label: "Quarter 1",
+      startDateStr: `${fyStartYear}-06-30`,
+      endDateStr: `${fyStartYear}-09-30`,
+      totalDays: 92,
+      start: new Date(`${fyStartYear}-06-30T00:00:00`),
+      end: new Date(`${fyStartYear}-09-30T23:59:59`)
+    },
+    {
+      id: 2,
+      label: "Quarter 2",
+      startDateStr: `${fyStartYear}-09-30`,
+      endDateStr: `${fyStartYear}-12-31`,
+      totalDays: 92,
+      start: new Date(`${fyStartYear}-09-30T00:00:00`),
+      end: new Date(`${fyStartYear}-12-31T23:59:59`)
+    },
+    {
+      id: 3,
+      label: "Quarter 3",
+      startDateStr: `${fyStartYear}-12-31`,
+      endDateStr: `${fyStartYear + 1}-03-31`,
+      totalDays: 90,
+      start: new Date(`${fyStartYear}-12-31T00:00:00`),
+      end: new Date(`${fyStartYear + 1}-03-31T23:59:59`)
+    },
+    {
+      id: 4,
+      label: "Quarter 4",
+      startDateStr: `${fyStartYear + 1}-03-31`,
+      endDateStr: `${fyStartYear + 1}-06-30`,
+      totalDays: 91,
+      start: new Date(`${fyStartYear + 1}-03-31T00:00:00`),
+      end: new Date(`${fyStartYear + 1}-06-30T23:59:59`)
+    }
+  ];
+
+  const nowMs = refDate.getTime();
+  const activeQuarter = quarters.find(q => nowMs >= q.start.getTime() && nowMs <= q.end.getTime()) || quarters[0];
+  return { quarters, activeQuarter };
+};
+
 export default function HomeCareBudgetView() {
   // Minor update to force GitHub Sync mechanism
   const { id } = useParams<{ id: string }>();
@@ -77,15 +129,7 @@ export default function HomeCareBudgetView() {
 
       // Calculate Quarter and Pro-rata logic to pass to ledger API
       if (clientData) {
-         const now = new Date();
-         const currentYear = now.getFullYear();
-         const quarters = [
-           { start: new Date(currentYear, 0, 1), end: new Date(currentYear, 2, 31) },
-           { start: new Date(currentYear, 3, 1), end: new Date(currentYear, 5, 30) },
-           { start: new Date(currentYear, 6, 1), end: new Date(currentYear, 8, 30) },
-           { start: new Date(currentYear, 9, 1), end: new Date(currentYear, 11, 31) }
-         ];
-         const activeQuarter = quarters.find(q => now >= q.start && now <= q.end) || quarters[0];
+         const { activeQuarter } = getHomeCareQuarters();
          let cycleStart = activeQuarter.start;
          if (clientData.joined_date) {
            const joined = new Date(clientData.joined_date);
@@ -94,7 +138,7 @@ export default function HomeCareBudgetView() {
            }
          }
          const sDate = cycleStart.toISOString().split('T')[0];
-         const eDate = activeQuarter.end.toISOString().split('T')[0];
+         const eDate = activeQuarter.endDateStr;
 
          const ledgerRes = await fetch(`/api/clients/${id}/budget-ledger?startDate=${sDate}&endDate=${eDate}`, { headers: { Authorization: `Bearer ${token}` } });
          if (ledgerRes.ok) {
@@ -196,19 +240,11 @@ export default function HomeCareBudgetView() {
   }
 
   // Calculate Quarter and Pro-rata logic
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const quarters = [
-    { start: new Date(currentYear, 0, 1), end: new Date(currentYear, 2, 31) }, // Q1
-    { start: new Date(currentYear, 3, 1), end: new Date(currentYear, 5, 30) }, // Q2
-    { start: new Date(currentYear, 6, 1), end: new Date(currentYear, 8, 30) }, // Q3
-    { start: new Date(currentYear, 9, 1), end: new Date(currentYear, 11, 31) } // Q4
-  ];
-
-  const activeQuarter = quarters.find(q => now >= q.start && now <= q.end) || quarters[0];
+  const { activeQuarter } = getHomeCareQuarters();
   
   let cycleStart = activeQuarter.start;
   const cycleEnd = activeQuarter.end;
+  let totalDays = activeQuarter.totalDays;
   
   if (client.joined_date) {
     // Need to parse properly
@@ -217,17 +253,15 @@ export default function HomeCareBudgetView() {
       if (joined >= activeQuarter.start && joined <= activeQuarter.end) {
         // Bridging cycle
         cycleStart = joined;
+        const msPerDay = 1000 * 60 * 60 * 24;
+        totalDays = Math.max(1, Math.floor((cycleEnd.getTime() - cycleStart.getTime()) / msPerDay) + 1);
       }
     }
   }
 
-  const msPerDay = 1000 * 60 * 60 * 24;
-  // Inclusive date count
-  const totalDays = Math.floor((cycleEnd.getTime() - cycleStart.getTime()) / msPerDay) + 1;
-
   const activeCycle = {
     startStr: cycleStart.toISOString().split('T')[0],
-    endStr: cycleEnd.toISOString().split('T')[0],
+    endStr: activeQuarter.endDateStr,
     totalDays
   };
 
