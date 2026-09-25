@@ -617,7 +617,8 @@ CRITICAL FORMATTING & FINANCIAL RULES:
 2. In all backend tool calls, you must strictly pass ISO 8601 YYYY-MM-DD format.
 3. Currency must always be formatted in AUD ($X.XX).
 4. Client budgets are completely individualized. NEVER assume a hardcoded or generic default quarterly budget. When analyzing funds, use the specific budget provided by the user or calculate the exact spent/scheduled costs from actual shifts. If the user asks for a burn rate calculation without specifying their allocated budget, compute the exact spent and scheduled totals and ask for their specific quarter budget.
-5. If the user does not specify dates for the quarter, use the current active calendar quarter dates (e.g. 2026-07-01 to 2026-09-30).`;
+5. If the user does not specify dates for the quarter, use the current active calendar quarter dates (e.g. 2026-07-01 to 2026-09-30).
+6. If the user asks to analyze funds, check burn rate, or optimize a roster without specifying which client they want to analyze, do NOT call tools with empty or assumed client names. Instead, ask warmly: "Which client would you like to analyze? Please select a client or let me know their name."`;
 
           if (aiConfig.ai_custom_instructions) {
             systemInstruction += `\n\nADDITIONAL CARE COORDINATION GUIDELINES:\n${aiConfig.ai_custom_instructions}`;
