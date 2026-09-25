@@ -402,6 +402,104 @@ export function setupMcpServer(app: Express, db: Database.Database) {
     }
   });
 
+  // --- Helper to fetch AI settings from SQLite database ---
+  function getAiSettings(database: Database.Database) {
+    try {
+      const rows = database.prepare("SELECT key, value FROM settings WHERE key LIKE 'ai_%'").all() as any[];
+      const res: Record<string, any> = {};
+      for (const r of rows) {
+        try {
+          res[r.key] = JSON.parse(r.value);
+        } catch {
+          res[r.key] = r.value;
+        }
+      }
+      return {
+        ai_model: res.ai_model || "gemini-3.8-flash",
+        ai_custom_instructions: res.ai_custom_instructions || ""
+      };
+    } catch {
+      return {
+        ai_model: "gemini-3.8-flash",
+        ai_custom_instructions: ""
+      };
+    }
+  }
+
+  /**
+   * GET /api/ai/status
+   * Returns current AI status, active model, and server-side key configuration state.
+   */
+  app.get("/api/ai/status", (req: Request, res: Response) => {
+    try {
+      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+      const aiConfig = getAiSettings(db);
+
+      res.json({
+        configured: Boolean(geminiApiKey && geminiApiKey.length > 5),
+        model: aiConfig.ai_model,
+        provider: "Google Gemini",
+        mcpActive: true,
+        tools: ["analyze_client_funds", "optimize_quarterly_roster"],
+        keySource: "Server Environment (process.env.GEMINI_API_KEY)",
+        settings: aiConfig
+      });
+    } catch (err: any) {
+      console.error("[AI Status] Error:", err);
+      res.status(500).json({ error: "Failed to determine AI status" });
+    }
+  });
+
+  /**
+   * POST /api/ai/test
+   * Tests real-time connectivity between backend and Google Gemini.
+   */
+  app.post("/api/ai/test", async (req: Request, res: Response) => {
+    const startTime = Date.now();
+    try {
+      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+      if (!geminiApiKey) {
+        return res.status(400).json({
+          success: false,
+          error: "GEMINI_API_KEY is not configured on the server environment. Please set GEMINI_API_KEY in your server's .env file or platform Secrets."
+        });
+      }
+
+      const { model } = req.body;
+      const targetModel = model || getAiSettings(db).ai_model || "gemini-3.8-flash";
+
+      const ai = new GoogleGenAI({
+        apiKey: geminiApiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build'
+          }
+        }
+      });
+
+      const ping = await ai.models.generateContent({
+        model: targetModel,
+        contents: "Respond strictly with the single sentence: 'AI Connection Operational. Model Context Protocol analytical tools ready.'"
+      });
+
+      const latencyMs = Date.now() - startTime;
+      res.json({
+        success: true,
+        latencyMs,
+        reply: ping.text ? ping.text.trim() : "AI Connection Operational. Model Context Protocol analytical tools ready.",
+        model: targetModel
+      });
+    } catch (err: any) {
+      console.error("[AI Test] Ping failed:", err);
+      const latencyMs = Date.now() - startTime;
+      res.status(500).json({
+        success: false,
+        latencyMs,
+        error: err.message || "Failed to communicate with Google Gemini API"
+      });
+    }
+  });
+
   /**
    * POST /api/chat
    * AI & MCP conversational interface for the frontend chat widget.
@@ -417,11 +515,21 @@ export function setupMcpServer(app: Express, db: Database.Database) {
         return res.status(400).json({ error: "Message is required." });
       }
 
+      const aiConfig = getAiSettings(db);
+      const activeModel = aiConfig.ai_model || "gemini-3.8-flash";
+
       // Check if Gemini API is configured
       const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
       if (geminiApiKey) {
         try {
-          const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+          const ai = new GoogleGenAI({
+            apiKey: geminiApiKey,
+            httpOptions: {
+              headers: {
+                'User-Agent': 'aistudio-build'
+              }
+            }
+          });
 
           const analyzeClientFundsDeclaration = {
             name: "analyze_client_funds",
@@ -453,19 +561,22 @@ export function setupMcpServer(app: Express, db: Database.Database) {
             }
           };
 
-          const systemInstruction = `You are the care management and rostering AI assistant for HAPPY IN THE HOME.
+          let systemInstruction = `You are the care management and rostering AI assistant for HAPPY IN THE HOME.
 You specialize in Home Care Packages (HCP) and Trilogy Care quarterly funding cycles.
 
-CRITICAL FORMATTING RULES:
+CRITICAL FORMATTING & FINANCIAL RULES:
 1. All dates in your natural-language responses to users MUST strictly use Australian standard DD/MM/YYYY formatting.
 2. In all backend tool calls, you must strictly pass ISO 8601 YYYY-MM-DD format.
-3. Currency must be displayed in AUD ($X.XX).
-4. If the user asks about a client's funds, burn rate, or rostering capacity, use the available tools to compute exact numbers.
-5. If the user does not specify a quarter date range, assume the current 3-month Trilogy Care quarter:
-   Current Quarter: 2026-07-01 to 2026-09-30 (or standard Level 1-4 HCP budget if not specified, e.g. Level 3 ~$13,500/quarter).`;
+3. Currency must always be formatted in AUD ($X.XX).
+4. Client budgets are completely individualized. NEVER assume a hardcoded or generic default quarterly budget. When analyzing funds, use the specific budget provided by the user or calculate the exact spent/scheduled costs from actual shifts. If the user asks for a burn rate calculation without specifying their allocated budget, compute the exact spent and scheduled totals and ask for their specific quarter budget.
+5. If the user does not specify dates for the quarter, use the current active calendar quarter dates (e.g. 2026-07-01 to 2026-09-30).`;
+
+          if (aiConfig.ai_custom_instructions) {
+            systemInstruction += `\n\nADDITIONAL CARE COORDINATION GUIDELINES:\n${aiConfig.ai_custom_instructions}`;
+          }
 
           const response = await ai.models.generateContent({
-            model: "gemini-3.8-flash",
+            model: activeModel,
             contents: userQuery,
             config: {
               systemInstruction,
@@ -494,7 +605,7 @@ CRITICAL FORMATTING RULES:
 
             // Return function output to Gemini for final natural-language recommendation
             const followUp = await ai.models.generateContent({
-              model: "gemini-3.8-flash",
+              model: activeModel,
               contents: [
                 { role: "user", parts: [{ text: userQuery }] },
                 { role: "model", parts: [{ functionCall: call }] },

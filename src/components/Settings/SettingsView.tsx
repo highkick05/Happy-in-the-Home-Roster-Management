@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import {  Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download , RefreshCw, MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import {  Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download , RefreshCw, MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2, Info, Bot } from 'lucide-react';
 import DatabaseSettings from './DatabaseSettings';
 import TestingChecklist from './TestingChecklist';
 import FundingTypesSettings from './FundingTypesSettings';
 import EmailWidgetSettings from './EmailWidgetSettings';
+import AiSettings from './AiSettings';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 export default function SettingsView() {
   const { token, user, updateSettings } = useAuth();
-  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'CHAT' | 'EMAIL' | 'EMAIL_WIDGET' | 'FUNDING_TYPES' | 'DATABASE' | 'TESTING' | 'SMS'>('settings_active_tab', 'GENERAL');
+  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'CHAT' | 'EMAIL' | 'EMAIL_WIDGET' | 'FUNDING_TYPES' | 'DATABASE' | 'TESTING' | 'SMS' | 'AI'>('settings_active_tab', 'GENERAL');
   const [services, setServices] = useState<any[]>([]);
   const [priceLists, setPriceLists] = useState<any[]>([]);
   const [showPriceListModal, setShowPriceListModal] = useState(false);
@@ -913,6 +914,13 @@ export default function SettingsView() {
               <MessageSquare className="w-3.5 h-3.5" />
               SMS Settings (ClickSend)
             </button>
+            <button
+              onClick={() => setActiveTab('AI')}
+              className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider flex items-center gap-1.5 ${activeTab === 'AI' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
+            >
+              <Bot className="w-3.5 h-3.5" />
+              AI Settings
+            </button>
           </>
         )}
       </div>
@@ -920,6 +928,7 @@ export default function SettingsView() {
       <div className="flex-1 bg-brand-navy border border-border-subtle rounded-xl overflow-x-auto flex flex-col shadow-sm">
         {activeTab === 'DATABASE' && <DatabaseSettings />}
         {activeTab === 'TESTING' && <TestingChecklist />}
+        {activeTab === 'AI' && <AiSettings />}
         {activeTab === 'GENERAL' && (
           <div className="p-4 max-w-4xl">
             <div className="mb-4">
