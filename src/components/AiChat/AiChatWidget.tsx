@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2, Search, ArrowLeft, User } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import HappyMascot from './HappyMascot';
+import HappyMascot, { MascotMood } from './HappyMascot';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -97,9 +97,22 @@ export default function AiChatWidget() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Mascot movement & occasional question state
+  const [mascotMood, setMascotMood] = useState<MascotMood>('idle');
   const [isMascotJumping, setIsMascotJumping] = useState<boolean>(false);
   const [activeQuestion, setActiveQuestion] = useState<PortalPromptQuestion | null>(null);
   const [showQuestionBubble, setShowQuestionBubble] = useState<boolean>(false);
+
+  // Helper to trigger lively animations from Happy's repertoire
+  const triggerLivelyAnimation = (preferredMood?: MascotMood, durationMs = 2600) => {
+    const repertoire: MascotMood[] = ['jumping', 'celebrating', 'giggling', 'curious', 'waving', 'shimmy', 'nodding'];
+    const chosenMood = preferredMood || repertoire[Math.floor(Math.random() * repertoire.length)];
+    setMascotMood(chosenMood);
+    setIsMascotJumping(chosenMood === 'jumping' || chosenMood === 'celebrating');
+    setTimeout(() => {
+      setMascotMood('idle');
+      setIsMascotJumping(false);
+    }, durationMs);
+  };
 
   // Portal client selection state
   const [clients, setClients] = useState<PortalClient[]>([]);
@@ -111,19 +124,16 @@ export default function AiChatWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Periodic jumping movement: Happy jumps up and down every 25-35 seconds
+  // 1. Periodic lively repertoire: Happy performs jumps, spins, giggles, waves, tilts, and shimmies every 22-30 seconds
   useEffect(() => {
-    const triggerJump = () => {
-      setIsMascotJumping(true);
-      setTimeout(() => setIsMascotJumping(false), 2400);
-    };
-
-    // Initial cheerful jump after 6 seconds of page load
-    const initialJumpTimer = setTimeout(triggerJump, 6000);
+    // Initial cheerful wave after 5 seconds of page load
+    const initialJumpTimer = setTimeout(() => {
+      triggerLivelyAnimation('waving', 2800);
+    }, 5000);
 
     const jumpInterval = setInterval(() => {
-      triggerJump();
-    }, 28000);
+      triggerLivelyAnimation();
+    }, 24000);
 
     return () => {
       clearTimeout(initialJumpTimer);
@@ -142,9 +152,8 @@ export default function AiChatWidget() {
       setActiveQuestion(chosen);
       setShowQuestionBubble(true);
 
-      // Trigger energetic jump sequence when asking a question!
-      setIsMascotJumping(true);
-      setTimeout(() => setIsMascotJumping(false), 3200);
+      // Trigger energetic wave or curious question pose from repertoire!
+      triggerLivelyAnimation(Math.random() > 0.5 ? 'curious' : 'waving', 3200);
 
       // Auto-hide bubble after 22 seconds if untouched
       if (questionDismissTimeout) clearTimeout(questionDismissTimeout);
@@ -276,6 +285,8 @@ export default function AiChatWidget() {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+      // Happy celebrates with joy when delivering helpful answers!
+      triggerLivelyAnimation('celebrating', 2200);
     } catch (err: any) {
       console.error('Error during AI chat submit:', err);
       const errorMessage: ChatMessage = {
@@ -367,8 +378,12 @@ export default function AiChatWidget() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-brand-bg/90 border-b border-border-subtle shrink-0">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-white/[0.04] border border-brand-teal/30 flex items-center justify-center shadow-inner">
-                <HappyMascot size="sm" isJumping={isMascotJumping} />
+              <div 
+                className="w-9 h-9 rounded-xl bg-white/[0.04] border border-brand-teal/30 flex items-center justify-center shadow-inner cursor-pointer hover:bg-white/[0.08] transition-colors"
+                title="Click Happy to play!"
+                onClick={() => triggerLivelyAnimation('celebrating', 2000)}
+              >
+                <HappyMascot size="sm" isJumping={isMascotJumping} mood={mascotMood} />
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-white tracking-wide flex items-center gap-1.5">
@@ -430,8 +445,12 @@ export default function AiChatWidget() {
             {messages.length === 0 ? (
               <div className="h-full flex flex-col justify-between py-2 text-center">
                 <div className="pt-2">
-                  <div className="mx-auto flex items-center justify-center mb-2.5">
-                    <HappyMascot size="xl" isJumping={isMascotJumping} />
+                  <div 
+                    className="mx-auto flex items-center justify-center mb-2.5 cursor-pointer"
+                    title="Click Happy!"
+                    onClick={() => triggerLivelyAnimation()}
+                  >
+                    <HappyMascot size="xl" isJumping={isMascotJumping} mood={mascotMood} />
                   </div>
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-teal/15 border border-brand-teal/30 text-teal-300 text-xs font-semibold mb-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -906,6 +925,11 @@ export default function AiChatWidget() {
           setIsOpen(prev => !prev);
           setShowQuestionBubble(false);
         }}
+        onMouseEnter={() => {
+          if (mascotMood === 'idle') {
+            triggerLivelyAnimation(Math.random() > 0.5 ? 'giggling' : 'shimmy', 1800);
+          }
+        }}
         aria-label="Open Happy in the Home Portal Assistant"
         title="Chat with Happy - Portal Assistant"
         className={`fixed bottom-[20px] right-[20px] z-50 w-13 h-13 rounded-full bg-brand-navy hover:bg-brand-navy/90 border border-brand-teal/50 hover:border-brand-teal shadow-2xl text-white flex items-center justify-center transition-all group focus:outline-none focus:ring-2 focus:ring-brand-teal/50 print:hidden cursor-pointer ${
@@ -918,6 +942,7 @@ export default function AiChatWidget() {
           <HappyMascot 
             size="sm" 
             isJumping={isMascotJumping}
+            mood={mascotMood}
             className="transition-transform group-hover:scale-110" 
           />
           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-brand-navy animate-pulse" />

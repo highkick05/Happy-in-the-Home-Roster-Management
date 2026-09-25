@@ -1,11 +1,23 @@
 import React from 'react';
 
+export type MascotMood =
+  | 'idle'
+  | 'jumping'
+  | 'celebrating'
+  | 'giggling'
+  | 'curious'
+  | 'waving'
+  | 'shimmy'
+  | 'nodding';
+
 interface HappyMascotProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   isThinking?: boolean;
   animated?: boolean;
   isJumping?: boolean;
+  mood?: MascotMood;
   className?: string;
+  onClick?: () => void;
 }
 
 const sizeMap = {
@@ -21,13 +33,30 @@ export default function HappyMascot({
   isThinking = false,
   animated = true,
   isJumping = false,
-  className = ''
+  mood = 'idle',
+  className = '',
+  onClick
 }: HappyMascotProps) {
   const { box } = sizeMap[size] || sizeMap.md;
 
+  // Determine active animation class from state/mood
+  const getContainerAnimation = () => {
+    if (!animated) return 'none';
+    if (isThinking) return 'happyThinkingBob 1.6s ease-in-out infinite';
+    if (isJumping || mood === 'jumping') return 'happyJumpJoy 1.05s ease-in-out infinite';
+    if (mood === 'celebrating') return 'happySpinCelebrate 1.3s cubic-bezier(0.34, 1.56, 0.64, 1) infinite';
+    if (mood === 'giggling') return 'happyGiggle 0.85s ease-in-out infinite';
+    if (mood === 'curious') return 'happyCuriousTilt 2.2s ease-in-out infinite';
+    if (mood === 'waving') return 'happyWave 1.4s ease-in-out infinite';
+    if (mood === 'shimmy') return 'happyShimmy 1.1s ease-in-out infinite';
+    if (mood === 'nodding') return 'happyNod 1.25s ease-in-out infinite';
+    return 'happyPeriodicMovement 12s ease-in-out infinite';
+  };
+
   return (
     <div
-      className={`relative inline-flex items-center justify-center select-none ${className}`}
+      onClick={onClick}
+      className={`relative inline-flex items-center justify-center select-none ${onClick ? 'cursor-pointer' : ''} ${className}`}
       style={{ width: box, height: box }}
     >
       <style>{`
@@ -53,6 +82,17 @@ export default function HappyMascot({
           }
           94% {
             transform: scaleY(0.1);
+          }
+        }
+        @keyframes happyEyeLook {
+          0%, 65%, 100% {
+            transform: translate(0, 0);
+          }
+          72%, 78% {
+            transform: translate(2.5px, -1px);
+          }
+          85%, 92% {
+            transform: translate(-2px, 0.5px);
           }
         }
         @keyframes happySparkle {
@@ -104,43 +144,193 @@ export default function HappyMascot({
             transform: translateY(-4px) scale(0.98, 1.02) rotate(-2deg);
           }
         }
-        @keyframes happyPeriodicMovement {
-          0%, 82%, 100% {
+        @keyframes happySpinCelebrate {
+          0% {
+            transform: translateY(0) scale(1) rotate(0deg);
+          }
+          18% {
+            transform: translateY(4px) scale(1.16, 0.84) rotate(0deg);
+          }
+          45% {
+            transform: translateY(-22px) scale(0.88, 1.12) rotate(180deg);
+          }
+          70% {
+            transform: translateY(-6px) scale(1.04, 0.96) rotate(360deg);
+          }
+          86% {
+            transform: translateY(2px) scale(1.1, 0.9) rotate(360deg);
+          }
+          100% {
+            transform: translateY(0) scale(1) rotate(360deg);
+          }
+        }
+        @keyframes happyGiggle {
+          0%, 100% {
+            transform: translateY(0) scale(1, 1) rotate(0deg);
+          }
+          15% {
+            transform: translateY(-2px) scale(1.06, 0.94) rotate(-3deg);
+          }
+          30% {
+            transform: translateY(1px) scale(0.96, 1.04) rotate(3deg);
+          }
+          45% {
+            transform: translateY(-3px) scale(1.08, 0.92) rotate(-4deg);
+          }
+          60% {
+            transform: translateY(1px) scale(0.95, 1.05) rotate(4deg);
+          }
+          75% {
+            transform: translateY(-2px) scale(1.04, 0.96) rotate(-2deg);
+          }
+          90% {
+            transform: translateY(0px) scale(1, 1) rotate(1deg);
+          }
+        }
+        @keyframes happyCuriousTilt {
+          0%, 100% {
+            transform: translateY(0) rotate(0deg);
+          }
+          20% {
+            transform: translateY(-3px) rotate(-11deg) scale(1.03);
+          }
+          50% {
+            transform: translateY(-5px) rotate(-13deg) scale(1.05);
+          }
+          75% {
+            transform: translateY(-1px) rotate(4deg);
+          }
+        }
+        @keyframes happyWave {
+          0%, 100% {
             transform: translateY(0px) rotate(0deg);
           }
-          41% {
-            transform: translateY(-3px) rotate(2deg);
+          15% {
+            transform: translateY(-6px) rotate(-9deg);
+          }
+          30% {
+            transform: translateY(-11px) rotate(9deg);
+          }
+          45% {
+            transform: translateY(-7px) rotate(-8deg);
+          }
+          60% {
+            transform: translateY(-10px) rotate(8deg);
+          }
+          75% {
+            transform: translateY(-4px) rotate(-3deg);
+          }
+        }
+        @keyframes happyShimmy {
+          0%, 100% {
+            transform: translateY(0) rotate(0deg) scale(1);
+          }
+          15% {
+            transform: translateY(-4px) rotate(-10deg) scale(1.05, 0.95);
+          }
+          30% {
+            transform: translateY(-2px) rotate(10deg) scale(0.95, 1.05);
+          }
+          45% {
+            transform: translateY(-5px) rotate(-8deg) scale(1.04, 0.96);
+          }
+          60% {
+            transform: translateY(-2px) rotate(8deg) scale(0.96, 1.04);
+          }
+          75% {
+            transform: translateY(-4px) rotate(-4deg) scale(1.02, 0.98);
+          }
+          90% {
+            transform: translateY(-1px) rotate(3deg) scale(1, 1);
+          }
+        }
+        @keyframes happyNod {
+          0%, 100% {
+            transform: translateY(0) scale(1);
+          }
+          20% {
+            transform: translateY(6px) scale(1.1, 0.9) rotate(0deg);
+          }
+          35% {
+            transform: translateY(-4px) scale(0.95, 1.05);
+          }
+          50% {
+            transform: translateY(5px) scale(1.08, 0.92);
+          }
+          65% {
+            transform: translateY(-2px) scale(0.98, 1.02);
+          }
+          80% {
+            transform: translateY(3px) scale(1.04, 0.96);
+          }
+        }
+        @keyframes happySproutFlutter {
+          0%, 100% {
+            transform: rotate(0deg);
+          }
+          20% {
+            transform: rotate(-14deg) scale(1.08);
+          }
+          45% {
+            transform: rotate(16deg) scale(1.08);
+          }
+          70% {
+            transform: rotate(-8deg);
           }
           85% {
+            transform: rotate(6deg);
+          }
+        }
+        @keyframes happyBlushPulse {
+          0%, 100% {
+            opacity: 0.7;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1.15);
+          }
+        }
+        @keyframes happyPeriodicMovement {
+          0%, 75%, 100% {
+            transform: translateY(0px) rotate(0deg);
+          }
+          35% {
+            transform: translateY(-3px) rotate(2deg);
+          }
+          78% {
             transform: translateY(2px) scale(1.12, 0.88);
           }
-          89% {
+          82% {
             transform: translateY(-14px) scale(0.9, 1.12) rotate(-5deg);
           }
-          93% {
+          86% {
             transform: translateY(1px) scale(1.08, 0.92);
           }
-          96% {
-            transform: translateY(-7px) scale(0.95, 1.05) rotate(4deg);
+          90% {
+            transform: translateY(-8px) scale(0.94, 1.06) rotate(5deg);
           }
-          98% {
+          94% {
+            transform: translateY(-1px) rotate(-2deg);
+          }
+          97% {
             transform: translateY(0px) scale(1, 1);
           }
         }
         .happy-mascot-container {
-          animation: ${
-            animated
-              ? isJumping
-                ? 'happyJumpJoy 1.1s ease-in-out infinite'
-                : isThinking
-                ? 'happyThinkingBob 1.6s ease-in-out infinite'
-                : 'happyPeriodicMovement 10s ease-in-out infinite'
-              : 'none'
-          };
+          animation: ${getContainerAnimation()};
           will-change: transform;
         }
         .happy-glow {
           animation: ${animated ? 'happyPulseGlow 4s ease-in-out infinite' : 'none'};
+        }
+        .happy-sprout {
+          transform-origin: 50px 12px;
+          animation: ${animated ? 'happySproutFlutter 3.2s ease-in-out infinite' : 'none'};
+        }
+        .happy-blush {
+          transform-origin: 50px 56px;
+          animation: ${animated ? 'happyBlushPulse 3.5s ease-in-out infinite' : 'none'};
         }
         .happy-eye-left {
           transform-origin: 35px 44px;
@@ -149,6 +339,9 @@ export default function HappyMascot({
         .happy-eye-right {
           transform-origin: 65px 44px;
           animation: ${animated && !isThinking ? 'happyWink 4s infinite ease-in-out' : 'none'};
+        }
+        .happy-pupil {
+          animation: ${animated && !isThinking ? 'happyEyeLook 6.5s ease-in-out infinite' : 'none'};
         }
         .happy-sparkle-1 {
           transform-origin: 86px 18px;
@@ -241,23 +434,27 @@ export default function HappyMascot({
           fill="url(#happyHighlight)"
         />
 
-        {/* Cute Brand Tuft / Antenna Spark (Happy in the Home leaf-inspired sprout) */}
-        <path
-          d="M50 12 C48 4, 39 4, 39 8 C39 12, 48 11, 49 12.5 Z"
-          fill="#89C540"
-          stroke="#4D7C0F"
-          strokeWidth="1.2"
-        />
-        <path
-          d="M50 12 C52 4, 61 4, 61 8 C61 12, 52 11, 51 12.5 Z"
-          fill="#218B9F"
-          stroke="#0E7490"
-          strokeWidth="1.2"
-        />
+        {/* Cute Brand Tuft / Antenna Spark (Happy in the Home leaf-inspired sprout) with flutter */}
+        <g className="happy-sprout">
+          <path
+            d="M50 12 C48 4, 39 4, 39 8 C39 12, 48 11, 49 12.5 Z"
+            fill="#89C540"
+            stroke="#4D7C0F"
+            strokeWidth="1.2"
+          />
+          <path
+            d="M50 12 C52 4, 61 4, 61 8 C61 12, 52 11, 51 12.5 Z"
+            fill="#218B9F"
+            stroke="#0E7490"
+            strokeWidth="1.2"
+          />
+        </g>
 
-        {/* Rosy Blush Cheeks */}
-        <ellipse cx="23" cy="56" rx="8" ry="5" fill="url(#happyCheek)" />
-        <ellipse cx="77" cy="56" rx="8" ry="5" fill="url(#happyCheek)" />
+        {/* Rosy Blush Cheeks with pulsing warmth */}
+        <g className="happy-blush">
+          <ellipse cx="23" cy="56" rx="8" ry="5" fill="url(#happyCheek)" />
+          <ellipse cx="77" cy="56" rx="8" ry="5" fill="url(#happyCheek)" />
+        </g>
 
         {/* EYES */}
         {isThinking ? (
@@ -277,15 +474,19 @@ export default function HappyMascot({
             {/* Left Eye */}
             <g className="happy-eye-left">
               <ellipse cx="35" cy="44" rx="5.2" ry="6.2" fill="#1E293B" />
-              <circle cx="33.2" cy="41.5" r="2.2" fill="#FFFFFF" />
-              <circle cx="37.2" cy="46" r="1.1" fill="#FFFFFF" />
+              <g className="happy-pupil">
+                <circle cx="33.2" cy="41.5" r="2.2" fill="#FFFFFF" />
+                <circle cx="37.2" cy="46" r="1.1" fill="#FFFFFF" />
+              </g>
             </g>
 
             {/* Right Eye (winks or sparkles) */}
             <g className="happy-eye-right">
               <ellipse cx="65" cy="44" rx="5.2" ry="6.2" fill="#1E293B" />
-              <circle cx="63.2" cy="41.5" r="2.2" fill="#FFFFFF" />
-              <circle cx="67.2" cy="46" r="1.1" fill="#FFFFFF" />
+              <g className="happy-pupil">
+                <circle cx="63.2" cy="41.5" r="2.2" fill="#FFFFFF" />
+                <circle cx="67.2" cy="46" r="1.1" fill="#FFFFFF" />
+              </g>
             </g>
 
             {/* Happy Eyebrows */}
