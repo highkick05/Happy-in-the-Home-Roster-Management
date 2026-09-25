@@ -208,10 +208,10 @@ export default function AiChatWidget() {
         <div
           role="dialog"
           aria-label="Happy in the Home Portal Assistant"
-          className={`fixed bottom-[80px] right-[20px] z-50 bg-brand-navy border border-border-subtle rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-bottom-3 ${
+          className={`fixed bottom-[76px] sm:bottom-[80px] right-3 sm:right-[20px] left-3 sm:left-auto z-50 bg-brand-navy border border-border-subtle rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-bottom-3 ${
             isExpanded
-              ? 'w-[94vw] sm:w-[720px] md:w-[860px] lg:w-[960px] h-[88vh] sm:h-[840px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-90px)]'
-              : 'w-[360px] sm:w-[410px] max-w-[calc(100vw-32px)] h-[82vh] sm:h-[800px] max-h-[calc(100vh-100px)]'
+              ? 'w-auto sm:w-[680px] md:w-[780px] lg:w-[880px] h-[72vh] sm:h-[580px] md:h-[640px] lg:h-[680px] max-w-[calc(100vw-24px)] sm:max-w-[calc(100vw-32px)] max-h-[calc(100vh-110px)] sm:max-h-[calc(100vh-120px)]'
+              : 'w-auto sm:w-[390px] md:w-[410px] max-w-[calc(100vw-24px)] sm:max-w-[calc(100vw-32px)] h-[68vh] sm:h-[520px] md:h-[560px] lg:h-[580px] max-h-[calc(100vh-110px)] sm:max-h-[calc(100vh-120px)]'
           }`}
         >
           {/* Header */}
