@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Sparkles, CheckCircle2, AlertCircle, RefreshCw, Save, Shield, Key, Zap, Sliders } from 'lucide-react';
+import { Bot, Sparkles, CheckCircle2, AlertCircle, RefreshCw, Save, Shield, Key, Zap, Sliders, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface AiStatusData {
   configured: boolean;
+  hasDatabaseKey?: boolean;
+  maskedKey?: string;
   model: string;
   provider: string;
   mcpActive: boolean;
   tools: string[];
   keySource: string;
   settings?: {
+    gemini_api_key?: string;
+    ai_gemini_api_key?: string;
     ai_model?: string;
     ai_custom_instructions?: string;
   };
@@ -18,6 +22,8 @@ interface AiStatusData {
 export default function AiSettings() {
   const { token, settings, updateSettings } = useAuth();
 
+  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
+  const [showApiKey, setShowApiKey] = useState<boolean>(false);
   const [aiModel, setAiModel] = useState<string>('gemini-3.8-flash');
   const [customInstructions, setCustomInstructions] = useState<string>('');
 
@@ -46,6 +52,8 @@ export default function AiSettings() {
         const data = await res.json();
         setAiStatus(data);
         if (data.settings) {
+          if (data.settings.gemini_api_key) setGeminiApiKey(data.settings.gemini_api_key);
+          else if (data.settings.ai_gemini_api_key) setGeminiApiKey(data.settings.ai_gemini_api_key);
           if (data.settings.ai_model) setAiModel(data.settings.ai_model);
           if (data.settings.ai_custom_instructions !== undefined) {
             setCustomInstructions(data.settings.ai_custom_instructions);
@@ -63,6 +71,8 @@ export default function AiSettings() {
     fetchStatus();
     // Also load from current context settings if available
     if (settings) {
+      if (settings.gemini_api_key) setGeminiApiKey(settings.gemini_api_key);
+      else if (settings.ai_gemini_api_key) setGeminiApiKey(settings.ai_gemini_api_key);
       if (settings.ai_model) setAiModel(settings.ai_model);
       if (settings.ai_custom_instructions !== undefined) {
         setCustomInstructions(settings.ai_custom_instructions);
@@ -80,7 +90,7 @@ export default function AiSettings() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ model: aiModel })
+        body: JSON.stringify({ model: aiModel, apiKey: geminiApiKey })
       });
       const data = await res.json();
       setTestResult(data);
@@ -101,8 +111,11 @@ export default function AiSettings() {
     setErrorMsg('');
 
     try {
+      const cleanKey = geminiApiKey.trim();
       const payload = {
         ...settings,
+        gemini_api_key: cleanKey,
+        ai_gemini_api_key: cleanKey,
         ai_model: aiModel,
         ai_custom_instructions: customInstructions
       };
@@ -118,7 +131,7 @@ export default function AiSettings() {
 
       if (res.ok) {
         updateSettings(payload);
-        setSuccessMsg('AI settings saved successfully.');
+        setSuccessMsg('AI settings and Gemini API key successfully saved to database.');
         setTimeout(() => setSuccessMsg(''), 4000);
         fetchStatus();
       } else {
@@ -144,7 +157,7 @@ export default function AiSettings() {
           <h3 className="text-base font-medium text-[#E6EDF3]">AI & Roster Intelligence Settings</h3>
         </div>
         <p className="text-xs text-[#8B949E] leading-relaxed">
-          Configure Gemini AI preferences, verify Model Context Protocol (MCP) analytical tools, and manage custom care coordinator instructions.
+          Configure and store your Google Gemini API Key in the database, select your preferred AI model, and customize care coordinator instructions for Model Context Protocol (MCP) analytics.
         </p>
       </div>
 
@@ -162,7 +175,7 @@ export default function AiSettings() {
         </div>
       )}
 
-      {/* 1. Gemini API Key & Connection Status Card */}
+      {/* 1. Gemini API Key Configuration Card */}
       <div className="bg-brand-bg/80 border border-border-subtle rounded-xl p-4 sm:p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
           <div className="flex items-center gap-2.5">
@@ -170,9 +183,9 @@ export default function AiSettings() {
               <Key className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-white">Gemini API Key & Backend Engine</h4>
+              <h4 className="text-sm font-semibold text-white">Google Gemini API Key</h4>
               <p className="text-[11px] text-[#8B949E]">
-                Automated server-side credential management via environment variables
+                Stored securely in your portal's SQLite database configuration table
               </p>
             </div>
           </div>
@@ -182,15 +195,15 @@ export default function AiSettings() {
               <span className="text-xs text-zinc-400 flex items-center gap-1.5">
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Checking...
               </span>
-            ) : aiStatus?.configured ? (
+            ) : (aiStatus?.hasDatabaseKey || Boolean(geminiApiKey && geminiApiKey.length > 5)) ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Key Active on Server
+                Active in Database
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
                 <AlertCircle className="w-3.5 h-3.5" />
-                Key Not Detected
+                Missing from Database
               </span>
             )}
             <button
@@ -204,29 +217,63 @@ export default function AiSettings() {
           </div>
         </div>
 
+        {/* API Key Input Field */}
+        <div>
+          <label className="block text-xs font-medium text-[#E6EDF3] mb-1.5">
+            Gemini API Key
+          </label>
+          <div className="relative flex items-center">
+            <input
+              type={showApiKey ? 'text' : 'password'}
+              value={geminiApiKey}
+              onChange={e => setGeminiApiKey(e.target.value)}
+              placeholder="Paste your Gemini API key (e.g. AIzaSy...)"
+              className="w-full bg-black/40 border border-white/[0.1] rounded-lg pl-3 pr-24 py-2.5 text-xs text-white placeholder-zinc-500 font-mono focus:outline-none focus:border-brand-teal"
+            />
+            <div className="absolute right-2 flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setShowApiKey(prev => !prev)}
+                className="p-1.5 text-zinc-400 hover:text-white rounded transition-colors"
+                title={showApiKey ? "Hide key" : "Show key"}
+              >
+                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+              {geminiApiKey && (
+                <button
+                  type="button"
+                  onClick={() => setGeminiApiKey('')}
+                  className="px-1.5 py-0.5 text-[11px] text-zinc-400 hover:text-rose-400 rounded transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="text-[11px] text-[#8B949E] mt-1.5">
+            The Express chat controller asynchronously fetches this key directly from the database table before executing any user prompt or MCP tools.
+          </p>
+        </div>
+
         {/* Security Info Banner */}
-        <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-3 text-xs text-[#8B949E] space-y-2">
+        <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-3 text-xs text-[#8B949E] space-y-1.5">
           <div className="flex items-start gap-2">
             <Shield className="w-4 h-4 text-brand-teal shrink-0 mt-0.5" />
             <div className="space-y-1">
               <p className="text-white font-medium text-[12px]">
-                Server-Side Key Protection
+                Server-Side Execution & Security
               </p>
               <p className="text-[11px] leading-relaxed">
-                Your <code className="px-1 py-0.5 rounded bg-black/40 text-emerald-300 font-mono text-[10px]">GEMINI_API_KEY</code> is securely held and executed exclusively within the Node.js/Express backend environment. This ensures your key is never transmitted or exposed to user browsers.
+                When saved, your key is persisted in the internal SQLite configuration store. All AI prompts and MCP tool runs execute strictly on your Node.js server without transmitting secrets to external clients.
               </p>
             </div>
-          </div>
-          <div className="pl-6 pt-1 text-[11px] text-zinc-400">
-            • <strong>AI Studio:</strong> Configured automatically via your connected account in the platform’s <em>Settings &gt; Secrets</em>.<br />
-            • <strong>Self-Hosted / Production:</strong> Set <code className="px-1 py-0.5 rounded bg-black/40 text-zinc-300 font-mono text-[10px]">GEMINI_API_KEY="your_api_key_here"</code> in your server’s <code className="text-zinc-300 font-mono">.env</code> file.
           </div>
         </div>
 
         {/* Interactive Connection Test */}
-        <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="pt-1 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="text-xs text-[#8B949E]">
-            Verify end-to-end communication with Google Gemini and the local MCP analytical tools.
+            Verify your key with Google Gemini and the MCP analytical tools.
           </div>
           <button
             type="button"
@@ -237,7 +284,7 @@ export default function AiSettings() {
             {testLoading ? (
               <>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                Testing AI...
+                Testing Key...
               </>
             ) : (
               <>
@@ -265,8 +312,8 @@ export default function AiSettings() {
                   <AlertCircle className="w-4 h-4 text-rose-400" />
                 )}
                 {testResult.success
-                  ? 'AI Engine Operational'
-                  : 'Connection Test Failed'}
+                  ? 'Key Valid & AI Engine Operational'
+                  : 'Key Validation Failed'}
               </span>
               {testResult.latencyMs !== undefined && (
                 <span className="text-[11px] opacity-80 font-mono">
@@ -349,12 +396,12 @@ export default function AiSettings() {
             {isSaving ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                Saving...
+                Saving to Database...
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                Save AI Settings
+                Save AI Settings & API Key
               </>
             )}
           </button>

@@ -402,6 +402,38 @@ export function setupMcpServer(app: Express, db: Database.Database) {
     }
   });
 
+  // --- Helper to asynchronously fetch saved Gemini API key from database ---
+  async function fetchSavedGeminiApiKey(database: Database.Database): Promise<string> {
+    return new Promise((resolve) => {
+      try {
+        const row = database
+          .prepare(
+            "SELECT value FROM settings WHERE key IN ('gemini_api_key', 'ai_gemini_api_key', 'GEMINI_API_KEY') ORDER BY CASE WHEN key = 'gemini_api_key' THEN 1 WHEN key = 'ai_gemini_api_key' THEN 2 ELSE 3 END LIMIT 1"
+          )
+          .get() as any;
+
+        if (!row || !row.value) {
+          return resolve("");
+        }
+
+        let parsedKey = row.value;
+        try {
+          parsedKey = JSON.parse(row.value);
+        } catch {
+          parsedKey = row.value;
+        }
+
+        if (typeof parsedKey === "string") {
+          return resolve(parsedKey.trim());
+        }
+        return resolve("");
+      } catch (err) {
+        console.error("[MCP] Error querying saved Gemini API key from database:", err);
+        return resolve("");
+      }
+    });
+  }
+
   // --- Helper to fetch AI settings from SQLite database ---
   function getAiSettings(database: Database.Database) {
     try {
@@ -428,21 +460,26 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
   /**
    * GET /api/ai/status
-   * Returns current AI status, active model, and server-side key configuration state.
+   * Returns current AI status, active model, and database key configuration state.
    */
-  app.get("/api/ai/status", (req: Request, res: Response) => {
+  app.get("/api/ai/status", async (req: Request, res: Response) => {
     try {
-      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+      const savedApiKey = await fetchSavedGeminiApiKey(db);
       const aiConfig = getAiSettings(db);
 
       res.json({
-        configured: Boolean(geminiApiKey && geminiApiKey.length > 5),
+        configured: Boolean(savedApiKey && savedApiKey.length > 5),
+        hasDatabaseKey: Boolean(savedApiKey && savedApiKey.length > 5),
+        maskedKey: savedApiKey ? `${savedApiKey.slice(0, 6)}...${savedApiKey.slice(-4)}` : "",
         model: aiConfig.ai_model,
         provider: "Google Gemini",
         mcpActive: true,
         tools: ["analyze_client_funds", "optimize_quarterly_roster"],
-        keySource: "Server Environment (process.env.GEMINI_API_KEY)",
-        settings: aiConfig
+        keySource: savedApiKey ? "SQLite Database (settings table)" : "Missing from database",
+        settings: {
+          ...aiConfig,
+          gemini_api_key: savedApiKey
+        }
       });
     } catch (err: any) {
       console.error("[AI Status] Error:", err);
@@ -452,16 +489,20 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
   /**
    * POST /api/ai/test
-   * Tests real-time connectivity between backend and Google Gemini.
+   * Tests real-time connectivity between backend and Google Gemini using the saved database key.
    */
   app.post("/api/ai/test", async (req: Request, res: Response) => {
     const startTime = Date.now();
     try {
-      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+      let geminiApiKey = req.body.apiKey ? String(req.body.apiKey).trim() : "";
+      if (!geminiApiKey) {
+        geminiApiKey = await fetchSavedGeminiApiKey(db);
+      }
+
       if (!geminiApiKey) {
         return res.status(400).json({
           success: false,
-          error: "GEMINI_API_KEY is not configured on the server environment. Please set GEMINI_API_KEY in your server's .env file or platform Secrets."
+          error: "Gemini API key is missing from the database. Please enter your API key in the Settings tab under 'AI Settings' and click Save before testing."
         });
       }
 
@@ -503,11 +544,20 @@ export function setupMcpServer(app: Express, db: Database.Database) {
   /**
    * POST /api/chat
    * AI & MCP conversational interface for the frontend chat widget.
-   * Handles LLM queries, tool execution, and returns natural-language recommendations
-   * formatted strictly with Australian DD/MM/YYYY dates.
+   * Asynchronously queries the configuration table for the saved Gemini API key before processing.
    */
   app.post("/api/chat", async (req: Request, res: Response) => {
     try {
+      // 1. Asynchronously query the configuration table to fetch the saved API key
+      const savedApiKey = await fetchSavedGeminiApiKey(db);
+
+      // 2. If the key is missing from the database, return a clean error to the frontend
+      if (!savedApiKey) {
+        return res.status(400).json({
+          error: "Gemini API key is not configured in the database. Please enter and save your Gemini API key in the Settings tab under 'AI Settings' to enable the AI Assistant."
+        });
+      }
+
       const { message, messages } = req.body;
       const userQuery = (message || (Array.isArray(messages) && messages[messages.length - 1]?.content) || "").trim();
 
@@ -518,18 +568,15 @@ export function setupMcpServer(app: Express, db: Database.Database) {
       const aiConfig = getAiSettings(db);
       const activeModel = aiConfig.ai_model || "gemini-3.8-flash";
 
-      // Check if Gemini API is configured
-      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-      if (geminiApiKey) {
-        try {
-          const ai = new GoogleGenAI({
-            apiKey: geminiApiKey,
-            httpOptions: {
-              headers: {
-                'User-Agent': 'aistudio-build'
-              }
+      try {
+        const ai = new GoogleGenAI({
+          apiKey: savedApiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build'
             }
-          });
+          }
+        });
 
           const analyzeClientFundsDeclaration = {
             name: "analyze_client_funds",
@@ -637,9 +684,11 @@ Remember: All dates must strictly be formatted in the Australian standard DD/MM/
             return res.json({ reply: response.text });
           }
         } catch (geminiError: any) {
-          console.warn("[AI Chat] Gemini API call failed, using analytical fallback:", geminiError?.message || geminiError);
+          console.error("[AI Chat] Gemini API call failed:", geminiError?.message || geminiError);
+          return res.status(500).json({
+            error: `Gemini API Error: ${geminiError?.message || "Failed to generate AI response. Please verify your API key in Settings > AI Settings."}`
+          });
         }
-      }
 
       // Intelligent Fallback: Check if user mentioned any client or general budget query
       const clients = db.prepare("SELECT id, first_name, last_name, funding_type FROM clients").all() as any[];
