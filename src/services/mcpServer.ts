@@ -167,6 +167,7 @@ export function getClientBudgetDetails(
 
   // Remaining days and weeks relative to today
   const now = new Date();
+  const todayMs = now.getTime();
   const effectiveStartMs = Math.max(now.getTime(), cycleStart.getTime());
   const remainingDays = Math.max(0, Math.ceil((cycleEnd.getTime() - effectiveStartMs) / msPerDay));
   const remainingWeeks = Math.max(0.1, parseFloat((remainingDays / 7).toFixed(1)));
@@ -414,13 +415,15 @@ export function getClientBudgetDetails(
       agreementName = "NDIS Service Agreement";
     }
 
+    const currentMs = typeof todayMs === 'number' ? todayMs : Date.now();
     const agrStartMs = new Date(agreementStartDate).getTime();
     const agrEndMs = new Date(agreementEndDate).getTime();
-    const agreementTotalDays = Math.max(1, Math.floor((agrEndMs - agrStartMs) / msPerDay) + 1);
+    const agreementTotalDays = (!isNaN(agrStartMs) && !isNaN(agrEndMs)) ? Math.max(1, Math.floor((agrEndMs - agrStartMs) / msPerDay) + 1) : totalDays;
     const agreementTotalWeeks = parseFloat((agreementTotalDays / 7).toFixed(1));
-    const agreementRemainingMs = Math.max(0, agrEndMs - todayMs);
+    const agreementRemainingMs = !isNaN(agrEndMs) ? Math.max(0, agrEndMs - currentMs) : 0;
     const agreementRemainingDays = Math.max(1, Math.floor(agreementRemainingMs / msPerDay));
-    const agreementRemainingWeeks = Math.max(1, parseFloat((agreementRemainingDays / 7).toFixed(1)));
+    const agreementRemainingWeeks = Math.max(0.1, parseFloat((agreementRemainingDays / 7).toFixed(1)));
+    const hasActiveAgreement = Boolean(agreement || client.ndis_agreement_budget);
 
     if (totalAgreementValue === 0 && itemsBreakdown.length > 0) {
       const sumItems = itemsBreakdown.reduce((sum, it) => sum + (it.allocatedBudget || 0), 0);
@@ -519,8 +522,9 @@ export function getClientBudgetDetails(
       clientId: client.id,
       fundingType: "NDIS",
       fundingCategory: "NDIS (National Disability Insurance Scheme)",
-      fundingPackage: agreement ? `NDIS Agreement: ${agreementName}` : "NDIS Service Agreement",
-      agreementName,
+      fundingPackage: agreement ? `NDIS Agreement: ${agreementName}` : (hasActiveAgreement ? "NDIS Service Agreement" : "No Active Service Agreement"),
+      agreementName: hasActiveAgreement ? agreementName : "No Active Service Agreement",
+      hasActiveAgreement,
       totalAgreementValue,
       totalAgreementFunding: totalAgreementValue,
       totalAgreementClaimed: parseFloat(totalAgreementClaimed.toFixed(2)),
@@ -760,8 +764,11 @@ export function optimizeQuarterlyRosterLogic(
   const totalBaselineWeeklyHours = parseFloat(baselinePattern.reduce((acc, p) => acc + p.averageWeeklyHours, 0).toFixed(2));
   const totalBaselineWeeklyCost = parseFloat(baselinePattern.reduce((acc, p) => acc + p.estimatedWeeklyCost, 0).toFixed(2));
 
+  const hasNdisAgreement = Boolean((budgetDetails as any).hasActiveAgreement || (budgetDetails as any).totalAgreementValue > 0);
   const optimizationSummary = isNdis
-    ? `The client has $${effectiveRemainingFunds.toFixed(2)} remaining in their NDIS Service Agreement (${(budgetDetails as any).agreementName || 'Service Agreement'}), which runs from ${(budgetDetails as any).agreementStartDateAU} to ${(budgetDetails as any).agreementEndDateAU} (${remainingWeeks} weeks remaining). At an average support rate of $${primaryStandardRate.toFixed(2)}/hr, they can safely afford an additional ${additionalAffordableHoursPerWeek} hours per week without exceeding their Service Agreement allocation.`
+    ? (hasNdisAgreement
+        ? `The client has $${effectiveRemainingFunds.toFixed(2)} remaining in their NDIS Service Agreement (${(budgetDetails as any).agreementName || 'Service Agreement'}), which runs from ${(budgetDetails as any).agreementStartDateAU} to ${(budgetDetails as any).agreementEndDateAU} (${remainingWeeks} weeks remaining). At an average support rate of $${primaryStandardRate.toFixed(2)}/hr, they can safely afford an additional ${additionalAffordableHoursPerWeek} hours per week without exceeding their Service Agreement allocation.`
+        : `No active NDIS Service Agreement has been configured for ${client.first_name} ${client.last_name} yet. To track budgets and calculate roster capacity, please add a Service Agreement under Clients > Client Dashboard > Budget page (Add Service Agreement).`)
     : `The client has $${effectiveRemainingFunds.toFixed(2)} remaining across ${remainingWeeks} remaining weeks ($${weeklySurplusBudget.toFixed(2)}/week surplus). At a standard rate of $${primaryStandardRate.toFixed(2)}/hr, they can safely afford an additional ${additionalAffordableHoursPerWeek} hours per week without exceeding their quarterly budget.`;
 
   return {
@@ -1370,7 +1377,11 @@ CRITICAL DIFFERENCE BETWEEN NDIS AND HOME CARE:
 IF THE CLIENT IS NDIS (fundingType === 'NDIS'):
 - NDIS FUNDS ARE NOT ALLOCATED QUARTERLY. Do NOT refer to NDIS funding as "quarterly budget allocation", "quarterly cycle", or "quarterly allocation".
 - Funding is allocated according to the client's Service Agreement, set by the agreement Start Date and End Date (from Client section > Client Dashboard > Budget page).
-- Always display:
+- If the tool result shows hasActiveAgreement is false or totalAgreementValue is 0:
+  • State clearly: "Funding Type: NDIS (National Disability Insurance Scheme) • Service Agreement: No Active Service Agreement registered"
+  • Explain warmly that NDIS funding is not allocated quarterly, but is instead governed by individual Service Agreements set by start and end dates.
+  • Guide the care coordinator: "To track budgets, allocate line item sub-totals, and optimize rosters, please add a Service Agreement under Clients > Client Dashboard > Budget page."
+- If an active Service Agreement exists:
   • Client Name: <Name>
   • Funding Type: NDIS (National Disability Insurance Scheme)
   • Service Agreement: <Agreement Name>
@@ -1459,13 +1470,21 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
 
           let reply = '';
           if (anyAnalysis.fundingType === 'NDIS') {
-            reply = `📊 **NDIS Service Agreement & Budget Analysis for ${clientName}**\n` +
-              `• **Funding Type:** NDIS (National Disability Insurance Scheme)\n` +
-              `• **Service Agreement:** ${anyAnalysis.agreementName || anyAnalysis.fundingPackage}\n` +
-              `• **Agreement Period:** ${anyAnalysis.agreementStartDateAU || anyAnalysis.cycleStartAU} to ${anyAnalysis.agreementEndDateAU || anyAnalysis.cycleEndAU}\n` +
-              `• **Grand Total Agreement Funding:** $${Number(anyAnalysis.totalAgreementValue || anyAnalysis.totalQuarterlyBudget || 0).toFixed(2)} AUD\n` +
-              `• **Total Claimed / Utilized:** $${Number(anyAnalysis.totalCombinedSpent || 0).toFixed(2)} AUD (${anyAnalysis.burnRatePercentage || '0%'} utilized)\n` +
-              `• **Remaining Balance:** $${Number(anyAnalysis.remainingFunds || 0).toFixed(2)} AUD\n`;
+            if (!anyAnalysis.hasActiveAgreement && Number(anyAnalysis.totalAgreementValue || 0) === 0) {
+              reply = `📋 **NDIS Client Overview for ${clientName}**\n` +
+                `• **Funding Type:** NDIS (National Disability Insurance Scheme)\n` +
+                `• **Service Agreement:** No Active Service Agreement registered\n\n` +
+                `ℹ️ **Notice:** ${clientName} does not currently have an active NDIS Service Agreement configured in the portal.\n` +
+                `NDIS funds are not allocated on quarterly cycles; allocations are set by Service Agreements with specific start and end dates.\n\n` +
+                `👉 To configure support line items and enable budget tracking, go to **Clients > Client Dashboard > Budget page** and click **"+ Add Service Agreement"**.`;
+            } else {
+              reply = `📊 **NDIS Service Agreement & Budget Analysis for ${clientName}**\n` +
+                `• **Funding Type:** NDIS (National Disability Insurance Scheme)\n` +
+                `• **Service Agreement:** ${anyAnalysis.agreementName || anyAnalysis.fundingPackage}\n` +
+                `• **Agreement Period:** ${anyAnalysis.agreementStartDateAU || anyAnalysis.cycleStartAU} to ${anyAnalysis.agreementEndDateAU || anyAnalysis.cycleEndAU} (${anyAnalysis.remainingWeeks || 0} weeks remaining)\n` +
+                `• **Grand Total Agreement Funding:** $${Number(anyAnalysis.totalAgreementValue || anyAnalysis.totalQuarterlyBudget || 0).toFixed(2)} AUD\n` +
+                `• **Total Claimed / Utilized:** $${Number(anyAnalysis.totalCombinedSpent || 0).toFixed(2)} AUD (${anyAnalysis.burnRatePercentage || '0%'} utilized)\n` +
+                `• **Remaining Balance:** $${Number(anyAnalysis.remainingFunds || 0).toFixed(2)} AUD\n`;
 
             if (Array.isArray(anyAnalysis.agreementItems) && anyAnalysis.agreementItems.length > 0) {
               reply += `\n📋 **Service Agreement Line Items Tracking:**\n`;
@@ -1484,6 +1503,7 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
               `• **Baseline Weekly Hours:** ${optimization.baselineWeeklyHours || 0} hrs/week\n` +
               `• **Additional Affordable Hours:** +${optimization.additionalAffordableHoursPerWeek || 0} hrs/week\n` +
               `• **Recommended Max Weekly Hours:** ${optimization.recommendedMaxWeeklyHours || 0} hrs/week`;
+            }
           } else {
             reply = `📊 **Budget & Funding Analysis for ${clientName}**\n` +
               `• **Funding Package:** ${anyAnalysis.fundingPackage || anyAnalysis.fundingCategory || anyAnalysis.fundingType}\n` +
