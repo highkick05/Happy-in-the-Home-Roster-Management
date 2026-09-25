@@ -467,11 +467,10 @@ export default function AiChatWidget() {
           <div className="flex items-center justify-between px-4 py-3 bg-brand-bg/90 border-b border-border-subtle shrink-0">
             <div className="flex items-center gap-2.5">
               <div 
-                className="w-9 h-9 rounded-xl bg-white/[0.04] border border-brand-teal/30 flex items-center justify-center shadow-inner cursor-pointer hover:bg-white/[0.08] transition-colors"
-                title="Click Happy to play!"
-                onClick={() => triggerLivelyAnimation('celebrating', 2000)}
+                className="w-9 h-9 rounded-xl bg-white/[0.04] border border-brand-teal/30 flex items-center justify-center shadow-inner"
+                title="Happy"
               >
-                <HappyMascot size="sm" isJumping={isMascotJumping} mood={mascotMood} />
+                <HappyMascot size="sm" animated={false} />
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-white tracking-wide flex items-center gap-1.5">
@@ -534,11 +533,10 @@ export default function AiChatWidget() {
               <div className="h-full flex flex-col justify-between py-2 text-center">
                 <div className="pt-2">
                   <div 
-                    className="mx-auto flex items-center justify-center mb-2.5 cursor-pointer"
-                    title="Click Happy!"
-                    onClick={() => triggerLivelyAnimation()}
+                    className="mx-auto flex items-center justify-center mb-2.5"
+                    title="Happy in the Home Portal Assistant"
                   >
-                    <HappyMascot size="xl" isJumping={isMascotJumping} mood={mascotMood} />
+                    <HappyMascot size="xl" animated={false} />
                   </div>
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-teal/15 border border-brand-teal/30 text-teal-300 text-xs font-semibold mb-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -768,7 +766,7 @@ export default function AiChatWidget() {
                 {isLoading && (
                   <div className="flex flex-col items-start animate-in fade-in duration-200">
                     <div className="text-[10px] text-[#8B949E] mb-1 px-1 flex items-center gap-1.5">
-                      <HappyMascot size="xs" isThinking />
+                      <HappyMascot size="xs" animated={false} />
                       <span className="font-semibold text-teal-300">Happy</span>
                     </div>
                     <div className="bg-white/[0.05] border border-white/[0.08] rounded-2xl rounded-tl-xs px-3.5 py-2.5 text-xs text-[#8B949E] flex items-center gap-2 shadow-sm">
