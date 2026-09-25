@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -239,11 +241,19 @@ export default function AiChatWidget() {
                       <div
                         className={`rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed break-words max-w-[88%] ${
                           isUser
-                            ? 'bg-brand-teal/20 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-xs shadow-sm'
-                            : 'bg-white/[0.05] text-[#E6EDF3] border border-white/[0.08] rounded-tl-xs shadow-sm whitespace-pre-wrap'
+                            ? 'bg-brand-teal/20 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-xs shadow-sm whitespace-pre-wrap'
+                            : 'bg-white/[0.05] text-[#E6EDF3] border border-white/[0.08] rounded-tl-xs shadow-sm'
                         }`}
                       >
-                        {msg.content}
+                        {isUser ? (
+                          msg.content
+                        ) : (
+                          <div className="prose prose-invert prose-xs max-w-none text-xs sm:text-[13px] leading-relaxed [&_p]:my-1.5 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5 [&_strong]:text-white [&_strong]:font-bold [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs [&_h1]:font-bold [&_h2]:font-bold [&_h3]:font-bold [&_h1]:my-2 [&_h2]:my-1.5 [&_h3]:my-1 [&_code]:bg-white/[0.1] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-emerald-300">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {msg.content}
+                            </ReactMarkdown>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
