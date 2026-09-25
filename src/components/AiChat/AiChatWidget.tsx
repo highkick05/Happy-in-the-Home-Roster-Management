@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2, Search, ArrowLeft, User } from 'lucide-react';
+import { Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2, Search, ArrowLeft, User, ShieldAlert, Users, BarChart3, Car, GraduationCap } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import HappyMascot, { MascotMood } from './HappyMascot';
@@ -22,7 +22,9 @@ export interface SuggestedAction {
   title: string;
   desc: string;
   icon: React.ReactNode;
-  promptTemplate: (clientName: string) => string;
+  promptTemplate?: (clientName: string) => string;
+  isDirect?: boolean;
+  directPrompt?: string;
 }
 
 export interface PortalPromptQuestion {
@@ -408,14 +410,47 @@ export default function AiChatWidget() {
       promptTemplate: (name: string) => `Optimize quarterly roster for ${name} for the current quarter`
     },
     {
-      title: "Budget Burn Rate",
-      desc: "Assess remaining weeks & weekly spend",
-      icon: <TrendingUp className="w-3.5 h-3.5 text-sky-400" />,
-      promptTemplate: (name: string) => `Assess budget burn rate and remaining funding weeks for ${name} for the current quarter`
+      title: "Staff Documents",
+      desc: "Audit expired credentials & screening",
+      icon: <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />,
+      isDirect: true,
+      directPrompt: "Check expired mandatory documents for staff"
+    },
+    {
+      title: "Home Care Summary",
+      desc: "Consolidated HCP & SAH budgets",
+      icon: <Users className="w-3.5 h-3.5 text-amber-400" />,
+      isDirect: true,
+      directPrompt: "Provide a current summary of all Home Care clients budgets"
+    },
+    {
+      title: "Invoicing & Growth",
+      desc: "Past FY, current week & forecast",
+      icon: <BarChart3 className="w-3.5 h-3.5 text-purple-400" />,
+      isDirect: true,
+      directPrompt: "Provide an invoicing summary for the past financial year, current week, and forecast next year's growth"
+    },
+    {
+      title: "Vehicle Register",
+      desc: "Rego, insurance & roadside expiries",
+      icon: <Car className="w-3.5 h-3.5 text-sky-400" />,
+      isDirect: true,
+      directPrompt: "Provide a summary of the vehicle register and check expired vehicle documents"
+    },
+    {
+      title: "Staff Training",
+      desc: "Completion & position suggestions",
+      icon: <GraduationCap className="w-3.5 h-3.5 text-teal-400" />,
+      isDirect: true,
+      directPrompt: "Show staff training completion and suggestions for future training for their positions"
     }
   ];
 
   const handleActionClick = (action: SuggestedAction) => {
+    if (action.isDirect) {
+      handleSubmit(undefined, action.directPrompt || action.title);
+      return;
+    }
     setSelectedAction(action);
     setClientSearch('');
     if (clients.length === 0) {
@@ -428,7 +463,7 @@ export default function AiChatWidget() {
     const clientName = `${client.first_name || ''} ${client.last_name || ''}`.trim() || `Client #${client.id}`;
     const isNdis = String(client.funding_type || '').trim().toUpperCase() === 'NDIS';
 
-    let query = action.promptTemplate(clientName);
+    let query = action.promptTemplate ? action.promptTemplate(clientName) : `Analyze client funds for ${clientName}`;
     if (isNdis) {
       if (action.title === "Analyze Client Funds") {
         query = `Analyze NDIS Service Agreement funds for ${clientName}`;
@@ -556,7 +591,7 @@ export default function AiChatWidget() {
                     <p className="text-[11px] font-medium uppercase tracking-wider text-[#8B949E] px-1 mb-2">
                       Quick suggestions
                     </p>
-                    <div className={`space-y-2 ${isExpanded ? 'md:space-y-0 md:grid md:grid-cols-3 md:gap-3' : ''}`}>
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-2 ${isExpanded ? 'md:grid-cols-3 md:gap-2.5' : ''}`}>
                       {suggestedActions.map((item, idx) => (
                         <button
                           key={idx}

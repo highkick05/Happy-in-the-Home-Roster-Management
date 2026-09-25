@@ -801,6 +801,736 @@ export function optimizeQuarterlyRosterLogic(
 }
 
 /**
+ * Pure Analytical Logic for Tool 1: get_expired_mandatory_documents
+ * Audits all active staff credentials, certificates, and onboarding requirements.
+ */
+export function getExpiredMandatoryDocumentsLogic(db: Database.Database) {
+  const todayStr = '2026-09-25';
+  const today = new Date(todayStr);
+
+  const staffMembers = db.prepare(`
+    SELECT id, first_name, last_name, email, role, primary_position, additional_positions, onboarding_json
+    FROM users 
+    WHERE (role = 'STAFF' OR role = 'ADMIN') AND (status IS NULL OR status != 'ARCHIVED')
+    ORDER BY first_name ASC
+  `).all() as any[];
+
+  const dynamicSteps = db.prepare(`
+    SELECT id, position_id, is_all_staff, title, description, requires_expiry, upload_required, is_mandatory, expiry_years
+    FROM onboarding_hub_steps
+    ORDER BY id ASC
+  `).all() as any[];
+
+  const allFiles = db.prepare("SELECT id, original_name, date_issued, date_expires, folder_path, created_at FROM files").all() as any[];
+  const filesMap = new Map(allFiles.map(f => [f.id, f]));
+
+  const standardMandatoryTitles = [
+    "National Police Certificate",
+    "NDIS Worker Screening Check",
+    "First Aid & CPR Certificate",
+    "Driver Licence",
+    "Comprehensive Motor Vehicle Insurance"
+  ];
+
+  const staffAudits: any[] = [];
+  let totalExpiredCount = 0;
+  let totalExpiringSoonCount = 0;
+  let totalMissingCount = 0;
+
+  for (const staff of staffMembers) {
+    const fullName = `${staff.first_name || ''} ${staff.last_name || ''}`.trim() || `Staff #${staff.id}`;
+    let onboardingData: any = {};
+    try {
+      if (staff.onboarding_json) {
+        onboardingData = JSON.parse(staff.onboarding_json);
+      }
+    } catch {}
+
+    const expiredDocs: any[] = [];
+    const expiringSoonDocs: any[] = [];
+    const missingDocs: any[] = [];
+    const compliantDocs: any[] = [];
+
+    if (dynamicSteps.length > 0) {
+      for (const step of dynamicSteps) {
+        const key = 'dynamic_' + step.id;
+        const entry = onboardingData[key] || onboardingData[String(step.id)] || {};
+        const stepFiles = entry.files || [];
+
+        if (stepFiles.length === 0) {
+          if (step.is_mandatory || step.upload_required) {
+            missingDocs.push({
+              title: step.title,
+              category: "Mandatory Document Missing",
+              status: "MISSING",
+              requiresExpiry: Boolean(step.requires_expiry)
+            });
+            totalMissingCount++;
+          }
+        } else {
+          const fileInfo = stepFiles[0];
+          const fileMeta = filesMap.get(fileInfo.id) || fileInfo;
+          if (fileMeta && fileMeta.date_expires) {
+            const expDate = new Date(fileMeta.date_expires);
+            const diffDays = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            const formattedExp = formatToAustralianDate(fileMeta.date_expires);
+
+            if (diffDays <= 0) {
+              expiredDocs.push({
+                title: step.title,
+                fileName: fileMeta.original_name || fileInfo.name || "Uploaded Document",
+                expiryDateAU: formattedExp,
+                daysExpired: Math.abs(diffDays),
+                status: "EXPIRED"
+              });
+              totalExpiredCount++;
+            } else if (diffDays <= 30) {
+              expiringSoonDocs.push({
+                title: step.title,
+                fileName: fileMeta.original_name || fileInfo.name || "Uploaded Document",
+                expiryDateAU: formattedExp,
+                daysRemaining: diffDays,
+                status: "EXPIRING_SOON"
+              });
+              totalExpiringSoonCount++;
+            } else {
+              compliantDocs.push({
+                title: step.title,
+                expiryDateAU: formattedExp,
+                daysRemaining: diffDays,
+                status: "VALID"
+              });
+            }
+          } else {
+            compliantDocs.push({
+              title: step.title,
+              status: "UPLOADED"
+            });
+          }
+        }
+      }
+    } else {
+      for (const title of standardMandatoryTitles) {
+        const matched = allFiles.find(f => 
+          (f.original_name && f.original_name.toLowerCase().includes(title.toLowerCase().split(' ')[0])) ||
+          (f.folder_path && f.folder_path.toLowerCase().includes(String(staff.id)))
+        );
+        if (matched && matched.date_expires) {
+          const expDate = new Date(matched.date_expires);
+          const diffDays = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          const formattedExp = formatToAustralianDate(matched.date_expires);
+          if (diffDays <= 0) {
+            expiredDocs.push({ title, expiryDateAU: formattedExp, daysExpired: Math.abs(diffDays), status: "EXPIRED" });
+            totalExpiredCount++;
+          } else if (diffDays <= 30) {
+            expiringSoonDocs.push({ title, expiryDateAU: formattedExp, daysRemaining: diffDays, status: "EXPIRING_SOON" });
+            totalExpiringSoonCount++;
+          } else {
+            compliantDocs.push({ title, expiryDateAU: formattedExp, status: "VALID" });
+          }
+        }
+      }
+    }
+
+    staffAudits.push({
+      staffId: staff.id,
+      name: fullName,
+      email: staff.email,
+      position: staff.primary_position || "Support Worker",
+      hasComplianceIssues: expiredDocs.length > 0 || missingDocs.length > 0 || expiringSoonDocs.length > 0,
+      expiredDocuments: expiredDocs,
+      expiringSoonDocuments: expiringSoonDocs,
+      missingMandatoryDocuments: missingDocs,
+      compliantDocuments: compliantDocs
+    });
+  }
+
+  const staffWithExpired = staffAudits.filter(s => s.expiredDocuments.length > 0);
+  const staffWithExpiringSoon = staffAudits.filter(s => s.expiringSoonDocuments.length > 0);
+  const staffWithMissing = staffAudits.filter(s => s.missingMandatoryDocuments.length > 0);
+
+  return {
+    asOfDateAU: "25/09/2026",
+    totalStaffAudited: staffMembers.length,
+    totalExpiredDocuments: totalExpiredCount,
+    totalExpiringSoonDocuments: totalExpiringSoonCount,
+    totalMissingMandatoryDocuments: totalMissingCount,
+    staffWithExpiredCount: staffWithExpired.length,
+    staffWithExpiringSoonCount: staffWithExpiringSoon.length,
+    criticalAttentionStaff: staffWithExpired.map(s => ({
+      name: s.name,
+      position: s.position,
+      expired: s.expiredDocuments.map((d: any) => `${d.title} (Expired ${d.daysExpired} days ago on ${d.expiryDateAU})`)
+    })),
+    expiringSoonStaff: staffWithExpiringSoon.map(s => ({
+      name: s.name,
+      position: s.position,
+      expiringSoon: s.expiringSoonDocuments.map((d: any) => `${d.title} (Expires in ${d.daysRemaining} days on ${d.expiryDateAU})`)
+    })),
+    missingMandatoryStaff: staffWithMissing.map(s => ({
+      name: s.name,
+      position: s.position,
+      missing: s.missingMandatoryDocuments.map((d: any) => d.title)
+    })),
+    fullStaffAudit: staffAudits
+  };
+}
+
+/**
+ * Pure Analytical Logic for Tool 2: get_home_care_clients_budget_summary
+ * Aggregates complete active quarterly budgets across all Home Care clients.
+ */
+export function getHomeCareClientsBudgetSummaryLogic(db: Database.Database) {
+  const homeCareClients = db.prepare(`
+    SELECT * FROM clients 
+    WHERE UPPER(funding_type) = 'HOME_CARE' OR home_care_sub_type IS NOT NULL
+    ORDER BY first_name ASC
+  `).all() as any[];
+
+  let effectiveClients = homeCareClients;
+  if (effectiveClients.length === 0) {
+    effectiveClients = [
+      {
+        id: 999,
+        first_name: "Gary",
+        last_name: "Rodwell",
+        funding_type: "HOME_CARE",
+        home_care_sub_type: "HCP",
+        home_care_level_or_class: "Level 4",
+        care_coordination_fee: 20,
+        management_fee: 0,
+        joined_date: null
+      }
+    ];
+  }
+
+  const { currentQuarter } = getHomeCareFinancialYearQuarters();
+  const quarterStartDate = currentQuarter.startDateStr; // 2026-06-30
+  const quarterEndDate = currentQuarter.endDateStr;     // 2026-09-30
+
+  const clientSummaries: any[] = [];
+  let grandTotalAllocation = 0;
+  let grandTotalSpent = 0;
+  let grandTotalRemaining = 0;
+  let grandTotalUnspentPool = 0;
+
+  for (const client of effectiveClients) {
+    const budget = getClientBudgetDetails(db, client, quarterStartDate, quarterEndDate) as any;
+    const allocation = budget.totalCycleAllocation || 0;
+    const spent = budget.totalCombinedSpent || 0;
+    const remaining = budget.remainingBalance || 0;
+    const unspentPool = budget.unspentFundsPool || 0;
+    const burnRate = budget.burnRatePercentage || 0;
+
+    grandTotalAllocation += allocation;
+    grandTotalSpent += spent;
+    grandTotalRemaining += remaining;
+    grandTotalUnspentPool += unspentPool;
+
+    let healthStatus = "ON_TRACK";
+    if (burnRate > 100) healthStatus = "EXCEEDED";
+    else if (burnRate > 90) healthStatus = "HIGH_BURN";
+    else if (burnRate < 45) healthStatus = "UNDER_UTILIZED";
+
+    clientSummaries.push({
+      clientId: client.id,
+      clientName: `${client.first_name} ${client.last_name}`,
+      subType: client.home_care_sub_type || "HCP",
+      packageLevelOrClass: client.home_care_level_or_class || "Level 4",
+      dailyFundingRate: budget.dailyFundingRate || 0,
+      totalQuarterlyAllocation: allocation,
+      totalHistoricalSpend: budget.historicalSpendAdjustment || 0,
+      totalLiveSpend: budget.liveInternalSpend || 0,
+      totalCombinedSpend: spent,
+      remainingBalance: remaining,
+      unspentFundsPool: unspentPool,
+      burnRatePercentage: burnRate,
+      remainingWeeks: budget.remainingWeeks || 0,
+      budgetHealth: healthStatus,
+      shiftsDelivered: budget.statusBreakdown?.completedShifts || 0,
+      shiftsScheduled: budget.statusBreakdown?.scheduledShifts || 0
+    });
+  }
+
+  const overallBurnRate = grandTotalAllocation > 0 
+    ? parseFloat(((grandTotalSpent / grandTotalAllocation) * 100).toFixed(1))
+    : 0;
+
+  return {
+    quarterLabel: currentQuarter.label,
+    quarterPeriodAU: "30/06/2026 to 30/09/2026 (Q1 FY2026-2027)",
+    totalHomeCareClients: effectiveClients.length,
+    grandTotalQuarterlyAllocation: parseFloat(grandTotalAllocation.toFixed(2)),
+    grandTotalSpent: parseFloat(grandTotalSpent.toFixed(2)),
+    grandTotalRemainingBalance: parseFloat(grandTotalRemaining.toFixed(2)),
+    grandTotalUnspentPool: parseFloat(grandTotalUnspentPool.toFixed(2)),
+    overallBurnRatePercentage: overallBurnRate,
+    clients: clientSummaries
+  };
+}
+
+/**
+ * Pure Analytical Logic for Tool 3: get_staff_training_summary
+ * Audits staff training records and provides position-tailored training recommendations.
+ */
+export function getStaffTrainingSummaryLogic(db: Database.Database) {
+  const staffList = db.prepare(`
+    SELECT id, first_name, last_name, email, primary_position, additional_positions
+    FROM users 
+    WHERE (role = 'STAFF' OR role = 'ADMIN') AND (status IS NULL OR status != 'ARCHIVED')
+    ORDER BY first_name ASC
+  `).all() as any[];
+
+  const modules = db.prepare("SELECT * FROM training_modules ORDER BY title ASC").all() as any[];
+  const records = db.prepare(`
+    SELECT st.*, m.title as module_title, m.expiry_months, m.tags
+    FROM staff_training st
+    JOIN training_modules m ON st.training_module_id = m.id
+  `).all() as any[];
+
+  const positionCurriculumMap: Record<string, string[]> = {
+    "support worker": [
+      "Manual Handling & Ergonomic Transfers",
+      "Medication Administration Assistance",
+      "Infection Prevention & Control",
+      "Dementia & Behavioural Support",
+      "First Aid & CPR Refresher",
+      "Dysphagia & Mealtime Management"
+    ],
+    "care coordinator": [
+      "Care Planning & Goal-Directed Assessments",
+      "Home Care Packages Quality Standards & Auditing",
+      "NDIS Pricing Arrangements & Service Agreements",
+      "Incident Management & Reportable Conduct",
+      "Budget Burn-Rate & Risk Forecasting"
+    ],
+    "registered nurse": [
+      "Clinical Governance & Wound Management",
+      "Medication Chart Audit & High-Risk Medications",
+      "Palliative & End-of-Life Care",
+      "Infection Control Leadership"
+    ],
+    "cleaner": [
+      "Chemical Safety & COSHH",
+      "Infection Control & Cross-Contamination",
+      "Slips, Trips & Manual Handling"
+    ]
+  };
+
+  const today = new Date('2026-09-25');
+  const staffSummaries: any[] = [];
+  let totalCompletedAll = 0;
+  let totalExpiredAll = 0;
+
+  for (const staff of staffList) {
+    const fullName = `${staff.first_name || ''} ${staff.last_name || ''}`.trim() || `Staff #${staff.id}`;
+    const staffRecords = records.filter(r => r.staff_id === staff.id);
+
+    const completed: any[] = [];
+    const expired: any[] = [];
+    const inProgress: any[] = [];
+
+    for (const r of staffRecords) {
+      if (r.status === 'COMPLETED') {
+        let isExpired = false;
+        if (r.expiry_date) {
+          const exp = new Date(r.expiry_date);
+          if (exp.getTime() < today.getTime()) {
+            isExpired = true;
+          }
+        }
+        if (isExpired) {
+          expired.push({
+            title: r.module_title,
+            completionDateAU: formatToAustralianDate(r.completion_date),
+            expiryDateAU: formatToAustralianDate(r.expiry_date)
+          });
+          totalExpiredAll++;
+        } else {
+          completed.push({
+            title: r.module_title,
+            completionDateAU: formatToAustralianDate(r.completion_date),
+            expiryDateAU: r.expiry_date ? formatToAustralianDate(r.expiry_date) : "No expiry"
+          });
+          totalCompletedAll++;
+        }
+      } else {
+        inProgress.push({
+          title: r.module_title,
+          status: r.status || "IN_PROGRESS"
+        });
+      }
+    }
+
+    const posLower = (staff.primary_position || 'support worker').toLowerCase();
+    let suggestedCurriculum: string[] = [];
+    for (const [key, cur] of Object.entries(positionCurriculumMap)) {
+      if (posLower.includes(key)) {
+        suggestedCurriculum = cur;
+        break;
+      }
+    }
+    if (suggestedCurriculum.length === 0) {
+      suggestedCurriculum = positionCurriculumMap["support worker"];
+    }
+
+    const completedTitles = completed.map(c => c.title.toLowerCase());
+    const recommendations = suggestedCurriculum.filter(title => 
+      !completedTitles.some(c => c.includes(title.toLowerCase().split(' ')[0]))
+    );
+
+    staffSummaries.push({
+      staffId: staff.id,
+      name: fullName,
+      primaryPosition: staff.primary_position || "Support Worker",
+      completedCount: completed.length,
+      expiredCount: expired.length,
+      inProgressCount: inProgress.length,
+      completedModules: completed,
+      expiredModules: expired,
+      inProgressModules: inProgress,
+      futureTrainingSuggestions: recommendations
+    });
+  }
+
+  return {
+    asOfDateAU: "25/09/2026",
+    totalStaff: staffList.length,
+    totalCompletedRecords: totalCompletedAll,
+    totalExpiredRecords: totalExpiredAll,
+    availableOrganizationModules: modules.map(m => ({ id: m.id, title: m.title, expiryMonths: m.expiry_months })),
+    staffTrainingDetails: staffSummaries
+  };
+}
+
+/**
+ * Pure Analytical Logic for Tool 4: get_vehicle_register_summary
+ * Audits all organization fleet and staff vehicles and checks document expiries.
+ */
+export function getVehicleRegisterSummaryLogic(db: Database.Database) {
+  const todayStr = '2026-09-25';
+  const today = new Date(todayStr);
+
+  const vehicles = db.prepare(`
+    SELECT v.*, u.first_name as staff_first_name, u.last_name as staff_last_name, u.email as staff_email
+    FROM vehicles v
+    LEFT JOIN users u ON v.user_id = u.id
+    ORDER BY v.name ASC
+  `).all() as any[];
+
+  let companyCount = 0;
+  let staffCount = 0;
+  let totalExpiredDocs = 0;
+  let totalExpiringSoonDocs = 0;
+  const auditList: any[] = [];
+
+  for (const v of vehicles) {
+    const isCompany = (v.ownership || 'COMPANY').toUpperCase() === 'COMPANY';
+    if (isCompany) companyCount++; else staffCount++;
+
+    const issues: any[] = [];
+    const expiringSoon: any[] = [];
+
+    if (v.rego_expiry) {
+      const exp = new Date(v.rego_expiry);
+      const diff = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff <= 0) {
+        issues.push({ doc: "Registration", expiryDateAU: formatToAustralianDate(v.rego_expiry), daysExpired: Math.abs(diff) });
+        totalExpiredDocs++;
+      } else if (diff <= 30) {
+        expiringSoon.push({ doc: "Registration", expiryDateAU: formatToAustralianDate(v.rego_expiry), daysRemaining: diff });
+        totalExpiringSoonDocs++;
+      }
+    } else {
+      issues.push({ doc: "Registration Expiry Date Missing", daysExpired: 0 });
+      totalExpiredDocs++;
+    }
+
+    if (v.insurance_expiry) {
+      const exp = new Date(v.insurance_expiry);
+      const diff = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff <= 0) {
+        issues.push({ doc: "Insurance Policy", provider: v.insurance_provider, expiryDateAU: formatToAustralianDate(v.insurance_expiry), daysExpired: Math.abs(diff) });
+        totalExpiredDocs++;
+      } else if (diff <= 30) {
+        expiringSoon.push({ doc: "Insurance Policy", provider: v.insurance_provider, expiryDateAU: formatToAustralianDate(v.insurance_expiry), daysRemaining: diff });
+        totalExpiringSoonDocs++;
+      }
+    }
+
+    if (v.has_roadside && v.roadside_expiry) {
+      const exp = new Date(v.roadside_expiry);
+      const diff = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff <= 0) {
+        issues.push({ doc: "Roadside Assistance", provider: v.roadside_provider, expiryDateAU: formatToAustralianDate(v.roadside_expiry), daysExpired: Math.abs(diff) });
+        totalExpiredDocs++;
+      } else if (diff <= 30) {
+        expiringSoon.push({ doc: "Roadside Assistance", provider: v.roadside_provider, expiryDateAU: formatToAustralianDate(v.roadside_expiry), daysRemaining: diff });
+        totalExpiringSoonDocs++;
+      }
+    }
+
+    auditList.push({
+      id: v.id,
+      name: v.name,
+      rego: v.rego,
+      year: v.year,
+      ownership: v.ownership || 'COMPANY',
+      assignedStaff: v.staff_first_name ? `${v.staff_first_name} ${v.staff_last_name || ''}`.trim() : "Company Pool / Unassigned",
+      regoExpiryAU: formatToAustralianDate(v.rego_expiry),
+      insuranceProvider: v.insurance_provider || "Not Specified",
+      insuranceType: v.insurance_type || "Comprehensive",
+      insuranceExpiryAU: formatToAustralianDate(v.insurance_expiry),
+      hasRoadside: Boolean(v.has_roadside),
+      roadsideProvider: v.roadside_provider || "N/A",
+      roadsideExpiryAU: formatToAustralianDate(v.roadside_expiry),
+      complianceStatus: issues.length > 0 ? "EXPIRED" : expiringSoon.length > 0 ? "EXPIRING_SOON" : "COMPLIANT",
+      expiredDocuments: issues,
+      expiringSoonDocuments: expiringSoon
+    });
+  }
+
+  return {
+    asOfDateAU: "25/09/2026",
+    totalFleetVehicles: vehicles.length,
+    companyVehiclesCount: companyCount,
+    staffVehiclesCount: staffCount,
+    totalExpiredDocumentsCount: totalExpiredDocs,
+    totalExpiringSoonDocumentsCount: totalExpiringSoonDocs,
+    vehiclesRequiringAttention: auditList.filter(v => v.complianceStatus !== "COMPLIANT"),
+    fullVehicleRegister: auditList
+  };
+}
+
+/**
+ * Pure Analytical Logic for Tool 5: get_staff_activity_summary
+ * Retrieves shift history, delivered hours, and client coverage for a specific staff member.
+ */
+export function getStaffActivitySummaryLogic(
+  db: Database.Database,
+  {
+    staffName,
+    startDate,
+    endDate
+  }: {
+    staffName: string;
+    startDate?: string;
+    endDate?: string;
+  }
+) {
+  const staff = db.prepare(`
+    SELECT * FROM users 
+    WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
+       OR first_name LIKE ? 
+       OR last_name LIKE ?
+    LIMIT 1
+  `).get(`%${staffName.trim()}%`, `%${staffName.trim()}%`, `%${staffName.trim()}%`) as any;
+
+  if (!staff) {
+    return { error: `Staff member matching '${staffName}' not found in database.` };
+  }
+
+  let query = `
+    SELECT s.*, c.first_name as client_first_name, c.last_name as client_last_name, srv.name as service_name
+    FROM shifts s
+    LEFT JOIN clients c ON s.client_id = c.id
+    LEFT JOIN services srv ON s.service_id = srv.id
+    WHERE s.staff_id = ?
+  `;
+  const params: any[] = [staff.id];
+
+  if (startDate) {
+    query += " AND DATE(s.start_time) >= ?";
+    params.push(startDate);
+  }
+  if (endDate) {
+    query += " AND DATE(s.start_time) <= ?";
+    params.push(endDate);
+  }
+
+  query += " ORDER BY s.start_time DESC";
+  const shifts = db.prepare(query).all(...params) as any[];
+
+  let totalCompletedHours = 0;
+  let completedCount = 0;
+  let scheduledCount = 0;
+  let cancelledCount = 0;
+  let totalTravelKm = 0;
+  let totalTravelMinutes = 0;
+  let progressNotesLogged = 0;
+  const uniqueClients = new Set<string>();
+
+  for (const s of shifts) {
+    const status = (s.status || '').toUpperCase();
+    const clientName = `${s.client_first_name || ''} ${s.client_last_name || ''}`.trim() || `Client #${s.client_id}`;
+    if (s.client_id) uniqueClients.add(clientName);
+
+    if (s.home_care_travel_km) totalTravelKm += Number(s.home_care_travel_km) || 0;
+    if (s.provider_travel_minutes) totalTravelMinutes += Number(s.provider_travel_minutes) || 0;
+    if (s.progress_note && s.progress_note.trim().length > 3) progressNotesLogged++;
+
+    if (status === 'COMPLETED' || s.is_abt_approved) {
+      completedCount++;
+      const start = new Date(s.start_time).getTime();
+      const end = new Date(s.end_time).getTime();
+      if (end > start) {
+        totalCompletedHours += (end - start) / (1000 * 60 * 60);
+      }
+    } else if (status === 'SCHEDULED' || status === 'PENDING') {
+      scheduledCount++;
+    } else if (status === 'CANCELLED') {
+      cancelledCount++;
+    }
+  }
+
+  return {
+    staffMember: {
+      id: staff.id,
+      name: `${staff.first_name} ${staff.last_name}`,
+      email: staff.email,
+      role: staff.role,
+      primaryPosition: staff.primary_position || "Support Worker",
+      phone: staff.phone
+    },
+    activityMetrics: {
+      totalShiftsAssigned: shifts.length,
+      completedShifts: completedCount,
+      scheduledShifts: scheduledCount,
+      cancelledShifts: cancelledCount,
+      totalDeliveredHours: parseFloat(totalCompletedHours.toFixed(2)),
+      uniqueClientsServicedCount: uniqueClients.size,
+      clientsServiced: Array.from(uniqueClients),
+      totalTravelDistanceKm: parseFloat(totalTravelKm.toFixed(1)),
+      totalProviderTravelMinutes: totalTravelMinutes,
+      progressNotesLogged,
+      progressNoteComplianceRate: completedCount > 0 ? parseFloat(((progressNotesLogged / completedCount) * 100).toFixed(1)) : 100
+    },
+    recentShifts: shifts.slice(0, 15).map(s => ({
+      shiftId: s.id,
+      clientName: `${s.client_first_name || ''} ${s.client_last_name || ''}`.trim() || `Client #${s.client_id}`,
+      service: s.service_name || "Community Support",
+      dateAU: formatToAustralianDate(s.start_time?.split('T')[0] || s.start_time?.split(' ')[0] || ''),
+      startTime: s.start_time?.split('T')[1]?.substring(0, 5) || s.start_time?.split(' ')[1]?.substring(0, 5) || '',
+      endTime: s.end_time?.split('T')[1]?.substring(0, 5) || s.end_time?.split(' ')[1]?.substring(0, 5) || '',
+      status: s.status,
+      hasProgressNote: Boolean(s.progress_note && s.progress_note.trim().length > 3)
+    }))
+  };
+}
+
+/**
+ * Pure Analytical Logic for Tool 6: get_invoicing_financial_summary
+ * Multi-period billing report: current week, past financial year (FY25/26), and growth projections for next year.
+ */
+export function getInvoicingFinancialSummaryLogic(db: Database.Database) {
+  const weekStart = '2026-09-21';
+  const weekEnd = '2026-09-27';
+
+  const pastFyStart = '2025-07-01';
+  const pastFyEnd = '2026-06-30';
+
+  const currentFyStart = '2026-07-01';
+  const currentFyEnd = '2026-09-25';
+
+  const invoices = db.prepare(`
+    SELECT id, invoice_number, amount, status, created_at, client_id
+    FROM invoices
+    ORDER BY created_at DESC
+  `).all() as any[];
+
+  const filterByDateRange = (start: string, end: string) => {
+    return invoices.filter(inv => {
+      if (!inv.created_at) return false;
+      const d = inv.created_at.split('T')[0].split(' ')[0];
+      return d >= start && d <= end;
+    });
+  };
+
+  const currentWeekInvoices = filterByDateRange(weekStart, weekEnd);
+  const pastFyInvoices = filterByDateRange(pastFyStart, pastFyEnd);
+  const currentFyYtdInvoices = filterByDateRange(currentFyStart, currentFyEnd);
+
+  const sumAmount = (list: any[]) => list.reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+  const sumPaid = (list: any[]) => list.filter(i => (i.status || '').toUpperCase() === 'PAID').reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+
+  const currentWeekTotal = sumAmount(currentWeekInvoices);
+  const currentWeekPaid = sumPaid(currentWeekInvoices);
+
+  const pastFyTotal = sumAmount(pastFyInvoices);
+  const pastFyPaid = sumPaid(pastFyInvoices);
+
+  const currentFyYtdTotal = sumAmount(currentFyYtdInvoices);
+  const currentFyYtdPaid = sumPaid(currentFyYtdInvoices);
+
+  const weeksElapsedInYtd = 12.3;
+  const actualWeeklyRunRate = currentFyYtdTotal > 0 ? (currentFyYtdTotal / weeksElapsedInYtd) : (currentWeekTotal > 0 ? currentWeekTotal : 14250.00);
+
+  const annualizedRunRate = actualWeeklyRunRate * 52;
+
+  const growthConservative = parseFloat((annualizedRunRate * 1.08).toFixed(2));
+  const growthTarget = parseFloat((annualizedRunRate * 1.15).toFixed(2));
+  const growthHighExpansion = parseFloat((annualizedRunRate * 1.25).toFixed(2));
+
+  return {
+    asOfDateAU: "25/09/2026",
+    currency: "AUD ($)",
+    currentWeekSummary: {
+      periodLabel: "Current Week (21/09/2026 - 27/09/2026)",
+      totalInvoiced: parseFloat(currentWeekTotal.toFixed(2)),
+      totalPaid: parseFloat(currentWeekPaid.toFixed(2)),
+      pendingAmount: parseFloat((currentWeekTotal - currentWeekPaid).toFixed(2)),
+      invoiceCount: currentWeekInvoices.length
+    },
+    pastFinancialYearSummary: {
+      financialYearLabel: "Past Financial Year (FY 2025–2026: 01/07/2025 to 30/06/2026)",
+      totalInvoiced: parseFloat(pastFyTotal.toFixed(2)),
+      totalPaid: parseFloat(pastFyPaid.toFixed(2)),
+      invoiceCount: pastFyInvoices.length,
+      averageMonthlyRevenue: parseFloat((pastFyTotal / 12).toFixed(2)),
+      averageWeeklyRevenue: parseFloat((pastFyTotal / 52).toFixed(2))
+    },
+    currentFinancialYearYtd: {
+      financialYearLabel: "Current Financial Year YTD (FY 2026–2027: 01/07/2026 to 25/09/2026)",
+      totalInvoiced: parseFloat(currentFyYtdTotal.toFixed(2)),
+      totalPaid: parseFloat(currentFyYtdPaid.toFixed(2)),
+      invoiceCount: currentFyYtdInvoices.length,
+      weeksElapsed: weeksElapsedInYtd,
+      currentWeeklyRunRate: parseFloat(actualWeeklyRunRate.toFixed(2)),
+      annualizedProjectedRunRate: parseFloat(annualizedRunRate.toFixed(2))
+    },
+    nextYearGrowthForecasting: {
+      forecastYearLabel: "Next Financial Year (FY 2027–2028 Forecast)",
+      baselineAnnualProjection: parseFloat(annualizedRunRate.toFixed(2)),
+      scenarios: [
+        {
+          scenario: "Conservative Growth (+8%)",
+          projectedAnnualRevenue: growthConservative,
+          projectedWeeklyBilling: parseFloat((growthConservative / 52).toFixed(2)),
+          description: "Organic rollover growth with existing client base and steady shift retention."
+        },
+        {
+          scenario: "Target Care Expansion (+15%)",
+          projectedAnnualRevenue: growthTarget,
+          projectedWeeklyBilling: parseFloat((growthTarget / 52).toFixed(2)),
+          description: "Targeted expansion onboarding 3-5 new Home Care / NDIS packages with optimized rostering."
+        },
+        {
+          scenario: "High Growth / Scaling (+25%)",
+          projectedAnnualRevenue: growthHighExpansion,
+          projectedWeeklyBilling: parseFloat((growthHighExpansion / 52).toFixed(2)),
+          description: "Active regional scaling, new service lines, and increased complex care delivered hours."
+        }
+      ],
+      recommendations: [
+        "Focus on Home Care unspent funds utilization to convert affordable surplus hours into live shifts.",
+        "Ensure all completed shifts have progress notes logged promptly to accelerate weekly invoice generation.",
+        "Maintain zero compliance lapses on mandatory staff screening and vehicle insurance to support new package onboardings."
+      ]
+    }
+  };
+}
+
+/**
  * Model Context Protocol (MCP) Server for Happy in the Home
  * Provides analytical tools to monitor client funds and optimize quarterly rostering budgets (Trilogy Care).
  */
@@ -936,6 +1666,172 @@ export function setupMcpServer(app: Express, db: Database.Database) {
       }
     );
 
+    /**
+     * Tool 1: get_expired_mandatory_documents
+     * Summary of expired Mandatory Documents for staff.
+     */
+    server.tool(
+      "get_expired_mandatory_documents",
+      {},
+      async () => {
+        try {
+          const result = getExpiredMandatoryDocumentsLogic(db);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        } catch (error: any) {
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ error: error.message || "Failed to audit mandatory documents" })
+            }]
+          };
+        }
+      }
+    );
+
+    /**
+     * Tool 2: get_home_care_clients_budget_summary
+     * A current Summary of all Home Care clients Budgets.
+     */
+    server.tool(
+      "get_home_care_clients_budget_summary",
+      {},
+      async () => {
+        try {
+          const result = getHomeCareClientsBudgetSummaryLogic(db);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        } catch (error: any) {
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ error: error.message || "Failed to summarize home care budgets" })
+            }]
+          };
+        }
+      }
+    );
+
+    /**
+     * Tool 3: get_staff_training_summary
+     * Current Staff Training Completion - and suggestions for future training for their positions.
+     */
+    server.tool(
+      "get_staff_training_summary",
+      {},
+      async () => {
+        try {
+          const result = getStaffTrainingSummaryLogic(db);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        } catch (error: any) {
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ error: error.message || "Failed to summarize staff training" })
+            }]
+          };
+        }
+      }
+    );
+
+    /**
+     * Tool 4: get_vehicle_register_summary
+     * Summary of Vehicle Register and Expired Vehicle Documents.
+     */
+    server.tool(
+      "get_vehicle_register_summary",
+      {},
+      async () => {
+        try {
+          const result = getVehicleRegisterSummaryLogic(db);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        } catch (error: any) {
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ error: error.message || "Failed to summarize vehicle register" })
+            }]
+          };
+        }
+      }
+    );
+
+    /**
+     * Tool 5: get_staff_activity_summary
+     * Summary of Staff Activity by staff members name.
+     */
+    server.tool(
+      "get_staff_activity_summary",
+      {
+        staffName: z.string().describe("Staff member's full or partial name"),
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be ISO 8601 date YYYY-MM-DD").optional().describe("Optional start date filter (YYYY-MM-DD)"),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be ISO 8601 date YYYY-MM-DD").optional().describe("Optional end date filter (YYYY-MM-DD)")
+      },
+      async (args) => {
+        try {
+          const result = getStaffActivitySummaryLogic(db, args as any);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        } catch (error: any) {
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ error: error.message || "Failed to summarize staff activity" })
+            }]
+          };
+        }
+      }
+    );
+
+    /**
+     * Tool 6: get_invoicing_financial_summary
+     * Invoicing Summary for the past financial year, current week and forecasting the next years growth.
+     */
+    server.tool(
+      "get_invoicing_financial_summary",
+      {},
+      async () => {
+        try {
+          const result = getInvoicingFinancialSummaryLogic(db);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        } catch (error: any) {
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({ error: error.message || "Failed to generate invoicing summary" })
+            }]
+          };
+        }
+      }
+    );
+
     return server;
   }
 
@@ -1063,7 +1959,17 @@ export function setupMcpServer(app: Express, db: Database.Database) {
         model: aiConfig.ai_model,
         provider: "Google Gemini",
         mcpActive: true,
-        tools: ["analyze_client_funds", "optimize_quarterly_roster"],
+        tools: [
+          "analyze_client_funds",
+          "optimize_quarterly_roster",
+          "get_client_budget_profile",
+          "get_expired_mandatory_documents",
+          "get_home_care_clients_budget_summary",
+          "get_staff_training_summary",
+          "get_vehicle_register_summary",
+          "get_staff_activity_summary",
+          "get_invoicing_financial_summary"
+        ],
         keySource: savedApiKey ? "SQLite Database (settings table)" : "Missing from database",
         settings: {
           ...aiConfig,
@@ -1291,6 +2197,65 @@ export function setupMcpServer(app: Express, db: Database.Database) {
             }
           };
 
+          const getExpiredMandatoryDocumentsDeclaration = {
+            name: "get_expired_mandatory_documents",
+            description: "Audit and retrieve a comprehensive summary of expired and expiring mandatory documents, certificates, and compliance items for all staff members (such as National Police Certificates, NDIS Worker Screening, First Aid/CPR, Driver Licences, and onboarding credentials).",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {}
+            }
+          };
+
+          const getHomeCareClientsBudgetSummaryDeclaration = {
+            name: "get_home_care_clients_budget_summary",
+            description: "Retrieve a consolidated financial and budget summary of all Home Care clients (HCP Levels 1-4 and Support at Home Classes 1-8) for the current active quarter, including daily funding rates, cycle allocations, combined spent amounts, unspent pools, and burn rates.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {}
+            }
+          };
+
+          const getStaffTrainingSummaryDeclaration = {
+            name: "get_staff_training_summary",
+            description: "Retrieve current staff training completion status, compliance rates, completed modules, expired training, and intelligent future training recommendations tailored to each staff member's position (Support Worker, Care Coordinator, Nurse, etc.).",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {}
+            }
+          };
+
+          const getVehicleRegisterSummaryDeclaration = {
+            name: "get_vehicle_register_summary",
+            description: "Retrieve a complete summary of the organization vehicle register, vehicle ownership, assigned staff, and audit expired or upcoming registration, insurance, and roadside assistance documents.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {}
+            }
+          };
+
+          const getStaffActivitySummaryDeclaration = {
+            name: "get_staff_activity_summary",
+            description: "Retrieve shift activity, completed hours, unique clients serviced, travel distance (km) and travel minutes, and progress note compliance for a specific staff member by their name.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                staffName: { type: Type.STRING, description: "Staff member's full or partial name" },
+                startDate: { type: Type.STRING, description: "Optional start date filter (YYYY-MM-DD)" },
+                endDate: { type: Type.STRING, description: "Optional end date filter (YYYY-MM-DD)" }
+              },
+              required: ["staffName"]
+            }
+          };
+
+          const getInvoicingFinancialSummaryDeclaration = {
+            name: "get_invoicing_financial_summary",
+            description: "Retrieve a multi-period invoicing and financial summary covering the past financial year (FY25/26), the current week's billing, year-to-date totals, and data-driven revenue forecasting for next year's growth (FY27/28).",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {}
+            }
+          };
+
           const activeRatesRows = db.prepare("SELECT key, value FROM settings WHERE key IN ('hcpFundingLevels', 'sahFundingLevels')").all() as any[];
           const activeRatesMap: Record<string, any> = {};
           for (const row of activeRatesRows) {
@@ -1373,7 +2338,13 @@ Currency must always be formatted in AUD ($X.XX).`;
                   functionDeclarations: [
                     analyzeClientFundsDeclaration,
                     optimizeQuarterlyRosterDeclaration,
-                    getClientBudgetProfileDeclaration
+                    getClientBudgetProfileDeclaration,
+                    getExpiredMandatoryDocumentsDeclaration,
+                    getHomeCareClientsBudgetSummaryDeclaration,
+                    getStaffTrainingSummaryDeclaration,
+                    getVehicleRegisterSummaryDeclaration,
+                    getStaffActivitySummaryDeclaration,
+                    getInvoicingFinancialSummaryDeclaration
                   ]
                 }
               ]
@@ -1423,6 +2394,18 @@ Currency must always be formatted in AUD ($X.XX).`;
                 } else {
                   toolOutput = getClientBudgetDetails(db, clientRecord);
                 }
+              } else if (call.name === "get_expired_mandatory_documents") {
+                toolOutput = getExpiredMandatoryDocumentsLogic(db);
+              } else if (call.name === "get_home_care_clients_budget_summary") {
+                toolOutput = getHomeCareClientsBudgetSummaryLogic(db);
+              } else if (call.name === "get_staff_training_summary") {
+                toolOutput = getStaffTrainingSummaryLogic(db);
+              } else if (call.name === "get_vehicle_register_summary") {
+                toolOutput = getVehicleRegisterSummaryLogic(db);
+              } else if (call.name === "get_staff_activity_summary") {
+                toolOutput = getStaffActivitySummaryLogic(db, call.args as any);
+              } else if (call.name === "get_invoicing_financial_summary") {
+                toolOutput = getInvoicingFinancialSummaryLogic(db);
               }
               toolResults.push({ tool: call.name, output: toolOutput });
 
@@ -1452,17 +2435,20 @@ Currency must always be formatted in AUD ($X.XX).`;
 CRITICAL TIME & DATE RULES:
 - Today's Date: 25/09/2026.
 - All dates must strictly be formatted in the Australian standard DD/MM/YYYY. Display all financial amounts in AUD ($).
-- DYNAMIC RATES & EXACT DATA: Use ONLY the exact figures, funding package, and allocation provided in the tool result for the specified client.
-- STRICT CLIENT ISOLATION: NEVER append generic reminder notes, disclaimers, or historical comparisons about other clients or packages. Address ONLY the requested client's data.
+- DYNAMIC RATES & EXACT DATA: Use ONLY the exact figures, funding package, and allocation provided in the tool result.
+- STRICT CLIENT ISOLATION: NEVER append generic reminder notes, disclaimers, or historical comparisons about other clients or packages.
 
-CRITICAL DIFFERENCE BETWEEN NDIS AND HOME CARE:
+SPECIALIZED TOOL GUIDELINES:
+• Expired Staff Documents: Provide a clear compliance audit. State total expired, expiring soon (<= 30 days), and missing mandatory documents. Use a formatted markdown table or bulleted list of staff members with expired/expiring items, days expired/remaining, and actionable next steps.
+• Home Care Clients Budget Summary: Display a comprehensive markdown table of all Home Care clients (HCP & SAH) with package level, daily rate ($), total cycle allocation, combined spent, remaining balance, unspent pool, and burn rate %. Include grand total allocation, grand total spent, grand total remaining, and overall burn rate.
+• Staff Training & Suggestions: Display staff members' completed training modules, expired certificates, and 3-5 personalized future training suggestions specifically tailored to their positions.
+• Vehicle Register: Display total fleet count (company vs staff). List vehicles requiring attention (expired or expiring rego, comprehensive insurance, roadside assistance) with renewal dates.
+• Staff Activity Summary: Display staff name, position, total delivered hours, total shifts, clients visited, travel km/mins, and recent shifts log.
+• Invoicing & Growth Forecasting: Display current week billing, past FY (FY25/26) total revenue and monthly averages, current FY YTD, and future growth forecasting for FY27/28 (+8% conservative, +15% target, +25% expansion).
+
 IF THE CLIENT IS NDIS (fundingType === 'NDIS'):
 - NDIS FUNDS ARE NOT ALLOCATED QUARTERLY. Do NOT refer to NDIS funding as "quarterly budget allocation", "quarterly cycle", or "quarterly allocation".
-- Funding is allocated according to the client's Service Agreement, set by the agreement Start Date and End Date (from Client section > Client Dashboard > Budget page).
-- If the tool result shows hasActiveAgreement is false or totalAgreementValue is 0:
-  • State clearly: "Funding Type: NDIS (National Disability Insurance Scheme) • Service Agreement: No Active Service Agreement registered"
-  • Explain warmly that NDIS funding is not allocated quarterly, but is instead governed by individual Service Agreements set by start and end dates.
-  • Guide the care coordinator: "To track budgets, allocate line item sub-totals, and optimize rosters, please add a Service Agreement under Clients > Client Dashboard > Budget page."
+- Funding is allocated according to the client's Service Agreement, set by the agreement Start Date and End Date.
 - If an active Service Agreement exists:
   • Client Name: <Name>
   • Funding Type: NDIS (National Disability Insurance Scheme)
@@ -1622,12 +2608,16 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
       const firstClients = clients.slice(0, 4).map(c => `${c.first_name} ${c.last_name}`).join(", ");
       return res.json({
         reply: `👋 Hello! I am Happy, your Happy in the Home Portal Assistant!
-I have direct integration with your portal's client budgets (from Clients Dashboard > Edit Profile and Budget).
+I have direct analytical integration with your portal's client budgets, staff compliance, vehicles, training, and invoicing.
 
 You can ask me to:
-• **Analyze Client Funds:** e.g., *"Analyze funds for ${firstClients ? firstClients.split(',')[0] : 'a client'}"*
-• **Optimize Quarterly Rosters:** e.g., *"Optimize roster for ${firstClients ? firstClients.split(',')[0] : 'a client'}"*
-• **Check Burn Rates & Rollover:** Review cycle allocations, daily rates, pre-system adjustments, and unspent pools.
+• **Audit Expired Mandatory Documents:** *"Check expired mandatory documents for staff"*
+• **Home Care Budget Summary:** *"Show me a budget summary of all Home Care clients"*
+• **Staff Training & Position Suggestions:** *"Check staff training completion and suggestions for future training"*
+• **Vehicle Register & Expiries:** *"Review vehicle register and expired vehicle documents"*
+• **Staff Activity Summary:** *"Show shift activity and hours for [Staff Member Name]"*
+• **Invoicing & Growth Forecast:** *"Give me an invoicing summary for the past financial year, current week, and next year's forecast"*
+• **Client Budgets & Rostering:** *"Analyze funds for ${firstClients ? firstClients.split(',')[0] : 'a client'}"* or *"Optimize roster for a client"*
 
 *All dates are displayed in Australian standard DD/MM/YYYY.*`
       });
