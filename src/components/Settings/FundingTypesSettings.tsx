@@ -10,10 +10,10 @@ export default function FundingTypesSettings() {
   const [successMsg, setSuccessMsg] = useState('');
 
   const [hcpLevels, setHcpLevels] = useState([
-    { level: 'Level 1', title: 'Basic care needs for safety and independence', amountAnnual: 10986.50, amountQuarterly: 2746.63, amountDaily: 30.10, billingCycle: 'annual' },
-    { level: 'Level 2', title: 'Low-level care needs for basic assistance', amountAnnual: 19319.45, amountQuarterly: 4829.86, amountDaily: 52.93, billingCycle: 'annual' },
-    { level: 'Level 3', title: 'Intermediate care needs for daily support', amountAnnual: 42055.30, amountQuarterly: 10513.83, amountDaily: 115.22, billingCycle: 'annual' },
-    { level: 'Level 4', title: 'High-level care needs with complex requirements', amountAnnual: 63758.20, amountQuarterly: 15939.55, amountDaily: 174.68, billingCycle: 'annual' },
+    { level: 'Level 1', title: 'Basic care needs for safety and independence', amountAnnual: 11289.45, amountQuarterly: 2822.36, amountDaily: 30.93, billingCycle: 'annual' },
+    { level: 'Level 2', title: 'Low-level care needs for basic assistance', amountAnnual: 19852.35, amountQuarterly: 4963.09, amountDaily: 54.39, billingCycle: 'annual' },
+    { level: 'Level 3', title: 'Intermediate care needs for daily support', amountAnnual: 43216.00, amountQuarterly: 10804.00, amountDaily: 118.40, billingCycle: 'annual' },
+    { level: 'Level 4', title: 'High-level care needs with complex requirements', amountAnnual: 65415.30, amountQuarterly: 16353.83, amountDaily: 179.22, billingCycle: 'annual' },
   ]);
 
   const [sahLevels, setSahLevels] = useState([

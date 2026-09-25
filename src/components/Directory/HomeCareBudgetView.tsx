@@ -271,6 +271,15 @@ export default function HomeCareBudgetView() {
     const subType = client.home_care_sub_type || 'HCP';
     const levelOrClass = client.home_care_level_or_class || 'Level 1';
     
+    const parseDailyRate = (item: any, fallback: number) => {
+      if (!item) return fallback;
+      if (item.amountDaily !== undefined && item.amountDaily !== null) return Number(item.amountDaily);
+      if (item.amountQuarterly !== undefined && item.amountQuarterly !== null) return Number((Number(item.amountQuarterly) / 92).toFixed(2));
+      if (item.amountAnnual !== undefined && item.amountAnnual !== null) return Number((Number(item.amountAnnual) / 365).toFixed(2));
+      if (item.amount !== undefined && item.amount !== null) return Number((Number(item.amount) / 365).toFixed(2));
+      return fallback;
+    };
+
     if (subType === 'SAH') {
       const levels = fundingRates?.sahFundingLevels || [
         { level: 'Class 1', amountDaily: 29.40 },
@@ -283,16 +292,16 @@ export default function HomeCareBudgetView() {
         { level: 'Class 8', amountDaily: 213.99 },
       ];
       const match = levels.find((l: any) => l.level === levelOrClass);
-      return match ? match.amountDaily : 29.40;
+      return parseDailyRate(match, 29.40);
     } else {
       const levels = fundingRates?.hcpFundingLevels || [
-        { level: 'Level 1', amountDaily: 30.10 },
-        { level: 'Level 2', amountDaily: 52.93 },
-        { level: 'Level 3', amountDaily: 115.22 },
-        { level: 'Level 4', amountDaily: 174.68 },
+        { level: 'Level 1', amountDaily: 30.93 },
+        { level: 'Level 2', amountDaily: 54.39 },
+        { level: 'Level 3', amountDaily: 118.40 },
+        { level: 'Level 4', amountDaily: 179.22 },
       ];
       const match = levels.find((l: any) => l.level === levelOrClass);
-      return match ? match.amountDaily : 30.10;
+      return parseDailyRate(match, 179.22);
     }
   };
 

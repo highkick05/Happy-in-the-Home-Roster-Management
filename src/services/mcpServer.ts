@@ -185,11 +185,20 @@ export function getClientBudgetDetails(
     }
   }
 
+  const parseRate = (item: any, fallback: number) => {
+    if (!item) return fallback;
+    if (item.amountDaily !== undefined && item.amountDaily !== null) return Number(item.amountDaily);
+    if (item.amountQuarterly !== undefined && item.amountQuarterly !== null) return Number((Number(item.amountQuarterly) / 92).toFixed(2));
+    if (item.amountAnnual !== undefined && item.amountAnnual !== null) return Number((Number(item.amountAnnual) / 365).toFixed(2));
+    if (item.amount !== undefined && item.amount !== null) return Number((Number(item.amount) / 365).toFixed(2));
+    return fallback;
+  };
+
   const hcpLevels = settingsMap.hcpFundingLevels || [
-    { level: 'Level 1', amountDaily: 30.10 },
-    { level: 'Level 2', amountDaily: 52.93 },
-    { level: 'Level 3', amountDaily: 115.22 },
-    { level: 'Level 4', amountDaily: 174.68 }
+    { level: 'Level 1', amountDaily: 30.93 },
+    { level: 'Level 2', amountDaily: 54.39 },
+    { level: 'Level 3', amountDaily: 118.40 },
+    { level: 'Level 4', amountDaily: 179.22 }
   ];
 
   const sahLevels = settingsMap.sahFundingLevels || [
@@ -210,10 +219,10 @@ export function getClientBudgetDetails(
 
     if (subType === 'SAH') {
       const match = sahLevels.find((l: any) => l.level === levelOrClass);
-      dailyRate = match ? Number(match.amountDaily) : 29.40;
+      dailyRate = parseRate(match, 29.40);
     } else {
       const match = hcpLevels.find((l: any) => l.level === levelOrClass);
-      dailyRate = match ? Number(match.amountDaily) : 30.10;
+      dailyRate = parseRate(match, 179.22);
     }
 
     // Exact cycle allocation as displayed in the Client Budget section (totalDays * dailyRate)
@@ -1095,6 +1104,24 @@ export function setupMcpServer(app: Express, db: Database.Database) {
             }
           };
 
+          const activeRatesRows = db.prepare("SELECT key, value FROM settings WHERE key IN ('hcpFundingLevels', 'sahFundingLevels')").all() as any[];
+          const activeRatesMap: Record<string, any> = {};
+          for (const row of activeRatesRows) {
+            try {
+              activeRatesMap[row.key] = JSON.parse(row.value);
+            } catch {
+              activeRatesMap[row.key] = row.value;
+            }
+          }
+
+          const hcpRateSummary = activeRatesMap.hcpFundingLevels && activeRatesMap.hcpFundingLevels.length > 0
+            ? activeRatesMap.hcpFundingLevels.map((l: any) => `${l.level}: $${Number(l.amountDaily ?? (l.amountAnnual ? l.amountAnnual / 365 : 0)).toFixed(2)}/day`).join(', ')
+            : 'Level 1: $30.93/day, Level 2: $54.39/day, Level 3: $118.40/day, Level 4: $179.22/day (Commonwealth 2026-2027 Indexed Rates)';
+
+          const sahRateSummary = activeRatesMap.sahFundingLevels && activeRatesMap.sahFundingLevels.length > 0
+            ? activeRatesMap.sahFundingLevels.map((l: any) => `${l.level}: $${Number(l.amountDaily ?? (l.amountAnnual ? l.amountAnnual / 365 : 0)).toFixed(2)}/day`).join(', ')
+            : 'Classes 1-8 configured according to official schedule';
+
           let systemInstruction = `You are Happy, the friendly, supportive, and knowledgeable AI portal assistant for HAPPY IN THE HOME ("Happy in the Home Portal Assistant").
 When introducing yourself or when asked who you are, greet the user warmly: "Hi! My name is Happy, your Happy in the Home Portal Assistant!"
 You specialize in 3-month quarterly budgets, NDIS & Home Care funding (HCP and Support at Home), and roster optimization.
@@ -1114,20 +1141,19 @@ Client budgets in the portal operate on the 4 official Home Care Financial Year 
 - Quarter 4: 31 March 2027 to 30 June 2027 (91 days)
 DO NOT use calendar quarters (Jan-Mar, Apr-Jun, etc.) for Home Care clients.
 
-GARY RODWELL & LEVEL 4 HOME CARE PACKAGE (HCP) BUDGET ALLOCATION:
-- Level 4 HCP Standard Funding Rate: $174.68 / day (annual budget $63,758.20 AUD, quarterly allocation average $15,939.55 AUD).
-- Total Cycle Allocation for the full 92-day Quarter 1 (30 June 2026 to 30 September 2026):
-  92 days × $174.68/day = $16,070.56 AUD (matching Clients Dashboard > Client Budget).
-- My Aged Care Online Rate Verification:
-  Under the Commonwealth Department of Health Support at Home transition rates from 1 July 2026, the indexed annual subsidy for Transitioned Level 4 is $65,415.91 ($179.22/day).
-  At $179.22/day, 92 days = $16,488.24 AUD ($16,353.98/quarter).
-- When asked about Gary Rodwell or Level 4 HCP, always confirm the exact active portal cycle allocation of $16,070.56 AUD (92 days at $174.68/day for Q1 30/06/2026 to 30/09/2026) and note the Commonwealth My Aged Care 2026-2027 indexed subsidy of $179.22/day ($16,488.24 for 92 days / $65,415.91 annual).
+HOME CARE FUNDING RATES INTEGRATION (PORTAL SETTINGS > HOME CARE TAB):
+- Funding rate schedules for Home Care Package (HCP Levels 1-4) and Support at Home (SAH Classes 1-8) are configured by the administrator in Settings > Home Care tab.
+- Current active rates configured in Settings:
+  • HCP Rates: ${hcpRateSummary}
+  • SAH Rates: ${sahRateSummary}
+- DYNAMIC CHECKS: NEVER assume hardcoded funding rates or dollar amounts. ALWAYS check and use the client's actual funding level and daily rate returned by the database/tool.
+- STRICT CLIENT PRIVACY & ISOLATION: When discussing or analyzing a specific client (e.g., Pauline or any other client), NEVER output reminder notes, disclaimers, or references to other clients or unrelated package levels (e.g., do NOT mention Gary Rodwell, Level 4 HCP, or unrelated subsidy rates). Focus exclusively and strictly on the inquired client's details.
 
 CRITICAL FINANCIAL & BUDGET INTEGRATION RULES:
 1. You have direct database integration with client budget configurations from the Clients section (under Clients Dashboard > Edit Profile and Budget).
 2. For Home Care Package (HCP) & Support at Home (SAH) clients:
-   - Their budget is derived from their package level/class (e.g. HCP Level 4, Level 3, Level 2, Level 1 or SAH Class 1-8) and official daily funding rate (e.g. $174.68/day for Level 4).
-   - Total Cycle Allocation is calculated as: cycle days * daily rate (e.g. 92 days * $174.68 = $16,070.56 for Q1).
+   - Their budget is derived from their package level/class (e.g. HCP Level 1-4 or SAH Class 1-8) and official daily funding rate configured in Settings.
+   - Total Cycle Allocation is calculated as: cycle days * daily rate (matching the Client Budget view).
    - Total Combined Spent includes Historical Adjustments (Pre-System Spend entered under Edit Profile & Budget) plus Live Internal Consumptions (shifts and external ledger items).
    - Remaining Balance is: Total Cycle Allocation - Total Combined Spent.
    - Unspent Funds Pool is also tracked: Starting Rollover Balance minus Spent From Pool So Far.
@@ -1135,7 +1161,7 @@ CRITICAL FINANCIAL & BUDGET INTEGRATION RULES:
    - Their budget is derived from their active NDIS Service Agreement (total agreement value, support category line items, claimed funds, and remaining balance).
    - Quarterly allocation is prorated across the quarter based on the agreement duration.
 4. When reporting financial figures:
-   - ALWAYS state the client's funding package (e.g., "Gary Rodwell • HCP Level 4 • $174.68 / day" or "NDIS Service Agreement").
+   - ALWAYS state the client's funding package and daily rate from tool results (e.g., "Pauline • HCP Level 2 • $54.39 / day" or "Gary Rodwell • HCP Level 4 • $179.22 / day" or "NDIS Service Agreement").
    - Clearly present the Active Cycle dates (30/06/2026 to 30/09/2026), Total Cycle Allocation, Total Combined Spent, and Remaining Balance.
    - Mention the Unspent Funds Pool if rollover funds exist.
    - Highlight the budget burn rate, remaining weeks, and affordable weekly hours without exceeding budget.
@@ -1237,11 +1263,12 @@ CRITICAL FINANCIAL & BUDGET INTEGRATION RULES:
 CRITICAL TIME & DATE RULES:
 - Today's Date: 25/09/2026. The active quarter is Quarter 1: 30/06/2026 to 30/09/2026 (92 days).
 - All dates must strictly be formatted in the Australian standard DD/MM/YYYY. Display all financial amounts in AUD ($).
-- For Level 4 HCP clients (such as Gary Rodwell), confirm that their Total Cycle Allocation is 92 days × $174.68/day = $16,070.56 AUD (matching Screenshot 2 in Client Budget). Also mention the updated Commonwealth My Aged Care 2026-2027 indexed subsidy of $179.22/day ($16,488.24 for 92 days / $65,415.91 annual) for full context.
+- DYNAMIC RATES & EXACT DATA: Use ONLY the exact figures, funding package, daily rate, and cycle allocation provided in the tool result for the specified client. These rates are dynamically loaded from Settings > Home Care tab.
+- STRICT CLIENT ISOLATION: NEVER append generic reminder notes, disclaimers, or historical comparisons about other clients or packages (e.g., do NOT mention Gary Rodwell, Level 4 HCP rates, or other clients when analyzing a different client like Pauline). Address ONLY the requested client's data.
 Always clearly display:
-- Client Name & Funding Package (e.g., "Gary Rodwell • HCP Level 4 • $174.68 / day" or "NDIS Service Agreement")
+- Client Name & Funding Package (using the client's actual package and daily rate from tool results)
 - Active Cycle: 30/06/2026 to 30/09/2026 (92 days • 13.1 weeks)
-- Total Cycle Allocation / Quarterly Budget (based on days and daily rate or agreement)
+- Total Cycle Allocation (directly from the tool result, matching the Client Budget screen)
 - Total Combined Spent (showing Historical/Pre-system and Live Internal spend)
 - Remaining Balance
 - Unspent Funds Pool (if available)
