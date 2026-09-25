@@ -2600,6 +2600,7 @@ try {
             lineItems.push({
               date: sd.date || shiftDateStr,
               time: sd.omitTime ? "" : (sd.time || timeStr),
+              serviceId: srv.id,
               serviceName: srv.name,
               code: srv.code || srv.id,
               metadata: sd.staffName
@@ -2631,6 +2632,7 @@ try {
       lineItems.push({
         date: shiftDateStr,
         time: timeStr,
+        serviceId: shift.service_id,
         serviceName: shift.service_name,
         code: shift.service_code,
         metadata: `Provided by ${staffName}`,
@@ -2650,8 +2652,9 @@ try {
         lineItems.push({
           date: shiftDateStr,
           time: timeStr,
+          serviceId: null,
           serviceName: "Provider travel - non-labour costs",
-          code: "09_799_0117_6_3",
+          code: "04_799_0125_6_1",
           metadata: `Provided by ${staffName}`,
           qty: shift.provider_travel_km,
           unit: "Kilometre",
@@ -2666,8 +2669,9 @@ try {
         lineItems.push({
           date: shiftDateStr,
           time: timeStr,
+          serviceId: null,
           serviceName: "Activity Based Transport",
-          code: "09_591_0117_6_3",
+          code: "04_590_0125_6_1",
           metadata: `Provided by ${staffName}`,
           qty: shift.abt_km,
           unit: "Kilometre",
@@ -7589,7 +7593,7 @@ app.get("/api/health", (req, res) => {
         const items = db
           .prepare(
             `
-           SELECT nai.*, s.code as supportItemCode, s.name as supportItemName 
+           SELECT nai.*, s.code as supportItemCode, s.name as supportItemName, s.rate as serviceRate, s.unit as serviceUnit 
            FROM ndis_service_agreement_items nai
            LEFT JOIN services s ON nai.service_id = s.id
            WHERE nai.agreement_id = ?
@@ -7600,11 +7604,15 @@ app.get("/api/health", (req, res) => {
         const shifts = db
           .prepare(
             `
-           SELECT id FROM shifts 
-           WHERE client_id = ? 
-             AND start_time >= ? 
-             AND start_time <= ?
-             AND status IN ('COMPLETED', 'PUBLISHED', 'IN_PROGRESS')
+           SELECT s.id, s.status, s.start_time, s.end_time, s.service_id, s.services_json,
+                  u.name as staff_name
+           FROM shifts s 
+           LEFT JOIN users u ON s.staff_id = u.id
+           WHERE s.client_id = ? 
+             AND s.start_time >= ? 
+             AND s.start_time <= ?
+             AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID', 'DRAFT')
+           ORDER BY s.start_time DESC
          `,
           )
           .all(
@@ -7613,52 +7621,194 @@ app.get("/api/health", (req, res) => {
             `${agr.end_date}T23:59:59`,
           ) as any[];
 
-        const itemsMap = new Map();
+        const itemsMap = new Map<string, any>();
+        const uniqueItemsList: any[] = [];
+
         for (const item of items) {
-          itemsMap.set(String(item.service_id), {
+          const itemObj = {
             service_id: item.service_id,
             supportItemCode: item.supportItemCode || String(item.service_id),
             supportItemName: item.supportItemName || "Unknown Service",
-            allocatedHours: item.allocated_hours || 0,
-            allocatedBudget: item.allocated_budget || 0,
+            serviceRate: Number(item.serviceRate || 0),
+            serviceUnit: item.serviceUnit || "Hour",
+            allocatedHours: Number(item.allocated_hours || 0),
+            allocatedBudget: Number(item.allocated_budget || 0),
             amountSpent: 0,
+            completedAmountSpent: 0,
+            scheduledAmountSpent: 0,
             deliveredHours: 0,
-          });
+            scheduledHours: 0,
+            recentShifts: [] as any[],
+          };
+          uniqueItemsList.push(itemObj);
+          itemsMap.set(String(item.service_id), itemObj);
+          if (item.supportItemCode) {
+            itemsMap.set(String(item.supportItemCode).trim().toLowerCase(), itemObj);
+          }
         }
 
         let totalAmountSpent = 0;
+        let totalCompletedSpent = 0;
+        let totalScheduledSpent = 0;
+
         for (const shiftRow of shifts) {
+          const isCompleted = String(shiftRow.status).toUpperCase() === 'COMPLETED';
+          const staffLabel = shiftRow.staff_name || "Support Worker";
           try {
             const data = getInvoiceDataForShift(shiftRow.id);
-            if (data && data.lineItems) {
+            if (data && Array.isArray(data.lineItems) && data.lineItems.length > 0) {
               data.lineItems.forEach((li: any) => {
-                const sId = String(li.serviceId);
-                if (itemsMap.has(sId)) {
-                  const item = itemsMap.get(sId);
-                  item.amountSpent += li.amount || 0;
-                  if (li.unit === "H" || li.unit === "Hour") {
-                    item.deliveredHours += li.qty || 0;
-                  }
-                  totalAmountSpent += li.amount || 0;
+                const sId = li.serviceId ? String(li.serviceId) : null;
+                const sCode = li.code ? String(li.code).trim().toLowerCase() : null;
+
+                let matchedItem = null;
+                if (sId && itemsMap.has(sId)) {
+                  matchedItem = itemsMap.get(sId);
+                } else if (sCode && itemsMap.has(sCode)) {
+                  matchedItem = itemsMap.get(sCode);
                 }
+
+                const lineAmt = Number(li.amount || 0);
+                const isHours = li.unit === "H" || li.unit === "Hour";
+                const qtyVal = Number(li.qty || 0);
+
+                if (matchedItem) {
+                  matchedItem.amountSpent += lineAmt;
+                  if (isCompleted) {
+                    matchedItem.completedAmountSpent += lineAmt;
+                    if (isHours) matchedItem.deliveredHours += qtyVal;
+                  } else {
+                    matchedItem.scheduledAmountSpent += lineAmt;
+                    if (isHours) matchedItem.scheduledHours += qtyVal;
+                  }
+                  matchedItem.recentShifts.push({
+                    id: shiftRow.id,
+                    date: shiftRow.start_time,
+                    hours: isHours ? qtyVal : 0,
+                    cost: lineAmt,
+                    status: shiftRow.status,
+                    staffName: staffLabel,
+                  });
+                }
+                totalAmountSpent += lineAmt;
+                if (isCompleted) totalCompletedSpent += lineAmt;
+                else totalScheduledSpent += lineAmt;
               });
+            } else if (shiftRow.services_json) {
+              let parsedServices: any[] = [];
+              try { parsedServices = JSON.parse(shiftRow.services_json); } catch {}
+              if (Array.isArray(parsedServices) && parsedServices.length > 0) {
+                const startMs = new Date(shiftRow.start_time).getTime();
+                const endMs = new Date(shiftRow.end_time).getTime();
+                const durationHrs = Math.max(0, (endMs - startMs) / 3600000);
+
+                for (const sd of parsedServices) {
+                  const srv = sd.serviceId ? db.prepare("SELECT rate, unit, code FROM services WHERE id = ?").get(sd.serviceId) as any : null;
+                  const effectiveRate = Number(sd.rateOverride ?? srv?.rate ?? 0);
+                  const isKm = (sd.serviceUnit || srv?.unit || '').toUpperCase() === 'KM';
+                  const qty = Number(sd.qtyOverride ?? (isKm ? 0 : durationHrs));
+                  const lineCost = qty * effectiveRate;
+
+                  const sId = sd.serviceId ? String(sd.serviceId) : null;
+                  const sCode = (sd.customCode || srv?.code || '').trim().toLowerCase();
+                  let matchedItem = null;
+                  if (sId && itemsMap.has(sId)) matchedItem = itemsMap.get(sId);
+                  else if (sCode && itemsMap.has(sCode)) matchedItem = itemsMap.get(sCode);
+
+                  if (matchedItem) {
+                    matchedItem.amountSpent += lineCost;
+                    if (isCompleted) {
+                      matchedItem.completedAmountSpent += lineCost;
+                      if (!isKm) matchedItem.deliveredHours += qty;
+                    } else {
+                      matchedItem.scheduledAmountSpent += lineCost;
+                      if (!isKm) matchedItem.scheduledHours += qty;
+                    }
+                    matchedItem.recentShifts.push({
+                      id: shiftRow.id,
+                      date: shiftRow.start_time,
+                      hours: isKm ? 0 : qty,
+                      cost: lineCost,
+                      status: shiftRow.status,
+                      staffName: staffLabel,
+                    });
+                  }
+                  totalAmountSpent += lineCost;
+                  if (isCompleted) totalCompletedSpent += lineCost;
+                  else totalScheduledSpent += lineCost;
+                }
+              }
+            } else {
+              const startMs = new Date(shiftRow.start_time).getTime();
+              const endMs = new Date(shiftRow.end_time).getTime();
+              const durationHrs = Math.max(0, (endMs - startMs) / 3600000);
+              const srv = shiftRow.service_id
+                ? (db.prepare("SELECT rate, code, unit FROM services WHERE id = ?").get(shiftRow.service_id) as any)
+                : null;
+              const rate = Number(srv?.rate || 0);
+              const cost = durationHrs * rate;
+              const sId = shiftRow.service_id ? String(shiftRow.service_id) : null;
+              const sCode = srv?.code ? String(srv.code).trim().toLowerCase() : null;
+
+              let matchedItem = null;
+              if (sId && itemsMap.has(sId)) matchedItem = itemsMap.get(sId);
+              else if (sCode && itemsMap.has(sCode)) matchedItem = itemsMap.get(sCode);
+
+              if (matchedItem) {
+                matchedItem.amountSpent += cost;
+                if (isCompleted) {
+                  matchedItem.completedAmountSpent += cost;
+                  matchedItem.deliveredHours += durationHrs;
+                } else {
+                  matchedItem.scheduledAmountSpent += cost;
+                  matchedItem.scheduledHours += durationHrs;
+                }
+                matchedItem.recentShifts.push({
+                  id: shiftRow.id,
+                  date: shiftRow.start_time,
+                  hours: durationHrs,
+                  cost: cost,
+                  status: shiftRow.status,
+                  staffName: staffLabel,
+                });
+              }
+              totalAmountSpent += cost;
+              if (isCompleted) totalCompletedSpent += cost;
+              else totalScheduledSpent += cost;
             }
           } catch (e) {}
         }
 
+        const calculatedItems = uniqueItemsList.map((it) => {
+          const alloc = Number(it.allocatedBudget || 0);
+          const spent = Number(it.amountSpent || 0);
+          const rem = alloc - spent;
+          const pct = alloc > 0 ? Math.min(100, Math.max(0, (spent / alloc) * 100)) : 0;
+          return {
+            ...it,
+            amountSpent: parseFloat(spent.toFixed(2)),
+            completedAmountSpent: parseFloat(Number(it.completedAmountSpent || 0).toFixed(2)),
+            scheduledAmountSpent: parseFloat(Number(it.scheduledAmountSpent || 0).toFixed(2)),
+            deliveredHours: parseFloat(Number(it.deliveredHours || 0).toFixed(1)),
+            scheduledHours: parseFloat(Number(it.scheduledHours || 0).toFixed(1)),
+            remainingBalance: parseFloat(rem.toFixed(2)),
+            utilizationPct: parseFloat(pct.toFixed(1)),
+            recentShifts: (it.recentShifts || []).slice(0, 10),
+          };
+        });
+
         return {
           id: agr.id,
           name: agr.name,
-          totalAgreementValue: agr.total_budget,
+          totalAgreementValue: Number(agr.total_budget || 0),
           startDate: agr.start_date,
           endDate: agr.end_date,
           status: agr.status,
-          totalClaimed: totalAmountSpent,
-          totalRemainingBalance: agr.total_budget - totalAmountSpent,
-          items: Array.from(itemsMap.values()).map((it) => ({
-            ...it,
-            remainingBalance: it.allocatedBudget - it.amountSpent,
-          })),
+          totalClaimed: parseFloat(totalAmountSpent.toFixed(2)),
+          totalCompletedSpent: parseFloat(totalCompletedSpent.toFixed(2)),
+          totalScheduledSpent: parseFloat(totalScheduledSpent.toFixed(2)),
+          totalRemainingBalance: parseFloat((Number(agr.total_budget || 0) - totalAmountSpent).toFixed(2)),
+          items: calculatedItems,
         };
       });
       res.json(results);
@@ -7675,12 +7825,14 @@ app.get("/api/health", (req, res) => {
     authenticateToken,
     (req, res) => {
       const { id, agrId } = req.params;
-      const { name, startDate, endDate, items } = req.body;
+      const { name, startDate, endDate, items, totalBudget: explicitTotal } = req.body;
       try {
-        const totalBudget = items.reduce(
-          (sum: number, it: any) => sum + (Number(it.allocatedBudget) || 0),
-          0,
-        );
+        const totalBudget = explicitTotal !== undefined && explicitTotal !== null && Number(explicitTotal) > 0
+          ? Number(explicitTotal)
+          : (items || []).reduce(
+              (sum: number, it: any) => sum + (Number(it.allocatedBudget) || 0),
+              0,
+            );
 
         db.prepare(
           `UPDATE ndis_service_agreements SET name = ?, start_date = ?, end_date = ?, total_budget = ? WHERE id = ? AND client_id = ?`,
@@ -7691,12 +7843,12 @@ app.get("/api/health", (req, res) => {
           `DELETE FROM ndis_service_agreement_items WHERE agreement_id = ?`,
         ).run(agrId);
 
-        // Insert new items
+        // Insert new items with allocated_hours
         const insertItem = db.prepare(
-          `INSERT INTO ndis_service_agreement_items (agreement_id, service_id, allocated_budget) VALUES (?, ?, ?)`,
+          `INSERT INTO ndis_service_agreement_items (agreement_id, service_id, allocated_budget, allocated_hours) VALUES (?, ?, ?, ?)`,
         );
-        items.forEach((it: any) => {
-          insertItem.run(agrId, it.service_id, it.allocatedBudget || 0);
+        (items || []).forEach((it: any) => {
+          insertItem.run(agrId, it.service_id, it.allocatedBudget || 0, it.allocatedHours || 0);
         });
 
         res.json({ success: true });
@@ -7756,12 +7908,14 @@ app.get("/api/health", (req, res) => {
     authenticateToken,
     (req, res) => {
       const { id } = req.params;
-      const { name, startDate, endDate, items } = req.body;
+      const { name, startDate, endDate, items, totalBudget: explicitTotal } = req.body;
       try {
-        const totalBudget = items.reduce(
-          (sum: number, it: any) => sum + (Number(it.allocatedBudget) || 0),
-          0,
-        );
+        const totalBudget = explicitTotal !== undefined && explicitTotal !== null && Number(explicitTotal) > 0
+          ? Number(explicitTotal)
+          : (items || []).reduce(
+              (sum: number, it: any) => sum + (Number(it.allocatedBudget) || 0),
+              0,
+            );
         const result = db
           .prepare(
             `INSERT INTO ndis_service_agreements (client_id, name, start_date, end_date, total_budget) VALUES (?, ?, ?, ?, ?)`,
@@ -7770,10 +7924,10 @@ app.get("/api/health", (req, res) => {
         const agrId = result.lastInsertRowid;
 
         const insertItem = db.prepare(
-          `INSERT INTO ndis_service_agreement_items (agreement_id, service_id, allocated_budget) VALUES (?, ?, ?)`,
+          `INSERT INTO ndis_service_agreement_items (agreement_id, service_id, allocated_budget, allocated_hours) VALUES (?, ?, ?, ?)`,
         );
-        items.forEach((it: any) => {
-          insertItem.run(agrId, it.service_id, it.allocatedBudget || 0);
+        (items || []).forEach((it: any) => {
+          insertItem.run(agrId, it.service_id, it.allocatedBudget || 0, it.allocatedHours || 0);
         });
 
         res.json({ success: true, agreementId: agrId });
