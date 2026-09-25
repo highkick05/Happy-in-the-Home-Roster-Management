@@ -892,6 +892,10 @@ try {
       db.prepare("UPDATE tasks SET category_id = ? WHERE category_id IS NULL").run(todoId); // fallback for any remaining orphaned tasks
       console.log("[DEBUG] Migrated orphaned tasks to categories if any existed.");
     }
+
+    try {
+      db.prepare("UPDATE shifts SET staff_id = NULL WHERE notes = 'Manually generated invoice' AND custom_staff_name IS NOT NULL AND custom_staff_name != ''").run();
+    } catch (e) {}
   } catch(e: any) {
     console.warn("Migration warning for task_categories seed:", e.message);
   }
@@ -13667,6 +13671,8 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         LEFT JOIN clients c ON s.client_id = c.id
         LEFT JOIN services srv ON s.service_id = srv.id
         WHERE s.status = 'COMPLETED'
+          AND s.staff_id IS NOT NULL
+          AND (s.custom_staff_name IS NULL OR s.custom_staff_name = '')
       `;
         const params: any[] = [];
         if (startDate) {
@@ -14536,7 +14542,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
 
         // 1. Create a completed shift
         const isCustomStaff = staffId === "custom" || !staffId;
-        const finalStaffId = isCustomStaff ? req.user.id : staffId;
+        const finalStaffId = isCustomStaff ? null : staffId;
         const finalCustomStaffName = isCustomStaff
           ? customStaffName || "Generic Staff"
           : null;
