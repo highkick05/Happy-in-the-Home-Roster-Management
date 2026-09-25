@@ -108,7 +108,7 @@ export default function AiChatWidget() {
       title: "Optimize Roster",
       desc: "Calculate surplus hours & weekly baseline",
       icon: <Calendar className="w-3.5 h-3.5 text-emerald-400" />,
-      prompt: "Optimize quarterly roster for Trilogy Care funding"
+      prompt: "Optimize quarterly roster for NDIS & Home Care funding"
     },
     {
       title: "Budget Burn Rate",
@@ -127,8 +127,8 @@ export default function AiChatWidget() {
           aria-label="Happy in the Home Portal Assistant"
           className={`fixed bottom-[80px] right-[20px] z-50 bg-brand-navy border border-border-subtle rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-bottom-3 ${
             isExpanded
-              ? 'w-[94vw] sm:w-[680px] md:w-[820px] lg:w-[920px] h-[82vh] sm:h-[720px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-100px)]'
-              : 'w-[350px] sm:w-[380px] max-w-[calc(100vw-32px)] h-[500px] max-h-[calc(100vh-100px)]'
+              ? 'w-[94vw] sm:w-[720px] md:w-[860px] lg:w-[960px] h-[88vh] sm:h-[840px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-90px)]'
+              : 'w-[360px] sm:w-[410px] max-w-[calc(100vw-32px)] h-[82vh] sm:h-[800px] max-h-[calc(100vh-100px)]'
           }`}
         >
           {/* Header */}
@@ -199,7 +199,7 @@ export default function AiChatWidget() {
                     Happy in the Home Portal Assistant
                   </h4>
                   <p className="text-xs text-[#8B949E] px-4 leading-relaxed max-w-sm mx-auto">
-                    I'm your assistant for 3-month quarterly budgets, Trilogy Care & HCP funding, roster planning, and live portal analytics.
+                    I'm your assistant for 3-month quarterly budgets, NDIS & Home Care funding, roster planning, and live portal analytics.
                   </p>
                 </div>
 
