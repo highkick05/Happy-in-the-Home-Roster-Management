@@ -264,6 +264,12 @@ export default function AiChatWidget() {
         data.text ||
         (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
 
+      // Auto-expand the chat window if the reply contains a markdown table
+      const hasTable = typeof replyText === 'string' && replyText.includes('|') && replyText.includes('---');
+      if (hasTable && !isExpanded) {
+        setIsExpanded(true);
+      }
+
       const assistantMessage: ChatMessage = {
         role: 'assistant',
         content: replyText
@@ -354,8 +360,8 @@ export default function AiChatWidget() {
           aria-label="Happy in the Home Portal Assistant"
           className={`fixed bottom-[76px] sm:bottom-[80px] right-3 sm:right-[20px] left-3 sm:left-auto z-50 bg-brand-navy border border-border-subtle rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-bottom-3 ${
             isExpanded
-              ? 'w-auto sm:w-[680px] md:w-[780px] lg:w-[880px] h-[72vh] sm:h-[580px] md:h-[640px] lg:h-[680px] max-w-[calc(100vw-24px)] sm:max-w-[calc(100vw-32px)] max-h-[calc(100vh-110px)] sm:max-h-[calc(100vh-120px)]'
-              : 'w-auto sm:w-[390px] md:w-[410px] max-w-[calc(100vw-24px)] sm:max-w-[calc(100vw-32px)] h-[68vh] sm:h-[520px] md:h-[560px] lg:h-[580px] max-h-[calc(100vh-110px)] sm:max-h-[calc(100vh-120px)]'
+              ? 'w-auto sm:w-[740px] md:w-[860px] lg:w-[940px] h-[78vh] sm:h-[620px] md:h-[680px] lg:h-[720px] max-w-[calc(100vw-24px)] sm:max-w-[calc(100vw-32px)] max-h-[calc(100vh-100px)] sm:max-h-[calc(100vh-110px)]'
+              : 'w-auto sm:w-[460px] md:w-[520px] lg:w-[540px] max-w-[calc(100vw-24px)] sm:max-w-[calc(100vw-32px)] h-[68vh] sm:h-[540px] md:h-[580px] lg:h-[600px] max-h-[calc(100vh-100px)] sm:max-h-[calc(100vh-110px)]'
           }`}
         >
           {/* Header */}
@@ -370,6 +376,11 @@ export default function AiChatWidget() {
                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                     MCP Ready
                   </span>
+                  {isExpanded && (
+                    <span className="hidden sm:inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-teal/15 text-teal-300 border border-brand-teal/30">
+                      Expanded View
+                    </span>
+                  )}
                 </h3>
                 <p className="text-[11px] text-teal-300/90 font-medium">Happy in the Home Portal Assistant</p>
               </div>
@@ -391,7 +402,11 @@ export default function AiChatWidget() {
                 onClick={() => setIsExpanded(prev => !prev)}
                 title={isExpanded ? "Collapse window" : "Expand window"}
                 aria-label={isExpanded ? "Collapse chat window" : "Expand chat window"}
-                className="p-1.5 text-[#8B949E] hover:text-white hover:bg-white/[0.05] rounded-md transition-colors cursor-pointer"
+                className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                  isExpanded 
+                    ? 'text-teal-300 bg-brand-teal/15 hover:bg-brand-teal/25' 
+                    : 'text-[#8B949E] hover:text-white hover:bg-white/[0.05]'
+                }`}
               >
                 {isExpanded ? (
                   <Minimize2 className="w-4 h-4" />
@@ -593,23 +608,51 @@ export default function AiChatWidget() {
                           </>
                         )}
                       </div>
-                      <div
-                        className={`rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed break-words max-w-[88%] ${
-                          isUser
-                            ? 'bg-brand-teal/20 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-xs shadow-sm whitespace-pre-wrap'
-                            : 'bg-white/[0.05] text-[#E6EDF3] border border-white/[0.08] rounded-tl-xs shadow-sm'
-                        }`}
-                      >
-                        {isUser ? (
-                          msg.content
-                        ) : (
-                          <div className="prose prose-invert prose-xs max-w-none text-xs sm:text-[13px] leading-relaxed [&_p]:my-1.5 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5 [&_strong]:text-white [&_strong]:font-bold [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs [&_h1]:font-bold [&_h2]:font-bold [&_h3]:font-bold [&_h1]:my-2 [&_h2]:my-1.5 [&_h3]:my-1 [&_code]:bg-white/[0.1] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-emerald-300">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {msg.content}
-                            </ReactMarkdown>
+                      {(() => {
+                        const hasMarkdownTable = !isUser && msg.content.includes('|') && msg.content.includes('---');
+                        return (
+                          <div
+                            className={`rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed break-words ${
+                              isUser
+                                ? 'bg-brand-teal/20 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-xs shadow-sm whitespace-pre-wrap max-w-[88%]'
+                                : hasMarkdownTable
+                                ? 'bg-white/[0.05] text-[#E6EDF3] border border-white/[0.08] rounded-tl-xs shadow-sm w-full max-w-[98%]'
+                                : 'bg-white/[0.05] text-[#E6EDF3] border border-white/[0.08] rounded-tl-xs shadow-sm max-w-[94%] sm:max-w-[90%]'
+                            }`}
+                          >
+                            {isUser ? (
+                              msg.content
+                            ) : (
+                              <div className="prose prose-invert prose-xs max-w-none text-xs sm:text-[13px] leading-relaxed [&_p]:my-1.5 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5 [&_strong]:text-white [&_strong]:font-bold [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs [&_h1]:font-bold [&_h2]:font-bold [&_h3]:font-bold [&_h1]:my-2 [&_h2]:my-1.5 [&_h3]:my-1 [&_code]:bg-white/[0.1] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-emerald-300">
+                                <ReactMarkdown 
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    table: ({ node, ...props }) => (
+                                      <div className="w-full my-3 overflow-x-auto rounded-xl border border-white/[0.12] bg-black/40 shadow-inner custom-scrollbar">
+                                        <table className="w-full min-w-[540px] text-left text-xs border-collapse divide-y divide-white/[0.08]" {...props} />
+                                      </div>
+                                    ),
+                                    thead: ({ node, ...props }) => (
+                                      <thead className="bg-white/[0.07] text-teal-300 font-semibold text-[11px] tracking-wide" {...props} />
+                                    ),
+                                    th: ({ node, ...props }) => (
+                                      <th className="px-3 py-2.5 font-semibold text-teal-200 border-b border-white/[0.08] whitespace-nowrap" {...props} />
+                                    ),
+                                    td: ({ node, ...props }) => (
+                                      <td className="px-3 py-2 text-zinc-200 border-t border-white/[0.04] text-[11px] leading-snug" {...props} />
+                                    ),
+                                    tr: ({ node, ...props }) => (
+                                      <tr className="hover:bg-white/[0.03] transition-colors even:bg-white/[0.015]" {...props} />
+                                    )
+                                  }}
+                                >
+                                  {msg.content}
+                                </ReactMarkdown>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
