@@ -4,6 +4,7 @@ interface HappyMascotProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   isThinking?: boolean;
   animated?: boolean;
+  isJumping?: boolean;
   className?: string;
 }
 
@@ -19,6 +20,7 @@ export default function HappyMascot({
   size = 'md',
   isThinking = false,
   animated = true,
+  isJumping = false,
   className = ''
 }: HappyMascotProps) {
   const { box } = sizeMap[size] || sizeMap.md;
@@ -79,8 +81,62 @@ export default function HappyMascot({
             transform: translateY(-4px) rotate(3deg);
           }
         }
+        @keyframes happyJumpJoy {
+          0%, 100% {
+            transform: translateY(0px) scale(1, 1) rotate(0deg);
+          }
+          14% {
+            transform: translateY(3px) scale(1.18, 0.82) rotate(0deg);
+          }
+          30% {
+            transform: translateY(-16px) scale(0.88, 1.15) rotate(-6deg);
+          }
+          46% {
+            transform: translateY(2px) scale(1.12, 0.9) rotate(0deg);
+          }
+          60% {
+            transform: translateY(-11px) scale(0.92, 1.1) rotate(6deg);
+          }
+          74% {
+            transform: translateY(1px) scale(1.06, 0.95) rotate(0deg);
+          }
+          86% {
+            transform: translateY(-4px) scale(0.98, 1.02) rotate(-2deg);
+          }
+        }
+        @keyframes happyPeriodicMovement {
+          0%, 82%, 100% {
+            transform: translateY(0px) rotate(0deg);
+          }
+          41% {
+            transform: translateY(-3px) rotate(2deg);
+          }
+          85% {
+            transform: translateY(2px) scale(1.12, 0.88);
+          }
+          89% {
+            transform: translateY(-14px) scale(0.9, 1.12) rotate(-5deg);
+          }
+          93% {
+            transform: translateY(1px) scale(1.08, 0.92);
+          }
+          96% {
+            transform: translateY(-7px) scale(0.95, 1.05) rotate(4deg);
+          }
+          98% {
+            transform: translateY(0px) scale(1, 1);
+          }
+        }
         .happy-mascot-container {
-          animation: ${animated ? (isThinking ? 'happyThinkingBob 1.6s ease-in-out infinite' : 'happyFloat 3.2s ease-in-out infinite') : 'none'};
+          animation: ${
+            animated
+              ? isJumping
+                ? 'happyJumpJoy 1.1s ease-in-out infinite'
+                : isThinking
+                ? 'happyThinkingBob 1.6s ease-in-out infinite'
+                : 'happyPeriodicMovement 10s ease-in-out infinite'
+              : 'none'
+          };
           will-change: transform;
         }
         .happy-glow {

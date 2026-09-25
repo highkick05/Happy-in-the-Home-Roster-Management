@@ -25,12 +25,81 @@ export interface SuggestedAction {
   promptTemplate: (clientName: string) => string;
 }
 
+export interface PortalPromptQuestion {
+  id: string;
+  category: string;
+  question: string;
+  prompt: string;
+}
+
+const PORTAL_QUESTIONS: PortalPromptQuestion[] = [
+  {
+    id: 'ndis-budget',
+    category: 'NDIS Agreement',
+    question: "Want me to analyze NDIS Service Agreement funds & line items for Dean Davies?",
+    prompt: "Analyze NDIS Service Agreement funds for Dean Davies"
+  },
+  {
+    id: 'roster-optimize',
+    category: 'Roster Capacity',
+    question: "Need to optimize weekly roster hours for a client to prevent budget overruns?",
+    prompt: "Optimize roster for a client"
+  },
+  {
+    id: 'burn-rate',
+    category: 'Home Care',
+    question: "Shall we check the budget burn rate and remaining funding weeks for Gary Rodwell?",
+    prompt: "Assess budget burn rate and remaining funding weeks for Gary Rodwell"
+  },
+  {
+    id: 'pauline-funds',
+    category: 'Home Care',
+    question: "Would you like me to review Pauline's Level 2 HCP cycle allocation and spent funds?",
+    prompt: "Analyze client funds for Pauline"
+  },
+  {
+    id: 'travel-logs',
+    category: 'Operations',
+    question: "Have you reviewed today's staff travel logs and cascading km claims?",
+    prompt: "How do travel logs and cascading travel calculations work in the portal?"
+  },
+  {
+    id: 'unspent-pool',
+    category: 'Funding',
+    question: "Would you like to check unspent funds pool rollovers for Home Care clients?",
+    prompt: "Check unspent funds pool and rollover balances for clients"
+  },
+  {
+    id: 'ndis-dates',
+    category: 'NDIS Planning',
+    question: "Did you know NDIS budgets track specific Service Agreement dates instead of quarters?",
+    prompt: "Explain how NDIS Service Agreement dates and line item sub-totals work"
+  },
+  {
+    id: 'invoice-check',
+    category: 'Finance',
+    question: "Do you have any completed shifts ready for billing or invoice generation?",
+    prompt: "What is the procedure for verifying completed shifts before generating invoices?"
+  },
+  {
+    id: 'compliance-audit',
+    category: 'Compliance',
+    question: "Would you like a reminder on generating evidence matrices for quality compliance?",
+    prompt: "How does the Evidence Matrix and compliance auditing work in the portal?"
+  }
+];
+
 export default function AiChatWidget() {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Mascot movement & occasional question state
+  const [isMascotJumping, setIsMascotJumping] = useState<boolean>(false);
+  const [activeQuestion, setActiveQuestion] = useState<PortalPromptQuestion | null>(null);
+  const [showQuestionBubble, setShowQuestionBubble] = useState<boolean>(false);
 
   // Portal client selection state
   const [clients, setClients] = useState<PortalClient[]>([]);
@@ -41,6 +110,69 @@ export default function AiChatWidget() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // 1. Periodic jumping movement: Happy jumps up and down every 25-35 seconds
+  useEffect(() => {
+    const triggerJump = () => {
+      setIsMascotJumping(true);
+      setTimeout(() => setIsMascotJumping(false), 2400);
+    };
+
+    // Initial cheerful jump after 6 seconds of page load
+    const initialJumpTimer = setTimeout(triggerJump, 6000);
+
+    const jumpInterval = setInterval(() => {
+      triggerJump();
+    }, 28000);
+
+    return () => {
+      clearTimeout(initialJumpTimer);
+      clearInterval(jumpInterval);
+    };
+  }, []);
+
+  // 2. Random portal questions: Happy asks a question every 3-5 minutes (with first at 30 seconds)
+  useEffect(() => {
+    let questionDismissTimeout: NodeJS.Timeout | null = null;
+    let nextQuestionTimer: NodeJS.Timeout | null = null;
+
+    const askRandomQuestion = () => {
+      const randomIndex = Math.floor(Math.random() * PORTAL_QUESTIONS.length);
+      const chosen = PORTAL_QUESTIONS[randomIndex];
+      setActiveQuestion(chosen);
+      setShowQuestionBubble(true);
+
+      // Trigger energetic jump sequence when asking a question!
+      setIsMascotJumping(true);
+      setTimeout(() => setIsMascotJumping(false), 3200);
+
+      // Auto-hide bubble after 22 seconds if untouched
+      if (questionDismissTimeout) clearTimeout(questionDismissTimeout);
+      questionDismissTimeout = setTimeout(() => {
+        setShowQuestionBubble(false);
+      }, 22000);
+    };
+
+    // First question after 30 seconds of user loading portal
+    const firstTimer = setTimeout(askRandomQuestion, 30000);
+
+    // Schedule subsequent questions every 3 to 5 minutes (180,000ms - 300,000ms)
+    const scheduleNext = () => {
+      const delay = Math.floor(Math.random() * (300000 - 180000 + 1)) + 180000;
+      nextQuestionTimer = setTimeout(() => {
+        askRandomQuestion();
+        scheduleNext();
+      }, delay);
+    };
+
+    scheduleNext();
+
+    return () => {
+      clearTimeout(firstTimer);
+      if (nextQuestionTimer) clearTimeout(nextQuestionTimer);
+      if (questionDismissTimeout) clearTimeout(questionDismissTimeout);
+    };
+  }, []);
 
   const fetchClients = async () => {
     setIsLoadingClients(true);
@@ -230,7 +362,7 @@ export default function AiChatWidget() {
           <div className="flex items-center justify-between px-4 py-3 bg-brand-bg/90 border-b border-border-subtle shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-white/[0.04] border border-brand-teal/30 flex items-center justify-center shadow-inner">
-                <HappyMascot size="sm" />
+                <HappyMascot size="sm" isJumping={isMascotJumping} />
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-white tracking-wide flex items-center gap-1.5">
@@ -284,7 +416,7 @@ export default function AiChatWidget() {
               <div className="h-full flex flex-col justify-between py-2 text-center">
                 <div className="pt-2">
                   <div className="mx-auto flex items-center justify-center mb-2.5">
-                    <HappyMascot size="xl" />
+                    <HappyMascot size="xl" isJumping={isMascotJumping} />
                   </div>
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-teal/15 border border-brand-teal/30 text-teal-300 text-xs font-semibold mb-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -600,6 +732,40 @@ export default function AiChatWidget() {
             </div>
           )}
 
+          {/* Active Question Suggestion Banner when chat is open */}
+          {activeQuestion && showQuestionBubble && (
+            <div className="mx-3 my-1.5 p-2 rounded-xl bg-gradient-to-r from-brand-teal/20 via-brand-navy to-emerald-500/15 border border-brand-teal/40 flex items-center justify-between gap-2 text-xs shadow-md animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="p-1 rounded-lg bg-brand-teal/20 text-teal-300 shrink-0">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                </span>
+                <p className="text-[11px] text-zinc-200 truncate">
+                  <span className="font-semibold text-teal-300">Happy asks:</span> {activeQuestion.question}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuestionBubble(false);
+                    handleSubmit(undefined, activeQuestion.prompt);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-brand-teal hover:bg-brand-teal/80 text-white text-[10px] font-semibold transition-colors cursor-pointer"
+                >
+                  Ask
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowQuestionBubble(false)}
+                  className="p-1 text-zinc-400 hover:text-white rounded hover:bg-white/[0.08] transition-colors cursor-pointer"
+                  title="Dismiss"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Input Footer */}
           <form
             onSubmit={handleSubmit}
@@ -630,16 +796,87 @@ export default function AiChatWidget() {
         </div>
       )}
 
+      {/* Floating Speech Bubble from Happy Mascot (When Chat is Closed) */}
+      {showQuestionBubble && activeQuestion && !isOpen && (
+        <div 
+          className="fixed bottom-[84px] right-[20px] z-50 max-w-[285px] sm:max-w-[320px] bg-brand-navy/95 backdrop-blur-md border border-brand-teal/50 rounded-2xl p-3.5 shadow-2xl shadow-black/80 text-white animate-in fade-in slide-in-from-bottom-3 duration-300 print:hidden select-none"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/[0.08]">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[11px] font-bold text-brand-teal tracking-wide flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-amber-300" />
+                Happy asks
+              </span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.08] text-teal-200/80 font-medium">
+                {activeQuestion.category}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowQuestionBubble(false)}
+              className="text-zinc-400 hover:text-white p-0.5 rounded hover:bg-white/[0.08] transition-colors cursor-pointer"
+              title="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Question Text */}
+          <p className="text-xs text-zinc-200 leading-relaxed font-medium mb-3">
+            "{activeQuestion.question}"
+          </p>
+
+          {/* Action buttons */}
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowQuestionBubble(false)}
+              className="text-[11px] text-zinc-400 hover:text-zinc-200 px-2 py-1 transition-colors cursor-pointer"
+            >
+              Later
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowQuestionBubble(false);
+                setIsOpen(true);
+                handleSubmit(undefined, activeQuestion.prompt);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-brand-teal to-emerald-500 hover:from-brand-teal/90 hover:to-emerald-500/90 text-white text-[11px] font-semibold shadow-md shadow-emerald-950/40 transition-all hover:scale-102 active:scale-98 cursor-pointer"
+            >
+              <span>Ask Happy</span>
+              <Send className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* Speech bubble pointer notch */}
+          <div className="absolute -bottom-1.5 right-6 w-3.5 h-3.5 bg-brand-navy border-r border-b border-brand-teal/50 transform rotate-45" />
+        </div>
+      )}
+
       {/* 2. Floating Action Button (FAB): Absolute bottom-right corner (bottom: 20px, right: 20px) */}
       <button
         type="button"
-        onClick={() => setIsOpen(prev => !prev)}
+        onClick={() => {
+          setIsOpen(prev => !prev);
+          setShowQuestionBubble(false);
+        }}
         aria-label="Open Happy in the Home Portal Assistant"
         title="Chat with Happy - Portal Assistant"
-        className="fixed bottom-[20px] right-[20px] z-50 w-13 h-13 rounded-full bg-brand-navy hover:bg-brand-navy/90 border border-brand-teal/50 hover:border-brand-teal shadow-2xl text-white flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 group focus:outline-none focus:ring-2 focus:ring-brand-teal/50 print:hidden cursor-pointer"
+        className={`fixed bottom-[20px] right-[20px] z-50 w-13 h-13 rounded-full bg-brand-navy hover:bg-brand-navy/90 border border-brand-teal/50 hover:border-brand-teal shadow-2xl text-white flex items-center justify-center transition-all group focus:outline-none focus:ring-2 focus:ring-brand-teal/50 print:hidden cursor-pointer ${
+          isMascotJumping
+            ? 'animate-bounce shadow-brand-teal/60 ring-2 ring-brand-teal/60 scale-105'
+            : 'hover:scale-105 active:scale-95'
+        }`}
       >
         <span className="relative flex items-center justify-center">
-          <HappyMascot size="sm" className="transition-transform group-hover:scale-110" />
+          <HappyMascot 
+            size="sm" 
+            isJumping={isMascotJumping}
+            className="transition-transform group-hover:scale-110" 
+          />
           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-brand-navy animate-pulse" />
         </span>
       </button>
