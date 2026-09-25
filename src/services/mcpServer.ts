@@ -417,15 +417,18 @@ export function getClientBudgetDetails(
     const agrStartMs = new Date(agreementStartDate).getTime();
     const agrEndMs = new Date(agreementEndDate).getTime();
     const agreementTotalDays = Math.max(1, Math.floor((agrEndMs - agrStartMs) / msPerDay) + 1);
+    const agreementTotalWeeks = parseFloat((agreementTotalDays / 7).toFixed(1));
+    const agreementRemainingMs = Math.max(0, agrEndMs - todayMs);
+    const agreementRemainingDays = Math.max(1, Math.floor(agreementRemainingMs / msPerDay));
+    const agreementRemainingWeeks = Math.max(1, parseFloat((agreementRemainingDays / 7).toFixed(1)));
 
-    const proratedQuarterBudget = customQuarterlyBudget !== undefined && customQuarterlyBudget > 0
-      ? customQuarterlyBudget
-      : (totalAgreementValue > 0
-          ? parseFloat(((totalAgreementValue / agreementTotalDays) * totalDays).toFixed(2))
-          : 0);
+    if (totalAgreementValue === 0 && itemsBreakdown.length > 0) {
+      const sumItems = itemsBreakdown.reduce((sum, it) => sum + (it.allocatedBudget || 0), 0);
+      if (sumItems > 0) totalAgreementValue = sumItems;
+    }
 
-    // Shifts within current quarter/cycle
-    const shifts = db.prepare(
+    // Shifts across entire Service Agreement duration (from agreementStartDate to agreementEndDate)
+    const agreementShifts = db.prepare(
       `SELECT s.id, s.start_time, s.end_time, s.status, s.services_json,
               s.service_id, srv.name as service_name, srv.rate as service_rate, srv.unit as service_unit
        FROM shifts s
@@ -435,27 +438,14 @@ export function getClientBudgetDetails(
          AND s.start_time <= ?
          AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID', 'DRAFT')
        ORDER BY s.start_time ASC`
-    ).all(client.id, `${startIso}T00:00:00`, `${endIso}T23:59:59`) as any[];
-
-    // Shifts across entire agreement duration
-    const agreementShifts = db.prepare(
-      `SELECT s.id, s.start_time, s.end_time, s.status, s.services_json,
-              s.service_id, srv.name as service_name, srv.rate as service_rate, srv.unit as service_unit
-       FROM shifts s
-       LEFT JOIN services srv ON s.service_id = srv.id
-       WHERE s.client_id = ?
-         AND s.start_time >= ?
-         AND s.start_time <= ?
-         AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID', 'DRAFT')`
     ).all(client.id, `${agreementStartDate}T00:00:00`, `${agreementEndDate}T23:59:59`) as any[];
 
-    let totalQuarterClaimed = 0;
     let totalAgreementClaimed = 0;
     let completedCount = 0;
     let scheduledCount = 0;
     let totalCommittedHours = 0;
 
-    for (const shift of shifts) {
+    for (const shift of agreementShifts) {
       const isCompleted = UPPER(shift.status) === 'COMPLETED';
       if (isCompleted) completedCount++;
       else scheduledCount++;
@@ -500,34 +490,7 @@ export function getClientBudgetDetails(
         }
       }
 
-      totalQuarterClaimed += shiftCost;
-    }
-
-    // Calculate total agreement spend
-    for (const ashift of agreementShifts) {
-      const aStartMs = new Date(ashift.start_time).getTime();
-      const aEndMs = new Date(ashift.end_time).getTime();
-      const aDurationHrs = Math.max(0, (aEndMs - aStartMs) / 3600000);
-
-      let aShiftCost = 0;
-      let aParsedServices: any[] = [];
-      if (ashift.services_json) {
-        try { aParsedServices = JSON.parse(ashift.services_json); } catch {}
-      }
-
-      if (Array.isArray(aParsedServices) && aParsedServices.length > 0) {
-        for (const sd of aParsedServices) {
-          const srv = sd.serviceId ? db.prepare("SELECT rate, unit, code FROM services WHERE id = ?").get(sd.serviceId) as any : null;
-          const effectiveRate = Number(sd.rateOverride ?? srv?.rate ?? 0);
-          const isKm = (sd.serviceUnit || srv?.unit || '').toUpperCase() === 'KM';
-          const qty = Number(sd.qtyOverride ?? (isKm ? 0 : aDurationHrs));
-          aShiftCost += (qty * effectiveRate);
-        }
-      } else {
-        const baseRate = Number(ashift.service_rate || 0);
-        aShiftCost = aDurationHrs * baseRate;
-      }
-      totalAgreementClaimed += aShiftCost;
+      totalAgreementClaimed += shiftCost;
     }
 
     itemsBreakdown = itemsBreakdown.map(it => {
@@ -543,47 +506,48 @@ export function getClientBudgetDetails(
       };
     });
 
-    const quarterClaimed = parseFloat(totalQuarterClaimed.toFixed(2));
-    const quarterRemaining = parseFloat((proratedQuarterBudget - quarterClaimed).toFixed(2));
     const agreementRemaining = parseFloat(Math.max(0, totalAgreementValue - totalAgreementClaimed).toFixed(2));
     const burnRatePercentage = totalAgreementValue > 0
       ? `${((totalAgreementClaimed / totalAgreementValue) * 100).toFixed(2)}%`
-      : (proratedQuarterBudget > 0 ? `${((quarterClaimed / proratedQuarterBudget) * 100).toFixed(2)}%` : '0.00%');
+      : '0.00%';
 
-    const averageWeeklySpend = totalWeeks > 0 ? parseFloat((quarterClaimed / totalWeeks).toFixed(2)) : 0;
-    const averageWeeklyHours = totalWeeks > 0 ? parseFloat((totalCommittedHours / totalWeeks).toFixed(2)) : 0;
+    const averageWeeklySpend = agreementTotalWeeks > 0 ? parseFloat((totalAgreementClaimed / agreementTotalWeeks).toFixed(2)) : 0;
+    const averageWeeklyHours = agreementTotalWeeks > 0 ? parseFloat((totalCommittedHours / agreementTotalWeeks).toFixed(2)) : 0;
 
     return {
       clientName: `${client.first_name} ${client.last_name}`,
       clientId: client.id,
       fundingType: "NDIS",
       fundingCategory: "NDIS (National Disability Insurance Scheme)",
-      fundingPackage: agreement ? `NDIS Agreement: ${agreementName}` : "NDIS Standard Allocation",
+      fundingPackage: agreement ? `NDIS Agreement: ${agreementName}` : "NDIS Service Agreement",
       agreementName,
       totalAgreementValue,
+      totalAgreementFunding: totalAgreementValue,
       totalAgreementClaimed: parseFloat(totalAgreementClaimed.toFixed(2)),
       totalAgreementRemaining: agreementRemaining,
+      agreementStartDate,
+      agreementEndDate,
       agreementStartDateAU: formatToAustralianDate(agreementStartDate),
       agreementEndDateAU: formatToAustralianDate(agreementEndDate),
-      cycleStartISO: startIso,
-      cycleEndISO: endIso,
-      cycleStartAU: formatToAustralianDate(startIso),
-      cycleEndAU: formatToAustralianDate(endIso),
-      totalCycleDays: totalDays,
-      totalCycleWeeks: totalWeeks,
-      remainingWeeks,
-      proratedQuarterBudget,
-      totalQuarterlyBudget: totalAgreementValue > 0 ? totalAgreementValue : proratedQuarterBudget,
-      totalCombinedSpent: totalAgreementValue > 0 ? parseFloat(totalAgreementClaimed.toFixed(2)) : quarterClaimed,
-      totalUsedFunds: totalAgreementValue > 0 ? parseFloat(totalAgreementClaimed.toFixed(2)) : quarterClaimed,
-      remainingBalance: totalAgreementValue > 0 ? agreementRemaining : quarterRemaining,
-      remainingFunds: totalAgreementValue > 0 ? agreementRemaining : quarterRemaining,
+      cycleStartISO: agreementStartDate,
+      cycleEndISO: agreementEndDate,
+      cycleStartAU: formatToAustralianDate(agreementStartDate),
+      cycleEndAU: formatToAustralianDate(agreementEndDate),
+      totalCycleDays: agreementTotalDays,
+      totalCycleWeeks: agreementTotalWeeks,
+      remainingWeeks: agreementRemainingWeeks,
+      totalCycleAllocation: totalAgreementValue,
+      totalQuarterlyBudget: totalAgreementValue,
+      totalCombinedSpent: parseFloat(totalAgreementClaimed.toFixed(2)),
+      totalUsedFunds: parseFloat(totalAgreementClaimed.toFixed(2)),
+      remainingBalance: agreementRemaining,
+      remainingFunds: agreementRemaining,
       agreementItems: itemsBreakdown,
       burnRatePercentage,
       averageWeeklySpend,
       averageWeeklyHours,
       totalCommittedHours: parseFloat(totalCommittedHours.toFixed(2)),
-      shiftCount: shifts.length,
+      shiftCount: agreementShifts.length,
       statusBreakdown: {
         completedShifts: completedCount,
         scheduledShifts: scheduledCount
@@ -722,8 +686,14 @@ export function optimizeQuarterlyRosterLogic(
   // Retrieve actual budget details if remainingFunds was not manually specified
   const budgetDetails = getClientBudgetDetails(db, client, quarterStartDate, quarterEndDate);
   const effectiveRemainingFunds = remainingFunds !== undefined ? remainingFunds : budgetDetails.remainingFunds;
-  const effectiveStartDate = quarterStartDate || budgetDetails.cycleStartISO;
-  const effectiveEndDate = quarterEndDate || budgetDetails.cycleEndISO;
+  const isNdis = String(client.funding_type || budgetDetails.fundingType || '').trim().toUpperCase() === 'NDIS';
+
+  const effectiveStartDate = isNdis
+    ? ((budgetDetails as any).agreementStartDate || budgetDetails.cycleStartISO)
+    : (quarterStartDate || budgetDetails.cycleStartISO);
+  const effectiveEndDate = isNdis
+    ? ((budgetDetails as any).agreementEndDate || budgetDetails.cycleEndISO)
+    : (quarterEndDate || budgetDetails.cycleEndISO);
 
   // 2. Query client shifts to establish baseline weekly pattern
   const startIso = `${effectiveStartDate}T00:00:00.000Z`;
@@ -769,7 +739,7 @@ export function optimizeQuarterlyRosterLogic(
     rateCount++;
   }
 
-  // 3. Calculate remaining weeks in the quarter
+  // 3. Calculate remaining weeks in the agreement or quarter
   const remainingWeeks = budgetDetails.remainingWeeks;
 
   // 4. Calculate weekly surplus budget
@@ -778,21 +748,30 @@ export function optimizeQuarterlyRosterLogic(
   const additionalAffordableHoursPerWeek = parseFloat(Math.max(0, weeklySurplusBudget / primaryStandardRate).toFixed(2));
 
   // Compute baseline weekly hours
-  const quarterWeeks = budgetDetails.totalCycleWeeks;
+  const cycleWeeks = budgetDetails.totalCycleWeeks || 13;
   const baselinePattern = Object.values(patternMap).map(p => ({
     dayOfWeek: p.dayOfWeek,
     serviceName: p.serviceName,
-    averageWeeklyHours: parseFloat((p.totalHours / quarterWeeks).toFixed(2)),
+    averageWeeklyHours: parseFloat((p.totalHours / cycleWeeks).toFixed(2)),
     unitRate: p.rate,
-    estimatedWeeklyCost: parseFloat(((p.totalHours / quarterWeeks) * p.rate).toFixed(2))
+    estimatedWeeklyCost: parseFloat(((p.totalHours / cycleWeeks) * p.rate).toFixed(2))
   }));
 
   const totalBaselineWeeklyHours = parseFloat(baselinePattern.reduce((acc, p) => acc + p.averageWeeklyHours, 0).toFixed(2));
   const totalBaselineWeeklyCost = parseFloat(baselinePattern.reduce((acc, p) => acc + p.estimatedWeeklyCost, 0).toFixed(2));
 
+  const optimizationSummary = isNdis
+    ? `The client has $${effectiveRemainingFunds.toFixed(2)} remaining in their NDIS Service Agreement (${(budgetDetails as any).agreementName || 'Service Agreement'}), which runs from ${(budgetDetails as any).agreementStartDateAU} to ${(budgetDetails as any).agreementEndDateAU} (${remainingWeeks} weeks remaining). At an average support rate of $${primaryStandardRate.toFixed(2)}/hr, they can safely afford an additional ${additionalAffordableHoursPerWeek} hours per week without exceeding their Service Agreement allocation.`
+    : `The client has $${effectiveRemainingFunds.toFixed(2)} remaining across ${remainingWeeks} remaining weeks ($${weeklySurplusBudget.toFixed(2)}/week surplus). At a standard rate of $${primaryStandardRate.toFixed(2)}/hr, they can safely afford an additional ${additionalAffordableHoursPerWeek} hours per week without exceeding their quarterly budget.`;
+
   return {
     clientName: `${client.first_name} ${client.last_name}`,
+    fundingType: client.funding_type || budgetDetails.fundingType || 'NDIS',
     fundingPackage: budgetDetails.fundingPackage,
+    agreementName: (budgetDetails as any).agreementName,
+    agreementStartDateAU: (budgetDetails as any).agreementStartDateAU,
+    agreementEndDateAU: (budgetDetails as any).agreementEndDateAU,
+    totalAgreementFunding: (budgetDetails as any).totalAgreementValue,
     dailyFundingRate: (budgetDetails as any).dailyFundingRate,
     totalCycleAllocation: budgetDetails.totalCycleAllocation,
     totalCombinedSpent: budgetDetails.totalCombinedSpent,
@@ -802,6 +781,7 @@ export function optimizeQuarterlyRosterLogic(
     quarterEndDateAU: formatToAustralianDate(effectiveEndDate),
     remainingFunds: effectiveRemainingFunds,
     remainingWeeksInQuarter: remainingWeeks,
+    remainingAgreementWeeks: remainingWeeks,
     weeklySurplusBudget,
     currentWeeklyBaseline: baselinePattern,
     baselineWeeklyHours: totalBaselineWeeklyHours,
@@ -809,7 +789,7 @@ export function optimizeQuarterlyRosterLogic(
     primaryStandardRate,
     additionalAffordableHoursPerWeek,
     recommendedMaxWeeklyHours: parseFloat((totalBaselineWeeklyHours + additionalAffordableHoursPerWeek).toFixed(2)),
-    optimizationSummary: `The client has $${effectiveRemainingFunds.toFixed(2)} remaining across ${remainingWeeks} remaining weeks ($${weeklySurplusBudget.toFixed(2)}/week surplus). At a standard rate of $${primaryStandardRate.toFixed(2)}/hr, they can safely afford an additional ${additionalAffordableHoursPerWeek} hours per week without exceeding their quarterly budget.`
+    optimizationSummary
   };
 }
 
@@ -1182,13 +1162,13 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           const analyzeClientFundsDeclaration = {
             name: "analyze_client_funds",
-            description: "Query client budget configuration (Home Care Package / Support at Home daily rate or NDIS Service Agreement) and shifts to calculate total cycle allocation, combined spent funds, remaining balance, unspent pool, burn rate, and roster baseline. Dates must be ISO YYYY-MM-DD.",
+            description: "Query client budget configuration (Home Care Package / Support at Home daily rate or NDIS Service Agreement) and shifts to calculate total agreement/cycle allocation, combined spent funds, remaining balance, unspent pool, burn rate, and roster baseline. Dates must be ISO YYYY-MM-DD.",
             parameters: {
               type: Type.OBJECT,
               properties: {
                 clientName: { type: Type.STRING, description: "Client full or partial name" },
-                quarterStartDate: { type: Type.STRING, description: "Optional start date of 3-month quarter (YYYY-MM-DD). Leave omitted to analyze current active quarter (2026-06-30 to 2026-09-30). Do NOT invent old years." },
-                quarterEndDate: { type: Type.STRING, description: "Optional end date of 3-month quarter (YYYY-MM-DD). Leave omitted to analyze current active quarter (2026-06-30 to 2026-09-30). Do NOT invent old years." },
+                quarterStartDate: { type: Type.STRING, description: "Optional start date (YYYY-MM-DD). For Home Care, leave omitted for active quarter (2026-06-30). For NDIS, leave omitted to use Service Agreement start date." },
+                quarterEndDate: { type: Type.STRING, description: "Optional end date (YYYY-MM-DD). For Home Care, leave omitted for active quarter (2026-09-30). For NDIS, leave omitted to use Service Agreement end date." },
                 customQuarterlyBudget: { type: Type.NUMBER, description: "Optional manual budget override if user specifically requested a custom budget in AUD" }
               },
               required: ["clientName"]
@@ -1197,14 +1177,14 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           const optimizeQuarterlyRosterDeclaration = {
             name: "optimize_quarterly_roster",
-            description: "Analyze client baseline weekly shift schedule and calculate surplus budget and additional affordable hours per week based on their actual Home Care or NDIS budget allocation.",
+            description: "Analyze client baseline weekly shift schedule and calculate surplus budget and additional affordable hours per week based on their actual Home Care quarterly budget or NDIS Service Agreement allocation.",
             parameters: {
               type: Type.OBJECT,
               properties: {
                 clientName: { type: Type.STRING, description: "Client full or partial name" },
-                quarterStartDate: { type: Type.STRING, description: "Optional start date of quarter (YYYY-MM-DD). Leave omitted to use current active quarter (2026-06-30)." },
-                quarterEndDate: { type: Type.STRING, description: "Optional end date of quarter (YYYY-MM-DD). Leave omitted to use current active quarter (2026-09-30)." },
-                remainingFunds: { type: Type.NUMBER, description: "Optional remaining surplus funds in AUD (if omitted, calculated automatically from client budget)" }
+                quarterStartDate: { type: Type.STRING, description: "Optional start date (YYYY-MM-DD). Leave omitted to use client's active cycle or Service Agreement start date." },
+                quarterEndDate: { type: Type.STRING, description: "Optional end date (YYYY-MM-DD). Leave omitted to use client's active cycle or Service Agreement end date." },
+                remainingFunds: { type: Type.NUMBER, description: "Optional remaining surplus funds in AUD (if omitted, calculated automatically from client budget/agreement)" }
               },
               required: ["clientName"]
             }
@@ -1242,60 +1222,53 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           let systemInstruction = `You are Happy, the friendly, supportive, and knowledgeable AI portal assistant for HAPPY IN THE HOME ("Happy in the Home Portal Assistant").
 When introducing yourself or when asked who you are, greet the user warmly: "Hi! My name is Happy, your Happy in the Home Portal Assistant!"
-You specialize in 3-month quarterly budgets, NDIS & Home Care funding (HCP and Support at Home), and roster optimization.
+You specialize in NDIS Service Agreement funding, Home Care 3-month quarterly budgets (HCP and Support at Home), and roster optimization.
 
 CRITICAL TIME & DATE GROUNDING (PORTAL IS CURRENTLY IN 2026):
 - TODAY'S DATE: Friday, 25 September 2026 (25/09/2026 in Australian format, 2026-09-25 ISO).
 - BUSINESS TIMEZONE: Australian Western Standard Time (AWST / Australia/Perth).
 - CURRENT FINANCIAL YEAR: 2026–2027.
-- CURRENT ACTIVE BUDGET QUARTER: Quarter 1 (30 June 2026 to 30 September 2026 — 92 days).
-- NEVER use old dates, past years (such as 2023, 2024, or 2025), or calendar quarters (Jan-Mar, Apr-Jun). The portal operates in September 2026!
+- NEVER use old dates, past years (such as 2023, 2024, or 2025). The portal operates in September 2026!
 
-THE 4 OFFICIAL HOME CARE FINANCIAL YEAR QUARTERS (TRILOGY CARE & HOME CARE BUDGETS):
-Client budgets in the portal operate on the 4 official Home Care Financial Year Quarters starting 30 June:
-- Quarter 1: 30 June 2026 to 30 September 2026 (92 days) — [CURRENT ACTIVE QUARTER on 25/09/2026]
-- Quarter 2: 30 September 2026 to 31 December 2026 (92 days)
-- Quarter 3: 31 December 2026 to 31 March 2027 (90 days, or 91 in leap year)
-- Quarter 4: 31 March 2027 to 30 June 2027 (91 days)
-DO NOT use calendar quarters (Jan-Mar, Apr-Jun, etc.) for Home Care clients.
+FUNDING FRAMEWORK DIFFERENTIATION (NDIS VS HOME CARE):
+Clients in the portal belong to either NDIS OR Home Care (HCP/SAH). They are completely different frameworks:
 
-HOME CARE FUNDING RATES INTEGRATION (PORTAL SETTINGS > HOME CARE TAB):
-- Funding rate schedules for Home Care Package (HCP Levels 1-4) and Support at Home (SAH Classes 1-8) are configured by the administrator in Settings > Home Care tab.
-- Current active rates configured in Settings:
-  • HCP Rates: ${hcpRateSummary}
-  • SAH Rates: ${sahRateSummary}
-- DYNAMIC CHECKS: NEVER assume hardcoded funding rates or dollar amounts. ALWAYS check and use the client's actual funding level and daily rate returned by the database/tool.
-- STRICT CLIENT PRIVACY & ISOLATION: When discussing or analyzing a specific client (e.g., Pauline or any other client), NEVER output reminder notes, disclaimers, or references to other clients or unrelated package levels (e.g., do NOT mention Gary Rodwell, Level 4 HCP, or unrelated subsidy rates). Focus exclusively and strictly on the inquired client's details.
-
-CRITICAL FINANCIAL & BUDGET INTEGRATION RULES:
-1. You have direct database integration with client budget configurations from the Clients section (under Clients Dashboard > Edit Profile and Budget).
-2. For Home Care Package (HCP) & Support at Home (SAH) clients:
-   - Their budget is derived from their package level/class (e.g. HCP Level 1-4 or SAH Class 1-8) and official daily funding rate configured in Settings.
-   - Total Cycle Allocation is calculated as: cycle days * daily rate (matching the Client Budget view).
-   - Total Combined Spent includes Historical Adjustments (Pre-System Spend entered under Edit Profile & Budget) plus Live Internal Consumptions (shifts and external ledger items).
-   - Remaining Balance is: Total Cycle Allocation - Total Combined Spent.
-   - Unspent Funds Pool is also tracked: Starting Rollover Balance minus Spent From Pool So Far.
-3. For NDIS clients:
-   - NDIS clients DO NOT have Home Care Packages (HCP Levels 1-4 or SAH Classes 1-8). NEVER report daily government subsidies for NDIS clients.
-   - Their funding is governed by an NDIS Service Agreement (managed in Clients > Client Dashboard > Budget page).
-   - The Service Agreement contains a list of NDIS Support Items selected from Settings > NDIS Pricing > NDIS Price List.
+1. FOR NDIS CLIENTS (NATIONAL DISABILITY INSURANCE SCHEME):
+   - NDIS FUNDS ARE NOT ALLOCATED QUARTERLY. NEVER refer to their funding as a "quarterly budget allocation", "quarterly cycle", or "quarterly period".
+   - NDIS funding is governed entirely by the client's Service Agreement, managed in Client section > Client Dashboard > Budget page (Add/Edit Service Agreement).
+   - The Service Agreement allocation is defined strictly by its Start Date and End Date (e.g. 01/07/2026 to 30/06/2027 or specific agreement duration).
+   - Under the Service Agreement, funds are allocated across specific NDIS Support Items from Settings > NDIS Pricing > NDIS Price List.
    - Each support item has an Allocated Sub-Total Budget ($) and optional Allocated Hours.
    - The Grand Total Agreement Funding is the sum of these support item sub-totals.
-   - Shifts delivering these services are tracked against each specific line item and subtracted from the Grand Total.
-   - When reporting for an NDIS client (such as Dean Davies):
-     • State: "Funding Type: NDIS • Service Agreement: <Name>"
-     • Display Grand Total Agreement Funding, Total Utilized / Claimed, and Available Remaining Balance.
-     • Provide a line-by-line breakdown of each Support Item (Allocated Sub-Total, Amount Spent, Remaining Balance, and % Utilized).
-     • For roster optimization, recommend affordable hours based on the remaining budget within the client's support line items.
-4. When reporting financial figures:
-   - ALWAYS state the client's funding package and daily rate from tool results (e.g., "Pauline • HCP Level 2 • $54.39 / day" or "Gary Rodwell • HCP Level 4 • $179.22 / day" or "NDIS Service Agreement").
-   - Clearly present the Active Cycle dates (30/06/2026 to 30/09/2026), Total Cycle Allocation, Total Combined Spent, and Remaining Balance.
-   - Mention the Unspent Funds Pool if rollover funds exist.
-   - Highlight the budget burn rate, remaining weeks, and affordable weekly hours without exceeding budget.
-5. All dates in your natural-language responses to users MUST strictly use Australian standard DD/MM/YYYY formatting.
-6. In all backend tool calls, you must strictly pass ISO 8601 YYYY-MM-DD format, or omit date parameters to use the active Quarter 1 (2026-06-30 to 2026-09-30). Do not invent old years like 2023 or 2024.
-7. Currency must always be formatted in AUD ($X.XX).
-8. If the user asks to analyze funds, check burn rate, or optimize a roster without specifying which client they want to analyze, do NOT call tools with empty or assumed client names. Instead, ask warmly: "Which client would you like to analyze? Please select a client or let me know their name."`;
+   - Shifts delivering these services draw down from each item's sub-total and from the Grand Total.
+   - When answering for an NDIS client (such as Dean Davies):
+     • Client & Agreement: State "Client: <Name> • Funding Type: NDIS • Service Agreement: <Agreement Name>"
+     • Agreement Period: Always display the Service Agreement start date and end date (DD/MM/YYYY) (e.g., "Agreement Period: 01/07/2026 to 30/06/2027").
+     • Financial Summary: State "Grand Total Agreement Funding: $X.XX AUD", "Total Claimed / Utilized: $X.XX AUD", and "Available Remaining Balance: $X.XX AUD".
+     • Line Item Breakdown: List each Service Agreement line item showing Support Item Name & Code, Allocated Sub-Total, Amount Spent, Remaining Balance, and Delivered Hours.
+     • Roster Optimization: Recommend weekly hours based on remaining agreement funds and remaining weeks of the Service Agreement.
+     • DO NOT MENTION quarterly cycles, Home Care quarters (Q1 30 June - 30 Sept), daily government subsidies, or Level 1-4 / Class 1-8 packages for NDIS clients.
+
+2. FOR HOME CARE CLIENTS (HCP LEVELS 1-4 & SAH CLASSES 1-8):
+   - Home Care budgets operate on 3-month quarterly cycles (Trilogy Care):
+     • Quarter 1: 30 June 2026 to 30 September 2026 (92 days) — [CURRENT ACTIVE QUARTER on 25/09/2026]
+     • Quarter 2: 30 September 2026 to 31 December 2026 (92 days)
+     • Quarter 3: 31 December 2026 to 31 March 2027 (90 days)
+     • Quarter 4: 31 March 2027 to 30 June 2027 (91 days)
+   - Their budget is derived from their package level/class and official daily funding rate configured in Settings > Home Care tab:
+     • HCP Rates: ${hcpRateSummary}
+     • SAH Rates: ${sahRateSummary}
+   - Total Cycle Allocation is: cycle days * daily rate.
+   - Total Combined Spent includes Historical Adjustments + Live Internal Consumptions.
+   - Remaining Balance is: Total Cycle Allocation - Total Combined Spent.
+   - Unspent Funds Pool tracks rollover funds.
+   - Roster optimization is based on remaining weeks in the quarter.
+
+STRICT CLIENT ISOLATION:
+When discussing or analyzing a specific client, NEVER output reminder notes, disclaimers, or references to other clients or unrelated package levels. Focus exclusively and strictly on the inquired client's details.
+
+All dates in your natural-language responses to users MUST strictly use Australian standard DD/MM/YYYY formatting.
+Currency must always be formatted in AUD ($X.XX).`;
 
           if (aiConfig.ai_custom_instructions) {
             systemInstruction += `\n\nADDITIONAL CARE COORDINATION GUIDELINES:\n${aiConfig.ai_custom_instructions}`;
@@ -1388,19 +1361,35 @@ CRITICAL FINANCIAL & BUDGET INTEGRATION RULES:
               config: {
                 systemInstruction: `You are Happy, the Happy in the Home Portal Assistant. Summarize the tool result into a clear, friendly, and professional recommendation for care coordinators.
 CRITICAL TIME & DATE RULES:
-- Today's Date: 25/09/2026. The active quarter is Quarter 1: 30/06/2026 to 30/09/2026 (92 days).
+- Today's Date: 25/09/2026.
 - All dates must strictly be formatted in the Australian standard DD/MM/YYYY. Display all financial amounts in AUD ($).
-- DYNAMIC RATES & EXACT DATA: Use ONLY the exact figures, funding package, daily rate, and cycle allocation provided in the tool result for the specified client. These rates are dynamically loaded from Settings > Home Care tab.
-- STRICT CLIENT ISOLATION: NEVER append generic reminder notes, disclaimers, or historical comparisons about other clients or packages (e.g., do NOT mention Gary Rodwell, Level 4 HCP rates, or other clients when analyzing a different client like Pauline). Address ONLY the requested client's data.
-Always clearly display:
-- Client Name & Funding Package (using the client's actual package and daily rate from tool results)
-- Active Cycle: 30/06/2026 to 30/09/2026 (92 days • 13.1 weeks)
-- Total Cycle Allocation (directly from the tool result, matching the Client Budget screen)
-- Total Combined Spent (showing Historical/Pre-system and Live Internal spend)
-- Remaining Balance
-- Unspent Funds Pool (if available)
-- Burn Rate percentage and Remaining Weeks
-- Affordable hours per week and recommendation for care coordinators.`
+- DYNAMIC RATES & EXACT DATA: Use ONLY the exact figures, funding package, and allocation provided in the tool result for the specified client.
+- STRICT CLIENT ISOLATION: NEVER append generic reminder notes, disclaimers, or historical comparisons about other clients or packages. Address ONLY the requested client's data.
+
+CRITICAL DIFFERENCE BETWEEN NDIS AND HOME CARE:
+IF THE CLIENT IS NDIS (fundingType === 'NDIS'):
+- NDIS FUNDS ARE NOT ALLOCATED QUARTERLY. Do NOT refer to NDIS funding as "quarterly budget allocation", "quarterly cycle", or "quarterly allocation".
+- Funding is allocated according to the client's Service Agreement, set by the agreement Start Date and End Date (from Client section > Client Dashboard > Budget page).
+- Always display:
+  • Client Name: <Name>
+  • Funding Type: NDIS (National Disability Insurance Scheme)
+  • Service Agreement: <Agreement Name>
+  • Service Agreement Period: <Start Date> to <End Date> (DD/MM/YYYY) (<X> weeks remaining)
+  • Grand Total Agreement Funding: $X.XX AUD
+  • Total Claimed / Utilized: $X.XX AUD (% utilized)
+  • Available Remaining Balance: $X.XX AUD
+  • Service Agreement Line Items: Line-by-line list showing Support Item Code, Name, Allocated Sub-Total, Amount Spent, Remaining Balance, and Delivered Hours.
+  • Rostering Recommendation: Sustainable weekly hours over the remaining agreement period without exceeding the Service Agreement allocation.
+
+IF THE CLIENT IS HOME CARE (HCP / SAH):
+- Display:
+  • Client Name & Funding Package (using client's actual package and daily rate from Settings)
+  • Active Cycle: 30/06/2026 to 30/09/2026 (92 days • 13.1 weeks)
+  • Total Cycle Allocation (directly from tool result, matching Client Budget screen)
+  • Total Combined Spent (showing Historical/Pre-system and Live Internal spend)
+  • Remaining Balance & Unspent Funds Pool (if available)
+  • Burn Rate percentage and Remaining Weeks
+  • Affordable hours per week and recommendation for care coordinators.`
               }
             });
 

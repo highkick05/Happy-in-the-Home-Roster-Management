@@ -189,7 +189,19 @@ export default function AiChatWidget() {
   const handleSelectClient = (client: PortalClient, actionToUse?: SuggestedAction | null) => {
     const action = actionToUse || selectedAction || suggestedActions[0];
     const clientName = `${client.first_name || ''} ${client.last_name || ''}`.trim() || `Client #${client.id}`;
-    const query = action.promptTemplate(clientName);
+    const isNdis = String(client.funding_type || '').trim().toUpperCase() === 'NDIS';
+
+    let query = action.promptTemplate(clientName);
+    if (isNdis) {
+      if (action.title === "Analyze Client Funds") {
+        query = `Analyze NDIS Service Agreement funds for ${clientName}`;
+      } else if (action.title === "Optimize Roster") {
+        query = `Optimize roster for ${clientName}`;
+      } else if (action.title === "Budget Burn Rate") {
+        query = `Assess NDIS Service Agreement burn rate and remaining funding for ${clientName}`;
+      }
+    }
+
     handleSubmit(undefined, query);
   };
 
