@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2, Search, ArrowLeft, User, ShieldAlert, Users, BarChart3, Car, GraduationCap } from 'lucide-react';
+import { Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2, Search, ArrowLeft, User, ShieldAlert, Users, BarChart3, Car, GraduationCap, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import HappyMascot, { MascotMood } from './HappyMascot';
@@ -422,6 +422,13 @@ export default function AiChatWidget() {
       icon: <Users className="w-3.5 h-3.5 text-amber-400" />,
       isDirect: true,
       directPrompt: "Provide a current summary of all Home Care clients budgets"
+    },
+    {
+      title: "NDIS Summary",
+      desc: "NDIS agreements & client budgets",
+      icon: <FileText className="w-3.5 h-3.5 text-indigo-400" />,
+      isDirect: true,
+      directPrompt: "Provide a current summary of all NDIS clients budgets and service agreements"
     },
     {
       title: "Invoicing & Growth",
