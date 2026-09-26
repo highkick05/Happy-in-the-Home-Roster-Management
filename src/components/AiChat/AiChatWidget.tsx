@@ -3,6 +3,7 @@ import { Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import HappyMascot, { MascotMood } from './HappyMascot';
+import { useAuth } from '../../context/AuthContext';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -92,6 +93,9 @@ const PORTAL_QUESTIONS: PortalPromptQuestion[] = [
 ];
 
 export default function AiChatWidget() {
+  const { user } = useAuth();
+  const canAccessAi = Boolean(user && (user.role === 'ADMIN' || user.canSwitchAdmin));
+
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -128,6 +132,7 @@ export default function AiChatWidget() {
 
   // 1. Periodic lively repertoire: Happy performs jumps, spins, giggles, waves, tilts, and shimmies every 16 seconds
   useEffect(() => {
+    if (!canAccessAi) return;
     // Initial cheerful welcome wave shortly after page load so Happy's animation is immediately visible
     const initialJumpTimer = setTimeout(() => {
       triggerLivelyAnimation('waving', 2800);
@@ -141,10 +146,11 @@ export default function AiChatWidget() {
       clearTimeout(initialJumpTimer);
       clearInterval(jumpInterval);
     };
-  }, []);
+  }, [canAccessAi]);
 
   // 2. Random portal questions: Happy asks a question every 3-5 minutes (with first at 30 seconds)
   useEffect(() => {
+    if (!canAccessAi) return;
     let questionDismissTimeout: NodeJS.Timeout | null = null;
     let nextQuestionTimer: NodeJS.Timeout | null = null;
 
@@ -183,7 +189,7 @@ export default function AiChatWidget() {
       if (nextQuestionTimer) clearTimeout(nextQuestionTimer);
       if (questionDismissTimeout) clearTimeout(questionDismissTimeout);
     };
-  }, []);
+  }, [canAccessAi]);
 
   const fetchClients = async () => {
     setIsLoadingClients(true);
@@ -491,6 +497,10 @@ export default function AiChatWidget() {
     const funding = (c.funding_type || '').toLowerCase();
     return fullName.includes(q) || funding.includes(q);
   });
+
+  if (!canAccessAi) {
+    return null;
+  }
 
   return (
     <>

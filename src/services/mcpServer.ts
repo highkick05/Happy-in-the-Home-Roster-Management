@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Express, Request, Response } from "express";
 import type Database from "better-sqlite3";
 import { GoogleGenAI, Type } from "@google/genai";
+import jwt from "jsonwebtoken";
 
 function UPPER(str: any): string {
   return String(str || "").toUpperCase();
@@ -2277,6 +2278,24 @@ export function setupMcpServer(app: Express, db: Database.Database) {
    */
   app.post("/api/chat", async (req: Request, res: Response) => {
     try {
+      // Verify authorization: only Admin or Staff with can_switch_admin allowed
+      const authHeader = req.headers["authorization"];
+      const token = authHeader && authHeader.split(" ")[1];
+      if (token) {
+        try {
+          const JWT_SECRET = process.env.JWT_SECRET || "happyinthehome-secret-key-123";
+          const decoded = jwt.verify(token, JWT_SECRET) as any;
+          if (decoded && decoded.id) {
+            const user = db.prepare("SELECT role, can_switch_admin FROM users WHERE id = ?").get(decoded.id) as any;
+            if (user && user.role !== 'ADMIN' && !user.can_switch_admin) {
+              return res.status(403).json({ error: "Access denied. The AI Assistant is only available for admin accounts and staff permitted to switch to Admin portal." });
+            }
+          }
+        } catch {
+          // Token verification failure
+        }
+      }
+
       // 1. Asynchronously query the configuration table to fetch the saved API key
       const savedApiKey = await fetchSavedGeminiApiKey(db);
 

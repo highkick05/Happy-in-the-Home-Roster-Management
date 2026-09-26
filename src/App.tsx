@@ -448,7 +448,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       {user?.role === 'ADMIN' && <QuickLinksDrawer />}
       <FloatingChatIcon />
       {(user?.role === 'ADMIN' || user?.role === 'admin') && !location.pathname.includes('/chat') && <EmailFloatingWidget />}
-      <AiChatWidget />
+      {(user?.role === 'ADMIN' || user?.canSwitchAdmin) && <AiChatWidget />}
     </div>
   );
 }
