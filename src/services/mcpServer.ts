@@ -715,6 +715,10 @@ export function optimizeQuarterlyRosterLogic(
        AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID', 'DRAFT')`
   ).all(client.id, startIso, endIso) as any[];
 
+  const careCoordPercent = Number(client.care_coordination_fee ?? 20);
+  const managementFeePercent = Number(client.management_fee ?? 0);
+  const feeMultiplier = (1 + careCoordPercent / 100) * (1 + managementFeePercent / 100);
+
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const patternMap: Record<string, { dayOfWeek: string; serviceName: string; totalHours: number; count: number; rate: number }> = {};
   let totalStandardRates = 0;
@@ -723,25 +727,54 @@ export function optimizeQuarterlyRosterLogic(
   for (const shift of shifts) {
     const shiftDate = new Date(shift.start_time);
     const dayName = dayNames[shiftDate.getUTCDay()];
-    const sName = shift.service_name || "Standard Care Service";
-    const sRate = Number(shift.service_rate || 65.47);
-
     const durationHrs = Math.max(0, (new Date(shift.end_time).getTime() - shiftDate.getTime()) / 3600000);
-    const key = `${dayName}_${sName}`;
 
-    if (!patternMap[key]) {
-      patternMap[key] = {
-        dayOfWeek: dayName,
-        serviceName: sName,
-        totalHours: 0,
-        count: 0,
-        rate: sRate
-      };
+    let shiftServices: Array<{ name: string; hours: number; rate: number }> = [];
+    if (shift.services_json) {
+      try {
+        const parsed = JSON.parse(shift.services_json);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          for (const sd of parsed) {
+            const srv = sd.serviceId ? db.prepare("SELECT name, rate, unit FROM services WHERE id = ?").get(sd.serviceId) as any : null;
+            const name = sd.serviceName || srv?.name || shift.service_name || "Standard Care Service";
+            const rawRate = Number(sd.rateOverride ?? srv?.rate ?? shift.service_rate ?? 65.47);
+            const isKm = (sd.serviceUnit || srv?.unit || '').toUpperCase() === 'KM';
+            const qty = Number(sd.qtyOverride ?? durationHrs);
+            if (!isKm && qty > 0) {
+              const effectiveRate = parseFloat((rawRate * (isNdis ? 1 : feeMultiplier)).toFixed(2));
+              shiftServices.push({ name, hours: qty, rate: effectiveRate });
+            }
+          }
+        }
+      } catch {}
     }
-    patternMap[key].totalHours += durationHrs;
-    patternMap[key].count += 1;
-    totalStandardRates += sRate;
-    rateCount++;
+
+    if (shiftServices.length === 0) {
+      const rawRate = Number(shift.service_rate || 65.47);
+      const effectiveRate = parseFloat((rawRate * (isNdis ? 1 : feeMultiplier)).toFixed(2));
+      shiftServices.push({
+        name: shift.service_name || "Standard Care Service",
+        hours: durationHrs,
+        rate: effectiveRate
+      });
+    }
+
+    for (const ss of shiftServices) {
+      const key = `${dayName}_${ss.name}`;
+      if (!patternMap[key]) {
+        patternMap[key] = {
+          dayOfWeek: dayName,
+          serviceName: ss.name,
+          totalHours: 0,
+          count: 0,
+          rate: ss.rate
+        };
+      }
+      patternMap[key].totalHours += ss.hours;
+      patternMap[key].count += 1;
+      totalStandardRates += ss.rate;
+      rateCount++;
+    }
   }
 
   // 3. Calculate remaining weeks in the agreement or quarter
@@ -765,12 +798,179 @@ export function optimizeQuarterlyRosterLogic(
   const totalBaselineWeeklyHours = parseFloat(baselinePattern.reduce((acc, p) => acc + p.averageWeeklyHours, 0).toFixed(2));
   const totalBaselineWeeklyCost = parseFloat(baselinePattern.reduce((acc, p) => acc + p.estimatedWeeklyCost, 0).toFixed(2));
 
+  // 5. Sustainable weekly funding allocation (ongoing weekly baseline)
+  let sustainableWeeklyFunding = 0;
+  if (isNdis) {
+    const agrVal = Number((budgetDetails as any).totalAgreementValue || budgetDetails.totalCycleAllocation || 0);
+    const agrWeeks = Number((budgetDetails as any).totalCycleWeeks || 52);
+    sustainableWeeklyFunding = agrWeeks > 0 ? parseFloat((agrVal / agrWeeks).toFixed(2)) : 0;
+  } else {
+    const dailyRate = Number((budgetDetails as any).dailyFundingRate || 0);
+    sustainableWeeklyFunding = dailyRate > 0
+      ? parseFloat((dailyRate * 7).toFixed(2))
+      : (cycleWeeks > 0 ? parseFloat(((budgetDetails.totalCycleAllocation || 0) / cycleWeeks).toFixed(2)) : 0);
+  }
+
+  // Weighted average hourly cost of client's services
+  const weightedHourlyRate = totalBaselineWeeklyHours > 0
+    ? parseFloat((totalBaselineWeeklyCost / totalBaselineWeeklyHours).toFixed(2))
+    : primaryStandardRate;
+
+  // Perfect target weekly hours based on sustainable weekly funding allocation
+  const perfectWeeklyHours = (sustainableWeeklyFunding > 0 && weightedHourlyRate > 0)
+    ? parseFloat((sustainableWeeklyFunding / weightedHourlyRate).toFixed(1))
+    : (totalBaselineWeeklyHours > 0 ? totalBaselineWeeklyHours : 15.0);
+
+  const weeklyHoursDifference = parseFloat((perfectWeeklyHours - totalBaselineWeeklyHours).toFixed(1));
+
+  // 6. Historic Services Summary
+  const historicServicesMap: Record<string, { serviceName: string; totalHours: number; count: number; avgRate: number; days: Set<string> }> = {};
+  for (const p of Object.values(patternMap)) {
+    if (!historicServicesMap[p.serviceName]) {
+      historicServicesMap[p.serviceName] = {
+        serviceName: p.serviceName,
+        totalHours: 0,
+        count: 0,
+        avgRate: p.rate,
+        days: new Set<string>()
+      };
+    }
+    historicServicesMap[p.serviceName].totalHours += p.totalHours;
+    historicServicesMap[p.serviceName].count += p.count;
+    historicServicesMap[p.serviceName].days.add(p.dayOfWeek);
+  }
+
+  const historicServicesList = Object.values(historicServicesMap).map(s => {
+    const totalCycleHours = Object.values(historicServicesMap).reduce((sum, x) => sum + x.totalHours, 0);
+    const sharePct = totalCycleHours > 0 ? Math.round((s.totalHours / totalCycleHours) * 100) : 0;
+    return {
+      serviceName: s.serviceName,
+      totalHoursDelivered: parseFloat(s.totalHours.toFixed(1)),
+      frequencyPct: sharePct,
+      averageRate: s.avgRate,
+      activeDays: Array.from(s.days)
+    };
+  }).sort((a, b) => b.totalHoursDelivered - a.totalHoursDelivered);
+
+  if (historicServicesList.length === 0) {
+    historicServicesList.push(
+      {
+        serviceName: "Individual social support",
+        totalHoursDelivered: 0,
+        frequencyPct: 85,
+        averageRate: 78.00,
+        activeDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+      },
+      {
+        serviceName: "Assistance with self-care",
+        totalHoursDelivered: 0,
+        frequencyPct: 15,
+        averageRate: 78.00,
+        activeDays: ["Friday"]
+      }
+    );
+  }
+
+  // 7. Calculate Suggested Planned Services based on historic usage
+  let allocatedHoursSum = 0;
+  const suggestedPlannedServices = historicServicesList.map((s, index) => {
+    let recHours = 0;
+    if (index === historicServicesList.length - 1) {
+      recHours = parseFloat(Math.max(0.5, perfectWeeklyHours - allocatedHoursSum).toFixed(1));
+    } else {
+      recHours = parseFloat(Math.max(0.5, Math.round(((s.frequencyPct / 100) * perfectWeeklyHours) * 2) / 2).toFixed(1));
+      allocatedHoursSum += recHours;
+    }
+    const estCost = parseFloat((recHours * s.averageRate).toFixed(2));
+    return {
+      serviceName: s.serviceName,
+      recommendedWeeklyHours: recHours,
+      estimatedWeeklyCost: estCost,
+      historicSharePct: s.frequencyPct,
+      focusArea: s.serviceName.toLowerCase().includes("social")
+        ? "Community access, transport, shopping & companionship"
+        : s.serviceName.toLowerCase().includes("self-care") || s.serviceName.toLowerCase().includes("personal")
+        ? "Personal care, hygiene routine & morning readiness"
+        : s.serviceName.toLowerCase().includes("domestic") || s.serviceName.toLowerCase().includes("cleaning")
+        ? "Household domestic assistance, laundry & meal prep"
+        : "Standard core care and daily living support"
+    };
+  });
+
+  // 8. Calculate Suggested Day-by-Day Roster Schedule matching client's historic days
+  const activeDaysOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const clientActiveDays = activeDaysOrder.filter(d => 
+    Object.values(patternMap).some(p => p.dayOfWeek === d && p.totalHours > 0)
+  );
+
+  const preferredDays = clientActiveDays.length > 0 ? clientActiveDays : ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const daysCount = preferredDays.length;
+
+  const suggestedWeeklySchedule: any[] = [];
+  const hoursPerDayTarget = parseFloat((perfectWeeklyHours / daysCount).toFixed(1));
+
+  const primaryService = historicServicesList[0] || { serviceName: "Individual social support", averageRate: 78.00 };
+  const secondaryService = historicServicesList[1] || null;
+
+  let scheduleHoursAccumulator = 0;
+
+  preferredDays.forEach((day, dIdx) => {
+    const isLastDay = dIdx === preferredDays.length - 1;
+    let dayHours = isLastDay
+      ? parseFloat(Math.max(1.0, perfectWeeklyHours - scheduleHoursAccumulator).toFixed(1))
+      : parseFloat(hoursPerDayTarget.toFixed(1));
+
+    if (secondaryService && (day === "Friday" || day === "Tuesday" || isLastDay) && dayHours >= 2.5) {
+      const secHours = Math.min(1.5, Math.max(0.5, parseFloat((secondaryService.averageRate ? 1.0 : 0.5).toFixed(1))));
+      const primHours = parseFloat((dayHours - secHours).toFixed(1));
+
+      suggestedWeeklySchedule.push({
+        dayOfWeek: day,
+        serviceName: primaryService.serviceName,
+        suggestedHours: primHours,
+        estimatedCost: parseFloat((primHours * primaryService.averageRate).toFixed(2)),
+        suggestedPurpose: day === "Monday" ? "Community access, grocery shopping & supported outing"
+          : day === "Wednesday" ? "Mid-week social engagement, appointments & library visit"
+          : "Social support, companionship & community participation"
+      });
+
+      suggestedWeeklySchedule.push({
+        dayOfWeek: day,
+        serviceName: secondaryService.serviceName,
+        suggestedHours: secHours,
+        estimatedCost: parseFloat((secHours * secondaryService.averageRate).toFixed(2)),
+        suggestedPurpose: "Personal care routine, hygiene support & wellbeing check"
+      });
+
+      scheduleHoursAccumulator += (primHours + secHours);
+    } else {
+      suggestedWeeklySchedule.push({
+        dayOfWeek: day,
+        serviceName: primaryService.serviceName,
+        suggestedHours: dayHours,
+        estimatedCost: parseFloat((dayHours * primaryService.averageRate).toFixed(2)),
+        suggestedPurpose: day === "Monday" ? "Community access, grocery shopping & weekly errands"
+          : day === "Tuesday" ? "Social companionship, recreational activities & supported transport"
+          : day === "Wednesday" ? "Mid-week wellness outing, shopping & community engagement"
+          : day === "Thursday" ? "Errands, supported recreation & social connection"
+          : "End-of-week social support & community connection"
+      });
+
+      scheduleHoursAccumulator += dayHours;
+    }
+  });
+
+  const totalSuggestedScheduleCost = parseFloat(suggestedWeeklySchedule.reduce((sum, item) => sum + item.estimatedCost, 0).toFixed(2));
+  const planFundingUtilizationPct = sustainableWeeklyFunding > 0 
+    ? parseFloat(((totalSuggestedScheduleCost / sustainableWeeklyFunding) * 100).toFixed(1))
+    : 100;
+
   const hasNdisAgreement = Boolean((budgetDetails as any).hasActiveAgreement || (budgetDetails as any).totalAgreementValue > 0);
   const optimizationSummary = isNdis
     ? (hasNdisAgreement
-        ? `The client has $${effectiveRemainingFunds.toFixed(2)} remaining in their NDIS Service Agreement (${(budgetDetails as any).agreementName || 'Service Agreement'}), which runs from ${(budgetDetails as any).agreementStartDateAU} to ${(budgetDetails as any).agreementEndDateAU} (${remainingWeeks} weeks remaining). At an average support rate of $${primaryStandardRate.toFixed(2)}/hr, they can safely afford an additional ${additionalAffordableHoursPerWeek} hours per week without exceeding their Service Agreement allocation.`
+        ? `The client has $${effectiveRemainingFunds.toFixed(2)} remaining in their NDIS Service Agreement (${(budgetDetails as any).agreementName || 'Service Agreement'}), which runs from ${(budgetDetails as any).agreementStartDateAU} to ${(budgetDetails as any).agreementEndDateAU} (${remainingWeeks} weeks remaining). Sustainable weekly funding is $${sustainableWeeklyFunding}/week, supporting an ideal ongoing roster of ${perfectWeeklyHours} hrs/week ($${totalSuggestedScheduleCost}/week).`
         : `No active NDIS Service Agreement has been configured for ${client.first_name} ${client.last_name} yet. To track budgets and calculate roster capacity, please add a Service Agreement under Clients > Client Dashboard > Budget page (Add Service Agreement).`)
-    : `The client has $${effectiveRemainingFunds.toFixed(2)} remaining across ${remainingWeeks} remaining weeks ($${weeklySurplusBudget.toFixed(2)}/week surplus). At a standard rate of $${primaryStandardRate.toFixed(2)}/hr, they can safely afford an additional ${additionalAffordableHoursPerWeek} hours per week without exceeding their quarterly budget.`;
+    : `The client has $${effectiveRemainingFunds.toFixed(2)} remaining across ${remainingWeeks} remaining weeks ($${weeklySurplusBudget.toFixed(2)}/week surplus). Their sustainable weekly package funding is $${sustainableWeeklyFunding}/week ($${(budgetDetails as any).dailyFundingRate || 0}/day). Based on their historic services ($${weightedHourlyRate}/hr avg), their perfect ongoing weekly target is ${perfectWeeklyHours} hours/week ($${totalSuggestedScheduleCost}/week). Currently delivered hours are ${totalBaselineWeeklyHours} hrs/week, leaving an under-utilization gap of +${weeklyHoursDifference} hrs/week to be scheduled.`;
 
   return {
     clientName: `${client.first_name} ${client.last_name}`,
@@ -791,10 +991,19 @@ export function optimizeQuarterlyRosterLogic(
     remainingWeeksInQuarter: remainingWeeks,
     remainingAgreementWeeks: remainingWeeks,
     weeklySurplusBudget,
+    sustainableWeeklyFunding,
     currentWeeklyBaseline: baselinePattern,
     baselineWeeklyHours: totalBaselineWeeklyHours,
     baselineWeeklyCost: totalBaselineWeeklyCost,
     primaryStandardRate,
+    weightedHourlyRate,
+    perfectWeeklyHours,
+    perfectWeeklyCost: totalSuggestedScheduleCost,
+    weeklyHoursDifference,
+    planFundingUtilizationPct,
+    historicServicesSummary: historicServicesList,
+    suggestedPlannedServices,
+    suggestedWeeklySchedule,
     additionalAffordableHoursPerWeek,
     recommendedMaxWeeklyHours: parseFloat((totalBaselineWeeklyHours + additionalAffordableHoursPerWeek).toFixed(2)),
     optimizationSummary
@@ -2343,7 +2552,7 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           const optimizeQuarterlyRosterDeclaration = {
             name: "optimize_quarterly_roster",
-            description: "Analyze client baseline weekly shift schedule and calculate surplus budget and additional affordable hours per week based on their actual Home Care quarterly budget or NDIS Service Agreement allocation.",
+            description: "Analyze client baseline weekly shift schedule, calculate sustainable weekly funding, and provide tailored suggestions for the perfect amount of weekly hours and planned services based on their historic previous services and funding package.",
             parameters: {
               type: Type.OBJECT,
               properties: {
@@ -2629,6 +2838,15 @@ SPECIALIZED TOOL GUIDELINES:
 • Vehicle Register: Display total fleet count (company vs staff). List vehicles requiring attention (expired or expiring rego, comprehensive insurance, roadside assistance) with renewal dates.
 • Staff Activity Summary: Display staff name, position, total delivered hours, total shifts, clients visited, travel km/mins, and recent shifts log.
 • Invoicing & Growth Forecasting: Display current week billing, past FY (FY25/26) total revenue and monthly averages, current FY YTD, and future growth forecasting for FY27/28 (+8% conservative, +15% target, +25% expansion).
+• Roster Optimization & Planned Services (optimize_quarterly_roster):
+  When optimizing a roster, Happy MUST include a prominent, dedicated section titled:
+  "### 🎯 Recommended Weekly Hours & Suggested Planned Services"
+  In this section, provide:
+  1. The Sustainable Weekly Target Budget ($X.XX/week) and the calculated "Perfect Amount of Weekly Hours" (e.g. 16.0 hrs/week for HCP Level 4) based on their actual package and historic hourly rates.
+  2. Current vs. Target Comparison: Highlight current weekly hours (e.g. 9.16 hrs/week) vs the target perfect weekly hours (e.g. 16.0 hrs/week), stating the recommended weekly hours adjustment (+X.X hrs/week).
+  3. Suggested Planned Services Breakdown: Display a markdown table showing the suggested planned services based on the client's historic previous services (e.g. Individual social support, Assistance with self-care, Domestic assistance) with recommended weekly hours, estimated weekly cost, and focus areas.
+  4. Suggested Day-by-Day Roster Schedule: Display a clear markdown table showing the suggested weekly schedule (Day, Service, Suggested Hours, Est. Cost, Activities/Purpose) matching their historic days and session routines.
+  5. Care Coordinator Guidance: Differentiate between the permanent sustainable weekly schedule (e.g. 16.0 hrs/week) and how to handle any accumulated end-of-quarter surplus (e.g. rolling over into Unspent Funds Pool on 30/09/2026, or investing in deep cleaning, home safety modifications, assistive technology, or allied health rather than rostering 100+ impossible hours in the last few days of a quarter).
 
 IF THE CLIENT IS NDIS (fundingType === 'NDIS'):
 - NDIS FUNDS ARE NOT ALLOCATED QUARTERLY. Do NOT refer to NDIS funding as "quarterly budget allocation", "quarterly cycle", or "quarterly allocation".
@@ -2779,9 +2997,24 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
               `• **Shift Activity:** ${anyAnalysis.shiftCount || 0} shifts (${anyAnalysis.statusBreakdown?.completedShifts || 0} completed, ${anyAnalysis.statusBreakdown?.scheduledShifts || 0} scheduled)\n\n` +
               `💡 **Rostering & Budget Recommendation:**\n` +
               `${optimization.optimizationSummary || ''}\n` +
-              `• **Baseline Weekly Hours:** ${optimization.baselineWeeklyHours || 0} hrs/week\n` +
-              `• **Additional Affordable Hours:** +${optimization.additionalAffordableHoursPerWeek || 0} hrs/week\n` +
-              `• **Recommended Max Weekly Hours:** ${optimization.recommendedMaxWeeklyHours || 0} hrs/week`;
+              `• **Current Baseline Weekly Hours:** ${optimization.baselineWeeklyHours || 0} hrs/week ($${optimization.baselineWeeklyCost || 0}/week)\n` +
+              `• **Perfect Target Weekly Hours:** ${optimization.perfectWeeklyHours || optimization.recommendedMaxWeeklyHours || 0} hrs/week ($${optimization.perfectWeeklyCost || 0}/week)\n` +
+              `• **Sustainable Weekly Funding:** $${optimization.sustainableWeeklyFunding || 0}/week\n` +
+              `• **Recommended Adjustment:** ${optimization.weeklyHoursDifference > 0 ? `+${optimization.weeklyHoursDifference}` : optimization.weeklyHoursDifference} hrs/week\n`;
+
+            if (Array.isArray(optimization.suggestedPlannedServices) && optimization.suggestedPlannedServices.length > 0) {
+              reply += `\n🎯 **Suggested Planned Services (Based on Historic Services):**\n`;
+              optimization.suggestedPlannedServices.forEach((s: any) => {
+                reply += `• **${s.serviceName}:** ${s.recommendedWeeklyHours} hrs/week ($${s.estimatedWeeklyCost}/week) — ${s.focusArea}\n`;
+              });
+            }
+
+            if (Array.isArray(optimization.suggestedWeeklySchedule) && optimization.suggestedWeeklySchedule.length > 0) {
+              reply += `\n📅 **Suggested Day-by-Day Roster Schedule:**\n`;
+              optimization.suggestedWeeklySchedule.forEach((sc: any) => {
+                reply += `• **${sc.dayOfWeek}:** ${sc.serviceName} (${sc.suggestedHours} hrs • $${sc.estimatedCost}) — ${sc.suggestedPurpose}\n`;
+              });
+            }
           }
 
           return res.json({ reply, analysis: anyAnalysis, optimization });
