@@ -503,7 +503,15 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
 
             <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
               {services
-                .filter(s => formData.fundingType === s.type || (!s.type))
+                .filter(s => {
+                  const isHc = formData.fundingType === 'HOME_CARE' || formData.fundingType === 'Home Care' || formData.fundingType === 'HCP';
+                  if (isHc) {
+                    if (s.type === 'NDIS') return false;
+                    return s.type === 'HOME_CARE' || s.type === 'Home Care' || s.type === 'HCP' || 
+                      (s.rates_json && (typeof s.rates_json === 'string' ? s.rates_json.includes('Weekday') : (s.rates_json?.['Weekday'] !== undefined || s.rates_json?.['Weekday (Non-Standard)'] !== undefined)));
+                  }
+                  return s.type === 'NDIS' || (!s.type);
+                })
                 .filter(s => 
                   s.name.toLowerCase().includes(serviceSearchQuery.toLowerCase()) || 
                   (s.code && s.code.toLowerCase().includes(serviceSearchQuery.toLowerCase()))
@@ -536,7 +544,15 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                   )
               })}
               
-              {services.filter(s => formData.fundingType === s.type || (!s.type)).length === 0 && (
+              {services.filter(s => {
+                const isHc = formData.fundingType === 'HOME_CARE' || formData.fundingType === 'Home Care' || formData.fundingType === 'HCP';
+                if (isHc) {
+                  if (s.type === 'NDIS') return false;
+                  return s.type === 'HOME_CARE' || s.type === 'Home Care' || s.type === 'HCP' || 
+                    (s.rates_json && (typeof s.rates_json === 'string' ? s.rates_json.includes('Weekday') : (s.rates_json?.['Weekday'] !== undefined || s.rates_json?.['Weekday (Non-Standard)'] !== undefined)));
+                }
+                return s.type === 'NDIS' || (!s.type);
+              }).length === 0 && (
                 <div className="text-sm text-zinc-500 p-4 text-center border border-dashed border-white/[0.08] rounded-md">
                   No available services to add.
                 </div>

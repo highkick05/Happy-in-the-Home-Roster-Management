@@ -11,6 +11,8 @@ import { useLocalStorage } from '../../hooks/useLocalStorage';
 export default function SettingsView() {
   const { token, user, updateSettings } = useAuth();
   const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'CHAT' | 'EMAIL' | 'EMAIL_WIDGET' | 'FUNDING_TYPES' | 'DATABASE' | 'TESTING' | 'SMS' | 'AI'>('settings_active_tab', 'GENERAL');
+  const [ndisServices, setNdisServices] = useState<any[]>([]);
+  const [homeCareServices, setHomeCareServices] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [priceLists, setPriceLists] = useState<any[]>([]);
   const [showPriceListModal, setShowPriceListModal] = useState(false);
@@ -232,9 +234,20 @@ export default function SettingsView() {
   useEffect(() => {
     if (activeTab === 'GENERAL' || activeTab === 'BILLING' || activeTab === 'BRANDING' || activeTab === 'EMAIL' || activeTab === 'CHAT' || activeTab === 'SMS') fetchSettings();
     if (activeTab === 'CHAT') fetchChatMediaFiles();
-    if (activeTab === 'NDIS' || activeTab === 'HOME_CARE') fetchServices(activeTab);
-    if (activeTab === 'NDIS') fetchPriceLists();
+    if (activeTab === 'NDIS') {
+      fetchServices('NDIS');
+      fetchPriceLists();
+    }
+    if (activeTab === 'HOME_CARE') {
+      fetchServices('HOME_CARE');
+    }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'HOME_CARE' && homeCareSubTab === 'PRICING') {
+      fetchServices('HOME_CARE');
+    }
+  }, [activeTab, homeCareSubTab]);
 
   const fetchPriceLists = async () => {
     try {
@@ -373,7 +386,13 @@ export default function SettingsView() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        setServices(await res.json());
+        const data = await res.json();
+        setServices(data);
+        if (type === 'NDIS') {
+          setNdisServices(data);
+        } else if (type === 'HOME_CARE') {
+          setHomeCareServices(data);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -385,6 +404,7 @@ export default function SettingsView() {
   const handleCategoryChange = async (id: string, category: string) => {
     // Optimistic UI update
     setServices(prev => prev.map(s => s.id === id ? { ...s, service_category: category } : s));
+    setHomeCareServices(prev => prev.map(s => s.id === id ? { ...s, service_category: category } : s));
     setSavingCategoryIds(prev => new Set([...prev, id]));
     
     try {
@@ -456,6 +476,11 @@ export default function SettingsView() {
       if (res.ok) {
         const newService = await res.json();
         setServices(prev => [newService, ...prev]);
+        if (activeTab === 'HOME_CARE') {
+          setHomeCareServices(prev => [newService, ...prev]);
+        } else {
+          setNdisServices(prev => [newService, ...prev]);
+        }
         setShowAddServiceModal(false);
         setNewServiceForm({
           name: '',
@@ -822,7 +847,8 @@ export default function SettingsView() {
     }
   };
 
-  const filteredServices = services.filter(s => {
+  const filteredNdisServices = (ndisServices.length > 0 ? ndisServices : services).filter(s => {
+    if (s.type && s.type !== 'NDIS') return false;
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     const regGroupNum = String(s.reg_group_number || '');
@@ -835,6 +861,28 @@ export default function SettingsView() {
       regGroupName.toLowerCase().includes(q)
     );
   });
+
+  const filteredHomeCareServices = (homeCareServices.length > 0 ? homeCareServices : services).filter(s => {
+    // Strictly exclude any NDIS services from Home Care Pricing
+    if (s.type === 'NDIS') return false;
+    const isHc = s.type === 'HOME_CARE' || s.type === 'Home Care' || s.type === 'HCP' || 
+      (s.rates_json && (typeof s.rates_json === 'string' ? s.rates_json.includes('Weekday') : (s.rates_json?.['Weekday'] !== undefined || s.rates_json?.['Weekday (Non-Standard)'] !== undefined)));
+    if (!isHc) return false;
+
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const regGroupNum = String(s.reg_group_number || '');
+    const regGroupName = String(s.reg_group_name || '');
+    return (
+      String(s.code || '').toLowerCase().includes(q) ||
+      String(s.name || '').toLowerCase().includes(q) ||
+      String(s.rate || '').toLowerCase().includes(q) ||
+      regGroupNum.toLowerCase().includes(q) ||
+      regGroupName.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredServices = filteredNdisServices;
 
   return (
     <div className="h-full flex flex-col space-y-3">
@@ -1969,7 +2017,7 @@ export default function SettingsView() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle text-sm">
-                    {filteredServices.map(s => (
+                    {filteredNdisServices.map(s => (
                       <tr key={s.id} className="hover:bg-brand-bg/50 transition-colors">
                         <td className="px-2 py-1.5 font-mono text-xs text-[#E6EDF3]">{s.code}</td>
                         <td className="px-2 py-1.5 text-[#E6EDF3]">
@@ -1995,7 +2043,7 @@ export default function SettingsView() {
                         </td>
                       </tr>
                     ))}
-                    {services.length === 0 && (
+                    {filteredNdisServices.length === 0 && (
                       <tr>
                         <td colSpan={6} className="px-4 py-12 text-center">
                           <div className="flex flex-col items-center justify-center space-y-3">
@@ -2035,7 +2083,10 @@ export default function SettingsView() {
                     ? 'border-brand-teal text-[#E6EDF3] font-semibold' 
                     : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
                 }`}
-                onClick={() => setHomeCareSubTab('PRICING')}
+                onClick={() => {
+                  setHomeCareSubTab('PRICING');
+                  fetchServices('HOME_CARE');
+                }}
               >
                 Home Care Pricing
               </button>
@@ -2109,7 +2160,7 @@ export default function SettingsView() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border-subtle text-sm">
-                          {filteredServices.map(s => {
+                          {filteredHomeCareServices.map(s => {
                             let isVariable = false;
                             try {
                               if (s.rates_json) {
@@ -2200,7 +2251,7 @@ export default function SettingsView() {
                               </tr>
                             );
                           })}
-                          {services.length === 0 && (
+                          {filteredHomeCareServices.length === 0 && (
                             <tr>
                               <td colSpan={9} className="px-4 py-12 text-center">
                                 <div className="flex flex-col items-center justify-center space-y-3">

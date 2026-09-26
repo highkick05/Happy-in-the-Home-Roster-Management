@@ -205,12 +205,41 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
   };
 
   const clientPersonalisedServices = useMemo(() => {
+    const isClientHomeCare = client?.funding_type === 'HOME_CARE' || client?.funding_type === 'Home Care' || client?.funding_type === 'HCP';
     const clientServiceIds = client?.service_ids || [];
-    if (clientServiceIds.length === 0) {
-      return servicesList;
-    }
     const selectedServiceIds = servicesData.map(s => Number(s.serviceId)).filter(id => !isNaN(id));
-    return servicesList.filter(s => clientServiceIds.includes(s.id) || selectedServiceIds.includes(s.id));
+
+    if (isClientHomeCare) {
+      // ONLY Home Care services for Home Care clients to ensure they strictly match Home Care Pricing
+      const hcServices = servicesList.filter(s => 
+        s.type === 'HOME_CARE' || s.type === 'Home Care' || s.type === 'HCP' || 
+        (s.rates_json && (typeof s.rates_json === 'string' ? s.rates_json.includes('Weekday') : (s.rates_json?.['Weekday'] !== undefined || s.rates_json?.['Weekday (Non-Standard)'] !== undefined)))
+      );
+
+      if (clientServiceIds.length > 0) {
+        // If client has assigned services, match them against HC services by ID or code/name
+        const assignedHc = hcServices.filter(s => 
+          clientServiceIds.includes(s.id) || 
+          selectedServiceIds.includes(s.id) ||
+          clientServiceIds.some((csId: any) => {
+            const rawSrv = servicesList.find(x => x.id === csId);
+            return rawSrv && (
+              (rawSrv.code && s.code && rawSrv.code.trim().toLowerCase() === s.code.trim().toLowerCase()) ||
+              (rawSrv.name && s.name && rawSrv.name.trim().toLowerCase() === s.name.trim().toLowerCase())
+            );
+          })
+        );
+        if (assignedHc.length > 0) return assignedHc;
+      }
+      return hcServices.length > 0 ? hcServices : servicesList;
+    } else {
+      const ndisServices = servicesList.filter(s => s.type === 'NDIS' || !s.type || selectedServiceIds.includes(s.id));
+      if (clientServiceIds.length > 0) {
+        const assignedNdis = ndisServices.filter(s => clientServiceIds.includes(s.id) || selectedServiceIds.includes(s.id));
+        if (assignedNdis.length > 0) return assignedNdis;
+      }
+      return ndisServices.length > 0 ? ndisServices : servicesList;
+    }
   }, [client, servicesList, servicesData]);
 
   const shiftHours = useMemo(() => {
@@ -222,27 +251,89 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     return Math.max(0, diff / (1000 * 60 * 60));
   }, [startTime, endTime]);
 
-  const getServiceDetails = (serviceId: string, dayOfWeek: number) => {
-    const service = servicesList.find(x => String(x.id) === serviceId);
+  const getServiceDetails = (serviceId: string, dayOfWeek: number, timeStr?: string) => {
+    let service = servicesList.find(x => String(x.id) === String(serviceId));
     if (!service) return { rate: 0, unit: 'Hour', name: '' };
     
-    let baseRate = Number(service.rate);
-    let finalRate = baseRate;
-    
-    if (service.type === 'HOME_CARE' && service.rates_json) {
-       try {
-          const rates = JSON.parse(service.rates_json);
-          if (dayOfWeek === 0 && rates['Sunday']) finalRate = Number(rates['Sunday']);
-          else if (dayOfWeek === 6 && rates['Saturday']) finalRate = Number(rates['Saturday']);
-          else if (rates['Weekday']) finalRate = Number(rates['Weekday']);
-       } catch(e) {}
-    } else if (service.type === 'NDIS' && service.rates_json) {
-       try {
-          const rates = JSON.parse(service.rates_json);
-          const region = settings?.ndisRegion || 'NSW';
-          if (rates[region] !== undefined) finalRate = Number(rates[region]);
-       } catch(e) {}
+    const isClientHomeCare = client?.funding_type === 'HOME_CARE' || client?.funding_type === 'Home Care' || client?.funding_type === 'HCP';
+
+    // If client is Home Care and this service was mistakenly linked as NDIS, resolve to the matching Home Care service from Home Care Pricing
+    if (isClientHomeCare && service.type !== 'HOME_CARE' && service.type !== 'Home Care' && service.type !== 'HCP') {
+      const matchingHc = servicesList.find(s => 
+        (s.type === 'HOME_CARE' || s.type === 'Home Care' || s.type === 'HCP' || (s.rates_json && (typeof s.rates_json === 'string' ? s.rates_json.includes('Weekday') : s.rates_json?.['Weekday'] !== undefined))) &&
+        ((s.code && service.code && s.code.trim().toLowerCase() === service.code.trim().toLowerCase()) ||
+         (s.name && service.name && s.name.trim().toLowerCase() === service.name.trim().toLowerCase()) ||
+         (s.name && service.name && (s.name.toLowerCase().includes(service.name.toLowerCase()) || service.name.toLowerCase().includes(s.name.toLowerCase()))))
+      );
+      if (matchingHc) {
+        service = matchingHc;
+      }
     }
+
+    let rates: Record<string, any> = {};
+    if (typeof service.rates_json === 'string') {
+      try {
+        rates = JSON.parse(service.rates_json);
+      } catch (e) {
+        rates = {};
+      }
+    } else if (service.rates_json && typeof service.rates_json === 'object') {
+      rates = service.rates_json;
+    }
+
+    let baseRate = Number(service.rate) || 0;
+    let finalRate = baseRate;
+
+    const isHomeCareService = service.type === 'HOME_CARE' || service.type === 'Home Care' || service.type === 'HCP' || isClientHomeCare || rates['Weekday'] !== undefined || rates['Weekday (Non-Standard)'] !== undefined;
+
+    if (isHomeCareService && (rates && Object.keys(rates).length > 0)) {
+      const findRate = (...keysToFind: string[]): number | undefined => {
+        for (const k of keysToFind) {
+          if (rates[k] !== undefined && rates[k] !== null && rates[k] !== '' && !isNaN(Number(rates[k]))) {
+            return Number(rates[k]);
+          }
+        }
+        for (const k of keysToFind) {
+          const lowerK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+          for (const [rk, rv] of Object.entries(rates)) {
+            if (rk.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerK && rv !== undefined && rv !== null && rv !== '' && !isNaN(Number(rv))) {
+              return Number(rv);
+            }
+          }
+        }
+        return undefined;
+      };
+
+      const weekdayRate = findRate('Weekday', 'Weekday (Standard)', 'Standard') ?? (baseRate > 0 ? baseRate : undefined);
+      const nonStandardRate = findRate('Weekday (Non-Standard)', 'Non-Standard', 'Weekday Non Standard', 'Evening', 'Night') ?? weekdayRate;
+      const saturdayRate = findRate('Saturday', 'Sat') ?? weekdayRate;
+      const sundayRate = findRate('Sunday', 'Sun') ?? weekdayRate;
+
+      const checkTime = timeStr || startTime;
+      const isEveningOrNight = checkTime ? (checkTime >= '18:00' || checkTime < '06:00') : false;
+
+      if (dayOfWeek === 0) {
+        finalRate = sundayRate !== undefined && !isNaN(sundayRate) && sundayRate > 0 ? sundayRate : (weekdayRate ?? baseRate);
+      } else if (dayOfWeek === 6) {
+        finalRate = saturdayRate !== undefined && !isNaN(saturdayRate) && saturdayRate > 0 ? saturdayRate : (weekdayRate ?? baseRate);
+      } else {
+        if (isEveningOrNight && nonStandardRate !== undefined && !isNaN(nonStandardRate) && nonStandardRate > 0) {
+          finalRate = nonStandardRate;
+        } else {
+          finalRate = weekdayRate !== undefined && !isNaN(weekdayRate) && weekdayRate > 0 ? weekdayRate : baseRate;
+        }
+      }
+    } else if (service.type === 'NDIS' && rates && Object.keys(rates).length > 0) {
+      const region = settings?.ndisRegion || 'NSW';
+      if (rates[region] !== undefined && rates[region] !== null && rates[region] !== '') {
+        finalRate = Number(rates[region]);
+      }
+    }
+
+    if (finalRate === 0 && baseRate > 0) {
+      finalRate = baseRate;
+    }
+
     return { rate: finalRate, unit: service.unit || 'Hour', name: service.name };
   };
 
@@ -256,14 +347,14 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
       if (t.servicesData && t.servicesData.length > 0) {
         t.servicesData.forEach((sd: any) => {
-          const { rate, unit } = getServiceDetails(String(sd.serviceId), t.day_of_week);
+          const { rate, unit } = getServiceDetails(String(sd.serviceId), t.day_of_week, t.start_time);
           const effectiveQty = (sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== '') ? Number(sd.qtyOverride) : (unit === 'Hour' ? tShiftHours : 1);
           const effectiveRate = (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== '') ? Number(sd.rateOverride) : rate;
           total += effectiveRate * effectiveQty;
         });
       } else if (t.service_id) {
          // Legacy templates handling
-         const { rate, unit } = getServiceDetails(String(t.service_id), t.day_of_week);
+         const { rate, unit } = getServiceDetails(String(t.service_id), t.day_of_week, t.start_time);
          total += rate * tShiftHours;
       }
     });
@@ -276,6 +367,70 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
 
   const handleRemoveServiceEntry = (index: number) => {
     setServicesData(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleServiceChange = (index: number, newServiceId: string) => {
+    setServicesData(prev => {
+      const copy = [...prev];
+      if (!newServiceId) {
+        copy[index] = { ...copy[index], serviceId: '', rateOverride: '', qtyOverride: '' };
+        return copy;
+      }
+      const sDetails = getServiceDetails(newServiceId, daysOfWeek[0] ?? 1, startTime);
+      const effectiveRate = sDetails.rate > 0 ? sDetails.rate.toFixed(2) : '';
+      const effectiveQty = sDetails.unit === 'Hour' ? shiftHours : 1;
+      copy[index] = {
+        ...copy[index],
+        serviceId: newServiceId,
+        rateOverride: effectiveRate,
+        qtyOverride: copy[index].qtyOverride || (effectiveQty % 1 === 0 ? effectiveQty : Number(effectiveQty.toFixed(2)))
+      };
+      return copy;
+    });
+  };
+
+  const handleStartTimeChange = (newStartTime: string) => {
+    setStartTime(newStartTime);
+    const day = daysOfWeek[0] ?? 1;
+    setServicesData(prev => prev.map(s => {
+      if (!s.serviceId) return s;
+      const oldDetails = getServiceDetails(s.serviceId, day, startTime);
+      const newDetails = getServiceDetails(s.serviceId, day, newStartTime);
+      // Auto-update rateOverride if unset or matching previously calculated rate
+      if (!s.rateOverride || Number(s.rateOverride) === oldDetails.rate) {
+        return { ...s, rateOverride: newDetails.rate > 0 ? newDetails.rate.toFixed(2) : '' };
+      }
+      return s;
+    }));
+  };
+
+  const handleDayToggle = (idx: number) => {
+    let newDays: number[];
+    if (editingTemplateId) {
+      newDays = [idx];
+    } else {
+      if (daysOfWeek.includes(idx)) {
+        newDays = daysOfWeek.filter(d => d !== idx);
+      } else {
+        newDays = [...daysOfWeek, idx];
+      }
+    }
+    const oldDay = daysOfWeek[0] ?? 1;
+    const targetDay = newDays.length > 0 ? newDays[0] : 1;
+    setDaysOfWeek(newDays);
+
+    if (oldDay !== targetDay) {
+      setServicesData(prev => prev.map(s => {
+        if (!s.serviceId) return s;
+        const oldDetails = getServiceDetails(s.serviceId, oldDay, startTime);
+        const newDetails = getServiceDetails(s.serviceId, targetDay, startTime);
+        // If current rateOverride is unset or was defaulted to old day's rate, auto-update to new day's rate
+        if (!s.rateOverride || Number(s.rateOverride) === oldDetails.rate) {
+          return { ...s, rateOverride: newDetails.rate > 0 ? newDetails.rate.toFixed(2) : '' };
+        }
+        return s;
+      }));
+    }
   };
 
   const updateServiceEntry = (index: number, field: keyof ServiceFormEntry, value: string) => {
@@ -320,16 +475,32 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     }
 
     if (editingTemplateId) {
+      const targetDay = daysOfWeek[0] ?? 1;
+      const finalServicesData = servicesData.map(s => {
+        const sDetails = getServiceDetails(s.serviceId, targetDay, startTime);
+        const effectiveRate = (s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== '')
+          ? Number(s.rateOverride)
+          : sDetails.rate;
+        const effectiveQty = (s.qtyOverride !== undefined && s.qtyOverride !== null && s.qtyOverride !== '')
+          ? Number(s.qtyOverride)
+          : (sDetails.unit === 'Hour' ? shiftHours : 1);
+        return {
+          serviceId: s.serviceId,
+          rateOverride: effectiveRate > 0 ? Number(effectiveRate.toFixed(2)) : (sDetails.rate > 0 ? Number(sDetails.rate.toFixed(2)) : 0),
+          qtyOverride: effectiveQty
+        };
+      });
+
       try {
         const res = await fetch(`/api/client-roster-templates/${editingTemplateId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
-            dayOfWeek: daysOfWeek[0],
+            dayOfWeek: targetDay,
             startTime,
             endTime,
             staffId: parseInt(staffId),
-            servicesData
+            servicesData: finalServicesData
           })
         });
         if (res.ok) {
@@ -345,24 +516,38 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
       }
     } else {
       try {
-        const res = await fetch(`/api/clients/${clientId}/roster-templates`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            daysOfWeek,
-            startTime,
-            endTime,
-            staffId: parseInt(staffId),
-            servicesData,
-            templateName: activeTemplateName
-          })
-        });
-        if (res.ok) {
-          fetchData();
-          setShowAddTemplateModal(false);
-        } else {
-          alert('Failed to add template shift.');
+        // For each selected day, generate day-specific servicesData using that day's Home Care Pricing rate
+        for (const day of daysOfWeek) {
+          const dayServicesData = servicesData.map(s => {
+            const sDetails = getServiceDetails(s.serviceId, day, startTime);
+            const isManuallyOverridden = s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== '' && 
+              Number(s.rateOverride) !== getServiceDetails(s.serviceId, daysOfWeek[0] ?? 1, startTime).rate;
+            const effectiveRate = isManuallyOverridden ? Number(s.rateOverride) : sDetails.rate;
+            const effectiveQty = (s.qtyOverride !== undefined && s.qtyOverride !== null && s.qtyOverride !== '')
+              ? Number(s.qtyOverride)
+              : (sDetails.unit === 'Hour' ? shiftHours : 1);
+            return {
+              serviceId: s.serviceId,
+              rateOverride: effectiveRate > 0 ? Number(effectiveRate.toFixed(2)) : (sDetails.rate > 0 ? Number(sDetails.rate.toFixed(2)) : 0),
+              qtyOverride: effectiveQty
+            };
+          });
+
+          await fetch(`/api/clients/${clientId}/roster-templates`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              dayOfWeek: day,
+              startTime,
+              endTime,
+              staffId: parseInt(staffId),
+              servicesData: dayServicesData,
+              templateName: activeTemplateName
+            })
+          });
         }
+        fetchData();
+        setShowAddTemplateModal(false);
       } catch (e) {
         console.error(e);
         alert('Error occurred.');
@@ -838,17 +1023,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                           <button
                             key={idx}
                             type="button"
-                            onClick={() => {
-                              if (editingTemplateId) {
-                                setDaysOfWeek([idx]);
-                              } else {
-                                if (daysOfWeek.includes(idx)) {
-                                  setDaysOfWeek(daysOfWeek.filter(d => d !== idx));
-                                } else {
-                                  setDaysOfWeek([...daysOfWeek, idx]);
-                                }
-                              }
-                            }}
+                            onClick={() => handleDayToggle(idx)}
                             className={`px-2 py-1 rounded text-xs font-medium transition-colors border ${daysOfWeek.includes(idx) ? 'bg-indigo-500/20 text-brand-teal border-brand-teal/30' : 'bg-[#121214] text-zinc-400 border-white/[0.08] hover:bg-zinc-800'}`}
                           >
                             {DAYS_OF_WEEK[idx].substring(0, 3)}
@@ -860,7 +1035,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-zinc-400 mb-1.5">Start Time</label>
-                        <CustomTimePicker required value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors" />
+                        <CustomTimePicker required value={startTime} onChange={e => handleStartTimeChange(e.target.value)} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-white focus:border-brand-teal outline-none transition-colors" />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-zinc-400 mb-1.5">End Time</label>
@@ -883,7 +1058,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                     </div>
                     
                     {servicesData.map((s, index) => {
-                      const { rate, unit } = getServiceDetails(s.serviceId, daysOfWeek[0] ?? 1);
+                      const { rate, unit } = getServiceDetails(s.serviceId, daysOfWeek[0] ?? 1, startTime);
                       const effectiveQty = (s.qtyOverride !== undefined && s.qtyOverride !== null && s.qtyOverride !== '') ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1);
                       const effectiveRate = (s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== '') ? Number(s.rateOverride) : rate;
                       const totalAmount = effectiveRate * effectiveQty;
@@ -893,7 +1068,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                           <select
                             required
                             value={String(s.serviceId || '')}
-                            onChange={e => updateServiceEntry(index, 'serviceId', e.target.value)}
+                            onChange={e => handleServiceChange(index, e.target.value)}
                             className="w-full bg-[#09090b] border border-white/[0.08] rounded-md px-2 py-1.5 text-sm text-white focus:border-brand-teal outline-none mb-2"
                           >
                             <option value="">-- Choose Service --</option>
@@ -909,7 +1084,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                   <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Rate</span>
                                   <input 
                                     type="number" min="0.00" step="0.01"
-                                    value={s.rateOverride || ''}
+                                    value={s.rateOverride !== undefined && s.rateOverride !== null ? s.rateOverride : (rate > 0 ? rate.toFixed(2) : '')}
                                     onChange={(e) => updateServiceEntry(index, 'rateOverride', e.target.value)}
                                     placeholder={`$${rate.toFixed(2)}`}
                                     className="w-24 bg-[#09090b] border border-white/[0.08] rounded px-1.5 py-1 text-sm text-zinc-200 focus:border-brand-teal outline-none"
@@ -919,7 +1094,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                                   <span className="text-[10px] text-zinc-500 uppercase tracking-wider">{unit === 'Hour' ? 'Hrs' : 'Qty'}</span>
                                   <input 
                                     type="number" min="0.01" step="0.01"
-                                    value={s.qtyOverride || ''}
+                                    value={s.qtyOverride !== undefined && s.qtyOverride !== null ? s.qtyOverride : (unit === 'Hour' ? shiftHours : 1)}
                                     onChange={(e) => updateServiceEntry(index, 'qtyOverride', e.target.value)}
                                     placeholder={String(effectiveQty)}
                                     className="w-14 bg-[#09090b] border border-white/[0.08] rounded px-1.5 py-1 text-sm text-zinc-200 focus:border-brand-teal outline-none"

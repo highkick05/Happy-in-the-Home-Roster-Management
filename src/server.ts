@@ -10174,7 +10174,7 @@ app.get("/api/health", (req, res) => {
                     }
                     const srv = db
                       .prepare(
-                        "SELECT type, rates_json, name FROM services WHERE id = ?",
+                        "SELECT id, type, rates_json, name, rate FROM services WHERE id = ?",
                       )
                       .get(sData.serviceId) as any;
                     if (srv) {
@@ -10184,7 +10184,32 @@ app.get("/api/health", (req, res) => {
                           .includes("activity based transport")
                       ) {
                         isAbtApproved = true;
-              sData.qtyOverride = 0;
+                        sData.qtyOverride = 0;
+                      }
+                      if (!sData.rateOverride || sData.rateOverride === "" || isNaN(Number(sData.rateOverride))) {
+                        let rates: any = {};
+                        try {
+                          rates = typeof srv.rates_json === "string" ? JSON.parse(srv.rates_json) : (srv.rates_json || {});
+                        } catch (e) {}
+                        const dayOfWeek = startDateTime.getDay();
+                        const isHomeCare = srv.type === "HOME_CARE" || fundingType === "HOME_CARE" || rates["Weekday"] !== undefined;
+                        if (isHomeCare && Object.keys(rates).length > 0) {
+                          if (isPublicHoliday && rates["Public Holiday"]) {
+                            sData.rateOverride = Number(rates["Public Holiday"]);
+                          } else if (dayOfWeek === 0 && rates["Sunday"]) {
+                            sData.rateOverride = Number(rates["Sunday"]);
+                          } else if (dayOfWeek === 6 && rates["Saturday"]) {
+                            sData.rateOverride = Number(rates["Saturday"]);
+                          } else if (rates["Weekday"]) {
+                            sData.rateOverride = Number(rates["Weekday"]);
+                          } else if (rates["Weekday (Non-Standard)"]) {
+                            sData.rateOverride = Number(rates["Weekday (Non-Standard)"]);
+                          } else if (srv.rate) {
+                            sData.rateOverride = Number(srv.rate);
+                          }
+                        } else if (srv.rate) {
+                          sData.rateOverride = Number(srv.rate);
+                        }
                       }
                       const histData = getHistoricalServiceData(db, srv, startDateTime.toISOString());
                     }
@@ -10199,7 +10224,7 @@ app.get("/api/health", (req, res) => {
                 }
                 const srv = db
                   .prepare(
-                    "SELECT type, rates_json, name FROM services WHERE id = ?",
+                    "SELECT id, type, rates_json, name, rate FROM services WHERE id = ?",
                   )
                   .get(servicesData[0].serviceId) as any;
                 if (srv) {
@@ -10208,7 +10233,31 @@ app.get("/api/health", (req, res) => {
                   ) {
                     isAbtApproved = true;
                     servicesData[0].qtyOverride = 0;
-                  }                  const histData = getHistoricalServiceData(db, srv, tmpl.start_time || tmpl.start || startDateTime.toISOString());
+                  }
+                  let rates: any = {};
+                  try {
+                    rates = typeof srv.rates_json === "string" ? JSON.parse(srv.rates_json) : (srv.rates_json || {});
+                  } catch (e) {}
+                  const dayOfWeek = startDateTime.getDay();
+                  const isHomeCare = srv.type === "HOME_CARE" || fundingType === "HOME_CARE" || rates["Weekday"] !== undefined;
+                  if (isHomeCare && Object.keys(rates).length > 0) {
+                    if (isPublicHoliday && rates["Public Holiday"]) {
+                      servicesData[0].rateOverride = Number(rates["Public Holiday"]);
+                    } else if (dayOfWeek === 0 && rates["Sunday"]) {
+                      servicesData[0].rateOverride = Number(rates["Sunday"]);
+                    } else if (dayOfWeek === 6 && rates["Saturday"]) {
+                      servicesData[0].rateOverride = Number(rates["Saturday"]);
+                    } else if (rates["Weekday"]) {
+                      servicesData[0].rateOverride = Number(rates["Weekday"]);
+                    } else if (rates["Weekday (Non-Standard)"]) {
+                      servicesData[0].rateOverride = Number(rates["Weekday (Non-Standard)"]);
+                    } else if (srv.rate) {
+                      servicesData[0].rateOverride = Number(srv.rate);
+                    }
+                  } else if (srv.rate) {
+                    servicesData[0].rateOverride = Number(srv.rate);
+                  }
+                  const histData = getHistoricalServiceData(db, srv, tmpl.start_time || tmpl.start || startDateTime.toISOString());
                 }
               }
               let mainServiceId = null;
@@ -12906,11 +12955,19 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
   app.get("/api/services", authenticateToken, (req: any, res: any) => {
     const { type } = req.query;
 
-    // For staff, omit rate and rates_json completely
-    const isStaff = req.user.role !== "ADMIN";
-    const selectCols = isStaff
-      ? "id, code, name, description, type, unit, service_category, reg_group_number, reg_group_name"
-      : "*";
+    // For staff without admin portal access, omit rate and rates_json completely
+    let canSeeRates = req.user.role === "ADMIN";
+    if (!canSeeRates && req.user.id) {
+      try {
+        const uRow = db.prepare("SELECT role, can_switch_admin FROM users WHERE id = ?").get(req.user.id) as any;
+        if (uRow && (uRow.role === "ADMIN" || uRow.can_switch_admin)) {
+          canSeeRates = true;
+        }
+      } catch (e) {}
+    }
+    const selectCols = canSeeRates
+      ? "*"
+      : "id, code, name, description, type, unit, service_category, reg_group_number, reg_group_name";
 
     let query = `SELECT ${selectCols} FROM services WHERE (status IS NULL OR status != 'ARCHIVED')`;
 
@@ -13507,6 +13564,9 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
                   if (isNaN(rVal) || rVal == null) rVal = 0;
                   ratesObj[day] = rVal;
                 }
+              }
+              if (type === "HOME_CARE" && (!rate || rate === 0) && ratesObj["Weekday"]) {
+                rate = ratesObj["Weekday"];
               }
             } else {
               for (const reg of NDIS_REGIONS) {
