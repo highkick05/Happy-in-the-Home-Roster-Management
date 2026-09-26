@@ -5885,20 +5885,53 @@ app.get("/api/health", (req, res) => {
       datetime('now')
     ) AS created_at`;
 
+    const availableStart = req.query.available_start || req.query.availableStart;
+    const availableEnd = req.query.available_end || req.query.availableEnd;
+    const excludeShiftId = req.query.exclude_shift_id || req.query.excludeShiftId || -1;
+
+    let busyStaffIds: number[] = [];
+    if (availableStart && availableEnd) {
+      try {
+        const startIso = new Date(availableStart).toISOString();
+        const endIso = new Date(availableEnd).toISOString();
+        const busyRows = db.prepare(`
+          SELECT DISTINCT staff_id FROM shifts
+          WHERE staff_id IS NOT NULL
+            AND id != ?
+            AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+            AND (
+              (datetime(start_time) < datetime(?) AND datetime(end_time) > datetime(?))
+              OR
+              (start_time < ? AND end_time > ?)
+            )
+        `).all(excludeShiftId, endIso, startIso, endIso, startIso) as any[];
+        busyStaffIds = busyRows.map((r: any) => r.staff_id).filter(Boolean);
+      } catch (err: any) {
+        logger.error(`Error calculating busy staff for /api/staff: ${err.message}`);
+      }
+    }
+
+    let busyFilter = "";
+    let busyParams: any[] = [];
+    if (busyStaffIds.length > 0) {
+      busyFilter = ` AND id NOT IN (${busyStaffIds.map(() => '?').join(',')})`;
+      busyParams = busyStaffIds;
+    }
+
     const requestedRole = req.query.role ? String(req.query.role).toUpperCase() : null;
     if (req.user.role !== "ADMIN" || requestedRole === "STAFF") {
       const staff = db
         .prepare(
-          `SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, ${joinedExpr}, ${createdExpr} FROM users WHERE role = ?`,
+          `SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, ${joinedExpr}, ${createdExpr} FROM users WHERE role = ?${busyFilter}`,
         )
-        .all("STAFF");
+        .all("STAFF", ...busyParams);
       return res.json(staff);
     }
     const staff = db
       .prepare(
-        `SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, ${joinedExpr}, ${createdExpr} FROM users`,
+        `SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, ${joinedExpr}, ${createdExpr} FROM users WHERE 1=1${busyFilter}`,
       )
-      .all();
+      .all(...busyParams);
     res.json(staff);
   });
 
@@ -12000,7 +12033,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
 
       // Query contact info (email and mobile/phone) for selected staff profiles
       const placeholders = staff_ids.map(() => '?').join(',');
-      const staffList = db.prepare(`
+      const rawStaffList = db.prepare(`
         SELECT id, first_name, last_name, email, phone as mobile_number, phone 
         FROM users 
         WHERE id IN (${placeholders}) 
@@ -12009,8 +12042,25 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           AND ((email IS NOT NULL AND email != '') OR (phone IS NOT NULL AND phone != ''))
       `).all(...staff_ids) as any[];
 
+      // Filter out staff members who already have a conflicting shift at the same time
+      const staffList = rawStaffList.filter((s: any) => {
+        const conflict = db.prepare(`
+          SELECT id FROM shifts 
+          WHERE staff_id = ? 
+            AND id != ?
+            AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+            AND (
+              (datetime(start_time) < datetime(?) AND datetime(end_time) > datetime(?))
+              OR
+              (start_time < ? AND end_time > ?)
+            )
+          LIMIT 1
+        `).get(s.id, id, shift.end_time, shift.start_time, shift.end_time, shift.start_time);
+        return !conflict;
+      });
+
       if (staffList.length === 0) {
-        return res.status(400).json({ error: "None of the selected staff have a valid active email or mobile number." });
+        return res.status(400).json({ error: "None of the selected staff members are available for this shift (they already have scheduled shifts at this time)." });
       }
 
       // Retrieve SMTP credentials from settings or environment
@@ -12453,6 +12503,27 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         return res.status(409).json({
           error: "This shift has already been filled. Thank you!",
           alreadyFilled: true
+        });
+      }
+
+      // Check if claiming staff already has a conflicting shift at this time
+      const claimingConflict = db.prepare(`
+        SELECT id FROM shifts
+        WHERE staff_id = ?
+          AND id != ?
+          AND status NOT IN ('CANCELLED', 'DELETED', 'deleted')
+          AND (
+            (datetime(start_time) < datetime(?) AND datetime(end_time) > datetime(?))
+            OR
+            (start_time < ? AND end_time > ?)
+          )
+        LIMIT 1
+      `).get(staffId, id, currentShift.end_time, currentShift.start_time, currentShift.end_time, currentShift.start_time);
+
+      if (claimingConflict) {
+        return res.status(409).json({
+          error: "You are already scheduled for another shift during this time period and cannot accept this shift offer.",
+          hasConflict: true
         });
       }
 
@@ -12973,12 +13044,18 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
 
     if (type) {
       if (type === "NDIS") {
-        query += ` AND type = ? ORDER BY code ASC`;
+        query += ` AND (type = 'NDIS' OR type IS NULL) ORDER BY code ASC`;
+        const services = db.prepare(query).all();
+        return res.json(services);
+      } else if (type === "HOME_CARE") {
+        query += ` AND (type = 'HOME_CARE' OR type = 'Home Care' OR type = 'HCP') ORDER BY name ASC`;
+        const services = db.prepare(query).all();
+        return res.json(services);
       } else {
         query += ` AND type = ? ORDER BY name ASC`;
+        const services = db.prepare(query).all(type);
+        return res.json(services);
       }
-      const services = db.prepare(query).all(type);
-      return res.json(services);
     }
     const services = db.prepare(query + " ORDER BY name ASC").all();
     res.json(services);

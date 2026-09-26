@@ -32,7 +32,7 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || !shift) {
       setSelectedStaffIds([]);
       setSearchQuery('');
       setError(null);
@@ -42,22 +42,68 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
 
     setIsLoading(true);
     setError(null);
-    fetch('/api/staff?role=STAFF', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('Failed to load staff list');
-        const data = await res.json();
+
+    const startDate = new Date(shift.start);
+    const endDate = new Date(shift.end);
+    const startIso = !isNaN(startDate.getTime()) ? startDate.toISOString() : '';
+    const endIso = !isNaN(endDate.getTime()) ? endDate.toISOString() : '';
+    const excludeShiftParam = shift.id ? `&exclude_shift_id=${encodeURIComponent(shift.id)}` : '';
+    const availabilityParams = startIso && endIso ? `&available_start=${encodeURIComponent(startIso)}&available_end=${encodeURIComponent(endIso)}${excludeShiftParam}` : '';
+
+    Promise.all([
+      fetch(`/api/staff?role=STAFF${availabilityParams}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }),
+      startIso && endIso 
+        ? fetch(`/api/shifts?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`, {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          })
+        : Promise.resolve(null as any)
+    ])
+      .then(async ([staffRes, shiftsRes]) => {
+        if (!staffRes.ok) throw new Error('Failed to load staff list');
+        const data = await staffRes.json();
+
+        const busyStaffIdSet = new Set<number>();
+        if (shiftsRes && shiftsRes.ok) {
+          try {
+            const shiftsData = await shiftsRes.json();
+            if (Array.isArray(shiftsData)) {
+              const targetStartTime = startDate.getTime();
+              const targetEndTime = endDate.getTime();
+              for (const s of shiftsData) {
+                // Skip the shift being broadcast and cancelled shifts
+                if (String(s.id) === String(shift.id)) continue;
+                if ((s.status || '').toUpperCase() === 'CANCELLED') continue;
+                if (!s.staff_id) continue;
+
+                const sStart = new Date(s.start_time).getTime();
+                const sEnd = new Date(s.end_time).getTime();
+                // Overlap condition: start < targetEnd && end > targetStart
+                if (sStart < targetEndTime && sEnd > targetStartTime) {
+                  busyStaffIdSet.add(Number(s.staff_id));
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Error checking shift overlaps:', e);
+          }
+        }
+
         // Filter strictly to active staff members (excluding admin accounts) who have valid email addresses
+        // AND who are NOT already booked on a shift at the same time
         const activeStaff = (Array.isArray(data) ? data : [])
           .filter((s: StaffMember) => 
             s.status !== 'INACTIVE' && 
             s.role !== 'ADMIN' &&
             (s.role || '').toUpperCase() === 'STAFF' &&
             s.email && 
-            s.email.trim() !== ''
+            s.email.trim() !== '' &&
+            !busyStaffIdSet.has(Number(s.id))
           )
           .sort((a: StaffMember, b: StaffMember) => 
             (a.first_name || '').localeCompare(b.first_name || '')
@@ -69,7 +115,7 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
         setError('Unable to load staff profiles. Please check your connection.');
       })
       .finally(() => setIsLoading(false));
-  }, [isOpen, token]);
+  }, [isOpen, shift, token]);
 
   const filteredStaff = useMemo(() => {
     if (!searchQuery.trim()) return staffList;
@@ -253,7 +299,7 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                <UserCheck className="w-4 h-4 text-brand-teal" /> Select Staff Members to Offer
+                <UserCheck className="w-4 h-4 text-brand-teal" /> Select Available Staff to Offer
               </label>
               <button
                 type="button"
@@ -283,6 +329,15 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
                 className="w-full pl-10 pr-4 py-2 bg-zinc-900/60 border border-white/[0.08] rounded-xl text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/40"
               />
             </div>
+
+            <div className="flex items-center justify-between text-[11px] text-zinc-400 px-0.5">
+              <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Showing available staff with no shift conflicts
+              </span>
+              <span className="text-zinc-400">
+                {filteredStaff.length} available
+              </span>
+            </div>
           </div>
 
           {/* Staff List */}
@@ -290,11 +345,18 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
             {isLoading ? (
               <div className="p-8 text-center text-zinc-500 text-sm">
                 <div className="inline-block animate-spin w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full mb-2" />
-                <p>Loading active staff profiles...</p>
+                <p>Loading available staff profiles...</p>
               </div>
             ) : filteredStaff.length === 0 ? (
-              <div className="p-8 text-center text-zinc-500 text-sm">
-                No active staff members found matching your search.
+              <div className="p-8 text-center text-zinc-400 text-sm space-y-1">
+                <p className="font-semibold text-zinc-200">
+                  {searchQuery.trim() ? 'No staff found matching your search.' : 'No available staff found for this shift.'}
+                </p>
+                <p className="text-xs text-zinc-500">
+                  {searchQuery.trim() 
+                    ? 'Try searching with a different name or email.' 
+                    : 'Staff members already booked on shifts during this time window are excluded to prevent double-booking.'}
+                </p>
               </div>
             ) : (
               <div className="max-h-56 overflow-y-auto divide-y divide-white/[0.04] custom-scrollbar">
@@ -330,9 +392,9 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
                         isChecked 
                           ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' 
-                          : 'bg-zinc-800 text-zinc-500'
+                          : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                       }`}>
-                        {isChecked ? 'Selected' : 'Click to select'}
+                        {isChecked ? 'Selected' : 'Available'}
                       </span>
                     </div>
                   );
