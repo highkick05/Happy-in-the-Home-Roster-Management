@@ -10537,13 +10537,28 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
     "/api/roster/builds/:batchId",
     authenticateToken,
     requireAdmin,
-    (req: any, res: any) => {
+    async (req: any, res: any) => {
       try {
         let deletedCount = 0;
+
+        // Query shifts to be deleted for cascade travel recalculation
+        const shiftsToDelete = db
+          .prepare(
+            "SELECT staff_id, start_time FROM shifts WHERE batch_id = ? AND UPPER(status) IN ('PUBLISHED', 'DRAFT')",
+          )
+          .all(req.params.batchId) as any[];
+
+        const uniqueStaffDates = new Set<string>();
+        for (const s of shiftsToDelete) {
+          if (s.staff_id && s.start_time) {
+            uniqueStaffDates.add(`${s.staff_id}|${s.start_time}`);
+          }
+        }
+
         db.transaction(() => {
           const result = db
             .prepare(
-              "DELETE FROM shifts WHERE batch_id = ? AND status != 'COMPLETED'",
+              "DELETE FROM shifts WHERE batch_id = ? AND UPPER(status) IN ('PUBLISHED', 'DRAFT')",
             )
             .run(req.params.batchId);
           deletedCount = result.changes;
@@ -10551,6 +10566,19 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
             req.params.batchId,
           );
         })();
+
+        // Recalculate day travel for affected staff after deleting published/draft shifts
+        if (uniqueStaffDates.size > 0) {
+          for (const sd of Array.from(uniqueStaffDates)) {
+            const [staffId, startTime] = sd.split("|");
+            try {
+              await recalculateDayTravelForStaff(Number(staffId), startTime);
+            } catch (travelErr) {
+              console.error("Error recalculating travel on revert:", travelErr);
+            }
+          }
+        }
+
         res.json({ success: true, deletedCount });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });

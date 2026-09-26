@@ -127,7 +127,7 @@ export default function ClientRosterBuildHistory({ clientId, isOpen, onClose, on
   };
 
   const handleRevert = async (buildId: string) => {
-    if (!window.confirm('Are you sure? This permanently deletes the shifts generated during this run (except for any shifts that are already COMPLETED).')) return;
+    if (!window.confirm('Are you sure? This permanently deletes the PUBLISHED and DRAFT shifts generated during this run (COMPLETED and CANCELLED shifts will remain intact).')) return;
     
     setRevertingId(buildId);
     try {
