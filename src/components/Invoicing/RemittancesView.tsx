@@ -5,6 +5,7 @@ import { Download, X, Upload, Copy, ChevronUp, ChevronDown, CheckCircle, Search,
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
 import PdfPreviewModal from "./PdfPreviewModal";
+import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 function GenerateRemittanceForm({ token, onGenerated, onClose, editData }: { token: string | null, onGenerated: () => void, onClose: () => void, editData?: any }) {
   const { settings } = useAuth();
@@ -717,10 +718,16 @@ function HistoricalDropzone({ uploadFile, setUploadFile }: { uploadFile: File | 
 
 export default function RemittancesView() {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useLocalStorage<number>('remittances_page_size', 100);
   const [sortField, setSortField] = useState<string>('date');
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc');
   const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (![100, 250, 500, 1000].includes(pageSize)) {
+      setPageSize(100);
+    }
+  }, [pageSize, setPageSize]);
 
   const handleCopy = (text: string) => {
     if (!text) return;
@@ -1163,10 +1170,10 @@ export default function RemittancesView() {
                 onChange={(e) => setPageSize(Number(e.target.value))}
                 className="bg-brand-navy border border-border-subtle rounded text-[#E6EDF3] text-sm py-1 px-2 focus:outline-none focus:border-brand-teal"
               >
-                <option value={25}>25</option>
-                <option value={50}>50</option>
                 <option value={100}>100</option>
-                <option value={200}>200</option>
+                <option value={250}>250</option>
+                <option value={500}>500</option>
+                <option value={1000}>1000</option>
               </select>
             </div>
             <div className="flex items-center space-x-4 text-sm text-[#8B949E]">
