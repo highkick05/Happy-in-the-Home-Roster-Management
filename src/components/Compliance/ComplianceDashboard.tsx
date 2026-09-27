@@ -1263,13 +1263,15 @@ export default function ComplianceDashboard() {
                 });
 
                 const totalUploaded = expired + expiring + valid;
+                const totalItems = Object.keys(complianceObj).length;
 
                 return {
                   expired,
                   expiring,
                   missing,
                   valid,
-                  totalUploaded
+                  totalUploaded,
+                  totalItems
                 };
               };
 
