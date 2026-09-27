@@ -1412,6 +1412,26 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
               Paid
             </button>
           </div>
+
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search invoices..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-7 pr-7 py-1 bg-brand-navy border border-border-subtle rounded-md text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal w-44 md:w-56 transition-colors h-7"
+            />
+            <Search className="w-3.5 h-3.5 absolute left-2 top-1.5 text-[#8B949E]" />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')} 
+                className="absolute right-2 top-1 text-[#8B949E] hover:text-[#E6EDF3] text-sm leading-none transition-colors"
+                title="Clear search"
+              >
+                &times;
+              </button>
+            )}
+          </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
@@ -1466,26 +1486,6 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
               className="w-full h-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal transition-colors"
               position="bottom"
             />
-          </div>
-
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search invoices..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-7 pr-7 py-1 bg-brand-navy border border-border-subtle rounded-md text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal w-44 md:w-56 transition-colors h-7"
-            />
-            <Search className="w-3.5 h-3.5 absolute left-2 top-1.5 text-[#8B949E]" />
-            {searchTerm && (
-              <button 
-                onClick={() => setSearchTerm('')} 
-                className="absolute right-2 top-1 text-[#8B949E] hover:text-[#E6EDF3] text-sm leading-none transition-colors"
-                title="Clear search"
-              >
-                &times;
-              </button>
-            )}
           </div>
 
           <select
