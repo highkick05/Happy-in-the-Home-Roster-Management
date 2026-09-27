@@ -673,11 +673,24 @@ export default function QuotesView() {
   };
 
   const filteredQuotes = quotes.filter(q => {
-    const s = searchTerm.toLowerCase();
+    const s = searchTerm.trim().toLowerCase();
+    if (!s) return true;
+    const cleanAmount = s.replace(/[\$,]/g, '');
 
-    const nameStr = `${q.client_first_name} ${q.client_last_name}`.toLowerCase();
-    const idStr = q.quote_number.toLowerCase();
-    return nameStr.includes(s) || idStr.includes(s) || q.activity_name.toLowerCase().includes(s);
+    const nameStr = `${q.client_first_name || ''} ${q.client_last_name || ''}`.trim().toLowerCase();
+    const idStr = (q.quote_number || '').toLowerCase();
+    const staffStr = `${q.staff_first_name || ''} ${q.staff_last_name || ''}`.trim().toLowerCase();
+    const activityStr = (q.activity_name || '').toLowerCase();
+    const amountStr = String(q.amount ?? '');
+    const amountFormatted = Number(q.amount || 0).toFixed(2);
+
+    return nameStr.includes(s) || 
+           idStr.includes(s) || 
+           staffStr.includes(s) || 
+           activityStr.includes(s) || 
+           amountStr.includes(s) || 
+           amountFormatted.includes(s) || 
+           (cleanAmount && (amountStr.includes(cleanAmount) || amountFormatted.includes(cleanAmount)));
   });
   const sortedQuotes = [...filteredQuotes].sort((a, b) => {
     let valA: any = '';

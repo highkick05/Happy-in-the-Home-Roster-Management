@@ -734,6 +734,7 @@ export default function InvoicingView() {
   const [filterStaff, setFilterStaff] = useLocalStorage('invoicing_filter_staff', '');
   const [filterStartDate, setFilterStartDate] = useState<Date | null>(null);
   const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [showManualModal, setShowManualModal] = useState(false);
 
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -840,6 +841,27 @@ export default function InvoicingView() {
       }
     }
 
+    if (searchTerm.trim()) {
+      const s = searchTerm.trim().toLowerCase();
+      const cleanAmount = s.replace(/[\$,]/g, '');
+      const invoiceNumber = getFallbackInvoiceNumber(i).toLowerCase();
+      const rawInvoiceNum = (i.invoice_number || '').toLowerCase();
+      const clientNameLower = clientName.toLowerCase();
+      const staffNameLower = staffName.toLowerCase();
+      const amountStr = String(i.amount ?? '');
+      const amountFormatted = Number(i.amount || 0).toFixed(2);
+
+      const matches = invoiceNumber.includes(s) ||
+        rawInvoiceNum.includes(s) ||
+        clientNameLower.includes(s) ||
+        staffNameLower.includes(s) ||
+        amountStr.includes(s) ||
+        amountFormatted.includes(s) ||
+        (cleanAmount && (amountStr.includes(cleanAmount) || amountFormatted.includes(cleanAmount)));
+
+      if (!matches) return false;
+    }
+
     return true;
   });
 
@@ -878,7 +900,7 @@ export default function InvoicingView() {
 
   useEffect(() => {
     setPage(1);
-  }, [subTab, filterClient, filterStaff, pageSize, sortField, sortDir]);
+  }, [searchTerm, subTab, filterClient, filterStaff, pageSize, sortField, sortDir]);
 
 const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   const averageAmount = filteredInvoices.length > 0 ? totalAmount / filteredInvoices.length : 0;
@@ -1444,6 +1466,26 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
               className="w-full h-full bg-brand-navy border border-border-subtle rounded-md px-2 py-1 text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal transition-colors"
               position="bottom"
             />
+          </div>
+
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search invoices..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-7 pr-7 py-1 bg-brand-navy border border-border-subtle rounded-md text-xs text-[#E6EDF3] focus:outline-none focus:ring-1 focus:ring-brand-teal w-44 md:w-56 transition-colors h-7"
+            />
+            <Search className="w-3.5 h-3.5 absolute left-2 top-1.5 text-[#8B949E]" />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')} 
+                className="absolute right-2 top-1 text-[#8B949E] hover:text-[#E6EDF3] text-sm leading-none transition-colors"
+                title="Clear search"
+              >
+                &times;
+              </button>
+            )}
           </div>
 
           <select
