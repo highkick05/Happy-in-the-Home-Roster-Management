@@ -37,52 +37,98 @@ export default function ClaimShiftView() {
 
   const [shift, setShift] = useState<ShiftClaimDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isNotFound, setIsNotFound] = useState(false);
+  const [isNetworkError, setIsNetworkError] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [claimedStaffName, setClaimedStaffName] = useState<string | null>(null);
   const [isAlreadyFilled, setIsAlreadyFilled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
+  const retryTimeoutRef = React.useRef<any>(null);
+
+  const fetchShiftDetails = React.useCallback(async (retryCount = 0) => {
     if (!id) return;
 
-    setIsLoading(true);
-    setErrorMessage(null);
+    if (retryCount === 0) {
+      setIsLoading(true);
+      setIsNotFound(false);
+      setIsNetworkError(false);
+      setErrorMessage(null);
+    }
 
-    const query = claimCode ? `?c=${encodeURIComponent(claimCode)}` : '';
-    fetch(`/api/shifts/${id}/claim-details${query}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Failed to fetch shift details');
+    try {
+      const query = claimCode ? `?c=${encodeURIComponent(claimCode)}` : '';
+      const currentToken = token || localStorage.getItem('token');
+      const headers: Record<string, string> = {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      };
+      if (currentToken) {
+        headers['Authorization'] = `Bearer ${currentToken}`;
+      }
+
+      const res = await fetch(`/api/shifts/${id}/claim-details${query}`, {
+        headers
+      });
+
+      if (res.status === 404) {
+        setIsNotFound(true);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 404 || errData.notFound) {
+          setIsNotFound(true);
+          setIsLoading(false);
+          return;
         }
-        return res.json();
-      })
-      .then((data) => {
-        setShift(data);
-        if (!data.is_unassigned) {
-          setIsAlreadyFilled(true);
-        }
-      })
-      .catch((err) => {
-        console.error('Error fetching shift claim details:', err);
-        setErrorMessage(err.message || 'Unable to retrieve shift details.');
-      })
-      .finally(() => setIsLoading(false));
-  }, [id, token, claimCode]);
+        throw new Error(errData.error || `Server responded with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      setShift(data);
+      if (!data.is_unassigned) {
+        setIsAlreadyFilled(true);
+      }
+      setIsLoading(false);
+    } catch (err: any) {
+      console.warn(`Shift claim details fetch attempt ${retryCount + 1} failed:`, err);
+      // If mobile connection had a momentary hiccup on initial click, fast auto-retry up to 2 times
+      if (retryCount < 2) {
+        retryTimeoutRef.current = setTimeout(() => {
+          fetchShiftDetails(retryCount + 1);
+        }, 350);
+      } else {
+        setIsNetworkError(true);
+        setErrorMessage(err.message || 'Unable to connect to server. Please try again.');
+        setIsLoading(false);
+      }
+    }
+  }, [id, claimCode, token]);
+
+  useEffect(() => {
+    fetchShiftDetails(0);
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
+  }, [id, claimCode]); // Intentionally do not depend on token to avoid reload glitches when auth finishes
 
   const handleAcceptShift = async () => {
     setIsClaiming(true);
     setErrorMessage(null);
 
     try {
+      const currentToken = token || localStorage.getItem('token');
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      if (currentToken) {
+        headers['Authorization'] = `Bearer ${currentToken}`;
       }
 
       const res = await fetch(`/api/shifts/${id}/claim`, {
@@ -95,6 +141,11 @@ export default function ClaimShiftView() {
       });
 
       const data = await res.json();
+
+      if (res.status === 409 && data.hasConflict) {
+        setErrorMessage(data.error || 'You are already scheduled for another shift during this time period and cannot accept this shift offer.');
+        return;
+      }
 
       if (res.status === 409 && data.accountMismatch) {
         setErrorMessage(data.error);
@@ -191,7 +242,8 @@ export default function ClaimShiftView() {
           {isLoading ? (
             <div className="py-16 text-center space-y-4">
               <div className="w-10 h-10 border-3 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-sm text-zinc-400">Loading shift offer details...</p>
+              <p className="text-sm font-semibold text-zinc-200">Loading shift offer details...</p>
+              <p className="text-xs text-zinc-500">Connecting to portal and checking availability...</p>
             </div>
           ) : isSuccess ? (
             <div className="text-center space-y-4 py-4">
@@ -478,7 +530,34 @@ export default function ClaimShiftView() {
                 </button>
               )}
             </div>
-          ) : (
+          ) : isNetworkError ? (
+            <div className="text-center space-y-4 py-6">
+              <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center mx-auto text-amber-400">
+                <AlertTriangle className="w-8 h-8" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Connection Issue</h2>
+                <p className="text-xs text-zinc-400 mt-1 max-w-sm mx-auto">
+                  {errorMessage || 'Unable to connect to the server to load shift details. Please check your connection and try again.'}
+                </p>
+              </div>
+              <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={() => fetchShiftDetails(0)}
+                  className="py-2.5 px-6 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-lg transition-all text-sm"
+                >
+                  Try Again
+                </button>
+                <Link
+                  to="/roster"
+                  className="py-2.5 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold rounded-xl transition-all text-sm inline-flex items-center justify-center"
+                >
+                  Return to Roster
+                </Link>
+              </div>
+            </div>
+          ) : isNotFound ? (
             <div className="text-center space-y-3 py-6">
               <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
               <p className="text-zinc-300 font-semibold">Shift Not Found</p>
@@ -486,6 +565,11 @@ export default function ClaimShiftView() {
               <Link to="/roster" className="inline-block mt-3 text-sm text-purple-400 hover:underline">
                 Return to Roster
               </Link>
+            </div>
+          ) : (
+            <div className="py-16 text-center space-y-4">
+              <div className="w-10 h-10 border-3 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-sm font-semibold text-zinc-200">Retrieving shift details...</p>
             </div>
           )}
         </div>

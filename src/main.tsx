@@ -6,6 +6,10 @@ import App from './App.tsx';
 if ('serviceWorker' in navigator) {
   let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
+    // Never force reload while user is on time-critical shift claim route
+    if (window.location.pathname.startsWith('/shifts/claim')) {
+      return;
+    }
     if (!refreshing) {
       refreshing = true;
       window.location.reload();
@@ -25,8 +29,10 @@ createRoot(document.getElementById('root')!).render(
 const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
-    // When the PWA detects a new version, automatically click refresh for them!
-    updateSW(true);
+    // When the PWA detects a new version, automatically click refresh for them unless on shift claim
+    if (!window.location.pathname.startsWith('/shifts/claim')) {
+      updateSW(true);
+    }
   },
   onRegistered(r) {
     if (r) {

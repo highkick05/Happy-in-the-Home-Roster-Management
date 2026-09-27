@@ -11879,7 +11879,11 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
 
   // Shift Broadcast Details (for Claim screen)
   app.get("/api/shifts/:id/claim-details", (req: any, res: any) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     const { id } = req.params;
+    const shiftId = Number(id) || id;
     try {
       const shift = db.prepare(`
         SELECT s.id, s.start_time, s.end_time, s.status, s.staff_id, s.notes,
@@ -11892,10 +11896,10 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
         LEFT JOIN services srv ON s.service_id = srv.id
         LEFT JOIN users u ON s.staff_id = u.id
         WHERE s.id = ?
-      `).get(id) as any;
+      `).get(shiftId) as any;
 
       if (!shift) {
-        return res.status(404).json({ error: "Shift not found" });
+        return res.status(404).json({ error: "Shift not found", notFound: true });
       }
 
       const is_unassigned = !shift.staff_id;

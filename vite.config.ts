@@ -70,19 +70,9 @@ export default defineConfig(({mode}) => {
           navigateFallbackDenylist: [/^\/api/],
           runtimeCaching: [
             {
+              // Critical: dynamic and real-time APIs must never be cached or timed out by the service worker
               urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'api-cache',
-                networkTimeoutSeconds: 5,
-                expiration: {
-                  maxEntries: 100,
-                  maxAgeSeconds: 60 * 60 * 24 * 7, // 1 week
-                },
-                cacheableResponse: {
-                  statuses: [0, 200]
-                }
-              }
+              handler: 'NetworkOnly'
             },
             {
               urlPattern: /^https:\/\/storage\.googleapis\.com\/.*/i,
