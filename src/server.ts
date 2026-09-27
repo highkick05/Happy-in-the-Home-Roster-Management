@@ -1815,6 +1815,86 @@ try {
         }
       } catch (e) { console.error("[DEBUG] Onboarding migration error:", e); }
 
+      // Onboarding requirement types table & migration
+      try {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS onboarding_requirement_types (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            code TEXT,
+            description TEXT,
+            order_index INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        const reqTypeCount = (db.prepare("SELECT COUNT(*) as count FROM onboarding_requirement_types").get() as any)?.count || 0;
+        if (reqTypeCount === 0) {
+          const insertStmt = db.prepare("INSERT OR IGNORE INTO onboarding_requirement_types (name, description, order_index) VALUES (?, ?, ?)");
+          const defaultTypes = [
+            ["NDIS Worker Screening Check", "NDIS Worker Screening credential or state clearance", 1],
+            ["Working with Children Check (WWCC)", "Working with Children Check clearance card or confirmation", 2],
+            ["First Aid Certificate", "HLTAID011 Provide First Aid or equivalent credential", 3],
+            ["CPR Certificate", "HLTAID009 Provide Cardiopulmonary Resuscitation annual refresher", 4],
+            ["Driver's Licence", "Valid Australian driver licence for client transport", 5],
+            ["National Police Certificate", "National Police Certificate / Criminal History Check", 6],
+            ["AHPRA Registration", "Active registration with the Nursing and Midwifery Board of Australia", 7],
+            ["Comprehensive Car Insurance", "Vehicle insurance policy for client transport", 8],
+            ["VEVO / Right to Work", "Visa Entitlement Verification Online check or citizenship proof", 9],
+            ["COVID-19 / Immunisation Record", "Annual flu vaccine, COVID-19, or occupational immunisation records", 10],
+            ["Manual Handling", "Manual handling practical competency certificate", 11],
+            ["Fair Work Statement Confirmation", "Acknowledgment of Fair Work Information Statement receipt", 12]
+          ];
+          for (const [name, desc, ord] of defaultTypes) {
+            insertStmt.run(name, desc, ord);
+          }
+          console.log("[DEBUG] Seeded default onboarding requirement types.");
+        }
+
+        const stepCols = db.prepare("PRAGMA table_info(onboarding_hub_steps)").all() as any[];
+        if (!stepCols.some(c => c.name === 'requirement_type_id')) {
+          db.exec("ALTER TABLE onboarding_hub_steps ADD COLUMN requirement_type_id INTEGER;");
+          console.log("[DEBUG] Added requirement_type_id to onboarding_hub_steps.");
+        }
+
+        // Auto-link existing steps based on title keywords if requirement_type_id is null
+        const allTypes = db.prepare("SELECT id, name FROM onboarding_requirement_types").all() as any[];
+        const unlinkedSteps = db.prepare("SELECT id, title FROM onboarding_hub_steps WHERE requirement_type_id IS NULL").all() as any[];
+        for (const s of unlinkedSteps) {
+          const t = (s.title || '').toLowerCase();
+          let matchedTypeId: number | null = null;
+          if (t.includes('ndis')) {
+            matchedTypeId = allTypes.find(at => at.name.toLowerCase().includes('ndis'))?.id || null;
+          } else if (t.includes('children') || t.includes('wwcc')) {
+            matchedTypeId = allTypes.find(at => at.name.toLowerCase().includes('children'))?.id || null;
+          } else if (t.includes('first aid')) {
+            matchedTypeId = allTypes.find(at => at.name.toLowerCase().includes('first aid'))?.id || null;
+          } else if (t.includes('cpr')) {
+            matchedTypeId = allTypes.find(at => at.name.toLowerCase().includes('cpr'))?.id || null;
+          } else if (t.includes('driver')) {
+            matchedTypeId = allTypes.find(at => at.name.toLowerCase().includes('driver'))?.id || null;
+          } else if (t.includes('police')) {
+            matchedTypeId = allTypes.find(at => at.name.toLowerCase().includes('police'))?.id || null;
+          } else if (t.includes('ahpra')) {
+            matchedTypeId = allTypes.find(at => at.name.toLowerCase().includes('ahpra'))?.id || null;
+          } else if (t.includes('insurance')) {
+            matchedTypeId = allTypes.find(at => at.name.toLowerCase().includes('insurance'))?.id || null;
+          } else if (t.includes('vevo') || t.includes('right to work')) {
+            matchedTypeId = allTypes.find(at => at.name.toLowerCase().includes('vevo'))?.id || null;
+          } else if (t.includes('fair work')) {
+            matchedTypeId = allTypes.find(at => at.name.toLowerCase().includes('fair work'))?.id || null;
+          } else if (t.includes('manual handling')) {
+            matchedTypeId = allTypes.find(at => at.name.toLowerCase().includes('manual handling'))?.id || null;
+          }
+
+          if (matchedTypeId) {
+            db.prepare("UPDATE onboarding_hub_steps SET requirement_type_id = ? WHERE id = ?").run(matchedTypeId, s.id);
+          }
+        }
+      } catch (e) {
+        console.error("[DEBUG] Onboarding requirement types setup error:", e);
+      }
+
 
     const missingLogShifts = db
       .prepare(
@@ -5420,36 +5500,93 @@ app.get("/api/health", (req, res) => {
       }
       
       // 1. Fetch Global / All-Staff steps first
-      const globalSteps = db.prepare("SELECT * FROM onboarding_hub_steps WHERE is_all_staff = 1 ORDER BY order_index ASC, id ASC").all() as any[];
+      const globalSteps = db.prepare(`
+        SELECT s.*, rt.name as requirement_type_name 
+        FROM onboarding_hub_steps s 
+        LEFT JOIN onboarding_requirement_types rt ON s.requirement_type_id = rt.id 
+        WHERE s.is_all_staff = 1 
+        ORDER BY s.order_index ASC, s.id ASC
+      `).all() as any[];
 
       const user = db.prepare("SELECT primary_position, additional_positions FROM users WHERE id = ?").get(targetUserId) as any;
-      if (!user) return res.json(globalSteps);
+      if (!user) return res.json(globalSteps.map(s => ({ ...s, is_all_staff: 1, is_primary: 0, position_name: null })));
       
-      const primary = user.primary_position || '';
-      let additionals = [];
+      const primary = (user.primary_position || '').trim();
+      let additionals: string[] = [];
       try {
         additionals = user.additional_positions ? JSON.parse(user.additional_positions) : [];
       } catch(e) {}
-      
-      const allPositions = [primary, ...additionals].filter(Boolean);
-      if (allPositions.length === 0) return res.json(globalSteps);
-      
-      const placeholders = allPositions.map(() => '?').join(',');
-      const matchedPositions = db.prepare(`SELECT id, name FROM positions WHERE name IN (${placeholders})`).all(...allPositions) as any[];
-      
-      if (matchedPositions.length === 0) return res.json(globalSteps);
-      const positionIds = matchedPositions.map(p => p.id);
-      
-      const placeholdersIds = positionIds.map(() => '?').join(',');
-      const positionSteps = db.prepare(`
-        SELECT s.*, p.name as position_name 
-        FROM onboarding_hub_steps s 
-        LEFT JOIN positions p ON s.position_id = p.id 
-        WHERE (s.is_all_staff = 0 OR s.is_all_staff IS NULL) AND s.position_id IN (${placeholdersIds}) 
-        ORDER BY s.position_id ASC, s.order_index ASC, s.id ASC
-      `).all(...positionIds) as any[];
-      
-      res.json([...globalSteps, ...positionSteps]);
+
+      // Build ordered target positions: Primary position first, then Additional positions
+      const targetPositions: { name: string; isPrimary: boolean }[] = [];
+      if (primary) {
+        targetPositions.push({ name: primary, isPrimary: true });
+      }
+      if (Array.isArray(additionals)) {
+        for (const addPos of additionals) {
+          if (addPos && typeof addPos === 'string' && addPos.trim() && !targetPositions.some(p => p.name.toLowerCase() === addPos.trim().toLowerCase())) {
+            targetPositions.push({ name: addPos.trim(), isPrimary: false });
+          }
+        }
+      }
+
+      const normalizeKey = (title: string) => (title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const getDedupKey = (step: any) => {
+        if (step.requirement_type_id) {
+          return `type_${step.requirement_type_id}`;
+        }
+        const norm = normalizeKey(step.title);
+        return norm ? `title_${norm}` : `id_${step.id}`;
+      };
+
+      const seenKeys = new Set<string>();
+      const finalSteps: any[] = [];
+
+      // 1. Add Universal / All-Staff steps
+      for (const step of globalSteps) {
+        const key = getDedupKey(step);
+        if (key) seenKeys.add(key);
+        finalSteps.push({
+          ...step,
+          is_all_staff: 1,
+          is_primary: 0,
+          position_name: null,
+          position_id: null
+        });
+      }
+
+      // 2. Add Role-Specific steps in position priority order, skipping duplicate requirements
+      for (const tp of targetPositions) {
+        const posRow = db.prepare("SELECT id, name FROM positions WHERE LOWER(name) = LOWER(?)").get(tp.name) as any;
+        if (!posRow) continue;
+
+        const pSteps = db.prepare(`
+          SELECT s.*, rt.name as requirement_type_name 
+          FROM onboarding_hub_steps s 
+          LEFT JOIN onboarding_requirement_types rt ON s.requirement_type_id = rt.id 
+          WHERE (s.is_all_staff = 0 OR s.is_all_staff IS NULL) AND s.position_id = ? 
+          ORDER BY s.order_index ASC, s.id ASC
+        `).all(posRow.id) as any[];
+
+        for (const step of pSteps) {
+          const key = getDedupKey(step);
+          if (key && seenKeys.has(key)) {
+            // Already covered in Universal or previous position (e.g. Primary Position).
+            // Skip to eliminate duplication!
+            continue;
+          }
+          if (key) seenKeys.add(key);
+          finalSteps.push({
+            ...step,
+            is_all_staff: 0,
+            is_primary: tp.isPrimary ? 1 : 0,
+            position_name: posRow.name,
+            position_id: posRow.id
+          });
+        }
+      }
+
+      res.json(finalSteps);
     } catch(e: any) {
       res.status(500).json({error: e.message});
     }
@@ -5587,8 +5724,49 @@ app.get("/api/health", (req, res) => {
       if (req.user.role === "ADMIN" && req.body.targetUserId) {
         targetUserId = parseInt(req.body.targetUserId, 10);
       }
+      const rawData = req.body.data || req.body;
+      const allSteps = db.prepare("SELECT id, title, requirement_type_id FROM onboarding_hub_steps").all() as any[];
+      const normalizeKey = (title: string) => (title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+      const typeToIds = new Map<number, number[]>();
+      const titleToIds = new Map<string, number[]>();
+      for (const s of allSteps) {
+        if (s.requirement_type_id) {
+          if (!typeToIds.has(s.requirement_type_id)) typeToIds.set(s.requirement_type_id, []);
+          typeToIds.get(s.requirement_type_id)!.push(s.id);
+        }
+        const norm = normalizeKey(s.title);
+        if (norm) {
+          if (!titleToIds.has(norm)) titleToIds.set(norm, []);
+          titleToIds.get(norm)!.push(s.id);
+        }
+      }
+
+      const syncedData = { ...rawData };
+      for (const [key, val] of Object.entries(rawData)) {
+        if (!key.startsWith('dynamic_')) continue;
+        const stepId = parseInt(key.replace('dynamic_', ''), 10);
+        const stepObj = allSteps.find(s => s.id === stepId);
+        if (!stepObj) continue;
+
+        const siblingIds = new Set<number>();
+        if (stepObj.requirement_type_id && typeToIds.has(stepObj.requirement_type_id)) {
+          for (const id of typeToIds.get(stepObj.requirement_type_id)!) siblingIds.add(id);
+        }
+        const norm = normalizeKey(stepObj.title);
+        if (norm && titleToIds.has(norm)) {
+          for (const id of titleToIds.get(norm)!) siblingIds.add(id);
+        }
+
+        for (const sibId of siblingIds) {
+          if (sibId !== stepId) {
+            syncedData[`dynamic_${sibId}`] = val;
+          }
+        }
+      }
+
       db.prepare("UPDATE users SET onboarding_json = ? WHERE id = ?").run(
-        JSON.stringify(req.body.data || req.body),
+        JSON.stringify(syncedData),
         targetUserId,
       );
       res.json({ success: true });
@@ -5693,10 +5871,85 @@ app.get("/api/health", (req, res) => {
   // --- End Travel Logs API ---
 
   
+  // ADMIN REQUIREMENT TYPES
+  app.get("/api/admin/onboarding-requirement-types", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const types = db.prepare(`
+        SELECT rt.*, 
+          (SELECT COUNT(*) FROM onboarding_hub_steps s WHERE s.requirement_type_id = rt.id) as step_count
+        FROM onboarding_requirement_types rt 
+        ORDER BY rt.order_index ASC, rt.name ASC
+      `).all();
+      res.json(types);
+    } catch (error: any) {
+      console.error("REQUIREMENT TYPES ERROR:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/onboarding-requirement-types", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { name, description } = req.body;
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: "Requirement type name is required" });
+      }
+      const existing = db.prepare("SELECT id FROM onboarding_requirement_types WHERE LOWER(name) = LOWER(?)").get(name.trim()) as any;
+      if (existing) {
+        return res.status(400).json({ error: "A requirement type with this name already exists" });
+      }
+
+      const maxOrder = (db.prepare("SELECT MAX(order_index) as max_ord FROM onboarding_requirement_types").get() as any)?.max_ord || 0;
+      const stmt = db.prepare("INSERT INTO onboarding_requirement_types (name, description, order_index) VALUES (?, ?, ?)");
+      const info = stmt.run(name.trim(), (description || '').trim() || null, maxOrder + 1);
+      const created = db.prepare("SELECT * FROM onboarding_requirement_types WHERE id = ?").get(info.lastInsertRowid);
+      res.json(created);
+    } catch (error: any) {
+      console.error("REQUIREMENT TYPES ERROR:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/admin/onboarding-requirement-types/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { name, description } = req.body;
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: "Requirement type name is required" });
+      }
+      const existing = db.prepare("SELECT id FROM onboarding_requirement_types WHERE LOWER(name) = LOWER(?) AND id != ?").get(name.trim(), req.params.id) as any;
+      if (existing) {
+        return res.status(400).json({ error: "Another requirement type with this name already exists" });
+      }
+
+      db.prepare("UPDATE onboarding_requirement_types SET name = ?, description = ? WHERE id = ?")
+        .run(name.trim(), (description || '').trim() || null, req.params.id);
+      const updated = db.prepare("SELECT * FROM onboarding_requirement_types WHERE id = ?").get(req.params.id);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("REQUIREMENT TYPES ERROR:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/admin/onboarding-requirement-types/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      db.prepare("UPDATE onboarding_hub_steps SET requirement_type_id = NULL WHERE requirement_type_id = ?").run(req.params.id);
+      db.prepare("DELETE FROM onboarding_requirement_types WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("REQUIREMENT TYPES ERROR:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ADMIN ONBOARDING STEPS
   app.get("/api/admin/onboarding-steps", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const steps = db.prepare("SELECT * FROM onboarding_hub_steps ORDER BY order_index ASC, id ASC").all();
+      const steps = db.prepare(`
+        SELECT s.*, rt.name as requirement_type_name 
+        FROM onboarding_hub_steps s 
+        LEFT JOIN onboarding_requirement_types rt ON s.requirement_type_id = rt.id 
+        ORDER BY s.order_index ASC, s.id ASC
+      `).all();
       res.json(steps);
     } catch (error: any) {
       console.error("ONBOARDING API ERROR:", error);
@@ -5728,7 +5981,7 @@ app.get("/api/health", (req, res) => {
 
   app.post("/api/admin/onboarding-steps", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const { position_id, is_all_staff, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years } = req.body;
+      const { position_id, is_all_staff, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years, requirement_type_id } = req.body;
       const allStaffVal = (is_all_staff || position_id === null || position_id === undefined || position_id === 'all_staff') ? 1 : 0;
       const posIdVal = allStaffVal === 1 ? null : position_id;
       
@@ -5742,10 +5995,16 @@ app.get("/api/health", (req, res) => {
       const uploadRequiredVal = (upload_required === 0 || upload_required === false || upload_required === '0' || upload_required === 'false') ? 0 : 1;
       const isMandatoryVal = (is_mandatory === 0 || is_mandatory === false || is_mandatory === '0' || is_mandatory === 'false') ? 0 : 1;
       const requiresExpiryVal = (requires_expiry === 1 || requires_expiry === true || requires_expiry === '1' || requires_expiry === 'true') ? 1 : 0;
+      const reqTypeIdVal = (requirement_type_id && requirement_type_id !== '') ? parseInt(requirement_type_id, 10) : null;
 
-      const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, is_all_staff, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-      const info = stmt.run(posIdVal, allStaffVal, title, description || '', media_url || '', requiresExpiryVal, uploadRequiredVal, isMandatoryVal, expiry_years || 1, nextOrder);
-      const newStep = db.prepare("SELECT * FROM onboarding_hub_steps WHERE id = ?").get(info.lastInsertRowid);
+      const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, is_all_staff, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years, order_index, requirement_type_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      const info = stmt.run(posIdVal, allStaffVal, title, description || '', media_url || '', requiresExpiryVal, uploadRequiredVal, isMandatoryVal, expiry_years || 1, nextOrder, reqTypeIdVal);
+      const newStep = db.prepare(`
+        SELECT s.*, rt.name as requirement_type_name 
+        FROM onboarding_hub_steps s 
+        LEFT JOIN onboarding_requirement_types rt ON s.requirement_type_id = rt.id 
+        WHERE s.id = ?
+      `).get(info.lastInsertRowid);
       res.json(newStep);
     } catch (error: any) {
       console.error("ONBOARDING API ERROR:", error);
@@ -5755,13 +6014,14 @@ app.get("/api/health", (req, res) => {
 
   app.put("/api/admin/onboarding-steps/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const { title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years } = req.body;
+      const { title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years, requirement_type_id } = req.body;
       const uploadRequiredVal = (upload_required === 0 || upload_required === false || upload_required === '0' || upload_required === 'false') ? 0 : 1;
       const isMandatoryVal = (is_mandatory === 0 || is_mandatory === false || is_mandatory === '0' || is_mandatory === 'false') ? 0 : 1;
       const requiresExpiryVal = (requires_expiry === 1 || requires_expiry === true || requires_expiry === '1' || requires_expiry === 'true') ? 1 : 0;
+      const reqTypeIdVal = (requirement_type_id && requirement_type_id !== '') ? parseInt(requirement_type_id, 10) : null;
 
-      const stmt = db.prepare("UPDATE onboarding_hub_steps SET title = ?, description = ?, media_url = ?, requires_expiry = ?, upload_required = ?, is_mandatory = ?, expiry_years = ? WHERE id = ?");
-      stmt.run(title, description || '', media_url || '', requiresExpiryVal, uploadRequiredVal, isMandatoryVal, expiry_years || 1, req.params.id);
+      const stmt = db.prepare("UPDATE onboarding_hub_steps SET title = ?, description = ?, media_url = ?, requires_expiry = ?, upload_required = ?, is_mandatory = ?, expiry_years = ?, requirement_type_id = ? WHERE id = ?");
+      stmt.run(title, description || '', media_url || '', requiresExpiryVal, uploadRequiredVal, isMandatoryVal, expiry_years || 1, reqTypeIdVal, req.params.id);
       res.json({ success: true });
     } catch (error: any) {
       console.error("ONBOARDING API ERROR:", error);
@@ -5786,29 +6046,94 @@ app.get("/api/health", (req, res) => {
       const filesMap = new Map(allFiles.map((f) => [f.id, f]));
       
       const allPositions = db.prepare("SELECT * FROM positions").all() as any[];
-      const allSteps = db.prepare("SELECT * FROM onboarding_hub_steps").all() as any[];
+      const allSteps = db.prepare(`
+        SELECT s.*, rt.name as requirement_type_name 
+        FROM onboarding_hub_steps s 
+        LEFT JOIN onboarding_requirement_types rt ON s.requirement_type_id = rt.id
+      `).all() as any[];
 
       const result = staffList.map((staff) => {
         let onboardingData: any = {};
         try { onboardingData = staff.onboarding_json ? JSON.parse(staff.onboarding_json) : {}; } catch (e) {}
 
-        const primary = staff.primary_position || '';
-        let additionals = [];
+        const primary = (staff.primary_position || '').trim();
+        let additionals: string[] = [];
         try { additionals = staff.additional_positions ? JSON.parse(staff.additional_positions) : []; } catch(e) {}
-        
-        const staffPositionNames = [primary, ...additionals].filter(Boolean);
-        const matchedPositions = allPositions.filter(p => staffPositionNames.includes(p.name));
-        const posIds = matchedPositions.map(p => p.id);
-        
-        const staffSteps = allSteps.filter(s => s.is_all_staff === 1 || posIds.includes(s.position_id));
+
+        const targetPositions: { name: string; isPrimary: boolean }[] = [];
+        if (primary) {
+          targetPositions.push({ name: primary, isPrimary: true });
+        }
+        if (Array.isArray(additionals)) {
+          for (const addPos of additionals) {
+            if (addPos && typeof addPos === 'string' && addPos.trim() && !targetPositions.some(p => p.name.toLowerCase() === addPos.trim().toLowerCase())) {
+              targetPositions.push({ name: addPos.trim(), isPrimary: false });
+            }
+          }
+        }
+
+        const normalizeKey = (title: string) => (title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const getDedupKey = (step: any) => {
+          if (step.requirement_type_id) return `type_${step.requirement_type_id}`;
+          const norm = normalizeKey(step.title);
+          return norm ? `title_${norm}` : `id_${step.id}`;
+        };
+
+        const seenKeys = new Set<string>();
+        const staffSteps: any[] = [];
+
+        // 1. Universal / All-Staff steps
+        for (const step of allSteps.filter(s => s.is_all_staff === 1).sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0) || a.id - b.id)) {
+          const key = getDedupKey(step);
+          if (key) seenKeys.add(key);
+          staffSteps.push(step);
+        }
+
+        // 2. Position steps in priority order (Primary first, then Additionals), skipping duplicate requirements
+        for (const tp of targetPositions) {
+          const posRow = allPositions.find(p => p.name.toLowerCase() === tp.name.toLowerCase());
+          if (!posRow) continue;
+          const posSteps = allSteps.filter(s => (s.is_all_staff === 0 || s.is_all_staff === null) && s.position_id === posRow.id)
+            .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0) || a.id - b.id);
+          
+          for (const step of posSteps) {
+            const key = getDedupKey(step);
+            if (key && seenKeys.has(key)) {
+              continue;
+            }
+            if (key) seenKeys.add(key);
+            staffSteps.push(step);
+          }
+        }
+
+        // Pre-build key to uploaded data map for cross-step fallback
+        const filesByKey = new Map<string, any>();
+        for (const [k, v] of Object.entries(onboardingData)) {
+          const stepMatch = allSteps.find(s => ('dynamic_' + s.id) === k);
+          if (stepMatch && (v as any).files && (v as any).files.length > 0) {
+            const dKey = getDedupKey(stepMatch);
+            if (dKey) filesByKey.set(dKey, v);
+            const norm = normalizeKey(stepMatch.title);
+            if (norm) filesByKey.set(`title_${norm}`, v);
+          }
+        }
 
         const compliance: Record<string, any> = {};
 
         for (const step of staffSteps) {
           const key = 'dynamic_' + step.id;
-          const stepData = onboardingData[key] || {};
-          const files = stepData.files || [];
+          let stepData = onboardingData[key] || {};
+          let files = stepData.files || [];
           
+          const dKey = getDedupKey(step);
+          if (files.length === 0 && filesByKey.has(dKey)) {
+            stepData = filesByKey.get(dKey);
+            files = stepData.files || [];
+          } else if (files.length === 0 && filesByKey.has(`title_${normalizeKey(step.title)}`)) {
+            stepData = filesByKey.get(`title_${normalizeKey(step.title)}`);
+            files = stepData.files || [];
+          }
+
           if (step.upload_required === 0) {
             if (stepData.status === 'completed') {
                compliance[key] = { label: step.title, status: "VALID", expiry: null, issued: null, fileName: "Confirmation Completed", fileId: null, isConfirmation: true };

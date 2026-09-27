@@ -1033,6 +1033,7 @@ export function getExpiredMandatoryDocumentsLogic(db: Database.Database) {
 
   const allFiles = db.prepare("SELECT id, original_name, date_issued, date_expires, folder_path, created_at FROM files").all() as any[];
   const filesMap = new Map(allFiles.map(f => [f.id, f]));
+  const allPositions = db.prepare("SELECT id, name FROM positions").all() as any[];
 
   const standardMandatoryTitles = [
     "National Police Certificate",
@@ -1061,8 +1062,31 @@ export function getExpiredMandatoryDocumentsLogic(db: Database.Database) {
     const missingDocs: any[] = [];
     const compliantDocs: any[] = [];
 
-    if (dynamicSteps.length > 0) {
-      for (const step of dynamicSteps) {
+    // Filter dynamicSteps to staff member's specific roles and deduplicate
+    const primary = (staff.primary_position || '').trim();
+    let additionals: string[] = [];
+    try { additionals = staff.additional_positions ? JSON.parse(staff.additional_positions) : []; } catch {}
+    const staffPosNames = [primary, ...additionals].filter(Boolean);
+    const posIds = allPositions.filter(p => staffPosNames.some(sp => sp.toLowerCase() === p.name.toLowerCase())).map(p => p.id);
+
+    const staffDynamicSteps: any[] = [];
+    const seenKeys = new Set<string>();
+    const normalizeKey = (title: string) => (title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const getDedupKey = (step: any) => {
+      if (step.requirement_type_id) return `type_${step.requirement_type_id}`;
+      const norm = normalizeKey(step.title);
+      return norm ? `title_${norm}` : `id_${step.id}`;
+    };
+
+    for (const step of dynamicSteps.filter(s => s.is_all_staff === 1 || (s.position_id && posIds.includes(s.position_id)))) {
+      const key = getDedupKey(step);
+      if (key && seenKeys.has(key)) continue;
+      if (key) seenKeys.add(key);
+      staffDynamicSteps.push(step);
+    }
+
+    if (staffDynamicSteps.length > 0) {
+      for (const step of staffDynamicSteps) {
         const key = 'dynamic_' + step.id;
         const entry = onboardingData[key] || onboardingData[String(step.id)] || {};
         const stepFiles = entry.files || [];
