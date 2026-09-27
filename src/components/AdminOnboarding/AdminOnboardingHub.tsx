@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, FileCheck, Edit, Video, AlertCircle, Users, Briefcase, Globe, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Plus, Trash2, Save, FileCheck, Edit, Video, AlertCircle, Users, Briefcase, Globe, Upload, Loader2, Image as ImageIcon, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PositionsModal from '../Directory/PositionsModal';
 import EditorJSWrapper from '../ProgressNotes/EditorJSWrapper';
@@ -20,6 +20,7 @@ interface Step {
   upload_required: number;
   is_mandatory: number;
   expiry_years: number;
+  order_index?: number;
 }
 
 const getPreviewText = (desc: string) => {
@@ -50,6 +51,12 @@ export default function AdminOnboardingHub() {
   const [editForm, setEditForm] = useState<Partial<Step>>({});
   const [editorHeight, setEditorHeight] = useState<number>(380);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+
+  // Drag and drop / Reordering states
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null);
+  const [isReordering, setIsReordering] = useState(false);
 
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -90,28 +97,156 @@ export default function AdminOnboardingHub() {
       });
   };
 
-  useEffect(() => {
-    fetchPositions();
-  }, [token]);
-
-  useEffect(() => {
+  const fetchSteps = () => {
     fetch('/api/admin/onboarding-steps', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setSteps(data);
       });
+  };
+
+  useEffect(() => {
+    fetchPositions();
   }, [token]);
 
-  const currentSteps = selectedPositionId === 'all_staff'
+  useEffect(() => {
+    fetchSteps();
+  }, [token]);
+
+  const currentSteps = (selectedPositionId === 'all_staff'
     ? steps.filter(s => s.is_all_staff === 1 || (!s.position_id && s.is_all_staff !== 0))
-    : steps.filter(s => s.position_id === selectedPositionId && !s.is_all_staff);
+    : steps.filter(s => s.position_id === selectedPositionId && !s.is_all_staff)
+  ).sort((a, b) => {
+    const orderA = a.order_index ?? 0;
+    const orderB = b.order_index ?? 0;
+    if (orderA !== orderB) return orderA - orderB;
+    return a.id - b.id;
+  });
 
   const allStaffStepsCount = steps.filter(s => s.is_all_staff === 1 || (!s.position_id && s.is_all_staff !== 0)).length;
+
+  const calculateNewOrder = (list: Step[], fromIndex: number, targetIndex: number, position: 'before' | 'after') => {
+    if (fromIndex === targetIndex) return list;
+    const itemToMove = list[fromIndex];
+    const withoutItem = list.filter((_, idx) => idx !== fromIndex);
+    const targetItem = list[targetIndex];
+    const newTargetIdx = withoutItem.findIndex(item => item.id === targetItem.id);
+    if (newTargetIdx === -1) return list;
+    const insertIndex = position === 'after' ? newTargetIdx + 1 : newTargetIdx;
+    const result = [...withoutItem];
+    result.splice(insertIndex, 0, itemToMove);
+    return result;
+  };
+
+  const persistReorder = async (reordered: Step[]) => {
+    setIsReordering(true);
+    const updatedWithOrder = reordered.map((step, idx) => ({
+      ...step,
+      order_index: idx + 1
+    }));
+
+    // Optimistically update local steps
+    const orderMap = new Map(updatedWithOrder.map(s => [s.id, s.order_index]));
+    setSteps(prev => prev.map(s => {
+      if (orderMap.has(s.id)) {
+        return { ...s, order_index: orderMap.get(s.id)! };
+      }
+      return s;
+    }));
+
+    try {
+      const stepIds = updatedWithOrder.map(s => s.id);
+      const res = await fetch('/api/admin/onboarding-steps/reorder', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ stepIds })
+      });
+      if (!res.ok) {
+        throw new Error('Failed to save step order');
+      }
+    } catch (err) {
+      console.error('Failed to persist step order:', err);
+      fetchSteps();
+    } finally {
+      setIsReordering(false);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (isEditing !== null) {
+      e.preventDefault();
+      return;
+    }
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedIndex === null || draggedIndex === index) {
+      if (dragOverIndex !== null) setDragOverIndex(null);
+      if (dropPosition !== null) setDropPosition(null);
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const pos = e.clientY < midY ? 'before' : 'after';
+    if (dragOverIndex !== index || dropPosition !== pos) {
+      setDragOverIndex(index);
+      setDropPosition(pos);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent, index: number) => {
+    const related = e.relatedTarget as Node | null;
+    if (related && (e.currentTarget as HTMLElement).contains(related)) {
+      return;
+    }
+    if (dragOverIndex === index) {
+      setDragOverIndex(null);
+      setDropPosition(null);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    setDropPosition(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIndex) {
+      handleDragEnd();
+      return;
+    }
+
+    const currentPos = dropPosition || 'after';
+    const newOrder = calculateNewOrder(currentSteps, draggedIndex, targetIndex, currentPos);
+    handleDragEnd();
+    await persistReorder(newOrder);
+  };
+
+  const handleMoveStep = async (idx: number, direction: 'up' | 'down') => {
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= currentSteps.length) return;
+    const newOrder = [...currentSteps];
+    const [moved] = newOrder.splice(idx, 1);
+    newOrder.splice(targetIdx, 0, moved);
+    await persistReorder(newOrder);
+  };
 
   const handleAddStep = () => {
     if (!selectedPositionId) return;
     const tempId = -Date.now();
     const isAllStaff = selectedPositionId === 'all_staff';
+    const nextOrder = currentSteps.length + 1;
     const newStep: any = {
       id: tempId,
       position_id: isAllStaff ? null : selectedPositionId,
@@ -122,7 +257,8 @@ export default function AdminOnboardingHub() {
       requires_expiry: 0,
       expiry_years: 1,
       upload_required: 1,
-      is_mandatory: 1
+      is_mandatory: 1,
+      order_index: nextOrder
     };
     setSteps(prev => [...prev, newStep]);
     setIsEditing(tempId);
@@ -303,12 +439,20 @@ export default function AdminOnboardingHub() {
                     </span>
                   </div>
                   
-                  <button 
-                    onClick={handleAddStep}
-                    className="flex items-center px-3 py-1.5 bg-brand-teal hover:bg-brand-teal/90 text-black text-xs font-semibold rounded-md transition-all shadow-sm shrink-0"
-                  >
-                    <Plus className="w-4 h-4 mr-1.5" /> Add Step
-                  </button>
+                  <div className="flex items-center gap-2.5">
+                    {currentSteps.length > 1 && (
+                      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-white/5 border border-white/10 rounded-md text-[11px] text-zinc-400">
+                        <GripVertical className="w-3.5 h-3.5 text-brand-teal" />
+                        <span>Drag steps to reorder</span>
+                      </div>
+                    )}
+                    <button 
+                      onClick={handleAddStep}
+                      className="flex items-center px-3 py-1.5 bg-brand-teal hover:bg-brand-teal/90 text-black text-xs font-semibold rounded-md transition-all shadow-sm shrink-0"
+                    >
+                      <Plus className="w-4 h-4 mr-1.5" /> Add Step
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -322,10 +466,35 @@ export default function AdminOnboardingHub() {
                       </p>
                     </div>
                   ) : (
-                    currentSteps.map((step, idx) => (
-                      <div key={step.id} className="bg-black/20 border border-white/[0.08] rounded-xl overflow-hidden">
-                        {isEditing === step.id ? (
-                          <div className="p-5 space-y-4">
+                    currentSteps.map((step, idx) => {
+                      const isDragged = draggedIndex === idx;
+                      const isOver = dragOverIndex === idx;
+
+                      return (
+                        <div 
+                          key={step.id} 
+                          draggable={isEditing === null}
+                          onDragStart={(e) => handleDragStart(e, idx)}
+                          onDragOver={(e) => handleDragOver(e, idx)}
+                          onDragLeave={(e) => handleDragLeave(e, idx)}
+                          onDrop={(e) => handleDrop(e, idx)}
+                          onDragEnd={handleDragEnd}
+                          className={`relative rounded-xl overflow-hidden transition-all duration-150 ${
+                            isDragged 
+                              ? 'opacity-40 border-2 border-dashed border-brand-teal/60 bg-brand-teal/5 scale-[0.99]' 
+                              : 'bg-black/20 border border-white/[0.08] hover:border-white/20'
+                          }`}
+                        >
+                          {/* Drop insertion indicators */}
+                          {isOver && dropPosition === 'before' && (
+                            <div className="absolute top-0 left-0 right-0 h-1 bg-brand-teal shadow-[0_0_12px_rgba(45,212,191,0.9)] z-30 pointer-events-none rounded-t" />
+                          )}
+                          {isOver && dropPosition === 'after' && (
+                            <div className="absolute bottom-0 left-0 right-0 h-1 bg-brand-teal shadow-[0_0_12px_rgba(45,212,191,0.9)] z-30 pointer-events-none rounded-b" />
+                          )}
+
+                          {isEditing === step.id ? (
+                            <div className="p-5 space-y-4">
                             <div>
                               <label className="block text-[11px] font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Step Title</label>
                               <input 
@@ -539,19 +708,28 @@ export default function AdminOnboardingHub() {
                         ) : (
                           <div 
                             onClick={(e) => {
-                              if ((e.target as HTMLElement).closest('button[title="Delete Step"]')) return;
+                              if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('.drag-handle-btn')) return;
                               setIsEditing(step.id); 
                               setEditForm(step);
                             }}
-                            className="p-3 md:p-4 flex gap-3 cursor-pointer hover:bg-white/[0.02] transition-colors group relative items-center"
+                            className="p-3 md:p-4 flex gap-2.5 sm:gap-3.5 cursor-pointer hover:bg-white/[0.02] transition-colors group relative items-center"
                           >
+                            {/* Drag Handle */}
+                            <div 
+                              className="drag-handle-btn p-1 text-zinc-500 hover:text-brand-teal hover:bg-white/5 rounded cursor-grab active:cursor-grabbing transition-colors shrink-0" 
+                              title="Click and drag to reorder this step"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <GripVertical className="w-4 h-4" />
+                            </div>
+
                             <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 text-[11px] font-bold shrink-0">
                               {idx + 1}
                             </div>
-                            <div className="flex-1">
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <h3 className="text-[14px] font-semibold text-white group-hover:text-brand-teal transition-colors">{step.title}</h3>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <h3 className="text-[14px] font-semibold text-white group-hover:text-brand-teal transition-colors truncate">{step.title}</h3>
                                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                                     {selectedPositionId === 'all_staff' && (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-brand-teal/10 text-brand-teal border border-brand-teal/20 uppercase tracking-wider">
@@ -584,11 +762,39 @@ export default function AdminOnboardingHub() {
                                      )}
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-1 transition-opacity">
-                                  <button onClick={() => { setIsEditing(step.id); setEditForm(step); }} className="p-2 text-zinc-400 hover:text-brand-teal hover:bg-brand-teal/10 rounded transition-colors" title="Edit Step">
+                                <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                  <button 
+                                    type="button"
+                                    onClick={() => handleMoveStep(idx, 'up')}
+                                    disabled={idx === 0 || isReordering}
+                                    className="p-1.5 text-zinc-400 hover:text-brand-teal hover:bg-brand-teal/10 rounded transition-colors disabled:opacity-20 disabled:hover:text-zinc-400 disabled:hover:bg-transparent"
+                                    title="Move Step Up"
+                                  >
+                                    <ChevronUp className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    type="button"
+                                    onClick={() => handleMoveStep(idx, 'down')}
+                                    disabled={idx === currentSteps.length - 1 || isReordering}
+                                    className="p-1.5 text-zinc-400 hover:text-brand-teal hover:bg-brand-teal/10 rounded transition-colors disabled:opacity-20 disabled:hover:text-zinc-400 disabled:hover:bg-transparent"
+                                    title="Move Step Down"
+                                  >
+                                    <ChevronDown className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    type="button"
+                                    onClick={() => { setIsEditing(step.id); setEditForm(step); }} 
+                                    className="p-1.5 text-zinc-400 hover:text-brand-teal hover:bg-brand-teal/10 rounded transition-colors" 
+                                    title="Edit Step"
+                                  >
                                     <Edit className="w-4 h-4" />
                                   </button>
-                                  <button onClick={() => handleDeleteStep(step.id)} className="p-2 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors" title="Delete Step">
+                                  <button 
+                                    type="button"
+                                    onClick={() => handleDeleteStep(step.id)} 
+                                    className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors" 
+                                    title="Delete Step"
+                                  >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
                                 </div>
@@ -597,7 +803,8 @@ export default function AdminOnboardingHub() {
                           </div>
                         )}
                       </div>
-                    ))
+                    );
+                  })
                   )}
                 </div>
               </>

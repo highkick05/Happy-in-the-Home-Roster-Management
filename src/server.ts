@@ -1160,6 +1160,7 @@ try {
         upload_required INTEGER DEFAULT 1,
         is_mandatory INTEGER DEFAULT 1,
         expiry_years INTEGER DEFAULT 1,
+        order_index INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (position_id) REFERENCES positions(id) ON DELETE CASCADE
       );
@@ -1775,6 +1776,12 @@ try {
           db.exec("ALTER TABLE onboarding_hub_steps ADD COLUMN upload_required INTEGER DEFAULT 1;");
           db.exec("ALTER TABLE onboarding_hub_steps ADD COLUMN is_mandatory INTEGER DEFAULT 1;");
           console.log("[DEBUG] Added upload_required and is_mandatory to onboarding_hub_steps.");
+        }
+
+        if (!tableInfo.some(c => c.name === 'order_index')) {
+          db.exec("ALTER TABLE onboarding_hub_steps ADD COLUMN order_index INTEGER DEFAULT 0;");
+          db.exec("UPDATE onboarding_hub_steps SET order_index = id WHERE order_index = 0 OR order_index IS NULL;");
+          console.log("[DEBUG] Added order_index to onboarding_hub_steps.");
         }
 
         const hasAllStaff = tableInfo.some(c => c.name === 'is_all_staff');
@@ -5413,7 +5420,7 @@ app.get("/api/health", (req, res) => {
       }
       
       // 1. Fetch Global / All-Staff steps first
-      const globalSteps = db.prepare("SELECT * FROM onboarding_hub_steps WHERE is_all_staff = 1 ORDER BY id ASC").all() as any[];
+      const globalSteps = db.prepare("SELECT * FROM onboarding_hub_steps WHERE is_all_staff = 1 ORDER BY order_index ASC, id ASC").all() as any[];
 
       const user = db.prepare("SELECT primary_position, additional_positions FROM users WHERE id = ?").get(targetUserId) as any;
       if (!user) return res.json(globalSteps);
@@ -5439,7 +5446,7 @@ app.get("/api/health", (req, res) => {
         FROM onboarding_hub_steps s 
         LEFT JOIN positions p ON s.position_id = p.id 
         WHERE (s.is_all_staff = 0 OR s.is_all_staff IS NULL) AND s.position_id IN (${placeholdersIds}) 
-        ORDER BY s.id ASC
+        ORDER BY s.position_id ASC, s.order_index ASC, s.id ASC
       `).all(...positionIds) as any[];
       
       res.json([...globalSteps, ...positionSteps]);
@@ -5689,10 +5696,32 @@ app.get("/api/health", (req, res) => {
   // ADMIN ONBOARDING STEPS
   app.get("/api/admin/onboarding-steps", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const steps = db.prepare("SELECT * FROM onboarding_hub_steps").all();
+      const steps = db.prepare("SELECT * FROM onboarding_hub_steps ORDER BY order_index ASC, id ASC").all();
       res.json(steps);
     } catch (error: any) {
       console.error("ONBOARDING API ERROR:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/admin/onboarding-steps/reorder", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { stepIds } = req.body;
+      if (!Array.isArray(stepIds)) {
+        return res.status(400).json({ error: "stepIds must be an array of IDs" });
+      }
+
+      const updateStmt = db.prepare("UPDATE onboarding_hub_steps SET order_index = ? WHERE id = ?");
+      const reorderTx = db.transaction((ids: number[]) => {
+        ids.forEach((id, index) => {
+          updateStmt.run(index + 1, id);
+        });
+      });
+      reorderTx(stepIds);
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("ONBOARDING REORDER ERROR:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -5702,8 +5731,16 @@ app.get("/api/health", (req, res) => {
       const { position_id, is_all_staff, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years } = req.body;
       const allStaffVal = (is_all_staff || position_id === null || position_id === undefined || position_id === 'all_staff') ? 1 : 0;
       const posIdVal = allStaffVal === 1 ? null : position_id;
-      const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, is_all_staff, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-      const info = stmt.run(posIdVal, allStaffVal, title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0, expiry_years || 1);
+      
+      const maxOrderRow = db.prepare(`
+        SELECT MAX(order_index) as max_order 
+        FROM onboarding_hub_steps 
+        WHERE (is_all_staff = ? OR (position_id = ? AND (? IS NOT NULL)))
+      `).get(allStaffVal, posIdVal, posIdVal) as any;
+      const nextOrder = (maxOrderRow?.max_order || 0) + 1;
+
+      const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, is_all_staff, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      const info = stmt.run(posIdVal, allStaffVal, title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0, expiry_years || 1, nextOrder);
       const newStep = db.prepare("SELECT * FROM onboarding_hub_steps WHERE id = ?").get(info.lastInsertRowid);
       res.json(newStep);
     } catch (error: any) {
