@@ -700,13 +700,15 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                           className="w-full max-h-[400px] object-contain bg-black" 
                         />
                       );
-                    } else if (urlWithoutQuery.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
+                    } else if (urlWithoutQuery.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i)) {
                       return (
-                        <img 
-                          src={url} 
-                          alt="Attached Media" 
-                          className="w-full max-h-[400px] object-contain" 
-                        />
+                        <div className="flex justify-center items-center p-4 bg-black/40 min-h-[100px]">
+                          <img 
+                            src={url} 
+                            alt="Attached Media" 
+                            className="max-w-full max-h-[380px] w-auto h-auto object-contain rounded-md" 
+                          />
+                        </div>
                       );
                     }
                     

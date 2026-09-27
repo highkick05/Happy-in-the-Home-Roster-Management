@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, FileCheck, Edit, Video, AlertCircle, Users, Briefcase, Globe, Upload, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Save, FileCheck, Edit, Video, AlertCircle, Users, Briefcase, Globe, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import PositionsModal from '../Directory/PositionsModal';
 import EditorJSWrapper from '../ProgressNotes/EditorJSWrapper';
@@ -48,6 +48,7 @@ export default function AdminOnboardingHub() {
   const [isEditing, setIsEditing] = useState<number | null>(null); // step id
   const [isPositionsModalOpen, setIsPositionsModalOpen] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Step>>({});
+  const [editorHeight, setEditorHeight] = useState<number>(380);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -335,13 +336,67 @@ export default function AdminOnboardingHub() {
                             </div>
                             
                             <div>
-                              <label className="block text-[11px] font-medium text-zinc-400 mb-1.5 uppercase tracking-wider">Instructions / Description</label>
-                              <div className="border border-white/[0.08] rounded-lg overflow-hidden bg-black/40">
+                              <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                                <div className="flex items-center gap-2">
+                                  <label className="block text-[11px] font-medium text-zinc-400 uppercase tracking-wider">
+                                    Instructions / Description
+                                  </label>
+                                  <span className="text-[10px] text-zinc-500 font-normal hidden sm:inline">
+                                    (Adjustable Height & Formatting Tools)
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 bg-black/40 border border-white/[0.08] p-0.5 rounded-lg text-[11px]">
+                                  <span className="text-[10px] text-zinc-500 px-1.5 hidden md:inline">Height:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditorHeight(380)}
+                                    className={`px-2 py-0.5 rounded transition-colors ${
+                                      editorHeight === 380 
+                                        ? 'bg-brand-teal text-black font-semibold' 
+                                        : 'text-zinc-400 hover:text-white'
+                                    }`}
+                                    title="Standard Height (380px)"
+                                  >
+                                    Standard
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditorHeight(520)}
+                                    className={`px-2 py-0.5 rounded transition-colors ${
+                                      editorHeight === 520 
+                                        ? 'bg-brand-teal text-black font-semibold' 
+                                        : 'text-zinc-400 hover:text-white'
+                                    }`}
+                                    title="Tall Height (520px)"
+                                  >
+                                    Tall
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditorHeight(700)}
+                                    className={`px-2 py-0.5 rounded transition-colors ${
+                                      editorHeight === 700 
+                                        ? 'bg-brand-teal text-black font-semibold' 
+                                        : 'text-zinc-400 hover:text-white'
+                                    }`}
+                                    title="Extra Large Height (700px)"
+                                  >
+                                    XL
+                                  </button>
+                                </div>
+                              </div>
+                              <div 
+                                className="border border-white/[0.08] rounded-lg overflow-hidden bg-black/40 resize-y flex flex-col"
+                                style={{ minHeight: `${editorHeight}px` }}
+                              >
                                 <EditorJSWrapper 
                                   initialData={editForm.description}
                                   onChange={(data) => setEditForm({...editForm, description: JSON.stringify(data)})}
-                                  minHeight={250}
+                                  minHeight={editorHeight}
                                 />
+                              </div>
+                              <div className="flex justify-between items-center text-[10px] text-zinc-500 mt-1 px-1">
+                                <span>Tip: Drag the bottom-right corner to freely adjust the editor to any height.</span>
                               </div>
                             </div>
 
@@ -369,6 +424,43 @@ export default function AdminOnboardingHub() {
                                   />
                                 </label>
                               </div>
+
+                              {editForm.media_url && (
+                                <div className="mt-2.5 p-3 bg-black/30 border border-white/[0.06] rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                                      <ImageIcon className="w-3.5 h-3.5 text-brand-teal" /> Media Preview (Actual Size)
+                                    </span>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => setEditForm({...editForm, media_url: ''})}
+                                      className="text-[11px] text-zinc-500 hover:text-red-400 transition-colors"
+                                    >
+                                      Remove Media
+                                    </button>
+                                  </div>
+                                  <div className="flex justify-center items-center p-3 bg-black/50 rounded-lg overflow-hidden border border-white/5">
+                                    {editForm.media_url.includes('youtube.com') || editForm.media_url.includes('youtu.be') ? (
+                                      <span className="text-xs text-zinc-400 py-2">YouTube Video Link Attached</span>
+                                    ) : editForm.media_url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i) ? (
+                                      <video 
+                                        src={editForm.media_url.startsWith('/api/files/download/') ? `${editForm.media_url}&token=${token}&preview=true` : editForm.media_url} 
+                                        controls 
+                                        className="max-w-full max-h-48 rounded" 
+                                      />
+                                    ) : (
+                                      <img 
+                                        src={editForm.media_url.startsWith('/api/files/download/') ? `${editForm.media_url}&token=${token}&preview=true` : editForm.media_url} 
+                                        alt="Media Preview" 
+                                        className="max-w-full max-h-48 w-auto h-auto object-contain rounded"
+                                        onError={(e) => {
+                                          (e.target as HTMLElement).style.display = 'none';
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
 
                             <div className="grid grid-cols-1 gap-2 pt-2 pb-3">

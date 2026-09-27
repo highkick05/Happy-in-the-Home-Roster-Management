@@ -472,19 +472,125 @@ input:-webkit-autofill:active {
 .editorjs-wrapper .tc-wrap {
   border-color: rgba(255,255,255,0.1);
 }
-.editorjs-wrapper .ce-inline-toolbar {
-  background: #27272a;
-  border-color: rgba(255,255,255,0.1);
-  color: #fff;
+.editorjs-wrapper .ce-inline-toolbar,
+.ce-inline-toolbar,
+.codex-editor .ce-inline-toolbar {
+  background: #18181b !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6) !important;
 }
-.editorjs-wrapper .ce-inline-toolbar__buttons {
-  background: #27272a;
+.editorjs-wrapper .ce-inline-toolbar__buttons,
+.ce-inline-toolbar__buttons,
+.codex-editor .ce-inline-toolbar__buttons {
+  background: #18181b !important;
+  border-radius: 8px !important;
 }
-.editorjs-wrapper .ce-inline-tool:hover {
-  background: rgba(255,255,255,0.1);
+.editorjs-wrapper .ce-inline-tool,
+.ce-inline-tool,
+.codex-editor .ce-inline-tool {
+  color: #d4d4d8 !important;
+}
+.editorjs-wrapper .ce-inline-tool:hover,
+.ce-inline-tool:hover,
+.codex-editor .ce-inline-tool:hover,
+.editorjs-wrapper .ce-inline-tool--active,
+.ce-inline-tool--active,
+.codex-editor .ce-inline-tool--active {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #fff !important;
+}
+.editorjs-wrapper .ce-inline-toolbar__dropdown,
+.ce-inline-toolbar__dropdown,
+.codex-editor .ce-inline-toolbar__dropdown {
+  color: #fff !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.editorjs-wrapper .ce-inline-toolbar__dropdown:hover,
+.ce-inline-toolbar__dropdown:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
 }
 
+/* FIX: EditorJS Link input field - dark background with visible white text */
+.editorjs-wrapper .ce-inline-tool-input,
+.ce-inline-tool-input,
+.codex-editor .ce-inline-tool-input,
+.editorjs-wrapper .ce-inline-tool-input--showed,
+.ce-inline-tool-input--showed,
+.codex-editor .ce-inline-tool-input--showed,
+.editorjs-wrapper .ce-inline-toolbar input,
+.ce-inline-toolbar input,
+.codex-editor .ce-inline-toolbar input {
+  background: #27272a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  border-radius: 6px !important;
+  padding: 6px 12px !important;
+  font-size: 13px !important;
+  line-height: 20px !important;
+  outline: none !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  margin-top: 4px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
 
+.editorjs-wrapper .ce-inline-tool-input:focus,
+.ce-inline-tool-input:focus,
+.codex-editor .ce-inline-tool-input:focus,
+.editorjs-wrapper .ce-inline-toolbar input:focus,
+.ce-inline-toolbar input:focus {
+  border-color: #14b8a6 !important;
+  background: #27272a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.25) !important;
+}
+
+.editorjs-wrapper .ce-inline-tool-input::placeholder,
+.ce-inline-tool-input::placeholder,
+.codex-editor .ce-inline-tool-input::placeholder,
+.editorjs-wrapper .ce-inline-toolbar input::placeholder,
+.ce-inline-toolbar input::placeholder {
+  color: #9ca3af !important;
+  -webkit-text-fill-color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+/* Links inside EditorJS */
+.editorjs-wrapper a,
+.ce-block a {
+  color: #14b8a6 !important;
+  text-decoration: underline !important;
+  cursor: pointer !important;
+}
+.editorjs-wrapper a:hover,
+.ce-block a:hover {
+  color: #2dd4bf !important;
+}
+
+/* Blockquote & Code styling */
+.editorjs-wrapper blockquote {
+  border-left: 3px solid #14b8a6 !important;
+  padding: 6px 12px !important;
+  margin: 6px 0 !important;
+  color: #d1d5db !important;
+  font-style: italic !important;
+  background: rgba(20, 184, 166, 0.05) !important;
+  border-radius: 0 6px 6px 0 !important;
+}
+
+.editorjs-wrapper code {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #2dd4bf !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  font-family: monospace !important;
+  font-size: 0.9em !important;
+}
 
 /* Ensure the plus icon (block toolbar) is visible */
 .editorjs-wrapper .ce-toolbar__actions {
@@ -494,12 +600,16 @@ input:-webkit-autofill:active {
 
 .editorjs-wrapper .image-tool__image {
   max-width: 100% !important;
-  margin: 0 !important;
-  display: inline-block !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  justify-content: center !important;
 }
 .editorjs-wrapper .image-tool__image-picture {
-  width: 100% !important;
+  max-width: 100% !important;
+  width: auto !important;
   height: auto !important;
+  max-height: 400px !important;
+  object-fit: contain !important;
   display: block;
   border-radius: 8px;
 }
@@ -533,18 +643,21 @@ it might be cut off if padding is not sufficient */
   padding-bottom: 20px !important;
 }
 
-/* Allow images to be resized naturally */
+/* Allow images to be natural size without artificial stretching */
 .editorjs-wrapper .image-tool__image {
   max-width: 100% !important;
-  margin: 0 !important;
-  display: inline-block !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  justify-content: center !important;
   border-radius: 6px;
   overflow: hidden;
-  resize: horizontal;
 }
 .editorjs-wrapper .image-tool__image-picture {
-  width: 100% !important;
+  max-width: 100% !important;
+  width: auto !important;
   height: auto !important;
+  max-height: 400px !important;
+  object-fit: contain !important;
   display: block;
 }
 
