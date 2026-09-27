@@ -284,9 +284,10 @@ export default function AdminOnboardingHub() {
         });
         const createdStep = await res.json();
         setSteps(prev => prev.map(s => s.id === id ? createdStep : s));
+        fetchSteps();
       } else {
         // Existing step, PUT to update
-        await fetch(`/api/admin/onboarding-steps/${id}`, {
+        const res = await fetch(`/api/admin/onboarding-steps/${id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -294,7 +295,10 @@ export default function AdminOnboardingHub() {
           },
           body: JSON.stringify(editForm)
         });
-        setSteps(prev => prev.map(s => s.id === id ? { ...s, ...editForm } as any : s));
+        if (res.ok) {
+          setSteps(prev => prev.map(s => s.id === id ? { ...s, ...editForm } as any : s));
+          fetchSteps();
+        }
       }
       setIsEditing(null);
     } catch(e) {}

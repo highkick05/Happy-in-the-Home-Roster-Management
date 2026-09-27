@@ -1068,7 +1068,23 @@ export function getExpiredMandatoryDocumentsLogic(db: Database.Database) {
         const stepFiles = entry.files || [];
 
         if (stepFiles.length === 0) {
-          if (step.is_mandatory || step.upload_required) {
+          if (step.upload_required === 0) {
+            if (entry.status === 'completed') {
+              compliantDocs.push({
+                title: step.title,
+                category: "Requirement Confirmed",
+                status: "COMPLIANT"
+              });
+            } else if (step.is_mandatory) {
+              missingDocs.push({
+                title: step.title,
+                category: "Mandatory Confirmation Missing",
+                status: "MISSING",
+                requiresExpiry: false
+              });
+              totalMissingCount++;
+            }
+          } else if (step.is_mandatory || step.upload_required) {
             missingDocs.push({
               title: step.title,
               category: "Mandatory Document Missing",

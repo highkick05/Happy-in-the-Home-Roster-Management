@@ -71,7 +71,7 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
           id: `dynamic_${d.id}`,
           title: d.title,
           description: d.description || '',
-          type: d.upload_required ? 'upload' : 'confirm',
+          type: (d.upload_required === 0 || d.upload_required === false || d.upload_required === '0') ? 'confirm' : 'upload',
           requires_expiry: d.requires_expiry,
           expiry_years: d.expiry_years || 1,
           optional: d.is_mandatory ? false : true,
@@ -481,7 +481,13 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                   ? 'bg-indigo-500/10 border-brand-teal/25 text-brand-teal'
                   : 'bg-zinc-800 border-white/[0.12] text-zinc-500'
             }`}>
-              {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <Upload className="w-5 h-5" />}
+              {isCompleted ? (
+                <CheckCircle2 className="w-5 h-5" />
+              ) : step.type === 'confirm' ? (
+                <CheckCircle2 className="w-5 h-5" />
+              ) : (
+                <Upload className="w-5 h-5" />
+              )}
             </div>
             <div>
               <h3 className={`font-medium flex items-center gap-2 ${isCompleted ? 'text-zinc-300' : 'text-white'}`}>
@@ -900,18 +906,40 @@ export default function OnboardingView({ targetUserId }: { targetUserId?: number
                   )}
                 </div>
               ) : (
-                <div>
-                  <button
+                <div className="pt-2">
+                  <div 
                     onClick={() => updateProgress(step.id, isCompleted ? 'pending' : 'completed')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors w-fit ${
+                    className={`flex items-start sm:items-center gap-3.5 p-4 rounded-xl border cursor-pointer select-none transition-all group ${
                       isCompleted 
-                        ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' 
-                        : 'bg-brand-blue text-white hover:bg-brand-teal'
+                        ? 'bg-brand-green/10 border-brand-green/30 text-white shadow-[0_0_15px_rgba(34,197,94,0.08)]' 
+                        : 'bg-[#18181B] border-white/[0.1] hover:border-brand-teal/50 hover:bg-[#202024] text-zinc-300'
                     }`}
                   >
-                    <CheckCircle2 className="w-4 h-4" />
-                    {isCompleted ? 'Undo Confirmation' : 'Confirm & Acknowledge'}
-                  </button>
+                    <div className={`w-6 h-6 rounded-md border flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 transition-colors ${
+                      isCompleted 
+                        ? 'bg-brand-green border-brand-green text-black font-bold' 
+                        : 'bg-black/50 border-white/20 group-hover:border-brand-teal/60'
+                    }`}>
+                      {isCompleted && <Check className="w-4 h-4 stroke-[3]" />}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[14px] font-semibold text-white">
+                          I confirm that I have read and understood this requirement
+                        </span>
+                        {isCompleted && (
+                          <span className="text-[11px] font-bold text-brand-green bg-brand-green/15 px-2 py-0.5 rounded-full border border-brand-green/20">
+                            Completed
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[12px] text-zinc-400 mt-0.5">
+                        {isCompleted 
+                          ? 'You have confirmed and completed this requirement. Click to uncheck if needed.' 
+                          : 'Check this box to confirm you have read and understood the instructions above and acknowledge this requirement.'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

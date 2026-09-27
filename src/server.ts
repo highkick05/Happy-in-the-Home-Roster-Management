@@ -5739,8 +5739,12 @@ app.get("/api/health", (req, res) => {
       `).get(allStaffVal, posIdVal, posIdVal) as any;
       const nextOrder = (maxOrderRow?.max_order || 0) + 1;
 
+      const uploadRequiredVal = (upload_required === 0 || upload_required === false || upload_required === '0' || upload_required === 'false') ? 0 : 1;
+      const isMandatoryVal = (is_mandatory === 0 || is_mandatory === false || is_mandatory === '0' || is_mandatory === 'false') ? 0 : 1;
+      const requiresExpiryVal = (requires_expiry === 1 || requires_expiry === true || requires_expiry === '1' || requires_expiry === 'true') ? 1 : 0;
+
       const stmt = db.prepare("INSERT INTO onboarding_hub_steps (position_id, is_all_staff, title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years, order_index) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-      const info = stmt.run(posIdVal, allStaffVal, title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0, expiry_years || 1, nextOrder);
+      const info = stmt.run(posIdVal, allStaffVal, title, description || '', media_url || '', requiresExpiryVal, uploadRequiredVal, isMandatoryVal, expiry_years || 1, nextOrder);
       const newStep = db.prepare("SELECT * FROM onboarding_hub_steps WHERE id = ?").get(info.lastInsertRowid);
       res.json(newStep);
     } catch (error: any) {
@@ -5752,8 +5756,12 @@ app.get("/api/health", (req, res) => {
   app.put("/api/admin/onboarding-steps/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
       const { title, description, media_url, requires_expiry, upload_required, is_mandatory, expiry_years } = req.body;
+      const uploadRequiredVal = (upload_required === 0 || upload_required === false || upload_required === '0' || upload_required === 'false') ? 0 : 1;
+      const isMandatoryVal = (is_mandatory === 0 || is_mandatory === false || is_mandatory === '0' || is_mandatory === 'false') ? 0 : 1;
+      const requiresExpiryVal = (requires_expiry === 1 || requires_expiry === true || requires_expiry === '1' || requires_expiry === 'true') ? 1 : 0;
+
       const stmt = db.prepare("UPDATE onboarding_hub_steps SET title = ?, description = ?, media_url = ?, requires_expiry = ?, upload_required = ?, is_mandatory = ?, expiry_years = ? WHERE id = ?");
-      stmt.run(title, description || '', media_url || '', requires_expiry ? 1 : 0, upload_required !== false ? 1 : 0, is_mandatory !== false ? 1 : 0, expiry_years || 1, req.params.id);
+      stmt.run(title, description || '', media_url || '', requiresExpiryVal, uploadRequiredVal, isMandatoryVal, expiry_years || 1, req.params.id);
       res.json({ success: true });
     } catch (error: any) {
       console.error("ONBOARDING API ERROR:", error);
