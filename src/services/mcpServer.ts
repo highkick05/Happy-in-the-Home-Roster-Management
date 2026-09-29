@@ -327,7 +327,7 @@ export function getClientBudgetDetails(
       : '0.00%';
 
     const averageWeeklySpend = totalWeeks > 0 ? parseFloat((totalCombinedSpent / totalWeeks).toFixed(2)) : 0;
-    const averageWeeklyHours = totalWeeks > 0 ? parseFloat((totalCommittedHours / totalWeeks).toFixed(2)) : 0;
+    const averageWeeklyHours = totalWeeks > 0 ? Math.round(totalCommittedHours / totalWeeks) : 0;
 
     return {
       clientName: `${client.first_name} ${client.last_name}`,
@@ -516,7 +516,7 @@ export function getClientBudgetDetails(
       : '0.00%';
 
     const averageWeeklySpend = agreementTotalWeeks > 0 ? parseFloat((totalAgreementClaimed / agreementTotalWeeks).toFixed(2)) : 0;
-    const averageWeeklyHours = agreementTotalWeeks > 0 ? parseFloat((totalCommittedHours / agreementTotalWeeks).toFixed(2)) : 0;
+    const averageWeeklyHours = agreementTotalWeeks > 0 ? Math.round(totalCommittedHours / agreementTotalWeeks) : 0;
 
     return {
       clientName: `${client.first_name} ${client.last_name}`,
@@ -803,7 +803,8 @@ export function optimizeQuarterlyRosterLogic(
     estimatedWeeklyCost: parseFloat(((p.totalHours / cycleWeeks) * p.rate).toFixed(2))
   }));
 
-  const totalBaselineWeeklyHours = parseFloat(baselinePattern.reduce((acc, p) => acc + p.averageWeeklyHours, 0).toFixed(2));
+  const rawBaselineHours = baselinePattern.reduce((acc, p) => acc + p.averageWeeklyHours, 0);
+  const totalBaselineWeeklyHours = Math.round(rawBaselineHours);
   const totalBaselineWeeklyCost = parseFloat(baselinePattern.reduce((acc, p) => acc + p.estimatedWeeklyCost, 0).toFixed(2));
 
   // 5. Sustainable weekly funding allocation (ongoing weekly baseline)
@@ -820,16 +821,17 @@ export function optimizeQuarterlyRosterLogic(
   }
 
   // Weighted average hourly cost of client's services
-  const weightedHourlyRate = totalBaselineWeeklyHours > 0
-    ? parseFloat((totalBaselineWeeklyCost / totalBaselineWeeklyHours).toFixed(2))
+  const weightedHourlyRate = rawBaselineHours > 0
+    ? parseFloat((totalBaselineWeeklyCost / rawBaselineHours).toFixed(2))
     : primaryStandardRate;
 
-  // Perfect target weekly hours based on sustainable weekly funding allocation
-  const perfectWeeklyHours = (sustainableWeeklyFunding > 0 && weightedHourlyRate > 0)
-    ? parseFloat((sustainableWeeklyFunding / weightedHourlyRate).toFixed(1))
+  // Perfect target weekly hours based on sustainable weekly funding allocation (clean whole hours, no fractions)
+  const rawPerfectHours = (sustainableWeeklyFunding > 0 && weightedHourlyRate > 0)
+    ? (sustainableWeeklyFunding / weightedHourlyRate)
     : (totalBaselineWeeklyHours > 0 ? totalBaselineWeeklyHours : 15.0);
+  const perfectWeeklyHours = Math.max(1, Math.round(rawPerfectHours));
 
-  const weeklyHoursDifference = parseFloat((perfectWeeklyHours - totalBaselineWeeklyHours).toFixed(1));
+  const weeklyHoursDifference = Math.round(perfectWeeklyHours - totalBaselineWeeklyHours);
 
   // 6. Historic Services Summary
   const historicServicesMap: Record<string, { serviceName: string; totalHours: number; count: number; avgRate: number; days: Set<string> }> = {};
@@ -879,14 +881,14 @@ export function optimizeQuarterlyRosterLogic(
     );
   }
 
-  // 7. Calculate Suggested Planned Services based on historic usage
+  // 7. Calculate Suggested Planned Services based on historic usage (clean whole numbers)
   let allocatedHoursSum = 0;
   const suggestedPlannedServices = historicServicesList.map((s, index) => {
     let recHours = 0;
     if (index === historicServicesList.length - 1) {
-      recHours = parseFloat(Math.max(0.5, perfectWeeklyHours - allocatedHoursSum).toFixed(1));
+      recHours = Math.max(1, perfectWeeklyHours - allocatedHoursSum);
     } else {
-      recHours = parseFloat(Math.max(0.5, Math.round(((s.frequencyPct / 100) * perfectWeeklyHours) * 2) / 2).toFixed(1));
+      recHours = Math.max(1, Math.round((s.frequencyPct / 100) * perfectWeeklyHours));
       allocatedHoursSum += recHours;
     }
     const estCost = parseFloat((recHours * s.averageRate).toFixed(2));
@@ -914,33 +916,33 @@ export function optimizeQuarterlyRosterLogic(
   const preferredDays = clientActiveDays.length > 0 ? clientActiveDays : ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
   const daysCount = preferredDays.length;
 
-  const suggestedWeeklySchedule: any[] = [];
-  const hoursPerDayTarget = parseFloat((perfectWeeklyHours / daysCount).toFixed(1));
+  // Clean whole hour distribution across days (no fractional decimals like 2.8, 1.8, 1.7)
+  const baseDayHours = Math.floor(perfectWeeklyHours / daysCount);
+  const remainderHours = perfectWeeklyHours % daysCount;
+  const dayAllocations: number[] = preferredDays.map((_, idx) => baseDayHours + (idx < remainderHours ? 1 : 0));
 
+  const suggestedWeeklySchedule: any[] = [];
   const primaryService = historicServicesList[0] || { serviceName: "Individual social support", averageRate: 78.00 };
   const secondaryService = historicServicesList[1] || null;
 
-  let scheduleHoursAccumulator = 0;
-
   preferredDays.forEach((day, dIdx) => {
-    const isLastDay = dIdx === preferredDays.length - 1;
-    let dayHours = isLastDay
-      ? parseFloat(Math.max(1.0, perfectWeeklyHours - scheduleHoursAccumulator).toFixed(1))
-      : parseFloat(hoursPerDayTarget.toFixed(1));
+    const totalDayHours = dayAllocations[dIdx];
 
-    if (secondaryService && (day === "Friday" || day === "Tuesday" || isLastDay) && dayHours >= 2.5) {
-      const secHours = Math.min(1.5, Math.max(0.5, parseFloat((secondaryService.averageRate ? 1.0 : 0.5).toFixed(1))));
-      const primHours = parseFloat((dayHours - secHours).toFixed(1));
+    if (secondaryService && (day === "Friday" || day === "Tuesday") && totalDayHours >= 2) {
+      const secHours = 1; // 1 clean hour for personal care / self-care
+      const primHours = totalDayHours - secHours;
 
-      suggestedWeeklySchedule.push({
-        dayOfWeek: day,
-        serviceName: primaryService.serviceName,
-        suggestedHours: primHours,
-        estimatedCost: parseFloat((primHours * primaryService.averageRate).toFixed(2)),
-        suggestedPurpose: day === "Monday" ? "Community access, grocery shopping & supported outing"
-          : day === "Wednesday" ? "Mid-week social engagement, appointments & library visit"
-          : "Social support, companionship & community participation"
-      });
+      if (primHours > 0) {
+        suggestedWeeklySchedule.push({
+          dayOfWeek: day,
+          serviceName: primaryService.serviceName,
+          suggestedHours: primHours,
+          estimatedCost: parseFloat((primHours * primaryService.averageRate).toFixed(2)),
+          suggestedPurpose: day === "Monday" ? "Community access, grocery shopping & supported outing"
+            : day === "Wednesday" ? "Mid-week social engagement, appointments & library visit"
+            : "Social support, companionship & community participation"
+        });
+      }
 
       suggestedWeeklySchedule.push({
         dayOfWeek: day,
@@ -949,22 +951,18 @@ export function optimizeQuarterlyRosterLogic(
         estimatedCost: parseFloat((secHours * secondaryService.averageRate).toFixed(2)),
         suggestedPurpose: "Personal care routine, hygiene support & wellbeing check"
       });
-
-      scheduleHoursAccumulator += (primHours + secHours);
     } else {
       suggestedWeeklySchedule.push({
         dayOfWeek: day,
         serviceName: primaryService.serviceName,
-        suggestedHours: dayHours,
-        estimatedCost: parseFloat((dayHours * primaryService.averageRate).toFixed(2)),
+        suggestedHours: totalDayHours,
+        estimatedCost: parseFloat((totalDayHours * primaryService.averageRate).toFixed(2)),
         suggestedPurpose: day === "Monday" ? "Community access, grocery shopping & weekly errands"
           : day === "Tuesday" ? "Social companionship, recreational activities & supported transport"
           : day === "Wednesday" ? "Mid-week wellness outing, shopping & community engagement"
           : day === "Thursday" ? "Errands, supported recreation & social connection"
           : "End-of-week social support & community connection"
       });
-
-      scheduleHoursAccumulator += dayHours;
     }
   });
 
@@ -2953,7 +2951,12 @@ MULTI-TURN CONVERSATION MEMORY & PRONOUN RESOLUTION:
 - When continuing a conversation about an active client, answer directly in context of their funding package, current weekly hours, and recent recommendations without asking the user to re-state the client name.
 
 All dates in your natural-language responses to users MUST strictly use Australian standard DD/MM/YYYY formatting.
-Currency must always be formatted in AUD ($X.XX).`;
+Currency must always be formatted in AUD ($X.XX).
+
+CRITICAL ROSTERING ROUNDING RULE (NO ODD FRACTIONS OR DECIMALS):
+- Always round weekly hours, baseline hours, hour adjustments, and individual shift durations to clean whole numbers or practical standard half-hours (e.g. 1 hr, 2 hrs, 2.5 hrs, 3 hrs; 9 hrs/week, 14 hrs/week, +5 hrs/week).
+- NEVER produce awkward fractions or partial decimals in roster guidance (such as 2.8 hrs, 1.8 hrs, 1.7 hrs, 2.75 hrs, 1.75 hrs, 9.16 hrs, 13.9 hrs, or 13.75 hrs). Real support shifts and weekly baselines must be scheduled in clean, practical, rounded increments that support workers can book.
+- In Day-by-Day Roster Schedules, every shift must be rounded cleanly and the daily hours must sum exactly to the rounded total weekly hours.`;
 
           if (activeContextClient) {
             const activeFullName = `${activeContextClient.first_name} ${activeContextClient.last_name}`.trim();
@@ -3109,11 +3112,12 @@ SPECIALIZED TOOL GUIDELINES:
   When optimizing a roster, Happy MUST include a prominent, dedicated section titled:
   "### 🎯 Recommended Weekly Hours & Suggested Planned Services"
   In this section, provide:
-  1. The Sustainable Weekly Target Budget ($X.XX/week) and the calculated "Perfect Amount of Weekly Hours" (e.g. 16.0 hrs/week for HCP Level 4) based on their actual package and historic hourly rates.
-  2. Current vs. Target Comparison: Highlight current weekly hours (e.g. 9.16 hrs/week) vs the target perfect weekly hours (e.g. 16.0 hrs/week), stating the recommended weekly hours adjustment (+X.X hrs/week).
-  3. Suggested Planned Services Breakdown: Display a markdown table showing the suggested planned services based on the client's historic previous services (e.g. Individual social support, Assistance with self-care, Domestic assistance) with recommended weekly hours, estimated weekly cost, and focus areas.
-  4. Suggested Day-by-Day Roster Schedule: Display a clear markdown table showing the suggested weekly schedule (Day, Service, Suggested Hours, Est. Cost, Activities/Purpose) matching their historic days and session routines.
-  5. Care Coordinator Guidance: Differentiate between the permanent sustainable weekly schedule (e.g. 16.0 hrs/week) and how to handle any accumulated end-of-quarter surplus (e.g. rolling over into Unspent Funds Pool on 30/09/2026, or investing in deep cleaning, home safety modifications, assistive technology, or allied health rather than rostering 100+ impossible hours in the last few days of a quarter).
+  1. The Sustainable Weekly Target Budget ($X.XX/week) and the calculated "Perfect Amount of Weekly Hours" (e.g. 14 hours/week or 16 hours/week, ALWAYS rounded cleanly to whole hours, NEVER awkward fractional decimals like 13.9 or 13.75).
+  2. Current vs. Target Comparison: Highlight current weekly baseline hours (e.g. 9 hours/week, rounded cleanly, NEVER fractional decimals like 9.16) vs the target perfect weekly hours (e.g. 14 hours/week), stating the recommended weekly hours adjustment (e.g. +5 hours/week, rounded cleanly).
+  3. Suggested Planned Services Breakdown: Display a markdown table showing the suggested planned services based on the client's historic previous services with recommended weekly hours rounded cleanly to whole numbers (e.g. 12 hrs and 2 hrs, totaling 14 hrs), estimated weekly cost, and focus areas.
+  4. Suggested Day-by-Day Roster Schedule: Display a clear markdown table showing the suggested weekly schedule (Day, Service, Suggested Hours, Est. Cost, Activities/Purpose).
+     CRITICAL ROSTERING RULE: ALL individual shift hours MUST be clean, practical numbers (e.g. 1 hr, 2 hrs, 2.5 hrs, 3 hrs). NEVER produce odd fractions or awkward decimals like 2.8 hrs, 1.8 hrs, 1.7 hrs, 2.75 hrs, or 1.75 hrs! Support workers cannot book partial-minute shifts. Ensure the sum of the days exactly equals the target weekly hours.
+  5. Care Coordinator Guidance: Differentiate between the permanent sustainable weekly schedule (e.g. 14 hours/week) and how to handle any accumulated end-of-quarter surplus (e.g. rolling over into Unspent Funds Pool on 30/09/2026, or investing in deep cleaning, home safety modifications, assistive technology, or allied health rather than rostering 100+ impossible hours in the last few days of a quarter).
 
 IF THE CLIENT IS NDIS (fundingType === 'NDIS'):
 - NDIS FUNDS ARE NOT ALLOCATED QUARTERLY. Do NOT refer to NDIS funding as "quarterly budget allocation", "quarterly cycle", or "quarterly allocation".

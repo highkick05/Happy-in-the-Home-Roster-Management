@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2, Search, ArrowLeft, User, ShieldAlert, Users, BarChart3, Car, GraduationCap, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import HappyMascot, { MascotMood } from './HappyMascot';
 import { useAuth } from '../../context/AuthContext';
 
@@ -791,6 +792,7 @@ export default function AiChatWidget() {
                               <div className="prose prose-invert prose-xs max-w-none text-xs sm:text-[13px] leading-relaxed [&_p]:my-1.5 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5 [&_strong]:text-white [&_strong]:font-bold [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs [&_h1]:font-bold [&_h2]:font-bold [&_h3]:font-bold [&_h1]:my-2 [&_h2]:my-1.5 [&_h3]:my-1 [&_code]:bg-white/[0.1] [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-emerald-300">
                                 <ReactMarkdown 
                                   remarkPlugins={[remarkGfm]}
+                                  rehypePlugins={[rehypeRaw]}
                                   components={{
                                     table: ({ node, ...props }) => (
                                       <div className="w-full my-3 overflow-x-auto rounded-xl border border-white/[0.12] bg-black/40 shadow-inner custom-scrollbar">
@@ -801,17 +803,17 @@ export default function AiChatWidget() {
                                       <thead className="bg-white/[0.07] text-teal-300 font-semibold text-[11px] tracking-wide" {...props} />
                                     ),
                                     th: ({ node, ...props }) => (
-                                      <th className="px-3 py-2.5 font-semibold text-teal-200 border-b border-white/[0.08] whitespace-nowrap" {...props} />
+                                      <th className="px-3 py-2.5 font-semibold text-teal-200 border-b border-white/[0.08] whitespace-nowrap align-top" {...props} />
                                     ),
                                     td: ({ node, ...props }) => (
-                                      <td className="px-3 py-2 text-zinc-200 border-t border-white/[0.04] text-[11px] leading-snug" {...props} />
+                                      <td className="px-3 py-2 text-zinc-200 border-t border-white/[0.04] text-[11px] leading-snug align-top" {...props} />
                                     ),
                                     tr: ({ node, ...props }) => (
                                       <tr className="hover:bg-white/[0.03] transition-colors even:bg-white/[0.015]" {...props} />
                                     )
                                   }}
                                 >
-                                  {msg.content}
+                                  {msg.content.replace(/&lt;br\s*\/?&gt;/gi, '<br />')}
                                 </ReactMarkdown>
                               </div>
                             )}
