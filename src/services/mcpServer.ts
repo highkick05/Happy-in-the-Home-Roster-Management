@@ -2537,6 +2537,69 @@ export function setupMcpServer(app: Express, db: Database.Database) {
   });
 
   /**
+   * Helper to format tool outputs into clean, friendly Care Coordinator Markdown
+   * when Gemini model does not produce natural language text (preventing raw JSON dumps).
+   */
+  function formatToolResultsFallback(toolResults: any[]): string {
+    if (!Array.isArray(toolResults) || toolResults.length === 0) {
+      return "I have completed analyzing the portal records for you.";
+    }
+
+    const fundResult = toolResults.find(t => t.tool === "analyze_client_funds")?.output;
+    const rosterResult = toolResults.find(t => t.tool === "optimize_quarterly_roster")?.output;
+
+    if (fundResult && !fundResult.error) {
+      const cName = fundResult.clientName || 'Client';
+      let md = `📊 **Care & Budget Overview for ${cName}**\n\n` +
+        `• **Funding Package:** ${fundResult.fundingPackage || fundResult.fundingCategory || fundResult.fundingType || 'Standard'}\n` +
+        (fundResult.dailyFundingRate ? `• **Daily Funding Rate:** $${Number(fundResult.dailyFundingRate).toFixed(2)}/day\n` : '') +
+        (fundResult.totalQuarterlyBudget ? `• **Total Cycle Allocation:** $${Number(fundResult.totalQuarterlyBudget).toFixed(2)} AUD\n` : '') +
+        (fundResult.totalCombinedSpent !== undefined ? `• **Total Spent:** $${Number(fundResult.totalCombinedSpent).toFixed(2)} AUD (${fundResult.burnRatePercentage || '0%'} burn rate)\n` : '') +
+        (fundResult.remainingFunds !== undefined ? `• **Remaining Balance:** $${Number(fundResult.remainingFunds).toFixed(2)} AUD (${fundResult.remainingWeeks || 0} weeks remaining)\n` : '') +
+        (fundResult.averageWeeklyHours !== undefined ? `• **Current Weekly Utilization:** ${fundResult.averageWeeklyHours} hrs/week ($${fundResult.averageWeeklySpend || 0}/week)\n` : '');
+
+      if (rosterResult && !rosterResult.error) {
+        md += `\n### 🎯 Recommended Weekly Hours & Suggested Planned Services\n`;
+        if (rosterResult.perfectWeeklyHours || rosterResult.recommendedMaxWeeklyHours) {
+          md += `• **Target Weekly Hours:** ${rosterResult.perfectWeeklyHours || rosterResult.recommendedMaxWeeklyHours} hrs/week ($${rosterResult.perfectWeeklyCost || 0}/week)\n`;
+        }
+        if (rosterResult.optimizationSummary) {
+          md += `• **Recommendation:** ${rosterResult.optimizationSummary}\n`;
+        }
+        if (Array.isArray(rosterResult.suggestedPlannedServices) && rosterResult.suggestedPlannedServices.length > 0) {
+          md += `\n**Suggested Planned Services Breakdown:**\n`;
+          rosterResult.suggestedPlannedServices.forEach((s: any) => {
+            md += `• **${s.serviceName}:** ${s.recommendedWeeklyHours} hrs/week ($${s.estimatedWeeklyCost}) — ${s.focusArea}\n`;
+          });
+        }
+        if (Array.isArray(rosterResult.suggestedWeeklySchedule) && rosterResult.suggestedWeeklySchedule.length > 0) {
+          md += `\n**Suggested Day-by-Day Schedule:**\n`;
+          rosterResult.suggestedWeeklySchedule.forEach((sc: any) => {
+            md += `• **${sc.dayOfWeek}:** ${sc.serviceName} (${sc.suggestedHours} hrs • $${sc.estimatedCost}) — ${sc.suggestedPurpose}\n`;
+          });
+        }
+      }
+      return md;
+    }
+
+    if (rosterResult && !rosterResult.error) {
+      const cName = rosterResult.clientName || 'Client';
+      let md = `🎯 **Roster Optimization for ${cName}**\n\n`;
+      if (rosterResult.optimizationSummary) md += `${rosterResult.optimizationSummary}\n\n`;
+      if (rosterResult.perfectWeeklyHours) md += `• **Target Weekly Hours:** ${rosterResult.perfectWeeklyHours} hrs/week ($${rosterResult.perfectWeeklyCost || 0}/week)\n`;
+      if (rosterResult.baselineWeeklyHours) md += `• **Baseline Hours:** ${rosterResult.baselineWeeklyHours} hrs/week\n`;
+      return md;
+    }
+
+    const first = toolResults[0];
+    if (first?.output?.error) {
+      return `ℹ️ ${first.output.error}`;
+    }
+
+    return "I have retrieved and analyzed the requested portal records for you.";
+  }
+
+  /**
    * POST /api/chat
    * AI & MCP conversational interface for the frontend chat widget.
    * Asynchronously queries the configuration table for the saved Gemini API key before processing.
@@ -2931,12 +2994,19 @@ IMPORTANT CONVERSATIONAL RESOLUTION:
             }
           });
 
-          // Check if Gemini requested a function call
-          const functionCalls = response.functionCalls;
-          if (functionCalls && functionCalls.length > 0) {
-            const modelContent = response.candidates?.[0]?.content;
+          // Multi-step tool execution loop (supports chained tools e.g. analyze_client_funds -> optimize_quarterly_roster)
+          let currentResponse = response;
+          const allToolResults: any[] = [];
+          const conversationTurns: any[] = [...geminiContents];
+
+          const MAX_TOOL_ROUNDS = 3;
+          let round = 0;
+
+          while (currentResponse.functionCalls && currentResponse.functionCalls.length > 0 && round < MAX_TOOL_ROUNDS) {
+            round++;
+            const functionCalls = currentResponse.functionCalls;
+            const modelTurnContent = currentResponse.candidates?.[0]?.content;
             const functionResponseParts: any[] = [];
-            const toolResults: any[] = [];
 
             for (const call of functionCalls) {
               let toolOutput: any = {};
@@ -2995,7 +3065,7 @@ IMPORTANT CONVERSATIONAL RESOLUTION:
               } else if (call.name === "get_invoicing_financial_summary") {
                 toolOutput = getInvoicingFinancialSummaryLogic(db);
               }
-              toolResults.push({ tool: call.name, output: toolOutput });
+              allToolResults.push({ tool: call.name, output: toolOutput });
 
               functionResponseParts.push({
                 functionResponse: {
@@ -3006,18 +3076,18 @@ IMPORTANT CONVERSATIONAL RESOLUTION:
               });
             }
 
-            // Return function output to Gemini for final natural-language recommendation
-            // preserving model turn with thoughtSignature to prevent thought signature errors
-            const followUp = await ai.models.generateContent({
+            if (modelTurnContent) {
+              conversationTurns.push(modelTurnContent);
+            }
+            conversationTurns.push({
+              role: "user",
+              parts: functionResponseParts
+            });
+
+            // Call follow-up with tools enabled so the model can chain another tool or produce final recommendation
+            currentResponse = await ai.models.generateContent({
               model: activeModel,
-              contents: [
-                ...geminiContents,
-                modelContent,
-                {
-                  role: "user",
-                  parts: functionResponseParts
-                }
-              ],
+              contents: conversationTurns,
               config: {
                 systemInstruction: `You are Happy, the Happy in the Home Portal Assistant. Summarize the tool result into a clear, friendly, and professional recommendation for care coordinators.
 ${activeContextClient ? `The current active client in this conversation is ${activeContextClient.first_name} ${activeContextClient.last_name}. Directly answer the user's question using their details and funding without asking the user to repeat their name.` : ''}
@@ -3067,13 +3137,46 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
   • Total Combined Spent (showing Historical/Pre-system and Live Internal spend)
   • Remaining Balance & Unspent Funds Pool (if available)
   • Burn Rate percentage and Remaining Weeks
-  • Affordable hours per week and recommendation for care coordinators.`
+  • Affordable hours per week and recommendation for care coordinators.`,
+                tools: round < MAX_TOOL_ROUNDS ? [
+                  {
+                    functionDeclarations: [
+                      analyzeClientFundsDeclaration,
+                      optimizeQuarterlyRosterDeclaration,
+                      getClientBudgetProfileDeclaration,
+                      getExpiredMandatoryDocumentsDeclaration,
+                      getHomeCareClientsBudgetSummaryDeclaration,
+                      getNdisClientsBudgetSummaryDeclaration,
+                      getStaffTrainingSummaryDeclaration,
+                      getVehicleRegisterSummaryDeclaration,
+                      getStaffActivitySummaryDeclaration,
+                      getInvoicingFinancialSummaryDeclaration
+                    ]
+                  }
+                ] : undefined
               }
             });
+          }
 
+          // Extract final text from response (handling thought tokens in Gemini 3)
+          let finalReply = currentResponse.text || '';
+          if (!finalReply && currentResponse.candidates?.[0]?.content?.parts) {
+            for (const part of currentResponse.candidates[0].content.parts) {
+              if (part.text && !part.thought) {
+                finalReply = (finalReply ? finalReply + '\n' : '') + part.text;
+              }
+            }
+          }
+
+          // If Gemini model still returned no text, use our structured Markdown fallback (NEVER raw JSON)
+          if (!finalReply && allToolResults.length > 0) {
+            finalReply = formatToolResultsFallback(allToolResults);
+          }
+
+          if (finalReply) {
             return res.json({
-              reply: followUp.text || JSON.stringify(toolResults[0]?.output, null, 2),
-              toolResult: toolResults.length === 1 ? toolResults[0].output : toolResults
+              reply: finalReply,
+              toolResult: allToolResults.length === 1 ? allToolResults[0].output : allToolResults
             });
           }
 
