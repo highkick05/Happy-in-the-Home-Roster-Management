@@ -940,18 +940,29 @@ export function optimizeQuarterlyRosterLogic(
     Object.values(patternMap).some(p => p.dayOfWeek === d && p.totalHours > 0)
   );
 
-  // Preserve established routine across all 7 days (Monday through Sunday):
-  // 1. If client historically has weekday services (2+ weekdays), guarantee Monday through Friday.
-  // 2. If client historically has weekend services (Saturday and/or Sunday), guarantee Saturday and/or Sunday!
+  // Preserve established routine across all 7 days:
+  // 1. If client historically has weekday services (Monday-Friday), preserve all 5 standard weekdays.
+  // 2. Only include Saturday or Sunday if the client actually has an established, recurring weekend service history (at least 2 delivered weekend shifts).
   const activeWeekdays = clientActiveDays.filter(d => ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].includes(d));
-  const activeWeekends = clientActiveDays.filter(d => ["Saturday", "Sunday"].includes(d));
+  
+  // Count actual delivered weekend shifts to ensure one-off outliers or spurious timestamps never trigger weekend rosters
+  const weekendShifts = shifts.filter(s => {
+    const shiftDate = new Date(s.start_time);
+    let dayName = dayNames[shiftDate.getUTCDay()];
+    try {
+      dayName = dayNameFormatter.format(shiftDate);
+    } catch {}
+    return dayName === "Saturday" || dayName === "Sunday";
+  });
+  const hasEstablishedWeekendRoutine = weekendShifts.length >= 2;
 
   let preferredDays: string[] = [];
   if (activeWeekdays.length >= 2 || clientActiveDays.length === 0) {
     preferredDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-    activeWeekends.forEach(d => {
-      if (!preferredDays.includes(d)) preferredDays.push(d);
-    });
+    if (hasEstablishedWeekendRoutine) {
+      if (clientActiveDays.includes("Saturday")) preferredDays.push("Saturday");
+      if (clientActiveDays.includes("Sunday")) preferredDays.push("Sunday");
+    }
   } else {
     preferredDays = clientActiveDays.length > 0 ? clientActiveDays : ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
   }
@@ -3000,13 +3011,16 @@ MULTI-TURN CONVERSATION MEMORY & PRONOUN RESOLUTION:
 All dates in your natural-language responses to users MUST strictly use Australian standard DD/MM/YYYY formatting.
 Currency must always be formatted in AUD ($X.XX).
 
-CRITICAL ROSTERING ROUNDING & HISTORIC SERVICE DAYS PRESERVATION (WEEKDAYS & WEEKENDS):
+CRITICAL ROSTERING ROUNDING & SERVICE DAYS GROUNDING:
 - Always round weekly hours, baseline hours, hour adjustments, and individual shift durations to clean whole numbers or practical standard half-hours (e.g. 1 hr, 2 hrs, 2.5 hrs, 3 hrs; 9 hrs/week, 14 hrs/week, +5 hrs/week).
 - NEVER produce awkward fractions or partial decimals in roster guidance (such as 2.8 hrs, 1.8 hrs, 1.7 hrs, 2.75 hrs, 1.75 hrs, 9.16 hrs, 13.9 hrs, or 13.75 hrs). Real support shifts and weekly baselines must be scheduled in clean, practical, rounded increments that support workers can book.
-- HISTORIC DAYS PRESERVATION ACROSS ALL 7 DAYS:
-  • Weekdays: If the client already has Monday, Tuesday, Wednesday, Thursday, and Friday services (or an established weekday routine), you MUST ensure they have services on ALL 5 DAYS: Monday, Tuesday, Wednesday, Thursday, and Friday! NEVER omit Tuesday or any other active weekday.
-  • Weekends (Saturday & Sunday): YES! Weekends (Saturday and Sunday) ARE explicitly considered and supported as preferred days! If the client historically receives services on Saturday and/or Sunday (or if weekend care is part of their active care pattern or requested), YOU MUST INCLUDE Saturday and/or Sunday in the suggested day-by-day plan!
-- In Day-by-Day Roster Schedules, every shift must be rounded cleanly and the daily hours must sum exactly to the rounded total weekly hours across all active service days.`;
+- STRICT GROUNDING TO TOOL RESULT DAYS:
+  • You MUST output ONLY the exact days returned in "historicActiveDays" and "suggestedWeeklySchedule" from the optimize_quarterly_roster tool!
+  • If the tool result contains Monday through Friday (Monday, Tuesday, Wednesday, Thursday, Friday), output ONLY those 5 days.
+  • NEVER invent, add, or hallucinate weekend days (Saturday or Sunday) if the client has no weekend services in the tool result!
+  • If a client has only Monday–Friday services, DO NOT add Saturday or Sunday to their plan.
+  • Do not assume a user's conversational questions about weekends mean a specific client has weekend services. The tool output from actual portal shifts is the single source of truth.
+- In Day-by-Day Roster Schedules, every shift must be rounded cleanly and the daily hours must sum exactly to the rounded total weekly hours across the active service days.`;
 
           if (activeContextClient) {
             const activeFullName = `${activeContextClient.first_name} ${activeContextClient.last_name}`.trim();
@@ -3167,9 +3181,7 @@ SPECIALIZED TOOL GUIDELINES:
   3. Suggested Planned Services Breakdown: Display a markdown table showing the suggested planned services based on the client's historic previous services with recommended weekly hours rounded cleanly to whole numbers (e.g. 12 hrs and 2 hrs, totaling 14 hrs), estimated weekly cost, and focus areas.
   4. Suggested Day-by-Day Roster Schedule: Display a clear markdown table showing the suggested weekly schedule (Day, Service, Suggested Hours, Est. Cost, Activities/Purpose).
      CRITICAL ROSTERING RULES:
-     • HISTORIC SERVICE DAYS (WEEKDAYS & WEEKENDS):
-       - If the client historically receives services on Monday, Tuesday, Wednesday, Thursday, and Friday (or an established weekday routine), YOU MUST INCLUDE ALL 5 DAYS (Monday, Tuesday, Wednesday, Thursday, and Friday) in the table! NEVER omit or skip Tuesday or any other historic weekday!
-       - WEEKENDS INCLUDED: If the client historically has services on Saturday or Sunday (or requires weekend care), YOU MUST INCLUDE Saturday and/or Sunday as preferred days in the schedule!
+     • STRICT DAYS GROUNDING: Output ONLY the exact days returned in "historicActiveDays" and "suggestedWeeklySchedule" by the tool! If the tool returns Monday through Friday (5 days), list ONLY those 5 days (Monday, Tuesday, Wednesday, Thursday, Friday). NEVER add Saturday or Sunday unless the tool result explicitly contains them from actual database shifts!
      • CLEAN ROUNDED HOURS: ALL individual shift hours MUST be clean, practical numbers (e.g. 1 hr, 2 hrs, 2.5 hrs, 3 hrs). NEVER produce odd fractions or awkward decimals like 2.8 hrs, 1.8 hrs, 1.7 hrs, 2.75 hrs, or 1.75 hrs! Support workers cannot book partial-minute shifts. Ensure the sum of the days exactly equals the target weekly hours.
   5. Care Coordinator Guidance: Differentiate between the permanent sustainable weekly schedule (e.g. 14 hours/week) and how to handle any accumulated end-of-quarter surplus (e.g. rolling over into Unspent Funds Pool on 30/09/2026, or investing in deep cleaning, home safety modifications, assistive technology, or allied health rather than rostering 100+ impossible hours in the last few days of a quarter).
 
