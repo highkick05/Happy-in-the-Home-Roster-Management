@@ -2417,6 +2417,14 @@ export function setupMcpServer(app: Express, db: Database.Database) {
     const status = err.status || parsedError?.error?.status || "";
     const innerMsg = parsedError?.error?.message || rawMessage;
 
+    // 0. Pro Models on Free/Unbilled API Key
+    if (
+      /free tier is not available/i.test(innerMsg) ||
+      (/pro-preview/i.test(innerMsg) && (code === 429 || code === 403))
+    ) {
+      return "The 'gemini-3.1-pro-preview' model requires a Google AI Studio account with Pay-As-You-Go billing enabled. It is not available on free-tier keys. Please switch to 'gemini-3.8-flash' in Settings > AI Settings (which works on standard keys) or attach billing to your Google AI Studio project.";
+    }
+
     // 1. High Demand / 503 / UNAVAILABLE
     if (
       code === 503 ||
@@ -2436,7 +2444,7 @@ export function setupMcpServer(app: Express, db: Database.Database) {
       /resource has been exhausted/i.test(innerMsg) ||
       /rate limit/i.test(innerMsg)
     ) {
-      return "We've temporarily reached the AI query rate limit. ⏳ Please wait a minute and try your question again.";
+      return "We've temporarily reached the AI query rate limit for this model. ⏳ Please wait a minute, or switch to 'gemini-3.8-flash' in Settings for higher quota.";
     }
 
     // 3. Invalid API Key / Auth (400, 401, 403)

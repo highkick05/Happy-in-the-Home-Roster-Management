@@ -347,17 +347,17 @@ export default function AiSettings() {
               className="w-full bg-black/40 border border-white/[0.1] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-teal"
             >
               <option value="gemini-3.8-flash">
-                gemini-3.8-flash (Recommended: High-speed, accurate mathematical analysis & general chat)
+                gemini-3.8-flash (Recommended: High-speed, full tool calling & works on all keys)
               </option>
               <option value="gemini-3.1-pro-preview">
-                gemini-3.1-pro-preview (Advanced: In-depth strategic reasoning & complex roster optimization)
+                gemini-3.1-pro-preview (Advanced: Requires Pay-As-You-Go Billing enabled on Google API key)
               </option>
               <option value="gemini-3.1-flash-lite">
-                gemini-3.1-flash-lite (Lightweight: Ultra-low latency queries)
+                gemini-3.1-flash-lite (Lightweight Preview: Limited quota & frequent 429/503 rate limits)
               </option>
             </select>
             <p className="text-[11px] text-[#8B949E] mt-1.5">
-              Default is <code className="text-brand-teal font-mono">gemini-3.8-flash</code>, offering rapid turnarounds for live care scheduling.
+              Default is <code className="text-brand-teal font-mono">gemini-3.8-flash</code>. Note: <code className="text-zinc-300 font-mono">gemini-3.1-pro-preview</code> requires a billing-enabled Google AI Studio project; on free-tier keys Google rejects it as rate-limited/busy.
             </p>
           </div>
         </div>

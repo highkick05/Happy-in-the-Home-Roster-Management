@@ -264,6 +264,14 @@ export default function AiChatWidget() {
     const status = parsed?.error?.status || '';
     const innerMsg = parsed?.error?.message || raw;
 
+    // 0. Pro Models on Free/Unbilled API Key
+    if (
+      /free tier is not available/i.test(innerMsg) ||
+      (/pro-preview/i.test(innerMsg) && (code === 429 || code === 403))
+    ) {
+      return "The **gemini-3.1-pro-preview** model requires a Google AI Studio account with Pay-As-You-Go billing enabled. It is not available on free-tier keys.\n\nPlease switch to **gemini-3.8-flash** in **Settings > AI Settings** (which works on standard keys) or attach a billing account in Google AI Studio.";
+    }
+
     // 1. High Demand / 503 / UNAVAILABLE
     if (
       code === 503 ||
