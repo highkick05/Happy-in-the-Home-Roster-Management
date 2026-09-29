@@ -581,14 +581,18 @@ export function analyzeClientFundsLogic(
   }
 ) {
   // 1. Locate client using parameterized query
-  let client = db.prepare(
-    `SELECT *
-     FROM clients 
-     WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
-        OR first_name LIKE ? 
-        OR last_name LIKE ?
-     LIMIT 1`
-  ).get(`%${clientName.trim()}%`, `%${clientName.trim()}%`, `%${clientName.trim()}%`) as any;
+  const PRONOUN_CHECK = /^(she|her|hers|he|him|his|they|them|their|theirs|this client|the client|that client|client|patient|the patient|user|someone)$/i;
+  let client: any = null;
+  if (!PRONOUN_CHECK.test(clientName.trim())) {
+    client = db.prepare(
+      `SELECT *
+       FROM clients 
+       WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
+          OR first_name LIKE ? 
+          OR last_name LIKE ?
+       LIMIT 1`
+    ).get(`%${clientName.trim()}%`, `%${clientName.trim()}%`, `%${clientName.trim()}%`) as any;
+  }
 
   if (!client && (clientName.toLowerCase().includes("gary") || clientName.toLowerCase().includes("rodwell"))) {
     client = {
@@ -647,14 +651,18 @@ export function optimizeQuarterlyRosterLogic(
   }
 ) {
   // 1. Locate client
-  let client = db.prepare(
-    `SELECT *
-     FROM clients 
-     WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
-        OR first_name LIKE ? 
-        OR last_name LIKE ?
-     LIMIT 1`
-  ).get(`%${clientName.trim()}%`, `%${clientName.trim()}%`, `%${clientName.trim()}%`) as any;
+  const PRONOUN_CHECK = /^(she|her|hers|he|him|his|they|them|their|theirs|this client|the client|that client|client|patient|the patient|user|someone)$/i;
+  let client: any = null;
+  if (!PRONOUN_CHECK.test(clientName.trim())) {
+    client = db.prepare(
+      `SELECT *
+       FROM clients 
+       WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
+          OR first_name LIKE ? 
+          OR last_name LIKE ?
+       LIMIT 1`
+    ).get(`%${clientName.trim()}%`, `%${clientName.trim()}%`, `%${clientName.trim()}%`) as any;
+  }
 
   if (!client && (clientName.toLowerCase().includes("gary") || clientName.toLowerCase().includes("rodwell"))) {
     client = {
@@ -2562,6 +2570,123 @@ export function setupMcpServer(app: Express, db: Database.Database) {
         return res.status(400).json({ error: "Message is required." });
       }
 
+      // Pre-load clients and staff for active context resolution
+      const dbClients = db.prepare("SELECT id, first_name, last_name, funding_type, home_care_sub_type, home_care_level_or_class FROM clients").all() as any[];
+      const dbStaff = db.prepare("SELECT id, first_name, last_name, role FROM users WHERE role = 'STAFF'").all() as any[];
+
+      // Helper: scan message history backwards to find the client currently being discussed
+      const findActiveClientFromContext = (history: any[]): any | null => {
+        if (!Array.isArray(history) || history.length === 0) return null;
+        const reversed = [...history].reverse();
+        for (const m of reversed) {
+          const content = String(m?.content || '').toLowerCase();
+          if (!content) continue;
+          for (const c of dbClients) {
+            const fullName = `${c.first_name || ''} ${c.last_name || ''}`.trim().toLowerCase();
+            if (fullName && content.includes(fullName)) return c;
+          }
+          for (const c of dbClients) {
+            const fName = String(c.first_name || '').trim().toLowerCase();
+            if (fName.length >= 3) {
+              const regex = new RegExp(`\\b${fName}\\b`, 'i');
+              if (regex.test(content)) return c;
+            }
+          }
+        }
+        return null;
+      };
+
+      const findActiveStaffFromContext = (history: any[]): any | null => {
+        if (!Array.isArray(history) || history.length === 0) return null;
+        const reversed = [...history].reverse();
+        for (const m of reversed) {
+          const content = String(m?.content || '').toLowerCase();
+          if (!content) continue;
+          for (const s of dbStaff) {
+            const fullName = `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase();
+            if (fullName && content.includes(fullName)) return s;
+          }
+          for (const s of dbStaff) {
+            const fName = String(s.first_name || '').trim().toLowerCase();
+            if (fName.length >= 3) {
+              const regex = new RegExp(`\\b${fName}\\b`, 'i');
+              if (regex.test(content)) return s;
+            }
+          }
+        }
+        return null;
+      };
+
+      const activeContextClient = findActiveClientFromContext(messages || []);
+      const activeContextStaff = findActiveStaffFromContext(messages || []);
+
+      const PRONOUN_REGEX = /^(she|her|hers|he|him|his|they|them|their|theirs|this client|the client|that client|client|patient|the patient|user|someone)$/i;
+
+      const resolveClientNameArg = (nameArg: any): string => {
+        let name = String(nameArg || '').trim();
+        if (PRONOUN_REGEX.test(name) || !name) {
+          if (activeContextClient) {
+            return `${activeContextClient.first_name} ${activeContextClient.last_name}`.trim();
+          }
+        }
+        const matched = dbClients.find(c => 
+          `${c.first_name} ${c.last_name}`.toLowerCase() === name.toLowerCase() ||
+          c.first_name?.toLowerCase() === name.toLowerCase()
+        );
+        if (matched) {
+          return `${matched.first_name} ${matched.last_name}`.trim();
+        }
+        if (activeContextClient && (PRONOUN_REGEX.test(name) || name.length <= 4)) {
+          return `${activeContextClient.first_name} ${activeContextClient.last_name}`.trim();
+        }
+        return name;
+      };
+
+      const resolveStaffNameArg = (nameArg: any): string => {
+        let name = String(nameArg || '').trim();
+        if (PRONOUN_REGEX.test(name) || !name) {
+          if (activeContextStaff) {
+            return `${activeContextStaff.first_name} ${activeContextStaff.last_name}`.trim();
+          }
+        }
+        return name;
+      };
+
+      // Build structured alternating contents history for Gemini API
+      const rawHistory = Array.isArray(messages) && messages.length > 0
+        ? messages.slice(-16) // Keep last 16 turns for conversational depth
+        : [{ role: 'user', content: userQuery }];
+
+      const geminiContents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+
+      for (const m of rawHistory) {
+        if (!m || typeof m.content !== 'string' || !m.content.trim()) continue;
+        const role: 'user' | 'model' = (m.role === 'assistant' || m.role === 'model') ? 'model' : 'user';
+
+        // Gemini requires the conversation to start with a 'user' turn
+        if (geminiContents.length === 0 && role === 'model') {
+          continue;
+        }
+
+        const last = geminiContents[geminiContents.length - 1];
+        if (last && last.role === role) {
+          last.parts[0].text += `\n${m.content.trim()}`;
+        } else {
+          geminiContents.push({
+            role,
+            parts: [{ text: m.content.trim() }]
+          });
+        }
+      }
+
+      // Ensure the conversation ends with the user's latest query
+      if (geminiContents.length === 0 || geminiContents[geminiContents.length - 1].role !== 'user') {
+        geminiContents.push({
+          role: 'user',
+          parts: [{ text: userQuery }]
+        });
+      }
+
       const aiConfig = getAiSettings(db);
       const activeModel = aiConfig.ai_model || "gemini-3.8-flash";
 
@@ -2750,8 +2875,25 @@ Clients in the portal belong to either NDIS OR Home Care (HCP/SAH). They are com
 STRICT CLIENT ISOLATION:
 When discussing or analyzing a specific client, NEVER output reminder notes, disclaimers, or references to other clients or unrelated package levels. Focus exclusively and strictly on the inquired client's details.
 
+MULTI-TURN CONVERSATION MEMORY & PRONOUN RESOLUTION:
+- You maintain continuous contextual memory across the entire chat conversation.
+- When the user asks follow-up questions using pronouns like "she", "her", "he", "him", "they", "them", or phrases like "this client", "the client", or asks "how many hours does she/he use?", ALWAYS look at the conversation history to identify the client being discussed.
+- NEVER search for or call tools with "she", "he", "them", or pronouns as the client name. Always pass the actual client's full name (e.g. "Anna Merendino") to tools.
+- When continuing a conversation about an active client, answer directly in context of their funding package, current weekly hours, and recent recommendations without asking the user to re-state the client name.
+
 All dates in your natural-language responses to users MUST strictly use Australian standard DD/MM/YYYY formatting.
 Currency must always be formatted in AUD ($X.XX).`;
+
+          if (activeContextClient) {
+            const activeFullName = `${activeContextClient.first_name} ${activeContextClient.last_name}`.trim();
+            systemInstruction += `\n\nCURRENT CONVERSATION FOCUS / ACTIVE CLIENT:
+The user is currently inquiring about client: "${activeFullName}" (Funding: ${activeContextClient.funding_type || 'Home Care'}).
+IMPORTANT CONVERSATIONAL RESOLUTION:
+- When the user asks follow-up questions using pronouns such as "she", "her", "he", "him", "they", "them", or phrases like "this client", "the client", or "her/his hours/budget/roster", they are inquiring about ${activeFullName}.
+- Always resolve these pronouns to ${activeFullName} and pass clientName="${activeFullName}" when calling tools.
+- Never search for "she", "he", or any pronoun as a client name.
+- Answer questions directly in context of ${activeFullName} and their care plan without asking the user to re-type the client's name.`;
+          }
 
           if (aiConfig.ai_custom_instructions) {
             systemInstruction += `\n\nADDITIONAL CARE COORDINATION GUIDELINES:\n${aiConfig.ai_custom_instructions}`;
@@ -2759,7 +2901,7 @@ Currency must always be formatted in AUD ($X.XX).`;
 
           const response = await ai.models.generateContent({
             model: activeModel,
-            contents: userQuery,
+            contents: geminiContents,
             config: {
               systemInstruction,
               tools: [
@@ -2792,11 +2934,15 @@ Currency must always be formatted in AUD ($X.XX).`;
               let toolOutput: any = {};
 
               if (call.name === "analyze_client_funds") {
-                toolOutput = analyzeClientFundsLogic(db, call.args as any);
+                const args = { ...(call.args as any) };
+                args.clientName = resolveClientNameArg(args.clientName);
+                toolOutput = analyzeClientFundsLogic(db, args);
               } else if (call.name === "optimize_quarterly_roster") {
-                toolOutput = optimizeQuarterlyRosterLogic(db, call.args as any);
+                const args = { ...(call.args as any) };
+                args.clientName = resolveClientNameArg(args.clientName);
+                toolOutput = optimizeQuarterlyRosterLogic(db, args);
               } else if (call.name === "get_client_budget_profile") {
-                const cName = String((call.args as any)?.clientName || '');
+                const cName = resolveClientNameArg((call.args as any)?.clientName);
                 let clientRecord = db.prepare(
                   `SELECT * FROM clients 
                    WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
@@ -2835,7 +2981,9 @@ Currency must always be formatted in AUD ($X.XX).`;
               } else if (call.name === "get_vehicle_register_summary") {
                 toolOutput = getVehicleRegisterSummaryLogic(db);
               } else if (call.name === "get_staff_activity_summary") {
-                toolOutput = getStaffActivitySummaryLogic(db, call.args as any);
+                const args = { ...(call.args as any) };
+                args.staffName = resolveStaffNameArg(args.staffName);
+                toolOutput = getStaffActivitySummaryLogic(db, args);
               } else if (call.name === "get_invoicing_financial_summary") {
                 toolOutput = getInvoicingFinancialSummaryLogic(db);
               }
@@ -2855,7 +3003,7 @@ Currency must always be formatted in AUD ($X.XX).`;
             const followUp = await ai.models.generateContent({
               model: activeModel,
               contents: [
-                { role: "user", parts: [{ text: userQuery }] },
+                ...geminiContents,
                 modelContent,
                 {
                   role: "user",
@@ -2864,6 +3012,7 @@ Currency must always be formatted in AUD ($X.XX).`;
               ],
               config: {
                 systemInstruction: `You are Happy, the Happy in the Home Portal Assistant. Summarize the tool result into a clear, friendly, and professional recommendation for care coordinators.
+${activeContextClient ? `The current active client in this conversation is ${activeContextClient.first_name} ${activeContextClient.last_name}. Directly answer the user's question using their details and funding without asking the user to repeat their name.` : ''}
 CRITICAL TIME & DATE RULES:
 - Today's Date: 25/09/2026.
 - All dates must strictly be formatted in the Australian standard DD/MM/YYYY. Display all financial amounts in AUD ($).
@@ -2938,6 +3087,12 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
         lowerQuery.includes(c.first_name.toLowerCase()) ||
         (c.last_name && lowerQuery.includes(c.last_name.toLowerCase()))
       );
+
+      if (!matchedClient && activeContextClient) {
+        if (/\b(she|her|hers|he|him|his|they|them|the client|this client|hours|budget|weekly|roster)\b/i.test(lowerQuery)) {
+          matchedClient = activeContextClient;
+        }
+      }
 
       if (!matchedClient && (lowerQuery.includes("gary") || lowerQuery.includes("rodwell"))) {
         matchedClient = {
