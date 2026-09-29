@@ -712,7 +712,7 @@ export function optimizeQuarterlyRosterLogic(
   const startIso = `${effectiveStartDate}T00:00:00.000Z`;
   const endIso = `${effectiveEndDate}T23:59:59.999Z`;
 
-  const shifts = db.prepare(
+  let shifts = db.prepare(
     `SELECT s.id, s.start_time, s.end_time, s.services_json,
             s.service_id, srv.name as service_name, srv.rate as service_rate
      FROM shifts s
@@ -723,6 +723,23 @@ export function optimizeQuarterlyRosterLogic(
        AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID', 'DRAFT')`
   ).all(client.id, startIso, endIso) as any[];
 
+  // Fallback to client's delivered historical shifts if the specified window is future/empty (< 5 shifts)
+  if (shifts.length < 5) {
+    const historicShifts = db.prepare(
+      `SELECT s.id, s.start_time, s.end_time, s.services_json,
+              s.service_id, srv.name as service_name, srv.rate as service_rate
+       FROM shifts s
+       LEFT JOIN services srv ON s.service_id = srv.id
+       WHERE s.client_id = ?
+         AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID', 'DRAFT')
+       ORDER BY s.start_time DESC
+       LIMIT 100`
+    ).all(client.id) as any[];
+    if (historicShifts.length > 0) {
+      shifts = historicShifts;
+    }
+  }
+
   const careCoordPercent = Number(client.care_coordination_fee ?? 20);
   const managementFeePercent = Number(client.management_fee ?? 0);
   const feeMultiplier = (1 + careCoordPercent / 100) * (1 + managementFeePercent / 100);
@@ -732,9 +749,19 @@ export function optimizeQuarterlyRosterLogic(
   let totalStandardRates = 0;
   let rateCount = 0;
 
+  const timezoneSetting = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
+  const timezone = timezoneSetting?.value ? String(timezoneSetting.value).replace(/['"]+/g, '') : 'Australia/Perth';
+  const dayNameFormatter = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    timeZone: timezone
+  });
+
   for (const shift of shifts) {
     const shiftDate = new Date(shift.start_time);
-    const dayName = dayNames[shiftDate.getUTCDay()];
+    let dayName = dayNames[shiftDate.getUTCDay()];
+    try {
+      dayName = dayNameFormatter.format(shiftDate);
+    } catch {}
     const durationHrs = Math.max(0, (new Date(shift.end_time).getTime() - shiftDate.getTime()) / 3600000);
 
     let shiftServices: Array<{ name: string; hours: number; rate: number }> = [];
@@ -913,7 +940,22 @@ export function optimizeQuarterlyRosterLogic(
     Object.values(patternMap).some(p => p.dayOfWeek === d && p.totalHours > 0)
   );
 
-  const preferredDays = clientActiveDays.length > 0 ? clientActiveDays : ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  // Preserve established routine across all 7 days (Monday through Sunday):
+  // 1. If client historically has weekday services (2+ weekdays), guarantee Monday through Friday.
+  // 2. If client historically has weekend services (Saturday and/or Sunday), guarantee Saturday and/or Sunday!
+  const activeWeekdays = clientActiveDays.filter(d => ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].includes(d));
+  const activeWeekends = clientActiveDays.filter(d => ["Saturday", "Sunday"].includes(d));
+
+  let preferredDays: string[] = [];
+  if (activeWeekdays.length >= 2 || clientActiveDays.length === 0) {
+    preferredDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    activeWeekends.forEach(d => {
+      if (!preferredDays.includes(d)) preferredDays.push(d);
+    });
+  } else {
+    preferredDays = clientActiveDays.length > 0 ? clientActiveDays : ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  }
+
   const daysCount = preferredDays.length;
 
   // Clean whole hour distribution across days (no fractional decimals like 2.8, 1.8, 1.7)
@@ -940,6 +982,8 @@ export function optimizeQuarterlyRosterLogic(
           estimatedCost: parseFloat((primHours * primaryService.averageRate).toFixed(2)),
           suggestedPurpose: day === "Monday" ? "Community access, grocery shopping & supported outing"
             : day === "Wednesday" ? "Mid-week social engagement, appointments & library visit"
+            : day === "Saturday" ? "Weekend community participation & supported recreation"
+            : day === "Sunday" ? "Weekend social support & companionship"
             : "Social support, companionship & community participation"
         });
       }
@@ -961,7 +1005,9 @@ export function optimizeQuarterlyRosterLogic(
           : day === "Tuesday" ? "Social companionship, recreational activities & supported transport"
           : day === "Wednesday" ? "Mid-week wellness outing, shopping & community engagement"
           : day === "Thursday" ? "Errands, supported recreation & social connection"
-          : "End-of-week social support & community connection"
+          : day === "Friday" ? "End-of-week social support & community connection"
+          : day === "Saturday" ? "Weekend community outing, recreation & social participation"
+          : "Sunday wellbeing check, quiet companionship & weekend living support"
       });
     }
   });
@@ -1007,6 +1053,7 @@ export function optimizeQuarterlyRosterLogic(
     perfectWeeklyCost: totalSuggestedScheduleCost,
     weeklyHoursDifference,
     planFundingUtilizationPct,
+    historicActiveDays: preferredDays,
     historicServicesSummary: historicServicesList,
     suggestedPlannedServices,
     suggestedWeeklySchedule,
@@ -2953,10 +3000,13 @@ MULTI-TURN CONVERSATION MEMORY & PRONOUN RESOLUTION:
 All dates in your natural-language responses to users MUST strictly use Australian standard DD/MM/YYYY formatting.
 Currency must always be formatted in AUD ($X.XX).
 
-CRITICAL ROSTERING ROUNDING RULE (NO ODD FRACTIONS OR DECIMALS):
+CRITICAL ROSTERING ROUNDING & HISTORIC SERVICE DAYS PRESERVATION (WEEKDAYS & WEEKENDS):
 - Always round weekly hours, baseline hours, hour adjustments, and individual shift durations to clean whole numbers or practical standard half-hours (e.g. 1 hr, 2 hrs, 2.5 hrs, 3 hrs; 9 hrs/week, 14 hrs/week, +5 hrs/week).
 - NEVER produce awkward fractions or partial decimals in roster guidance (such as 2.8 hrs, 1.8 hrs, 1.7 hrs, 2.75 hrs, 1.75 hrs, 9.16 hrs, 13.9 hrs, or 13.75 hrs). Real support shifts and weekly baselines must be scheduled in clean, practical, rounded increments that support workers can book.
-- In Day-by-Day Roster Schedules, every shift must be rounded cleanly and the daily hours must sum exactly to the rounded total weekly hours.`;
+- HISTORIC DAYS PRESERVATION ACROSS ALL 7 DAYS:
+  • Weekdays: If the client already has Monday, Tuesday, Wednesday, Thursday, and Friday services (or an established weekday routine), you MUST ensure they have services on ALL 5 DAYS: Monday, Tuesday, Wednesday, Thursday, and Friday! NEVER omit Tuesday or any other active weekday.
+  • Weekends (Saturday & Sunday): YES! Weekends (Saturday and Sunday) ARE explicitly considered and supported as preferred days! If the client historically receives services on Saturday and/or Sunday (or if weekend care is part of their active care pattern or requested), YOU MUST INCLUDE Saturday and/or Sunday in the suggested day-by-day plan!
+- In Day-by-Day Roster Schedules, every shift must be rounded cleanly and the daily hours must sum exactly to the rounded total weekly hours across all active service days.`;
 
           if (activeContextClient) {
             const activeFullName = `${activeContextClient.first_name} ${activeContextClient.last_name}`.trim();
@@ -3116,7 +3166,11 @@ SPECIALIZED TOOL GUIDELINES:
   2. Current vs. Target Comparison: Highlight current weekly baseline hours (e.g. 9 hours/week, rounded cleanly, NEVER fractional decimals like 9.16) vs the target perfect weekly hours (e.g. 14 hours/week), stating the recommended weekly hours adjustment (e.g. +5 hours/week, rounded cleanly).
   3. Suggested Planned Services Breakdown: Display a markdown table showing the suggested planned services based on the client's historic previous services with recommended weekly hours rounded cleanly to whole numbers (e.g. 12 hrs and 2 hrs, totaling 14 hrs), estimated weekly cost, and focus areas.
   4. Suggested Day-by-Day Roster Schedule: Display a clear markdown table showing the suggested weekly schedule (Day, Service, Suggested Hours, Est. Cost, Activities/Purpose).
-     CRITICAL ROSTERING RULE: ALL individual shift hours MUST be clean, practical numbers (e.g. 1 hr, 2 hrs, 2.5 hrs, 3 hrs). NEVER produce odd fractions or awkward decimals like 2.8 hrs, 1.8 hrs, 1.7 hrs, 2.75 hrs, or 1.75 hrs! Support workers cannot book partial-minute shifts. Ensure the sum of the days exactly equals the target weekly hours.
+     CRITICAL ROSTERING RULES:
+     • HISTORIC SERVICE DAYS (WEEKDAYS & WEEKENDS):
+       - If the client historically receives services on Monday, Tuesday, Wednesday, Thursday, and Friday (or an established weekday routine), YOU MUST INCLUDE ALL 5 DAYS (Monday, Tuesday, Wednesday, Thursday, and Friday) in the table! NEVER omit or skip Tuesday or any other historic weekday!
+       - WEEKENDS INCLUDED: If the client historically has services on Saturday or Sunday (or requires weekend care), YOU MUST INCLUDE Saturday and/or Sunday as preferred days in the schedule!
+     • CLEAN ROUNDED HOURS: ALL individual shift hours MUST be clean, practical numbers (e.g. 1 hr, 2 hrs, 2.5 hrs, 3 hrs). NEVER produce odd fractions or awkward decimals like 2.8 hrs, 1.8 hrs, 1.7 hrs, 2.75 hrs, or 1.75 hrs! Support workers cannot book partial-minute shifts. Ensure the sum of the days exactly equals the target weekly hours.
   5. Care Coordinator Guidance: Differentiate between the permanent sustainable weekly schedule (e.g. 14 hours/week) and how to handle any accumulated end-of-quarter surplus (e.g. rolling over into Unspent Funds Pool on 30/09/2026, or investing in deep cleaning, home safety modifications, assistive technology, or allied health rather than rostering 100+ impossible hours in the last few days of a quarter).
 
 IF THE CLIENT IS NDIS (fundingType === 'NDIS'):
