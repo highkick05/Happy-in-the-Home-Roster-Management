@@ -741,7 +741,7 @@ export function getClientBudgetDetails(
     } catch {}
 
     const liveInternalConsumptions = parseFloat((liveShiftsCost + externalEntriesCost).toFixed(2));
-    const totalCombinedSpent = parseFloat((historicalInternalConsumptions + liveInternalConsumptions).toFixed(2));
+    const totalCombinedSpent = parseFloat(liveInternalConsumptions.toFixed(2));
     const remainingBalance = parseFloat((totalCycleAllocation - totalCombinedSpent).toFixed(2));
     const burnRatePercentage = totalCycleAllocation > 0
       ? `${((totalCombinedSpent / totalCycleAllocation) * 100).toFixed(2)}%`
@@ -917,8 +917,9 @@ export function getClientBudgetDetails(
       totalQuarterlyBudget: totalCycleAllocation,
       assistiveTechnologyAndHomeModifications,
       atHmFundingStreams,
-      historicalPreSystemSpend: historicalInternalConsumptions,
-      spendAsOfDateAU: spendAsOfDate ? formatToAustralianDate(spendAsOfDate) : null,
+      historicalPreSystemSpend: 0,
+      spendAsOfDateAU: null,
+      historicalSpendAdjustment: 0,
       liveInternalSpend: liveInternalConsumptions,
       totalCombinedSpent,
       totalUsedFunds: totalCombinedSpent,

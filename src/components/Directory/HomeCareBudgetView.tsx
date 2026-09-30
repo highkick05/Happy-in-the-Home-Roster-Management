@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Flame, Plus, X, Layers, Wrench, Home, Trash2, Edit2, Info, CheckCircle2 } from 'lucide-react';
-import CustomDatePicker from '../ui/CustomDatePicker';
 import { motion } from 'motion/react';
 
 // Official Home Care Financial Year Quarters (matching Trilogy Care & Home Care budgets)
@@ -71,9 +70,7 @@ export default function HomeCareBudgetView() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
-  // Form states
-  const [historicalInternal, setHistoricalInternal] = useState<number>(0);
-  const [spendAsOfDate, setSpendAsOfDate] = useState<string>('');
+  // Form states (Rollover Pool)
   const [startingRolloverBalance, setStartingRolloverBalance] = useState<number>(0);
   const [rolloverSpentSoFar, setRolloverSpentSoFar] = useState<number>(0);
 
@@ -136,8 +133,6 @@ export default function HomeCareBudgetView() {
       if (clientRes.ok) {
         clientData = await clientRes.json();
         setClient(clientData);
-        setHistoricalInternal(clientData.historical_internal_consumptions || 0);
-        setSpendAsOfDate(clientData.spend_as_of_date || '');
         setStartingRolloverBalance(clientData.starting_rollover_balance || 0);
         setRolloverSpentSoFar(clientData.rollover_spent_so_far || 0);
 
@@ -242,8 +237,8 @@ export default function HomeCareBudgetView() {
         },
         body: JSON.stringify({
           other_providers_spent: 0,
-          historical_internal_consumptions: historicalInternal,
-          spend_as_of_date: spendAsOfDate,
+          historical_internal_consumptions: 0,
+          spend_as_of_date: null,
           cycle_start_date: activeCycle.startStr,
           cycle_end_date: activeCycle.endStr,
           starting_rollover_balance: startingRolloverBalance,
@@ -569,22 +564,8 @@ export default function HomeCareBudgetView() {
     };
   });
 
-  const liveSystemConsumptions = processedLedgerItems.reduce((acc: number, item: any) => {
-    let itemDateYMD = '';
-    if (item.date && item.date.length === 10 && item.date[2] === '-') {
-      const [d, m, y] = item.date.split('-');
-      itemDateYMD = `${y}-${m}-${d}`;
-    } else if (item.date) {
-      itemDateYMD = item.date;
-    }
-
-    if (spendAsOfDate && itemDateYMD && itemDateYMD <= spendAsOfDate) {
-      return acc;
-    }
-    return acc + item.amount;
-  }, 0);
-  const totalInternal = historicalInternal + liveSystemConsumptions;
-  const totalCombinedSpent = totalInternal;
+  const liveSystemConsumptions = processedLedgerItems.reduce((acc: number, item: any) => acc + (item.amount || 0), 0);
+  const totalCombinedSpent = liveSystemConsumptions;
   const remainingBalance = totalAllocation - totalCombinedSpent;
 
   const formatCurrency = (val: number) => {
@@ -673,7 +654,7 @@ export default function HomeCareBudgetView() {
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-6 space-y-6">
         {/* Kanban / Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
           <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-center">
             <div className="text-[#8B949E] text-sm font-medium mb-1">Total Cycle Allocation</div>
             <div className="text-3xl font-bold text-[#E6EDF3]">{formatCurrency(totalAllocation)}</div>
@@ -693,8 +674,8 @@ export default function HomeCareBudgetView() {
             <div className="text-[#8B949E] text-sm font-medium mb-1">Total Combined Spent</div>
             <div className="text-3xl font-bold text-[#E6EDF3]">{formatCurrency(totalCombinedSpent)}</div>
             <div className="text-[11px] text-[#8B949E] mt-2 space-y-1">
-              <div>Historical Internal: <span className="text-white">{formatCurrency(historicalInternal)}</span></div>
-              <div>Live Internal: <span className="text-white">{formatCurrency(liveSystemConsumptions)}</span></div>
+              <div>Live Internal: <span className="text-white font-medium">{formatCurrency(totalCombinedSpent)}</span></div>
+              <div className="text-[10px] text-zinc-500 font-mono">From client start date onwards</div>
             </div>
           </div>
           <div className={`bg-brand-navy border ${remainingBalance >= 0 ? 'border-brand-green/30' : 'border-red-500/30 text-red-100'} rounded-xl p-6 shadow-sm flex flex-col justify-center relative overflow-hidden group`}>
@@ -866,58 +847,6 @@ export default function HomeCareBudgetView() {
               >
                 <Save className="w-3.5 h-3.5" />
                 <span>{saving ? 'Saving...' : 'Save Pool'}</span>
-              </button>
-            )}
-          </div>
-
-          {/* Historical Adjustments Card */}
-          <div className="bg-brand-navy border border-border-subtle rounded-xl p-5 shadow-sm flex flex-col relative justify-center">
-            <div className="text-[#8B949E] text-sm font-medium mb-3 flex items-center gap-1.5">
-               <Calculator className="w-4 h-4 text-purple-400" />
-               Historical Adjustments
-            </div>
-            <div className="flex-1 space-y-3">
-              <div>
-                <label className="block text-[11px] font-medium text-[#8B949E] mb-1">Pre-System Spend ($)</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                    <span className="text-[#8B949E] text-[12px]">$</span>
-                  </div>
-                  <input 
-                    type="number"
-                    step="0.01"
-                    value={historicalInternal}
-                    onChange={(e) => setHistoricalInternal(parseFloat(e.target.value) || 0)}
-                    disabled={user?.role !== 'ADMIN'}
-                    className="w-full bg-black/40 border border-white/[0.08] rounded-md pl-6 pr-2 py-1.5 text-[13px] text-white outline-none focus:border-brand-blue transition-colors disabled:opacity-50" 
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[11px] font-medium text-[#8B949E] mb-1">Spend As Of Date</label>
-                {user?.role === 'ADMIN' ? (
-                  <CustomDatePicker
-                    position="bottom"
-                    align="right"
-                    value={spendAsOfDate}
-                    onChange={(e) => setSpendAsOfDate(e.target.value)}
-                    className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2 py-1.5 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
-                  />
-                ) : (
-                  <div className="w-full bg-black/40 border border-white/[0.08] rounded-md px-2 py-1.5 text-[13px] text-[#E6EDF3] opacity-50">
-                    {spendAsOfDate || 'N/A'}
-                  </div>
-                )}
-              </div>
-            </div>
-            {user?.role === 'ADMIN' && (
-              <button
-                onClick={handleSaveSettings}
-                disabled={saving}
-                className="mt-3 w-full py-1.5 bg-brand-blue/20 hover:bg-brand-blue/30 text-brand-blue-300 border border-brand-blue/30 rounded-md text-[11px] font-medium transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50"
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span>{saving ? 'Saving...' : 'Save Adjustments'}</span>
               </button>
             )}
           </div>
