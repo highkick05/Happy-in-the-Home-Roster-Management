@@ -101,8 +101,26 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         careCoordinationFee: client.care_coordination_fee !== undefined && client.care_coordination_fee !== null ? client.care_coordination_fee : 20,
         billingTier: client.billing_tier || 'SAH_Full_Pensioner',
         historicalMonthlyCap: client.historical_monthly_cap !== undefined && client.historical_monthly_cap !== null ? client.historical_monthly_cap : 0,
-        assessedIndependencePct: client.assessed_independence_pct !== undefined && client.assessed_independence_pct !== null ? client.assessed_independence_pct : 0,
-        assessedEverydayLivingPct: client.assessed_everyday_living_pct !== undefined && client.assessed_everyday_living_pct !== null ? client.assessed_everyday_living_pct : 0,
+        assessedIndependencePct: (() => {
+          const tier = client.billing_tier || 'SAH_Full_Pensioner';
+          if (tier === 'Grandfathered') return 0;
+          if (tier === 'SAH_Full_Pensioner') return 5;
+          if (tier === 'SAH_Self_Funded') return 50;
+          if (client.assessed_independence_pct !== undefined && client.assessed_independence_pct !== null && Number(client.assessed_independence_pct) > 0) {
+            return Number(client.assessed_independence_pct);
+          }
+          return 5;
+        })(),
+        assessedEverydayLivingPct: (() => {
+          const tier = client.billing_tier || 'SAH_Full_Pensioner';
+          if (tier === 'Grandfathered') return 0;
+          if (tier === 'SAH_Full_Pensioner') return 17.5;
+          if (tier === 'SAH_Self_Funded') return 80;
+          if (client.assessed_everyday_living_pct !== undefined && client.assessed_everyday_living_pct !== null && Number(client.assessed_everyday_living_pct) > 0) {
+            return Number(client.assessed_everyday_living_pct);
+          }
+          return 17.5;
+        })(),
         // // ndisAgreementStartDate: client.ndis_agreement_start_date || '',
         // ndisAgreementEndDate: client.ndis_agreement_end_date || '',
         // ndisAgreementBudget: client.ndis_agreement_budget !== undefined && client.ndis_agreement_budget !== null ? client.ndis_agreement_budget : 0,
@@ -131,8 +149,8 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         careCoordinationFee: 20,
         billingTier: 'SAH_Full_Pensioner',
         historicalMonthlyCap: 0,
-        assessedIndependencePct: 0,
-        assessedEverydayLivingPct: 0,
+        assessedIndependencePct: 5,
+        assessedEverydayLivingPct: 17.5,
         // // ndisAgreementStartDate: '',
         // ndisAgreementEndDate: '',
         // ndisAgreementBudget: 0,
@@ -150,6 +168,17 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
       } else if (name === 'fundingType' && value === 'HOME_CARE') {
         if (!updated.homeCareSubType) updated.homeCareSubType = 'HCP';
         if (!updated.homeCareLevelOrClass) updated.homeCareLevelOrClass = 'Level 1';
+        if (!updated.billingTier) updated.billingTier = 'SAH_Full_Pensioner';
+        if (updated.billingTier === 'SAH_Full_Pensioner') {
+          updated.assessedIndependencePct = 5;
+          updated.assessedEverydayLivingPct = 17.5;
+        } else if (updated.billingTier === 'SAH_Self_Funded') {
+          updated.assessedIndependencePct = 50;
+          updated.assessedEverydayLivingPct = 80;
+        } else if (updated.billingTier === 'Grandfathered') {
+          updated.assessedIndependencePct = 0;
+          updated.assessedEverydayLivingPct = 0;
+        }
       } else if (name === 'billingTier') {
         if (value === 'Grandfathered') {
           updated.assessedIndependencePct = 0;
@@ -160,9 +189,16 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         } else if (value === 'SAH_Self_Funded') {
           updated.assessedIndependencePct = 50;
           updated.assessedEverydayLivingPct = 80;
-        } else if (value === 'SAH_Part_Pensioner' || value === 'Hybrid') {
-          updated.assessedIndependencePct = 0;
-          updated.assessedEverydayLivingPct = 0;
+        } else if (value === 'SAH_Part_Pensioner') {
+          const ind = Number(prev.assessedIndependencePct);
+          const ev = Number(prev.assessedEverydayLivingPct);
+          updated.assessedIndependencePct = (ind >= 5 && ind <= 50) ? ind : 5;
+          updated.assessedEverydayLivingPct = (ev >= 17.5 && ev <= 80) ? ev : 17.5;
+        } else if (value === 'Hybrid') {
+          const ind = Number(prev.assessedIndependencePct);
+          const ev = Number(prev.assessedEverydayLivingPct);
+          updated.assessedIndependencePct = ind > 0 ? ind : 5;
+          updated.assessedEverydayLivingPct = ev > 0 ? ev : 17.5;
         }
       }
       return updated;
@@ -413,36 +449,95 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
 
               {formData.fundingType === 'HOME_CARE' && (
                 <div className="border-t border-white/[0.08] pt-4">
-                  <h3 className="text-[14px] font-medium text-white mb-4">Billing & Participant Contribution</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[14px] font-medium text-white">Billing & Participant Contribution</h3>
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-brand-blue/10 text-brand-blue border border-brand-blue/20">
+                      My Aged Care Support at Home
+                    </span>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Billing / Contribution Tier</label>
                       <select name="billingTier" value={formData.billingTier} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
-                        <option value="Grandfathered">Transitional: Grandfathered</option>
-                        <option value="Hybrid">Transitional: Hybrid</option>
-                        <option value="SAH_Full_Pensioner">Support at Home: Full Pensioner</option>
-                        <option value="SAH_Part_Pensioner">Support at Home: Part Pensioner / CSHC</option>
-                        <option value="SAH_Self_Funded">Support at Home: Self-Funded</option>
+                        <option value="Grandfathered">Transitional: Grandfathered (0% Co-pay)</option>
+                        <option value="Hybrid">Transitional: Hybrid (Capped Co-pay)</option>
+                        <option value="SAH_Full_Pensioner">Support at Home: Full Pensioner (5% / 17.5%)</option>
+                        <option value="SAH_Part_Pensioner">Support at Home: Part Pensioner / CSHC (Sliding Scale)</option>
+                        <option value="SAH_Self_Funded">Support at Home: Self-Funded (50% / 80%)</option>
                       </select>
                     </div>
 
                     {formData.billingTier === 'Hybrid' && (
                       <div>
-                        <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Historical Monthly Cap ($)</label>
-                        <input type="number" step="0.01" name="historicalMonthlyCap" value={formData.historicalMonthlyCap} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                        <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Historical Monthly Safety Net Cap ($)</label>
+                        <input type="number" step="0.01" name="historicalMonthlyCap" value={formData.historicalMonthlyCap} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" placeholder="e.g. 250.00" />
                       </div>
                     )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                     <div>
-                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Assessed Independence Co-pay (%)</label>
-                      <input type="number" step="0.01" min="0" max="100" name="assessedIndependencePct" value={formData.assessedIndependencePct} onChange={handleChange} disabled={['Grandfathered', 'SAH_Full_Pensioner', 'SAH_Self_Funded'].includes(formData.billingTier)} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed" />
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="block text-[12px] font-medium text-zinc-400">Assessed Independence Co-pay (%)</label>
+                        <span className="text-[10px] text-zinc-500">Personal Care, Social, Transport</span>
+                      </div>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        min="0" 
+                        max="100" 
+                        name="assessedIndependencePct" 
+                        value={formData.assessedIndependencePct} 
+                        onChange={handleChange} 
+                        disabled={['Grandfathered', 'SAH_Full_Pensioner', 'SAH_Self_Funded'].includes(formData.billingTier)} 
+                        className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed" 
+                      />
                     </div>
                     <div>
-                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Assessed Everyday Living Co-pay (%)</label>
-                      <input type="number" step="0.01" min="0" max="100" name="assessedEverydayLivingPct" value={formData.assessedEverydayLivingPct} onChange={handleChange} disabled={['Grandfathered', 'SAH_Full_Pensioner', 'SAH_Self_Funded'].includes(formData.billingTier)} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed" />
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="block text-[12px] font-medium text-zinc-400">Assessed Everyday Living Co-pay (%)</label>
+                        <span className="text-[10px] text-zinc-500">Cleaning, Gardening, Meals</span>
+                      </div>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        min="0" 
+                        max="100" 
+                        name="assessedEverydayLivingPct" 
+                        value={formData.assessedEverydayLivingPct} 
+                        onChange={handleChange} 
+                        disabled={['Grandfathered', 'SAH_Full_Pensioner', 'SAH_Self_Funded'].includes(formData.billingTier)} 
+                        className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed" 
+                      />
                     </div>
+                  </div>
+
+                  {/* My Aged Care Statutory Framework Guidance */}
+                  <div className="mt-3.5 bg-black/30 border border-white/[0.06] rounded-md p-3 text-[11px] text-zinc-400 space-y-1.5">
+                    <div className="flex items-center justify-between text-zinc-300 font-medium pb-1 border-b border-white/[0.04]">
+                      <span>My Aged Care Service Categories & Statutory Rules:</span>
+                      <span className="text-emerald-400 text-[10px]">Clinical Care: 0% Co-pay (100% Commonwealth Funded)</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1 text-[10px]">
+                      <div className="bg-white/[0.02] p-2 rounded border border-white/[0.04]">
+                        <span className="font-semibold text-emerald-400 block mb-0.5">1. Clinical Care (0%)</span>
+                        <span>Nursing, allied health, physiotherapy, podiatry. Always 100% government funded.</span>
+                      </div>
+                      <div className="bg-white/[0.02] p-2 rounded border border-white/[0.04]">
+                        <span className="font-semibold text-sky-400 block mb-0.5">2. Independence Supports</span>
+                        <span>Full Pensioner: 5% • Part Pensioner: 5%–50% • Self-Funded: 50% • Grandfathered: 0%</span>
+                      </div>
+                      <div className="bg-white/[0.02] p-2 rounded border border-white/[0.04]">
+                        <span className="font-semibold text-amber-400 block mb-0.5">3. Everyday Living</span>
+                        <span>Full Pensioner: 17.5% • Part Pensioner: 17.5%–80% • Self-Funded: 80% • Grandfathered: 0%</span>
+                      </div>
+                    </div>
+                    {formData.billingTier === 'Hybrid' && (
+                      <p className="text-[10px] text-purple-300 pt-1">
+                        🛡️ <strong>Hybrid Safety Net:</strong> Co-payments apply according to category rates until the client's historical monthly cap is reached, after which services are 100% package covered.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

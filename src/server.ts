@@ -2854,22 +2854,34 @@ try {
         return { clientShare: 0, packageDrawdown: loadedCost };
       }
 
+      // Determine default percentages according to statutory tiers if null or 0
+      let assessedInd = client.assessed_independence_pct;
+      let assessedEv = client.assessed_everyday_living_pct;
+
+      if (assessedInd === null || assessedInd === undefined || (Number(assessedInd) === 0 && tier !== "Grandfathered")) {
+        assessedInd = tier === "SAH_Self_Funded" ? 50 : 5;
+      }
+      if (assessedEv === null || assessedEv === undefined || (Number(assessedEv) === 0 && tier !== "Grandfathered")) {
+        assessedEv = tier === "SAH_Self_Funded" ? 80 : 17.5;
+      }
+
       // Determine category percentage
       let categoryPct = 0;
       const normCategory = (category || "").trim().toLowerCase();
 
-      if (normCategory === "clinical") {
+      if (normCategory === "clinical" || normCategory === "clinical care") {
         categoryPct = 0;
-      } else if (normCategory === "independence") {
-        categoryPct = (client.assessed_independence_pct ?? 0) / 100;
+      } else if (normCategory === "independence" || normCategory === "independence supports") {
+        categoryPct = Number(assessedInd) / 100;
       } else if (
         normCategory === "everyday living" ||
-        normCategory === "everyday_living"
+        normCategory === "everyday_living" ||
+        normCategory === "everyday"
       ) {
-        categoryPct = (client.assessed_everyday_living_pct ?? 0) / 100;
+        categoryPct = Number(assessedEv) / 100;
       } else {
-        // Default fallback if no category is matched.
-        categoryPct = (client.assessed_independence_pct ?? 0) / 100;
+        // Default fallback if no category is matched
+        categoryPct = Number(assessedInd) / 100;
       }
 
       let calculatedClientShare = parseFloat(
