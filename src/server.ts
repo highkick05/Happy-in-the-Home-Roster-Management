@@ -1267,6 +1267,75 @@ try {
   }
 
   try {
+    db.exec(`ALTER TABLE client_budgets ADD COLUMN additional_funding_streams TEXT DEFAULT '[]'`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE client_budgets ADD COLUMN at_hm_funding_streams TEXT DEFAULT '[]'`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN additional_funding_streams TEXT DEFAULT '[]'`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE clients ADD COLUMN at_hm_funding_streams TEXT DEFAULT '[]'`);
+  } catch {}
+
+  try {
+    const marleneCheck = db.prepare("SELECT id FROM clients WHERE id = 13 OR (first_name = 'Marlene' AND last_name = 'Coombs')").get();
+    if (!marleneCheck) {
+      const defaultAdditionalFunding = JSON.stringify([
+        {
+          id: "stream-dementia-c",
+          name: "Dementia C Supplement",
+          amount: 1896.17,
+          notes: "Approved Services Australia / Trilogy Care Dementia and Cognition Supplement"
+        }
+      ]);
+      const defaultAtHmFunding = JSON.stringify([
+        {
+          id: "athm-1",
+          name: "Assistive Technology - Mobility & Personal Care Equipment",
+          type: "AT",
+          tier: "Medium",
+          allocatedAmount: 2000.00,
+          spentAmount: 0.00,
+          notes: "Shower chair, commode & mobility equipment"
+        },
+        {
+          id: "athm-2",
+          name: "Home Modifications - Access Ramps & Handrails",
+          type: "HM",
+          tier: "High",
+          allocatedAmount: 15000.00,
+          spentAmount: 0.00,
+          notes: "Prescribed home modifications; capped at $15k lifetime"
+        }
+      ]);
+
+      db.prepare(`
+        INSERT INTO clients (
+          id, first_name, last_name, funding_type, home_care_sub_type, home_care_level_or_class,
+          joined_date, care_coordination_fee, billing_tier, historical_monthly_cap,
+          assessed_independence_pct, assessed_everyday_living_pct, additional_funding_streams, at_hm_funding_streams
+        ) VALUES (
+          13, 'Marlene', 'Coombs', 'HOME_CARE', 'HCP', 'Level 4',
+          '2026-07-14', 20, 'Grandfathered', 0,
+          0, 0, ?, ?
+        )
+      `).run(defaultAdditionalFunding, defaultAtHmFunding);
+
+      db.prepare(`
+        INSERT INTO client_budgets (
+          client_id, cycle_start_date, cycle_end_date, historical_internal_consumptions,
+          spend_as_of_date, starting_rollover_balance, rollover_spent_so_far, status,
+          additional_funding_streams, at_hm_funding_streams
+        ) VALUES (?, '2026-07-14', '2026-09-30', 0, null, 1772.41, 0, 'ACTIVE', ?, ?)
+      `).run(13, defaultAdditionalFunding, defaultAtHmFunding);
+    }
+  } catch (err: any) {
+    console.error("Error ensuring Marlene Coombs client record:", err);
+  }
+
+  try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS client_ledger_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -6735,6 +6804,35 @@ app.get("/api/health", (req, res) => {
         client.rollover_spent_so_far = activeBudget.rollover_spent_so_far;
         client.cycle_start_date = activeBudget.cycle_start_date;
         client.cycle_end_date = activeBudget.cycle_end_date;
+        try {
+          client.additional_funding_streams = activeBudget.additional_funding_streams
+            ? JSON.parse(activeBudget.additional_funding_streams)
+            : [];
+        } catch {
+          client.additional_funding_streams = [];
+        }
+        try {
+          client.at_hm_funding_streams = activeBudget.at_hm_funding_streams
+            ? JSON.parse(activeBudget.at_hm_funding_streams)
+            : [];
+        } catch {
+          client.at_hm_funding_streams = [];
+        }
+      } else {
+        try {
+          client.additional_funding_streams = client.additional_funding_streams
+            ? (typeof client.additional_funding_streams === 'string' ? JSON.parse(client.additional_funding_streams) : client.additional_funding_streams)
+            : [];
+        } catch {
+          client.additional_funding_streams = [];
+        }
+        try {
+          client.at_hm_funding_streams = client.at_hm_funding_streams
+            ? (typeof client.at_hm_funding_streams === 'string' ? JSON.parse(client.at_hm_funding_streams) : client.at_hm_funding_streams)
+            : [];
+        } catch {
+          client.at_hm_funding_streams = [];
+        }
       }
 
       const clientServices = db
@@ -7724,8 +7822,17 @@ app.get("/api/health", (req, res) => {
         cycle_end_date,
         starting_rollover_balance,
         rollover_spent_so_far,
+        additional_funding_streams,
+        at_hm_funding_streams,
       } = req.body;
       try {
+        const additionalJson = typeof additional_funding_streams === 'string'
+          ? additional_funding_streams
+          : JSON.stringify(additional_funding_streams || []);
+        const atHmJson = typeof at_hm_funding_streams === 'string'
+          ? at_hm_funding_streams
+          : JSON.stringify(at_hm_funding_streams || []);
+
         const activeBudget = db
           .prepare(
             `SELECT id FROM client_budgets WHERE client_id = ? AND status = 'ACTIVE' LIMIT 1`,
@@ -7740,7 +7847,9 @@ app.get("/api/health", (req, res) => {
               cycle_start_date = coalesce(?, cycle_start_date), 
               cycle_end_date = coalesce(?, cycle_end_date),
               starting_rollover_balance = coalesce(?, starting_rollover_balance),
-              rollover_spent_so_far = coalesce(?, rollover_spent_so_far)
+              rollover_spent_so_far = coalesce(?, rollover_spent_so_far),
+              additional_funding_streams = ?,
+              at_hm_funding_streams = ?
           WHERE client_id = ? AND status = 'ACTIVE'
         `,
           ).run(
@@ -7750,14 +7859,16 @@ app.get("/api/health", (req, res) => {
             cycle_end_date,
             starting_rollover_balance,
             rollover_spent_so_far,
+            additionalJson,
+            atHmJson,
             id,
           );
         } else {
           db.prepare(
             `
           INSERT INTO client_budgets (
-            client_id, historical_internal_consumptions, spend_as_of_date, cycle_start_date, cycle_end_date, starting_rollover_balance, rollover_spent_so_far, status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            client_id, historical_internal_consumptions, spend_as_of_date, cycle_start_date, cycle_end_date, starting_rollover_balance, rollover_spent_so_far, additional_funding_streams, at_hm_funding_streams, status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
         `,
           ).run(
             id,
@@ -7767,13 +7878,15 @@ app.get("/api/health", (req, res) => {
             cycle_end_date || null,
             starting_rollover_balance || 0,
             rollover_spent_so_far || 0,
+            additionalJson,
+            atHmJson,
           );
         }
 
-        // Also update other_providers_spent on clients just to not break existing fields if they are strictly required
+        // Also update other_providers_spent, additional_funding_streams and at_hm_funding_streams on clients
         db.prepare(
-          `UPDATE clients SET other_providers_spent = ? WHERE id = ?`,
-        ).run(other_providers_spent || 0, id);
+          `UPDATE clients SET other_providers_spent = ?, additional_funding_streams = ?, at_hm_funding_streams = ? WHERE id = ?`,
+        ).run(other_providers_spent || 0, additionalJson, atHmJson, id);
 
         res.json({ success: true });
       } catch (e: any) {

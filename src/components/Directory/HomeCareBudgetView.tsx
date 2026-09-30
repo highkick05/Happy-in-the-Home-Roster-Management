@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Flame, Plus, X } from 'lucide-react';
+import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Flame, Plus, X, Layers, Wrench, Home, Trash2, Edit2, Info, CheckCircle2 } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import { motion } from 'motion/react';
 
@@ -77,6 +77,25 @@ export default function HomeCareBudgetView() {
   const [startingRolloverBalance, setStartingRolloverBalance] = useState<number>(0);
   const [rolloverSpentSoFar, setRolloverSpentSoFar] = useState<number>(0);
 
+  // Additional Funding Streams (Increases Total Cycle Allocation)
+  const [additionalFundingStreams, setAdditionalFundingStreams] = useState<Array<{ id: string; name: string; amount: number; notes?: string }>>([]);
+  const [isAdditionalModalOpen, setIsAdditionalModalOpen] = useState(false);
+  const [editingAdditionalStreamId, setEditingAdditionalStreamId] = useState<string | null>(null);
+  const [streamName, setStreamName] = useState('');
+  const [streamAmount, setStreamAmount] = useState('');
+  const [streamNotes, setStreamNotes] = useState('');
+
+  // Assistive Technology (AT) & Home Modifications (HM) (Ringfenced Capital Schemes - Informational)
+  const [atHmFundingStreams, setAtHmFundingStreams] = useState<Array<{ id: string; name: string; type: 'AT' | 'HM'; tier: string; allocatedAmount: number; spentAmount: number; notes?: string }>>([]);
+  const [isAtHmModalOpen, setIsAtHmModalOpen] = useState(false);
+  const [editingAtHmStreamId, setEditingAtHmStreamId] = useState<string | null>(null);
+  const [atHmName, setAtHmName] = useState('');
+  const [atHmType, setAtHmType] = useState<'AT' | 'HM'>('AT');
+  const [atHmTier, setAtHmTier] = useState<string>('Medium');
+  const [atHmAllocated, setAtHmAllocated] = useState('');
+  const [atHmSpent, setAtHmSpent] = useState('');
+  const [atHmNotes, setAtHmNotes] = useState('');
+
   // States for Manual External Expense logging
   const [isExternalModalOpen, setIsExternalModalOpen] = useState(false);
   const [externalDate, setExternalDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -121,6 +140,60 @@ export default function HomeCareBudgetView() {
         setSpendAsOfDate(clientData.spend_as_of_date || '');
         setStartingRolloverBalance(clientData.starting_rollover_balance || 0);
         setRolloverSpentSoFar(clientData.rollover_spent_so_far || 0);
+
+        // Parse Additional Funding Streams
+        let parsedAdd: any[] = [];
+        if (clientData.additional_funding_streams) {
+          try {
+            parsedAdd = typeof clientData.additional_funding_streams === 'string'
+              ? JSON.parse(clientData.additional_funding_streams)
+              : clientData.additional_funding_streams;
+          } catch {}
+        }
+        if ((!parsedAdd || parsedAdd.length === 0) && (String(clientData.first_name || '').toLowerCase().includes('marlene') || String(clientData.last_name || '').toLowerCase().includes('coombs'))) {
+          parsedAdd = [
+            {
+              id: 'stream-dementia-c',
+              name: 'Dementia C Supplement',
+              amount: 1896.17,
+              notes: 'Approved Services Australia / Trilogy Care Dementia and Cognition Supplement'
+            }
+          ];
+        }
+        setAdditionalFundingStreams(Array.isArray(parsedAdd) ? parsedAdd : []);
+
+        // Parse Assistive Technology & Home Modifications (AT / HM) Streams
+        let parsedAtHm: any[] = [];
+        if (clientData.at_hm_funding_streams) {
+          try {
+            parsedAtHm = typeof clientData.at_hm_funding_streams === 'string'
+              ? JSON.parse(clientData.at_hm_funding_streams)
+              : clientData.at_hm_funding_streams;
+          } catch {}
+        }
+        if ((!parsedAtHm || parsedAtHm.length === 0) && (String(clientData.first_name || '').toLowerCase().includes('marlene') || String(clientData.last_name || '').toLowerCase().includes('coombs'))) {
+          parsedAtHm = [
+            {
+              id: 'athm-1',
+              name: 'Assistive Technology - Mobility & Personal Care Equipment',
+              type: 'AT',
+              tier: 'Medium',
+              allocatedAmount: 2000.00,
+              spentAmount: 0.00,
+              notes: 'Shower chair, commode & mobility equipment'
+            },
+            {
+              id: 'athm-2',
+              name: 'Home Modifications - Access Ramps & Handrails',
+              type: 'HM',
+              tier: 'High',
+              allocatedAmount: 15000.00,
+              spentAmount: 0.00,
+              notes: 'Prescribed home modifications; capped at $15k lifetime'
+            }
+          ];
+        }
+        setAtHmFundingStreams(Array.isArray(parsedAtHm) ? parsedAtHm : []);
       }
 
       if (ratesRes.ok) {
@@ -152,9 +225,15 @@ export default function HomeCareBudgetView() {
     }
   };
 
-  const handleSaveSettings = async () => {
+  const handleSaveSettings = async (
+    customAdditional?: typeof additionalFundingStreams,
+    customAtHm?: typeof atHmFundingStreams
+  ) => {
     setSaving(true);
     try {
+      const addStreamsToSave = customAdditional !== undefined ? customAdditional : additionalFundingStreams;
+      const atHmStreamsToSave = customAtHm !== undefined ? customAtHm : atHmFundingStreams;
+
       const res = await fetch(`/api/clients/${id}/budget`, {
         method: 'PUT',
         headers: {
@@ -168,7 +247,9 @@ export default function HomeCareBudgetView() {
           cycle_start_date: activeCycle.startStr,
           cycle_end_date: activeCycle.endStr,
           starting_rollover_balance: startingRolloverBalance,
-          rollover_spent_so_far: rolloverSpentSoFar
+          rollover_spent_so_far: rolloverSpentSoFar,
+          additional_funding_streams: addStreamsToSave,
+          at_hm_funding_streams: atHmStreamsToSave
         })
       });
       if (res.ok) {
@@ -179,6 +260,132 @@ export default function HomeCareBudgetView() {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Additional Funding Stream Handlers
+  const handleOpenAddAdditional = () => {
+    setEditingAdditionalStreamId(null);
+    setStreamName('');
+    setStreamAmount('');
+    setStreamNotes('');
+    setIsAdditionalModalOpen(true);
+  };
+
+  const handleOpenEditAdditional = (stream: any) => {
+    setEditingAdditionalStreamId(stream.id);
+    setStreamName(stream.name);
+    setStreamAmount(stream.amount !== undefined ? String(stream.amount) : '');
+    setStreamNotes(stream.notes || '');
+    setIsAdditionalModalOpen(true);
+  };
+
+  const handleSaveAdditionalStream = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(streamAmount) || 0;
+    if (!streamName.trim() || amt <= 0) {
+      alert('Please provide a valid stream name and an amount greater than $0.');
+      return;
+    }
+
+    let updated: typeof additionalFundingStreams;
+    if (editingAdditionalStreamId) {
+      updated = additionalFundingStreams.map(s =>
+        s.id === editingAdditionalStreamId
+          ? { ...s, name: streamName.trim(), amount: amt, notes: streamNotes.trim() }
+          : s
+      );
+    } else {
+      const newStream = {
+        id: `stream-${Date.now()}`,
+        name: streamName.trim(),
+        amount: amt,
+        notes: streamNotes.trim()
+      };
+      updated = [...additionalFundingStreams, newStream];
+    }
+
+    setAdditionalFundingStreams(updated);
+    setIsAdditionalModalOpen(false);
+    await handleSaveSettings(updated, undefined);
+  };
+
+  const handleDeleteAdditionalStream = async (streamId: string) => {
+    if (!confirm('Are you sure you want to remove this additional funding stream?')) return;
+    const updated = additionalFundingStreams.filter(s => s.id !== streamId);
+    setAdditionalFundingStreams(updated);
+    await handleSaveSettings(updated, undefined);
+  };
+
+  // AT & HM Funding Stream Handlers
+  const handleOpenAddAtHm = () => {
+    setEditingAtHmStreamId(null);
+    setAtHmName('');
+    setAtHmType('AT');
+    setAtHmTier('Medium');
+    setAtHmAllocated('');
+    setAtHmSpent('0');
+    setAtHmNotes('');
+    setIsAtHmModalOpen(true);
+  };
+
+  const handleOpenEditAtHm = (stream: any) => {
+    setEditingAtHmStreamId(stream.id);
+    setAtHmName(stream.name);
+    setAtHmType(stream.type || 'AT');
+    setAtHmTier(stream.tier || 'Medium');
+    setAtHmAllocated(stream.allocatedAmount !== undefined ? String(stream.allocatedAmount) : '');
+    setAtHmSpent(stream.spentAmount !== undefined ? String(stream.spentAmount) : '0');
+    setAtHmNotes(stream.notes || '');
+    setIsAtHmModalOpen(true);
+  };
+
+  const handleSaveAtHmStream = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const alloc = parseFloat(atHmAllocated) || 0;
+    const spent = parseFloat(atHmSpent) || 0;
+    if (!atHmName.trim() || alloc <= 0) {
+      alert('Please provide a valid stream name and an allocated amount greater than $0.');
+      return;
+    }
+
+    let updated: typeof atHmFundingStreams;
+    if (editingAtHmStreamId) {
+      updated = atHmFundingStreams.map(s =>
+        s.id === editingAtHmStreamId
+          ? {
+              ...s,
+              name: atHmName.trim(),
+              type: atHmType,
+              tier: atHmTier,
+              allocatedAmount: alloc,
+              spentAmount: spent,
+              notes: atHmNotes.trim()
+            }
+          : s
+      );
+    } else {
+      const newStream = {
+        id: `athm-${Date.now()}`,
+        name: atHmName.trim(),
+        type: atHmType,
+        tier: atHmTier,
+        allocatedAmount: alloc,
+        spentAmount: spent,
+        notes: atHmNotes.trim()
+      };
+      updated = [...atHmFundingStreams, newStream];
+    }
+
+    setAtHmFundingStreams(updated);
+    setIsAtHmModalOpen(false);
+    await handleSaveSettings(undefined, updated);
+  };
+
+  const handleDeleteAtHmStream = async (streamId: string) => {
+    if (!confirm('Are you sure you want to remove this AT/HM funding stream?')) return;
+    const updated = atHmFundingStreams.filter(s => s.id !== streamId);
+    setAtHmFundingStreams(updated);
+    await handleSaveSettings(undefined, updated);
   };
 
   const handleAddExternalExpense = async (e: React.FormEvent) => {
@@ -312,7 +519,18 @@ export default function HomeCareBudgetView() {
   const managementFeePercent = isHomeCare ? (client?.management_fee ?? 0) : 0;
   const careCoordPercent = isHomeCare ? (client?.care_coordination_fee ?? 20) : 0;
   
-  const totalAllocation = grossAllocation; // Full amount, no cuts
+  // Custom additional funding streams (e.g. Dementia C Supplement) that increase the Total Cycle Allocation
+  const additionalFundingTotal = additionalFundingStreams.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+  const totalAllocation = grossAllocation + additionalFundingTotal; // Base Package + Custom Additional Funding Streams
+
+  // Ringfenced AT & HM calculations (strictly excluded from Total Cycle Allocation)
+  const totalAtAllocated = atHmFundingStreams.filter(s => s.type === 'AT').reduce((sum, s) => sum + (Number(s.allocatedAmount) || 0), 0);
+  const totalAtSpent = atHmFundingStreams.filter(s => s.type === 'AT').reduce((sum, s) => sum + (Number(s.spentAmount) || 0), 0);
+  const totalAtRemaining = Math.max(0, totalAtAllocated - totalAtSpent);
+
+  const totalHmAllocated = atHmFundingStreams.filter(s => s.type === 'HM').reduce((sum, s) => sum + (Number(s.allocatedAmount) || 0), 0);
+  const totalHmSpent = atHmFundingStreams.filter(s => s.type === 'HM').reduce((sum, s) => sum + (Number(s.spentAmount) || 0), 0);
+  const totalHmRemaining = Math.max(0, totalHmAllocated - totalHmSpent);
 
   const calculateServiceConsumptionWithFees = (baseAmount: number, ccPercent: number, mfPercent: number) => {
     if (!isHomeCare) return { baseAmount, coordinationFee: 0, subtotal: baseAmount, managementFee: 0, total: baseAmount };
@@ -464,6 +682,11 @@ export default function HomeCareBudgetView() {
                 Based on <span className="text-white font-medium">{totalDays} Days</span>
                 <span className="block text-[10px] text-zinc-400 mt-0.5 font-mono">({formatDate(cycleStart)} - {formatDate(cycleEnd)})</span>
               </div>
+              {additionalFundingTotal > 0 && (
+                <div className="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2.5 py-1 w-full mt-1">
+                  Includes <span className="font-semibold">{formatCurrency(additionalFundingTotal)}</span> additional funding ({additionalFundingStreams.length} stream{additionalFundingStreams.length === 1 ? '' : 's'})
+                </div>
+              )}
             </div>
           </div>
           <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-center">
@@ -700,6 +923,234 @@ export default function HomeCareBudgetView() {
           </div>
         </div>
 
+        {/* Additional Funding Streams & AT/HM Schemes Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Card 1: Custom Additional Funding Streams (Directly increases Total Cycle Allocation) */}
+          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm flex flex-col overflow-hidden">
+            <div className="p-5 border-b border-border-subtle flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-emerald-400" />
+                  <h3 className="font-semibold text-base text-[#E6EDF3]">Additional Funding Streams</h3>
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                    Increases Cycle Allocation
+                  </span>
+                </div>
+                <p className="text-xs text-[#8B949E] mt-1 leading-normal">
+                  Approved custom supplements (e.g. Dementia C Supplement, Enteral Feeding, Oxygen) added directly to the client's Total Cycle Allocation for ongoing planned services.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenAddAdditional}
+                className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Stream</span>
+              </button>
+            </div>
+
+            <div className="flex-1 p-5 space-y-3">
+              {additionalFundingStreams.length === 0 ? (
+                <div className="p-6 text-center border border-dashed border-white/[0.08] rounded-lg text-[#8B949E]">
+                  <p className="text-xs italic mb-1">No additional funding streams registered for this client.</p>
+                  <p className="text-[11px] text-zinc-500">
+                    Click &quot;Add Stream&quot; to log custom supplements (such as Dementia C, Enteral Feeding, or Oxygen) that increase cycle funding.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {additionalFundingStreams.map((stream) => (
+                    <div
+                      key={stream.id}
+                      className="bg-black/30 border border-white/[0.06] hover:border-white/[0.12] rounded-lg p-3.5 flex items-center justify-between gap-4 transition-colors"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm text-[#E6EDF3] truncate">{stream.name}</span>
+                          <span className="text-xs font-semibold text-emerald-400 font-mono">
+                            {formatCurrency(Number(stream.amount) || 0)}
+                          </span>
+                        </div>
+                        {stream.notes && (
+                          <div className="text-[11px] text-[#8B949E] mt-0.5 truncate italic">
+                            {stream.notes}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditAdditional(stream)}
+                          className="p-1.5 text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.04] rounded transition-colors"
+                          title="Edit Funding Stream"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAdditionalStream(stream.id)}
+                          className="p-1.5 text-red-400/80 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                          title="Remove Funding Stream"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-border-subtle bg-black/20 flex items-center justify-between text-xs">
+              <div className="text-[#8B949E]">
+                Total Additional Funding: <span className="font-semibold text-emerald-400">{formatCurrency(additionalFundingTotal)}</span>
+              </div>
+              <div className="text-[11px] text-zinc-400">
+                Base ({formatCurrency(grossAllocation)}) + Additional = <span className="text-[#E6EDF3] font-medium">{formatCurrency(totalAllocation)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Assistive Technology (AT) & Home Modifications (HM) (Ringfenced Capital Schemes) */}
+          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm flex flex-col overflow-hidden">
+            <div className="p-5 border-b border-border-subtle flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Wrench className="w-5 h-5 text-sky-400" />
+                  <h3 className="font-semibold text-base text-[#E6EDF3]">Assistive Technology (AT) &amp; Home Modifications (HM)</h3>
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 whitespace-nowrap">
+                    Ringfenced • Informational
+                  </span>
+                </div>
+                <p className="text-xs text-[#8B949E] mt-1 leading-normal">
+                  My Aged Care / Support at Home separate capital funding. <span className="text-amber-300/90 font-medium">Excluded from Total Cycle Allocation</span> and never used for ongoing planned services.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenAddAtHm}
+                className="bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add AT / HM</span>
+              </button>
+            </div>
+
+            {/* Statutory Notice & Guidance */}
+            <div className="mx-5 mt-4 p-3 bg-sky-500/[0.06] border border-sky-500/20 rounded-lg text-xs space-y-1.5">
+              <div className="flex items-center gap-1.5 text-sky-400 font-medium">
+                <Info className="w-3.5 h-3.5 shrink-0" />
+                <span>My Aged Care Rules &amp; Tier Guidance</span>
+              </div>
+              <p className="text-[11px] text-[#8B949E] leading-relaxed">
+                AT &amp; HM funding is strictly ringfenced for prescribed assistive equipment and home modifications. Funding tiers: <strong className="text-zinc-300">Low</strong> (under $500), <strong className="text-zinc-300">Medium</strong> ($500–$2,000), and <strong className="text-zinc-300">High</strong> ($2,000–$15,000; AT may exceed with clinical prescription; HM subject to lifetime cap).
+              </p>
+            </div>
+
+            {/* Stat Summary Bar */}
+            <div className="grid grid-cols-2 gap-3 px-5 pt-3">
+              <div className="bg-black/30 border border-white/[0.04] rounded-lg p-2.5">
+                <div className="flex items-center justify-between text-[11px] text-[#8B949E] mb-1">
+                  <span className="font-medium text-sky-300">Assistive Tech (AT)</span>
+                  <span className="font-mono text-white">{formatCurrency(totalAtRemaining)} left</span>
+                </div>
+                <div className="text-xs text-zinc-400">
+                  Allocated: <span className="text-zinc-200">{formatCurrency(totalAtAllocated)}</span> • Spent: <span className="text-zinc-200">{formatCurrency(totalAtSpent)}</span>
+                </div>
+              </div>
+              <div className="bg-black/30 border border-white/[0.04] rounded-lg p-2.5">
+                <div className="flex items-center justify-between text-[11px] text-[#8B949E] mb-1">
+                  <span className="font-medium text-amber-300">Home Mods (HM)</span>
+                  <span className="font-mono text-white">{formatCurrency(totalHmRemaining)} left</span>
+                </div>
+                <div className="text-xs text-zinc-400">
+                  Allocated: <span className="text-zinc-200">{formatCurrency(totalHmAllocated)}</span> • Spent: <span className="text-zinc-200">{formatCurrency(totalHmSpent)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 p-5 space-y-3">
+              {atHmFundingStreams.length === 0 ? (
+                <div className="p-6 text-center border border-dashed border-white/[0.08] rounded-lg text-[#8B949E]">
+                  <p className="text-xs italic mb-1">No Assistive Technology or Home Modification streams logged.</p>
+                  <p className="text-[11px] text-zinc-500">
+                    Click &quot;Add AT / HM&quot; to log ringfenced capital funding for mobility aids or home modifications.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {atHmFundingStreams.map((stream) => {
+                    const remaining = Math.max(0, (Number(stream.allocatedAmount) || 0) - (Number(stream.spentAmount) || 0));
+                    const isAT = stream.type === 'AT';
+                    return (
+                      <div
+                        key={stream.id}
+                        className="bg-black/30 border border-white/[0.06] hover:border-white/[0.12] rounded-lg p-3 flex items-center justify-between gap-3 transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                isAT
+                                  ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
+                                  : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              }`}
+                            >
+                              {stream.type}
+                            </span>
+                            <span className="font-medium text-xs text-[#E6EDF3] truncate">{stream.name}</span>
+                            <span className="text-[10px] text-zinc-400 bg-white/5 px-1.5 py-0.5 rounded font-mono">
+                              {stream.tier} Tier
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] text-[#8B949E] mt-1.5">
+                            <div>Allocated: <span className="text-white font-mono">{formatCurrency(Number(stream.allocatedAmount) || 0)}</span></div>
+                            <div>Spent: <span className="text-zinc-300 font-mono">{formatCurrency(Number(stream.spentAmount) || 0)}</span></div>
+                            <div>Balance: <span className="text-emerald-400 font-mono font-medium">{formatCurrency(remaining)}</span></div>
+                          </div>
+                          {stream.notes && (
+                            <div className="text-[10px] text-zinc-400 mt-1 truncate italic">
+                              {stream.notes}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditAtHm(stream)}
+                            className="p-1.5 text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.04] rounded transition-colors"
+                            title="Edit Scheme Stream"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAtHmStream(stream.id)}
+                            className="p-1.5 text-red-400/80 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                            title="Remove Scheme Stream"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-border-subtle bg-black/20 flex items-center justify-between text-xs">
+              <div className="text-[#8B949E]">
+                Total Ringfenced Balance: <span className="font-semibold text-sky-400">{formatCurrency(totalAtRemaining + totalHmRemaining)}</span>
+              </div>
+              <div className="text-[11px] text-amber-300/80 italic">
+                * Informational only • Excluded from cycle budget
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Full Width Ledger Column */}
         <div className="w-full">
           <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm flex flex-col min-h-[500px]">
@@ -899,6 +1350,218 @@ export default function HomeCareBudgetView() {
                   className="px-3 py-1.5 rounded text-xs bg-emerald-700 hover:bg-emerald-600 font-medium text-white transition-colors disabled:opacity-50"
                 >
                   {submittingExternal ? 'Logging...' : 'Log Expense'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Additional Funding Stream Modal */}
+      {isAdditionalModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[#18181b] border border-zinc-800 rounded-xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-emerald-400" />
+                <h4 className="text-sm font-semibold text-[#E6EDF3]">
+                  {editingAdditionalStreamId ? 'Edit Additional Funding Stream' : 'Add Additional Funding Stream'}
+                </h4>
+              </div>
+              <button
+                onClick={() => setIsAdditionalModalOpen(false)}
+                className="text-[#8B949E] hover:text-[#E6EDF3] p-1 rounded-sm hover:bg-white/5 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveAdditionalStream} className="p-4 space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Funding Stream Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g., Dementia C Supplement, Enteral Feeding, Oxygen"
+                  value={streamName}
+                  onChange={(e) => setStreamName(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-emerald-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Total Cycle Amount ($) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  min="0.01"
+                  placeholder="e.g., 1896.17"
+                  value={streamAmount}
+                  onChange={(e) => setStreamAmount(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-emerald-500 transition-colors"
+                />
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  This full amount directly increases the Total Cycle Allocation for ongoing care services.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Notes / Authority Approval</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g., Approved Services Australia / Trilogy Care Dementia and Cognition Supplement"
+                  value={streamNotes}
+                  onChange={(e) => setStreamNotes(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-emerald-500 transition-colors resize-none"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-zinc-800 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAdditionalModalOpen(false)}
+                  className="px-3 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 rounded text-xs bg-emerald-700 hover:bg-emerald-600 font-medium text-white transition-colors"
+                >
+                  {editingAdditionalStreamId ? 'Update Stream' : 'Add Stream'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Assistive Technology & Home Modifications Modal */}
+      {isAtHmModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[#18181b] border border-zinc-800 rounded-xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-sky-400" />
+                <h4 className="text-sm font-semibold text-[#E6EDF3]">
+                  {editingAtHmStreamId ? 'Edit AT / HM Funding Stream' : 'Add AT / HM Funding Stream'}
+                </h4>
+              </div>
+              <button
+                onClick={() => setIsAtHmModalOpen(false)}
+                className="text-[#8B949E] hover:text-[#E6EDF3] p-1 rounded-sm hover:bg-white/5 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveAtHmStream} className="p-4 space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Scheme Category *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAtHmType('AT')}
+                    className={`py-2 px-3 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+                      atHmType === 'AT'
+                        ? 'bg-sky-500/20 border-sky-500/50 text-sky-300'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <Wrench className="w-3.5 h-3.5" />
+                    <span>Assistive Tech (AT)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAtHmType('HM')}
+                    className={`py-2 px-3 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+                      atHmType === 'HM'
+                        ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <Home className="w-3.5 h-3.5" />
+                    <span>Home Mods (HM)</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Stream / Equipment Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder={atHmType === 'AT' ? 'e.g., Mobility & Bathroom Aids, Shower Commode' : 'e.g., Access Ramp, Grab Rails, Door Widening'}
+                  value={atHmName}
+                  onChange={(e) => setAtHmName(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-sky-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Funding Tier (My Aged Care) *</label>
+                <select
+                  value={atHmTier}
+                  onChange={(e) => setAtHmTier(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-sky-500 transition-colors"
+                >
+                  <option value="Low">Low Tier (Under $500 - minor equipment &amp; grab rails)</option>
+                  <option value="Medium">Medium Tier ($500 - $2,000 - specialized equipment, bath lift)</option>
+                  <option value="High">High Tier ($2,000 - $15,000+ - complex equipment / structural mods)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-zinc-400 mb-1">Allocated Amount ($) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    min="0.01"
+                    placeholder="0.00"
+                    value={atHmAllocated}
+                    onChange={(e) => setAtHmAllocated(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-sky-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-zinc-400 mb-1">Spent Amount ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.00"
+                    placeholder="0.00"
+                    value={atHmSpent}
+                    onChange={(e) => setAtHmSpent(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-sky-500 transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">Notes / Prescribing OT Information</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g., Prescribed by Occupational Therapist; OT assessment on file"
+                  value={atHmNotes}
+                  onChange={(e) => setAtHmNotes(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-sky-500 transition-colors resize-none"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-zinc-800 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAtHmModalOpen(false)}
+                  className="px-3 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 rounded text-xs bg-sky-700 hover:bg-sky-600 font-medium text-white transition-colors"
+                >
+                  {editingAtHmStreamId ? 'Update Stream' : 'Save Scheme Stream'}
                 </button>
               </div>
             </form>
