@@ -58,7 +58,7 @@ const getHomeCareQuarters = (refDate = new Date()) => {
 };
 
 export default function HomeCareBudgetView() {
-  // Minor update to force GitHub Sync mechanism
+  // Support at Home & Home Care custom additional funding & ringfenced AT/HM schemes
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { token, user } = useAuth();
