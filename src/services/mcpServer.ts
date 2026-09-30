@@ -358,7 +358,7 @@ export function getClientBudgetDetails(
     }
   }
 
-  // Active client budget settings from client_budgets table (historical pre-system spends, unspent rollover)
+  // Active client budget settings from client_budgets table (unspent rollover, custom funding streams)
   const activeClientBudget = db.prepare(
     `SELECT * FROM client_budgets WHERE client_id = ? AND status = 'ACTIVE' LIMIT 1`
   ).get(client.id) as any;
@@ -559,8 +559,6 @@ export function getClientBudgetDetails(
       streams: atHmFundingStreams
     };
 
-    const historicalInternalConsumptions = Number(activeClientBudget?.historical_internal_consumptions || 0);
-    const spendAsOfDate = activeClientBudget?.spend_as_of_date || '';
     const startingRolloverBalance = Number(activeClientBudget?.starting_rollover_balance || 0);
     const rolloverSpentSoFar = Number(activeClientBudget?.rollover_spent_so_far || 0);
     const actualUnspentRemaining = parseFloat((startingRolloverBalance - rolloverSpentSoFar).toFixed(2));
@@ -640,12 +638,6 @@ export function getClientBudgetDetails(
       const durationHrs = Math.max(0, (endMs - startMs) / 3600000);
       totalCommittedHours += durationHrs;
 
-      const shiftDateOnly = String(shift.start_time).split('T')[0];
-      // Skip shifts already accounted for in pre-system historical adjustments
-      if (spendAsOfDate && shiftDateOnly <= spendAsOfDate) {
-        continue;
-      }
-
       let baseShiftCost = 0;
       let parsedServices: any[] = [];
       if (shift.services_json) {
@@ -718,8 +710,6 @@ export function getClientBudgetDetails(
       ).all(client.id, startIso, endIso) as any[];
 
       for (const ent of externalEntries) {
-        const entDateOnly = String(ent.date).split('T')[0];
-        if (spendAsOfDate && entDateOnly <= spendAsOfDate) continue;
         const entCost = Number(ent.grand_total || (Number(ent.base_amount || 0) + Number(ent.care_coord_fee || 0) + Number(ent.management_fee || 0)));
         externalEntriesCost += entCost;
 
@@ -917,9 +907,6 @@ export function getClientBudgetDetails(
       totalQuarterlyBudget: totalCycleAllocation,
       assistiveTechnologyAndHomeModifications,
       atHmFundingStreams,
-      historicalPreSystemSpend: 0,
-      spendAsOfDateAU: null,
-      historicalSpendAdjustment: 0,
       liveInternalSpend: liveInternalConsumptions,
       totalCombinedSpent,
       totalUsedFunds: totalCombinedSpent,
@@ -2156,8 +2143,7 @@ export function getHomeCareClientsBudgetSummaryLogic(db: Database.Database) {
       assessedIndependencePct: budget.participantContributions?.assessedIndependencePct ?? 5,
       assessedEverydayLivingPct: budget.participantContributions?.assessedEverydayLivingPct ?? 17.5,
       totalQuarterlyAllocation: allocation,
-      totalHistoricalSpend: budget.historicalSpendAdjustment || 0,
-      totalLiveSpend: budget.liveInternalSpend || 0,
+      totalLiveSpend: budget.liveInternalSpend || spent,
       totalCombinedSpend: spent,
       participantContribution: clientContrib,
       governmentContribution: govtContrib,
@@ -3793,7 +3779,7 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           const getClientBudgetProfileDeclaration = {
             name: "get_client_budget_profile",
-            description: "Retrieve complete budget and profile configuration from Clients Dashboard (Edit Profile & Budget) for a client, including funding type (Home Care HCP/SAH or NDIS), package level/class, daily rate, cycle allocation, pre-system spend adjustments, live internal spend, remaining balance, My Aged Care rollover cap, eligible rollover, and unspent funds pool.",
+            description: "Retrieve complete budget and profile configuration from Clients Dashboard (Edit Profile & Budget) for a client, including funding type (Home Care HCP/SAH or NDIS), package level/class, daily rate, cycle allocation (computed from client start date onwards), live internal spend, remaining balance, My Aged Care rollover cap, eligible rollover, and unspent funds pool.",
             parameters: {
               type: Type.OBJECT,
               properties: {
@@ -3932,8 +3918,8 @@ Clients in the portal belong to either NDIS OR Home Care (HCP/SAH). They are com
    - Their budget is derived from their package level/class and official daily funding rate configured in Settings > Home Care tab:
      • HCP Rates: ${hcpRateSummary}
      • SAH Rates: ${sahRateSummary}
-   - Total Cycle Allocation is: cycle days * daily rate.
-   - Total Combined Spent includes Historical Adjustments + Live Internal Consumptions.
+   - Total Cycle Allocation is computed based on the client's quarterly funds (cycle days * daily rate) from their start date onwards, plus any custom approved additional funding streams (e.g., Dementia C Supplement).
+   - Total Combined Spent is the live internal consumptions delivered from the client's start date onwards.
    - Remaining Balance is: Total Cycle Allocation - Total Combined Spent.
    - CRITICAL MY AGED CARE QUARTERLY ROLLOVER REGULATIONS:
      • Under official Commonwealth My Aged Care regulations (Support at Home / Home Care Packages), participants can ONLY roll over a capped amount of their quarterly budget balance into the next quarter.
@@ -4191,8 +4177,8 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
 - Display:
   • Client Name & Funding Package (using client's actual package and daily rate from Settings)
   • Active Cycle: ${formatToAustralianDate(currentQuarter.startDateStr)} to ${formatToAustralianDate(currentQuarter.endDateStr)} (${currentQuarter.totalDays} days)
-  • Total Cycle Allocation (directly from tool result, matching Client Budget screen)
-  • Total Combined Spent (showing Historical/Pre-system and Live Internal spend)
+  • Total Cycle Allocation (directly from tool result, computed based on client's quarterly funds and start date onwards)
+  • Total Combined Spent (live internal spend calculated from client start date onwards)
   • Remaining Balance & My Aged Care Rollover Breakdown:
     - Remaining Balance: $X.XX AUD
     - My Aged Care Rollover Cap: $X.XX AUD (greater of $1,000 or 10% of allocation)
@@ -4361,11 +4347,6 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
               `• **Active Cycle:** ${anyAnalysis.cycleStartAU || formatToAustralianDate(quarterStartDate)} to ${anyAnalysis.cycleEndAU || formatToAustralianDate(quarterEndDate)} (${anyAnalysis.totalCycleDays || 92} days • ${anyAnalysis.totalCycleWeeks || 13} weeks)\n` +
               `• **Total Cycle Allocation:** $${Number(anyAnalysis.totalQuarterlyBudget || 0).toFixed(2)} AUD\n` +
               `• **Total Combined Spent:** $${Number(anyAnalysis.totalCombinedSpent || 0).toFixed(2)} AUD (${anyAnalysis.burnRatePercentage || '0%'} burn rate)\n`;
-
-            if (Number(anyAnalysis.historicalPreSystemSpend || 0) > 0) {
-              reply += `  - *Pre-System Historical Spend:* $${Number(anyAnalysis.historicalPreSystemSpend).toFixed(2)} AUD` + (anyAnalysis.spendAsOfDateAU ? ` (as of ${anyAnalysis.spendAsOfDateAU})` : '') + `\n` +
-                       `  - *Live System Consumptions:* $${Number(anyAnalysis.liveInternalSpend || 0).toFixed(2)} AUD\n`;
-            }
 
             reply += `• **Remaining Balance:** $${Number(anyAnalysis.remainingFunds || 0).toFixed(2)} AUD (${anyAnalysis.remainingWeeks || 0} weeks remaining)\n`;
 
