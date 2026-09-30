@@ -1302,26 +1302,7 @@ try {
           notes: "Approved Services Australia / Trilogy Care Dementia and Cognition Supplement"
         }
       ]);
-      const defaultAtHmFunding = JSON.stringify([
-        {
-          id: "athm-1",
-          name: "Assistive Technology - Mobility & Personal Care Equipment",
-          type: "AT",
-          tier: "Medium",
-          allocatedAmount: 2000.00,
-          spentAmount: 0.00,
-          notes: "Shower chair, commode & mobility equipment"
-        },
-        {
-          id: "athm-2",
-          name: "Home Modifications - Access Ramps & Handrails",
-          type: "HM",
-          tier: "High",
-          allocatedAmount: 15000.00,
-          spentAmount: 0.00,
-          notes: "Prescribed home modifications; capped at $15k lifetime"
-        }
-      ]);
+      const defaultAtHmFunding = "[]";
 
       db.prepare(`
         INSERT INTO clients (
@@ -7952,32 +7933,64 @@ app.get("/api/health", (req, res) => {
       const billingTier = client?.billing_tier || "SAH_Full_Pensioner";
       const historicalMonthlyCap = client?.historical_monthly_cap || 0;
 
-      const startFilter = `${startDate}T00:00:00`;
-      const endFilter = `${endDate}T23:59:59`;
+      const sStr = String(startDate);
+      const eStr = String(endDate);
+      const startFilter = `${sStr}T00:00:00`;
+      const endFilter = `${eStr}T23:59:59`;
+      const startMs = new Date(sStr.includes('T') ? sStr : `${sStr}T00:00:00`).getTime();
+      const endMs = new Date(eStr.includes('T') ? eStr : `${eStr}T23:59:59`).getTime();
 
-      const shifts = db
+      const parseDateSafe = (dStr: any) => {
+        if (!dStr) return NaN;
+        let ms = new Date(dStr).getTime();
+        if (isNaN(ms) && typeof dStr === 'string') {
+          if (dStr.includes('-')) {
+            const parts = dStr.split(' ')[0].split('-');
+            if (parts[0].length === 2 && parts[2].length === 4) {
+              ms = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`).getTime();
+            }
+          } else if (dStr.includes('/')) {
+            const parts = dStr.split(' ')[0].split('/');
+            if (parts[0].length === 2 && parts[2].length === 4) {
+              ms = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`).getTime();
+            }
+          }
+        }
+        return ms;
+      };
+
+      const allShifts = db
         .prepare(
           `
-        SELECT id FROM shifts 
+        SELECT id, start_time FROM shifts 
         WHERE client_id = ? 
-          AND start_time >= ? 
-          AND start_time <= ?
           AND status NOT IN ('DRAFT', 'CANCELLED')
       `,
         )
-        .all(id, startFilter, endFilter) as any[];
+        .all(id) as any[];
 
-      const respiteBookings = db
-        .prepare(
-          `
-        SELECT id FROM respite_bookings 
-        WHERE client_id = ? 
-          AND start_time >= ? 
-          AND start_time <= ?
-          AND status NOT IN ('DRAFT', 'CANCELLED')
-      `,
-        )
-        .all(id, startFilter, endFilter) as any[];
+      const shifts = allShifts.filter((s: any) => {
+        const ms = parseDateSafe(s.start_time);
+        return !isNaN(ms) && ms >= startMs && ms <= endMs;
+      });
+
+      let allRespite: any[] = [];
+      try {
+        allRespite = db
+          .prepare(
+            `
+          SELECT id, start_time FROM respite_bookings 
+          WHERE client_id = ? 
+            AND status NOT IN ('DRAFT', 'CANCELLED')
+        `,
+          )
+          .all(id) as any[];
+      } catch (e) {}
+
+      const respiteBookings = allRespite.filter((rb: any) => {
+        const ms = parseDateSafe(rb.start_time);
+        return !isNaN(ms) && ms >= startMs && ms <= endMs;
+      });
 
       let total = 0;
       let items: any[] = [];
@@ -8007,6 +8020,10 @@ app.get("/api/health", (req, res) => {
           const data = getInvoiceDataForShift(shiftRow.id);
           if (data && data.lineItems) {
             data.lineItems.forEach((li: any) => {
+              const liMs = parseDateSafe(li.date);
+              if (!isNaN(liMs) && (liMs < startMs || liMs > endMs)) {
+                return;
+              }
               const sCat = getCategoryOfService(li.serviceName, li.code);
               const splits = calculateBillingSplits(
                 Number(id),
@@ -8038,6 +8055,10 @@ app.get("/api/health", (req, res) => {
           const data = getInvoiceDataForRespiteBooking(respiteRow.id);
           if (data && data.lineItems) {
             data.lineItems.forEach((li: any) => {
+              const liMs = parseDateSafe(li.date);
+              if (!isNaN(liMs) && (liMs < startMs || liMs > endMs)) {
+                return;
+              }
               const sCat = getCategoryOfService(li.serviceName, li.code);
               const splits = calculateBillingSplits(
                 Number(id),
@@ -8065,16 +8086,19 @@ app.get("/api/health", (req, res) => {
       }
 
       // Fetch external ledger entries for this cycle/range
-      const external = db
+      const allExternal = db
         .prepare(
           `
         SELECT * FROM client_ledger_entries 
-        WHERE client_id = ? 
-          AND date >= ? 
-          AND date <= ?
+        WHERE client_id = ?
       `,
         )
-        .all(id, startDate, endDate) as any[];
+        .all(id) as any[];
+
+      const external = allExternal.filter((entry: any) => {
+        const ms = parseDateSafe(entry.date);
+        return !isNaN(ms) && ms >= startMs && ms <= endMs;
+      });
 
       for (const entry of external) {
         let dateFormatted = entry.date;

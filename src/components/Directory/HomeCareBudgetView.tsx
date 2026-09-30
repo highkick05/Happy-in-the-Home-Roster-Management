@@ -1,59 +1,104 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Flame, Plus, X, Layers, Wrench, Home, Trash2, Edit2, Info, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Flame, Plus, X, Layers, Wrench, Home, Trash2, Edit2, Info, CheckCircle2, Calendar, Archive, Clock, RotateCcw } from 'lucide-react';
 import { motion } from 'motion/react';
 
-// Official Home Care Financial Year Quarters (matching Trilogy Care & Home Care budgets)
-const getHomeCareQuarters = (refDate = new Date()) => {
-  const curYear = refDate.getFullYear();
-  const curMonth = refDate.getMonth() + 1; // 1-12
-  const curDay = refDate.getDate();
-  const isPastJun30 = curMonth > 6 || (curMonth === 6 && curDay >= 30);
-  const fyStartYear = isPastJun30 ? curYear : curYear - 1;
+// Official Australian Home Care Financial Year Quarters (July 1 to June 30)
+export interface HomeCareQuarter {
+  id: number;
+  label: string;
+  shortLabel: string;
+  startDateStr: string;
+  endDateStr: string;
+  displayRange: string;
+  totalDays: number;
+  start: Date;
+  end: Date;
+}
 
-  const quarters = [
+export const getFinancialYearQuarters = (fyStartYear: number): HomeCareQuarter[] => {
+  const isLeap = (year: number) => (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  const q3Days = isLeap(fyStartYear + 1) ? 91 : 90;
+
+  return [
     {
       id: 1,
       label: "Quarter 1",
-      startDateStr: `${fyStartYear}-06-30`,
+      shortLabel: "Q1",
+      startDateStr: `${fyStartYear}-07-01`,
       endDateStr: `${fyStartYear}-09-30`,
+      displayRange: `1 Jul - 30 Sep ${fyStartYear}`,
       totalDays: 92,
-      start: new Date(`${fyStartYear}-06-30T00:00:00`),
+      start: new Date(`${fyStartYear}-07-01T00:00:00`),
       end: new Date(`${fyStartYear}-09-30T23:59:59`)
     },
     {
       id: 2,
       label: "Quarter 2",
-      startDateStr: `${fyStartYear}-09-30`,
+      shortLabel: "Q2",
+      startDateStr: `${fyStartYear}-10-01`,
       endDateStr: `${fyStartYear}-12-31`,
+      displayRange: `1 Oct - 31 Dec ${fyStartYear}`,
       totalDays: 92,
-      start: new Date(`${fyStartYear}-09-30T00:00:00`),
+      start: new Date(`${fyStartYear}-10-01T00:00:00`),
       end: new Date(`${fyStartYear}-12-31T23:59:59`)
     },
     {
       id: 3,
       label: "Quarter 3",
-      startDateStr: `${fyStartYear}-12-31`,
+      shortLabel: "Q3",
+      startDateStr: `${fyStartYear + 1}-01-01`,
       endDateStr: `${fyStartYear + 1}-03-31`,
-      totalDays: 90,
-      start: new Date(`${fyStartYear}-12-31T00:00:00`),
+      displayRange: `1 Jan - 31 Mar ${fyStartYear + 1}`,
+      totalDays: q3Days,
+      start: new Date(`${fyStartYear + 1}-01-01T00:00:00`),
       end: new Date(`${fyStartYear + 1}-03-31T23:59:59`)
     },
     {
       id: 4,
       label: "Quarter 4",
-      startDateStr: `${fyStartYear + 1}-03-31`,
+      shortLabel: "Q4",
+      startDateStr: `${fyStartYear + 1}-04-01`,
       endDateStr: `${fyStartYear + 1}-06-30`,
+      displayRange: `1 Apr - 30 Jun ${fyStartYear + 1}`,
       totalDays: 91,
-      start: new Date(`${fyStartYear + 1}-03-31T00:00:00`),
+      start: new Date(`${fyStartYear + 1}-04-01T00:00:00`),
       end: new Date(`${fyStartYear + 1}-06-30T23:59:59`)
     }
   ];
+};
 
-  const nowMs = refDate.getTime();
-  const activeQuarter = quarters.find(q => nowMs >= q.start.getTime() && nowMs <= q.end.getTime()) || quarters[0];
-  return { quarters, activeQuarter };
+export const getCurrentFinancialYearAndQuarter = () => {
+  const now = new Date();
+  let year = now.getFullYear();
+  let month = now.getMonth() + 1; // 1-12
+  let day = now.getDate();
+
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Australia/Sydney',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const auStr = formatter.format(now);
+    const parts = auStr.split('-').map(Number);
+    if (parts.length === 3) {
+      year = parts[0];
+      month = parts[1];
+      day = parts[2];
+    }
+  } catch {}
+
+  const currentFyStartYear = month >= 7 ? year : year - 1;
+  let currentQuarterId = 1;
+  if (month >= 7 && month <= 9) currentQuarterId = 1;
+  else if (month >= 10 && month <= 12) currentQuarterId = 2;
+  else if (month >= 1 && month <= 3) currentQuarterId = 3;
+  else if (month >= 4 && month <= 6) currentQuarterId = 4;
+
+  return { currentFyStartYear, currentQuarterId, year, month, day };
 };
 
 export default function HomeCareBudgetView() {
@@ -62,6 +107,10 @@ export default function HomeCareBudgetView() {
   const navigate = useNavigate();
   const { token, user } = useAuth();
   
+  const initialPeriod = getCurrentFinancialYearAndQuarter();
+  const [selectedFyYear, setSelectedFyYear] = useState<number>(initialPeriod.currentFyStartYear);
+  const [selectedQuarterId, setSelectedQuarterId] = useState<number>(initialPeriod.currentQuarterId);
+
   const [client, setClient] = useState<any>(null);
   const [fundingRates, setFundingRates] = useState<any>(null);
   const [ledger, setLedger] = useState<{ total: number, items: any[] }>({ total: 0, items: [] });
@@ -121,6 +170,53 @@ export default function HomeCareBudgetView() {
     fetchData();
   }, [id, token]);
 
+  const fetchQuarterLedger = async (clientData: any, fyYear: number, quarterId: number) => {
+    if (!clientData || !id || !token) return;
+    const quarters = getFinancialYearQuarters(fyYear);
+    const targetQuarter = quarters.find(q => q.id === quarterId) || quarters[0];
+
+    let cycleStart = targetQuarter.start;
+    const cycleEnd = targetQuarter.end;
+
+    if (clientData.joined_date) {
+      const joined = new Date(clientData.joined_date);
+      if (!isNaN(joined.getTime())) {
+        if (joined > cycleEnd) {
+          setLedger({ total: 0, items: [] });
+          return;
+        } else if (joined >= cycleStart && joined <= cycleEnd) {
+          cycleStart = joined;
+        }
+      }
+    }
+
+    let sDate = cycleStart.toISOString().split('T')[0];
+    if (targetQuarter.id === 1 && clientData.joined_date) {
+      const joined = new Date(clientData.joined_date);
+      if (!isNaN(joined.getTime()) && joined <= new Date(`${fyYear}-06-30T23:59:59`)) {
+        sDate = `${fyYear}-06-30`;
+      }
+    }
+    const eDate = targetQuarter.endDateStr;
+
+    try {
+      const ledgerRes = await fetch(`/api/clients/${id}/budget-ledger?startDate=${sDate}&endDate=${eDate}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (ledgerRes.ok) {
+        setLedger(await ledgerRes.json());
+      }
+    } catch (e) {
+      console.error('Error fetching quarter ledger:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (client) {
+      fetchQuarterLedger(client, selectedFyYear, selectedQuarterId);
+    }
+  }, [selectedFyYear, selectedQuarterId, id, token]);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -166,52 +262,13 @@ export default function HomeCareBudgetView() {
               : clientData.at_hm_funding_streams;
           } catch {}
         }
-        if ((!parsedAtHm || parsedAtHm.length === 0) && (String(clientData.first_name || '').toLowerCase().includes('marlene') || String(clientData.last_name || '').toLowerCase().includes('coombs'))) {
-          parsedAtHm = [
-            {
-              id: 'athm-1',
-              name: 'Assistive Technology - Mobility & Personal Care Equipment',
-              type: 'AT',
-              tier: 'Medium',
-              allocatedAmount: 2000.00,
-              spentAmount: 0.00,
-              notes: 'Shower chair, commode & mobility equipment'
-            },
-            {
-              id: 'athm-2',
-              name: 'Home Modifications - Access Ramps & Handrails',
-              type: 'HM',
-              tier: 'High',
-              allocatedAmount: 15000.00,
-              spentAmount: 0.00,
-              notes: 'Prescribed home modifications; capped at $15k lifetime'
-            }
-          ];
-        }
         setAtHmFundingStreams(Array.isArray(parsedAtHm) ? parsedAtHm : []);
+
+        await fetchQuarterLedger(clientData, selectedFyYear, selectedQuarterId);
       }
 
       if (ratesRes.ok) {
         setFundingRates(await ratesRes.json());
-      }
-
-      // Calculate Quarter and Pro-rata logic to pass to ledger API
-      if (clientData) {
-         const { activeQuarter } = getHomeCareQuarters();
-         let cycleStart = activeQuarter.start;
-         if (clientData.joined_date) {
-           const joined = new Date(clientData.joined_date);
-           if (!isNaN(joined.getTime()) && joined >= activeQuarter.start && joined <= activeQuarter.end) {
-             cycleStart = joined;
-           }
-         }
-         const sDate = cycleStart.toISOString().split('T')[0];
-         const eDate = activeQuarter.endDateStr;
-
-         const ledgerRes = await fetch(`/api/clients/${id}/budget-ledger?startDate=${sDate}&endDate=${eDate}`, { headers: { Authorization: `Bearer ${token}` } });
-         if (ledgerRes.ok) {
-           setLedger(await ledgerRes.json());
-         }
       }
     } catch (e) {
       console.error(e);
@@ -408,11 +465,7 @@ export default function HomeCareBudgetView() {
       });
 
       if (res.ok) {
-        const data = await res.json();
-        setLedger(prev => ({
-          total: prev.total + data.item.amount,
-          items: [data.item, ...prev.items]
-        }));
+        await fetchQuarterLedger(client, selectedFyYear, selectedQuarterId);
 
         setExternalService('');
         setExternalVendor('');
@@ -442,21 +495,24 @@ export default function HomeCareBudgetView() {
   }
 
   // Calculate Quarter and Pro-rata logic
-  const { activeQuarter } = getHomeCareQuarters();
+  const quarters = getFinancialYearQuarters(selectedFyYear);
+  const activeQuarter = quarters.find(q => q.id === selectedQuarterId) || quarters[0];
   
   let cycleStart = activeQuarter.start;
   const cycleEnd = activeQuarter.end;
   let totalDays = activeQuarter.totalDays;
   
   if (client.joined_date) {
-    // Need to parse properly
     const joined = new Date(client.joined_date);
     if (!isNaN(joined.getTime())) {
-      if (joined >= activeQuarter.start && joined <= activeQuarter.end) {
-        // Bridging cycle
+      if (joined > cycleEnd) {
+        totalDays = 0;
+      } else if (joined >= cycleStart && joined <= cycleEnd) {
         cycleStart = joined;
         const msPerDay = 1000 * 60 * 60 * 24;
         totalDays = Math.max(1, Math.floor((cycleEnd.getTime() - cycleStart.getTime()) / msPerDay) + 1);
+      } else {
+        totalDays = activeQuarter.totalDays;
       }
     }
   }
@@ -466,6 +522,18 @@ export default function HomeCareBudgetView() {
     endStr: activeQuarter.endDateStr,
     totalDays
   };
+
+  const { currentFyStartYear, currentQuarterId } = getCurrentFinancialYearAndQuarter();
+  const availableYears = [
+    { year: currentFyStartYear - 2, label: `FY ${currentFyStartYear - 2}–${currentFyStartYear - 1}` },
+    { year: currentFyStartYear - 1, label: `FY ${currentFyStartYear - 1}–${currentFyStartYear}` },
+    { year: currentFyStartYear, label: `FY ${currentFyStartYear}–${currentFyStartYear + 1} (Current)` },
+    { year: currentFyStartYear + 1, label: `FY ${currentFyStartYear + 1}–${currentFyStartYear + 2}` }
+  ];
+
+  const isCurrentRealTimeQuarter = (selectedFyYear === currentFyStartYear) && (selectedQuarterId === currentQuarterId);
+  const isPastQuarter = (selectedFyYear < currentFyStartYear) || (selectedFyYear === currentFyStartYear && selectedQuarterId < currentQuarterId);
+  const isFutureQuarter = (selectedFyYear > currentFyStartYear) || (selectedFyYear === currentFyStartYear && selectedQuarterId > currentQuarterId);
 
   // Funding Rate calculation
   const getClientDailyRate = () => {
@@ -660,6 +728,87 @@ export default function HomeCareBudgetView() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-2 pb-6 space-y-6">
+        {/* Funding Period & Quarter Filter Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-brand-navy border border-border-subtle rounded-xl p-4 shadow-sm">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-sm text-[#8B949E]">
+              <Calendar className="w-4 h-4 text-brand-blue" />
+              <span className="font-medium text-[#E6EDF3]">Funding Period:</span>
+            </div>
+            
+            {/* Financial Year Dropdown */}
+            <div className="relative">
+              <select
+                value={selectedFyYear}
+                onChange={(e) => {
+                  const yr = Number(e.target.value);
+                  setSelectedFyYear(yr);
+                  setCurrentPage(1);
+                }}
+                className="bg-[#121214] border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-[#E6EDF3] font-medium focus:outline-none focus:border-brand-blue cursor-pointer"
+              >
+                {availableYears.map(y => (
+                  <option key={y.year} value={y.year}>
+                    {y.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quarter Dropdown */}
+            <div className="relative">
+              <select
+                value={selectedQuarterId}
+                onChange={(e) => {
+                  const qId = Number(e.target.value);
+                  setSelectedQuarterId(qId);
+                  setCurrentPage(1);
+                }}
+                className="bg-[#121214] border border-border-subtle rounded-lg px-3 py-1.5 text-xs text-[#E6EDF3] font-medium focus:outline-none focus:border-brand-blue cursor-pointer"
+              >
+                {quarters.map(q => (
+                  <option key={q.id} value={q.id}>
+                    {q.label} ({q.displayRange})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quarter Status Badge */}
+            {isCurrentRealTimeQuarter ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                Current Active Quarter
+              </span>
+            ) : isPastQuarter ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <Archive className="w-3 h-3" />
+                Archived / Historical Quarter
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                <Clock className="w-3 h-3" />
+                Upcoming Quarter
+              </span>
+            )}
+          </div>
+
+          {/* Quick Jump to Current Quarter button if viewing history/future */}
+          {!isCurrentRealTimeQuarter && (
+            <button
+              onClick={() => {
+                setSelectedFyYear(currentFyStartYear);
+                setSelectedQuarterId(currentQuarterId);
+                setCurrentPage(1);
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:text-white px-2.5 py-1.5 rounded-lg bg-brand-blue/10 hover:bg-brand-blue/20 transition-colors border border-brand-blue/20 self-start sm:self-auto cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset to Current Quarter</span>
+            </button>
+          )}
+        </div>
+
         {/* Kanban / Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
           <div className="bg-brand-navy border border-border-subtle rounded-xl p-6 shadow-sm flex flex-col justify-center">
@@ -681,8 +830,10 @@ export default function HomeCareBudgetView() {
             <div className="text-[#8B949E] text-sm font-medium mb-1">Total Combined Spent</div>
             <div className="text-3xl font-bold text-[#E6EDF3]">{formatCurrency(totalCombinedSpent)}</div>
             <div className="text-[11px] text-[#8B949E] mt-2 space-y-1">
-              <div>Live Internal: <span className="text-white font-medium">{formatCurrency(totalCombinedSpent)}</span></div>
-              <div className="text-[10px] text-zinc-500 font-mono">From client start date onwards</div>
+              <div>Quarter Consumptions: <span className="text-white font-medium">{formatCurrency(totalCombinedSpent)}</span></div>
+              <div className="text-[10px] text-zinc-400 font-mono">
+                {isCurrentRealTimeQuarter ? 'Reset for active quarter' : 'Archived quarter total'} • {activeQuarter.shortLabel}
+              </div>
             </div>
           </div>
           <div className={`bg-brand-navy border ${remainingBalance >= 0 ? 'border-brand-green/30' : 'border-red-500/30 text-red-100'} rounded-xl p-6 shadow-sm flex flex-col justify-center relative overflow-hidden group`}>
@@ -728,7 +879,7 @@ export default function HomeCareBudgetView() {
               {formatCurrency(remainingBalance)}
             </div>
             <div className={`relative z-10 text-xs mt-2 ${remainingBalance >= 0 ? 'text-[#8B949E]' : 'text-red-200/80'}`}>
-              For active cycle
+              For {activeQuarter.label} ({activeQuarter.displayRange})
             </div>
           </div>
 
@@ -1091,16 +1242,19 @@ export default function HomeCareBudgetView() {
         <div className="w-full">
           <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-sm flex flex-col min-h-[500px]">
             <div className="p-6 border-b border-border-subtle flex items-center justify-between text-[#E6EDF3] shrink-0">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3">
                 <Calculator className="w-5 h-5 text-brand-blue" />
-                <h3 className="font-semibold text-lg">System Ledger Preview</h3>
+                <div>
+                  <h3 className="font-semibold text-lg leading-tight">System Ledger Preview ({activeQuarter.label})</h3>
+                  <p className="text-xs text-[#8B949E] mt-0.5">Shifts & expenses for {activeQuarter.displayRange}</p>
+                </div>
               </div>
               <button 
                 onClick={() => {
-                  setExternalDate(new Date().toISOString().split('T')[0]);
+                  setExternalDate(isCurrentRealTimeQuarter ? new Date().toISOString().split('T')[0] : activeQuarter.startDateStr);
                   setIsExternalModalOpen(true);
                 }}
-                className="bg-zinc-800 border border-zinc-700 text-xs font-medium px-3 h-8 rounded hover:bg-zinc-700 text-zinc-200 transition-colors flex items-center gap-1.5"
+                className="bg-zinc-800 border border-zinc-700 text-xs font-medium px-3 h-8 rounded hover:bg-zinc-700 text-zinc-200 transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5 text-zinc-400" />
                 <span>Log External Expense</span>
@@ -1124,8 +1278,8 @@ export default function HomeCareBudgetView() {
                   {processedLedgerItems.length === 0 ? (
                     <tr>
                       <td colSpan={isHomeCare ? 7 : 4} className="px-6 py-12 text-center text-[#8B949E]">
-                        <p className="mb-2 italic">No live consumptions for this cycle yet.</p>
-                        <p className="text-xs">Once shift-tracking goes live, items will automatically populate here.</p>
+                        <p className="mb-2 italic">No recorded shifts or external expenses for {activeQuarter.label} ({activeQuarter.displayRange}).</p>
+                        <p className="text-xs">Once shift-tracking goes live or external expenses are logged for this period, items will automatically populate here.</p>
                       </td>
                     </tr>
                   ) : (

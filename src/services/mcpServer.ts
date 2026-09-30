@@ -510,29 +510,6 @@ export function getClientBudgetDetails(
       }
     }
 
-    if (atHmFundingStreams.length === 0 && (String(client.first_name || '').toLowerCase().includes("marlene") || String(client.last_name || '').toLowerCase().includes("coombs"))) {
-      atHmFundingStreams = [
-        {
-          id: "athm-1",
-          name: "Assistive Technology (Mobility & Bathroom Aids)",
-          type: "AT",
-          tier: "Medium",
-          allocatedAmount: 2000.00,
-          spentAmount: 0.00,
-          notes: "Shower chair, commode & mobility equipment"
-        },
-        {
-          id: "athm-2",
-          name: "Home Modifications (Access Ramp & Handrails)",
-          type: "HM",
-          tier: "High",
-          allocatedAmount: 15000.00,
-          spentAmount: 0.00,
-          notes: "Prescribed home modifications; capped at $15k lifetime"
-        }
-      ];
-    }
-
     const totalAtAllocated = parseFloat(atHmFundingStreams.filter(s => s.type === 'AT').reduce((sum, s) => sum + (Number(s.allocatedAmount) || 0), 0).toFixed(2));
     const totalAtSpent = parseFloat(atHmFundingStreams.filter(s => s.type === 'AT').reduce((sum, s) => sum + (Number(s.spentAmount) || 0), 0).toFixed(2));
     const totalHmAllocated = parseFloat(atHmFundingStreams.filter(s => s.type === 'HM').reduce((sum, s) => sum + (Number(s.allocatedAmount) || 0), 0).toFixed(2));
@@ -1236,26 +1213,7 @@ export function analyzeClientFundsLogic(
           notes: "Approved Services Australia / Trilogy Care Dementia and Cognition Supplement"
         }
       ],
-      at_hm_funding_streams: [
-        {
-          id: "athm-1",
-          name: "Assistive Technology - Mobility & Personal Care Equipment",
-          type: "AT",
-          tier: "Medium",
-          allocatedAmount: 2000.00,
-          spentAmount: 0.00,
-          notes: "Shower chair, commode & mobility equipment"
-        },
-        {
-          id: "athm-2",
-          name: "Home Modifications - Access Ramps & Handrails",
-          type: "HM",
-          tier: "High",
-          allocatedAmount: 15000.00,
-          spentAmount: 0.00,
-          notes: "Prescribed home modifications; capped at $15k lifetime"
-        }
-      ]
+      at_hm_funding_streams: []
     };
   }
 
@@ -1356,26 +1314,7 @@ export function optimizeQuarterlyRosterLogic(
           notes: "Approved Services Australia / Trilogy Care Dementia and Cognition Supplement"
         }
       ],
-      at_hm_funding_streams: [
-        {
-          id: "athm-1",
-          name: "Assistive Technology - Mobility & Personal Care Equipment",
-          type: "AT",
-          tier: "Medium",
-          allocatedAmount: 2000.00,
-          spentAmount: 0.00,
-          notes: "Shower chair, commode & mobility equipment"
-        },
-        {
-          id: "athm-2",
-          name: "Home Modifications - Access Ramps & Handrails",
-          type: "HM",
-          tier: "High",
-          allocatedAmount: 15000.00,
-          spentAmount: 0.00,
-          notes: "Prescribed home modifications; capped at $15k lifetime"
-        }
-      ]
+      at_hm_funding_streams: []
     };
   }
 
