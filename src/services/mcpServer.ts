@@ -23,6 +23,50 @@ export function formatToAustralianDate(isoDateStr: string): string {
 }
 
 /**
+ * Helper: Retrieves current business date/time based on the portal's configured timezone.
+ * Defaults to 'Australia/Perth' if no timezone is set.
+ */
+export function getCurrentBusinessDateTime(db?: Database.Database, customTimezone?: string) {
+  let timezone = customTimezone;
+  if (!timezone && db) {
+    try {
+      const setting = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
+      if (setting?.value) {
+        timezone = String(setting.value).replace(/['"]+/g, '');
+      }
+    } catch {}
+  }
+  if (!timezone) timezone = 'Australia/Perth';
+
+  const now = new Date();
+  let todayStr = '';
+  let todayAU = '';
+  let dayOfWeek = '';
+  let fullDateDisplay = '';
+
+  try {
+    todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+    todayAU = new Intl.DateTimeFormat('en-AU', { timeZone: timezone, day: '2-digit', month: '2-digit', year: 'numeric' }).format(now);
+    dayOfWeek = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'long' }).format(now);
+    fullDateDisplay = new Intl.DateTimeFormat('en-AU', { timeZone: timezone, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+  } catch {
+    todayStr = now.toISOString().split('T')[0];
+    todayAU = formatToAustralianDate(todayStr);
+    dayOfWeek = 'Wednesday';
+    fullDateDisplay = `${dayOfWeek}, ${todayAU}`;
+  }
+
+  return {
+    now,
+    timezone,
+    todayStr,        // e.g. "2026-09-30"
+    todayAU,         // e.g. "30/09/2026"
+    dayOfWeek,       // e.g. "Wednesday"
+    fullDateDisplay  // e.g. "Wednesday, 30 September 2026"
+  };
+}
+
+/**
  * Helper: Computes the 4 official Home Care Financial Year Quarters
  * exactly matching Trilogy Planning & Home Care budgets.
  * Q1: 30 Jun - 30 Sep (92 days)
@@ -104,6 +148,7 @@ export function getClientBudgetDetails(
   const settingsRow = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
   const timezone = settingsRow?.value || 'Australia/Perth';
   const { quarters, currentQuarter, todayStr } = getHomeCareFinancialYearQuarters(timezone);
+  const { todayAU, dayOfWeek } = getCurrentBusinessDateTime(db, timezone);
 
   let activeQuarter = currentQuarter;
   let cycleStart = new Date(`${activeQuarter.startDateStr}T00:00:00`);
@@ -332,6 +377,9 @@ export function getClientBudgetDetails(
     return {
       clientName: `${client.first_name} ${client.last_name}`,
       clientId: client.id,
+      asOfDateAU: todayAU,
+      todayISO: todayStr,
+      todayDayOfWeek: dayOfWeek,
       fundingType: "HOME_CARE",
       fundingCategory: "Home Care Package / Support at Home",
       fundingPackage: `${subType} ${levelOrClass}`,
@@ -342,6 +390,7 @@ export function getClientBudgetDetails(
       cycleEndAU: formatToAustralianDate(endIso),
       totalCycleDays: totalDays,
       totalCycleWeeks: totalWeeks,
+      remainingDays,
       remainingWeeks,
       totalCycleAllocation,
       totalQuarterlyBudget: totalCycleAllocation,
@@ -521,6 +570,9 @@ export function getClientBudgetDetails(
     return {
       clientName: `${client.first_name} ${client.last_name}`,
       clientId: client.id,
+      asOfDateAU: todayAU,
+      todayISO: todayStr,
+      todayDayOfWeek: dayOfWeek,
       fundingType: "NDIS",
       fundingCategory: "NDIS (National Disability Insurance Scheme)",
       fundingPackage: agreement ? `NDIS Agreement: ${agreementName}` : (hasActiveAgreement ? "NDIS Service Agreement" : "No Active Service Agreement"),
@@ -701,6 +753,10 @@ export function optimizeQuarterlyRosterLogic(
   const effectiveRemainingFunds = remainingFunds !== undefined ? remainingFunds : budgetDetails.remainingFunds;
   const isNdis = String(client.funding_type || budgetDetails.fundingType || '').trim().toUpperCase() === 'NDIS';
 
+  const timezoneSetting = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
+  const timezone = timezoneSetting?.value ? String(timezoneSetting.value).replace(/['"]+/g, '') : 'Australia/Perth';
+  const { todayStr, todayAU, dayOfWeek } = getCurrentBusinessDateTime(db, timezone);
+
   const effectiveStartDate = isNdis
     ? ((budgetDetails as any).agreementStartDate || budgetDetails.cycleStartISO)
     : (quarterStartDate || budgetDetails.cycleStartISO);
@@ -749,8 +805,6 @@ export function optimizeQuarterlyRosterLogic(
   let totalStandardRates = 0;
   let rateCount = 0;
 
-  const timezoneSetting = db.prepare("SELECT value FROM settings WHERE key = 'timezone'").get() as any;
-  const timezone = timezoneSetting?.value ? String(timezoneSetting.value).replace(/['"]+/g, '') : 'Australia/Perth';
   const dayNameFormatter = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
     timeZone: timezone
@@ -1033,10 +1087,14 @@ export function optimizeQuarterlyRosterLogic(
     ? (hasNdisAgreement
         ? `The client has $${effectiveRemainingFunds.toFixed(2)} remaining in their NDIS Service Agreement (${(budgetDetails as any).agreementName || 'Service Agreement'}), which runs from ${(budgetDetails as any).agreementStartDateAU} to ${(budgetDetails as any).agreementEndDateAU} (${remainingWeeks} weeks remaining). Sustainable weekly funding is $${sustainableWeeklyFunding}/week, supporting an ideal ongoing roster of ${perfectWeeklyHours} hrs/week ($${totalSuggestedScheduleCost}/week).`
         : `No active NDIS Service Agreement has been configured for ${client.first_name} ${client.last_name} yet. To track budgets and calculate roster capacity, please add a Service Agreement under Clients > Client Dashboard > Budget page (Add Service Agreement).`)
-    : `The client has $${effectiveRemainingFunds.toFixed(2)} remaining across ${remainingWeeks} remaining weeks ($${weeklySurplusBudget.toFixed(2)}/week surplus). Their sustainable weekly package funding is $${sustainableWeeklyFunding}/week ($${(budgetDetails as any).dailyFundingRate || 0}/day). Based on their historic services ($${weightedHourlyRate}/hr avg), their perfect ongoing weekly target is ${perfectWeeklyHours} hours/week ($${totalSuggestedScheduleCost}/week). Currently delivered hours are ${totalBaselineWeeklyHours} hrs/week, leaving an under-utilization gap of +${weeklyHoursDifference} hrs/week to be scheduled.`;
+    : `The client has $${effectiveRemainingFunds.toFixed(2)} remaining as of ${todayAU} across ${remainingWeeks} remaining weeks (${(budgetDetails as any).remainingDays ?? remainingDays} days remaining in cycle). Their sustainable weekly package funding is $${sustainableWeeklyFunding}/week ($${(budgetDetails as any).dailyFundingRate || 0}/day). Based on their historic services ($${weightedHourlyRate}/hr avg), their perfect ongoing weekly target is ${perfectWeeklyHours} hours/week ($${totalSuggestedScheduleCost}/week). Currently delivered hours are ${totalBaselineWeeklyHours} hrs/week, leaving an under-utilization gap of +${weeklyHoursDifference} hrs/week to be scheduled.`;
 
   return {
     clientName: `${client.first_name} ${client.last_name}`,
+    asOfDateAU: todayAU,
+    todayAU,
+    todayISO: todayStr,
+    todayDayOfWeek: dayOfWeek,
     fundingType: client.funding_type || budgetDetails.fundingType || 'NDIS',
     fundingPackage: budgetDetails.fundingPackage,
     agreementName: (budgetDetails as any).agreementName,
@@ -1051,6 +1109,7 @@ export function optimizeQuarterlyRosterLogic(
     quarterStartDateAU: formatToAustralianDate(effectiveStartDate),
     quarterEndDateAU: formatToAustralianDate(effectiveEndDate),
     remainingFunds: effectiveRemainingFunds,
+    remainingDaysInQuarter: (budgetDetails as any).remainingDays ?? remainingDays,
     remainingWeeksInQuarter: remainingWeeks,
     remainingAgreementWeeks: remainingWeeks,
     weeklySurplusBudget,
@@ -1079,11 +1138,11 @@ export function optimizeQuarterlyRosterLogic(
  * Audits all active staff credentials, certificates, and onboarding requirements.
  */
 export function getExpiredMandatoryDocumentsLogic(db: Database.Database) {
-  const todayStr = '2026-09-25';
-  const today = new Date(todayStr);
+  const { todayStr, todayAU } = getCurrentBusinessDateTime(db);
+  const today = new Date(`${todayStr}T00:00:00`);
 
   const staffMembers = db.prepare(`
-    SELECT id, first_name, last_name, email, role, primary_position, additional_positions, onboarding_json
+    SELECT id, first_name, last_name, email, role, primary_position, additional_positions
     FROM users 
     WHERE (role = 'STAFF' OR role = 'ADMIN') AND (status IS NULL OR status != 'ARCHIVED')
     ORDER BY first_name ASC
@@ -1264,7 +1323,8 @@ export function getExpiredMandatoryDocumentsLogic(db: Database.Database) {
   const staffWithMissing = staffAudits.filter(s => s.missingMandatoryDocuments.length > 0);
 
   return {
-    asOfDateAU: "25/09/2026",
+    asOfDateAU: todayAU,
+    todayISO: todayStr,
     totalStaffAudited: staffMembers.length,
     totalExpiredDocuments: totalExpiredCount,
     totalExpiringSoonDocuments: totalExpiringSoonCount,
@@ -1328,9 +1388,10 @@ export function getHomeCareClientsBudgetSummaryLogic(db: Database.Database) {
     ];
   }
 
-  const { currentQuarter } = getHomeCareFinancialYearQuarters();
-  const quarterStartDate = currentQuarter.startDateStr; // 2026-06-30
-  const quarterEndDate = currentQuarter.endDateStr;     // 2026-09-30
+  const { todayStr, todayAU, timezone } = getCurrentBusinessDateTime(db);
+  const { currentQuarter, fyStartYear } = getHomeCareFinancialYearQuarters(timezone);
+  const quarterStartDate = currentQuarter.startDateStr;
+  const quarterEndDate = currentQuarter.endDateStr;
 
   const clientSummaries: any[] = [];
   let grandTotalAllocation = 0;
@@ -1384,7 +1445,9 @@ export function getHomeCareClientsBudgetSummaryLogic(db: Database.Database) {
 
   return {
     quarterLabel: currentQuarter.label,
-    quarterPeriodAU: "30/06/2026 to 30/09/2026 (Q1 FY2026-2027)",
+    quarterPeriodAU: `${formatToAustralianDate(currentQuarter.startDateStr)} to ${formatToAustralianDate(currentQuarter.endDateStr)} (${currentQuarter.label} FY${fyStartYear}-${fyStartYear + 1})`,
+    asOfDateAU: todayAU,
+    todayISO: todayStr,
     totalHomeCareClients: effectiveClients.length,
     grandTotalQuarterlyAllocation: parseFloat(grandTotalAllocation.toFixed(2)),
     grandTotalSpent: parseFloat(grandTotalSpent.toFixed(2)),
@@ -1439,6 +1502,8 @@ export function getNdisClientsBudgetSummaryLogic(db: Database.Database) {
       }
     ];
   }
+
+  const { todayStr, todayAU } = getCurrentBusinessDateTime(db);
 
   const clientSummaries: any[] = [];
   let grandTotalAgreementFunding = 0;
@@ -1496,7 +1561,9 @@ export function getNdisClientsBudgetSummaryLogic(db: Database.Database) {
 
   return {
     reportType: "NDIS Clients Budget & Service Agreement Summary",
-    generatedAtAU: "25/09/2026",
+    generatedAtAU: todayAU,
+    asOfDateAU: todayAU,
+    todayISO: todayStr,
     totalNdisClients: effectiveClients.length,
     clientsWithActiveAgreements: totalClientsWithAgreements,
     grandTotalAgreementAllocation: parseFloat(grandTotalAgreementFunding.toFixed(2)),
@@ -1555,7 +1622,8 @@ export function getStaffTrainingSummaryLogic(db: Database.Database) {
     ]
   };
 
-  const today = new Date('2026-09-25');
+  const { todayStr, todayAU } = getCurrentBusinessDateTime(db);
+  const today = new Date(`${todayStr}T00:00:00`);
   const staffSummaries: any[] = [];
   let totalCompletedAll = 0;
   let totalExpiredAll = 0;
@@ -1632,7 +1700,8 @@ export function getStaffTrainingSummaryLogic(db: Database.Database) {
   }
 
   return {
-    asOfDateAU: "25/09/2026",
+    asOfDateAU: todayAU,
+    todayISO: todayStr,
     totalStaff: staffList.length,
     totalCompletedRecords: totalCompletedAll,
     totalExpiredRecords: totalExpiredAll,
@@ -1646,8 +1715,8 @@ export function getStaffTrainingSummaryLogic(db: Database.Database) {
  * Audits all organization fleet and staff vehicles and checks document expiries.
  */
 export function getVehicleRegisterSummaryLogic(db: Database.Database) {
-  const todayStr = '2026-09-25';
-  const today = new Date(todayStr);
+  const { todayStr, todayAU } = getCurrentBusinessDateTime(db);
+  const today = new Date(`${todayStr}T00:00:00`);
 
   const vehicles = db.prepare(`
     SELECT v.*, u.first_name as staff_first_name, u.last_name as staff_last_name, u.email as staff_email
@@ -1729,7 +1798,8 @@ export function getVehicleRegisterSummaryLogic(db: Database.Database) {
   }
 
   return {
-    asOfDateAU: "25/09/2026",
+    asOfDateAU: todayAU,
+    todayISO: todayStr,
     totalFleetVehicles: vehicles.length,
     companyVehiclesCount: companyCount,
     staffVehiclesCount: staffCount,
@@ -1756,6 +1826,8 @@ export function getStaffActivitySummaryLogic(
     endDate?: string;
   }
 ) {
+  const { todayStr, todayAU } = getCurrentBusinessDateTime(db);
+
   const staff = db.prepare(`
     SELECT * FROM users 
     WHERE TRIM(first_name || ' ' || last_name) LIKE ? 
@@ -1822,6 +1894,8 @@ export function getStaffActivitySummaryLogic(
   }
 
   return {
+    asOfDateAU: todayAU,
+    todayISO: todayStr,
     staffMember: {
       id: staff.id,
       name: `${staff.first_name} ${staff.last_name}`,
@@ -1861,14 +1935,25 @@ export function getStaffActivitySummaryLogic(
  * Multi-period billing report: current week, past financial year (FY25/26), and growth projections for next year.
  */
 export function getInvoicingFinancialSummaryLogic(db: Database.Database) {
-  const weekStart = '2026-09-21';
-  const weekEnd = '2026-09-27';
+  const { todayStr, todayAU } = getCurrentBusinessDateTime(db);
+  const now = new Date(`${todayStr}T12:00:00`);
 
-  const pastFyStart = '2025-07-01';
-  const pastFyEnd = '2026-06-30';
+  // Current week (Monday to Sunday) in business timezone
+  const dayIndex = (now.getDay() + 6) % 7; // Monday = 0, Sunday = 6
+  const mondayMs = now.getTime() - dayIndex * 86400000;
+  const sundayMs = mondayMs + 6 * 86400000;
+  const weekStart = new Date(mondayMs).toISOString().split('T')[0];
+  const weekEnd = new Date(sundayMs).toISOString().split('T')[0];
 
-  const currentFyStart = '2026-07-01';
-  const currentFyEnd = '2026-09-25';
+  const curYear = parseInt(todayStr.split('-')[0], 10);
+  const curMonth = parseInt(todayStr.split('-')[1], 10);
+  const fyStartYear = curMonth >= 7 ? curYear : curYear - 1;
+
+  const pastFyStart = `${fyStartYear - 1}-07-01`;
+  const pastFyEnd = `${fyStartYear}-06-30`;
+
+  const currentFyStart = `${fyStartYear}-07-01`;
+  const currentFyEnd = todayStr;
 
   const invoices = db.prepare(`
     SELECT id, invoice_number, amount, status, created_at, client_id
@@ -1900,7 +1985,8 @@ export function getInvoicingFinancialSummaryLogic(db: Database.Database) {
   const currentFyYtdTotal = sumAmount(currentFyYtdInvoices);
   const currentFyYtdPaid = sumPaid(currentFyYtdInvoices);
 
-  const weeksElapsedInYtd = 12.3;
+  const daysElapsedInYtd = Math.max(1, Math.round((now.getTime() - new Date(`${currentFyStart}T12:00:00`).getTime()) / 86400000));
+  const weeksElapsedInYtd = parseFloat((daysElapsedInYtd / 7).toFixed(1));
   const actualWeeklyRunRate = currentFyYtdTotal > 0 ? (currentFyYtdTotal / weeksElapsedInYtd) : (currentWeekTotal > 0 ? currentWeekTotal : 14250.00);
 
   const annualizedRunRate = actualWeeklyRunRate * 52;
@@ -1910,17 +1996,18 @@ export function getInvoicingFinancialSummaryLogic(db: Database.Database) {
   const growthHighExpansion = parseFloat((annualizedRunRate * 1.25).toFixed(2));
 
   return {
-    asOfDateAU: "25/09/2026",
+    asOfDateAU: todayAU,
+    todayISO: todayStr,
     currency: "AUD ($)",
     currentWeekSummary: {
-      periodLabel: "Current Week (21/09/2026 - 27/09/2026)",
+      periodLabel: `Current Week (${formatToAustralianDate(weekStart)} - ${formatToAustralianDate(weekEnd)})`,
       totalInvoiced: parseFloat(currentWeekTotal.toFixed(2)),
       totalPaid: parseFloat(currentWeekPaid.toFixed(2)),
       pendingAmount: parseFloat((currentWeekTotal - currentWeekPaid).toFixed(2)),
       invoiceCount: currentWeekInvoices.length
     },
     pastFinancialYearSummary: {
-      financialYearLabel: "Past Financial Year (FY 2025–2026: 01/07/2025 to 30/06/2026)",
+      financialYearLabel: `Past Financial Year (FY ${fyStartYear - 1}–${fyStartYear}: 01/07/${fyStartYear - 1} to 30/06/${fyStartYear})`,
       totalInvoiced: parseFloat(pastFyTotal.toFixed(2)),
       totalPaid: parseFloat(pastFyPaid.toFixed(2)),
       invoiceCount: pastFyInvoices.length,
@@ -1928,7 +2015,7 @@ export function getInvoicingFinancialSummaryLogic(db: Database.Database) {
       averageWeeklyRevenue: parseFloat((pastFyTotal / 52).toFixed(2))
     },
     currentFinancialYearYtd: {
-      financialYearLabel: "Current Financial Year YTD (FY 2026–2027: 01/07/2026 to 25/09/2026)",
+      financialYearLabel: `Current Financial Year YTD (FY ${fyStartYear}–${fyStartYear + 1}: 01/07/${fyStartYear} to ${todayAU})`,
       totalInvoiced: parseFloat(currentFyYtdTotal.toFixed(2)),
       totalPaid: parseFloat(currentFyYtdPaid.toFixed(2)),
       invoiceCount: currentFyYtdInvoices.length,
@@ -1937,7 +2024,7 @@ export function getInvoicingFinancialSummaryLogic(db: Database.Database) {
       annualizedProjectedRunRate: parseFloat(annualizedRunRate.toFixed(2))
     },
     nextYearGrowthForecasting: {
-      forecastYearLabel: "Next Financial Year (FY 2027–2028 Forecast)",
+      forecastYearLabel: `Next Financial Year (FY ${fyStartYear + 1}–${fyStartYear + 2} Forecast)`,
       baselineAnnualProjection: parseFloat(annualizedRunRate.toFixed(2)),
       scenarios: [
         {
@@ -2827,6 +2914,10 @@ export function setupMcpServer(app: Express, db: Database.Database) {
           }
         });
 
+          const { todayStr, todayAU, dayOfWeek, fullDateDisplay, timezone } = getCurrentBusinessDateTime(db);
+          const { quarters, currentQuarter, fyStartYear } = getHomeCareFinancialYearQuarters(timezone);
+          const nextQuarter = quarters.find(q => q.quarterNumber === (currentQuarter.quarterNumber % 4) + 1) || quarters[1];
+
           const analyzeClientFundsDeclaration = {
             name: "analyze_client_funds",
             description: "Query client budget configuration (Home Care Package / Support at Home daily rate or NDIS Service Agreement) and shifts to calculate total agreement/cycle allocation, combined spent funds, remaining balance, unspent pool, burn rate, and roster baseline. Dates must be ISO YYYY-MM-DD.",
@@ -2834,8 +2925,8 @@ export function setupMcpServer(app: Express, db: Database.Database) {
               type: Type.OBJECT,
               properties: {
                 clientName: { type: Type.STRING, description: "Client full or partial name" },
-                quarterStartDate: { type: Type.STRING, description: "Optional start date (YYYY-MM-DD). For Home Care, leave omitted for active quarter (2026-06-30). For NDIS, leave omitted to use Service Agreement start date." },
-                quarterEndDate: { type: Type.STRING, description: "Optional end date (YYYY-MM-DD). For Home Care, leave omitted for active quarter (2026-09-30). For NDIS, leave omitted to use Service Agreement end date." },
+                quarterStartDate: { type: Type.STRING, description: `Optional start date (YYYY-MM-DD). For Home Care, leave omitted for active quarter (${currentQuarter.startDateStr}). For NDIS, leave omitted to use Service Agreement start date.` },
+                quarterEndDate: { type: Type.STRING, description: `Optional end date (YYYY-MM-DD). For Home Care, leave omitted for active quarter (${currentQuarter.endDateStr}). For NDIS, leave omitted to use Service Agreement end date.` },
                 customQuarterlyBudget: { type: Type.NUMBER, description: "Optional manual budget override if user specifically requested a custom budget in AUD" }
               },
               required: ["clientName"]
@@ -2959,11 +3050,15 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 When introducing yourself or when asked who you are, greet the user warmly: "Hi! My name is Happy, your Happy in the Home Portal Assistant!"
 You specialize in NDIS Service Agreement funding, Home Care 3-month quarterly budgets (HCP and Support at Home), and roster optimization.
 
-CRITICAL TIME & DATE GROUNDING (PORTAL IS CURRENTLY IN 2026):
-- TODAY'S DATE: Friday, 25 September 2026 (25/09/2026 in Australian format, 2026-09-25 ISO).
-- BUSINESS TIMEZONE: Australian Western Standard Time (AWST / Australia/Perth).
-- CURRENT FINANCIAL YEAR: 2026–2027.
-- NEVER use old dates, past years (such as 2023, 2024, or 2025). The portal operates in September 2026!
+CRITICAL TIME & DATE GROUNDING:
+- TODAY'S DATE: ${fullDateDisplay} (${todayAU} in Australian format, ${todayStr} ISO).
+- BUSINESS TIMEZONE: ${timezone} (AWST / Australian Western Standard Time or configured portal timezone).
+- CURRENT FINANCIAL YEAR: FY ${fyStartYear}–${fyStartYear + 1}.
+- ALWAYS dynamically use today's actual date (${todayAU}) for calculating remaining days, weeks, and timeline references.
+- DYNAMIC CYCLE CONTEXT:
+  • Current Active Quarter: ${currentQuarter.label} (${formatToAustralianDate(currentQuarter.startDateStr)} to ${formatToAustralianDate(currentQuarter.endDateStr)}) — Active as of today (${todayAU}).
+  • Upcoming Quarter: ${nextQuarter.label} (${formatToAustralianDate(nextQuarter.startDateStr)} to ${formatToAustralianDate(nextQuarter.endDateStr)}).
+- NEVER use old dates, past years (such as 2023, 2024, or 2025). The portal operates in FY ${fyStartYear}–${fyStartYear + 1}!
 
 FUNDING FRAMEWORK DIFFERENTIATION (NDIS VS HOME CARE):
 Clients in the portal belong to either NDIS OR Home Care (HCP/SAH). They are completely different frameworks:
@@ -2986,10 +3081,11 @@ Clients in the portal belong to either NDIS OR Home Care (HCP/SAH). They are com
 
 2. FOR HOME CARE CLIENTS (HCP LEVELS 1-4 & SAH CLASSES 1-8):
    - Home Care budgets operate on 3-month quarterly cycles (Trilogy Care):
-     • Quarter 1: 30 June 2026 to 30 September 2026 (92 days) — [CURRENT ACTIVE QUARTER on 25/09/2026]
-     • Quarter 2: 30 September 2026 to 31 December 2026 (92 days)
-     • Quarter 3: 31 December 2026 to 31 March 2027 (90 days)
-     • Quarter 4: 31 March 2027 to 30 June 2027 (91 days)
+     • Quarter 1: 30 June to 30 September (92 days)
+     • Quarter 2: 30 September to 31 December (92 days)
+     • Quarter 3: 31 December to 31 March (90 days)
+     • Quarter 4: 31 March to 30 June (91 days)
+     Current active quarter as of today (${todayAU}) is ${currentQuarter.label} (${formatToAustralianDate(currentQuarter.startDateStr)} to ${formatToAustralianDate(currentQuarter.endDateStr)}).
    - Their budget is derived from their package level/class and official daily funding rate configured in Settings > Home Care tab:
      • HCP Rates: ${hcpRateSummary}
      • SAH Rates: ${sahRateSummary}
@@ -3159,7 +3255,9 @@ IMPORTANT CONVERSATIONAL RESOLUTION:
                 systemInstruction: `You are Happy, the Happy in the Home Portal Assistant. Summarize the tool result into a clear, friendly, and professional recommendation for care coordinators.
 ${activeContextClient ? `The current active client in this conversation is ${activeContextClient.first_name} ${activeContextClient.last_name}. Directly answer the user's question using their details and funding without asking the user to repeat their name.` : ''}
 CRITICAL TIME & DATE RULES:
-- Today's Date: 25/09/2026.
+- Today's Actual Date: ${todayAU} (${fullDateDisplay}).
+- Current Active Quarter: ${currentQuarter.label} (${formatToAustralianDate(currentQuarter.startDateStr)} to ${formatToAustralianDate(currentQuarter.endDateStr)}).
+- When discussing remaining days/weeks in the cycle, ALWAYS use today's actual date (${todayAU}) and the exact remaining days/weeks provided in the tool result!
 - All dates must strictly be formatted in the Australian standard DD/MM/YYYY. Display all financial amounts in AUD ($).
 - DYNAMIC RATES & EXACT DATA: Use ONLY the exact figures, funding package, and allocation provided in the tool result.
 - STRICT CLIENT ISOLATION: NEVER append generic reminder notes, disclaimers, or historical comparisons about other clients or packages.
@@ -3171,7 +3269,7 @@ SPECIALIZED TOOL GUIDELINES:
 • Staff Training & Suggestions: Display staff members' completed training modules, expired certificates, and 3-5 personalized future training suggestions specifically tailored to their positions.
 • Vehicle Register: Display total fleet count (company vs staff). List vehicles requiring attention (expired or expiring rego, comprehensive insurance, roadside assistance) with renewal dates.
 • Staff Activity Summary: Display staff name, position, total delivered hours, total shifts, clients visited, travel km/mins, and recent shifts log.
-• Invoicing & Growth Forecasting: Display current week billing, past FY (FY25/26) total revenue and monthly averages, current FY YTD, and future growth forecasting for FY27/28 (+8% conservative, +15% target, +25% expansion).
+• Invoicing & Growth Forecasting: Display current week billing, past FY (${fyStartYear - 1}/${fyStartYear}) total revenue and monthly averages, current FY YTD, and future growth forecasting for FY${fyStartYear + 1}/${fyStartYear + 2} (+8% conservative, +15% target, +25% expansion).
 • Roster Optimization & Planned Services (optimize_quarterly_roster):
   When optimizing a roster, Happy MUST include a prominent, dedicated section titled:
   "### 🎯 Recommended Weekly Hours & Suggested Planned Services"
@@ -3183,7 +3281,7 @@ SPECIALIZED TOOL GUIDELINES:
      CRITICAL ROSTERING RULES:
      • STRICT DAYS GROUNDING: Output ONLY the exact days returned in "historicActiveDays" and "suggestedWeeklySchedule" by the tool! If the tool returns Monday through Friday (5 days), list ONLY those 5 days (Monday, Tuesday, Wednesday, Thursday, Friday). NEVER add Saturday or Sunday unless the tool result explicitly contains them from actual database shifts!
      • CLEAN ROUNDED HOURS: ALL individual shift hours MUST be clean, practical numbers (e.g. 1 hr, 2 hrs, 2.5 hrs, 3 hrs). NEVER produce odd fractions or awkward decimals like 2.8 hrs, 1.8 hrs, 1.7 hrs, 2.75 hrs, or 1.75 hrs! Support workers cannot book partial-minute shifts. Ensure the sum of the days exactly equals the target weekly hours.
-  5. Care Coordinator Guidance: Differentiate between the permanent sustainable weekly schedule (e.g. 14 hours/week) and how to handle any accumulated end-of-quarter surplus (e.g. rolling over into Unspent Funds Pool on 30/09/2026, or investing in deep cleaning, home safety modifications, assistive technology, or allied health rather than rostering 100+ impossible hours in the last few days of a quarter).
+  5. Care Coordinator Guidance: Differentiate between the permanent sustainable weekly schedule (e.g. 14 hours/week) and how to handle any accumulated end-of-quarter surplus (e.g. rolling over into Unspent Funds Pool on ${formatToAustralianDate(currentQuarter.endDateStr)}, or investing in deep cleaning, home safety modifications, assistive technology, or allied health rather than rostering unfeasible hours in the final days of a cycle). Reference today's actual date (${todayAU}).
 
 IF THE CLIENT IS NDIS (fundingType === 'NDIS'):
 - NDIS FUNDS ARE NOT ALLOCATED QUARTERLY. Do NOT refer to NDIS funding as "quarterly budget allocation", "quarterly cycle", or "quarterly allocation".
@@ -3202,7 +3300,7 @@ IF THE CLIENT IS NDIS (fundingType === 'NDIS'):
 IF THE CLIENT IS HOME CARE (HCP / SAH):
 - Display:
   • Client Name & Funding Package (using client's actual package and daily rate from Settings)
-  • Active Cycle: 30/06/2026 to 30/09/2026 (92 days • 13.1 weeks)
+  • Active Cycle: ${formatToAustralianDate(currentQuarter.startDateStr)} to ${formatToAustralianDate(currentQuarter.endDateStr)} (${currentQuarter.totalDays} days)
   • Total Cycle Allocation (directly from tool result, matching Client Budget screen)
   • Total Combined Spent (showing Historical/Pre-system and Live Internal spend)
   • Remaining Balance & Unspent Funds Pool (if available)
