@@ -282,6 +282,7 @@ async function startServer() {
         home_care_level_or_class TEXT,
         joined_date TEXT,
         care_coordination_fee REAL,
+        management_fee REAL,
         billing_tier TEXT,
         historical_monthly_cap REAL,
         assessed_independence_pct REAL,
@@ -631,6 +632,17 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
       "ALTER TABLE clients ADD COLUMN care_coordination_fee REAL DEFAULT 20.00",
     );
     console.log("[DEBUG] Completed care_coordination_fee column check.");
+  } catch (e: any) {
+    if (e.message && !e.message.includes("duplicate column")) {
+      console.warn("Migration warning:", e.message);
+    }
+  }
+
+  try {
+    db.exec(
+      "ALTER TABLE clients ADD COLUMN management_fee REAL",
+    );
+    console.log("[DEBUG] Completed management_fee column check.");
   } catch (e: any) {
     if (e.message && !e.message.includes("duplicate column")) {
       console.warn("Migration warning:", e.message);
@@ -5028,7 +5040,7 @@ function getUnreadChatCount(db: any, userId: number) {
     try {
       const rows = db
         .prepare(
-          "SELECT key, value FROM settings WHERE key IN ('hcpFundingLevels', 'sahFundingLevels')",
+          "SELECT key, value FROM settings WHERE key IN ('hcpFundingLevels', 'sahFundingLevels', 'defaultManagementFee', 'defaultCareCoordinationFee')",
         )
         .all() as any[];
       const settings = rows.reduce(
@@ -5041,6 +5053,12 @@ function getUnreadChatCount(db: any, userId: number) {
         },
         {} as any,
       );
+      if (settings.defaultManagementFee === undefined) {
+        settings.defaultManagementFee = 10;
+      }
+      if (settings.defaultCareCoordinationFee === undefined) {
+        settings.defaultCareCoordinationFee = 20;
+      }
       res.json(settings);
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -7422,6 +7440,7 @@ app.get("/api/health", (req, res) => {
           homeCareLevelOrClass,
           joinedDate,
           careCoordinationFee,
+          managementFee,
           billingTier,
           historicalMonthlyCap,
           assessedIndependencePct,
@@ -7432,8 +7451,14 @@ app.get("/api/health", (req, res) => {
           avatarUrl,
         } = reqBody;
 
+        const defaultCareCoordRow = db.prepare("SELECT value FROM settings WHERE key = 'defaultCareCoordinationFee'").get() as any;
+        let defaultCareCoord = 20.0;
+        if (defaultCareCoordRow) {
+          try { defaultCareCoord = JSON.parse(defaultCareCoordRow.value); } catch(e) {}
+        }
+
         const stmt = db.prepare(
-          "INSERT INTO clients (first_name, last_name, ndis_number, care_plan_details, contact_email, contact_phone, provider_id, dob, funding_type, my_aged_care_id, address, representative_name, representative_phone, representative_email, home_care_sub_type, home_care_level_or_class, joined_date, care_coordination_fee, billing_tier, historical_monthly_cap, assessed_independence_pct, assessed_everyday_living_pct, ndis_agreement_start_date, ndis_agreement_end_date, ndis_agreement_budget, avatar_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO clients (first_name, last_name, ndis_number, care_plan_details, contact_email, contact_phone, provider_id, dob, funding_type, my_aged_care_id, address, representative_name, representative_phone, representative_email, home_care_sub_type, home_care_level_or_class, joined_date, care_coordination_fee, management_fee, billing_tier, historical_monthly_cap, assessed_independence_pct, assessed_everyday_living_pct, ndis_agreement_start_date, ndis_agreement_end_date, ndis_agreement_budget, avatar_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         );
         const info = stmt.run(
           firstName,
@@ -7453,7 +7478,8 @@ app.get("/api/health", (req, res) => {
           homeCareSubType || null,
           homeCareLevelOrClass || null,
           joinedDate || null,
-          careCoordinationFee !== undefined ? careCoordinationFee : 20.0,
+          careCoordinationFee !== undefined && careCoordinationFee !== '' ? parseFloat(careCoordinationFee) : defaultCareCoord,
+          managementFee !== undefined && managementFee !== '' && !isNaN(Number(managementFee)) ? parseFloat(managementFee) : null,
           billingTier || "SAH_Full_Pensioner",
           historicalMonthlyCap !== undefined
             ? parseFloat(historicalMonthlyCap)
@@ -7530,6 +7556,7 @@ app.get("/api/health", (req, res) => {
           homeCareLevelOrClass,
           joinedDate,
           careCoordinationFee,
+          managementFee,
           billingTier,
           historicalMonthlyCap,
           assessedIndependencePct,
@@ -7541,7 +7568,7 @@ app.get("/api/health", (req, res) => {
         } = reqBody;
 
         const stmt = db.prepare(
-          "UPDATE clients SET first_name = ?, last_name = ?, ndis_number = ?, care_plan_details = ?, contact_email = ?, contact_phone = ?, provider_id = ?, dob = ?, funding_type = ?, my_aged_care_id = ?, address = ?, representative_name = ?, representative_phone = ?, representative_email = ?, home_care_sub_type = ?, home_care_level_or_class = ?, joined_date = ?, care_coordination_fee = ?, billing_tier = ?, historical_monthly_cap = ?, assessed_independence_pct = ?, assessed_everyday_living_pct = ?, ndis_agreement_start_date = ?, ndis_agreement_end_date = ?, ndis_agreement_budget = ?, avatar_url = ? WHERE id = ?",
+          "UPDATE clients SET first_name = ?, last_name = ?, ndis_number = ?, care_plan_details = ?, contact_email = ?, contact_phone = ?, provider_id = ?, dob = ?, funding_type = ?, my_aged_care_id = ?, address = ?, representative_name = ?, representative_phone = ?, representative_email = ?, home_care_sub_type = ?, home_care_level_or_class = ?, joined_date = ?, care_coordination_fee = ?, management_fee = ?, billing_tier = ?, historical_monthly_cap = ?, assessed_independence_pct = ?, assessed_everyday_living_pct = ?, ndis_agreement_start_date = ?, ndis_agreement_end_date = ?, ndis_agreement_budget = ?, avatar_url = ? WHERE id = ?",
         );
         stmt.run(
           firstName,
@@ -7561,7 +7588,8 @@ app.get("/api/health", (req, res) => {
           homeCareSubType || null,
           homeCareLevelOrClass || null,
           joinedDate || null,
-          careCoordinationFee !== undefined ? careCoordinationFee : 20.0,
+          careCoordinationFee !== undefined && careCoordinationFee !== '' ? parseFloat(careCoordinationFee) : 20.0,
+          managementFee !== undefined && managementFee !== '' && !isNaN(Number(managementFee)) ? parseFloat(managementFee) : null,
           billingTier || "SAH_Full_Pensioner",
           historicalMonthlyCap !== undefined
             ? parseFloat(historicalMonthlyCap)
@@ -7672,15 +7700,27 @@ app.get("/api/health", (req, res) => {
               .all(client.id, startFilter, endFilter) as any[];
 
             let liveConsumptions = 0;
+            const defaultMgmtRow = db.prepare("SELECT value FROM settings WHERE key = 'defaultManagementFee'").get() as any;
+            let defaultMgmt = 10;
+            if (defaultMgmtRow) {
+              try { defaultMgmt = JSON.parse(defaultMgmtRow.value); } catch(e) {}
+            }
+
+            const defaultCareCoordRow = db.prepare("SELECT value FROM settings WHERE key = 'defaultCareCoordinationFee'").get() as any;
+            let defaultCareCoord = 20;
+            if (defaultCareCoordRow) {
+              try { defaultCareCoord = JSON.parse(defaultCareCoordRow.value); } catch(e) {}
+            }
+
             const careCoordPercent =
               client.funding_type === "HOME_CARE" ||
               client.funding_type === "Home Care"
-                ? (client.care_coordination_fee ?? 20)
+                ? (client.care_coordination_fee ?? defaultCareCoord)
                 : 0;
             const managementFeePercent =
               client.funding_type === "HOME_CARE" ||
               client.funding_type === "Home Care"
-                ? (client.management_fee ?? 0)
+                ? (client.management_fee ?? defaultMgmt)
                 : 0;
 
             const processLedgerItem = (amount: number) => {
@@ -8486,7 +8526,7 @@ app.get("/api/health", (req, res) => {
         const client = db
           .prepare(
             `
-        SELECT care_coordination_fee, billing_tier, historical_monthly_cap, 
+        SELECT care_coordination_fee, management_fee, billing_tier, historical_monthly_cap, 
                assessed_independence_pct, assessed_everyday_living_pct 
         FROM clients WHERE id = ?
       `,
@@ -8503,14 +8543,28 @@ app.get("/api/health", (req, res) => {
         let grandTotal = rawBase;
 
         if (applyLoadings) {
+          const defaultMgmtRow = db.prepare("SELECT value FROM settings WHERE key = 'defaultManagementFee'").get() as any;
+          let defaultMgmt = 10;
+          if (defaultMgmtRow) {
+            try { defaultMgmt = JSON.parse(defaultMgmtRow.value); } catch(e) {}
+          }
+          const defaultCareCoordRow = db.prepare("SELECT value FROM settings WHERE key = 'defaultCareCoordinationFee'").get() as any;
+          let defaultCareCoord = 20;
+          if (defaultCareCoordRow) {
+            try { defaultCareCoord = JSON.parse(defaultCareCoordRow.value); } catch(e) {}
+          }
+
           const clientCareCoordRate = parseFloat(
-            client.care_coordination_fee ?? 20,
+            client.care_coordination_fee ?? defaultCareCoord,
+          );
+          const clientMgmtRate = parseFloat(
+            client.management_fee ?? defaultMgmt,
           );
           careCoordFee = parseFloat(
             (rawBase * (clientCareCoordRate / 100)).toFixed(2),
           );
           const subtotal = rawBase + careCoordFee;
-          managementFee = parseFloat((subtotal * 0.1).toFixed(2));
+          managementFee = parseFloat((subtotal * (clientMgmtRate / 100)).toFixed(2));
           grandTotal = parseFloat((subtotal + managementFee).toFixed(2));
         }
 

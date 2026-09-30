@@ -36,6 +36,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
     representativeEmail: '',
     serviceIds: [] as number[],
     careCoordinationFee: 20,
+    managementFee: '' as number | string,
     billingTier: 'SAH_Full_Pensioner',
     historicalMonthlyCap: 0,
     assessedIndependencePct: 0,
@@ -43,8 +44,23 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
     avatarUrl: getAvatarUrl(Math.random().toString(36).substring(7)),
   });
 
+  const [defaultFeeRates, setDefaultFeeRates] = useState<{ careCoord: number; mgmt: number }>({ careCoord: 20, mgmt: 10 });
+
   useEffect(() => {
     if (isOpen) {
+      fetch('/api/funding-rates', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          const cc = data.defaultCareCoordinationFee !== undefined ? Number(data.defaultCareCoordinationFee) : 20;
+          const mg = data.defaultManagementFee !== undefined ? Number(data.defaultManagementFee) : 10;
+          setDefaultFeeRates({ careCoord: cc, mgmt: mg });
+        }
+      })
+      .catch(() => {});
+
       fetch('/api/providers', {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -98,7 +114,8 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         representativePhone: client.representative_phone || '',
         representativeEmail: client.representative_email || '',
         serviceIds: client.service_ids || [],
-        careCoordinationFee: client.care_coordination_fee !== undefined && client.care_coordination_fee !== null ? client.care_coordination_fee : 20,
+        careCoordinationFee: client.care_coordination_fee !== undefined && client.care_coordination_fee !== null ? client.care_coordination_fee : defaultFeeRates.careCoord,
+        managementFee: client.management_fee !== undefined && client.management_fee !== null ? client.management_fee : '',
         billingTier: client.billing_tier || 'SAH_Full_Pensioner',
         historicalMonthlyCap: client.historical_monthly_cap !== undefined && client.historical_monthly_cap !== null ? client.historical_monthly_cap : 0,
         assessedIndependencePct: (() => {
@@ -146,7 +163,8 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         representativePhone: '',
         representativeEmail: '',
         serviceIds: [],
-        careCoordinationFee: 20,
+        careCoordinationFee: defaultFeeRates.careCoord,
+        managementFee: '',
         billingTier: 'SAH_Full_Pensioner',
         historicalMonthlyCap: 0,
         assessedIndependencePct: 5,
@@ -157,7 +175,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
     avatarUrl: getAvatarUrl(Math.random().toString(36).substring(7)),
       });
     }
-  }, [client, isOpen]);
+  }, [client, isOpen, defaultFeeRates]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -406,7 +424,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
               </div>
 
               {formData.fundingType === 'HOME_CARE' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Funding Model</label>
                     <select name="homeCareSubType" value={formData.homeCareSubType} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
@@ -441,8 +459,12 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Care Coordination (%)</label>
-                    <input type="number" step="0.01" name="careCoordinationFee" value={formData.careCoordinationFee} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Care Coordinator Rate (%)</label>
+                    <input type="number" step="0.01" name="careCoordinationFee" value={formData.careCoordinationFee} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" placeholder={String(defaultFeeRates.careCoord)} />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Management Fee (%)</label>
+                    <input type="number" step="0.01" name="managementFee" value={formData.managementFee} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" placeholder={`Default (${defaultFeeRates.mgmt}%)`} />
                   </div>
                 </div>
               )}

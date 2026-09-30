@@ -563,8 +563,20 @@ export function getClientBudgetDetails(
     const rolloverSpentSoFar = Number(activeClientBudget?.rollover_spent_so_far || 0);
     const actualUnspentRemaining = parseFloat((startingRolloverBalance - rolloverSpentSoFar).toFixed(2));
 
-    const careCoordPercent = Number(client.care_coordination_fee ?? 20);
-    const managementFeePercent = Number(client.management_fee ?? 0);
+    const defaultMgmtRow = db.prepare("SELECT value FROM settings WHERE key = 'defaultManagementFee'").get() as any;
+    let defaultMgmt = 10;
+    if (defaultMgmtRow) {
+      try { defaultMgmt = JSON.parse(defaultMgmtRow.value); } catch(e) {}
+    }
+
+    const defaultCareCoordRow = db.prepare("SELECT value FROM settings WHERE key = 'defaultCareCoordinationFee'").get() as any;
+    let defaultCareCoord = 20;
+    if (defaultCareCoordRow) {
+      try { defaultCareCoord = JSON.parse(defaultCareCoordRow.value); } catch(e) {}
+    }
+
+    const careCoordPercent = Number(client.care_coordination_fee ?? defaultCareCoord);
+    const managementFeePercent = Number(client.management_fee ?? defaultMgmt);
 
     // Participant Contribution & Billing Tier Configuration from Client Profile
     const billingTier = client.billing_tier || 'SAH_Full_Pensioner';
@@ -1422,8 +1434,20 @@ export function optimizeQuarterlyRosterLogic(
     }
   }
 
-  const careCoordPercent = Number(client.care_coordination_fee ?? 20);
-  const managementFeePercent = Number(client.management_fee ?? 0);
+  const defaultMgmtRow = db.prepare("SELECT value FROM settings WHERE key = 'defaultManagementFee'").get() as any;
+  let defaultMgmt = 10;
+  if (defaultMgmtRow) {
+    try { defaultMgmt = JSON.parse(defaultMgmtRow.value); } catch(e) {}
+  }
+
+  const defaultCareCoordRow = db.prepare("SELECT value FROM settings WHERE key = 'defaultCareCoordinationFee'").get() as any;
+  let defaultCareCoord = 20;
+  if (defaultCareCoordRow) {
+    try { defaultCareCoord = JSON.parse(defaultCareCoordRow.value); } catch(e) {}
+  }
+
+  const careCoordPercent = Number(client.care_coordination_fee ?? defaultCareCoord);
+  const managementFeePercent = Number(client.management_fee ?? defaultMgmt);
   const feeMultiplier = (1 + careCoordPercent / 100) * (1 + managementFeePercent / 100);
 
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];

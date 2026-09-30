@@ -511,8 +511,15 @@ export default function HomeCareBudgetView() {
   const grossAllocation = totalDays * dailyRate;
   
   const isHomeCare = client?.funding_type === 'Home Care' || client?.funding_type === 'HOME_CARE';
-  const managementFeePercent = isHomeCare ? (client?.management_fee ?? 0) : 0;
-  const careCoordPercent = isHomeCare ? (client?.care_coordination_fee ?? 20) : 0;
+  const defaultMgmtRate = fundingRates?.defaultManagementFee !== undefined ? Number(fundingRates.defaultManagementFee) : 10;
+  const defaultCareCoordRate = fundingRates?.defaultCareCoordinationFee !== undefined ? Number(fundingRates.defaultCareCoordinationFee) : 20;
+
+  const managementFeePercent = isHomeCare 
+    ? (client?.management_fee !== undefined && client?.management_fee !== null && client?.management_fee !== '' ? Number(client.management_fee) : defaultMgmtRate) 
+    : 0;
+  const careCoordPercent = isHomeCare 
+    ? (client?.care_coordination_fee !== undefined && client?.care_coordination_fee !== null ? Number(client.care_coordination_fee) : defaultCareCoordRate) 
+    : 0;
   
   // Custom additional funding streams (e.g. Dementia C Supplement) that increase the Total Cycle Allocation
   const additionalFundingTotal = additionalFundingStreams.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
