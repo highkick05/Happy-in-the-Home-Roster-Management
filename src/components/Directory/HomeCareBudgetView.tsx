@@ -26,88 +26,85 @@ export const getFinancialYearQuarters = (fyStartYear: number): HomeCareQuarter[]
       id: 1,
       label: "Quarter 1",
       shortLabel: "Q1",
-      startDateStr: `${fyStartYear}-07-01`,
+      startDateStr: `${fyStartYear}-06-30`,
       endDateStr: `${fyStartYear}-09-30`,
-      displayRange: `1 Jul - 30 Sep ${fyStartYear}`,
+      displayRange: `30 Jun - 30 Sep ${fyStartYear}`,
       totalDays: 92,
-      start: new Date(`${fyStartYear}-07-01T00:00:00`),
+      start: new Date(`${fyStartYear}-06-30T00:00:00`),
       end: new Date(`${fyStartYear}-09-30T23:59:59`)
     },
     {
       id: 2,
       label: "Quarter 2",
       shortLabel: "Q2",
-      startDateStr: `${fyStartYear}-10-01`,
+      startDateStr: `${fyStartYear}-09-30`,
       endDateStr: `${fyStartYear}-12-31`,
-      displayRange: `1 Oct - 31 Dec ${fyStartYear}`,
+      displayRange: `30 Sep - 31 Dec ${fyStartYear}`,
       totalDays: 92,
-      start: new Date(`${fyStartYear}-10-01T00:00:00`),
+      start: new Date(`${fyStartYear}-09-30T00:00:00`),
       end: new Date(`${fyStartYear}-12-31T23:59:59`)
     },
     {
       id: 3,
       label: "Quarter 3",
       shortLabel: "Q3",
-      startDateStr: `${fyStartYear + 1}-01-01`,
+      startDateStr: `${fyStartYear}-12-31`,
       endDateStr: `${fyStartYear + 1}-03-31`,
-      displayRange: `1 Jan - 31 Mar ${fyStartYear + 1}`,
+      displayRange: `31 Dec ${fyStartYear} - 31 Mar ${fyStartYear + 1}`,
       totalDays: q3Days,
-      start: new Date(`${fyStartYear + 1}-01-01T00:00:00`),
+      start: new Date(`${fyStartYear}-12-31T00:00:00`),
       end: new Date(`${fyStartYear + 1}-03-31T23:59:59`)
     },
     {
       id: 4,
       label: "Quarter 4",
       shortLabel: "Q4",
-      startDateStr: `${fyStartYear + 1}-04-01`,
+      startDateStr: `${fyStartYear + 1}-03-31`,
       endDateStr: `${fyStartYear + 1}-06-30`,
-      displayRange: `1 Apr - 30 Jun ${fyStartYear + 1}`,
+      displayRange: `31 Mar - 30 Jun ${fyStartYear + 1}`,
       totalDays: 91,
-      start: new Date(`${fyStartYear + 1}-04-01T00:00:00`),
+      start: new Date(`${fyStartYear + 1}-03-31T00:00:00`),
       end: new Date(`${fyStartYear + 1}-06-30T23:59:59`)
     }
   ];
 };
 
-export const getCurrentFinancialYearAndQuarter = () => {
+export const getCurrentFinancialYearAndQuarter = (timezone: string = 'Australia/Perth') => {
   const now = new Date();
-  let year = now.getFullYear();
-  let month = now.getMonth() + 1; // 1-12
-  let day = now.getDate();
-
+  let todayStr = '';
   try {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Australia/Sydney',
+    todayStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
-    });
-    const auStr = formatter.format(now);
-    const parts = auStr.split('-').map(Number);
-    if (parts.length === 3) {
-      year = parts[0];
-      month = parts[1];
-      day = parts[2];
-    }
-  } catch {}
+    }).format(now);
+  } catch {
+    todayStr = now.toISOString().split('T')[0];
+  }
+  const [currentYearStr, currentMonthStr, currentDayStr] = todayStr.split('-');
+  const curYear = parseInt(currentYearStr, 10);
+  const curMonth = parseInt(currentMonthStr, 10);
+  const curDay = parseInt(currentDayStr, 10);
 
-  const currentFyStartYear = month >= 7 ? year : year - 1;
-  let currentQuarterId = 1;
-  if (month >= 7 && month <= 9) currentQuarterId = 1;
-  else if (month >= 10 && month <= 12) currentQuarterId = 2;
-  else if (month >= 1 && month <= 3) currentQuarterId = 3;
-  else if (month >= 4 && month <= 6) currentQuarterId = 4;
+  const isPastJun30 = curMonth > 6 || (curMonth === 6 && curDay >= 30);
+  const currentFyStartYear = isPastJun30 ? curYear : curYear - 1;
 
-  return { currentFyStartYear, currentQuarterId, year, month, day };
+  const quarters = getFinancialYearQuarters(currentFyStartYear);
+  const activeQuarter = quarters.slice().reverse().find(q => todayStr >= q.startDateStr && todayStr <= q.endDateStr) || quarters[0];
+  const currentQuarterId = activeQuarter.id;
+
+  return { currentFyStartYear, currentQuarterId, todayStr };
 };
 
 export default function HomeCareBudgetView() {
   // Support at Home & Home Care custom additional funding & ringfenced AT/HM schemes
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { token, user } = useAuth();
+  const { token, user, settings } = useAuth();
+  const timezone = settings?.timezone || 'Australia/Perth';
   
-  const initialPeriod = getCurrentFinancialYearAndQuarter();
+  const initialPeriod = getCurrentFinancialYearAndQuarter(timezone);
   const [selectedFyYear, setSelectedFyYear] = useState<number>(initialPeriod.currentFyStartYear);
   const [selectedQuarterId, setSelectedQuarterId] = useState<number>(initialPeriod.currentQuarterId);
 
@@ -175,29 +172,22 @@ export default function HomeCareBudgetView() {
     const quarters = getFinancialYearQuarters(fyYear);
     const targetQuarter = quarters.find(q => q.id === quarterId) || quarters[0];
 
-    let cycleStart = targetQuarter.start;
-    const cycleEnd = targetQuarter.end;
+    let actualStartDateStr = targetQuarter.startDateStr;
+    const actualEndDateStr = targetQuarter.endDateStr;
 
     if (clientData.joined_date) {
-      const joined = new Date(clientData.joined_date);
-      if (!isNaN(joined.getTime())) {
-        if (joined > cycleEnd) {
-          setLedger({ total: 0, items: [] });
-          return;
-        } else if (joined >= cycleStart && joined <= cycleEnd) {
-          cycleStart = joined;
-        }
+      const joinedStr = clientData.joined_date.split('T')[0];
+      if (joinedStr > actualEndDateStr) {
+        setLedger({ total: 0, items: [] });
+        return;
+      }
+      if (joinedStr >= actualStartDateStr && joinedStr <= actualEndDateStr) {
+        actualStartDateStr = joinedStr;
       }
     }
 
-    let sDate = cycleStart.toISOString().split('T')[0];
-    if (targetQuarter.id === 1 && clientData.joined_date) {
-      const joined = new Date(clientData.joined_date);
-      if (!isNaN(joined.getTime()) && joined <= new Date(`${fyYear}-06-30T23:59:59`)) {
-        sDate = `${fyYear}-06-30`;
-      }
-    }
-    const eDate = targetQuarter.endDateStr;
+    const sDate = actualStartDateStr;
+    const eDate = actualEndDateStr;
 
     try {
       const ledgerRes = await fetch(`/api/clients/${id}/budget-ledger?startDate=${sDate}&endDate=${eDate}`, {
@@ -498,32 +488,29 @@ export default function HomeCareBudgetView() {
   const quarters = getFinancialYearQuarters(selectedFyYear);
   const activeQuarter = quarters.find(q => q.id === selectedQuarterId) || quarters[0];
   
-  let cycleStart = activeQuarter.start;
-  const cycleEnd = activeQuarter.end;
+  let actualStartDateStr = activeQuarter.startDateStr;
   let totalDays = activeQuarter.totalDays;
   
   if (client.joined_date) {
-    const joined = new Date(client.joined_date);
-    if (!isNaN(joined.getTime())) {
-      if (joined > cycleEnd) {
-        totalDays = 0;
-      } else if (joined >= cycleStart && joined <= cycleEnd) {
-        cycleStart = joined;
-        const msPerDay = 1000 * 60 * 60 * 24;
-        totalDays = Math.max(1, Math.floor((cycleEnd.getTime() - cycleStart.getTime()) / msPerDay) + 1);
-      } else {
-        totalDays = activeQuarter.totalDays;
-      }
+    const joinedStr = client.joined_date.split('T')[0];
+    if (joinedStr > activeQuarter.endDateStr) {
+      totalDays = 0;
+    } else if (joinedStr >= activeQuarter.startDateStr && joinedStr <= activeQuarter.endDateStr) {
+      actualStartDateStr = joinedStr;
+      const joinedDate = new Date(`${joinedStr}T00:00:00`);
+      const endDate = new Date(`${activeQuarter.endDateStr}T23:59:59`);
+      const msPerDay = 1000 * 60 * 60 * 24;
+      totalDays = Math.max(1, Math.floor((endDate.getTime() - joinedDate.getTime()) / msPerDay) + 1);
     }
   }
 
   const activeCycle = {
-    startStr: cycleStart.toISOString().split('T')[0],
+    startStr: actualStartDateStr,
     endStr: activeQuarter.endDateStr,
     totalDays
   };
 
-  const { currentFyStartYear, currentQuarterId } = getCurrentFinancialYearAndQuarter();
+  const { currentFyStartYear, currentQuarterId } = getCurrentFinancialYearAndQuarter(timezone);
   const availableYears = [
     { year: currentFyStartYear - 2, label: `FY ${currentFyStartYear - 2}–${currentFyStartYear - 1}` },
     { year: currentFyStartYear - 1, label: `FY ${currentFyStartYear - 1}–${currentFyStartYear}` },
@@ -647,8 +634,10 @@ export default function HomeCareBudgetView() {
     return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(val);
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' });
+  const formatDate = (date: Date | string) => {
+    if (!date) return '';
+    const d = typeof date === 'string' ? new Date(date.includes('T') ? date : `${date}T00:00:00`) : date;
+    return isNaN(d.getTime()) ? String(date) : d.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
   // Pagination logic
@@ -817,7 +806,7 @@ export default function HomeCareBudgetView() {
             <div className="flex flex-col items-start gap-1 mt-2">
               <div className="text-xs text-[#8B949E] bg-white/5 rounded-md px-2.5 py-1 w-full leading-normal">
                 Based on <span className="text-white font-medium">{totalDays} Days</span>
-                <span className="block text-[10px] text-zinc-400 mt-0.5 font-mono">({formatDate(cycleStart)} - {formatDate(cycleEnd)})</span>
+                <span className="block text-[10px] text-zinc-400 mt-0.5 font-mono">({formatDate(activeCycle.startStr)} - {formatDate(activeCycle.endStr)})</span>
               </div>
               {additionalFundingTotal > 0 && (
                 <div className="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2.5 py-1 w-full mt-1">
