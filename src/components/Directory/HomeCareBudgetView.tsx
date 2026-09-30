@@ -615,9 +615,24 @@ export default function HomeCareBudgetView() {
               </div>
             </div>
             <div className="mt-3 pt-3 border-t border-white/[0.04]">
-              <div className="text-[11px] text-[#8B949E] mb-1">Actual Unspent Amount Remaining</div>
-              <div className="text-lg font-bold text-emerald-400">
-                {formatCurrency(startingRolloverBalance - rolloverSpentSoFar)}
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] text-[#8B949E] mb-1">Actual Unspent Amount Remaining</div>
+                  <div className="text-lg font-bold text-emerald-400">
+                    {formatCurrency(startingRolloverBalance - rolloverSpentSoFar)}
+                  </div>
+                </div>
+                {totalAllocation > 0 && (
+                  <div className="text-right">
+                    <div className="text-[10px] text-[#8B949E] mb-0.5">My Aged Care Rollover Cap</div>
+                    <div className="text-[13px] font-semibold text-brand-blue-300">
+                      {formatCurrency(Math.max(1000, 0.10 * totalAllocation))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="text-[10px] text-[#8B949E]/70 mt-1.5 leading-tight">
+                My Aged Care rule: Quarterly rollover capped at greater of $1,000 or 10% of cycle allocation.
               </div>
             </div>
             {user?.role === 'ADMIN' && (

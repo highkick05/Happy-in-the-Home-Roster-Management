@@ -133,6 +133,60 @@ export function getHomeCareFinancialYearQuarters(timezone = 'Australia/Perth', r
 }
 
 /**
+ * Official My Aged Care Quarterly Rollover Calculator (Support at Home / Home Care Packages)
+ * Regulatory Rules:
+ * Under official Commonwealth My Aged Care regulations, at the end of each quarterly cycle:
+ * 1. An individual can only roll over a capped portion of their unspent quarterly budget into the next quarter.
+ * 2. Rollover Cap = Whichever is greater: $1,000 AUD or 10% of their quarterly budget allocation (Math.max(1000, 0.10 * quarterlyAllocation)).
+ * 3. Eligible Rollover Amount = Math.min(remainingBalance, rolloverCap). This amount rolls over into their Unspent Funds Pool.
+ * 4. Surplus Expiring Funds (Cannot Roll Over) = Math.max(0, remainingBalance - rolloverCap).
+ *    CRITICAL AUDIT RULE: Any unspent surplus above this cap DOES NOT roll over and will be forfeited/lost back to the Commonwealth if unspent!
+ */
+export interface MyAgedCareRolloverDetails {
+  quarterlyAllocation: number;
+  rolloverCapRule: string;
+  rolloverCap: number;
+  eligibleRolloverAmount: number;
+  surplusExpiringFunds: number;
+  isOverCap: boolean;
+  currentUnspentPoolBalance: number;
+  projectedNextQuarterUnspentPool: number;
+  guidanceNote: string;
+}
+
+export function calculateMyAgedCareRollover(
+  quarterlyAllocation: number,
+  remainingBalance: number,
+  currentUnspentPoolBalance: number = 0
+): MyAgedCareRolloverDetails {
+  const cap = parseFloat(Math.max(1000, 0.10 * quarterlyAllocation).toFixed(2));
+  const eligible = remainingBalance > 0
+    ? parseFloat(Math.min(remainingBalance, cap).toFixed(2))
+    : 0;
+  const expiring = remainingBalance > cap
+    ? parseFloat((remainingBalance - cap).toFixed(2))
+    : 0;
+  const isOver = remainingBalance > cap;
+  const projectedPool = parseFloat((Math.max(0, currentUnspentPoolBalance) + eligible).toFixed(2));
+
+  const guidanceNote = isOver
+    ? `Under official My Aged Care (Support at Home / HCP) regulations, quarterly rollover is capped at the greater of $1,000 AUD or 10% of the quarterly allocation ($${cap.toFixed(2)} AUD). Therefore, of the $${remainingBalance.toFixed(2)} AUD remaining balance, only $${eligible.toFixed(2)} AUD can roll over into next quarter's Unspent Funds Pool. The remaining surplus of $${expiring.toFixed(2)} AUD CANNOT roll over and will be forfeited/lost back to the Commonwealth if unspent by the end of the quarter.`
+    : `Under official My Aged Care regulations, the rollover cap is $${cap.toFixed(2)} AUD (greater of $1,000 or 10% of quarterly budget). Since the remaining balance of $${remainingBalance.toFixed(2)} AUD is within this threshold, the entire $${eligible.toFixed(2)} AUD is eligible to roll over into next quarter's Unspent Funds Pool.`;
+
+  return {
+    quarterlyAllocation: parseFloat(quarterlyAllocation.toFixed(2)),
+    rolloverCapRule: "Whichever is greater: $1,000 AUD or 10% of quarterly budget allocation",
+    rolloverCap: cap,
+    eligibleRolloverAmount: eligible,
+    surplusExpiringFunds: expiring,
+    isOverCap: isOver,
+    currentUnspentPoolBalance: parseFloat(currentUnspentPoolBalance.toFixed(2)),
+    projectedNextQuarterUnspentPool: projectedPool,
+    guidanceNote
+  };
+}
+
+/**
  * Core Database Integration Helper: Fetches complete Client Budget Configuration
  * Connects directly to Client Dashboard > Edit Profile and Budget
  * Handles both Home Care Package (HCP) / Support at Home (SAH) and NDIS Service Agreements.
@@ -374,6 +428,12 @@ export function getClientBudgetDetails(
     const averageWeeklySpend = totalWeeks > 0 ? parseFloat((totalCombinedSpent / totalWeeks).toFixed(2)) : 0;
     const averageWeeklyHours = totalWeeks > 0 ? Math.round(totalCommittedHours / totalWeeks) : 0;
 
+    const myAgedCareRollover = calculateMyAgedCareRollover(
+      totalCycleAllocation,
+      remainingBalance,
+      actualUnspentRemaining
+    );
+
     return {
       clientName: `${client.first_name} ${client.last_name}`,
       clientId: client.id,
@@ -401,10 +461,19 @@ export function getClientBudgetDetails(
       totalUsedFunds: totalCombinedSpent,
       remainingBalance,
       remainingFunds: remainingBalance,
+      myAgedCareRollover,
+      rolloverCap: myAgedCareRollover.rolloverCap,
+      eligibleRolloverAmount: myAgedCareRollover.eligibleRolloverAmount,
+      surplusExpiringFunds: myAgedCareRollover.surplusExpiringFunds,
+      isOverRolloverCap: myAgedCareRollover.isOverCap,
       unspentFundsPool: {
         startingRolloverBalance,
         rolloverSpentSoFar,
-        unspentPoolRemaining: actualUnspentRemaining
+        unspentPoolRemaining: actualUnspentRemaining,
+        eligibleNewRollover: myAgedCareRollover.eligibleRolloverAmount,
+        projectedNextQuarterPool: myAgedCareRollover.projectedNextQuarterUnspentPool,
+        surplusExpiringFunds: myAgedCareRollover.surplusExpiringFunds,
+        rolloverCap: myAgedCareRollover.rolloverCap
       },
       burnRatePercentage,
       averageWeeklySpend,
@@ -866,8 +935,9 @@ export function optimizeQuarterlyRosterLogic(
     }
   }
 
-  // 3. Calculate remaining weeks in the agreement or quarter
+  // 3. Calculate remaining weeks and days in the agreement or quarter
   const remainingWeeks = budgetDetails.remainingWeeks;
+  const remainingDays = (budgetDetails as any).remainingDays ?? Math.max(1, Math.round(remainingWeeks * 7));
 
   // 4. Calculate weekly surplus budget
   const weeklySurplusBudget = parseFloat((effectiveRemainingFunds / remainingWeeks).toFixed(2));
@@ -1045,11 +1115,8 @@ export function optimizeQuarterlyRosterLogic(
           serviceName: primaryService.serviceName,
           suggestedHours: primHours,
           estimatedCost: parseFloat((primHours * primaryService.averageRate).toFixed(2)),
-          suggestedPurpose: day === "Monday" ? "Community access, grocery shopping & supported outing"
-            : day === "Wednesday" ? "Mid-week social engagement, appointments & library visit"
-            : day === "Saturday" ? "Weekend community participation & supported recreation"
-            : day === "Sunday" ? "Weekend social support & companionship"
-            : "Social support, companionship & community participation"
+          suggestedPurpose: day === "Tuesday" ? "Social companionship, community errands & supported transport"
+            : "Community participation, social companionship & supported outing"
         });
       }
 
@@ -1083,11 +1150,19 @@ export function optimizeQuarterlyRosterLogic(
     : 100;
 
   const hasNdisAgreement = Boolean((budgetDetails as any).hasActiveAgreement || (budgetDetails as any).totalAgreementValue > 0);
+  const rolloverDetails: MyAgedCareRolloverDetails | null = !isNdis
+    ? ((budgetDetails as any).myAgedCareRollover || calculateMyAgedCareRollover(
+        budgetDetails.totalCycleAllocation || 0,
+        effectiveRemainingFunds,
+        (budgetDetails as any).unspentFundsPool?.unspentPoolRemaining || 0
+      ))
+    : null;
+
   const optimizationSummary = isNdis
     ? (hasNdisAgreement
         ? `The client has $${effectiveRemainingFunds.toFixed(2)} remaining in their NDIS Service Agreement (${(budgetDetails as any).agreementName || 'Service Agreement'}), which runs from ${(budgetDetails as any).agreementStartDateAU} to ${(budgetDetails as any).agreementEndDateAU} (${remainingWeeks} weeks remaining). Sustainable weekly funding is $${sustainableWeeklyFunding}/week, supporting an ideal ongoing roster of ${perfectWeeklyHours} hrs/week ($${totalSuggestedScheduleCost}/week).`
         : `No active NDIS Service Agreement has been configured for ${client.first_name} ${client.last_name} yet. To track budgets and calculate roster capacity, please add a Service Agreement under Clients > Client Dashboard > Budget page (Add Service Agreement).`)
-    : `The client has $${effectiveRemainingFunds.toFixed(2)} remaining as of ${todayAU} across ${remainingWeeks} remaining weeks (${(budgetDetails as any).remainingDays ?? remainingDays} days remaining in cycle). Their sustainable weekly package funding is $${sustainableWeeklyFunding}/week ($${(budgetDetails as any).dailyFundingRate || 0}/day). Based on their historic services ($${weightedHourlyRate}/hr avg), their perfect ongoing weekly target is ${perfectWeeklyHours} hours/week ($${totalSuggestedScheduleCost}/week). Currently delivered hours are ${totalBaselineWeeklyHours} hrs/week, leaving an under-utilization gap of +${weeklyHoursDifference} hrs/week to be scheduled.`;
+    : `The client has $${effectiveRemainingFunds.toFixed(2)} remaining as of ${todayAU} across ${remainingWeeks} remaining weeks (${(budgetDetails as any).remainingDays ?? remainingDays} days remaining in cycle). Their sustainable weekly package funding is $${sustainableWeeklyFunding}/week ($${(budgetDetails as any).dailyFundingRate || 0}/day). Based on their historic services ($${weightedHourlyRate}/hr avg), their perfect ongoing weekly target is ${perfectWeeklyHours} hours/week ($${totalSuggestedScheduleCost}/week). Currently delivered hours are ${totalBaselineWeeklyHours} hrs/week, leaving an under-utilization gap of +${weeklyHoursDifference} hrs/week to be scheduled.${rolloverDetails ? (rolloverDetails.isOverCap ? ` ⚠️ Under official My Aged Care quarterly rollover regulations (greater of $1,000 or 10% of allocation), only $${rolloverDetails.eligibleRolloverAmount.toFixed(2)} AUD can roll over into next quarter's Unspent Funds Pool. The remaining surplus of $${rolloverDetails.surplusExpiringFunds.toFixed(2)} AUD exceeds the rollover cap and CANNOT roll over—it will be forfeited to the Commonwealth if unspent!` : ` Under My Aged Care rollover rules, the entire remaining balance of $${rolloverDetails.eligibleRolloverAmount.toFixed(2)} AUD is eligible to roll over into next quarter's Unspent Funds Pool (within the $${rolloverDetails.rolloverCap.toFixed(2)} AUD cap).`) : ''}`;
 
   return {
     clientName: `${client.first_name} ${client.last_name}`,
@@ -1112,6 +1187,13 @@ export function optimizeQuarterlyRosterLogic(
     remainingDaysInQuarter: (budgetDetails as any).remainingDays ?? remainingDays,
     remainingWeeksInQuarter: remainingWeeks,
     remainingAgreementWeeks: remainingWeeks,
+    myAgedCareRollover: rolloverDetails,
+    unspentFundsPool: (budgetDetails as any).unspentFundsPool,
+    rolloverCap: rolloverDetails?.rolloverCap,
+    eligibleRolloverAmount: rolloverDetails?.eligibleRolloverAmount,
+    surplusExpiringFunds: rolloverDetails?.surplusExpiringFunds,
+    isOverRolloverCap: rolloverDetails?.isOverCap,
+    projectedNextQuarterUnspentPool: rolloverDetails?.projectedNextQuarterUnspentPool,
     weeklySurplusBudget,
     sustainableWeeklyFunding,
     currentWeeklyBaseline: baselinePattern,
@@ -1398,6 +1480,10 @@ export function getHomeCareClientsBudgetSummaryLogic(db: Database.Database) {
   let grandTotalSpent = 0;
   let grandTotalRemaining = 0;
   let grandTotalUnspentPool = 0;
+  let grandTotalEligibleRollover = 0;
+  let grandTotalExpiringSurplus = 0;
+  let grandTotalProjectedUnspentPool = 0;
+  let clientsWithExpiringSurplusCount = 0;
 
   for (const client of effectiveClients) {
     const budget = getClientBudgetDetails(db, client, quarterStartDate, quarterEndDate) as any;
@@ -1409,10 +1495,18 @@ export function getHomeCareClientsBudgetSummaryLogic(db: Database.Database) {
       : (Number(budget.unspentFundsPool) || 0);
     const burnRate = budget.burnRatePercentage || 0;
 
+    const rollover: MyAgedCareRolloverDetails = budget.myAgedCareRollover || calculateMyAgedCareRollover(allocation, remaining, unspentRemaining);
+
     grandTotalAllocation += allocation;
     grandTotalSpent += spent;
     grandTotalRemaining += remaining;
     grandTotalUnspentPool += unspentRemaining;
+    grandTotalEligibleRollover += rollover.eligibleRolloverAmount;
+    grandTotalExpiringSurplus += rollover.surplusExpiringFunds;
+    grandTotalProjectedUnspentPool += rollover.projectedNextQuarterUnspentPool;
+    if (rollover.isOverCap) {
+      clientsWithExpiringSurplusCount++;
+    }
 
     let healthStatus = "ON_TRACK";
     if (burnRate > 100) healthStatus = "EXCEEDED";
@@ -1431,6 +1525,11 @@ export function getHomeCareClientsBudgetSummaryLogic(db: Database.Database) {
       totalCombinedSpend: spent,
       remainingBalance: remaining,
       unspentFundsPool: unspentRemaining,
+      myAgedCareRolloverCap: rollover.rolloverCap,
+      eligibleRolloverAmount: rollover.eligibleRolloverAmount,
+      surplusExpiringFunds: rollover.surplusExpiringFunds,
+      isOverRolloverCap: rollover.isOverCap,
+      projectedNextQuarterUnspentPool: rollover.projectedNextQuarterUnspentPool,
       burnRatePercentage: burnRate,
       remainingWeeks: budget.remainingWeeks || 0,
       budgetHealth: healthStatus,
@@ -1453,6 +1552,11 @@ export function getHomeCareClientsBudgetSummaryLogic(db: Database.Database) {
     grandTotalSpent: parseFloat(grandTotalSpent.toFixed(2)),
     grandTotalRemainingBalance: parseFloat(grandTotalRemaining.toFixed(2)),
     grandTotalUnspentPool: parseFloat(grandTotalUnspentPool.toFixed(2)),
+    grandTotalEligibleRollover: parseFloat(grandTotalEligibleRollover.toFixed(2)),
+    grandTotalExpiringSurplus: parseFloat(grandTotalExpiringSurplus.toFixed(2)),
+    grandTotalProjectedUnspentPool: parseFloat(grandTotalProjectedUnspentPool.toFixed(2)),
+    clientsWithExpiringSurplusCount,
+    myAgedCareRolloverCapRule: "Whichever is greater: $1,000 AUD or 10% of quarterly budget allocation",
     overallBurnRatePercentage: overallBurnRate,
     clients: clientSummaries
   };
@@ -2920,7 +3024,7 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           const analyzeClientFundsDeclaration = {
             name: "analyze_client_funds",
-            description: "Query client budget configuration (Home Care Package / Support at Home daily rate or NDIS Service Agreement) and shifts to calculate total agreement/cycle allocation, combined spent funds, remaining balance, unspent pool, burn rate, and roster baseline. Dates must be ISO YYYY-MM-DD.",
+            description: "Query client budget configuration (Home Care Package / Support at Home daily rate or NDIS Service Agreement) and shifts to calculate total agreement/cycle allocation, combined spent funds, remaining balance, My Aged Care quarterly rollover cap (greater of $1,000 or 10% of allocation), eligible rollover, expiring surplus funds at risk of forfeiture, unspent pool, burn rate, and roster baseline. Dates must be ISO YYYY-MM-DD.",
             parameters: {
               type: Type.OBJECT,
               properties: {
@@ -2935,7 +3039,7 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           const optimizeQuarterlyRosterDeclaration = {
             name: "optimize_quarterly_roster",
-            description: "Analyze client baseline weekly shift schedule, calculate sustainable weekly funding, and provide tailored suggestions for the perfect amount of weekly hours and planned services based on their historic previous services and funding package.",
+            description: "Analyze client baseline weekly shift schedule, calculate sustainable weekly funding, and provide tailored suggestions for the perfect amount of weekly hours, planned services, and official My Aged Care quarterly rollover calculations (10% or $1,000 rollover cap, eligible rollover to Unspent Funds Pool, and surplus funds that cannot roll over).",
             parameters: {
               type: Type.OBJECT,
               properties: {
@@ -2950,7 +3054,7 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           const getClientBudgetProfileDeclaration = {
             name: "get_client_budget_profile",
-            description: "Retrieve complete budget and profile configuration from Clients Dashboard (Edit Profile & Budget) for a client, including funding type (Home Care HCP/SAH or NDIS), package level/class, daily rate, cycle allocation, pre-system spend adjustments, live internal spend, remaining balance, and unspent funds pool.",
+            description: "Retrieve complete budget and profile configuration from Clients Dashboard (Edit Profile & Budget) for a client, including funding type (Home Care HCP/SAH or NDIS), package level/class, daily rate, cycle allocation, pre-system spend adjustments, live internal spend, remaining balance, My Aged Care rollover cap, eligible rollover, and unspent funds pool.",
             parameters: {
               type: Type.OBJECT,
               properties: {
@@ -2971,7 +3075,7 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           const getHomeCareClientsBudgetSummaryDeclaration = {
             name: "get_home_care_clients_budget_summary",
-            description: "Retrieve a consolidated financial and budget summary of all Home Care clients (HCP Levels 1-4 and Support at Home Classes 1-8) for the current active quarter, including daily funding rates, cycle allocations, combined spent amounts, unspent pools, and burn rates. Excludes NDIS clients.",
+            description: "Retrieve a consolidated financial and budget summary of all Home Care clients (HCP Levels 1-4 and Support at Home Classes 1-8) for the current active quarter, including daily funding rates, cycle allocations, combined spent amounts, remaining balances, My Aged Care rollover caps (10% or $1,000), eligible rollover amounts, expiring surplus at risk of forfeiture, and unspent pools. Excludes NDIS clients.",
             parameters: {
               type: Type.OBJECT,
               properties: {}
@@ -3092,7 +3196,15 @@ Clients in the portal belong to either NDIS OR Home Care (HCP/SAH). They are com
    - Total Cycle Allocation is: cycle days * daily rate.
    - Total Combined Spent includes Historical Adjustments + Live Internal Consumptions.
    - Remaining Balance is: Total Cycle Allocation - Total Combined Spent.
-   - Unspent Funds Pool tracks rollover funds.
+   - CRITICAL MY AGED CARE QUARTERLY ROLLOVER REGULATIONS:
+     • Under official Commonwealth My Aged Care regulations (Support at Home / Home Care Packages), participants can ONLY roll over a capped amount of their quarterly budget balance into the next quarter.
+     • ROLLOVER CAP FORMULA: Whichever is greater: $1,000 AUD or 10% of their total quarterly budget allocation: Math.max(1000, 0.10 * totalQuarterlyAllocation).
+     • ELIGIBLE ROLLOVER AMOUNT: Math.min(remainingBalance, rolloverCap). This capped portion carries forward into their Unspent Funds Pool on the cycle end date.
+     • SURPLUS EXPIRING FUNDS (CANNOT ROLL OVER): Math.max(0, remainingBalance - rolloverCap).
+     • REGULATORY AUDIT RULE: Any unspent funds ABOVE the rollover cap DO NOT roll over and will be forfeited/lost back to the Commonwealth if unspent by the end of the quarter!
+     • NEVER tell a care coordinator that an entire remaining balance exceeding the cap will roll over into the Unspent Funds Pool!
+     • When remaining surplus exceeds the cap, issue an urgent advisory: care coordinators must prioritize committing these expiring surplus funds towards approved capital items (e.g. assistive technology/equipment, home safety modifications, allied health assessments, deep cleaning) before the cycle closes so the funds are not lost to the client!
+   - Unspent Funds Pool tracks pre-existing unspent funds and eligible new rollovers (up to the cap).
    - Roster optimization is based on remaining weeks in the quarter.
 
 STRICT CLIENT ISOLATION:
@@ -3264,7 +3376,7 @@ CRITICAL TIME & DATE RULES:
 
 SPECIALIZED TOOL GUIDELINES:
 • Expired Staff Documents: Provide a clear compliance audit. State total expired, expiring soon (<= 30 days), and missing mandatory documents. Use a formatted markdown table or bulleted list of staff members with expired/expiring items, days expired/remaining, and actionable next steps.
-• Home Care Clients Budget Summary: Display a comprehensive markdown table of all Home Care clients (HCP & SAH) with package level, daily rate ($), total cycle allocation, combined spent, remaining balance, unspent pool, and burn rate %. Include grand total allocation, grand total spent, grand total remaining, and overall burn rate. STRICT RULE: Strictly include ONLY Home Care Package (HCP) and Support at Home (SAH) clients. Never include NDIS clients.
+• Home Care Clients Budget Summary: Display a comprehensive markdown table of all Home Care clients (HCP & SAH) with package level, daily rate ($), total cycle allocation, combined spent, remaining balance, My Aged Care Rollover Cap, Eligible Rollover, Expiring Surplus, and Unspent Pool. Highlight clients with expiring surplus funds at risk of forfeiture. Include grand totals for total allocation, spent, remaining, eligible rollover, expiring surplus, and unspent pools. STRICT RULE: Strictly include ONLY Home Care Package (HCP) and Support at Home (SAH) clients. Never include NDIS clients.
 • NDIS Clients Summary: Display a comprehensive markdown table of all NDIS clients with their NDIS Number, active Service Agreement name/status, total agreement allocation ($), total claimed/spent to date ($), remaining balance ($), and burn/utilization rate %. Include grand totals for total NDIS allocation, total claimed, total remaining, and overall utilization %. Highlight clients with high utilization (>90%) or those without an active service agreement.
 • Staff Training & Suggestions: Display staff members' completed training modules, expired certificates, and 3-5 personalized future training suggestions specifically tailored to their positions.
 • Vehicle Register: Display total fleet count (company vs staff). List vehicles requiring attention (expired or expiring rego, comprehensive insurance, roadside assistance) with renewal dates.
@@ -3281,7 +3393,22 @@ SPECIALIZED TOOL GUIDELINES:
      CRITICAL ROSTERING RULES:
      • STRICT DAYS GROUNDING: Output ONLY the exact days returned in "historicActiveDays" and "suggestedWeeklySchedule" by the tool! If the tool returns Monday through Friday (5 days), list ONLY those 5 days (Monday, Tuesday, Wednesday, Thursday, Friday). NEVER add Saturday or Sunday unless the tool result explicitly contains them from actual database shifts!
      • CLEAN ROUNDED HOURS: ALL individual shift hours MUST be clean, practical numbers (e.g. 1 hr, 2 hrs, 2.5 hrs, 3 hrs). NEVER produce odd fractions or awkward decimals like 2.8 hrs, 1.8 hrs, 1.7 hrs, 2.75 hrs, or 1.75 hrs! Support workers cannot book partial-minute shifts. Ensure the sum of the days exactly equals the target weekly hours.
-  5. Care Coordinator Guidance: Differentiate between the permanent sustainable weekly schedule (e.g. 14 hours/week) and how to handle any accumulated end-of-quarter surplus (e.g. rolling over into Unspent Funds Pool on ${formatToAustralianDate(currentQuarter.endDateStr)}, or investing in deep cleaning, home safety modifications, assistive technology, or allied health rather than rostering unfeasible hours in the final days of a cycle). Reference today's actual date (${todayAU}).
+  5. Care Coordinator Guidance & Action Plan:
+     • Ongoing Sustainable Weekly Target: Advise establishing the recommended sustainable weekly hours (e.g. 14 hours/week) starting in the new cycle commencing ${formatToAustralianDate(nextQuarter.startDateStr)} to maintain steady ongoing package utilization.
+     • Official My Aged Care Rollover Breakdown:
+       Under Commonwealth My Aged Care regulations (Support at Home / HCP), quarterly unspent funds are strictly capped at whichever is greater: $1,000 AUD or 10% of the client's quarterly budget allocation.
+       ALWAYS clearly state:
+       - Remaining Balance: $X.XX AUD
+       - My Aged Care Rollover Cap: $X.XX AUD (whichever is greater: $1,000 AUD or 10% of quarterly allocation)
+       - Eligible Rollover to Next Quarter: $X.XX AUD (carries forward into Unspent Funds Pool on ${formatToAustralianDate(currentQuarter.endDateStr)})
+       - Surplus Funds That CANNOT Roll Over (At Risk of Expiration): $X.XX AUD
+     • Urgent Strategy for Expiring Surplus:
+       CRITICAL WARNING: NEVER claim that surplus funds above the rollover cap will roll over into the Unspent Funds Pool!
+       If surplus expiring funds exist (> $0), issue an urgent clinical and operational advisory:
+       Because rostering dozens or hundreds of support hours in the final days of the cycle is practically and clinically impossible, care coordinators must urgently collaborate with the client and family to commit these at-risk surplus funds before the cycle closes toward authorized, high-impact one-off capital items and health investments:
+       - Assistive technology and equipment (mobility aids, bathroom safety rails, specialized seating/beds)
+       - Home safety modifications and deep spring cleaning
+       - Allied health assessments (Occupational Therapy home living assessment, Physiotherapy)
 
 IF THE CLIENT IS NDIS (fundingType === 'NDIS'):
 - NDIS FUNDS ARE NOT ALLOCATED QUARTERLY. Do NOT refer to NDIS funding as "quarterly budget allocation", "quarterly cycle", or "quarterly allocation".
@@ -3303,7 +3430,12 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
   • Active Cycle: ${formatToAustralianDate(currentQuarter.startDateStr)} to ${formatToAustralianDate(currentQuarter.endDateStr)} (${currentQuarter.totalDays} days)
   • Total Cycle Allocation (directly from tool result, matching Client Budget screen)
   • Total Combined Spent (showing Historical/Pre-system and Live Internal spend)
-  • Remaining Balance & Unspent Funds Pool (if available)
+  • Remaining Balance & My Aged Care Rollover Breakdown:
+    - Remaining Balance: $X.XX AUD
+    - My Aged Care Rollover Cap: $X.XX AUD (greater of $1,000 or 10% of allocation)
+    - Eligible Rollover to Next Quarter: $X.XX AUD
+    - Expiring Surplus At Risk (cannot roll over): $X.XX AUD
+    - Unspent Funds Pool: $X.XX AUD ($X.XX current + $X.XX eligible new rollover)
   • Burn Rate percentage and Remaining Weeks
   • Affordable hours per week and recommendation for care coordinators.`,
                 tools: round < MAX_TOOL_ROUNDS ? [
@@ -3462,6 +3594,15 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
             }
 
             reply += `• **Remaining Balance:** $${Number(anyAnalysis.remainingFunds || 0).toFixed(2)} AUD (${anyAnalysis.remainingWeeks || 0} weeks remaining)\n`;
+
+            if (anyAnalysis.myAgedCareRollover) {
+              const ro = anyAnalysis.myAgedCareRollover;
+              reply += `• **My Aged Care Rollover Cap:** $${Number(ro.rolloverCap || 0).toFixed(2)} AUD (${ro.rolloverCapRule || '10% or $1,000'})\n` +
+                       `• **Eligible Rollover to Next Quarter:** $${Number(ro.eligibleRolloverAmount || 0).toFixed(2)} AUD\n`;
+              if (ro.surplusExpiringFunds > 0) {
+                reply += `• ⚠️ **Expiring Surplus (Cannot Rollover):** $${Number(ro.surplusExpiringFunds).toFixed(2)} AUD — At risk of forfeiture to Commonwealth if unspent by cycle end!\n`;
+              }
+            }
 
             if (anyAnalysis.unspentFundsPool && (anyAnalysis.unspentFundsPool.startingRolloverBalance > 0 || anyAnalysis.unspentFundsPool.unspentPoolRemaining > 0)) {
               reply += `• **Unspent Funds Pool:** $${Number(anyAnalysis.unspentFundsPool.unspentPoolRemaining || 0).toFixed(2)} AUD remaining ($${Number(anyAnalysis.unspentFundsPool.startingRolloverBalance || 0).toFixed(2)} rollover - $${Number(anyAnalysis.unspentFundsPool.rolloverSpentSoFar || 0).toFixed(2)} spent)\n`;
