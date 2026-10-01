@@ -23,6 +23,15 @@ interface BudgetHealthState {
   timePct: number;
   statusText: string;
   statusNote: string;
+  dailyFundingRate?: number;
+  totalDays?: number;
+  additionalFundingTotal?: number;
+  rolloverCap?: number;
+  eligibleRollover?: number;
+  surplusExpiring?: number;
+  unspentPool?: number;
+  daysRemaining?: number;
+  packageLevel?: string;
 }
 
 export default function ClientDashboardView() {
@@ -104,7 +113,10 @@ export default function ClientDashboardView() {
   const calculateBudgetHealth = async (clientData: any, ratesData: any) => {
     if (!clientData || !id || !token) return;
     try {
-      if (clientData.funding_type === 'HOME_CARE') {
+      const fType = String(clientData.funding_type || '').toUpperCase().trim();
+      const isHomeCare = fType === 'HOME_CARE' || fType === 'HOME CARE' || fType === 'HCP' || Boolean(clientData.home_care_sub_type);
+
+      if (isHomeCare) {
         const timezone = settings?.timezone || 'Australia/Perth';
         const period = getCurrentFinancialYearAndQuarter(timezone);
         const quarters = getFinancialYearQuarters(period.currentFyStartYear);
@@ -131,23 +143,45 @@ export default function ClientDashboardView() {
         const levelOrClass = clientData.home_care_level_or_class || 'Level 1';
         let dailyRate = 30.10;
         if (subType === 'SAH') {
-          const levels = ratesData?.sahFundingLevels || [];
+          const levels = ratesData?.sahFundingLevels || [
+            { level: 'Class 1', amountDaily: 29.40 },
+            { level: 'Class 2', amountDaily: 43.93 },
+            { level: 'Class 3', amountDaily: 60.18 },
+            { level: 'Class 4', amountDaily: 81.36 },
+            { level: 'Class 5', amountDaily: 108.76 },
+            { level: 'Class 6', amountDaily: 131.82 },
+            { level: 'Class 7', amountDaily: 159.31 },
+            { level: 'Class 8', amountDaily: 213.99 },
+          ];
           const match = levels.find((l: any) => l.level === levelOrClass);
-          dailyRate = match ? match.amountDaily : 29.40;
+          dailyRate = match ? (Number(match.amountDaily ?? (match.amountAnnual ? match.amountAnnual / 365 : 29.40))) : 29.40;
         } else {
-          const levels = ratesData?.hcpFundingLevels || [];
+          const levels = ratesData?.hcpFundingLevels || [
+            { level: 'Level 1', amountDaily: 30.93 },
+            { level: 'Level 2', amountDaily: 54.39 },
+            { level: 'Level 3', amountDaily: 118.40 },
+            { level: 'Level 4', amountDaily: 179.22 },
+          ];
           const match = levels.find((l: any) => l.level === levelOrClass);
-          dailyRate = match ? match.amountDaily : 30.10;
+          dailyRate = match ? (Number(match.amountDaily ?? (match.amountAnnual ? match.amountAnnual / 365 : 179.22))) : 179.22;
         }
 
+        // Parse additional funding safely (handling both raw array or JSON string)
         let additionalTotal = 0;
-        try {
-          const addStreams = clientData.additional_funding_streams ? JSON.parse(clientData.additional_funding_streams) : [];
-          additionalTotal = addStreams.reduce((sum: number, s: any) => sum + (parseFloat(s.amount) || 0), 0);
-        } catch {}
+        let parsedAdd: any[] = [];
+        if (clientData.additional_funding_streams) {
+          try {
+            parsedAdd = typeof clientData.additional_funding_streams === 'string'
+              ? JSON.parse(clientData.additional_funding_streams)
+              : clientData.additional_funding_streams;
+          } catch {}
+        }
+        if (Array.isArray(parsedAdd)) {
+          additionalTotal = parsedAdd.reduce((sum: number, s: any) => sum + (parseFloat(s.amount) || 0), 0);
+        }
 
-        const rolloverPool = Math.max(0, (clientData.starting_unspent_balance || 0) - (clientData.rollover_spent_so_far || 0));
-        const totalAllocation = (dailyRate * totalDays) + additionalTotal + rolloverPool;
+        const basePackageAllocation = dailyRate * totalDays;
+        const totalAllocation = basePackageAllocation + additionalTotal;
 
         // Fetch ledger for current active quarter
         const ledgerRes = await fetch(`/api/clients/${id}/budget-ledger?startDate=${actualStartDateStr}&endDate=${actualEndDateStr}`, {
@@ -168,9 +202,16 @@ export default function ClientDashboardView() {
         const endMs = new Date(`${actualEndDateStr}T23:59:59`).getTime();
         const curMs = Math.min(endMs, Math.max(startMs, now.getTime()));
         const timePct = endMs > startMs ? Math.min(100, Math.max(0, ((curMs - startMs) / (endMs - startMs)) * 100)) : 0;
+        const daysRemaining = Math.max(0, Math.ceil((endMs - curMs) / (1000 * 60 * 60 * 24)));
 
-        const diff = utilPct - timePct;
-        const isHealthy = remaining >= 0 && diff <= 15;
+        // Official Commonwealth My Aged Care Rollover Cap: 10% or $1,000 whichever is greater
+        const rolloverCap = Math.max(1000, 0.10 * totalAllocation);
+        const eligibleRollover = Math.min(Math.max(0, remaining), rolloverCap);
+        const surplusExpiring = Math.max(0, remaining - rolloverCap);
+
+        const unspentPool = Math.max(0, (Number(clientData.starting_rollover_balance) || 0) - (Number(clientData.rollover_spent_so_far) || 0));
+        const isHealthy = remaining >= 0 && (utilPct - timePct) <= 15;
+        const packageLabel = subType === 'SAH' ? `Support at Home (${levelOrClass})` : `HCP ${levelOrClass}`;
 
         setBudgetHealth({
           loading: false,
@@ -183,7 +224,18 @@ export default function ClientDashboardView() {
           utilizationPct: utilPct,
           timePct: timePct,
           statusText: 'Budget is in Healthy Utilisation',
-          statusNote: `Client funding is on track with ${formatRate(remaining)} remaining in spendable funding.`
+          statusNote: surplusExpiring > 0 && daysRemaining <= 30
+            ? `Funding is on track (${daysRemaining} days left). Surplus of ${formatRate(surplusExpiring)} above rollover cap requires capital item commitment before cycle close.`
+            : `Client funding is on track with ${formatRate(remaining)} remaining spendable budget in ${activeQ.label} (${daysRemaining} days remaining in cycle).`,
+          dailyFundingRate: dailyRate,
+          totalDays,
+          additionalFundingTotal: additionalTotal,
+          rolloverCap,
+          eligibleRollover,
+          surplusExpiring,
+          unspentPool,
+          daysRemaining,
+          packageLevel: packageLabel
         });
       } else {
         // NDIS
@@ -456,9 +508,14 @@ export default function ClientDashboardView() {
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                       Healthy Utilisation
                     </span>
-                    <span className="text-xs text-zinc-400">
+                    <span className="text-xs text-zinc-400 font-medium">
                       • {budgetHealth.quarterOrAgreementLabel}
                     </span>
+                    {budgetHealth.fundingType === 'HOME_CARE' && budgetHealth.packageLevel && (
+                      <span className="text-xs text-teal-300 font-medium">
+                        • {budgetHealth.packageLevel}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-zinc-300 mt-1 leading-normal">
                     {budgetHealth.statusNote}
@@ -474,41 +531,94 @@ export default function ClientDashboardView() {
                   className="inline-flex items-center space-x-1.5 px-3 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-medium transition-colors cursor-pointer"
                 >
                   <Calculator className="w-3.5 h-3.5" />
-                  <span>View Live Budget</span>
+                  <span>{budgetHealth.fundingType === 'HOME_CARE' ? 'View Quarterly Budget' : 'View Live Budget'}</span>
                   <ArrowRight className="w-3 h-3 ml-0.5" />
                 </button>
               </div>
             </div>
 
             {/* Metrics Chips Row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-2.5 border-t border-white/[0.06]">
-              <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5">
-                <span className="block text-[10px] text-zinc-400 uppercase font-semibold">Total Allocation</span>
-                <span className="text-sm font-bold text-[#E6EDF3] font-mono mt-0.5 block">{formatRate(budgetHealth.totalAllocated)}</span>
-              </div>
-              <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5">
-                <span className="block text-[10px] text-zinc-400 uppercase font-semibold">Total Spent</span>
-                <span className="text-sm font-bold text-indigo-400 font-mono mt-0.5 block">{formatRate(budgetHealth.totalSpent)}</span>
-              </div>
-              <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5">
-                <span className="block text-[10px] text-zinc-400 uppercase font-semibold">Available Funds</span>
-                <span className={`text-sm font-bold font-mono mt-0.5 block ${budgetHealth.remainingBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {formatRate(budgetHealth.remainingBalance)}
-                </span>
-              </div>
-              <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5 flex flex-col justify-between">
-                <div className="flex justify-between items-center text-[10px]">
-                  <span className="text-zinc-400 uppercase font-semibold">Utilisation</span>
-                  <span className="font-mono text-emerald-400 font-bold">{budgetHealth.utilizationPct.toFixed(1)}%</span>
+            {budgetHealth.fundingType === 'HOME_CARE' ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mt-3 pt-2.5 border-t border-white/[0.06]">
+                <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5">
+                  <span className="block text-[10px] text-zinc-400 uppercase font-semibold">Quarter Allocation</span>
+                  <span className="text-sm font-bold text-[#E6EDF3] font-mono mt-0.5 block">{formatRate(budgetHealth.totalAllocated)}</span>
+                  <span className="text-[10px] text-zinc-400 font-mono mt-0.5 block truncate">
+                    {budgetHealth.totalDays}d @ {formatRate(budgetHealth.dailyFundingRate || 0)}/d
+                    {Boolean(budgetHealth.additionalFundingTotal && budgetHealth.additionalFundingTotal > 0) && (
+                      <span className="text-emerald-400 ml-1">+{formatRate(budgetHealth.additionalFundingTotal || 0)}</span>
+                    )}
+                  </span>
                 </div>
-                <div className="h-1.5 w-full bg-black/50 rounded-full border border-white/5 overflow-hidden mt-1">
-                  <div 
-                    className="h-full rounded-full bg-emerald-500 transition-all duration-300"
-                    style={{ width: `${Math.min(100, Math.max(3, budgetHealth.utilizationPct))}%` }}
-                  />
+                <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5">
+                  <span className="block text-[10px] text-zinc-400 uppercase font-semibold">Quarter Spent</span>
+                  <span className="text-sm font-bold text-indigo-400 font-mono mt-0.5 block">{formatRate(budgetHealth.totalSpent)}</span>
+                  <span className="text-[10px] text-zinc-400 font-mono mt-0.5 block">Grand Total with fees</span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5">
+                  <span className="block text-[10px] text-zinc-400 uppercase font-semibold">Quarter Balance</span>
+                  <span className={`text-sm font-bold font-mono mt-0.5 block ${budgetHealth.remainingBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {formatRate(budgetHealth.remainingBalance)}
+                  </span>
+                  <span className="text-[10px] text-zinc-400 font-mono mt-0.5 block">
+                    {budgetHealth.daysRemaining} days remaining
+                  </span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5">
+                  <span className="block text-[10px] text-zinc-400 uppercase font-semibold">Rollover Cap (10%)</span>
+                  <span className="text-sm font-bold text-amber-300 font-mono mt-0.5 block">{formatRate(budgetHealth.rolloverCap || 0)}</span>
+                  <span className="text-[10px] font-mono mt-0.5 block truncate">
+                    {Boolean(budgetHealth.surplusExpiring && budgetHealth.surplusExpiring > 0) ? (
+                      <span className="text-amber-400">At risk: {formatRate(budgetHealth.surplusExpiring || 0)}</span>
+                    ) : (
+                      <span className="text-emerald-400">Eligible: {formatRate(budgetHealth.eligibleRollover || 0)}</span>
+                    )}
+                  </span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5 flex flex-col justify-between">
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="text-zinc-400 uppercase font-semibold">Utilisation</span>
+                    <span className="font-mono text-emerald-400 font-bold">{budgetHealth.utilizationPct.toFixed(1)}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-black/50 rounded-full border border-white/5 overflow-hidden mt-1">
+                    <div 
+                      className="h-full rounded-full bg-emerald-500 transition-all duration-300"
+                      style={{ width: `${Math.min(100, Math.max(3, budgetHealth.utilizationPct))}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-zinc-400 font-mono mt-1 block">Time elapsed: {budgetHealth.timePct.toFixed(0)}%</span>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-2.5 border-t border-white/[0.06]">
+                <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5">
+                  <span className="block text-[10px] text-zinc-400 uppercase font-semibold">Total Allocation</span>
+                  <span className="text-sm font-bold text-[#E6EDF3] font-mono mt-0.5 block">{formatRate(budgetHealth.totalAllocated)}</span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5">
+                  <span className="block text-[10px] text-zinc-400 uppercase font-semibold">Total Spent</span>
+                  <span className="text-sm font-bold text-indigo-400 font-mono mt-0.5 block">{formatRate(budgetHealth.totalSpent)}</span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5">
+                  <span className="block text-[10px] text-zinc-400 uppercase font-semibold">Available Funds</span>
+                  <span className={`text-sm font-bold font-mono mt-0.5 block ${budgetHealth.remainingBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {formatRate(budgetHealth.remainingBalance)}
+                  </span>
+                </div>
+                <div className="bg-black/30 border border-white/5 rounded px-2.5 py-1.5 flex flex-col justify-between">
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="text-zinc-400 uppercase font-semibold">Utilisation</span>
+                    <span className="font-mono text-emerald-400 font-bold">{budgetHealth.utilizationPct.toFixed(1)}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-black/50 rounded-full border border-white/5 overflow-hidden mt-1">
+                    <div 
+                      className="h-full rounded-full bg-emerald-500 transition-all duration-300"
+                      style={{ width: `${Math.min(100, Math.max(3, budgetHealth.utilizationPct))}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
