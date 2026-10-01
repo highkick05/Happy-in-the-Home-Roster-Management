@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Flame, Plus, X, Layers, Wrench, Home, Trash2, Edit2, Info, CheckCircle2, Calendar, Archive, Clock, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Calculator, Save, AlertCircle, ChevronLeft, ChevronRight, Flame, Plus, X, Layers, Wrench, Home, Trash2, Edit2, Info, CheckCircle2, Calendar, Archive, Clock, RotateCcw, Search } from 'lucide-react';
 import { motion } from 'motion/react';
 
 // Official Australian Home Care Financial Year Quarters (July 1 to June 30)
@@ -114,7 +114,10 @@ export default function HomeCareBudgetView() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
+  const [itemsPerPage, setItemsPerPage] = useState<number>(50);
+  const [ledgerSearch, setLedgerSearch] = useState<string>('');
+  const [ledgerStartDate, setLedgerStartDate] = useState<string>('');
+  const [ledgerEndDate, setLedgerEndDate] = useState<string>('');
 
   // Form states (Rollover Pool)
   const [startingRolloverBalance, setStartingRolloverBalance] = useState<number>(0);
@@ -123,6 +126,7 @@ export default function HomeCareBudgetView() {
   // Additional Funding Streams (Increases Total Cycle Allocation)
   const [additionalFundingStreams, setAdditionalFundingStreams] = useState<Array<{ id: string; name: string; amount: number; notes?: string }>>([]);
   const [isAdditionalModalOpen, setIsAdditionalModalOpen] = useState(false);
+  const [isManageAdditionalModalOpen, setIsManageAdditionalModalOpen] = useState(false);
   const [editingAdditionalStreamId, setEditingAdditionalStreamId] = useState<string | null>(null);
   const [streamName, setStreamName] = useState('');
   const [streamAmount, setStreamAmount] = useState('');
@@ -131,6 +135,7 @@ export default function HomeCareBudgetView() {
   // Assistive Technology (AT) & Home Modifications (HM) (Ringfenced Capital Schemes - Informational)
   const [atHmFundingStreams, setAtHmFundingStreams] = useState<Array<{ id: string; name: string; type: 'AT' | 'HM'; tier: string; allocatedAmount: number; spentAmount: number; notes?: string }>>([]);
   const [isAtHmModalOpen, setIsAtHmModalOpen] = useState(false);
+  const [isManageAtHmModalOpen, setIsManageAtHmModalOpen] = useState(false);
   const [editingAtHmStreamId, setEditingAtHmStreamId] = useState<string | null>(null);
   const [atHmName, setAtHmName] = useState('');
   const [atHmType, setAtHmType] = useState<'AT' | 'HM'>('AT');
@@ -640,10 +645,43 @@ export default function HomeCareBudgetView() {
     return isNaN(d.getTime()) ? String(date) : d.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
+  // Filtered ledger items based on search and date inputs
+  const filteredLedgerItems = processedLedgerItems.filter((item: any) => {
+    if (ledgerSearch.trim()) {
+      const q = ledgerSearch.toLowerCase();
+      const matchService = (item.service || '').toLowerCase().includes(q);
+      const matchVendor = (item.vendor_name || '').toLowerCase().includes(q);
+      const matchDate = (item.date || '').toLowerCase().includes(q);
+      const matchNotes = (item.notes || '').toLowerCase().includes(q);
+      const matchAmount = String(item.amount || '').includes(q);
+      if (!matchService && !matchVendor && !matchDate && !matchNotes && !matchAmount) {
+        return false;
+      }
+    }
+
+    if (ledgerStartDate || ledgerEndDate) {
+      let itemDateIso = '';
+      if (item.date && item.date.includes('-')) {
+        const parts = item.date.split('-');
+        if (parts[0].length === 4) {
+          itemDateIso = item.date;
+        } else if (parts[2].length === 4) {
+          itemDateIso = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      }
+      if (itemDateIso) {
+        if (ledgerStartDate && itemDateIso < ledgerStartDate) return false;
+        if (ledgerEndDate && itemDateIso > ledgerEndDate) return false;
+      }
+    }
+
+    return true;
+  });
+
   // Pagination logic
-  const totalPages = Math.max(1, Math.ceil(processedLedgerItems.length / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(filteredLedgerItems.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedLedgerItems = processedLedgerItems.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedLedgerItems = filteredLedgerItems.slice(startIndex, startIndex + itemsPerPage);
 
   // Participant Contribution calculations
   const totalClientShare = processedLedgerItems.reduce((acc: number, item: any) => acc + (item.client_share || 0), 0);
@@ -800,8 +838,8 @@ export default function HomeCareBudgetView() {
           )}
         </div>
 
-        {/* Compact Kanban / Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2">
+        {/* Top Summary Cards Row - Ordered by Importance */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
           {/* Card 1: Total Allocation */}
           <div className="bg-brand-navy border border-border-subtle rounded-md p-2 shadow-xs flex flex-col justify-between">
             <div>
@@ -840,24 +878,7 @@ export default function HomeCareBudgetView() {
             </div>
           </div>
 
-          {/* Card 4: Participant Contribution */}
-          <div className="bg-brand-navy border border-border-subtle rounded-md p-2 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between gap-1 mb-0.5">
-                <span className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wider">Participant Share</span>
-                {getTierBadge(billingTier)}
-              </div>
-              <div className="text-base font-bold text-[#E6EDF3] tracking-tight">
-                {formatCurrency(totalClientShare)}
-              </div>
-            </div>
-            <div className="text-[9px] text-zinc-400 font-mono mt-0.5 pt-0.5 border-t border-white/[0.04] flex items-center justify-between">
-              <span>Indep: <strong className="text-white">{formatCurrency(independenceShare)}</strong></span>
-              <span>Living: <strong className="text-white">{formatCurrency(everydayLivingShare)}</strong></span>
-            </div>
-          </div>
-
-          {/* Card 5: Unspent Funds Pool */}
+          {/* Card 4: Unspent Funds Pool */}
           <div className="bg-brand-navy border border-border-subtle rounded-md p-2 shadow-xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-0.5">
               <span className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1">
@@ -904,180 +925,97 @@ export default function HomeCareBudgetView() {
               <span>Cap: <strong className="text-brand-blue-300">{formatCurrency(Math.max(1000, 0.10 * totalAllocation))}</strong></span>
             </div>
           </div>
-        </div>
 
-        {/* Compact Additional Funding Streams & AT/HM Schemes Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-          {/* Card 1: Custom Additional Funding Streams */}
-          <div className="bg-brand-navy border border-border-subtle rounded-md shadow-xs flex flex-col overflow-hidden">
-            <div className="px-2.5 py-1.5 border-b border-border-subtle flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                <h3 className="font-semibold text-xs text-[#E6EDF3]">Additional Funding Streams</h3>
-                <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  Adds to Cycle
-                </span>
+          {/* Card 5: Participant Contribution */}
+          <div className="bg-brand-navy border border-border-subtle rounded-md p-2 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wider">Participant Share</span>
+                {getTierBadge(billingTier)}
               </div>
-              <button
-                type="button"
-                onClick={handleOpenAddAdditional}
-                className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-[10px] font-medium px-2 py-0.5 rounded transition-colors flex items-center gap-1 shrink-0"
-              >
-                <Plus className="w-2.5 h-2.5" />
-                <span>Add Stream</span>
-              </button>
+              <div className="text-base font-bold text-[#E6EDF3] tracking-tight">
+                {formatCurrency(totalClientShare)}
+              </div>
             </div>
-
-            <div className="p-2 space-y-1.5">
-              {additionalFundingStreams.length === 0 ? (
-                <div className="py-2 text-center text-[11px] text-[#8B949E] italic">
-                  No additional funding streams registered.
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {additionalFundingStreams.map((stream) => (
-                    <div
-                      key={stream.id}
-                      className="bg-black/30 border border-white/[0.06] hover:border-white/[0.12] rounded p-1.5 px-2 flex items-center justify-between gap-2 transition-colors"
-                    >
-                      <div className="min-w-0 flex-1 flex items-center gap-2">
-                        <span className="font-medium text-xs text-[#E6EDF3] truncate">{stream.name}</span>
-                        {stream.notes && (
-                          <span className="text-[10px] text-[#8B949E] truncate italic">({stream.notes})</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs font-semibold text-emerald-400 font-mono">
-                          {formatCurrency(Number(stream.amount) || 0)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditAdditional(stream)}
-                          className="p-1 text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.04] rounded transition-colors"
-                          title="Edit"
-                        >
-                          <Edit2 className="w-2.5 h-2.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAdditionalStream(stream.id)}
-                          className="p-1 text-red-400/80 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                          title="Remove"
-                        >
-                          <Trash2 className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="px-2.5 py-1 border-t border-border-subtle bg-black/20 flex items-center justify-between text-[10px]">
-              <div className="text-[#8B949E]">
-                Total Addl: <span className="font-semibold text-emerald-400">{formatCurrency(additionalFundingTotal)}</span>
-              </div>
-              <div className="text-zinc-400">
-                Base ({formatCurrency(grossAllocation)}) + Addl = <span className="text-[#E6EDF3] font-medium">{formatCurrency(totalAllocation)}</span>
-              </div>
+            <div className="text-[9px] text-zinc-400 font-mono mt-0.5 pt-0.5 border-t border-white/[0.04] flex items-center justify-between">
+              <span>Indep: <strong className="text-white">{formatCurrency(independenceShare)}</strong></span>
+              <span>Living: <strong className="text-white">{formatCurrency(everydayLivingShare)}</strong></span>
             </div>
           </div>
 
-          {/* Card 2: Assistive Technology (AT) & Home Modifications (HM) */}
-          <div className="bg-brand-navy border border-border-subtle rounded-md shadow-xs flex flex-col overflow-hidden">
-            <div className="px-2.5 py-1.5 border-b border-border-subtle flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
-                <Wrench className="w-3.5 h-3.5 text-sky-400" />
-                <h3 className="font-semibold text-xs text-[#E6EDF3]">Assistive Tech (AT) &amp; Home Mods (HM)</h3>
-                <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  Ringfenced
+          {/* Card 6: Additional Funding Streams */}
+          <div className="bg-brand-navy border border-border-subtle rounded-md p-2 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1">
+                  <Layers className="w-2.5 h-2.5 text-emerald-400" />
+                  Additional Streams
                 </span>
+                <button
+                  type="button"
+                  onClick={handleOpenAddAdditional}
+                  className="px-1.5 py-0.2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded text-[9px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                  title="Add Funding Stream"
+                >
+                  <Plus className="w-2 h-2" />
+                  <span>Add</span>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleOpenAddAtHm}
-                className="bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 text-[10px] font-medium px-2 py-0.5 rounded transition-colors flex items-center gap-1 shrink-0"
-              >
-                <Plus className="w-2.5 h-2.5" />
-                <span>Add AT/HM</span>
-              </button>
-            </div>
-
-            {/* Compact Stat Summary Bar */}
-            <div className="grid grid-cols-2 gap-1.5 px-2 pt-1.5">
-              <div className="bg-black/30 border border-white/[0.04] rounded p-1 px-1.5 flex items-center justify-between text-[10px]">
-                <span className="text-sky-300 font-medium">AT Left: <span className="font-mono text-white">{formatCurrency(totalAtRemaining)}</span></span>
-                <span className="text-zinc-500 font-mono text-[9px]">Alloc: {formatCurrency(totalAtAllocated)}</span>
-              </div>
-              <div className="bg-black/30 border border-white/[0.04] rounded p-1 px-1.5 flex items-center justify-between text-[10px]">
-                <span className="text-amber-300 font-medium">HM Left: <span className="font-mono text-white">{formatCurrency(totalHmRemaining)}</span></span>
-                <span className="text-zinc-500 font-mono text-[9px]">Alloc: {formatCurrency(totalHmAllocated)}</span>
+              <div className="text-base font-bold text-emerald-400 tracking-tight">
+                {formatCurrency(additionalFundingTotal)}
               </div>
             </div>
-
-            <div className="p-2 space-y-1.5">
-              {atHmFundingStreams.length === 0 ? (
-                <div className="py-2 text-center text-[11px] text-[#8B949E] italic">
-                  No AT or HM streams registered.
-                </div>
+            <div className="text-[9px] text-zinc-400 font-mono mt-0.5 pt-0.5 border-t border-white/[0.04] flex items-center justify-between">
+              <span>{additionalFundingStreams.length} stream{additionalFundingStreams.length === 1 ? '' : 's'}</span>
+              {additionalFundingStreams.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setIsManageAdditionalModalOpen(true)}
+                  className="text-emerald-400 hover:text-emerald-300 font-sans font-medium hover:underline cursor-pointer"
+                >
+                  Manage
+                </button>
               ) : (
-                <div className="space-y-1">
-                  {atHmFundingStreams.map((stream) => {
-                    const remaining = Math.max(0, (Number(stream.allocatedAmount) || 0) - (Number(stream.spentAmount) || 0));
-                    const isAT = stream.type === 'AT';
-                    return (
-                      <div
-                        key={stream.id}
-                        className="bg-black/30 border border-white/[0.06] hover:border-white/[0.12] rounded p-1.5 px-2 flex items-center justify-between gap-2 transition-colors"
-                      >
-                        <div className="min-w-0 flex-1 flex items-center gap-1.5 flex-wrap">
-                          <span
-                            className={`text-[9px] font-bold px-1 py-0.2 rounded border ${
-                              isAT
-                                ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
-                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                            }`}
-                          >
-                            {stream.type}
-                          </span>
-                          <span className="font-medium text-xs text-[#E6EDF3] truncate">{stream.name}</span>
-                          <span className="text-[9px] text-zinc-400 font-mono">({stream.tier})</span>
-                          <span className="text-[10px] text-zinc-400 font-mono ml-auto">
-                            Alloc: {formatCurrency(Number(stream.allocatedAmount) || 0)} • Spent: {formatCurrency(Number(stream.spentAmount) || 0)} • <strong className="text-emerald-400">{formatCurrency(remaining)}</strong>
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditAtHm(stream)}
-                            className="p-1 text-[#8B949E] hover:text-[#E6EDF3] hover:bg-white/[0.04] rounded transition-colors"
-                            title="Edit"
-                          >
-                            <Edit2 className="w-2.5 h-2.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAtHmStream(stream.id)}
-                            className="p-1 text-red-400/80 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                            title="Remove"
-                          >
-                            <Trash2 className="w-2.5 h-2.5" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <span className="text-zinc-500">Adds to Cycle</span>
               )}
             </div>
+          </div>
 
-            <div className="px-2.5 py-1 border-t border-border-subtle bg-black/20 flex items-center justify-between text-[10px]">
-              <div className="text-[#8B949E]">
-                Ringfenced Balance: <span className="font-semibold text-sky-400">{formatCurrency(totalAtRemaining + totalHmRemaining)}</span>
+          {/* Card 7: Assistive Technology (AT) & Home Modifications (HM) */}
+          <div className="bg-brand-navy border border-border-subtle rounded-md p-2 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1">
+                  <Wrench className="w-2.5 h-2.5 text-sky-400" />
+                  AT &amp; HM Schemes
+                </span>
+                <button
+                  type="button"
+                  onClick={handleOpenAddAtHm}
+                  className="px-1.5 py-0.2 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 rounded text-[9px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                  title="Add AT/HM Stream"
+                >
+                  <Plus className="w-2 h-2" />
+                  <span>Add</span>
+                </button>
               </div>
-              <div className="text-[9px] text-zinc-500 italic">
-                Informational • Excluded from cycle budget
+              <div className="text-base font-bold text-sky-400 tracking-tight">
+                {formatCurrency(totalAtRemaining + totalHmRemaining)}
               </div>
+            </div>
+            <div className="text-[9px] text-zinc-400 font-mono mt-0.5 pt-0.5 border-t border-white/[0.04] flex items-center justify-between">
+              <span className="truncate">AT: {formatCurrency(totalAtRemaining)} • HM: {formatCurrency(totalHmRemaining)}</span>
+              {atHmFundingStreams.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setIsManageAtHmModalOpen(true)}
+                  className="text-sky-300 hover:text-sky-200 font-sans font-medium hover:underline cursor-pointer ml-1 shrink-0"
+                >
+                  Manage
+                </button>
+              ) : (
+                <span className="text-zinc-500 ml-1 shrink-0">Ringfenced</span>
+              )}
             </div>
           </div>
         </div>
@@ -1085,22 +1023,113 @@ export default function HomeCareBudgetView() {
         {/* Full Width Compact Ledger Column */}
         <div className="w-full">
           <div className="bg-brand-navy border border-border-subtle rounded-md shadow-xs flex flex-col">
-            <div className="px-3 py-1.5 border-b border-border-subtle flex items-center justify-between text-[#E6EDF3] shrink-0">
+            <div className="px-3 py-1.5 border-b border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[#E6EDF3] shrink-0">
               <div className="flex items-center space-x-2">
                 <Calculator className="w-3.5 h-3.5 text-brand-blue" />
                 <h3 className="font-semibold text-xs leading-tight">System Ledger Preview ({activeQuarter.label})</h3>
                 <span className="text-[10px] text-[#8B949E]">({activeQuarter.displayRange})</span>
+                <span className="text-[10px] text-zinc-400 font-mono bg-white/5 px-1.5 py-0.2 rounded">
+                  {filteredLedgerItems.length} {filteredLedgerItems.length === 1 ? 'row' : 'rows'}
+                </span>
               </div>
-              <button 
-                onClick={() => {
-                  setExternalDate(isCurrentRealTimeQuarter ? new Date().toISOString().split('T')[0] : activeQuarter.startDateStr);
-                  setIsExternalModalOpen(true);
-                }}
-                className="bg-zinc-800 border border-zinc-700 text-[10px] font-medium px-2 py-0.5 h-6 rounded hover:bg-zinc-700 text-zinc-200 transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-2.5 h-2.5 text-zinc-400" />
-                <span>Log External Expense</span>
-              </button>
+              <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                <button 
+                  onClick={() => {
+                    setExternalDate(isCurrentRealTimeQuarter ? new Date().toISOString().split('T')[0] : activeQuarter.startDateStr);
+                    setIsExternalModalOpen(true);
+                  }}
+                  className="bg-zinc-800 border border-zinc-700 text-[10px] font-medium px-2 py-0.5 h-6 rounded hover:bg-zinc-700 text-zinc-200 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-2.5 h-2.5 text-zinc-400" />
+                  <span>Log External Expense</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Toolbar: Search, Date Range, Rows per Page */}
+            <div className="px-3 py-1.5 bg-[#121214]/60 border-b border-border-subtle flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[260px]">
+                {/* Search Bar */}
+                <div className="relative flex-1 min-w-[180px] max-w-xs">
+                  <Search className="w-3 h-3 text-zinc-400 absolute left-2 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search service, vendor, notes..."
+                    value={ledgerSearch}
+                    onChange={(e) => {
+                      setLedgerSearch(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full bg-black/40 border border-white/10 rounded pl-6 pr-6 py-0.5 text-[11px] text-white placeholder-zinc-500 outline-none focus:border-brand-blue transition-colors"
+                  />
+                  {ledgerSearch && (
+                    <button
+                      onClick={() => {
+                        setLedgerSearch('');
+                        setCurrentPage(1);
+                      }}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-0.5 cursor-pointer"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Date Filters */}
+                <div className="flex items-center gap-1 text-[11px] text-[#8B949E]">
+                  <span className="text-[10px] uppercase font-semibold">From:</span>
+                  <input
+                    type="date"
+                    value={ledgerStartDate}
+                    onChange={(e) => {
+                      setLedgerStartDate(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="bg-black/40 border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-zinc-200 outline-none focus:border-brand-blue"
+                  />
+                  <span className="text-[10px] uppercase font-semibold ml-1">To:</span>
+                  <input
+                    type="date"
+                    value={ledgerEndDate}
+                    onChange={(e) => {
+                      setLedgerEndDate(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="bg-black/40 border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-zinc-200 outline-none focus:border-brand-blue"
+                  />
+                  {(ledgerStartDate || ledgerEndDate || ledgerSearch) && (
+                    <button
+                      onClick={() => {
+                        setLedgerSearch('');
+                        setLedgerStartDate('');
+                        setLedgerEndDate('');
+                        setCurrentPage(1);
+                      }}
+                      className="text-[10px] text-brand-blue hover:underline ml-1 cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Rows Per Page Selector */}
+              <div className="flex items-center gap-1.5 text-[10px] text-[#8B949E] shrink-0">
+                <span>Rows:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="bg-black/40 border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-[#E6EDF3] font-medium focus:outline-none focus:border-brand-blue cursor-pointer"
+                >
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={250}>250</option>
+                  <option value={500}>500</option>
+                </select>
+              </div>
             </div>
             
             <div className="overflow-x-auto">
@@ -1117,10 +1146,14 @@ export default function HomeCareBudgetView() {
                   </tr>
                 </thead>
                 <tbody className="text-[11px]">
-                  {processedLedgerItems.length === 0 ? (
+                  {paginatedLedgerItems.length === 0 ? (
                     <tr>
                       <td colSpan={isHomeCare ? 7 : 4} className="px-4 py-4 text-center text-[#8B949E]">
-                        <p className="italic text-xs">No recorded shifts or external expenses for {activeQuarter.label} ({activeQuarter.displayRange}).</p>
+                        <p className="italic text-xs">
+                          {ledgerSearch || ledgerStartDate || ledgerEndDate
+                            ? 'No entries match your search or date filters.'
+                            : `No recorded shifts or external expenses for ${activeQuarter.label} (${activeQuarter.displayRange}).`}
+                        </p>
                       </td>
                     </tr>
                   ) : (
@@ -1150,12 +1183,35 @@ export default function HomeCareBudgetView() {
             </div>
 
             {/* Compact Pagination Controls */}
-            {processedLedgerItems.length > itemsPerPage && (
-              <div className="px-2.5 py-1 border-t border-border-subtle bg-black/20 flex items-center justify-between shrink-0 text-[10px]">
-                <div className="text-[#8B949E]">
-                  {startIndex + 1}–{Math.min(startIndex + itemsPerPage, processedLedgerItems.length)} of {processedLedgerItems.length}
+            <div className="px-2.5 py-1 border-t border-border-subtle bg-black/20 flex items-center justify-between shrink-0 text-[10px]">
+              <div className="text-[#8B949E]">
+                {filteredLedgerItems.length === 0 ? (
+                  '0 entries'
+                ) : (
+                  <>Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredLedgerItems.length)} of {filteredLedgerItems.length} entries</>
+                )}
+                {(ledgerSearch || ledgerStartDate || ledgerEndDate) && (
+                  <span className="text-zinc-500 ml-1">(filtered from {processedLedgerItems.length} total)</span>
+                )}
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-1 text-zinc-400">
+                  <span>Page Size:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="bg-[#121214] border border-border-subtle rounded px-1 py-0.2 text-[10px] text-zinc-300 font-medium focus:outline-none focus:border-brand-blue cursor-pointer"
+                  >
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={250}>250</option>
+                    <option value={500}>500</option>
+                  </select>
                 </div>
-                <div className="flex items-center space-x-1.5">
+                <div className="flex items-center space-x-1">
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
@@ -1163,7 +1219,7 @@ export default function HomeCareBudgetView() {
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-[#E6EDF3]">
+                  <span className="text-[#E6EDF3] px-1 font-mono">
                     {currentPage} / {totalPages}
                   </span>
                   <button
@@ -1175,7 +1231,7 @@ export default function HomeCareBudgetView() {
                   </button>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
@@ -1363,6 +1419,222 @@ export default function HomeCareBudgetView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Additional Funding Streams Modal */}
+      {isManageAdditionalModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[#18181b] border border-zinc-800 rounded-xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-emerald-400" />
+                <h4 className="text-sm font-semibold text-[#E6EDF3]">
+                  Manage Additional Funding Streams
+                </h4>
+              </div>
+              <button
+                onClick={() => setIsManageAdditionalModalOpen(false)}
+                className="text-[#8B949E] hover:text-[#E6EDF3] p-1 rounded hover:bg-white/5 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-400">
+                  {additionalFundingStreams.length} stream{additionalFundingStreams.length === 1 ? '' : 's'} registered
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsManageAdditionalModalOpen(false);
+                    handleOpenAddAdditional();
+                  }}
+                  className="px-2.5 py-1 text-xs rounded bg-emerald-600 hover:bg-emerald-500 font-medium text-white flex items-center gap-1 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Stream</span>
+                </button>
+              </div>
+
+              {additionalFundingStreams.length === 0 ? (
+                <div className="text-center py-8 text-zinc-500 text-xs border border-dashed border-zinc-800 rounded-lg">
+                  No additional funding streams registered.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {additionalFundingStreams.map(stream => (
+                    <div
+                      key={stream.id}
+                      className="p-3 bg-zinc-900 border border-zinc-800 rounded-lg flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-zinc-200 truncate">
+                          {stream.name}
+                        </div>
+                        <div className="text-[11px] text-emerald-400 font-semibold mt-0.5">
+                          {formatCurrency(stream.amount || 0)} / cycle
+                        </div>
+                        {stream.notes && (
+                          <div className="text-[10px] text-zinc-500 mt-1 line-clamp-1">
+                            {stream.notes}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsManageAdditionalModalOpen(false);
+                            handleOpenEditAdditional(stream);
+                          }}
+                          className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+                          title="Edit stream"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAdditionalStream(stream.id)}
+                          className="p-1.5 rounded hover:bg-red-500/10 text-zinc-400 hover:text-red-400 transition-colors"
+                          title="Delete stream"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 border-t border-zinc-800 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsManageAdditionalModalOpen(false)}
+                className="px-3 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-800 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage AT & HM Schemes Modal */}
+      {isManageAtHmModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[#18181b] border border-zinc-800 rounded-xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <Wrench className="w-4 h-4 text-sky-400" />
+                <h4 className="text-sm font-semibold text-[#E6EDF3]">
+                  Manage AT & HM Scheme Streams
+                </h4>
+              </div>
+              <button
+                onClick={() => setIsManageAtHmModalOpen(false)}
+                className="text-[#8B949E] hover:text-[#E6EDF3] p-1 rounded hover:bg-white/5 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-400">
+                  {atHmFundingStreams.length} scheme{atHmFundingStreams.length === 1 ? '' : 's'} registered
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsManageAtHmModalOpen(false);
+                    handleOpenAddAtHm();
+                  }}
+                  className="px-2.5 py-1 text-xs rounded bg-sky-600 hover:bg-sky-500 font-medium text-white flex items-center gap-1 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Scheme</span>
+                </button>
+              </div>
+
+              {atHmFundingStreams.length === 0 ? (
+                <div className="text-center py-8 text-zinc-500 text-xs border border-dashed border-zinc-800 rounded-lg">
+                  No AT/HM schemes registered.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {atHmFundingStreams.map(stream => {
+                    const alloc = stream.allocatedAmount || 0;
+                    const spent = stream.spentAmount || 0;
+                    const rem = Math.max(0, alloc - spent);
+                    return (
+                      <div
+                        key={stream.id}
+                        className="p-3 bg-zinc-900 border border-zinc-800 rounded-lg flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider ${
+                              stream.type === 'HM' ? 'bg-amber-500/20 text-amber-300' : 'bg-sky-500/20 text-sky-300'
+                            }`}>
+                              {stream.type || 'AT'} • {stream.tier || 'Tier'}
+                            </span>
+                            <span className="text-xs font-semibold text-zinc-200 truncate">
+                              {stream.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] mt-1 text-zinc-400">
+                            <span>Allocated: <strong className="text-zinc-200 font-semibold">{formatCurrency(alloc)}</strong></span>
+                            <span>Spent: <strong className="text-zinc-200 font-semibold">{formatCurrency(spent)}</strong></span>
+                            <span>Remaining: <strong className="text-sky-400 font-semibold">{formatCurrency(rem)}</strong></span>
+                          </div>
+                          {stream.notes && (
+                            <div className="text-[10px] text-zinc-500 mt-1 line-clamp-1">
+                              {stream.notes}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsManageAtHmModalOpen(false);
+                              handleOpenEditAtHm(stream);
+                            }}
+                            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+                            title="Edit scheme"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAtHmStream(stream.id)}
+                            className="p-1.5 rounded hover:bg-red-500/10 text-zinc-400 hover:text-red-400 transition-colors"
+                            title="Delete scheme"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 border-t border-zinc-800 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsManageAtHmModalOpen(false)}
+                className="px-3 py-1.5 rounded text-xs bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border border-zinc-800 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
