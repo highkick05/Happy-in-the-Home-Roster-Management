@@ -10,6 +10,38 @@ function UPPER(str: any): string {
   return String(str || "").toUpperCase();
 }
 
+export type BudgetLedgerProvider = (
+  clientId: number | string,
+  startDateStr: string,
+  endDateStr: string
+) => {
+  total: number;
+  grandTotal: number;
+  items: Array<{
+    id?: any;
+    date: string;
+    service: string;
+    amount: number;
+    base_amount?: number;
+    care_coord_fee?: number;
+    management_fee?: number;
+    grand_total?: number;
+    source_type?: string;
+    vendor_name?: string;
+    client_share?: number;
+    package_drawdown?: number;
+    service_category?: string;
+  }>;
+  billingTier?: string;
+  historicalMonthlyCap?: number;
+} | null;
+
+let _budgetLedgerProvider: BudgetLedgerProvider | null = null;
+
+export function setBudgetLedgerProvider(provider: BudgetLedgerProvider) {
+  _budgetLedgerProvider = provider;
+}
+
 /**
  * Format ISO YYYY-MM-DD date to Australian DD/MM/YYYY
  */
@@ -363,32 +395,25 @@ export function getClientBudgetDetails(
     `SELECT * FROM client_budgets WHERE client_id = ? AND status = 'ACTIVE' LIMIT 1`
   ).get(client.id) as any;
 
-  // Check for bridging cycle (if client joined during this quarter)
+  // Check for bridging cycle (if client joined during this quarter, matching HomeCareBudgetView.tsx)
+  let actualStartDateStr = activeQuarter.startDateStr;
+  let actualEndDateStr = activeQuarter.endDateStr;
+  let isJoinedAfterQuarter = false;
   if (client.joined_date) {
     const joinedStr = client.joined_date.split('T')[0];
-    if (joinedStr >= activeQuarter.startDateStr && joinedStr <= activeQuarter.endDateStr) {
+    if (joinedStr > actualEndDateStr) {
+      isJoinedAfterQuarter = true;
+      totalDays = 0;
+    } else if (joinedStr >= actualStartDateStr && joinedStr <= actualEndDateStr) {
+      actualStartDateStr = joinedStr;
       cycleStart = new Date(`${joinedStr}T00:00:00`);
       const msPerDay = 1000 * 60 * 60 * 24;
       totalDays = Math.max(1, Math.floor((cycleEnd.getTime() - cycleStart.getTime()) / msPerDay) + 1);
     }
   }
 
-  // Only use custom cycle dates from client_budgets IF they encompass today (current period), never old expired dates
-  if (activeClientBudget?.cycle_start_date && activeClientBudget?.cycle_end_date) {
-    if (todayStr >= activeClientBudget.cycle_start_date && todayStr <= activeClientBudget.cycle_end_date) {
-      const cs = new Date(`${activeClientBudget.cycle_start_date}T00:00:00`);
-      const ce = new Date(`${activeClientBudget.cycle_end_date}T23:59:59`);
-      if (!isNaN(cs.getTime()) && !isNaN(ce.getTime())) {
-        cycleStart = cs;
-        cycleEnd = ce;
-        const msPerDay = 1000 * 60 * 60 * 24;
-        totalDays = Math.max(1, Math.floor((cycleEnd.getTime() - cycleStart.getTime()) / msPerDay) + 1);
-      }
-    }
-  }
-
-  const startIso = cycleStart.toISOString().split("T")[0];
-  const endIso = cycleEnd.toISOString().split("T")[0];
+  const startIso = actualStartDateStr;
+  const endIso = actualEndDateStr;
 
   const msPerDay = 1000 * 60 * 60 * 24;
   const totalWeeks = Math.max(1, parseFloat((totalDays / 7).toFixed(1)));
@@ -599,128 +624,191 @@ export function getClientBudgetDetails(
       count: number;
     }> = {};
 
-    // Query client shifts in cycle
-    const shifts = db.prepare(
-      `SELECT s.id, s.start_time, s.end_time, s.status, s.services_json,
-              s.service_id, srv.name as service_name, srv.rate as service_rate, srv.unit as service_unit
-       FROM shifts s
-       LEFT JOIN services srv ON s.service_id = srv.id
-       WHERE s.client_id = ?
-         AND s.start_time >= ?
-         AND s.start_time <= ?
-         AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID', 'DRAFT')
-       ORDER BY s.start_time ASC`
-    ).all(client.id, `${startIso}T00:00:00`, `${endIso}T23:59:59`) as any[];
-
+    // Query client live internal consumptions and ledger items for the active quarter cycle
     let liveShiftsCost = 0;
     let completedCount = 0;
     let scheduledCount = 0;
     let totalCommittedHours = 0;
+    let ledgerResult: any = null;
 
-    for (const shift of shifts) {
-      const isCompleted = UPPER(shift.status) === 'COMPLETED';
-      if (isCompleted) completedCount++;
-      else scheduledCount++;
+    if (_budgetLedgerProvider && !isJoinedAfterQuarter) {
+      try {
+        ledgerResult = _budgetLedgerProvider(client.id, startIso, endIso);
+      } catch (err) {
+        console.error("[mcpServer] Error calling _budgetLedgerProvider:", err);
+      }
+    }
 
-      const startMs = new Date(shift.start_time).getTime();
-      const endMs = new Date(shift.end_time).getTime();
-      const durationHrs = Math.max(0, (endMs - startMs) / 3600000);
-      totalCommittedHours += durationHrs;
+    if (ledgerResult && Array.isArray(ledgerResult.items)) {
+      for (const item of ledgerResult.items) {
+        const itemGrandTotal = Number(item.grand_total ?? item.amount ?? 0);
+        const sName = item.service || "Standard Care Service";
+        const sCat = classifyMyAgedCareCategory(sName, "", item.service_category);
 
-      let baseShiftCost = 0;
-      let parsedServices: any[] = [];
-      if (shift.services_json) {
-        try { parsedServices = JSON.parse(shift.services_json); } catch {}
+        if (!serviceUsageMap[sName]) {
+          serviceUsageMap[sName] = {
+            serviceName: sName,
+            category: sCat,
+            hoursOrUnits: 0,
+            unit: item.source_type === 'external' ? 'Items' : 'Hours',
+            totalCost: 0,
+            count: 0
+          };
+        }
+        serviceUsageMap[sName].totalCost += itemGrandTotal;
+        serviceUsageMap[sName].count += 1;
       }
 
-      if (Array.isArray(parsedServices) && parsedServices.length > 0) {
-        for (const sd of parsedServices) {
-          const srv = sd.serviceId ? db.prepare("SELECT name, rate, unit, service_category FROM services WHERE id = ?").get(sd.serviceId) as any : null;
-          const sName = sd.serviceName || srv?.name || shift.service_name || "Standard Care Service";
-          const sCat = classifyMyAgedCareCategory(sName, sd.serviceCode || srv?.code || '', sd.serviceCategory || srv?.service_category);
-          const effectiveRate = Number(sd.rateOverride ?? srv?.rate ?? 0);
-          const isKm = (sd.serviceUnit || srv?.unit || '').toUpperCase() === 'KM';
-          const qty = Number(sd.qtyOverride ?? (isKm ? 0 : durationHrs));
-          const lineCostRaw = qty * effectiveRate;
-          const lineCostWithFees = lineCostRaw * (1 + careCoordPercent / 100) * (1 + managementFeePercent / 100);
-          baseShiftCost += lineCostRaw;
+      // Query shift counts for active cycle status reporting
+      try {
+        const shiftCounts = db.prepare(
+          `SELECT UPPER(status) as st, COUNT(*) as cnt
+           FROM shifts
+           WHERE client_id = ? AND start_time >= ? AND start_time <= ?
+           GROUP BY UPPER(status)`
+        ).all(client.id, `${startIso}T00:00:00`, `${endIso}T23:59:59`) as any[];
+        for (const sc of shiftCounts) {
+          if (sc.st === 'COMPLETED') completedCount = sc.cnt;
+          else if (sc.st !== 'CANCELLED' && sc.st !== 'VOID' && sc.st !== 'DRAFT') scheduledCount += sc.cnt;
+        }
+      } catch {}
+    } else if (!isJoinedAfterQuarter) {
+      // Standalone ledger calculation matching /api/clients/:id/budget-ledger
+      try {
+        const allShifts = db.prepare(`
+          SELECT s.id, s.start_time, s.end_time, s.status, s.services_json, s.service_id,
+                 srv.name as service_name, srv.rate as service_rate, srv.unit as service_unit, srv.service_category
+          FROM shifts s
+          LEFT JOIN services srv ON s.service_id = srv.id
+          WHERE s.client_id = ?
+            AND (
+              UPPER(s.status) = 'COMPLETED'
+              OR (UPPER(s.status) = 'CANCELLED' AND EXISTS (SELECT 1 FROM invoices i WHERE i.shift_id = s.id OR i.merged_into_shift_id = s.id))
+            )
+        `).all(client.id) as any[];
 
+        const activeShifts = allShifts.filter((s: any) => {
+          if (!s.start_time) return false;
+          const shiftDateStr = s.start_time.split('T')[0];
+          return shiftDateStr >= startIso && shiftDateStr <= endIso;
+        });
+
+        for (const shift of activeShifts) {
+          completedCount++;
+          const startMs = new Date(shift.start_time).getTime();
+          const endMs = new Date(shift.end_time).getTime();
+          const durationHrs = Math.max(0, (endMs - startMs) / 3600000);
+          totalCommittedHours += durationHrs;
+
+          let baseShiftCost = 0;
+          let parsedServices: any[] = [];
+          if (shift.services_json) {
+            try { parsedServices = JSON.parse(shift.services_json); } catch {}
+          }
+
+          if (Array.isArray(parsedServices) && parsedServices.length > 0) {
+            for (const sd of parsedServices) {
+              const srv = sd.serviceId ? db.prepare("SELECT name, rate, unit, service_category FROM services WHERE id = ?").get(sd.serviceId) as any : null;
+              const sName = sd.serviceName || srv?.name || shift.service_name || "Standard Care Service";
+              const sCat = classifyMyAgedCareCategory(sName, sd.serviceCode || srv?.code || '', sd.serviceCategory || srv?.service_category);
+              const effectiveRate = Number(sd.rateOverride ?? srv?.rate ?? 0);
+              const isKm = (sd.serviceUnit || srv?.unit || '').toUpperCase() === 'KM';
+              const qty = Number(sd.qtyOverride ?? (isKm ? 0 : durationHrs));
+              const lineCostRaw = qty * effectiveRate;
+              const lineCostWithFees = lineCostRaw * (1 + careCoordPercent / 100) * (1 + managementFeePercent / 100);
+              baseShiftCost += lineCostRaw;
+
+              if (!serviceUsageMap[sName]) {
+                serviceUsageMap[sName] = {
+                  serviceName: sName,
+                  category: sCat,
+                  hoursOrUnits: 0,
+                  unit: isKm ? 'KM' : 'Hours',
+                  totalCost: 0,
+                  count: 0
+                };
+              }
+              serviceUsageMap[sName].hoursOrUnits += qty;
+              serviceUsageMap[sName].totalCost += lineCostWithFees;
+              serviceUsageMap[sName].count += 1;
+            }
+          } else {
+            const baseRate = Number(shift.service_rate || 0);
+            baseShiftCost = durationHrs * baseRate;
+            const sName = shift.service_name || "Standard Care Service";
+            const sCat = classifyMyAgedCareCategory(sName, "", "");
+            const lineCostWithFees = baseShiftCost * (1 + careCoordPercent / 100) * (1 + managementFeePercent / 100);
+
+            if (!serviceUsageMap[sName]) {
+              serviceUsageMap[sName] = {
+                serviceName: sName,
+                category: sCat,
+                hoursOrUnits: 0,
+                unit: 'Hours',
+                totalCost: 0,
+                count: 0
+              };
+            }
+            serviceUsageMap[sName].hoursOrUnits += durationHrs;
+            serviceUsageMap[sName].totalCost += lineCostWithFees;
+            serviceUsageMap[sName].count += 1;
+          }
+
+          const coordFee = baseShiftCost * (careCoordPercent / 100);
+          const subtotalWithCoord = baseShiftCost + coordFee;
+          const mgmtFee = subtotalWithCoord * (managementFeePercent / 100);
+          liveShiftsCost += subtotalWithCoord + mgmtFee;
+        }
+
+        // External ledger items
+        const allExternal = db.prepare(`SELECT * FROM client_ledger_entries WHERE client_id = ?`).all(client.id) as any[];
+        const external = allExternal.filter((entry: any) => {
+          if (!entry.date) return false;
+          const dStr = String(entry.date).trim();
+          let ymd = dStr;
+          if (dStr.includes('/')) {
+            const parts = dStr.split('/');
+            if (parts.length === 3 && parts[2].length === 4) {
+              ymd = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+          } else if (dStr.includes('-')) {
+            const parts = dStr.split('-');
+            if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
+              ymd = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+          }
+          return ymd >= startIso && ymd <= endIso;
+        });
+
+        for (const ent of external) {
+          const entCost = Number(ent.grand_total || (Number(ent.base_amount || 0) + Number(ent.care_coord_fee || 0) + Number(ent.management_fee || 0)));
+          const sName = ent.service_name || "External Ledger Service";
+          const sCat = classifyMyAgedCareCategory(sName, "", ent.service_category);
           if (!serviceUsageMap[sName]) {
             serviceUsageMap[sName] = {
               serviceName: sName,
               category: sCat,
               hoursOrUnits: 0,
-              unit: isKm ? 'KM' : 'Hours',
+              unit: 'Items',
               totalCost: 0,
               count: 0
             };
           }
-          serviceUsageMap[sName].hoursOrUnits += qty;
-          serviceUsageMap[sName].totalCost += lineCostWithFees;
+          serviceUsageMap[sName].totalCost += entCost;
           serviceUsageMap[sName].count += 1;
+          liveShiftsCost += entCost;
         }
-      } else {
-        const baseRate = Number(shift.service_rate || 0);
-        baseShiftCost = durationHrs * baseRate;
-        const sName = shift.service_name || "Standard Care Service";
-        const sCat = classifyMyAgedCareCategory(sName, "", "");
-        const lineCostWithFees = baseShiftCost * (1 + careCoordPercent / 100) * (1 + managementFeePercent / 100);
-
-        if (!serviceUsageMap[sName]) {
-          serviceUsageMap[sName] = {
-            serviceName: sName,
-            category: sCat,
-            hoursOrUnits: 0,
-            unit: 'Hours',
-            totalCost: 0,
-            count: 0
-          };
-        }
-        serviceUsageMap[sName].hoursOrUnits += durationHrs;
-        serviceUsageMap[sName].totalCost += lineCostWithFees;
-        serviceUsageMap[sName].count += 1;
+      } catch (err) {
+        console.error("[mcpServer] Error running standalone ledger query:", err);
       }
-
-      // Apply Care Coordination & Management loadings
-      const coordFee = baseShiftCost * (careCoordPercent / 100);
-      const subtotalWithCoord = baseShiftCost + coordFee;
-      const mgmtFee = subtotalWithCoord * (managementFeePercent / 100);
-      const totalShiftWithFees = subtotalWithCoord + mgmtFee;
-
-      liveShiftsCost += totalShiftWithFees;
     }
 
-    // External ledger items
-    let externalEntriesCost = 0;
-    try {
-      const externalEntries = db.prepare(
-        `SELECT * FROM client_ledger_entries 
-         WHERE client_id = ? AND date >= ? AND date <= ?`
-      ).all(client.id, startIso, endIso) as any[];
-
-      for (const ent of externalEntries) {
-        const entCost = Number(ent.grand_total || (Number(ent.base_amount || 0) + Number(ent.care_coord_fee || 0) + Number(ent.management_fee || 0)));
-        externalEntriesCost += entCost;
-
-        const sName = ent.service_name || "External Ledger Service";
-        const sCat = classifyMyAgedCareCategory(sName, "", ent.service_category);
-        if (!serviceUsageMap[sName]) {
-          serviceUsageMap[sName] = {
-            serviceName: sName,
-            category: sCat,
-            hoursOrUnits: 0,
-            unit: 'Items',
-            totalCost: 0,
-            count: 0
-          };
-        }
-        serviceUsageMap[sName].totalCost += entCost;
-        serviceUsageMap[sName].count += 1;
-      }
-    } catch {}
-
-    const liveInternalConsumptions = parseFloat((liveShiftsCost + externalEntriesCost).toFixed(2));
-    const totalCombinedSpent = parseFloat(liveInternalConsumptions.toFixed(2));
+    const totalCombinedSpent = isJoinedAfterQuarter
+      ? 0
+      : ledgerResult
+        ? parseFloat(Number(ledgerResult.grandTotal ?? 0).toFixed(2))
+        : parseFloat(liveShiftsCost.toFixed(2));
+    const liveInternalConsumptions = totalCombinedSpent;
     const remainingBalance = parseFloat((totalCycleAllocation - totalCombinedSpent).toFixed(2));
     const burnRatePercentage = totalCycleAllocation > 0
       ? `${((totalCombinedSpent / totalCycleAllocation) * 100).toFixed(2)}%`
@@ -925,7 +1013,7 @@ export function getClientBudgetDetails(
       averageWeeklySpend,
       averageWeeklyHours,
       totalCommittedHours: parseFloat(totalCommittedHours.toFixed(2)),
-      shiftCount: shifts.length,
+      shiftCount: completedCount + scheduledCount,
       statusBreakdown: {
         completedShifts: completedCount,
         scheduledShifts: scheduledCount
@@ -3712,7 +3800,7 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           const analyzeClientFundsDeclaration = {
             name: "analyze_client_funds",
-            description: "Query client budget configuration (Home Care Package / Support at Home daily rate or NDIS Service Agreement) and shifts to calculate total agreement/cycle allocation, combined spent funds, remaining balance, My Aged Care quarterly rollover cap (greater of $1,000 or 10% of allocation), eligible rollover, expiring surplus funds at risk of forfeiture, unspent pool, burn rate, and roster baseline. Dates must be ISO YYYY-MM-DD.",
+            description: "Query client budget configuration (Home Care Package / Support at Home daily rate or NDIS Service Agreement) and shifts to calculate total agreement/cycle allocation, current quarter Total Spent combined Grand amount, remaining balance, My Aged Care quarterly rollover cap (greater of $1,000 or 10% of allocation), eligible rollover, expiring surplus funds at risk of forfeiture, unspent pool, burn rate, and roster baseline. Dates must be ISO YYYY-MM-DD.",
             parameters: {
               type: Type.OBJECT,
               properties: {
@@ -3742,7 +3830,7 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           const getClientBudgetProfileDeclaration = {
             name: "get_client_budget_profile",
-            description: "Retrieve complete budget and profile configuration from Clients Dashboard (Edit Profile & Budget) for a client, including funding type (Home Care HCP/SAH or NDIS), package level/class, daily rate, cycle allocation (computed from client start date onwards), live internal spend, remaining balance, My Aged Care rollover cap, eligible rollover, and unspent funds pool.",
+            description: "Retrieve complete budget and profile configuration from Clients Dashboard (Edit Profile & Budget) for a client, including funding type (Home Care HCP/SAH or NDIS), package level/class, daily rate, current quarter cycle allocation, current quarter Total Spent combined Grand amount, remaining balance, My Aged Care rollover cap, eligible rollover, and unspent funds pool.",
             parameters: {
               type: Type.OBJECT,
               properties: {
@@ -3763,7 +3851,7 @@ export function setupMcpServer(app: Express, db: Database.Database) {
 
           const getHomeCareClientsBudgetSummaryDeclaration = {
             name: "get_home_care_clients_budget_summary",
-            description: "Retrieve a consolidated financial and budget summary of all Home Care clients (HCP Levels 1-4 and Support at Home Classes 1-8) for the current active quarter, including daily funding rates, cycle allocations, combined spent amounts, remaining balances, My Aged Care rollover caps (10% or $1,000), eligible rollover amounts, expiring surplus at risk of forfeiture, and unspent pools. Excludes NDIS clients.",
+            description: "Retrieve a consolidated financial and budget summary of all Home Care clients (HCP Levels 1-4 and Support at Home Classes 1-8) for the current active quarter, including daily funding rates, active quarter allocations, current quarter Total Spent combined Grand amounts, remaining balances, My Aged Care rollover caps (10% or $1,000), eligible rollover amounts, expiring surplus at risk of forfeiture, and unspent pools. Excludes NDIS clients.",
             parameters: {
               type: Type.OBJECT,
               properties: {}
@@ -3881,9 +3969,10 @@ Clients in the portal belong to either NDIS OR Home Care (HCP/SAH). They are com
    - Their budget is derived from their package level/class and official daily funding rate configured in Settings > Home Care tab:
      • HCP Rates: ${hcpRateSummary}
      • SAH Rates: ${sahRateSummary}
-   - Total Cycle Allocation is computed based on the client's quarterly funds (cycle days * daily rate) from their start date onwards, plus any custom approved additional funding streams (e.g., Dementia C Supplement).
-   - Total Combined Spent is the live internal consumptions delivered from the client's start date onwards.
-   - Remaining Balance is: Total Cycle Allocation - Total Combined Spent.
+   - Total Cycle Allocation is computed based on the client's quarterly funds (${currentQuarter.totalDays} days * daily rate) for the active quarter (${currentQuarter.label}: ${formatToAustralianDate(currentQuarter.startDateStr)} to ${formatToAustralianDate(currentQuarter.endDateStr)}), adjusted to client joined_date if they joined during this active quarter, plus any custom approved additional funding streams (e.g., Dementia C Supplement).
+   - Total Combined Spent is the CURRENT QUARTER's Total Spent combined Grand amount (the sum of all completed shifts, respite services, and external ledger entries with fees delivered strictly within this active quarter cycle: ${formatToAustralianDate(currentQuarter.startDateStr)} to ${formatToAustralianDate(currentQuarter.endDateStr)}). This matches the Client Budget page Total Spent card and System Ledger Preview Grand Total.
+   - Remaining Balance is: Total Cycle Allocation - Total Combined Spent for this active quarter.
+   - CRITICAL RULE: NEVER state that Total Combined Spent is calculated from the client's start date onwards across historical quarters. Home Care budgets are strictly evaluated per quarterly cycle. Prior quarter surplus or rollover is accounted for in the Unspent Funds Pool and Commonwealth Rollover Cap rules.
    - CRITICAL MY AGED CARE QUARTERLY ROLLOVER REGULATIONS:
      • Under official Commonwealth My Aged Care regulations (Support at Home / Home Care Packages), participants can ONLY roll over a capped amount of their quarterly budget balance into the next quarter.
      • ROLLOVER CAP FORMULA: Whichever is greater: $1,000 AUD or 10% of their total quarterly budget allocation: Math.max(1000, 0.10 * totalQuarterlyAllocation).
@@ -4140,8 +4229,8 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
 - Display:
   • Client Name & Funding Package (using client's actual package and daily rate from Settings)
   • Active Cycle: ${formatToAustralianDate(currentQuarter.startDateStr)} to ${formatToAustralianDate(currentQuarter.endDateStr)} (${currentQuarter.totalDays} days)
-  • Total Cycle Allocation (directly from tool result, computed based on client's quarterly funds and start date onwards)
-  • Total Combined Spent (live internal spend calculated from client start date onwards)
+  • Total Cycle Allocation (directly from tool result: $X.XX AUD computed based on client's active quarterly package funds and approved additional funding streams)
+  • Total Combined Spent: The current active quarter's Total Spent combined Grand amount ($X.XX AUD) directly from the tool result, matching the Client Budget page Total Spent card and System Ledger Preview Grand Total.
   • Remaining Balance & My Aged Care Rollover Breakdown:
     - Remaining Balance: $X.XX AUD
     - My Aged Care Rollover Cap: $X.XX AUD (greater of $1,000 or 10% of allocation)

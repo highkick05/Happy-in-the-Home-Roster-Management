@@ -610,24 +610,29 @@ export default function HomeCareBudgetView() {
   };
 
   const processedLedgerItems = ledger.items.map((item: any) => {
-    if (item.source_type === 'external') {
+    if (item.source_type === 'external' || item.grand_total !== undefined) {
+      const baseAmt = item.base_amount ?? item.amount;
+      const ccFee = item.care_coord_fee ?? (isHomeCare ? baseAmt * (careCoordPercent / 100) : 0);
+      const sub = baseAmt + ccFee;
+      const mgmt = item.management_fee ?? (isHomeCare ? sub * (managementFeePercent / 100) : 0);
+      const gTotal = item.grand_total ?? (sub + mgmt);
       return {
         ...item,
-        baseAmount: item.base_amount ?? item.amount,
-        coordinationFee: item.care_coord_fee ?? 0,
-        subtotal: (item.base_amount ?? item.amount) + (item.care_coord_fee ?? 0),
-        managementFee: item.management_fee ?? 0,
-        amount: item.grand_total ?? item.amount
+        baseAmount: baseAmt,
+        coordinationFee: ccFee,
+        subtotal: sub,
+        managementFee: mgmt,
+        amount: gTotal
       };
     }
-    const fees = calculateServiceConsumptionWithFees(item.amount, careCoordPercent, managementFeePercent);
+    const fees = calculateServiceConsumptionWithFees(item.base_amount ?? item.amount, careCoordPercent, managementFeePercent);
     return {
       ...item,
       baseAmount: fees.baseAmount,
       coordinationFee: fees.coordinationFee,
       subtotal: fees.subtotal,
       managementFee: fees.managementFee,
-      amount: fees.total // Update amount to the total consumed
+      amount: fees.total
     };
   });
 

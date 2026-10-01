@@ -55,7 +55,7 @@ import { calculateProviderTravel } from "./utils/travelCalculator.js";
 import { calculateHomeCareTravel } from "./utils/homeCareCalculator.js";
 import { calculateAbtTravel } from "./utils/abtCalculator.js";
 import { recalculateDayTravelForStaff } from "./services/travelEngine.js";
-import { setupMcpServer } from "./services/mcpServer.js";
+import { setupMcpServer, setBudgetLedgerProvider } from "./services/mcpServer.js";
 
 const logger = winston.createLogger({
   level: "info",
@@ -7919,268 +7919,333 @@ app.get("/api/health", (req, res) => {
     },
   );
 
+  const getCategoryOfService = (srvName: string, srvCode: string) => {
+    let cat = "Independence";
+    if (srvCode) {
+      const lookup = db
+        .prepare(
+          "SELECT service_category FROM services WHERE code = ? OR id = ? LIMIT 1",
+        )
+        .get(srvCode, srvCode) as any;
+      if (lookup?.service_category) cat = lookup.service_category;
+    } else if (srvName) {
+      const lookup = db
+        .prepare(
+          "SELECT service_category FROM services WHERE name = ? LIMIT 1",
+        )
+        .get(srvName) as any;
+      if (lookup?.service_category) cat = lookup.service_category;
+    }
+    return cat;
+  };
+
+  const getClientBudgetLedgerData = (
+    clientId: number | string,
+    startDate: string,
+    endDate: string
+  ) => {
+    if (!startDate || !endDate) {
+      return { total: 0, grandTotal: 0, items: [], billingTier: "SAH_Full_Pensioner", historicalMonthlyCap: 0 };
+    }
+
+    const client = db
+      .prepare(
+        `SELECT billing_tier, historical_monthly_cap, care_coordination_fee, management_fee FROM clients WHERE id = ?`,
+      )
+      .get(clientId) as any;
+    const billingTier = client?.billing_tier || "SAH_Full_Pensioner";
+    const historicalMonthlyCap = client?.historical_monthly_cap || 0;
+
+    const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+    const settingsMap: Record<string, any> = {};
+    settingsRows.forEach((r) => {
+      try {
+        settingsMap[r.key] = JSON.parse(r.value);
+      } catch {
+        settingsMap[r.key] = r.value;
+      }
+    });
+    const rawTz = settingsMap.timezone || "Australia/Perth";
+    const timezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
+
+    const defaultMgmtRow = settingsMap.defaultManagementFee;
+    let defaultMgmtRate = 10;
+    if (defaultMgmtRow !== undefined) defaultMgmtRate = Number(defaultMgmtRow);
+    const defaultCareCoordRow = settingsMap.defaultCareCoordinationFee;
+    let defaultCareCoordRate = 20;
+    if (defaultCareCoordRow !== undefined) defaultCareCoordRate = Number(defaultCareCoordRow);
+
+    const careCoordPercent = client?.care_coordination_fee !== undefined && client?.care_coordination_fee !== null
+      ? Number(client.care_coordination_fee)
+      : defaultCareCoordRate;
+    const managementFeePercent = client?.management_fee !== undefined && client?.management_fee !== null
+      ? Number(client.management_fee)
+      : defaultMgmtRate;
+
+    const sStr = String(startDate).trim();
+    const eStr = String(endDate).trim();
+
+    const allShifts = db
+      .prepare(
+        `
+      SELECT s.id, s.start_time, s.status 
+      FROM shifts s
+      WHERE s.client_id = ? 
+        AND (
+          s.status = 'COMPLETED' 
+          OR (s.status = 'CANCELLED' AND EXISTS (SELECT 1 FROM invoices i WHERE i.shift_id = s.id OR i.merged_into_shift_id = s.id))
+        )
+    `,
+      )
+      .all(clientId) as any[];
+
+    const shifts = allShifts.filter((s: any) => {
+      if (!s.start_time) return false;
+      try {
+        const shiftDate = new Date(s.start_time);
+        if (isNaN(shiftDate.getTime())) return false;
+        const shiftDateStr = formatInTimeZone(shiftDate, timezone, 'yyyy-MM-dd');
+        return shiftDateStr >= sStr && shiftDateStr <= eStr;
+      } catch {
+        return false;
+      }
+    });
+
+    let allRespite: any[] = [];
+    try {
+      allRespite = db
+        .prepare(
+          `
+        SELECT rb.id, rb.start_time, rb.status 
+        FROM respite_bookings rb
+        WHERE rb.client_id = ? 
+          AND (
+            rb.status = 'COMPLETED'
+            OR (rb.status = 'CANCELLED' AND EXISTS (SELECT 1 FROM invoices i WHERE i.respite_booking_id = rb.id))
+          )
+      `,
+        )
+        .all(clientId) as any[];
+    } catch (e) {}
+
+    const respiteBookings = allRespite.filter((rb: any) => {
+      if (!rb.start_time) return false;
+      try {
+        const rbDate = new Date(rb.start_time);
+        if (isNaN(rbDate.getTime())) return false;
+        const rbDateStr = formatInTimeZone(rbDate, timezone, 'yyyy-MM-dd');
+        return rbDateStr >= sStr && rbDateStr <= eStr;
+      } catch {
+        return false;
+      }
+    });
+
+    let total = 0;
+    let grandTotal = 0;
+    let items: any[] = [];
+
+    for (const shiftRow of shifts) {
+      try {
+        const data = getInvoiceDataForShift(shiftRow.id);
+        if (data && data.lineItems) {
+          data.lineItems.forEach((li: any) => {
+            const sCat = getCategoryOfService(li.serviceName, li.code);
+            const splits = calculateBillingSplits(
+              Number(clientId),
+              li.date,
+              li.amount,
+              sCat,
+            );
+            const baseAmt = Number(li.amount || 0);
+            const coordFee = parseFloat((baseAmt * (careCoordPercent / 100)).toFixed(2));
+            const subtotalWithCoord = baseAmt + coordFee;
+            const mgmtFee = parseFloat((subtotalWithCoord * (managementFeePercent / 100)).toFixed(2));
+            const lineGrandTotal = parseFloat((subtotalWithCoord + mgmtFee).toFixed(2));
+
+            total += baseAmt;
+            grandTotal += lineGrandTotal;
+
+            items.push({
+              id: `shift-${shiftRow.id}-${li.code || li.serviceName}`,
+              date: li.date,
+              service: li.serviceName,
+              amount: lineGrandTotal,
+              base_amount: baseAmt,
+              care_coord_fee: coordFee,
+              management_fee: mgmtFee,
+              grand_total: lineGrandTotal,
+              source_type: "shift",
+              client_share: splits.clientShare,
+              package_drawdown: splits.packageDrawdown,
+              service_category: sCat,
+            });
+          });
+        }
+      } catch (e) {
+        console.error(
+          `Failed to process shift ${shiftRow.id} for budget:`,
+          e,
+        );
+      }
+    }
+
+    for (const respiteRow of respiteBookings) {
+      try {
+        const data = getInvoiceDataForRespiteBooking(respiteRow.id);
+        if (data && data.lineItems) {
+          data.lineItems.forEach((li: any) => {
+            const sCat = getCategoryOfService(li.serviceName, li.code);
+            const splits = calculateBillingSplits(
+              Number(clientId),
+              li.date,
+              li.amount,
+              sCat,
+            );
+            const baseAmt = Number(li.amount || 0);
+            const coordFee = parseFloat((baseAmt * (careCoordPercent / 100)).toFixed(2));
+            const subtotalWithCoord = baseAmt + coordFee;
+            const mgmtFee = parseFloat((subtotalWithCoord * (managementFeePercent / 100)).toFixed(2));
+            const lineGrandTotal = parseFloat((subtotalWithCoord + mgmtFee).toFixed(2));
+
+            total += baseAmt;
+            grandTotal += lineGrandTotal;
+
+            items.push({
+              id: `respite-${respiteRow.id}-${li.code || li.serviceName}`,
+              date: li.date,
+              service: li.serviceName,
+              amount: lineGrandTotal,
+              base_amount: baseAmt,
+              care_coord_fee: coordFee,
+              management_fee: mgmtFee,
+              grand_total: lineGrandTotal,
+              source_type: "respite",
+              client_share: splits.clientShare,
+              package_drawdown: splits.packageDrawdown,
+              service_category: sCat,
+            });
+          });
+        }
+      } catch (e) {
+        console.error(
+          `Failed to process respite ${respiteRow.id} for budget:`,
+          e,
+        );
+      }
+    }
+
+    // Fetch external ledger entries for this cycle/range
+    const allExternal = db
+      .prepare(
+        `
+      SELECT * FROM client_ledger_entries 
+      WHERE client_id = ?
+    `,
+      )
+      .all(clientId) as any[];
+
+    const external = allExternal.filter((entry: any) => {
+      if (!entry.date) return false;
+      const dStr = String(entry.date).trim();
+      let ymd = dStr;
+      if (dStr.includes('/')) {
+        const parts = dStr.split('/');
+        if (parts.length === 3 && parts[2].length === 4) {
+          ymd = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      } else if (dStr.includes('-')) {
+        const parts = dStr.split('-');
+        if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
+          ymd = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      }
+      return ymd >= sStr && ymd <= eStr;
+    });
+
+    for (const entry of external) {
+      let dateFormatted = entry.date;
+      const parts = entry.date.split("-");
+      if (parts.length === 3 && parts[0].length === 4) {
+        dateFormatted = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+
+      let serviceCat = entry.service_category;
+      if (!serviceCat) {
+        serviceCat = getCategoryOfService(entry.service_name, "");
+      }
+
+      const entGrandTotal = Number(entry.grand_total || (Number(entry.base_amount || 0) + Number(entry.care_coord_fee || 0) + Number(entry.management_fee || 0)));
+      const entBase = Number(entry.base_amount ?? entGrandTotal);
+
+      let cShare = entry.client_share;
+      let pDrawdown = entry.package_drawdown;
+      if (
+        cShare === undefined ||
+        cShare === null ||
+        (entry.client_share === 0 &&
+          entGrandTotal > 0 &&
+          billingTier !== "Grandfathered")
+      ) {
+        const splits = calculateBillingSplits(
+          Number(clientId),
+          entry.date,
+          entGrandTotal,
+          serviceCat,
+        );
+        cShare = splits.clientShare;
+        pDrawdown = splits.packageDrawdown;
+      }
+
+      total += entBase;
+      grandTotal += entGrandTotal;
+
+      items.push({
+        id: entry.id,
+        date: dateFormatted,
+        service: entry.service_name,
+        amount: entGrandTotal,
+        base_amount: entry.base_amount,
+        care_coord_fee: entry.care_coord_fee,
+        management_fee: entry.management_fee,
+        grand_total: entGrandTotal,
+        source_type: "external",
+        vendor_name: entry.vendor_name,
+        client_share: cShare,
+        package_drawdown: pDrawdown,
+        service_category: serviceCat,
+      });
+    }
+
+    items.sort((a, b) => {
+      const parseStr = (s: string) => {
+        const p = s.split("-");
+        if (p.length === 3)
+          return new Date(`${p[2]}-${p[1]}-${p[0]}T00:00:00`).getTime();
+        return new Date(s).getTime();
+      };
+      return parseStr(b.date) - parseStr(a.date);
+    });
+
+    return {
+      total: parseFloat(total.toFixed(2)),
+      grandTotal: parseFloat(grandTotal.toFixed(2)),
+      items,
+      billingTier,
+      historicalMonthlyCap,
+      careCoordPercent,
+      managementFeePercent
+    };
+  };
+
+  setBudgetLedgerProvider((clientId, startDate, endDate) => getClientBudgetLedgerData(clientId, startDate, endDate));
+
   app.get("/api/clients/:id/budget-ledger", authenticateToken, (req, res) => {
     const { id } = req.params;
     const { startDate, endDate } = req.query;
     try {
-      if (!startDate || !endDate) return res.json({ total: 0, items: [] });
-
-      const client = db
-        .prepare(
-          `SELECT billing_tier, historical_monthly_cap FROM clients WHERE id = ?`,
-        )
-        .get(id) as any;
-      const billingTier = client?.billing_tier || "SAH_Full_Pensioner";
-      const historicalMonthlyCap = client?.historical_monthly_cap || 0;
-
-      const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
-      const settingsMap: Record<string, any> = {};
-      settingsRows.forEach((r) => {
-        try {
-          settingsMap[r.key] = JSON.parse(r.value);
-        } catch {
-          settingsMap[r.key] = r.value;
-        }
-      });
-      const rawTz = settingsMap.timezone || "Australia/Perth";
-      const timezone = typeof rawTz === "string" ? rawTz.replace(/['"]+/g, "") : rawTz;
-
-      const sStr = String(startDate).trim();
-      const eStr = String(endDate).trim();
-
-      const allShifts = db
-        .prepare(
-          `
-        SELECT s.id, s.start_time, s.status 
-        FROM shifts s
-        WHERE s.client_id = ? 
-          AND (
-            s.status = 'COMPLETED' 
-            OR (s.status = 'CANCELLED' AND EXISTS (SELECT 1 FROM invoices i WHERE i.shift_id = s.id OR i.merged_into_shift_id = s.id))
-          )
-      `,
-        )
-        .all(id) as any[];
-
-      const shifts = allShifts.filter((s: any) => {
-        if (!s.start_time) return false;
-        try {
-          const shiftDate = new Date(s.start_time);
-          if (isNaN(shiftDate.getTime())) return false;
-          const shiftDateStr = formatInTimeZone(shiftDate, timezone, 'yyyy-MM-dd');
-          return shiftDateStr >= sStr && shiftDateStr <= eStr;
-        } catch {
-          return false;
-        }
-      });
-
-      let allRespite: any[] = [];
-      try {
-        allRespite = db
-          .prepare(
-            `
-          SELECT rb.id, rb.start_time, rb.status 
-          FROM respite_bookings rb
-          WHERE rb.client_id = ? 
-            AND (
-              rb.status = 'COMPLETED'
-              OR (rb.status = 'CANCELLED' AND EXISTS (SELECT 1 FROM invoices i WHERE i.respite_booking_id = rb.id))
-            )
-        `,
-          )
-          .all(id) as any[];
-      } catch (e) {}
-
-      const respiteBookings = allRespite.filter((rb: any) => {
-        if (!rb.start_time) return false;
-        try {
-          const rbDate = new Date(rb.start_time);
-          if (isNaN(rbDate.getTime())) return false;
-          const rbDateStr = formatInTimeZone(rbDate, timezone, 'yyyy-MM-dd');
-          return rbDateStr >= sStr && rbDateStr <= eStr;
-        } catch {
-          return false;
-        }
-      });
-
-      let total = 0;
-      let items: any[] = [];
-
-      const getCategoryOfService = (srvName: string, srvCode: string) => {
-        let cat = "Independence";
-        if (srvCode) {
-          const lookup = db
-            .prepare(
-              "SELECT service_category FROM services WHERE code = ? OR id = ? LIMIT 1",
-            )
-            .get(srvCode, srvCode) as any;
-          if (lookup?.service_category) cat = lookup.service_category;
-        } else if (srvName) {
-          const lookup = db
-            .prepare(
-              "SELECT service_category FROM services WHERE name = ? LIMIT 1",
-            )
-            .get(srvName) as any;
-          if (lookup?.service_category) cat = lookup.service_category;
-        }
-        return cat;
-      };
-
-      for (const shiftRow of shifts) {
-        try {
-          const data = getInvoiceDataForShift(shiftRow.id);
-          if (data && data.lineItems) {
-            data.lineItems.forEach((li: any) => {
-              const sCat = getCategoryOfService(li.serviceName, li.code);
-              const splits = calculateBillingSplits(
-                Number(id),
-                li.date,
-                li.amount,
-                sCat,
-              );
-              total += li.amount; // subtotal amounts exclusively exclude GST
-              items.push({
-                date: li.date,
-                service: li.serviceName,
-                amount: li.amount,
-                client_share: splits.clientShare,
-                package_drawdown: splits.packageDrawdown,
-                service_category: sCat,
-              });
-            });
-          }
-        } catch (e) {
-          console.error(
-            `Failed to process shift ${shiftRow.id} for budget:`,
-            e,
-          );
-        }
-      }
-
-      for (const respiteRow of respiteBookings) {
-        try {
-          const data = getInvoiceDataForRespiteBooking(respiteRow.id);
-          if (data && data.lineItems) {
-            data.lineItems.forEach((li: any) => {
-              const sCat = getCategoryOfService(li.serviceName, li.code);
-              const splits = calculateBillingSplits(
-                Number(id),
-                li.date,
-                li.amount,
-                sCat,
-              );
-              total += li.amount; // subtotal amounts exclusively exclude GST
-              items.push({
-                date: li.date,
-                service: li.serviceName,
-                amount: li.amount,
-                client_share: splits.clientShare,
-                package_drawdown: splits.packageDrawdown,
-                service_category: sCat,
-              });
-            });
-          }
-        } catch (e) {
-          console.error(
-            `Failed to process respite ${respiteRow.id} for budget:`,
-            e,
-          );
-        }
-      }
-
-      // Fetch external ledger entries for this cycle/range
-      const allExternal = db
-        .prepare(
-          `
-        SELECT * FROM client_ledger_entries 
-        WHERE client_id = ?
-      `,
-        )
-        .all(id) as any[];
-
-      const external = allExternal.filter((entry: any) => {
-        if (!entry.date) return false;
-        const dStr = String(entry.date).trim();
-        let ymd = dStr;
-        if (dStr.includes('/')) {
-          const parts = dStr.split('/');
-          if (parts.length === 3 && parts[2].length === 4) {
-            ymd = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-          }
-        } else if (dStr.includes('-')) {
-          const parts = dStr.split('-');
-          if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
-            ymd = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-          }
-        }
-        return ymd >= sStr && ymd <= eStr;
-      });
-
-      for (const entry of external) {
-        let dateFormatted = entry.date;
-        const parts = entry.date.split("-");
-        if (parts.length === 3 && parts[0].length === 4) {
-          dateFormatted = `${parts[2]}-${parts[1]}-${parts[0]}`;
-        }
-
-        let serviceCat = entry.service_category;
-        if (!serviceCat) {
-          serviceCat = getCategoryOfService(entry.service_name, "");
-        }
-
-        let cShare = entry.client_share;
-        let pDrawdown = entry.package_drawdown;
-        if (
-          cShare === undefined ||
-          cShare === null ||
-          (entry.client_share === 0 &&
-            entry.grand_total > 0 &&
-            billingTier !== "Grandfathered")
-        ) {
-          const splits = calculateBillingSplits(
-            Number(id),
-            entry.date,
-            entry.grand_total,
-            serviceCat,
-          );
-          cShare = splits.clientShare;
-          pDrawdown = splits.packageDrawdown;
-        }
-
-        total += entry.grand_total;
-        items.push({
-          id: entry.id,
-          date: dateFormatted,
-          service: entry.service_name,
-          amount: entry.grand_total,
-          base_amount: entry.base_amount,
-          care_coord_fee: entry.care_coord_fee,
-          management_fee: entry.management_fee,
-          grand_total: entry.grand_total,
-          source_type: "external",
-          vendor_name: entry.vendor_name,
-          client_share: cShare,
-          package_drawdown: pDrawdown,
-          service_category: serviceCat,
-        });
-      }
-
-      items.sort((a, b) => {
-        const parseStr = (s: string) => {
-          const p = s.split("-");
-          if (p.length === 3)
-            return new Date(`${p[2]}-${p[1]}-${p[0]}T00:00:00`).getTime();
-          return new Date(s).getTime();
-        };
-        return parseStr(b.date) - parseStr(a.date);
-      });
-
-      res.json({
-        total,
-        items,
-        billingTier,
-        historicalMonthlyCap,
-      });
+      if (!startDate || !endDate) return res.json({ total: 0, grandTotal: 0, items: [] });
+      const data = getClientBudgetLedgerData(id, String(startDate), String(endDate));
+      res.json(data);
     } catch (e: any) {
       logger.error(`API Error fetching budget ledger: ${e}`, {
         error: "Internal Server Error",
