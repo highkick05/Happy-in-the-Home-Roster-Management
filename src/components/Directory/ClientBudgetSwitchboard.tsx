@@ -46,7 +46,7 @@ export default function ClientBudgetSwitchboard() {
       initial={{ opacity: 0 }} 
       animate={{ opacity: 1 }} 
       exit={{ opacity: 0 }} 
-      className="w-full h-full flex flex-col bg-brand-navy text-[#E6EDF3] p-6 lg:p-8 overflow-hidden"
+      className="w-full h-full flex flex-col bg-brand-navy text-[#E6EDF3] p-3 sm:p-4 overflow-hidden"
     >
       {isClientNdis ? (
         <NdisBudgetView />
