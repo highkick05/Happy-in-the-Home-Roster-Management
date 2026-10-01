@@ -5,6 +5,7 @@ import type { Express, Request, Response } from "express";
 import type Database from "better-sqlite3";
 import { GoogleGenAI, Type } from "@google/genai";
 import jwt from "jsonwebtoken";
+import { formatLatexToMarkdown } from "../utils/mathFormat.js";
 
 function UPPER(str: any): string {
   return String(str || "").toUpperCase();
@@ -4025,7 +4026,14 @@ CRITICAL ROSTERING ROUNDING & SERVICE DAYS GROUNDING:
   • NEVER invent, add, or hallucinate weekend days (Saturday or Sunday) if the client has no weekend services in the tool result!
   • If a client has only Monday–Friday services, DO NOT add Saturday or Sunday to their plan.
   • Do not assume a user's conversational questions about weekends mean a specific client has weekend services. The tool output from actual portal shifts is the single source of truth.
-- In Day-by-Day Roster Schedules, every shift must be rounded cleanly and the daily hours must sum exactly to the rounded total weekly hours across the active service days.`;
+- In Day-by-Day Roster Schedules, every shift must be rounded cleanly and the daily hours must sum exactly to the rounded total weekly hours across the active service days.
+
+CRITICAL TEXT FORMATTING & NO RAW LATEX:
+- NEVER output raw LaTeX, TeX math blocks, or TeX syntax (NEVER use $$, \\frac{...}, \\text{...}, \\mathbf{...}, \\longrightarrow, or backslash math commands).
+- ALWAYS format calculations and formulas in clean, natural, human-readable plain text or standard Markdown bold/italics.
+  • NEVER WRITE: $$\\frac{$1,403.39}{$102.96/\\text{hr}} = 13.63\\text{ hours} \\longrightarrow \\mathbf{13.0\\text{ whole hours / week}}$$
+  • ALWAYS WRITE: **$1,403.39 ÷ $102.96/hr = 13.63 hours → 13.0 whole hours / week**
+  • Use standard readable math symbols: ÷, ×, +, -, =, →.`;
 
           if (activeContextClient) {
             const activeFullName = `${activeContextClient.first_name} ${activeContextClient.last_name}`.trim();
@@ -4174,6 +4182,7 @@ CRITICAL TIME & DATE RULES:
 - All dates must strictly be formatted in the Australian standard DD/MM/YYYY. Display all financial amounts in AUD ($).
 - DYNAMIC RATES & EXACT DATA: Use ONLY the exact figures, funding package, and allocation provided in the tool result.
 - STRICT CLIENT ISOLATION: NEVER append generic reminder notes, disclaimers, or historical comparisons about other clients or packages.
+- NO RAW LATEX: NEVER output raw LaTeX, TeX code, or math block delimiters ($$, \\frac{...}, \\text{...}, \\mathbf{...}, \\longrightarrow). Always format math equations cleanly in human-readable plain text (e.g. **$1,403.39 ÷ $102.96/hr = 13.63 hours → 13.0 whole hours / week**).
 
 SPECIALIZED TOOL GUIDELINES:
 • Expired Staff Documents: Provide a clear compliance audit. State total expired, expiring soon (<= 30 days), and missing mandatory documents. Use a formatted markdown table or bulleted list of staff members with expired/expiring items, days expired/remaining, and actionable next steps.
@@ -4283,13 +4292,13 @@ IF THE CLIENT IS HOME CARE (HCP / SAH):
 
           if (finalReply) {
             return res.json({
-              reply: finalReply,
+              reply: formatLatexToMarkdown(finalReply),
               toolResult: allToolResults.length === 1 ? allToolResults[0].output : allToolResults
             });
           }
 
           if (response.text) {
-            return res.json({ reply: response.text });
+            return res.json({ reply: formatLatexToMarkdown(response.text) });
           }
         } catch (geminiError: any) {
           console.error("[AI Chat] Gemini API call failed:", geminiError?.message || geminiError);

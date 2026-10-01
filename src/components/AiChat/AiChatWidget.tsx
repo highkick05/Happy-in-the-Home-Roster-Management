@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import HappyMascot, { MascotMood } from './HappyMascot';
 import { useAuth } from '../../context/AuthContext';
+import { formatLatexToMarkdown } from '../../utils/mathFormat';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -384,7 +385,7 @@ export default function AiChatWidget() {
 
       const assistantMessage: ChatMessage = {
         role: 'assistant',
-        content: replyText
+        content: formatLatexToMarkdown(replyText)
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -813,7 +814,7 @@ export default function AiChatWidget() {
                                     )
                                   }}
                                 >
-                                  {msg.content.replace(/&lt;br\s*\/?&gt;/gi, '<br />')}
+                                  {formatLatexToMarkdown(msg.content.replace(/&lt;br\s*\/?&gt;/gi, '<br />'))}
                                 </ReactMarkdown>
                               </div>
                             )}
