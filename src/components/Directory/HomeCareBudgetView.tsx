@@ -742,10 +742,10 @@ export default function HomeCareBudgetView() {
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div>
-          <h2 className="text-sm sm:text-base font-semibold text-[#E6EDF3] tracking-tight leading-tight">
+          <h2 className="text-base sm:text-lg font-semibold text-[#E6EDF3] tracking-tight leading-tight">
             Client Budget
           </h2>
-          <div className="flex items-center text-[11px] text-[#8B949E] space-x-1.5 mt-0.5">
+          <div className="flex items-center text-xs text-[#8B949E] space-x-1.5 mt-0.5">
             <span className="font-medium text-[#E6EDF3]">{client.first_name} {client.last_name}</span>
             <span>•</span>
             <span>{client.home_care_sub_type || 'HCP'} {client.home_care_level_or_class || 'Level 1'}</span>
@@ -755,12 +755,12 @@ export default function HomeCareBudgetView() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-2 space-y-2">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-2 space-y-2.5">
         {/* Compact Funding Period & Quarter Filter Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 bg-brand-navy border border-border-subtle rounded-md px-2.5 py-1.5 shadow-xs">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <div className="flex items-center gap-1 text-[11px] text-[#8B949E]">
-              <Calendar className="w-3 h-3 text-brand-blue" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 shadow-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs text-[#8B949E]">
+              <Calendar className="w-3.5 h-3.5 text-brand-blue" />
               <span className="font-medium text-[#E6EDF3]">Period:</span>
             </div>
             
@@ -773,7 +773,7 @@ export default function HomeCareBudgetView() {
                   setSelectedFyYear(yr);
                   setCurrentPage(1);
                 }}
-                className="bg-[#121214] border border-border-subtle rounded px-2 py-0.5 text-[11px] text-[#E6EDF3] font-medium focus:outline-none focus:border-brand-blue cursor-pointer"
+                className="bg-[#121214] border border-border-subtle rounded px-2.5 py-0.5 text-xs text-[#E6EDF3] font-medium focus:outline-none focus:border-brand-blue cursor-pointer"
               >
                 {availableYears.map(y => (
                   <option key={y.year} value={y.year}>
@@ -792,7 +792,7 @@ export default function HomeCareBudgetView() {
                   setSelectedQuarterId(qId);
                   setCurrentPage(1);
                 }}
-                className="bg-[#121214] border border-border-subtle rounded px-2 py-0.5 text-[11px] text-[#E6EDF3] font-medium focus:outline-none focus:border-brand-blue cursor-pointer"
+                className="bg-[#121214] border border-border-subtle rounded px-2.5 py-0.5 text-xs text-[#E6EDF3] font-medium focus:outline-none focus:border-brand-blue cursor-pointer"
               >
                 {quarters.map(q => (
                   <option key={q.id} value={q.id}>
@@ -804,18 +804,18 @@ export default function HomeCareBudgetView() {
 
             {/* Quarter Status Badge */}
             {isCurrentRealTimeQuarter ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 Active
               </span>
             ) : isPastQuarter ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                <Archive className="w-2.5 h-2.5" />
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <Archive className="w-3 h-3" />
                 Archived
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                <Clock className="w-2.5 h-2.5" />
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                <Clock className="w-3 h-3" />
                 Upcoming
               </span>
             )}
@@ -830,9 +830,9 @@ export default function HomeCareBudgetView() {
                 setSelectedQuarterId(current.currentQuarterId);
                 setCurrentPage(1);
               }}
-              className="inline-flex items-center gap-1 text-[10px] font-medium text-brand-blue hover:text-white px-1.5 py-0.5 rounded bg-brand-blue/10 hover:bg-brand-blue/20 transition-colors border border-brand-blue/20 cursor-pointer self-start sm:self-auto"
+              className="inline-flex items-center gap-1 text-xs font-medium text-brand-blue hover:text-white px-2 py-0.5 rounded bg-brand-blue/10 hover:bg-brand-blue/20 transition-colors border border-brand-blue/20 cursor-pointer self-start sm:self-auto"
             >
-              <RotateCcw className="w-2.5 h-2.5" />
+              <RotateCcw className="w-3 h-3" />
               <span>Current Quarter</span>
             </button>
           )}
@@ -841,12 +841,12 @@ export default function HomeCareBudgetView() {
         {/* Top Summary Cards Row - Ordered by Importance */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
           {/* Card 1: Total Allocation */}
-          <div className="bg-brand-navy border border-border-subtle rounded-md p-2 shadow-xs flex flex-col justify-between">
+          <div className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between">
             <div>
-              <div className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wider mb-0.5">Total Allocation</div>
-              <div className="text-base font-bold text-[#E6EDF3] tracking-tight">{formatCurrency(totalAllocation)}</div>
+              <div className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider mb-0.5">Total Allocation</div>
+              <div className="text-lg font-bold text-[#E6EDF3] tracking-tight">{formatCurrency(totalAllocation)}</div>
             </div>
-            <div className="text-[9px] text-zinc-400 font-mono mt-0.5 pt-0.5 border-t border-white/[0.04]">
+            <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04]">
               {totalDays} Days ({formatDate(activeCycle.startStr)} – {formatDate(activeCycle.endStr)})
               {additionalFundingTotal > 0 && (
                 <span className="text-emerald-400 font-sans ml-1">+{formatCurrency(additionalFundingTotal)}</span>
@@ -855,117 +855,117 @@ export default function HomeCareBudgetView() {
           </div>
 
           {/* Card 2: Total Spent */}
-          <div className="bg-brand-navy border border-border-subtle rounded-md p-2 shadow-xs flex flex-col justify-between">
+          <div className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between">
             <div>
-              <div className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wider mb-0.5">Total Spent</div>
-              <div className="text-base font-bold text-[#E6EDF3] tracking-tight">{formatCurrency(totalCombinedSpent)}</div>
+              <div className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider mb-0.5">Total Spent</div>
+              <div className="text-lg font-bold text-[#E6EDF3] tracking-tight">{formatCurrency(totalCombinedSpent)}</div>
             </div>
-            <div className="text-[9px] text-zinc-400 font-mono mt-0.5 pt-0.5 border-t border-white/[0.04] truncate">
+            <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] truncate">
               {activeQuarter.shortLabel} • {isCurrentRealTimeQuarter ? 'Active' : 'Archived'}
             </div>
           </div>
 
           {/* Card 3: Remaining Balance */}
-          <div className={`bg-brand-navy border ${remainingBalance >= 0 ? 'border-brand-green/30' : 'border-red-500/30'} rounded-md p-2 shadow-xs flex flex-col justify-between relative overflow-hidden`}>
+          <div className={`bg-brand-navy border ${remainingBalance >= 0 ? 'border-brand-green/30' : 'border-red-500/30'} rounded-md p-2.5 shadow-xs flex flex-col justify-between relative overflow-hidden`}>
             <div>
-              <div className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wider mb-0.5">Remaining Balance</div>
-              <div className={`text-base font-bold tracking-tight ${remainingBalance >= 0 ? 'text-brand-green' : 'text-red-400'}`}>
+              <div className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider mb-0.5">Remaining Balance</div>
+              <div className={`text-lg font-bold tracking-tight ${remainingBalance >= 0 ? 'text-brand-green' : 'text-red-400'}`}>
                 {formatCurrency(remainingBalance)}
               </div>
             </div>
-            <div className="text-[9px] text-zinc-400 font-mono mt-0.5 pt-0.5 border-t border-white/[0.04] truncate">
+            <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] truncate">
               {activeQuarter.shortLabel} ({activeQuarter.displayRange})
             </div>
           </div>
 
           {/* Card 4: Unspent Funds Pool */}
-          <div className="bg-brand-navy border border-border-subtle rounded-md p-2 shadow-xs flex flex-col justify-between">
+          <div className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1">
-                <Calculator className="w-2.5 h-2.5 text-emerald-400" />
+              <span className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1">
+                <Calculator className="w-3 h-3 text-emerald-400" />
                 Unspent Pool
               </span>
               {user?.role === 'ADMIN' && (
                 <button
                   onClick={handleSaveSettings}
                   disabled={saving}
-                  className="px-1.5 py-0.2 bg-brand-blue/20 hover:bg-brand-blue/30 text-brand-blue-300 border border-brand-blue/30 rounded text-[9px] font-medium transition-colors flex items-center gap-0.5 disabled:opacity-50"
+                  className="px-1.5 py-0.5 bg-brand-blue/20 hover:bg-brand-blue/30 text-brand-blue-300 border border-brand-blue/30 rounded text-[10px] font-medium transition-colors flex items-center gap-0.5 disabled:opacity-50"
                 >
-                  <Save className="w-2 h-2" />
+                  <Save className="w-2.5 h-2.5" />
                   <span>{saving ? '...' : 'Save'}</span>
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-1 my-0.5">
+            <div className="grid grid-cols-2 gap-1.5 my-0.5">
               <div>
-                <span className="block text-[8px] text-[#8B949E] uppercase leading-tight">Start ($)</span>
+                <span className="block text-[9px] text-[#8B949E] uppercase leading-tight">Start ($)</span>
                 <input 
                   type="number"
                   step="0.01"
                   value={startingRolloverBalance}
                   onChange={(e) => setStartingRolloverBalance(parseFloat(e.target.value) || 0)}
                   disabled={user?.role !== 'ADMIN'}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded px-1 py-0 text-[10px] h-5 text-white outline-none focus:border-brand-blue disabled:opacity-50 font-mono" 
+                  className="w-full bg-black/40 border border-white/[0.08] rounded px-1.5 py-0.5 text-[11px] h-6 text-white outline-none focus:border-brand-blue disabled:opacity-50 font-mono" 
                 />
               </div>
               <div>
-                <span className="block text-[8px] text-[#8B949E] uppercase leading-tight">Spent ($)</span>
+                <span className="block text-[9px] text-[#8B949E] uppercase leading-tight">Spent ($)</span>
                 <input 
                   type="number"
                   step="0.01"
                   value={rolloverSpentSoFar}
                   onChange={(e) => setRolloverSpentSoFar(parseFloat(e.target.value) || 0)}
                   disabled={user?.role !== 'ADMIN'}
-                  className="w-full bg-black/40 border border-white/[0.08] rounded px-1 py-0 text-[10px] h-5 text-white outline-none focus:border-brand-blue disabled:opacity-50 font-mono" 
+                  className="w-full bg-black/40 border border-white/[0.08] rounded px-1.5 py-0.5 text-[11px] h-6 text-white outline-none focus:border-brand-blue disabled:opacity-50 font-mono" 
                 />
               </div>
             </div>
-            <div className="flex justify-between items-center text-[9px] text-zinc-400 font-mono mt-0.5 pt-0.5 border-t border-white/[0.04]">
-              <span>Net: <strong className="text-emerald-400">{formatCurrency(startingRolloverBalance - rolloverSpentSoFar)}</strong></span>
-              <span>Cap: <strong className="text-brand-blue-300">{formatCurrency(Math.max(1000, 0.10 * totalAllocation))}</strong></span>
+            <div className="flex justify-between items-center text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04]">
+              <span>Net: <strong className="text-emerald-400 font-semibold">{formatCurrency(startingRolloverBalance - rolloverSpentSoFar)}</strong></span>
+              <span>Cap: <strong className="text-brand-blue-300 font-semibold">{formatCurrency(Math.max(1000, 0.10 * totalAllocation))}</strong></span>
             </div>
           </div>
 
           {/* Card 5: Participant Contribution */}
-          <div className="bg-brand-navy border border-border-subtle rounded-md p-2 shadow-xs flex flex-col justify-between">
+          <div className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between gap-1 mb-0.5">
-                <span className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wider">Participant Share</span>
+                <span className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider">Participant Share</span>
                 {getTierBadge(billingTier)}
               </div>
-              <div className="text-base font-bold text-[#E6EDF3] tracking-tight">
+              <div className="text-lg font-bold text-[#E6EDF3] tracking-tight">
                 {formatCurrency(totalClientShare)}
               </div>
             </div>
-            <div className="text-[9px] text-zinc-400 font-mono mt-0.5 pt-0.5 border-t border-white/[0.04] flex items-center justify-between">
+            <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] flex items-center justify-between">
               <span>Indep: <strong className="text-white">{formatCurrency(independenceShare)}</strong></span>
               <span>Living: <strong className="text-white">{formatCurrency(everydayLivingShare)}</strong></span>
             </div>
           </div>
 
           {/* Card 6: Additional Funding Streams */}
-          <div className="bg-brand-navy border border-border-subtle rounded-md p-2 shadow-xs flex flex-col justify-between">
+          <div className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between gap-1 mb-0.5">
-                <span className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1">
-                  <Layers className="w-2.5 h-2.5 text-emerald-400" />
+                <span className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1">
+                  <Layers className="w-3 h-3 text-emerald-400" />
                   Additional Streams
                 </span>
                 <button
                   type="button"
                   onClick={handleOpenAddAdditional}
-                  className="px-1.5 py-0.2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded text-[9px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                  className="px-1.5 py-0.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
                   title="Add Funding Stream"
                 >
-                  <Plus className="w-2 h-2" />
+                  <Plus className="w-2.5 h-2.5" />
                   <span>Add</span>
                 </button>
               </div>
-              <div className="text-base font-bold text-emerald-400 tracking-tight">
+              <div className="text-lg font-bold text-emerald-400 tracking-tight">
                 {formatCurrency(additionalFundingTotal)}
               </div>
             </div>
-            <div className="text-[9px] text-zinc-400 font-mono mt-0.5 pt-0.5 border-t border-white/[0.04] flex items-center justify-between">
+            <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] flex items-center justify-between">
               <span>{additionalFundingStreams.length} stream{additionalFundingStreams.length === 1 ? '' : 's'}</span>
               {additionalFundingStreams.length > 0 ? (
                 <button
@@ -982,28 +982,28 @@ export default function HomeCareBudgetView() {
           </div>
 
           {/* Card 7: Assistive Technology (AT) & Home Modifications (HM) */}
-          <div className="bg-brand-navy border border-border-subtle rounded-md p-2 shadow-xs flex flex-col justify-between">
+          <div className="bg-brand-navy border border-border-subtle rounded-md p-2.5 shadow-xs flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between gap-1 mb-0.5">
-                <span className="text-[#8B949E] text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1">
-                  <Wrench className="w-2.5 h-2.5 text-sky-400" />
+                <span className="text-[#8B949E] text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1">
+                  <Wrench className="w-3 h-3 text-sky-400" />
                   AT &amp; HM Schemes
                 </span>
                 <button
                   type="button"
                   onClick={handleOpenAddAtHm}
-                  className="px-1.5 py-0.2 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 rounded text-[9px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                  className="px-1.5 py-0.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 rounded text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
                   title="Add AT/HM Stream"
                 >
-                  <Plus className="w-2 h-2" />
+                  <Plus className="w-2.5 h-2.5" />
                   <span>Add</span>
                 </button>
               </div>
-              <div className="text-base font-bold text-sky-400 tracking-tight">
+              <div className="text-lg font-bold text-sky-400 tracking-tight">
                 {formatCurrency(totalAtRemaining + totalHmRemaining)}
               </div>
             </div>
-            <div className="text-[9px] text-zinc-400 font-mono mt-0.5 pt-0.5 border-t border-white/[0.04] flex items-center justify-between">
+            <div className="text-[10px] text-zinc-400 font-mono mt-1 pt-1 border-t border-white/[0.04] flex items-center justify-between">
               <span className="truncate">AT: {formatCurrency(totalAtRemaining)} • HM: {formatCurrency(totalHmRemaining)}</span>
               {atHmFundingStreams.length > 0 ? (
                 <button
@@ -1023,12 +1023,12 @@ export default function HomeCareBudgetView() {
         {/* Full Width Compact Ledger Column */}
         <div className="w-full">
           <div className="bg-brand-navy border border-border-subtle rounded-md shadow-xs flex flex-col">
-            <div className="px-3 py-1.5 border-b border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[#E6EDF3] shrink-0">
+            <div className="px-3.5 py-2 border-b border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[#E6EDF3] shrink-0">
               <div className="flex items-center space-x-2">
-                <Calculator className="w-3.5 h-3.5 text-brand-blue" />
-                <h3 className="font-semibold text-xs leading-tight">System Ledger Preview ({activeQuarter.label})</h3>
-                <span className="text-[10px] text-[#8B949E]">({activeQuarter.displayRange})</span>
-                <span className="text-[10px] text-zinc-400 font-mono bg-white/5 px-1.5 py-0.2 rounded">
+                <Calculator className="w-4 h-4 text-brand-blue" />
+                <h3 className="font-semibold text-sm leading-tight">System Ledger Preview ({activeQuarter.label})</h3>
+                <span className="text-xs text-[#8B949E]">({activeQuarter.displayRange})</span>
+                <span className="text-[11px] text-zinc-300 font-mono bg-white/5 px-2 py-0.5 rounded border border-white/5">
                   {filteredLedgerItems.length} {filteredLedgerItems.length === 1 ? 'row' : 'rows'}
                 </span>
               </div>
@@ -1038,20 +1038,20 @@ export default function HomeCareBudgetView() {
                     setExternalDate(isCurrentRealTimeQuarter ? new Date().toISOString().split('T')[0] : activeQuarter.startDateStr);
                     setIsExternalModalOpen(true);
                   }}
-                  className="bg-zinc-800 border border-zinc-700 text-[10px] font-medium px-2 py-0.5 h-6 rounded hover:bg-zinc-700 text-zinc-200 transition-colors flex items-center gap-1 cursor-pointer"
+                  className="bg-zinc-800 border border-zinc-700 text-xs font-medium px-2.5 py-1 rounded hover:bg-zinc-700 text-zinc-200 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Plus className="w-2.5 h-2.5 text-zinc-400" />
+                  <Plus className="w-3 h-3 text-zinc-400" />
                   <span>Log External Expense</span>
                 </button>
               </div>
             </div>
 
             {/* Filter Toolbar: Search, Date Range, Rows per Page */}
-            <div className="px-3 py-1.5 bg-[#121214]/60 border-b border-border-subtle flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[260px]">
+            <div className="px-3.5 py-2 bg-[#121214]/60 border-b border-border-subtle flex flex-wrap items-center justify-between gap-2.5 text-xs">
+              <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-[260px]">
                 {/* Search Bar */}
-                <div className="relative flex-1 min-w-[180px] max-w-xs">
-                  <Search className="w-3 h-3 text-zinc-400 absolute left-2 top-1/2 -translate-y-1/2" />
+                <div className="relative flex-1 min-w-[200px] max-w-sm">
+                  <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     placeholder="Search service, vendor, notes..."
@@ -1060,7 +1060,7 @@ export default function HomeCareBudgetView() {
                       setLedgerSearch(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="w-full bg-black/40 border border-white/10 rounded pl-6 pr-6 py-0.5 text-[11px] text-white placeholder-zinc-500 outline-none focus:border-brand-blue transition-colors"
+                    className="w-full bg-black/40 border border-white/10 rounded pl-7 pr-7 py-1 text-xs text-white placeholder-zinc-500 outline-none focus:border-brand-blue transition-colors"
                   />
                   {ledgerSearch && (
                     <button
@@ -1068,16 +1068,16 @@ export default function HomeCareBudgetView() {
                         setLedgerSearch('');
                         setCurrentPage(1);
                       }}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-0.5 cursor-pointer"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-0.5 cursor-pointer"
                     >
-                      <X className="w-2.5 h-2.5" />
+                      <X className="w-3 h-3" />
                     </button>
                   )}
                 </div>
 
                 {/* Date Filters */}
-                <div className="flex items-center gap-1 text-[11px] text-[#8B949E]">
-                  <span className="text-[10px] uppercase font-semibold">From:</span>
+                <div className="flex items-center gap-1.5 text-xs text-[#8B949E]">
+                  <span className="text-[11px] uppercase font-semibold text-zinc-400">From:</span>
                   <input
                     type="date"
                     value={ledgerStartDate}
@@ -1085,9 +1085,9 @@ export default function HomeCareBudgetView() {
                       setLedgerStartDate(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="bg-black/40 border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-zinc-200 outline-none focus:border-brand-blue"
+                    className="bg-black/40 border border-white/10 rounded px-2 py-0.5 text-xs text-zinc-200 outline-none focus:border-brand-blue"
                   />
-                  <span className="text-[10px] uppercase font-semibold ml-1">To:</span>
+                  <span className="text-[11px] uppercase font-semibold text-zinc-400 ml-1">To:</span>
                   <input
                     type="date"
                     value={ledgerEndDate}
@@ -1095,7 +1095,7 @@ export default function HomeCareBudgetView() {
                       setLedgerEndDate(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="bg-black/40 border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-zinc-200 outline-none focus:border-brand-blue"
+                    className="bg-black/40 border border-white/10 rounded px-2 py-0.5 text-xs text-zinc-200 outline-none focus:border-brand-blue"
                   />
                   {(ledgerStartDate || ledgerEndDate || ledgerSearch) && (
                     <button
@@ -1105,7 +1105,7 @@ export default function HomeCareBudgetView() {
                         setLedgerEndDate('');
                         setCurrentPage(1);
                       }}
-                      className="text-[10px] text-brand-blue hover:underline ml-1 cursor-pointer"
+                      className="text-xs text-brand-blue hover:underline ml-1 font-medium cursor-pointer"
                     >
                       Reset
                     </button>
@@ -1114,15 +1114,15 @@ export default function HomeCareBudgetView() {
               </div>
 
               {/* Rows Per Page Selector */}
-              <div className="flex items-center gap-1.5 text-[10px] text-[#8B949E] shrink-0">
-                <span>Rows:</span>
+              <div className="flex items-center gap-1.5 text-xs text-[#8B949E] shrink-0">
+                <span className="font-medium">Rows:</span>
                 <select
                   value={itemsPerPage}
                   onChange={(e) => {
                     setItemsPerPage(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="bg-black/40 border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-[#E6EDF3] font-medium focus:outline-none focus:border-brand-blue cursor-pointer"
+                  className="bg-black/40 border border-white/10 rounded px-2 py-0.5 text-xs text-[#E6EDF3] font-medium focus:outline-none focus:border-brand-blue cursor-pointer"
                 >
                   <option value={50}>50</option>
                   <option value={100}>100</option>
@@ -1134,22 +1134,22 @@ export default function HomeCareBudgetView() {
             
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-[#121214] text-[10px] font-medium text-[#8B949E] sticky top-0 z-10 uppercase tracking-wider">
+                <thead className="bg-[#121214] text-[11px] font-semibold text-[#8B949E] sticky top-0 z-10 uppercase tracking-wider">
                   <tr>
-                    <th className="px-2.5 py-1.5 border-b border-border-subtle w-[10%]">Date</th>
-                    <th className="px-2.5 py-1.5 border-b border-border-subtle w-[30%]">Service Item</th>
-                    <th className="px-2.5 py-1.5 border-b border-border-subtle text-right">Service Amt</th>
-                    {isHomeCare && <th className="px-2.5 py-1.5 border-b border-border-subtle text-right w-max">Care Coord ({careCoordPercent}%)</th>}
-                    {isHomeCare && <th className="px-2.5 py-1.5 border-b border-border-subtle text-right w-max">Total w/ CC ({careCoordPercent}%)</th>}
-                    {isHomeCare && <th className="px-2.5 py-1.5 border-b border-border-subtle text-right w-max">Mgmt ({managementFeePercent}%)</th>}
-                    <th className="px-2.5 py-1.5 border-b border-border-subtle text-right w-max">Grand Total</th>
+                    <th className="px-3 py-2 border-b border-border-subtle w-[10%]">Date</th>
+                    <th className="px-3 py-2 border-b border-border-subtle w-[30%]">Service Item</th>
+                    <th className="px-3 py-2 border-b border-border-subtle text-right">Service Amt</th>
+                    {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Care Coord ({careCoordPercent}%)</th>}
+                    {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Total w/ CC ({careCoordPercent}%)</th>}
+                    {isHomeCare && <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Mgmt ({managementFeePercent}%)</th>}
+                    <th className="px-3 py-2 border-b border-border-subtle text-right w-max">Grand Total</th>
                   </tr>
                 </thead>
-                <tbody className="text-[11px]">
+                <tbody className="text-xs">
                   {paginatedLedgerItems.length === 0 ? (
                     <tr>
-                      <td colSpan={isHomeCare ? 7 : 4} className="px-4 py-4 text-center text-[#8B949E]">
-                        <p className="italic text-xs">
+                      <td colSpan={isHomeCare ? 7 : 4} className="px-4 py-6 text-center text-[#8B949E]">
+                        <p className="italic text-xs sm:text-sm">
                           {ledgerSearch || ledgerStartDate || ledgerEndDate
                             ? 'No entries match your search or date filters.'
                             : `No recorded shifts or external expenses for ${activeQuarter.label} (${activeQuarter.displayRange}).`}
@@ -1159,22 +1159,22 @@ export default function HomeCareBudgetView() {
                   ) : (
                     paginatedLedgerItems.map((item, i) => (
                       <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02] text-[#E6EDF3]">
-                        <td className="px-2.5 py-1.5 whitespace-nowrap font-mono text-[10px]">{item.date}</td>
-                        <td className="px-2.5 py-1.5 min-w-[180px] text-[11px]">
-                          <div className="flex items-center gap-1 flex-wrap">
+                        <td className="px-3 py-2 whitespace-nowrap font-mono text-[11px] text-zinc-300">{item.date}</td>
+                        <td className="px-3 py-2 min-w-[190px] text-xs">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span>{item.service}</span>
                             {item.source_type === 'external' && (
-                              <span className="inline-block px-1 py-0.2 rounded text-[9px] bg-zinc-800 text-zinc-300 border border-zinc-700/80 font-medium">
+                              <span className="inline-block px-1.5 py-0.2 rounded text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700/80 font-medium">
                                 [Ext - {item.vendor_name || 'Generic'}]
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="px-2.5 py-1.5 text-right font-mono">{formatCurrency(item.baseAmount)}</td>
-                        {isHomeCare && <td className="px-2.5 py-1.5 text-right text-[#8B949E] font-mono">{formatCurrency(item.coordinationFee)}</td>}
-                        {isHomeCare && <td className="px-2.5 py-1.5 text-right text-[#8B949E] font-mono">{formatCurrency(item.subtotal)}</td>}
-                        {isHomeCare && <td className="px-2.5 py-1.5 text-right text-[#8B949E] font-mono">{formatCurrency(item.managementFee)}</td>}
-                        <td className="px-2.5 py-1.5 text-right font-medium text-brand-blue font-mono">{formatCurrency(item.amount)}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">{formatCurrency(item.baseAmount)}</td>
+                        {isHomeCare && <td className="px-3 py-2 text-right text-[#8B949E] font-mono text-xs">{formatCurrency(item.coordinationFee)}</td>}
+                        {isHomeCare && <td className="px-3 py-2 text-right text-[#8B949E] font-mono text-xs">{formatCurrency(item.subtotal)}</td>}
+                        {isHomeCare && <td className="px-3 py-2 text-right text-[#8B949E] font-mono text-xs">{formatCurrency(item.managementFee)}</td>}
+                        <td className="px-3 py-2 text-right font-semibold text-brand-blue font-mono text-xs">{formatCurrency(item.amount)}</td>
                       </tr>
                     ))
                   )}
@@ -1183,7 +1183,7 @@ export default function HomeCareBudgetView() {
             </div>
 
             {/* Compact Pagination Controls */}
-            <div className="px-2.5 py-1 border-t border-border-subtle bg-black/20 flex items-center justify-between shrink-0 text-[10px]">
+            <div className="px-3 py-1.5 border-t border-border-subtle bg-black/20 flex items-center justify-between shrink-0 text-xs">
               <div className="text-[#8B949E]">
                 {filteredLedgerItems.length === 0 ? (
                   '0 entries'
@@ -1191,11 +1191,11 @@ export default function HomeCareBudgetView() {
                   <>Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredLedgerItems.length)} of {filteredLedgerItems.length} entries</>
                 )}
                 {(ledgerSearch || ledgerStartDate || ledgerEndDate) && (
-                  <span className="text-zinc-500 ml-1">(filtered from {processedLedgerItems.length} total)</span>
+                  <span className="text-zinc-500 ml-1.5">(filtered from {processedLedgerItems.length} total)</span>
                 )}
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="flex items-center gap-1 text-zinc-400">
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-1.5 text-zinc-400">
                   <span>Page Size:</span>
                   <select
                     value={itemsPerPage}
@@ -1203,7 +1203,7 @@ export default function HomeCareBudgetView() {
                       setItemsPerPage(Number(e.target.value));
                       setCurrentPage(1);
                     }}
-                    className="bg-[#121214] border border-border-subtle rounded px-1 py-0.2 text-[10px] text-zinc-300 font-medium focus:outline-none focus:border-brand-blue cursor-pointer"
+                    className="bg-[#121214] border border-border-subtle rounded px-1.5 py-0.5 text-xs text-zinc-300 font-medium focus:outline-none focus:border-brand-blue cursor-pointer"
                   >
                     <option value={50}>50</option>
                     <option value={100}>100</option>
@@ -1211,21 +1211,21 @@ export default function HomeCareBudgetView() {
                     <option value={500}>500</option>
                   </select>
                 </div>
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-1.5">
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
-                    className="p-0.5 rounded bg-brand-navy border border-border-subtle hover:border-brand-teal text-[#8B949E] hover:text-[#E6EDF3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="p-1 rounded bg-brand-navy border border-border-subtle hover:border-brand-teal text-[#8B949E] hover:text-[#E6EDF3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-[#E6EDF3] px-1 font-mono">
+                  <span className="text-[#E6EDF3] px-1 font-mono text-xs">
                     {currentPage} / {totalPages}
                   </span>
                   <button
                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                     disabled={currentPage === totalPages}
-                    className="p-0.5 rounded bg-brand-navy border border-border-subtle hover:border-brand-teal text-[#8B949E] hover:text-[#E6EDF3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="p-1 rounded bg-brand-navy border border-border-subtle hover:border-brand-teal text-[#8B949E] hover:text-[#E6EDF3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>

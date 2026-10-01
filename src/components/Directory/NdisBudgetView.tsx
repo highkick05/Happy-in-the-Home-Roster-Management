@@ -261,10 +261,10 @@ export default function NdisBudgetView() {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h2 className="text-sm sm:text-base font-semibold text-[#E6EDF3] tracking-tight leading-tight">
+            <h2 className="text-base sm:text-lg font-semibold text-[#E6EDF3] tracking-tight leading-tight">
               Service Agreement Tracking
             </h2>
-            <div className="flex items-center text-[11px] mt-0.5 text-[#8B949E] space-x-1.5">
+            <div className="flex items-center text-xs mt-0.5 text-[#8B949E] space-x-1.5">
               <span className="font-medium text-[#E6EDF3]">{client.first_name} {client.last_name}</span>
               <span>•</span>
               <span className="text-emerald-400 font-medium">NDIS</span>
@@ -274,7 +274,7 @@ export default function NdisBudgetView() {
         
         <button
           onClick={handleOpenAddModal}
-          className="flex items-center space-x-1.5 bg-brand-blue hover:bg-blue-600 text-white px-2.5 py-1 rounded transition-colors font-medium text-xs"
+          className="flex items-center space-x-1.5 bg-brand-blue hover:bg-blue-600 text-white px-2.5 py-1 rounded transition-colors font-medium text-xs sm:text-sm"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Add Agreement</span>
@@ -288,7 +288,7 @@ export default function NdisBudgetView() {
             <button
               key={agr.id}
               onClick={() => setSelectedAgrId(agr.id)}
-              className={`flex items-center space-x-1 px-2.5 py-1 rounded-t transition-colors whitespace-nowrap text-xs font-medium ${
+              className={`flex items-center space-x-1 px-3 py-1 rounded-t transition-colors whitespace-nowrap text-xs sm:text-sm font-medium ${
                 selectedAgrId === agr.id
                   ? 'bg-zinc-800 text-white border-b-2 border-brand-blue'
                   : 'text-[#8B949E] hover:text-white hover:bg-white/5'
@@ -301,7 +301,7 @@ export default function NdisBudgetView() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-2 space-y-2">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-2 space-y-2.5">
         {!selectedData ? (
           <div className="flex flex-col items-center justify-center py-10 bg-zinc-900 border border-white/[0.08] rounded-md">
              <FileText className="w-8 h-8 text-zinc-600 mb-2" />
@@ -309,7 +309,7 @@ export default function NdisBudgetView() {
              <p className="text-xs text-[#8B949E] text-center max-w-sm mb-4">Create a new service agreement to track budgets and consumption.</p>
              <button
                 onClick={handleOpenAddModal}
-                className="flex items-center space-x-1.5 bg-brand-blue hover:bg-blue-600 text-white px-3 py-1 rounded transition-colors font-medium text-xs"
+                className="flex items-center space-x-1.5 bg-brand-blue hover:bg-blue-600 text-white px-3 py-1 rounded transition-colors font-medium text-xs sm:text-sm"
              >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Create Service Agreement</span>
@@ -322,17 +322,17 @@ export default function NdisBudgetView() {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={handleEditModal}
-                  className="flex items-center space-x-1 bg-white/[0.05] hover:bg-white/10 text-white px-2 py-0.5 rounded border border-white/10 transition-colors font-medium text-xs"
+                  className="flex items-center space-x-1 bg-white/[0.05] hover:bg-white/10 text-white px-2.5 py-1 rounded border border-white/10 transition-colors font-medium text-xs"
                 >
-                  <Pencil className="w-3 h-3" />
+                  <Pencil className="w-3.5 h-3.5" />
                   <span>Edit</span>
                 </button>
                 <button
                   onClick={handleArchive}
-                  className="flex items-center space-x-1 bg-white/[0.05] hover:bg-white/10 text-white px-2 py-0.5 rounded border border-white/10 transition-colors font-medium text-xs"
+                  className="flex items-center space-x-1 bg-white/[0.05] hover:bg-white/10 text-white px-2.5 py-1 rounded border border-white/10 transition-colors font-medium text-xs"
                   title={selectedData.status === 'ARCHIVED' ? 'Unarchive' : 'Archive'}
                 >
-                  <Archive className="w-3 h-3" />
+                  <Archive className="w-3.5 h-3.5" />
                   <span>{selectedData.status === 'ARCHIVED' ? 'Unarchive' : 'Archive'}</span>
                 </button>
                 <button
@@ -341,26 +341,26 @@ export default function NdisBudgetView() {
                         handleDelete();
                      }
                   }}
-                  className="flex items-center space-x-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-2 py-0.5 rounded border border-red-500/20 transition-colors font-medium text-xs"
+                  className="flex items-center space-x-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-2.5 py-1 rounded border border-red-500/20 transition-colors font-medium text-xs"
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 className="w-3.5 h-3.5" />
                   <span>Delete</span>
                 </button>
               </div>
-              <div className="flex items-center space-x-3 bg-black/40 border border-white/[0.08] px-2.5 py-1 rounded-md text-xs">
-                <div className="flex items-center gap-1">
-                  <span className="text-[9px] text-zinc-500 uppercase font-semibold">Start:</span>
-                  <span className="font-medium text-[#E6EDF3]">{formatDate(selectedData.startDate)}</span>
+              <div className="flex items-center space-x-3 bg-black/40 border border-white/[0.08] px-3 py-1 rounded-md text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-zinc-400 uppercase font-semibold">Start:</span>
+                  <span className="font-medium text-[#E6EDF3] text-xs sm:text-sm">{formatDate(selectedData.startDate)}</span>
                 </div>
                 <div className="w-px h-3.5 bg-white/10" />
-                <div className="flex items-center gap-1">
-                  <span className="text-[9px] text-zinc-500 uppercase font-semibold">End:</span>
-                  <span className="font-medium text-[#E6EDF3]">{formatDate(selectedData.endDate)}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-zinc-400 uppercase font-semibold">End:</span>
+                  <span className="font-medium text-[#E6EDF3] text-xs sm:text-sm">{formatDate(selectedData.endDate)}</span>
                 </div>
                 <div className="w-px h-3.5 bg-white/10" />
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-emerald-500" />
-                  <span className="font-semibold text-emerald-400">
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+                  <span className="font-semibold text-emerald-400 text-xs sm:text-sm">
                     {daysRemaining(selectedData.endDate)}d left
                   </span>
                 </div>
@@ -369,53 +369,53 @@ export default function NdisBudgetView() {
 
             {/* Summary Metric Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-              <div className="bg-zinc-900 border border-white/[0.08] rounded-md p-2 shadow-xs flex flex-col justify-between">
-                <div className="text-zinc-400 text-[10px] font-medium mb-0.5 flex items-center justify-between">
+              <div className="bg-zinc-900 border border-white/[0.08] rounded-md p-2.5 shadow-xs flex flex-col justify-between">
+                <div className="text-zinc-400 text-[11px] font-semibold uppercase tracking-wider mb-0.5 flex items-center justify-between">
                   <span>Grand Total</span>
-                  <Layers className="w-3 h-3 text-brand-blue opacity-70" />
+                  <Layers className="w-3.5 h-3.5 text-brand-blue opacity-70" />
                 </div>
-                <div className="text-base font-bold text-[#E6EDF3] tracking-tight">{formatCurrency(selectedData.totalAgreementValue)}</div>
-                <div className="text-[9px] text-zinc-500 mt-0.5 font-mono truncate">Sub-totals sum</div>
+                <div className="text-lg font-bold text-[#E6EDF3] tracking-tight">{formatCurrency(selectedData.totalAgreementValue)}</div>
+                <div className="text-[10px] text-zinc-400 mt-1 font-mono truncate">Sub-totals sum</div>
               </div>
 
-              <div className="bg-zinc-900 border border-white/[0.08] rounded-md p-2 shadow-xs flex flex-col justify-between">
-                <div className="text-zinc-400 text-[10px] font-medium mb-0.5 flex items-center justify-between">
+              <div className="bg-zinc-900 border border-white/[0.08] rounded-md p-2.5 shadow-xs flex flex-col justify-between">
+                <div className="text-zinc-400 text-[11px] font-semibold uppercase tracking-wider mb-0.5 flex items-center justify-between">
                   <span>Delivered / Consumed</span>
-                  <CheckCircle2 className="w-3 h-3 text-indigo-400 opacity-70" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400 opacity-70" />
                 </div>
-                <div className="text-base font-bold text-indigo-400 tracking-tight">{formatCurrency(selectedData.totalCompletedSpent || selectedData.totalClaimed)}</div>
-                <div className="text-[9px] text-zinc-500 mt-0.5 font-mono truncate">
+                <div className="text-lg font-bold text-indigo-400 tracking-tight">{formatCurrency(selectedData.totalCompletedSpent || selectedData.totalClaimed)}</div>
+                <div className="text-[10px] text-zinc-400 mt-1 font-mono truncate">
                   {fundsUtilizedPct(selectedData.totalCompletedSpent || selectedData.totalClaimed, selectedData.totalAgreementValue).toFixed(1)}% utilized
                 </div>
               </div>
 
-              <div className="bg-zinc-900 border border-white/[0.08] rounded-md p-2 shadow-xs flex flex-col justify-between">
-                <div className="text-zinc-400 text-[10px] font-medium mb-0.5 flex items-center justify-between">
+              <div className="bg-zinc-900 border border-white/[0.08] rounded-md p-2.5 shadow-xs flex flex-col justify-between">
+                <div className="text-zinc-400 text-[11px] font-semibold uppercase tracking-wider mb-0.5 flex items-center justify-between">
                   <span>Scheduled / Upcoming</span>
-                  <Clock className="w-3 h-3 text-sky-400 opacity-70" />
+                  <Clock className="w-3.5 h-3.5 text-sky-400 opacity-70" />
                 </div>
-                <div className="text-base font-bold text-sky-400 tracking-tight">{formatCurrency(selectedData.totalScheduledSpent || 0)}</div>
-                <div className="text-[9px] text-zinc-500 mt-0.5 font-mono truncate">Committed shifts</div>
+                <div className="text-lg font-bold text-sky-400 tracking-tight">{formatCurrency(selectedData.totalScheduledSpent || 0)}</div>
+                <div className="text-[10px] text-zinc-400 mt-1 font-mono truncate">Committed shifts</div>
               </div>
 
-              <div className="bg-zinc-900 border border-white/[0.08] rounded-md p-2 shadow-xs flex flex-col justify-between">
-                <div className="text-zinc-400 text-[10px] font-medium mb-0.5 flex items-center justify-between">
+              <div className="bg-zinc-900 border border-white/[0.08] rounded-md p-2.5 shadow-xs flex flex-col justify-between">
+                <div className="text-zinc-400 text-[11px] font-semibold uppercase tracking-wider mb-0.5 flex items-center justify-between">
                   <span>Available Balance</span>
-                  <Sparkles className="w-3 h-3 text-emerald-400 opacity-70" />
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400 opacity-70" />
                 </div>
-                <div className={`text-base font-bold tracking-tight ${selectedData.totalRemainingBalance < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                <div className={`text-lg font-bold tracking-tight ${selectedData.totalRemainingBalance < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                   {formatCurrency(selectedData.totalRemainingBalance)}
                 </div>
-                <div className="text-[9px] text-zinc-500 mt-0.5 font-mono truncate">Remaining funds</div>
+                <div className="text-[10px] text-zinc-400 mt-1 font-mono truncate">Remaining funds</div>
               </div>
             </div>
             
             {/* BUDGET CONSUMPTION TIMELINE & BURN METER */}
-            <div className="bg-zinc-900 border border-white/[0.08] rounded-md p-2.5 shadow-xs flex flex-col">
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center space-x-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-indigo-400" />
-                  <h3 className="text-xs font-semibold text-[#E6EDF3]">Funding Consumption Timeline</h3>
+            <div className="bg-zinc-900 border border-white/[0.08] rounded-md p-3 shadow-xs flex flex-col">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  <TrendingUp className="w-4 h-4 text-indigo-400" />
+                  <h3 className="text-sm font-semibold text-[#E6EDF3]">Funding Consumption Timeline</h3>
                 </div>
                 {(() => {
                   const burnPct = fundsUtilizedPct(selectedData.totalClaimed, selectedData.totalAgreementValue);
@@ -423,26 +423,26 @@ export default function NdisBudgetView() {
                   const diff = burnPct - timePct;
                   if (diff > 15) {
                     return (
-                      <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 font-medium flex items-center gap-1">
-                        <AlertTriangle className="w-2.5 h-2.5" /> High Burn
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 font-medium flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> High Burn
                       </span>
                     );
                   } else if (diff < -15) {
                     return (
-                      <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium flex items-center gap-1">
-                        <Clock className="w-2.5 h-2.5" /> Under-utilizing
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> Under-utilizing
                       </span>
                     );
                   }
                   return (
-                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium flex items-center gap-1">
-                      <ShieldCheck className="w-2.5 h-2.5" /> On Target
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3" /> On Target
                     </span>
                   );
                 })()}
               </div>
               
-              <div className="relative w-full h-2 bg-black/50 rounded-full border border-white/5 overflow-hidden">
+              <div className="relative w-full h-2.5 bg-black/50 rounded-full border border-white/5 overflow-hidden">
                 <div 
                   className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-600 to-indigo-500 rounded-full transition-all duration-500 ease-out"
                   style={{ width: `${fundsUtilizedPct(selectedData.totalClaimed, selectedData.totalAgreementValue)}%` }}
@@ -455,7 +455,7 @@ export default function NdisBudgetView() {
                 </div>
               </div>
               
-              <div className="flex justify-between items-center mt-1 text-[10px] font-mono">
+              <div className="flex justify-between items-center mt-1.5 text-[11px] font-mono">
                 <span className="text-zinc-500">Start</span>
                 <span className="text-zinc-300">
                   Burn: <span className="text-indigo-400 font-semibold">{fundsUtilizedPct(selectedData.totalClaimed, selectedData.totalAgreementValue).toFixed(1)}%</span> vs. Time: <span className="text-red-400 font-semibold">{timeElapsedPct(selectedData.startDate, selectedData.endDate).toFixed(1)}%</span>
@@ -466,45 +466,45 @@ export default function NdisBudgetView() {
 
             {/* SERVICE LINE ITEM CONSUMPTION TRACKER */}
             <div className="bg-zinc-900 border border-white/[0.08] rounded-md shadow-xs overflow-hidden flex flex-col">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-2 px-3 border-b border-white/[0.08] gap-2">
-                <div className="flex items-center space-x-1.5 text-[#E6EDF3]">
-                  <FileText className="w-3.5 h-3.5 text-indigo-400" />
-                  <h3 className="text-xs font-semibold">Service Line Item Consumption Tracker</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 px-3.5 border-b border-white/[0.08] gap-2">
+                <div className="flex items-center space-x-2 text-[#E6EDF3]">
+                  <FileText className="w-4 h-4 text-indigo-400" />
+                  <h3 className="text-sm font-semibold">Service Line Item Consumption Tracker</h3>
                 </div>
 
-                <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
                   {/* Search Filter */}
                   <div className="relative">
-                    <Search className="w-3 h-3 text-zinc-400 absolute left-2 top-1/2 -translate-y-1/2" />
+                    <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                     <input 
                       type="text"
                       placeholder="Search items..."
                       value={itemSearch}
                       onChange={(e) => setItemSearch(e.target.value)}
-                      className="bg-black/40 border border-white/10 rounded pl-6 pr-2 py-0.5 text-[11px] text-white placeholder-zinc-500 outline-none focus:border-brand-blue transition-colors w-36"
+                      className="bg-black/40 border border-white/10 rounded pl-7 pr-2.5 py-1 text-xs text-white placeholder-zinc-500 outline-none focus:border-brand-blue transition-colors w-40"
                     />
                   </div>
 
                   {/* View Filter Switcher */}
-                  <div className="inline-flex items-center p-0.5 bg-black/40 border border-white/10 rounded text-[10px] font-medium">
+                  <div className="inline-flex items-center p-0.5 bg-black/40 border border-white/10 rounded text-xs font-medium">
                     <button
                       type="button"
                       onClick={() => setViewFilter('both')}
-                      className={`px-2 py-0.5 rounded ${viewFilter === 'both' ? 'bg-brand-blue text-white shadow-xs' : 'text-zinc-400 hover:text-white'}`}
+                      className={`px-2.5 py-0.5 rounded ${viewFilter === 'both' ? 'bg-brand-blue text-white shadow-xs' : 'text-zinc-400 hover:text-white'}`}
                     >
                       All
                     </button>
                     <button
                       type="button"
                       onClick={() => setViewFilter('cards')}
-                      className={`px-2 py-0.5 rounded ${viewFilter === 'cards' ? 'bg-brand-blue text-white shadow-xs' : 'text-zinc-400 hover:text-white'}`}
+                      className={`px-2.5 py-0.5 rounded ${viewFilter === 'cards' ? 'bg-brand-blue text-white shadow-xs' : 'text-zinc-400 hover:text-white'}`}
                     >
                       Cards
                     </button>
                     <button
                       type="button"
                       onClick={() => setViewFilter('table')}
-                      className={`px-2 py-0.5 rounded ${viewFilter === 'table' ? 'bg-brand-blue text-white shadow-xs' : 'text-zinc-400 hover:text-white'}`}
+                      className={`px-2.5 py-0.5 rounded ${viewFilter === 'table' ? 'bg-brand-blue text-white shadow-xs' : 'text-zinc-400 hover:text-white'}`}
                     >
                       Table
                     </button>
@@ -512,7 +512,7 @@ export default function NdisBudgetView() {
 
                   <button 
                     onClick={fetchData} 
-                    className="flex items-center space-x-1 px-2 py-0.5 text-[10px] font-medium text-white bg-white/5 hover:bg-white/10 rounded transition-colors border border-white/10"
+                    className="flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium text-white bg-white/5 hover:bg-white/10 rounded transition-colors border border-white/10"
                     title="Refresh data"
                   >
                     <RefreshCw className="w-3 h-3" />
@@ -533,23 +533,23 @@ export default function NdisBudgetView() {
 
                 if (filteredItems.length === 0) {
                   return (
-                    <div className="p-6 text-center text-zinc-500 flex flex-col items-center justify-center">
-                      <FileText className="w-6 h-6 text-zinc-600 mb-1 opacity-60" />
-                      <p className="text-xs">No support items match the search query.</p>
+                    <div className="p-8 text-center text-zinc-500 flex flex-col items-center justify-center">
+                      <FileText className="w-6 h-6 text-zinc-600 mb-1.5 opacity-60" />
+                      <p className="text-xs sm:text-sm">No support items match the search query.</p>
                     </div>
                   );
                 }
 
                 return (
-                  <div className="p-2 space-y-2">
+                  <div className="p-2.5 space-y-2.5">
                     {/* Visual Tracker Cards View */}
                     {(viewFilter === 'both' || viewFilter === 'cards') && (
                       <div>
-                        <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 flex items-center justify-between">
                           <span>Visual Trackers</span>
-                          <span className="text-[10px] text-zinc-500 lowercase font-normal">{filteredItems.length} items</span>
+                          <span className="text-xs text-zinc-400 lowercase font-normal">{filteredItems.length} items</span>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
                           {filteredItems.map((item: any, idx: number) => {
                             const allocBudget = Number(item.allocatedBudget || 0);
                             const spent = Number(item.amountSpent || 0);
@@ -561,59 +561,59 @@ export default function NdisBudgetView() {
                             return (
                               <div 
                                 key={idx} 
-                                className="bg-black/30 border border-white/[0.08] hover:border-white/20 transition-all rounded-md p-2.5 flex flex-col justify-between shadow-xs relative group"
+                                className="bg-black/30 border border-white/[0.08] hover:border-white/20 transition-all rounded-md p-3 flex flex-col justify-between shadow-xs relative group"
                               >
                                 <div>
                                   {/* Top Row: Code, Rate, Status */}
                                   <div className="flex items-start justify-between gap-1.5 mb-1.5">
                                     <div className="min-w-0 flex-1">
-                                      <span className="px-1.5 py-0.2 rounded bg-brand-blue/10 border border-brand-blue/20 text-brand-blue font-mono text-[9px] font-medium inline-block mb-0.5">
+                                      <span className="px-1.5 py-0.5 rounded bg-brand-blue/10 border border-brand-blue/20 text-brand-blue font-mono text-[10px] font-medium inline-block mb-1">
                                         {item.supportItemCode}
                                       </span>
-                                      <h4 className="text-xs font-semibold text-[#E6EDF3] leading-snug truncate" title={item.supportItemName}>
+                                      <h4 className="text-[13px] font-semibold text-[#E6EDF3] leading-snug truncate" title={item.supportItemName}>
                                         {item.supportItemName}
                                       </h4>
                                     </div>
                                     <div className="text-right shrink-0">
-                                      <div className="text-[11px] font-semibold text-zinc-300 font-mono">
+                                      <div className="text-xs font-semibold text-zinc-200 font-mono">
                                         {formatCurrency(item.serviceRate)}
                                       </div>
-                                      <div className="text-[9px] text-zinc-500">per {item.serviceUnit || 'Hour'}</div>
+                                      <div className="text-[10px] text-zinc-400">per {item.serviceUnit || 'Hour'}</div>
                                     </div>
                                   </div>
 
                                   {/* Metrics Grid */}
-                                  <div className="grid grid-cols-3 gap-1.5 my-1.5 p-1.5 rounded bg-zinc-900/80 border border-white/5 text-center">
+                                  <div className="grid grid-cols-3 gap-1.5 my-2 p-2 rounded bg-zinc-900/80 border border-white/5 text-center">
                                     <div>
-                                      <div className="text-[8px] text-zinc-500 uppercase font-semibold">Allocated</div>
-                                      <div className="text-[11px] font-bold text-zinc-200 mt-0.5 font-mono">{formatCurrency(allocBudget)}</div>
-                                      <div className="text-[9px] text-zinc-400 font-mono">{item.allocatedHours ? `${item.allocatedHours}h` : '—'}</div>
+                                      <div className="text-[9px] text-zinc-400 uppercase font-semibold">Allocated</div>
+                                      <div className="text-xs font-bold text-zinc-200 mt-0.5 font-mono">{formatCurrency(allocBudget)}</div>
+                                      <div className="text-[10px] text-zinc-400 font-mono">{item.allocatedHours ? `${item.allocatedHours}h` : '—'}</div>
                                     </div>
                                     <div className="border-x border-white/5 px-1">
-                                      <div className="text-[8px] text-zinc-500 uppercase font-semibold">Spent</div>
-                                      <div className="text-[11px] font-bold text-indigo-400 mt-0.5 font-mono">{formatCurrency(spent)}</div>
-                                      <div className="text-[9px] text-zinc-400 font-mono">{item.deliveredHours ? `${item.deliveredHours}h` : '0h'}</div>
+                                      <div className="text-[9px] text-zinc-400 uppercase font-semibold">Spent</div>
+                                      <div className="text-xs font-bold text-indigo-400 mt-0.5 font-mono">{formatCurrency(spent)}</div>
+                                      <div className="text-[10px] text-zinc-400 font-mono">{item.deliveredHours ? `${item.deliveredHours}h` : '0h'}</div>
                                     </div>
                                     <div>
-                                      <div className="text-[8px] text-zinc-500 uppercase font-semibold">Remaining</div>
-                                      <div className={`text-[11px] font-bold mt-0.5 font-mono ${isOver ? 'text-red-400' : 'text-emerald-400'}`}>
+                                      <div className="text-[9px] text-zinc-400 uppercase font-semibold">Remaining</div>
+                                      <div className={`text-xs font-bold mt-0.5 font-mono ${isOver ? 'text-red-400' : 'text-emerald-400'}`}>
                                         {formatCurrency(rem)}
                                       </div>
-                                      <div className="text-[9px] text-zinc-400 font-mono">
+                                      <div className="text-[10px] text-zinc-400 font-mono">
                                         {item.allocatedHours ? `${Math.max(0, parseFloat((item.allocatedHours - (item.deliveredHours || 0)).toFixed(1)))}h` : '—'}
                                       </div>
                                     </div>
                                   </div>
 
                                   {/* Progress Bar */}
-                                  <div className="space-y-0.5 mb-1.5">
-                                    <div className="flex justify-between text-[10px]">
+                                  <div className="space-y-1 mb-1.5">
+                                    <div className="flex justify-between text-[11px]">
                                       <span className="text-zinc-400 font-mono">Consumption</span>
                                       <span className={`font-mono font-medium ${isOver ? 'text-red-400 font-bold' : isNear ? 'text-amber-400' : 'text-emerald-400'}`}>
                                         {pct.toFixed(1)}% {isOver && '(Exceeded)'}
                                       </span>
                                     </div>
-                                    <div className="h-1.5 w-full bg-black/50 rounded-full border border-white/5 overflow-hidden">
+                                    <div className="h-2 w-full bg-black/50 rounded-full border border-white/5 overflow-hidden">
                                       <div 
                                         className={`h-full rounded-full transition-all duration-300 ${
                                           isOver 
@@ -629,16 +629,16 @@ export default function NdisBudgetView() {
                                 </div>
 
                                 {/* Shift Activity Footer Button */}
-                                <div className="pt-1.5 border-t border-white/5 flex items-center justify-between text-[10px]">
-                                  <span className="text-zinc-500">
+                                <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs">
+                                  <span className="text-zinc-400">
                                     {item.recentShifts?.length || 0} shift(s)
                                   </span>
                                   <button
                                     type="button"
                                     onClick={() => setSelectedShiftItem(item)}
-                                    className="inline-flex items-center space-x-1 text-[11px] text-brand-blue hover:text-blue-400 font-medium transition-colors"
+                                    className="inline-flex items-center space-x-1 text-xs text-brand-blue hover:text-blue-400 font-medium transition-colors"
                                   >
-                                    <Eye className="w-3 h-3" />
+                                    <Eye className="w-3.5 h-3.5" />
                                     <span>View Shifts</span>
                                   </button>
                                 </div>
@@ -651,24 +651,24 @@ export default function NdisBudgetView() {
 
                     {/* Detailed Tracker Table View */}
                     {(viewFilter === 'both' || viewFilter === 'table') && (
-                      <div className="pt-1">
+                      <div className="pt-1.5">
                         {(viewFilter === 'both') && (
-                          <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
+                          <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
                             Itemized Audit Table
                           </div>
                         )}
                         <div className="overflow-x-auto rounded border border-white/5">
-                          <table className="w-full text-left text-[11px]">
-                            <thead className="bg-[#1C2128]/80 text-[#8B949E] uppercase text-[9px] font-semibold tracking-wider sticky top-0 z-10 backdrop-blur-xs">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-[#1C2128]/80 text-[#8B949E] uppercase text-[10px] font-semibold tracking-wider sticky top-0 z-10 backdrop-blur-xs">
                               <tr>
-                                <th className="px-2.5 py-1.5 border-b border-white/5 whitespace-nowrap">Support Item</th>
-                                <th className="px-2.5 py-1.5 border-b border-white/5 text-right whitespace-nowrap">Standard Rate</th>
-                                <th className="px-2.5 py-1.5 border-b border-white/5 text-right whitespace-nowrap">Hours (Alloc/Deliv)</th>
-                                <th className="px-2.5 py-1.5 border-b border-white/5 text-right whitespace-nowrap">Budget</th>
-                                <th className="px-2.5 py-1.5 border-b border-white/5 text-right whitespace-nowrap">Spent</th>
-                                <th className="px-2.5 py-1.5 border-b border-white/5 text-right whitespace-nowrap">Remaining</th>
-                                <th className="px-2.5 py-1.5 border-b border-white/5 text-center whitespace-nowrap w-28">Consumption</th>
-                                <th className="px-2.5 py-1.5 border-b border-white/5 text-right whitespace-nowrap">Shifts</th>
+                                <th className="px-3 py-2 border-b border-white/5 whitespace-nowrap">Support Item</th>
+                                <th className="px-3 py-2 border-b border-white/5 text-right whitespace-nowrap">Standard Rate</th>
+                                <th className="px-3 py-2 border-b border-white/5 text-right whitespace-nowrap">Hours (Alloc/Deliv)</th>
+                                <th className="px-3 py-2 border-b border-white/5 text-right whitespace-nowrap">Budget</th>
+                                <th className="px-3 py-2 border-b border-white/5 text-right whitespace-nowrap">Spent</th>
+                                <th className="px-3 py-2 border-b border-white/5 text-right whitespace-nowrap">Remaining</th>
+                                <th className="px-3 py-2 border-b border-white/5 text-center whitespace-nowrap w-28">Consumption</th>
+                                <th className="px-3 py-2 border-b border-white/5 text-right whitespace-nowrap">Shifts</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
@@ -682,48 +682,48 @@ export default function NdisBudgetView() {
 
                                 return (
                                   <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
-                                    <td className="px-2.5 py-1.5 min-w-[180px]">
-                                      <div className="font-mono text-[10px] text-brand-blue font-medium">{item.supportItemCode}</div>
+                                    <td className="px-3 py-2 min-w-[190px]">
+                                      <div className="font-mono text-[11px] text-brand-blue font-medium">{item.supportItemCode}</div>
                                       <div className="text-[#E6EDF3] group-hover:text-white font-medium text-xs truncate max-w-xs">{item.supportItemName}</div>
                                     </td>
-                                    <td className="px-2.5 py-1.5 text-right tabular-nums text-zinc-300 font-mono text-xs whitespace-nowrap">
+                                    <td className="px-3 py-2 text-right tabular-nums text-zinc-300 font-mono text-xs whitespace-nowrap">
                                       {formatCurrency(item.serviceRate)}/{item.serviceUnit || 'h'}
                                     </td>
-                                    <td className="px-2.5 py-1.5 text-right whitespace-nowrap text-xs">
+                                    <td className="px-3 py-2 text-right whitespace-nowrap text-xs">
                                       <span className="text-zinc-500 font-mono">{item.allocatedHours ? `${item.allocatedHours}h` : '—'} / </span>
                                       <span className="text-brand-blue font-mono font-medium">{item.deliveredHours > 0 ? item.deliveredHours.toFixed(1) : '0.0'}h</span>
                                     </td>
-                                    <td className="px-2.5 py-1.5 text-right tabular-nums text-zinc-300 font-mono text-xs font-semibold whitespace-nowrap">
+                                    <td className="px-3 py-2 text-right tabular-nums text-zinc-300 font-mono text-xs font-semibold whitespace-nowrap">
                                       {formatCurrency(allocBudget)}
                                     </td>
-                                    <td className="px-2.5 py-1.5 text-right tabular-nums text-indigo-400 font-mono font-medium text-xs whitespace-nowrap">
+                                    <td className="px-3 py-2 text-right tabular-nums text-indigo-400 font-mono font-medium text-xs whitespace-nowrap">
                                       {formatCurrency(spent)}
                                     </td>
-                                    <td className="px-2.5 py-1.5 text-right tabular-nums font-mono font-medium text-xs whitespace-nowrap">
+                                    <td className="px-3 py-2 text-right tabular-nums font-mono font-medium text-xs whitespace-nowrap">
                                       <span className={isOver ? 'text-red-400 font-bold' : 'text-emerald-400'}>
                                         {formatCurrency(rem)}
                                       </span>
                                     </td>
-                                    <td className="px-2.5 py-1.5 whitespace-nowrap">
+                                    <td className="px-3 py-2 whitespace-nowrap">
                                       <div className="flex items-center space-x-1.5">
-                                        <div className="flex-1 h-1.5 bg-black/40 rounded-full border border-white/5 overflow-hidden">
+                                        <div className="flex-1 h-2 bg-black/40 rounded-full border border-white/5 overflow-hidden">
                                           <div 
                                             className={`h-full rounded-full ${isOver ? 'bg-red-500' : isNear ? 'bg-amber-400' : 'bg-emerald-500'}`}
                                             style={{ width: `${Math.min(100, pct)}%` }}
                                           />
                                         </div>
-                                        <span className={`text-[9px] font-mono ${isOver ? 'text-red-400 font-bold' : 'text-zinc-400'}`}>
+                                        <span className={`text-[10px] font-mono ${isOver ? 'text-red-400 font-bold' : 'text-zinc-400'}`}>
                                           {pct.toFixed(0)}%
                                         </span>
                                       </div>
                                     </td>
-                                    <td className="px-2.5 py-1.5 text-right whitespace-nowrap">
+                                    <td className="px-3 py-2 text-right whitespace-nowrap">
                                       <button
                                         type="button"
                                         onClick={() => setSelectedShiftItem(item)}
-                                        className="inline-flex items-center space-x-1 text-[10px] text-zinc-400 hover:text-white px-1.5 py-0.5 bg-white/5 hover:bg-white/10 rounded transition-colors"
+                                        className="inline-flex items-center space-x-1 text-xs text-zinc-400 hover:text-white px-2 py-0.5 bg-white/5 hover:bg-white/10 rounded transition-colors"
                                       >
-                                        <Eye className="w-2.5 h-2.5" />
+                                        <Eye className="w-3 h-3" />
                                         <span>{item.recentShifts?.length || 0}</span>
                                       </button>
                                     </td>
