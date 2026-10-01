@@ -34,6 +34,11 @@ interface BudgetHealthState {
   packageLevel?: string;
 }
 
+const formatRate = (rate: number | null | undefined) => {
+  if (rate === null || rate === undefined || isNaN(Number(rate))) return '-';
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(Number(rate));
+};
+
 export default function ClientDashboardView() {
   // Helper to extract text from EditorJS JSON
   const getNotePreview = (notesStr: string) => {
@@ -383,11 +388,6 @@ export default function ClientDashboardView() {
       const match = levels.find((l: any) => l.level === levelOrClass);
       return match ? match.amountDaily : 30.10;
     }
-  };
-
-  const formatRate = (rate: number | null) => {
-    if (rate === null || rate === undefined) return '-';
-    return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(rate);
   };
 
   return (
