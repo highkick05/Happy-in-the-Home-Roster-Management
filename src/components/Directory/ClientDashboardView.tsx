@@ -119,7 +119,8 @@ export default function ClientDashboardView() {
     if (!clientData || !id || !token) return;
     try {
       const fType = String(clientData.funding_type || '').toUpperCase().trim();
-      const isHomeCare = fType === 'HOME_CARE' || fType === 'HOME CARE' || fType === 'HCP' || Boolean(clientData.home_care_sub_type);
+      const isNdis = fType === 'NDIS';
+      const isHomeCare = !isNdis && (fType === 'HOME_CARE' || fType === 'HOME CARE' || fType === 'HCP' || (!fType && Boolean(clientData.home_care_sub_type)));
 
       if (isHomeCare) {
         const timezone = settings?.timezone || 'Australia/Perth';
