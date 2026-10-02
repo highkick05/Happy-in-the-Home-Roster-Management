@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2, Search, ArrowLeft, User, ShieldAlert, Users, BarChart3, Car, GraduationCap, FileText, Clock } from 'lucide-react';
+import { Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2, Search, ArrowLeft, User, ShieldAlert, Users, BarChart3, Car, GraduationCap, FileText, Clock, Wallet } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -438,6 +438,12 @@ export default function AiChatWidget() {
       promptTemplate: (name: string) => `Calculate suggested weekly hours for ${name} for the remaining quarter`
     },
     {
+      title: "Budget Profile",
+      desc: "Package level, billing tier & funding settings",
+      icon: <Wallet className="w-3.5 h-3.5 text-indigo-400" />,
+      promptTemplate: (name: string) => `Get budget profile and funding settings for ${name}`
+    },
+    {
       title: "Staff Documents",
       desc: "Audit expired credentials & screening",
       icon: <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />,
@@ -508,10 +514,14 @@ export default function AiChatWidget() {
         query = `Calculate suggested weekly hours for ${clientName} based on remaining agreement funds`;
       } else if (action.title === "Budget Burn Rate") {
         query = `Assess NDIS Service Agreement burn rate and remaining funding for ${clientName}`;
+      } else if (action.title === "Budget Profile") {
+        query = `Get NDIS service agreement details and budget profile for ${clientName}`;
       }
     } else {
       if (action.title === "Suggested Hours") {
         query = `Calculate suggested weekly hours for ${clientName} for the remaining quarter`;
+      } else if (action.title === "Budget Profile") {
+        query = `Get budget profile and funding settings for ${clientName}`;
       }
     }
 
@@ -895,7 +905,7 @@ export default function AiChatWidget() {
                 />
               </div>
 
-              <div className="max-h-[180px] overflow-y-auto space-y-1 custom-scrollbar">
+              <div className="max-h-[220px] overflow-y-auto space-y-1 custom-scrollbar">
                 {isLoadingClients ? (
                   <div className="py-4 text-center text-xs text-zinc-400 flex items-center justify-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-brand-teal" />
@@ -908,21 +918,25 @@ export default function AiChatWidget() {
                 ) : (
                   filteredClients.map((client) => {
                     const fullName = `${client.first_name || ''} ${client.last_name || ''}`.trim() || `Client #${client.id}`;
+                    const isNdis = String(client.funding_type || '').toUpperCase() === 'NDIS';
                     return (
                       <div
                         key={client.id}
-                        className="p-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.05] flex items-center justify-between gap-2"
+                        className="p-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.05] flex items-center justify-between gap-2 transition-colors"
                       >
-                        <div className="min-w-0">
+                        <div className="min-w-0 pr-1">
                           <p className="text-xs font-medium text-white truncate">{fullName}</p>
-                          <p className="text-[10px] text-zinc-400 truncate">{client.funding_type || 'NDIS & Home Care'}</p>
+                          <p className="text-[10px] text-zinc-400 truncate flex items-center gap-1.5">
+                            <span className={`inline-block w-1.5 h-1.5 rounded-full ${isNdis ? 'bg-indigo-400' : 'bg-amber-400'}`}></span>
+                            <span>{client.funding_type || 'NDIS & Home Care'}</span>
+                          </p>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                           <button
                             type="button"
                             onClick={() => handleSelectClient(client, suggestedActions[0])}
                             className="px-2 py-0.5 rounded bg-brand-teal/20 hover:bg-brand-teal text-teal-300 hover:text-white text-[10px] font-medium transition-colors cursor-pointer"
-                            title="Analyze funds for this client"
+                            title={isNdis ? "Analyze NDIS agreement funds & budget" : "Analyze quarterly budget & funds"}
                           >
                             Analyze
                           </button>
@@ -930,9 +944,25 @@ export default function AiChatWidget() {
                             type="button"
                             onClick={() => handleSelectClient(client, suggestedActions[1])}
                             className="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-[10px] font-medium transition-colors cursor-pointer"
-                            title="Optimize roster for this client"
+                            title="Optimize roster schedule & surplus hours"
                           >
                             Roster
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectClient(client, suggestedActions[2])}
+                            className="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-600 text-amber-300 hover:text-white text-[10px] font-medium transition-colors cursor-pointer"
+                            title={isNdis ? "Calculate suggested weekly hours based on agreement" : "Calculate suggested weekly hours for remaining quarter"}
+                          >
+                            Hours
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectClient(client, suggestedActions[3])}
+                            className="px-2 py-0.5 rounded bg-indigo-500/20 hover:bg-indigo-600 text-indigo-300 hover:text-white text-[10px] font-medium transition-colors cursor-pointer"
+                            title="View full budget profile & funding settings"
+                          >
+                            Budget
                           </button>
                         </div>
                       </div>
