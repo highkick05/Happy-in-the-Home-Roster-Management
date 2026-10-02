@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2, Search, ArrowLeft, User, ShieldAlert, Users, BarChart3, Car, GraduationCap, FileText } from 'lucide-react';
+import { Sparkles, Send, X, RotateCcw, Loader2, DollarSign, Calendar, TrendingUp, Maximize2, Minimize2, Search, ArrowLeft, User, ShieldAlert, Users, BarChart3, Car, GraduationCap, FileText, Clock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -38,6 +38,12 @@ export interface PortalPromptQuestion {
 }
 
 const PORTAL_QUESTIONS: PortalPromptQuestion[] = [
+  {
+    id: 'suggested-hours',
+    category: 'Home Care',
+    question: "Want to calculate affordable weekly roster hours for Marlene Coombs for the remaining quarter?",
+    prompt: "Calculate suggested weekly roster hours for Marlene Coombs for the remaining quarter"
+  },
   {
     id: 'ndis-budget',
     category: 'NDIS Agreement',
@@ -426,6 +432,12 @@ export default function AiChatWidget() {
       promptTemplate: (name: string) => `Optimize quarterly roster for ${name} for the current quarter`
     },
     {
+      title: "Suggested Hours",
+      desc: "Affordable weekly hours for remaining quarter",
+      icon: <Clock className="w-3.5 h-3.5 text-amber-400" />,
+      promptTemplate: (name: string) => `Calculate suggested weekly hours for ${name} for the remaining quarter`
+    },
+    {
       title: "Staff Documents",
       desc: "Audit expired credentials & screening",
       icon: <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />,
@@ -492,8 +504,14 @@ export default function AiChatWidget() {
         query = `Analyze NDIS Service Agreement funds for ${clientName}`;
       } else if (action.title === "Optimize Roster") {
         query = `Optimize roster for ${clientName}`;
+      } else if (action.title === "Suggested Hours") {
+        query = `Calculate suggested weekly hours for ${clientName} based on remaining agreement funds`;
       } else if (action.title === "Budget Burn Rate") {
         query = `Assess NDIS Service Agreement burn rate and remaining funding for ${clientName}`;
+      }
+    } else {
+      if (action.title === "Suggested Hours") {
+        query = `Calculate suggested weekly hours for ${clientName} for the remaining quarter`;
       }
     }
 
