@@ -17,6 +17,8 @@ export interface PortalClient {
   first_name: string;
   last_name: string;
   funding_type?: string;
+  home_care_sub_type?: string;
+  home_care_level_or_class?: string;
   status?: string;
   avatar_url?: string;
 }
@@ -38,65 +40,88 @@ export interface PortalPromptQuestion {
 }
 
 const PORTAL_QUESTIONS: PortalPromptQuestion[] = [
+  // NDIS Government Funding & Agreements
   {
-    id: 'suggested-hours',
-    category: 'Home Care',
-    question: "Want to calculate affordable weekly roster hours for Marlene Coombs for the remaining quarter?",
-    prompt: "Calculate suggested weekly roster hours for Marlene Coombs for the remaining quarter"
+    id: 'ndis-travel-rules',
+    category: 'NDIS Funding',
+    question: "How do provider travel limits and non-labor travel charges work under NDIS Pricing Arrangements?",
+    prompt: "Explain how NDIS provider travel limits, non-labor travel charges, and billing caps work under the NDIS Pricing Arrangements"
   },
   {
-    id: 'ndis-budget',
-    category: 'NDIS Agreement',
-    question: "Want me to analyze NDIS Service Agreement funds & line items for Dean Davies?",
-    prompt: "Analyze NDIS Service Agreement funds for Dean Davies"
+    id: 'ndis-agreement-tracking',
+    category: 'NDIS Agreements',
+    question: "How does the portal track NDIS Service Agreement line item sub-totals and remaining balances?",
+    prompt: "Explain how NDIS Service Agreement dates, line item sub-totals, and remaining balance tracking work in the portal"
   },
   {
-    id: 'roster-optimize',
-    category: 'Roster Capacity',
-    question: "Need to optimize weekly roster hours for a client to prevent budget overruns?",
-    prompt: "Optimize roster for a client"
-  },
-  {
-    id: 'burn-rate',
-    category: 'Home Care',
-    question: "Shall we check the budget burn rate and remaining funding weeks for Gary Rodwell?",
-    prompt: "Assess budget burn rate and remaining funding weeks for Gary Rodwell"
-  },
-  {
-    id: 'pauline-funds',
-    category: 'Home Care',
-    question: "Would you like me to review Pauline's Level 2 HCP cycle allocation and spent funds?",
-    prompt: "Analyze client funds for Pauline"
-  },
-  {
-    id: 'travel-logs',
-    category: 'Operations',
-    question: "Have you reviewed today's staff travel logs and cascading km claims?",
-    prompt: "How do travel logs and cascading travel calculations work in the portal?"
-  },
-  {
-    id: 'unspent-pool',
-    category: 'Funding',
-    question: "Would you like to check unspent funds pool rollovers for Home Care clients?",
-    prompt: "Check unspent funds pool and rollover balances for clients"
-  },
-  {
-    id: 'ndis-dates',
+    id: 'ndis-core-vs-capacity',
     category: 'NDIS Planning',
-    question: "Did you know NDIS budgets track specific Service Agreement dates instead of quarters?",
-    prompt: "Explain how NDIS Service Agreement dates and line item sub-totals work"
+    question: "What is the difference between Core Supports and Capacity Building funding in NDIS agreements?",
+    prompt: "What is the difference between Core Supports and Capacity Building line items in NDIS funding, and how flexible are they?"
+  },
+
+  // Home Care & Support at Home Government Funding
+  {
+    id: 'hcp-rollover-rule',
+    category: 'Home Care',
+    question: "How does the Commonwealth quarterly unspent funds rollover cap (greater of $1,000 or 10%) work?",
+    prompt: "Explain the Commonwealth My Aged Care quarterly unspent funds rollover rule (greater of $1,000 or 10% cap) and how expiring surplus is calculated"
   },
   {
-    id: 'invoice-check',
-    category: 'Finance',
-    question: "Do you have any completed shifts ready for billing or invoice generation?",
-    prompt: "What is the procedure for verifying completed shifts before generating invoices?"
+    id: 'sah-contributions',
+    category: 'Support at Home',
+    question: "How do Support at Home (SaH) participant contributions differ between Pensioners and Self-Funded clients?",
+    prompt: "Explain Support at Home (SaH) participant co-contribution tiers for Full Pensioners (5%/17.5%), Part Pensioners, and Self-Funded clients (50%/80%)"
   },
   {
-    id: 'compliance-audit',
+    id: 'sah-classifications',
+    category: 'Support at Home',
+    question: "What are the 8 classification levels and daily funding structures under the new Support at Home program?",
+    prompt: "Explain the Support at Home (SaH) 8 classification levels and daily funding structure compared to HCP Levels 1-4"
+  },
+  {
+    id: 'ringfenced-funding',
+    category: 'Funding Rules',
+    question: "Why is Assistive Technology (AT) and Home Modifications (HM) funding ringfenced separately from care shifts?",
+    prompt: "Explain why Assistive Technology (AT) and Home Modifications (HM) funding is ringfenced under My Aged Care and cannot be used for care shifts"
+  },
+  {
+    id: 'hcp-subsidy-overview',
+    category: 'Home Care',
+    question: "What are the standard government subsidies and quarterly allocations for HCP Levels 1 through 4?",
+    prompt: "Provide an overview of Home Care Package (HCP) Levels 1 to 4 government subsidies, quarterly allocations, and care management fees"
+  },
+  {
+    id: 'home-care-summary',
+    category: 'Home Care',
+    question: "Would you like a consolidated financial summary of all Home Care clients for the active quarter?",
+    prompt: "Show me a consolidated budget summary of all Home Care clients for the active quarter"
+  },
+
+  // Portal Operations, Travel & Quality Compliance
+  {
+    id: 'cascading-travel-calc',
+    category: 'Travel & Km',
+    question: "How does the portal calculate cascading staff travel km and travel time across multi-shift days?",
+    prompt: "How do staff travel logs and cascading travel calculations work in the portal?"
+  },
+  {
+    id: 'compliance-evidence-matrix',
     category: 'Compliance',
-    question: "Would you like a reminder on generating evidence matrices for quality compliance?",
+    question: "How does the Evidence Matrix generate compliance logs and shift proof for NDIA and Aged Care audits?",
     prompt: "How does the Evidence Matrix and compliance auditing work in the portal?"
+  },
+  {
+    id: 'invoice-billing-flow',
+    category: 'Finance',
+    question: "What is the procedure for verifying completed shifts before generating verified PDF invoices?",
+    prompt: "What is the procedure for verifying completed shifts before generating invoices in the portal?"
+  },
+  {
+    id: 'roster-optimization-method',
+    category: 'Roster Capacity',
+    question: "How does the AI Assistant calculate sustainable weekly roster hours to prevent client funding shortfalls?",
+    prompt: "Explain how weekly roster capacity and suggested hours are calculated to prevent budget overruns"
   }
 ];
 
@@ -130,6 +155,11 @@ export default function AiChatWidget() {
 
   // Portal client selection state
   const [clients, setClients] = useState<PortalClient[]>([]);
+  const clientsRef = useRef<PortalClient[]>(clients);
+  useEffect(() => {
+    clientsRef.current = clients;
+  }, [clients]);
+
   const [isLoadingClients, setIsLoadingClients] = useState<boolean>(false);
   const [clientSearch, setClientSearch] = useState<string>('');
   const [selectedAction, setSelectedAction] = useState<SuggestedAction | null>(null);
@@ -163,8 +193,68 @@ export default function AiChatWidget() {
     let nextQuestionTimer: NodeJS.Timeout | null = null;
 
     const askRandomQuestion = () => {
-      const randomIndex = Math.floor(Math.random() * PORTAL_QUESTIONS.length);
-      const chosen = PORTAL_QUESTIONS[randomIndex];
+      const loadedClients = clientsRef.current;
+      let chosen: PortalPromptQuestion;
+
+      // When portal clients are loaded, alternate between a real client in the portal and general funding questions
+      if (loadedClients.length > 0 && Math.random() < 0.45) {
+        const client = loadedClients[Math.floor(Math.random() * loadedClients.length)];
+        const fullName = `${client.first_name || ''} ${client.last_name || ''}`.trim() || 'Client';
+
+        if (client.funding_type === 'NDIS') {
+          const ndisQuestions: PortalPromptQuestion[] = [
+            {
+              id: `client-ndis-${client.id}`,
+              category: 'NDIS Agreement',
+              question: `Want me to analyze NDIS Service Agreement funds & line items for ${fullName}?`,
+              prompt: `Analyze NDIS Service Agreement funds for ${fullName}`
+            },
+            {
+              id: `client-ndis-spend-${client.id}`,
+              category: 'NDIS Agreement',
+              question: `Shall we check remaining NDIS agreement funds and line item balances for ${fullName}?`,
+              prompt: `Review remaining NDIS agreement funds and budget drawdown for ${fullName}`
+            }
+          ];
+          chosen = ndisQuestions[Math.floor(Math.random() * ndisQuestions.length)];
+        } else {
+          let packageLabel = '';
+          if (client.home_care_sub_type === 'SAH') {
+            packageLabel = client.home_care_level_or_class ? `Support at Home (${client.home_care_level_or_class})` : 'Support at Home';
+          } else if (client.home_care_level_or_class) {
+            packageLabel = client.home_care_level_or_class.toLowerCase().includes('level')
+              ? client.home_care_level_or_class
+              : `HCP ${client.home_care_level_or_class}`;
+          }
+          const packageSuffix = packageLabel ? ` (${packageLabel})` : '';
+
+          const hcQuestions: PortalPromptQuestion[] = [
+            {
+              id: `client-hours-${client.id}`,
+              category: 'Home Care',
+              question: `Want to calculate affordable weekly roster hours for ${fullName}${packageSuffix} for the remaining quarter?`,
+              prompt: `Calculate suggested weekly roster hours for ${fullName} for the remaining quarter`
+            },
+            {
+              id: `client-burn-${client.id}`,
+              category: 'Home Care',
+              question: `Shall we check the budget burn rate and remaining funding weeks for ${fullName}${packageSuffix}?`,
+              prompt: `Assess budget burn rate and remaining funding weeks for ${fullName}`
+            },
+            {
+              id: `client-funds-${client.id}`,
+              category: 'Home Care',
+              question: `Would you like me to review ${fullName}'s${packageSuffix} quarterly allocation and spent funds?`,
+              prompt: `Analyze client funds for ${fullName}`
+            }
+          ];
+          chosen = hcQuestions[Math.floor(Math.random() * hcQuestions.length)];
+        }
+      } else {
+        const randomIndex = Math.floor(Math.random() * PORTAL_QUESTIONS.length);
+        chosen = PORTAL_QUESTIONS[randomIndex];
+      }
+
       setActiveQuestion(chosen);
       setShowQuestionBubble(true);
 
@@ -227,10 +317,10 @@ export default function AiChatWidget() {
   };
 
   useEffect(() => {
-    if (isOpen && clients.length === 0) {
+    if ((isOpen || canAccessAi) && clients.length === 0) {
       fetchClients();
     }
-  }, [isOpen]);
+  }, [isOpen, canAccessAi, clients.length]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

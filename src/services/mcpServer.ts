@@ -4364,7 +4364,7 @@ Clients in the portal belong to either NDIS OR Home Care (HCP/SAH). They are com
    - Each support item has an Allocated Sub-Total Budget ($) and optional Allocated Hours.
    - The Grand Total Agreement Funding is the sum of these support item sub-totals.
    - Shifts delivering these services draw down from each item's sub-total and from the Grand Total.
-   - When answering for an NDIS client (such as Dean Davies):
+   - When answering for an NDIS client:
      • Client & Agreement: State "Client: <Name> • Funding Type: NDIS • Service Agreement: <Agreement Name>"
      • Agreement Period: Always display the Service Agreement start date and end date (DD/MM/YYYY) (e.g., "Agreement Period: 01/07/2026 to 30/06/2027").
      • Financial Summary: State "Grand Total Agreement Funding: $X.XX AUD", "Total Claimed / Utilized: $X.XX AUD", and "Available Remaining Balance: $X.XX AUD".
