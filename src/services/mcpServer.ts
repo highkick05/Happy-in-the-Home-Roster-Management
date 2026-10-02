@@ -1895,8 +1895,9 @@ export function optimizeQuarterlyRosterLogic(
 
 /**
  * Pure Analytical Logic for Tool: suggested_hours
- * Calculates exact affordable weekly roster hours for a Home Care client based on remaining funds
- * and remaining weeks in the current quarter, identifying whether to increase, reduce, or maintain hours.
+ * Accurately calculates affordable weekly roster hours for a Home Care client based on remaining funds
+ * and remaining weeks in the current quarter. Uses calendar week grouping and shift duration bounding
+ * to prevent historical shift hour inflation or roster overstatement.
  */
 export function calculateSuggestedWeeklyHoursLogic(
   db: Database.Database,
