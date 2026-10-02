@@ -672,6 +672,19 @@ export function getClientBudgetDetails(
           if (sc.st === 'COMPLETED') completedCount = sc.cnt;
           else if (sc.st !== 'CANCELLED' && sc.st !== 'VOID' && sc.st !== 'DRAFT') scheduledCount += sc.cnt;
         }
+
+        const activeCycleShifts = db.prepare(
+          `SELECT start_time, end_time FROM shifts
+           WHERE client_id = ? AND start_time >= ? AND start_time <= ?
+             AND (
+               UPPER(status) = 'COMPLETED'
+               OR (UPPER(status) = 'CANCELLED' AND EXISTS (SELECT 1 FROM invoices i WHERE i.shift_id = shifts.id OR i.merged_into_shift_id = shifts.id))
+             )`
+        ).all(client.id, `${startIso}T00:00:00`, `${endIso}T23:59:59`) as any[];
+        for (const cs of activeCycleShifts) {
+          const dur = Math.max(0, (new Date(cs.end_time).getTime() - new Date(cs.start_time).getTime()) / 3600000);
+          totalCommittedHours += dur;
+        }
       } catch {}
     } else if (!isJoinedAfterQuarter) {
       // Standalone ledger calculation matching /api/clients/:id/budget-ledger
@@ -1524,6 +1537,12 @@ export function optimizeQuarterlyRosterLogic(
         hours: durationHrs,
         rate: effectiveRate
       });
+    } else {
+      const totalItemHrs = shiftServices.reduce((acc, it) => acc + it.hours, 0);
+      if (totalItemHrs > durationHrs && totalItemHrs > 0) {
+        const scale = durationHrs / totalItemHrs;
+        shiftServices = shiftServices.map(it => ({ ...it, hours: parseFloat((it.hours * scale).toFixed(2)) }));
+      }
     }
 
     for (const ss of shiftServices) {
@@ -2016,8 +2035,20 @@ export function calculateSuggestedWeeklyHoursLogic(
   const feeMultiplier = isNdis ? 1 : ((1 + careCoordPercent / 100) * (1 + managementFeePercent / 100));
 
   // 4. Query client shifts to determine current weekly rostered hours and service mix
-  const shifts = db.prepare(
-    `SELECT s.id, s.start_time, s.end_time, s.services_json, s.service_id, srv.name as service_name, srv.rate as service_rate
+  // First query shifts within the active quarter cycle
+  const quarterShifts = db.prepare(
+    `SELECT s.id, s.start_time, s.end_time, s.services_json, s.service_id, s.status, srv.name as service_name, srv.rate as service_rate
+     FROM shifts s
+     LEFT JOIN services srv ON s.service_id = srv.id
+     WHERE s.client_id = ?
+       AND UPPER(s.status) NOT IN ('CANCELLED', 'VOID', 'DRAFT')
+       AND s.start_time >= ? AND s.start_time <= ?
+     ORDER BY s.start_time ASC`
+  ).all(client.id, `${effectiveQuarterStart}T00:00:00`, `${effectiveQuarterEnd}T23:59:59`) as any[];
+
+  // Also query recent non-cancelled shifts to understand recurring service mix and baseline if quarter has few shifts
+  const recentShifts = db.prepare(
+    `SELECT s.id, s.start_time, s.end_time, s.services_json, s.service_id, s.status, srv.name as service_name, srv.rate as service_rate
      FROM shifts s
      LEFT JOIN services srv ON s.service_id = srv.id
      WHERE s.client_id = ?
@@ -2026,51 +2057,50 @@ export function calculateSuggestedWeeklyHoursLogic(
      LIMIT 50`
   ).all(client.id) as any[];
 
+  const shiftsToAnalyze = quarterShifts.length > 0 ? quarterShifts : recentShifts;
+
   // Calculate service rate breakdown
   const serviceUsageMap: Record<string, { name: string; hours: number; baseRate: number; effectiveRate: number; count: number }> = {};
   let totalTrackedHours = 0;
   let totalTrackedCost = 0;
 
-  for (const s of shifts) {
+  for (const s of shiftsToAnalyze) {
     const duration = Math.max(0, (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / 3600000);
-    let sList: any[] = [];
+    if (duration <= 0) continue;
+
+    let shiftServiceName = s.service_name || (isNdis ? "Access Community Social and Rec" : "Assistance with self-care and activities of daily living");
+    let shiftBaseRate = Number(s.service_rate || (isNdis ? 65.47 : 78.00));
+
+    let parsedServices: any[] = [];
     if (s.services_json) {
       try {
         const parsed = JSON.parse(s.services_json);
-        if (Array.isArray(parsed) && parsed.length > 0) sList = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) parsedServices = parsed;
       } catch {}
     }
-    if (sList.length > 0) {
-      for (const item of sList) {
-        const srv = item.serviceId ? db.prepare("SELECT name, rate, unit FROM services WHERE id = ?").get(item.serviceId) as any : null;
-        const name = item.serviceName || srv?.name || s.service_name || "Standard Care Service";
-        const baseRate = Number(item.rateOverride ?? srv?.rate ?? s.service_rate ?? 78.00);
-        const isKm = (item.serviceUnit || srv?.unit || '').toUpperCase() === 'KM';
-        const qty = Number(item.qtyOverride ?? duration);
-        if (!isKm && qty > 0) {
-          const effRate = parseFloat((baseRate * feeMultiplier).toFixed(2));
-          if (!serviceUsageMap[name]) serviceUsageMap[name] = { name, hours: 0, baseRate, effectiveRate: effRate, count: 0 };
-          serviceUsageMap[name].hours += qty;
-          serviceUsageMap[name].count += 1;
-          totalTrackedHours += qty;
-          totalTrackedCost += qty * effRate;
-        }
+
+    if (parsedServices.length > 0) {
+      const primaryItem = parsedServices.find((it: any) => (it.serviceUnit || '').toUpperCase() !== 'KM') || parsedServices[0];
+      if (primaryItem) {
+        const srv = primaryItem.serviceId ? db.prepare("SELECT name, rate, unit FROM services WHERE id = ?").get(primaryItem.serviceId) as any : null;
+        shiftServiceName = primaryItem.serviceName || srv?.name || shiftServiceName;
+        shiftBaseRate = Number(primaryItem.rateOverride ?? srv?.rate ?? shiftBaseRate);
       }
-    } else {
-      const baseRate = Number(s.service_rate || 78.00);
-      const effRate = parseFloat((baseRate * feeMultiplier).toFixed(2));
-      const name = s.service_name || "Standard Care Service";
-      if (!serviceUsageMap[name]) serviceUsageMap[name] = { name, hours: 0, baseRate, effectiveRate: effRate, count: 0 };
-      serviceUsageMap[name].hours += duration;
-      serviceUsageMap[name].count += 1;
-      totalTrackedHours += duration;
-      totalTrackedCost += duration * effRate;
     }
+
+    const effRate = parseFloat((shiftBaseRate * feeMultiplier).toFixed(2));
+    if (!serviceUsageMap[shiftServiceName]) {
+      serviceUsageMap[shiftServiceName] = { name: shiftServiceName, hours: 0, baseRate: shiftBaseRate, effectiveRate: effRate, count: 0 };
+    }
+    serviceUsageMap[shiftServiceName].hours += duration;
+    serviceUsageMap[shiftServiceName].count += 1;
+    totalTrackedHours += duration;
+    totalTrackedCost += duration * effRate;
   }
 
   // Calculate primary service or weighted average rate with fees
   const primaryService = Object.values(serviceUsageMap).sort((a, b) => b.hours - a.hours)[0] || {
-    name: isNdis ? "Access Community Social and Rec" : "Individual social support",
+    name: isNdis ? "Access Community Social and Rec" : "Assistance with self-care and activities of daily living",
     baseRate: isNdis ? 65.47 : 78.00,
     effectiveRate: parseFloat(((isNdis ? 65.47 : 78.00) * feeMultiplier).toFixed(2))
   };
@@ -2079,11 +2109,36 @@ export function calculateSuggestedWeeklyHoursLogic(
     ? parseFloat((totalTrackedCost / totalTrackedHours).toFixed(2))
     : primaryService.effectiveRate;
 
-  // Determine current average weekly hours
-  const cycleWeeks = budgetDetails.totalCycleWeeks || 13;
-  const currentWeeklyHours = budgetDetails.averageWeeklyHours !== undefined && Number(budgetDetails.averageWeeklyHours) > 0
-    ? Number(budgetDetails.averageWeeklyHours)
-    : (totalTrackedHours > 0 ? parseFloat((totalTrackedHours / Math.min(cycleWeeks, 4)).toFixed(1)) : 0);
+  // Determine current weekly rostered hours:
+  // Group shifts by calendar week (Monday to Sunday)
+  const weekHoursMap: Record<string, number> = {};
+  for (const s of shiftsToAnalyze) {
+    const sDate = new Date(s.start_time);
+    const day = sDate.getDay();
+    const diff = (day === 0 ? -6 : 1) - day;
+    const monday = new Date(sDate.getFullYear(), sDate.getMonth(), sDate.getDate() + diff);
+    const weekKey = monday.toISOString().split('T')[0];
+    const dur = Math.max(0, (new Date(s.end_time).getTime() - sDate.getTime()) / 3600000);
+    weekHoursMap[weekKey] = (weekHoursMap[weekKey] || 0) + dur;
+  }
+
+  const activeWeekValues = Object.values(weekHoursMap);
+  let computedWeeklyHours = 0;
+  if (activeWeekValues.length > 0) {
+    const totalWeeklyHoursSum = activeWeekValues.reduce((sum, h) => sum + h, 0);
+    computedWeeklyHours = parseFloat((totalWeeklyHoursSum / activeWeekValues.length).toFixed(1));
+  }
+
+  // Fallback to budget spent pace if no shift records are present in shifts table
+  if (computedWeeklyHours === 0 && totalSpent > 0 && effectiveHourlyRateWithFees > 0) {
+    const elapsedDays = Math.max(1, Math.floor((now.getTime() - startDate.getTime()) / 86400000));
+    const elapsedWeeks = Math.max(1, parseFloat((elapsedDays / 7).toFixed(1)));
+    const spentHours = totalSpent / effectiveHourlyRateWithFees;
+    computedWeeklyHours = parseFloat((spentHours / elapsedWeeks).toFixed(1));
+  }
+
+  // Clean rounding to half hour (e.g. 12.5, 13.0)
+  const currentWeeklyHours = parseFloat((Math.round(computedWeeklyHours * 2) / 2).toFixed(1));
   const currentWeeklyCost = parseFloat((currentWeeklyHours * effectiveHourlyRateWithFees).toFixed(2));
 
   // 5. Calculate Suggested Weekly Hours
@@ -2123,9 +2178,9 @@ export function calculateSuggestedWeeklyHoursLogic(
   ];
 
   // Rollover cap info for Home Care
-  const rolloverCap = budgetDetails.rolloverCap || Math.max(1000, 0.10 * totalAllocation);
-  const eligibleRollover = budgetDetails.eligibleRollover || 0;
-  const surplusExpiring = budgetDetails.surplusExpiring || 0;
+  const rolloverCap = (budgetDetails as any).rolloverCap || Math.max(1000, 0.10 * totalAllocation);
+  const eligibleRollover = (budgetDetails as any).eligibleRollover ?? (budgetDetails as any).eligibleRolloverAmount ?? 0;
+  const surplusExpiring = (budgetDetails as any).surplusExpiring ?? (budgetDetails as any).surplusExpiringFunds ?? 0;
 
   return {
     clientName: `${client.first_name} ${client.last_name}`.trim(),
