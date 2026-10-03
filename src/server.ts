@@ -10498,44 +10498,52 @@ app.get("/api/health", (req, res) => {
     timeStr: string,
     timeZone: string,
   ) {
-    const localIso = `${dateStr}T${timeStr}:00`;
+    const normalizedTime = timeStr.length === 5 ? `${timeStr}:00` : (timeStr.length === 8 ? timeStr : `${timeStr.slice(0, 5)}:00`);
+    const localIso = `${dateStr}T${normalizedTime}`;
     let d = new Date(`${localIso}Z`);
-
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-
-    function getOffsetAt(dateObj: Date) {
-      const parts = formatter.formatToParts(dateObj);
-      const p: any = {};
-      parts.forEach((part) => (p[part.type] = part.value));
-      let h = parseInt(p.hour, 10);
-      if (h === 24) h = 0;
-      const formattedLocalAsUtc = Date.UTC(
-        p.year,
-        parseInt(p.month, 10) - 1,
-        p.day,
-        h,
-        p.minute,
-        p.second,
-      );
-      return formattedLocalAsUtc - dateObj.getTime();
+    if (isNaN(d.getTime())) {
+      d = new Date(`${dateStr}T12:00:00Z`);
     }
 
-    let offset = getOffsetAt(d);
-    let guess = new Date(d.getTime() - offset);
-    let offset2 = getOffsetAt(guess);
-    if (offset !== offset2) {
-      guess = new Date(d.getTime() - offset2);
+    try {
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+
+      function getOffsetAt(dateObj: Date) {
+        const parts = formatter.formatToParts(dateObj);
+        const p: any = {};
+        parts.forEach((part) => (p[part.type] = part.value));
+        let h = parseInt(p.hour, 10);
+        if (h === 24) h = 0;
+        const formattedLocalAsUtc = Date.UTC(
+          p.year,
+          parseInt(p.month, 10) - 1,
+          p.day,
+          h,
+          p.minute,
+          p.second,
+        );
+        return formattedLocalAsUtc - dateObj.getTime();
+      }
+
+      let offset = getOffsetAt(d);
+      let guess = new Date(d.getTime() - offset);
+      let offset2 = getOffsetAt(guess);
+      if (offset !== offset2) {
+        guess = new Date(d.getTime() - offset2);
+      }
+      return guess;
+    } catch {
+      return d;
     }
-    return guess;
   }
 
   // Generate shifts from templates
@@ -10659,9 +10667,9 @@ app.get("/api/health", (req, res) => {
 
         // Compute clean UTC date boundaries for date range
         const rangeStartUtc = getUtcTimeFromLocal(startDate, "00:00", timezone);
-        const rangeEndUtc = new Date(getUtcTimeFromLocal(endDate, "23:59:59", timezone).getTime() + 1000);
+        const rangeEndUtc = getUtcTimeFromLocal(endDate, "23:59", timezone);
         const deleteStartIso = new Date(Math.min(start.getTime(), rangeStartUtc.getTime())).toISOString();
-        const deleteEndIso = new Date(Math.max(end.getTime() + 86400000, rangeEndUtc.getTime())).toISOString();
+        const deleteEndIso = new Date(Math.max(end.getTime() + 86400000, rangeEndUtc.getTime() + 60000)).toISOString();
 
         if (dryRun && !clearExisting) {
           const existingRows = db
