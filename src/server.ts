@@ -10657,15 +10657,21 @@ app.get("/api/health", (req, res) => {
         const timezone =
           typeof rawTz3 === "string" ? rawTz3.replace(/['"]+/g, "") : rawTz3;
 
-        if (dryRun && clearExisting) {
+        // Compute clean UTC date boundaries for date range
+        const rangeStartUtc = getUtcTimeFromLocal(startDate, "00:00", timezone);
+        const rangeEndUtc = new Date(getUtcTimeFromLocal(endDate, "23:59:59", timezone).getTime() + 1000);
+        const deleteStartIso = new Date(Math.min(start.getTime(), rangeStartUtc.getTime())).toISOString();
+        const deleteEndIso = new Date(Math.max(end.getTime() + 86400000, rangeEndUtc.getTime())).toISOString();
+
+        if (dryRun && !clearExisting) {
           const existingRows = db
             .prepare(
-              `SELECT * FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND status NOT IN ('COMPLETED', 'IN_PROGRESS') ORDER BY start_time ASC`,
+              `SELECT * FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND status NOT IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED') ORDER BY start_time ASC`,
             )
             .all(
               clientId,
-              start.toISOString(),
-              new Date(end.getTime() + 86400000).toISOString(),
+              deleteStartIso,
+              deleteEndIso,
             ) as any[];
           existingShiftsCount = existingRows.length;
           existingClientShifts = existingRows.map((r: any) => {
@@ -10698,16 +10704,18 @@ app.get("/api/health", (req, res) => {
         }
 
         const affectedStaffDates = new Set<string>();
+        let clearedCount = 0;
 
         db.transaction(() => {
-          if (!dryRun && overwriteConflicts === "all" && clearExisting) {
-            db.prepare(
-              `DELETE FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND status NOT IN ('COMPLETED', 'IN_PROGRESS')`,
+          if (!dryRun && clearExisting) {
+            const delResult = db.prepare(
+              `DELETE FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND status NOT IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED')`,
             ).run(
               clientId,
-              start.toISOString(),
-              new Date(end.getTime() + 86400000).toISOString(),
+              deleteStartIso,
+              deleteEndIso,
             );
+            clearedCount = delResult.changes;
           }
 
           let currentDt = new Date(`${startDate}T12:00:00Z`);
@@ -10759,13 +10767,12 @@ app.get("/api/health", (req, res) => {
                 timezone,
               );
 
-              // No need to check client conflicts since they are wiped if overwriteConflicts === 'all'
-              // We just push dummy if dryRun so UI knows there are templates processed, but actually we use existingShiftsCount now.
-              if (dryRun && existingShiftsCount > 0) {
+              // No need to check client conflicts since they are wiped if overwriteConflicts === 'all' or clearExisting is set
+              if (dryRun && !clearExisting && existingShiftsCount > 0) {
                 clientConflicts.push({ existing: [] }); // Dummy to trigger UI confirmation
               }
-              if (!dryRun && overwriteConflicts !== "all") {
-                // If they didn't approve wipe, we shouldn't continue, but just for safety.
+              if (!dryRun && overwriteConflicts !== "all" && !clearExisting) {
+                // If they didn't approve wipe and clearExisting is false, we shouldn't continue, but just for safety.
               }
 
               const overlapCheckSql = clearExisting
@@ -10789,27 +10796,46 @@ app.get("/api/health", (req, res) => {
                 continue; // Skip creating this template shift because it's already fulfilled by a preserved shift
               }
 
-              // Check conflicts for preferred staff
+              // Check conflicts for preferred staff (ignoring shifts of this client that are being cleared)
               let assignedStaffId = tmpl.staff_id;
               if (assignedStaffId) {
-                const conflict = db
-                  .prepare(
-                    `
-                SELECT id, start_time, end_time, client_id FROM shifts 
-                WHERE staff_id = ? 
-                AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))
-                LIMIT 1
-              `,
-                  )
-                  .get(
-                    assignedStaffId,
-                    endDateTime.toISOString(),
-                    startDateTime.toISOString(),
-                    endDateTime.toISOString(),
-                    startDateTime.toISOString(),
-                    startDateTime.toISOString(),
-                    endDateTime.toISOString(),
-                  ) as any;
+                const staffConflictSql = clearExisting
+                  ? `SELECT id, start_time, end_time, client_id FROM shifts 
+                     WHERE staff_id = ? 
+                     AND status != 'CANCELLED'
+                     AND (client_id != ? OR status IN ('COMPLETED', 'IN_PROGRESS'))
+                     AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))
+                     LIMIT 1`
+                  : `SELECT id, start_time, end_time, client_id FROM shifts 
+                     WHERE staff_id = ? 
+                     AND status != 'CANCELLED'
+                     AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))
+                     LIMIT 1`;
+
+                const conflict = clearExisting
+                  ? (db
+                      .prepare(staffConflictSql)
+                      .get(
+                        assignedStaffId,
+                        clientId,
+                        endDateTime.toISOString(),
+                        startDateTime.toISOString(),
+                        endDateTime.toISOString(),
+                        startDateTime.toISOString(),
+                        startDateTime.toISOString(),
+                        endDateTime.toISOString(),
+                      ) as any)
+                  : (db
+                      .prepare(staffConflictSql)
+                      .get(
+                        assignedStaffId,
+                        endDateTime.toISOString(),
+                        startDateTime.toISOString(),
+                        endDateTime.toISOString(),
+                        startDateTime.toISOString(),
+                        startDateTime.toISOString(),
+                        endDateTime.toISOString(),
+                      ) as any);
 
                 if (conflict) {
                   const userRow = db
@@ -11009,10 +11035,11 @@ app.get("/api/health", (req, res) => {
         res.json({
           success: true,
           createdCount: shiftsCreated.length,
+          clearedCount,
           conflicts,
           clientConflicts,
-          existingShiftsCount,
-          existingClientShifts,
+          existingShiftsCount: clearExisting ? 0 : existingShiftsCount,
+          existingClientShifts: clearExisting ? [] : existingClientShifts,
           dryRun,
         });
       } catch (e: any) {

@@ -676,11 +676,19 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
     setGenerating(true);
     setGenerateResult(null);
 
+    // If "Clear all existing client shifts in this period" is selected,
+    // the user explicitly instructed to clear the date range and build fresh on a clear slate.
+    // Do NOT show the conflicts warning modal; execute generation directly!
+    if (clearExisting) {
+      executeGenerateRoster('all');
+      return;
+    }
+
     try {
       const res = await fetch(`/api/clients/${clientId}/generate-roster`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: runBuilderTemplate, clearExisting })
+        body: JSON.stringify({ startDate: generateStartDate, endDate: generateEndDate, dryRun: true, templateName: runBuilderTemplate, clearExisting: false })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -719,6 +727,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         setGenerateResult(data);
         setShowConflictsModal(false);
         setShowRunBuilderModal(false); // Close Modal on success
+        fetchData();
         window.dispatchEvent(new CustomEvent('offline-sync-completed'));
       } else {
         alert(data.error || 'Failed to generate roster.');
@@ -1237,17 +1246,22 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 </div>
               </div>
               
-              <div className="flex items-center gap-2 mt-4 pb-2">
-                <input 
-                  type="checkbox" 
-                  id="clearExisting" 
-                  checked={clearExisting} 
-                  onChange={(e) => setClearExisting(e.target.checked)} 
-                  className="w-4 h-4 bg-transparent border-white/[0.2] rounded text-brand-teal focus:ring-brand-teal focus:ring-offset-bg-black"
-                />
-                <label htmlFor="clearExisting" className="text-sm font-medium text-zinc-300 select-none cursor-pointer">
-                  Clear all existing client shifts in this period 
-                </label>
+              <div className="mt-4 pb-2">
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="checkbox" 
+                    id="clearExisting" 
+                    checked={clearExisting} 
+                    onChange={(e) => setClearExisting(e.target.checked)} 
+                    className="w-4 h-4 bg-transparent border-white/[0.2] rounded text-brand-teal focus:ring-brand-teal focus:ring-offset-bg-black"
+                  />
+                  <label htmlFor="clearExisting" className="text-sm font-medium text-zinc-300 select-none cursor-pointer">
+                    Clear all existing client shifts in this period 
+                  </label>
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-1 ml-6">
+                  Completed, In-Progress, and Cancelled shifts will remain intact.
+                </p>
               </div>
 
               <div className="bg-brand-blue/10 border border-brand-blue/20 rounded-lg p-3 text-sm text-brand-blue">
