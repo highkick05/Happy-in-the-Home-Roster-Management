@@ -137,25 +137,48 @@ export async function getValidAccessToken(db: any, forcedSettings?: XeroSettings
     }
 
     const authHeader = 'Basic ' + Buffer.from(`${settings.xero_client_id}:${settings.xero_client_secret}`).toString('base64');
-    const tokenRes = await fetch('https://identity.xero.com/connect/token', {
-      method: 'POST',
-      headers: {
-        'Authorization': authHeader,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        scope: 'accounting.transactions accounting.contacts accounting.settings accounting.attachments',
-      }).toString(),
-    });
+    
+    // Attempt token request with required scopes
+    const scopesToTry = [
+      'accounting.transactions accounting.contacts accounting.settings accounting.attachments',
+      'accounting.transactions accounting.contacts accounting.attachments',
+      'accounting.transactions accounting.contacts',
+      'accounting.transactions',
+    ];
 
-    const tokenData = await tokenRes.json().catch(() => ({}));
-    if (!tokenRes.ok) {
-      const errDetail = tokenData.error_description || tokenData.error || tokenRes.statusText;
-      if (tokenData.error === 'invalid_grant' || (errDetail && String(errDetail).toLowerCase().includes('client credentials scope validation failed'))) {
-        throw new Error('This app is registered as a standard Xero Web App, not a Custom Connection. Please switch the tab above to "OAuth 2.0 Web App" and click "Connect with Xero (Authorize Popup)".');
+    let tokenRes: any = null;
+    let tokenData: any = null;
+    let lastErrDetail = '';
+
+    for (const scopeStr of scopesToTry) {
+      tokenRes = await fetch('https://identity.xero.com/connect/token', {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          scope: scopeStr,
+        }).toString(),
+      });
+
+      tokenData = await tokenRes.json().catch(() => ({}));
+      if (tokenRes.ok) {
+        break;
       }
-      throw new Error(`Xero Token Error (${tokenRes.status}): ${errDetail}`);
+      lastErrDetail = tokenData.error_description || tokenData.error || tokenRes.statusText;
+      // If error is invalid_client, stop immediately
+      if (tokenData.error === 'invalid_client') {
+        break;
+      }
+    }
+
+    if (!tokenRes.ok) {
+      if (tokenData.error === 'invalid_grant' || (lastErrDetail && String(lastErrDetail).toLowerCase().includes('client credentials scope validation failed'))) {
+        throw new Error('Client credentials scope validation failed: Make sure your Custom Connection in Xero is approved, or switch to "OAuth 2.0 Web App" if your app was created as a Web App.');
+      }
+      throw new Error(`Xero Token Error (${tokenRes.status}): ${lastErrDetail}`);
     }
 
     const accessToken = tokenData.access_token;
@@ -167,22 +190,26 @@ export async function getValidAccessToken(db: any, forcedSettings?: XeroSettings
     settings.xero_access_token = accessToken;
     settings.xero_token_expires_at = newExpiresAt;
 
-    // Resolve tenant ID
+    // Resolve tenant ID if accessible
     let tenantId = settings.xero_tenant_id;
     let tenantName = settings.xero_tenant_name || '';
 
-    const connections = await getConnections(accessToken);
-    if (connections && connections.length > 0) {
-      tenantId = tenantId || connections[0].tenantId;
-      tenantName = connections.find(c => c.tenantId === tenantId)?.tenantName || connections[0].tenantName || '';
-      saveXeroSetting(db, 'xero_tenant_id', tenantId);
-      saveXeroSetting(db, 'xero_tenant_name', tenantName);
-      settings.xero_tenant_id = tenantId;
-      settings.xero_tenant_name = tenantName;
-    }
+    try {
+      const connections = await getConnections(accessToken);
+      if (connections && connections.length > 0) {
+        tenantId = tenantId || connections[0].tenantId;
+        tenantName = connections.find(c => c.tenantId === tenantId)?.tenantName || connections[0].tenantName || '';
+        saveXeroSetting(db, 'xero_tenant_id', tenantId);
+        saveXeroSetting(db, 'xero_tenant_name', tenantName);
+        settings.xero_tenant_id = tenantId;
+        settings.xero_tenant_name = tenantName;
+      }
+    } catch {}
 
+    // For Custom Connections, tenantId is not strictly required because it is implicitly bound to one organisation
     if (!tenantId) {
-      throw new Error('No accessible Xero Organisation/Tenant found for these credentials.');
+      tenantId = '';
+      tenantName = tenantName || 'Custom Connection';
     }
 
     return {
