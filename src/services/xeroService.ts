@@ -138,8 +138,12 @@ export async function getValidAccessToken(db: any, forcedSettings?: XeroSettings
 
     const authHeader = 'Basic ' + Buffer.from(`${settings.xero_client_id}:${settings.xero_client_secret}`).toString('base64');
     
-    // Attempt token request with required scopes
+    // Attempt token request with required scopes (support both granular 2026+ and legacy broad scopes)
     const scopesToTry = [
+      'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments',
+      'accounting.invoices accounting.contacts accounting.attachments',
+      'accounting.invoices accounting.contacts',
+      'accounting.invoices',
       'accounting.transactions accounting.contacts accounting.settings accounting.attachments',
       'accounting.transactions accounting.contacts accounting.attachments',
       'accounting.transactions accounting.contacts',

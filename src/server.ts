@@ -5407,11 +5407,22 @@ function getUnreadChatCount(db: any, userId: number) {
 
       saveXeroSetting(db, 'xero_last_redirect_uri', redirectUri);
 
+      // Xero OAuth 2.0 Scopes:
+      // For all apps (especially apps created after March 2, 2026), Xero enforces granular scopes:
+      // - 'openid profile email' is required for OIDC authentication
+      // - 'accounting.invoices' replaces deprecated 'accounting.transactions'
+      // - 'accounting.contacts' for managing invoice contacts
+      // - 'accounting.settings.read' for reading organization info and chart of accounts
+      // - 'accounting.attachments' for uploading PDF invoice copies
+      // - 'offline_access' for receiving refresh tokens
+      const requestedScope = (req.query.scope as string) ||
+        'openid profile email accounting.invoices accounting.contacts accounting.settings.read accounting.attachments offline_access';
+
       const params = new URLSearchParams({
         response_type: 'code',
         client_id: settings.xero_client_id,
         redirect_uri: redirectUri,
-        scope: 'accounting.transactions accounting.contacts accounting.settings accounting.attachments offline_access',
+        scope: requestedScope,
         state: 'xero_oauth_state'
       });
 
