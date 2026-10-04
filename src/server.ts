@@ -38,6 +38,15 @@ function getHistoricalServiceData(db, srv, shiftDateStr) {
 import * as xlsx from "xlsx";
 import PDFDocument from "pdfkit";
 import { PDFDocument as PDFLibDocument } from "pdf-lib";
+import {
+  getXeroSettings,
+  saveXeroSetting,
+  getValidAccessToken,
+  getConnections,
+  getOrganisationDetails,
+  syncInvoiceToXero,
+  sendTestInvoiceToXero,
+} from "./services/xeroService";
 import fs from "fs";
 import morgan from "morgan";
 import winston from "winston";
@@ -875,6 +884,16 @@ try {
   } catch (e: any) {
     if (e.message && !e.message.includes("duplicate column")) console.warn("Migration warning:", e.message);
   }
+
+  try {
+    db.exec("ALTER TABLE invoices ADD COLUMN xero_invoice_id TEXT");
+  } catch (e: any) {}
+  try {
+    db.exec("ALTER TABLE invoices ADD COLUMN xero_status TEXT");
+  } catch (e: any) {}
+  try {
+    db.exec("ALTER TABLE invoices ADD COLUMN xero_synced_at TEXT");
+  } catch (e: any) {}
 
   try {
     db.exec("ALTER TABLE tasks ADD COLUMN assigned_to_id INTEGER");
@@ -5241,6 +5260,274 @@ function getUnreadChatCount(db: any, userId: number) {
 
   app.put("/api/settings", authenticateToken, requireAdmin, handleSaveSettingsRequest);
   app.post("/api/settings", authenticateToken, requireAdmin, handleSaveSettingsRequest);
+
+  // --- Xero Accounting Integration APIs ---
+  app.get("/api/xero/status", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const settings = getXeroSettings(db);
+      let connected = false;
+      let orgDetails: any = null;
+
+      if (settings.xero_client_id) {
+        try {
+          const authData = await getValidAccessToken(db, settings);
+          if (authData.accessToken && authData.tenantId) {
+            connected = true;
+            try {
+              orgDetails = await getOrganisationDetails(authData.accessToken, authData.tenantId);
+            } catch (orgErr) {}
+          }
+        } catch (e: any) {
+          connected = false;
+        }
+      }
+
+      res.json({
+        configured: Boolean(settings.xero_client_id),
+        enabled: settings.xero_enabled,
+        connected,
+        authType: settings.xero_auth_type,
+        tenantId: settings.xero_tenant_id,
+        tenantName: settings.xero_tenant_name || orgDetails?.Name,
+        tokenExpiresAt: settings.xero_token_expires_at,
+        organisation: orgDetails ? {
+          name: orgDetails.Name,
+          legalName: orgDetails.LegalName,
+          baseCurrency: orgDetails.BaseCurrency,
+          organisationID: orgDetails.OrganisationID,
+          countryCode: orgDetails.CountryCode
+        } : undefined,
+        settings: {
+          xero_enabled: settings.xero_enabled,
+          xero_auth_type: settings.xero_auth_type,
+          xero_client_id: settings.xero_client_id,
+          xero_client_secret: settings.xero_client_secret,
+          xero_tenant_id: settings.xero_tenant_id,
+          xero_tenant_name: settings.xero_tenant_name,
+          xero_account_code: settings.xero_account_code,
+          xero_invoice_status: settings.xero_invoice_status,
+          xero_tax_type_gst: settings.xero_tax_type_gst,
+          xero_tax_type_free: settings.xero_tax_type_free,
+          xero_sync_on_trilogy: settings.xero_sync_on_trilogy,
+          xero_sync_on_email: settings.xero_sync_on_email,
+          xero_attach_pdf: settings.xero_attach_pdf,
+        }
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to query Xero status." });
+    }
+  });
+
+  app.post("/api/xero/test-connection", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const overrides = req.body;
+      const settings = getXeroSettings(db);
+      if (overrides.clientId) settings.xero_client_id = overrides.clientId;
+      if (overrides.clientSecret) settings.xero_client_secret = overrides.clientSecret;
+      if (overrides.tenantId) settings.xero_tenant_id = overrides.tenantId;
+      if (overrides.authType) settings.xero_auth_type = overrides.authType;
+
+      const { accessToken, tenantId, tenantName } = await getValidAccessToken(db, settings);
+      let org: any = null;
+      try {
+        org = await getOrganisationDetails(accessToken, tenantId);
+      } catch (err: any) {
+        console.warn("[XERO] Could not fetch Organisation endpoint details:", err.message);
+      }
+
+      res.json({
+        success: true,
+        message: `Connected successfully to Xero organisation "${org?.Name || tenantName || 'Default'}".`,
+        tenantId,
+        tenantName: org?.Name || tenantName,
+        organisation: org ? {
+          name: org.Name,
+          legalName: org.LegalName,
+          baseCurrency: org.BaseCurrency,
+          organisationID: org.OrganisationID
+        } : undefined
+      });
+    } catch (e: any) {
+      res.status(400).json({ success: false, error: e.message || "Xero connection failed." });
+    }
+  });
+
+  app.post("/api/xero/test-invoice", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { customAmount, invoiceStatus, accountCode } = req.body;
+      const result = await sendTestInvoiceToXero(db, {
+        customAmount: customAmount ? Number(customAmount) : 10.00,
+        invoiceStatus,
+        accountCode
+      });
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message || "Failed to dispatch test invoice to Xero." });
+    }
+  });
+
+  app.get("/api/xero/tenants", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { accessToken } = await getValidAccessToken(db);
+      const connections = await getConnections(accessToken);
+      res.json({ tenants: connections });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message || "Failed to retrieve Xero tenants." });
+    }
+  });
+
+  app.post("/api/xero/disconnect", authenticateToken, requireAdmin, (req, res) => {
+    try {
+      saveXeroSetting(db, "xero_access_token", "");
+      saveXeroSetting(db, "xero_refresh_token", "");
+      saveXeroSetting(db, "xero_token_expires_at", 0);
+      saveXeroSetting(db, "xero_tenant_id", "");
+      saveXeroSetting(db, "xero_tenant_name", "");
+      res.json({ success: true, message: "Disconnected from Xero." });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to disconnect Xero." });
+    }
+  });
+
+  app.get("/api/xero/auth-url", authenticateToken, requireAdmin, (req: any, res) => {
+    try {
+      const settings = getXeroSettings(db);
+      if (!settings.xero_client_id) {
+        return res.status(400).json({ error: "Xero Client ID is not configured." });
+      }
+
+      const host = req.get('host') || 'localhost:3000';
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+      const redirectUri = `${protocol}://${host}/api/xero/callback`;
+
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: settings.xero_client_id,
+        redirect_uri: redirectUri,
+        scope: 'accounting.transactions accounting.contacts accounting.settings accounting.attachments offline_access',
+        state: 'xero_oauth_state'
+      });
+
+      const authUrl = `https://login.xero.com/identity/connect/authorize?${params.toString()}`;
+      res.json({ url: authUrl });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to generate auth URL." });
+    }
+  });
+
+  app.get("/api/xero/callback", async (req: any, res) => {
+    const { code, error } = req.query;
+    if (error) {
+      return res.send(`
+        <html><body>
+          <h3>Xero Authorization Failed: ${error}</h3>
+          <script>setTimeout(() => window.close(), 3000);</script>
+        </body></html>
+      `);
+    }
+
+    if (!code) {
+      return res.status(400).send("Missing code parameter.");
+    }
+
+    try {
+      const settings = getXeroSettings(db);
+      const host = req.get('host') || 'localhost:3000';
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+      const redirectUri = `${protocol}://${host}/api/xero/callback`;
+
+      const authHeader = 'Basic ' + Buffer.from(`${settings.xero_client_id}:${settings.xero_client_secret}`).toString('base64');
+      const tokenRes = await fetch('https://identity.xero.com/connect/token', {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: String(code),
+          redirect_uri: redirectUri,
+        }).toString(),
+      });
+
+      const tokenData = await tokenRes.json().catch(() => ({}));
+      if (!tokenRes.ok) {
+        throw new Error(tokenData.error_description || tokenData.error || `HTTP ${tokenRes.status}`);
+      }
+
+      const accessToken = tokenData.access_token;
+      const refreshToken = tokenData.refresh_token;
+      const expiresIn = Number(tokenData.expires_in) || 1800;
+      const newExpiresAt = Date.now() + expiresIn * 1000;
+
+      saveXeroSetting(db, 'xero_access_token', accessToken);
+      saveXeroSetting(db, 'xero_refresh_token', refreshToken);
+      saveXeroSetting(db, 'xero_token_expires_at', newExpiresAt);
+
+      const connections = await getConnections(accessToken);
+      if (connections && connections.length > 0) {
+        saveXeroSetting(db, 'xero_tenant_id', connections[0].tenantId);
+        saveXeroSetting(db, 'xero_tenant_name', connections[0].tenantName || '');
+      }
+
+      res.send(`
+        <html><body>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: 'XERO_AUTH_SUCCESS' }, '*');
+              window.close();
+            } else {
+              window.location.href = '/settings';
+            }
+          </script>
+          <div style="font-family: sans-serif; text-align: center; padding: 40px;">
+            <h3>Xero Connected Successfully!</h3>
+            <p>This window will close automatically...</p>
+          </div>
+        </body></html>
+      `);
+    } catch (e: any) {
+      console.error("[XERO] OAuth callback error:", e);
+      res.send(`
+        <html><body>
+          <h3>Connection Failed</h3>
+          <p>${e.message}</p>
+          <script>setTimeout(() => window.close(), 5000);</script>
+        </body></html>
+      `);
+    }
+  });
+
+  app.post("/api/invoices/:id/upload-xero", authenticateToken, async (req: any, res) => {
+    const invoiceId = parseInt(req.params.id);
+    if (!invoiceId) return res.status(400).json({ error: "Invalid invoiceId" });
+
+    try {
+      const result = await syncInvoiceToXero(db, invoiceId, {
+        force: true,
+        source: 'manual',
+        getInvoiceDataHelpers: {
+          getShiftData: getInvoiceDataForShift,
+          getMergedData: getInvoiceDataForMergedInvoice,
+          getRespiteData: getInvoiceDataForRespiteBooking,
+          buildPdf: buildInvoicePdf,
+        }
+      });
+
+      res.json({
+        success: true,
+        message: `Invoice ${result.invoiceNumber} uploaded to Xero successfully!`,
+        ...result
+      });
+    } catch (e: any) {
+      console.error("[XERO] Manual upload failed:", e);
+      res.status(500).json({ error: e.message || "Failed to upload invoice to Xero." });
+    }
+  });
   app.get("/api/emails/unread-count", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const stmt = db.prepare("SELECT value FROM settings WHERE key = ?");
@@ -17419,7 +17706,31 @@ app.post(
 
       db.prepare("UPDATE invoices SET status = 'SENT' WHERE id = ?").run(invoiceId);
 
-      res.json({ success: true, message: "Invoice emailed successfully and marked as SENT." });
+      // Upload to Xero simultaneously if enabled
+      let xeroMessage = "";
+      try {
+        const xeroRes = await syncInvoiceToXero(db, invoiceId, {
+          source: 'email',
+          pdfBuffer: pdfBuffer || undefined,
+          filename: filename || undefined,
+          getInvoiceDataHelpers: {
+            getShiftData: getInvoiceDataForShift,
+            getMergedData: getInvoiceDataForMergedInvoice,
+            getRespiteData: getInvoiceDataForRespiteBooking,
+            buildPdf: buildInvoicePdf,
+          }
+        });
+        if (xeroRes.success && !xeroRes.skipped) {
+          xeroMessage = ` and uploaded to Xero (${xeroRes.invoiceNumber})`;
+        } else if (xeroRes.error) {
+          xeroMessage = ` (Notice: Xero upload failed: ${xeroRes.error})`;
+        }
+      } catch (xErr: any) {
+        console.error("[XERO] Error during Email submit sync:", xErr);
+        xeroMessage = ` (Notice: Xero upload notice: ${xErr.message})`;
+      }
+
+      res.json({ success: true, message: `Invoice emailed successfully${xeroMessage} and marked as SENT.` });
     } catch (e: any) {
       console.error("Failed to email invoice:", e);
       const smtpInfo = `Host: ${s.host}, Port: ${s.port}, User: ${s.user}`;
@@ -17657,6 +17968,9 @@ app.post(
 
     if (!invoiceId) return res.status(400).json({ error: "Invalid invoiceId" });
 
+    let trilogyPdfBuffer: Buffer | null = null;
+    let trilogyPdfFilename = '';
+
     try {
       // 1. Fetch invoice details from SQLite
       const invoice = db.prepare(`
@@ -17791,6 +18105,14 @@ app.post(
         }
 
       } finally {
+        // Capture PDF buffer before cleanup for Xero sync
+        if (fs.existsSync(pdfPath)) {
+          try {
+            trilogyPdfBuffer = fs.readFileSync(pdfPath);
+            trilogyPdfFilename = path.basename(pdfPath);
+          } catch (e) {}
+        }
+
         // 7. Close the browser
         await browser.close();
         if (isTempPdf && fs.existsSync(pdfPath)) {
@@ -17807,8 +18129,33 @@ app.post(
       // 8. Update the invoice status in SQLite to SENT (only if not in test mode)
       if (!isTestMode) {
         db.prepare("UPDATE invoices SET status = 'SENT' WHERE id = ?").run(invoiceId);
+
+        // Upload to Xero simultaneously if enabled
+        let xeroMessage = "";
+        try {
+          const xeroRes = await syncInvoiceToXero(db, invoiceId, {
+            source: 'trilogy',
+            pdfBuffer: trilogyPdfBuffer || undefined,
+            filename: trilogyPdfFilename || undefined,
+            getInvoiceDataHelpers: {
+              getShiftData: getInvoiceDataForShift,
+              getMergedData: getInvoiceDataForMergedInvoice,
+              getRespiteData: getInvoiceDataForRespiteBooking,
+              buildPdf: buildInvoicePdf,
+            }
+          });
+          if (xeroRes.success && !xeroRes.skipped) {
+            xeroMessage = ` and uploaded to Xero (${xeroRes.invoiceNumber})`;
+          } else if (xeroRes.error) {
+            xeroMessage = ` (Notice: Xero upload failed: ${xeroRes.error})`;
+          }
+        } catch (xErr: any) {
+          console.error("[XERO] Error during Trilogy submit sync:", xErr);
+          xeroMessage = ` (Notice: Xero upload notice: ${xErr.message})`;
+        }
+
         // 9. Return success
-        res.json({ success: true, message: "Invoice submitted to Trilogy Care successfully and marked as SENT." });
+        res.json({ success: true, message: `Invoice submitted to Trilogy Care successfully${xeroMessage} and marked as SENT.` });
       } else {
         res.json({ success: true, message: "Test run completed successfully (Dry Run)." });
       }

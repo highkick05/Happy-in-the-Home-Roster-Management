@@ -1,7 +1,7 @@
 import { useDropzone } from 'react-dropzone';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { FileText, Copy, ChevronUp, ChevronDown, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle, X, Upload, Edit, Bug } from 'lucide-react';
+import { FileText, Copy, ChevronUp, ChevronDown, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle, X, Upload, Edit, Bug, Building2 } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
 import { RefreshCw, Search, Mail } from 'lucide-react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -751,6 +751,7 @@ export default function InvoicingView() {
   const [isMerging, setIsMerging] = useState(false);
   const [isEmailing, setIsEmailing] = useState<number | null>(null);
   const [isTesting, setIsTesting] = useState<number | null>(null);
+  const [isUploadingXero, setIsUploadingXero] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [allDbClients, setAllDbClients] = useState<any[]>([]);
@@ -1124,6 +1125,29 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
       console.error(error);
     } finally {
       setIsEmailing(null);
+    }
+  };
+
+  const handleUploadToXero = async (invoiceId: number) => {
+    setIsUploadingXero(invoiceId);
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}/upload-xero`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to upload invoice to Xero');
+      }
+      alert(data.message || 'Invoice uploaded to Xero successfully!');
+      fetchInvoices();
+    } catch (error: any) {
+      alert(error.message || 'Failed to upload invoice to Xero');
+      console.error(error);
+    } finally {
+      setIsUploadingXero(null);
     }
   };
 
@@ -1614,17 +1638,41 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-1.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
-                        i.status === 'PAID' ? 'bg-brand-green/20 text-brand-green border border-brand-green/30' : 
-                        'bg-brand-bg text-[#8B949E] border border-border-subtle'
-                      }`}>
-                        {i.status}
-                      </span>
+                    <td className="px-3 py-1.5 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
+                          i.status === 'PAID' ? 'bg-brand-green/20 text-brand-green border border-brand-green/30' : 
+                          'bg-brand-bg text-[#8B949E] border border-border-subtle'
+                        }`}>
+                          {i.status}
+                        </span>
+                        {i.xero_status === 'SYNCED' && (
+                          <span 
+                            title={`Uploaded to Xero (${i.xero_synced_at || ''})`}
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/30"
+                          >
+                            XERO
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-1.5 text-right flex items-center justify-end space-x-1">
                        {subTab === 'active' && (
                          <>
+                           <button
+                             title={i.xero_status === 'SYNCED' ? "Re-upload to Xero" : "Upload to Xero"}
+                             onClick={() => handleUploadToXero(i.id)}
+                             disabled={isUploadingXero === i.id}
+                             className={`p-1.5 rounded-md transition-colors ${
+                               isUploadingXero === i.id 
+                                 ? 'text-sky-400 opacity-50 cursor-not-allowed' 
+                                 : i.xero_status === 'SYNCED'
+                                   ? 'text-sky-400 hover:text-sky-300 hover:bg-sky-500/10'
+                                   : 'text-zinc-400 hover:text-sky-400 hover:bg-sky-500/10'
+                             }`}
+                           >
+                             {isUploadingXero === i.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Building2 className="w-4 h-4" />}
+                           </button>
                            {i.submission_method && i.submission_method !== 'manual' && (
                              <>
                                {i.submission_method === 'trilogy_form' && i.is_test_mode_enabled === 1 && (
