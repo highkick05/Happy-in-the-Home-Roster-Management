@@ -5400,9 +5400,12 @@ function getUnreadChatCount(db: any, userId: number) {
         return res.status(400).json({ error: "Xero Client ID is not configured." });
       }
 
+      const clientRedirectUri = req.query.redirect_uri as string;
       const host = req.get('host') || 'localhost:3000';
       const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-      const redirectUri = `${protocol}://${host}/api/xero/callback`;
+      const redirectUri = clientRedirectUri || `${protocol}://${host}/api/xero/callback`;
+
+      saveXeroSetting(db, 'xero_last_redirect_uri', redirectUri);
 
       const params = new URLSearchParams({
         response_type: 'code',
@@ -5413,7 +5416,7 @@ function getUnreadChatCount(db: any, userId: number) {
       });
 
       const authUrl = `https://login.xero.com/identity/connect/authorize?${params.toString()}`;
-      res.json({ url: authUrl });
+      res.json({ url: authUrl, redirectUri });
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to generate auth URL." });
     }
@@ -5438,7 +5441,16 @@ function getUnreadChatCount(db: any, userId: number) {
       const settings = getXeroSettings(db);
       const host = req.get('host') || 'localhost:3000';
       const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-      const redirectUri = `${protocol}://${host}/api/xero/callback`;
+      let redirectUri = `${protocol}://${host}/api/xero/callback`;
+
+      const lastRedirectRow = db.prepare("SELECT value FROM settings WHERE key = 'xero_last_redirect_uri'").get() as any;
+      if (lastRedirectRow?.value) {
+        try {
+          redirectUri = JSON.parse(lastRedirectRow.value);
+        } catch {
+          redirectUri = lastRedirectRow.value;
+        }
+      }
 
       const authHeader = 'Basic ' + Buffer.from(`${settings.xero_client_id}:${settings.xero_client_secret}`).toString('base64');
       const tokenRes = await fetch('https://identity.xero.com/connect/token', {

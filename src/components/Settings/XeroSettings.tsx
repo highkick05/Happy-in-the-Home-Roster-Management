@@ -42,7 +42,7 @@ export default function XeroSettings() {
 
   // Settings State
   const [enabled, setEnabled] = useState<boolean>(false);
-  const [authType, setAuthType] = useState<'client_credentials' | 'oauth2' | 'manual'>('client_credentials');
+  const [authType, setAuthType] = useState<'client_credentials' | 'oauth2' | 'manual'>('oauth2');
   const [clientId, setClientId] = useState<string>('');
   const [clientSecret, setClientSecret] = useState<string>('');
   const [tenantId, setTenantId] = useState<string>('');
@@ -188,6 +188,14 @@ export default function XeroSettings() {
   };
 
   const handleTestConnection = async () => {
+    if (authType === 'oauth2' && !statusData?.connected) {
+      setConnectionResult({
+        success: false,
+        message: 'Xero is not connected yet. Please click the blue "Connect with Xero (Authorize Popup)" button above to sign in and link your organisation.'
+      });
+      return;
+    }
+
     setTestingConnection(true);
     setConnectionResult(null);
     try {
@@ -247,7 +255,7 @@ export default function XeroSettings() {
           setTenantName(data.tenants[0].tenantName);
         }
       } else {
-        alert(data.error || 'No tenants returned. Ensure credentials are valid.');
+        alert(data.error || 'No tenants returned. Ensure credentials are valid and you are connected.');
       }
     } catch (err: any) {
       alert('Failed to query tenants: ' + err.message);
@@ -258,7 +266,16 @@ export default function XeroSettings() {
 
   const handleConnectOAuthPopup = async () => {
     try {
-      const res = await fetch('/api/xero/auth-url', {
+      if (!clientId.trim() || !clientSecret.trim()) {
+        alert('Please enter your Client ID and Client Secret above first.');
+        return;
+      }
+
+      // Save credentials first so server can build auth URL
+      await handleSaveSettings();
+
+      const redirectUri = `${window.location.origin}/api/xero/callback`;
+      const res = await fetch(`/api/xero/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`, {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
       });
       const data = await res.json();
@@ -523,33 +540,50 @@ export default function XeroSettings() {
           </div>
 
           {authType === 'client_credentials' && (
-            <div className="p-3 bg-sky-500/5 border border-sky-500/20 rounded-lg text-xs text-sky-200 flex items-start gap-2">
-              <ShieldCheck className="w-4 h-4 text-sky-400 mt-0.5 shrink-0" />
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-200 flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
               <div>
-                <strong className="text-sky-300 font-semibold">Custom Connection Recommended: </strong>
-                Machine-to-machine connections in Xero use Client ID & Client Secret with no login redirect expiry. Ideal for automatic background uploads when dispatching invoices.
+                <strong className="text-amber-300 font-semibold">Custom Connection Note: </strong>
+                In Xero, Client Credentials M2M requires a paid Custom Connection add-on. If you created a standard free Web App on <a href="https://developer.xero.com" target="_blank" rel="noopener noreferrer" className="underline text-sky-300">developer.xero.com</a> (with a redirect URI), please click the <strong>"OAuth 2.0 Web App"</strong> button above!
               </div>
             </div>
           )}
 
           {authType === 'oauth2' && (
-            <div className="p-3 bg-brand-navy/80 border border-border-subtle rounded-lg text-xs text-[#8B949E] flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span>Set your Xero App Redirect URI in the Xero Developer Portal to:</span>
-                <span className="font-mono text-white text-[11px] bg-black/40 px-2 py-0.5 rounded border border-white/10">
-                  {typeof window !== 'undefined' ? `${window.location.origin}/api/xero/callback` : '/api/xero/callback'}
-                </span>
+            <div className="p-4 bg-sky-500/10 border border-sky-500/30 rounded-xl text-xs space-y-3">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <span className="font-semibold text-white block text-sm">OAuth 2.0 Web App Authorization</span>
+                  <span className="text-zinc-300 text-[11px] block mt-0.5">
+                    Redirect URI in your Xero Developer Portal must match:
+                  </span>
+                  <code className="font-mono text-sky-300 bg-black/50 px-2 py-0.5 rounded border border-white/10 text-[11px] inline-block mt-1">
+                    {typeof window !== 'undefined' ? `${window.location.origin}/api/xero/callback` : '/api/xero/callback'}
+                  </code>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleConnectOAuthPopup}
+                    className="px-4 py-2.5 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-md transition-colors"
+                  >
+                    <Building2 className="w-4 h-4" />
+                    <span>{statusData?.connected ? 'Re-authorize with Xero' : 'Connect with Xero (Authorize Popup)'}</span>
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleConnectOAuthPopup}
-                  className="px-3 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded text-xs font-medium flex items-center gap-1.5 shadow-sm transition-colors"
-                >
-                  <Building2 className="w-3.5 h-3.5" />
-                  <span>Connect with Xero (Authorize Popup)</span>
-                </button>
-              </div>
+
+              {!statusData?.connected ? (
+                <div className="p-2.5 bg-sky-950/60 border border-sky-500/20 rounded-lg text-sky-200 text-[11px]">
+                  👉 <strong>Next Step:</strong> Ensure your <strong>Client ID</strong> and <strong>Client Secret</strong> are entered below, then click the blue <strong>"Connect with Xero (Authorize Popup)"</strong> button above to link your Xero organisation.
+                </div>
+              ) : (
+                <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-300 text-[11px] flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Linked to Xero organisation: <strong>{statusData.organisation?.name || statusData.tenantName || 'Happy in the Home'}</strong></span>
+                </div>
+              )}
             </div>
           )}
 

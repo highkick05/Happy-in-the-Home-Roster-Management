@@ -36,7 +36,7 @@ export function getXeroSettings(db: any): XeroSettings {
 
     return {
       xero_enabled: map.xero_enabled === true || map.xero_enabled === 'true' || map.xero_enabled === 1,
-      xero_auth_type: map.xero_auth_type || 'client_credentials',
+      xero_auth_type: map.xero_auth_type || 'oauth2',
       xero_client_id: (map.xero_client_id || '').trim(),
       xero_client_secret: (map.xero_client_secret || '').trim(),
       xero_tenant_id: (map.xero_tenant_id || '').trim(),
@@ -152,6 +152,9 @@ export async function getValidAccessToken(db: any, forcedSettings?: XeroSettings
     const tokenData = await tokenRes.json().catch(() => ({}));
     if (!tokenRes.ok) {
       const errDetail = tokenData.error_description || tokenData.error || tokenRes.statusText;
+      if (tokenData.error === 'invalid_grant' || (errDetail && String(errDetail).toLowerCase().includes('client credentials scope validation failed'))) {
+        throw new Error('This app is registered as a standard Xero Web App, not a Custom Connection. Please switch the tab above to "OAuth 2.0 Web App" and click "Connect with Xero (Authorize Popup)".');
+      }
       throw new Error(`Xero Token Error (${tokenRes.status}): ${errDetail}`);
     }
 
