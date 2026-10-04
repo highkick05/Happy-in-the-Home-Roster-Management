@@ -1,7 +1,7 @@
 import { useDropzone } from 'react-dropzone';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { FileText, Copy, ChevronUp, ChevronDown, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle, X, Upload, Edit, Bug, Building2 } from 'lucide-react';
+import { FileText, Copy, ChevronUp, ChevronDown, Download, CheckCircle, Eye, Trash2, Undo, Send, DollarSign, AlertCircle, X, Upload, Edit, Bug, Building2, ExternalLink } from 'lucide-react';
 import InvoicePreviewModal from './InvoicePreviewModal';
 import { RefreshCw, Search, Mail } from 'lucide-react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -722,8 +722,16 @@ export default function InvoicingView() {
     setTimeout(() => setCopiedText(null), 2000);
   };
 
-  const { token, user } = useAuth();
+  const { token, user, settings } = useAuth();
   const [tab, setTab] = useLocalStorage<'invoices' | 'quotes' | 'remittances'>('invoicing_tab', 'invoices');
+
+  const getXeroInvoiceUrl = (xeroInvoiceId: string) => {
+    const shortCode = settings?.xero_shortcode;
+    if (shortCode) {
+      return `https://go.xero.com/organisationlogin/default.aspx?shortcode=${encodeURIComponent(shortCode)}&redirecturl=/AccountsReceivable/View.aspx?InvoiceID=${encodeURIComponent(xeroInvoiceId)}`;
+    }
+    return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${encodeURIComponent(xeroInvoiceId)}`;
+  };
   const [subTab, setSubTab] = useLocalStorage<'active' | 'sent' | 'paid'>('invoicing_sub_tab', 'active');
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1647,12 +1655,26 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                           {i.status}
                         </span>
                         {i.xero_status === 'SYNCED' && (
-                          <span 
-                            title={`Uploaded to Xero (${i.xero_synced_at || ''})`}
-                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/30"
-                          >
-                            XERO
-                          </span>
+                          i.xero_invoice_id ? (
+                            <a
+                              href={getXeroInvoiceUrl(i.xero_invoice_id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title={`Open invoice in Xero (${i.xero_synced_at ? `Synced: ${i.xero_synced_at}` : 'Synced'}) — Click to open in Xero`}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-500/15 hover:bg-sky-500/30 text-sky-400 hover:text-sky-200 border border-sky-500/30 hover:border-sky-400 transition-colors cursor-pointer group shadow-sm"
+                            >
+                              <span>XERO</span>
+                              <ExternalLink className="w-2.5 h-2.5 opacity-70 group-hover:opacity-100 transition-opacity" />
+                            </a>
+                          ) : (
+                            <span 
+                              title={`Uploaded to Xero (${i.xero_synced_at || ''})`}
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/30"
+                            >
+                              XERO
+                            </span>
+                          )
                         )}
                       </div>
                     </td>

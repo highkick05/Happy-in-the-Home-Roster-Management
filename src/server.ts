@@ -5275,6 +5275,9 @@ function getUnreadChatCount(db: any, userId: number) {
             connected = true;
             try {
               orgDetails = await getOrganisationDetails(authData.accessToken, authData.tenantId);
+              if (orgDetails?.ShortCode) {
+                saveXeroSetting(db, 'xero_shortcode', orgDetails.ShortCode);
+              }
             } catch (orgErr) {}
           }
         } catch (e: any) {
@@ -5289,13 +5292,15 @@ function getUnreadChatCount(db: any, userId: number) {
         authType: settings.xero_auth_type,
         tenantId: settings.xero_tenant_id,
         tenantName: settings.xero_tenant_name || orgDetails?.Name,
+        shortCode: orgDetails?.ShortCode || settings.xero_shortcode || '',
         tokenExpiresAt: settings.xero_token_expires_at,
         organisation: orgDetails ? {
           name: orgDetails.Name,
           legalName: orgDetails.LegalName,
           baseCurrency: orgDetails.BaseCurrency,
           organisationID: orgDetails.OrganisationID,
-          countryCode: orgDetails.CountryCode
+          countryCode: orgDetails.CountryCode,
+          shortCode: orgDetails.ShortCode,
         } : undefined,
         settings: {
           xero_enabled: settings.xero_enabled,
@@ -5304,6 +5309,7 @@ function getUnreadChatCount(db: any, userId: number) {
           xero_client_secret: settings.xero_client_secret,
           xero_tenant_id: settings.xero_tenant_id,
           xero_tenant_name: settings.xero_tenant_name,
+          xero_shortcode: orgDetails?.ShortCode || settings.xero_shortcode || '',
           xero_account_code: settings.xero_account_code,
           xero_invoice_status: settings.xero_invoice_status,
           xero_tax_type_gst: settings.xero_tax_type_gst,
@@ -5331,6 +5337,9 @@ function getUnreadChatCount(db: any, userId: number) {
       let org: any = null;
       try {
         org = await getOrganisationDetails(accessToken, tenantId);
+        if (org?.ShortCode) {
+          saveXeroSetting(db, 'xero_shortcode', org.ShortCode);
+        }
       } catch (err: any) {
         console.warn("[XERO] Could not fetch Organisation endpoint details:", err.message);
       }
@@ -5340,11 +5349,13 @@ function getUnreadChatCount(db: any, userId: number) {
         message: `Connected successfully to Xero organisation "${org?.Name || tenantName || 'Default'}".`,
         tenantId,
         tenantName: org?.Name || tenantName,
+        shortCode: org?.ShortCode || settings.xero_shortcode || '',
         organisation: org ? {
           name: org.Name,
           legalName: org.LegalName,
           baseCurrency: org.BaseCurrency,
-          organisationID: org.OrganisationID
+          organisationID: org.OrganisationID,
+          shortCode: org.ShortCode
         } : undefined
       });
     } catch (e: any) {
@@ -5495,6 +5506,12 @@ function getUnreadChatCount(db: any, userId: number) {
       if (connections && connections.length > 0) {
         saveXeroSetting(db, 'xero_tenant_id', connections[0].tenantId);
         saveXeroSetting(db, 'xero_tenant_name', connections[0].tenantName || '');
+        try {
+          const org = await getOrganisationDetails(accessToken, connections[0].tenantId);
+          if (org?.ShortCode) {
+            saveXeroSetting(db, 'xero_shortcode', org.ShortCode);
+          }
+        } catch (orgErr) {}
       }
 
       res.send(`

@@ -20,6 +20,7 @@ export interface XeroSettings {
   xero_sync_on_email: boolean;
   xero_attach_pdf: boolean;
   xero_redirect_uri?: string;
+  xero_shortcode?: string;
 }
 
 export function getXeroSettings(db: any): XeroSettings {
@@ -41,6 +42,7 @@ export function getXeroSettings(db: any): XeroSettings {
       xero_client_secret: (map.xero_client_secret || '').trim(),
       xero_tenant_id: (map.xero_tenant_id || '').trim(),
       xero_tenant_name: map.xero_tenant_name || '',
+      xero_shortcode: map.xero_shortcode || '',
       xero_access_token: map.xero_access_token || '',
       xero_refresh_token: map.xero_refresh_token || '',
       xero_token_expires_at: map.xero_token_expires_at ? Number(map.xero_token_expires_at) : 0,
@@ -336,7 +338,7 @@ export async function getOrganisationDetails(accessToken: string, tenantId: stri
   const res = await fetch('https://api.xero.com/api.xro/2.0/Organisation', {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
-      'Xero-Tenant-Id:': tenantId,
+      'Xero-Tenant-Id': tenantId,
       'Accept': 'application/json',
     },
   });
