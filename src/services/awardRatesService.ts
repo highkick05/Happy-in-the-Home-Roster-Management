@@ -268,29 +268,38 @@ export function parseAwardCsv(
  * - 'UPCOMING': Schedules with effective_from in the future
  * - 'ARCHIVED': Past historical schedules
  */
-export function getAwardSchedules(db: any): AwardSchedule[] {
+export function getAwardSchedules(db: any, filters?: { awardCode?: string }): AwardSchedule[] {
   try {
-    const rows = db.prepare(`
+    let query = `
       SELECT s.*, 
              COALESCE((SELECT COUNT(*) FROM award_pay_rates r WHERE r.schedule_id = s.id), 0) as rate_count
       FROM award_schedules s
-      ORDER BY s.effective_from DESC, s.id DESC
-    `).all() as any[];
+    `;
+    const params: any[] = [];
+    if (filters?.awardCode && filters.awardCode !== 'ALL') {
+      query += ` WHERE s.award_code = ? `;
+      params.push(filters.awardCode);
+    }
+    query += ` ORDER BY s.effective_from DESC, s.id DESC `;
+
+    const rows = db.prepare(query).all(...params) as any[];
 
     // Evaluated strictly in the business timezone from Settings
     const tz = getBusinessTimezone(db);
     const todayStr = getBusinessDateString(db);
-    let foundActive = false;
+    // Track active status independently per award
+    const foundActiveByAward: Record<string, boolean> = {};
 
     return rows.map(row => {
+      const awardKey = (row.award_code || row.name || 'DEFAULT').trim().toUpperCase();
       let status: 'ACTIVE' | 'UPCOMING' | 'ARCHIVED' = 'ARCHIVED';
       let transition_note = '';
       if (row.effective_from > todayStr) {
         status = 'UPCOMING';
         transition_note = `Activates at 00:00 (midnight) on ${row.effective_from} in ${tz}`;
-      } else if (!foundActive) {
+      } else if (!foundActiveByAward[awardKey]) {
         status = 'ACTIVE';
-        foundActive = true;
+        foundActiveByAward[awardKey] = true;
         transition_note = `Currently in effect across shifts in ${tz} (effective since ${row.effective_from})`;
       } else {
         status = 'ARCHIVED';
@@ -339,11 +348,11 @@ export function importAwardRates(
     let targetScheduleId = options?.scheduleId;
 
     if (!targetScheduleId) {
-      // Find existing schedule matching name and effective date, or create new
+      // Find existing schedule matching name or (award_code AND effective_from)
       const existingSchedule = db.prepare(`
         SELECT id FROM award_schedules 
-        WHERE name = ? OR effective_from = ?
-      `).get(scheduleName, effectiveFrom) as any;
+        WHERE name = ? OR (award_code = ? AND effective_from = ?)
+      `).get(scheduleName, awardCode, effectiveFrom) as any;
 
       if (existingSchedule) {
         targetScheduleId = existingSchedule.id;
@@ -501,20 +510,33 @@ export function getAwardRates(
 export function getAwardRatesForDate(
   db: any,
   shiftDateStr: string,
-  filters?: { stream?: string; classification?: string }
+  filters?: { awardCode?: string; stream?: string; classification?: string }
 ): { schedule: AwardSchedule | null; date: string; timezone: string; rates: AwardPayRateRow[] } {
   const tz = getBusinessTimezone(db);
   const dateOnly = getBusinessDateString(db, shiftDateStr);
-  const schedule = db.prepare(`
+  
+  let query = `
     SELECT * FROM award_schedules 
     WHERE (is_active = 1 OR is_active IS NULL) AND effective_from <= ? 
-    ORDER BY effective_from DESC, id DESC 
-    LIMIT 1
-  `).get(dateOnly) as any;
+  `;
+  const params: any[] = [dateOnly];
+  if (filters?.awardCode && filters.awardCode !== 'ALL') {
+    query += ` AND award_code = ? `;
+    params.push(filters.awardCode);
+  }
+  query += ` ORDER BY effective_from DESC, id DESC LIMIT 1 `;
+
+  const schedule = db.prepare(query).get(...params) as any;
 
   if (!schedule) {
-    // Fallback to earliest or default schedule
-    const fallback = db.prepare('SELECT * FROM award_schedules WHERE (is_active = 1 OR is_active IS NULL) ORDER BY effective_from ASC, id ASC LIMIT 1').get() as any;
+    let fallbackQuery = `SELECT * FROM award_schedules WHERE (is_active = 1 OR is_active IS NULL)`;
+    const fbParams: any[] = [];
+    if (filters?.awardCode && filters.awardCode !== 'ALL') {
+      fallbackQuery += ` AND award_code = ? `;
+      fbParams.push(filters.awardCode);
+    }
+    fallbackQuery += ` ORDER BY effective_from ASC, id ASC LIMIT 1 `;
+    const fallback = db.prepare(fallbackQuery).get(...fbParams) as any;
     if (!fallback) return { schedule: null, date: dateOnly, timezone: tz, rates: [] };
     const rates = getAwardRates(db, { scheduleId: fallback.id, stream: filters?.stream });
     return { schedule: fallback, date: dateOnly, timezone: tz, rates };
@@ -540,13 +562,21 @@ export function getAwardSummary(db: any) {
       ORDER BY count DESC
     `).all() as any[];
 
+    const awards = db.prepare(`
+      SELECT DISTINCT award_code, award_name, COUNT(*) as rate_count
+      FROM award_pay_rates
+      GROUP BY award_code, award_name
+      ORDER BY award_name ASC
+    `).all() as any[];
+
     return {
       totalCount,
       timezone,
       schedules,
       streams,
+      awards,
     };
   } catch (e) {
-    return { totalCount: 0, timezone: 'Australia/Perth', schedules: [], streams: [] };
+    return { totalCount: 0, timezone: 'Australia/Perth', schedules: [], streams: [], awards: [] };
   }
 }

@@ -65,6 +65,49 @@ export interface AwardRate {
   updated_at?: string;
 }
 
+const MODERN_AWARDS_PRESETS = [
+  {
+    key: 'SCHADS',
+    title: 'SCHADS Award (MA000100)',
+    awardName: 'SCHADS Award',
+    awardCode: 'MA000100',
+    scheduleName: `SCHADS Award ${new Date().getFullYear()}–${new Date().getFullYear() + 1}`,
+    description: 'Social, Community, Home Care and Disability Services Industry Award',
+  },
+  {
+    key: 'NURSES',
+    title: 'Nurses Award 2020 (MA000034)',
+    awardName: 'Nurses Award 2020',
+    awardCode: 'MA000034',
+    scheduleName: `Nurses Award ${new Date().getFullYear()}–${new Date().getFullYear() + 1}`,
+    description: 'Nurses Award 2020 (Registered Nurses, Enrolled Nurses and Assistants in Nursing)',
+  },
+  {
+    key: 'AGED_CARE',
+    title: 'Aged Care Award 2010 (MA000018)',
+    awardName: 'Aged Care Award 2010',
+    awardCode: 'MA000018',
+    scheduleName: `Aged Care Award ${new Date().getFullYear()}–${new Date().getFullYear() + 1}`,
+    description: 'Aged Care Industry Award (Residential & Home Care Staff)',
+  },
+  {
+    key: 'HEALTH_PROF',
+    title: 'Health Professionals Award (MA000027)',
+    awardName: 'Health Professionals and Support Services Award',
+    awardCode: 'MA000027',
+    scheduleName: `Health Professionals Award ${new Date().getFullYear()}–${new Date().getFullYear() + 1}`,
+    description: 'Health Professionals and Support Services Award 2020',
+  },
+  {
+    key: 'CUSTOM',
+    title: 'Custom / Other Modern Award',
+    awardName: '',
+    awardCode: '',
+    scheduleName: '',
+    description: '',
+  }
+];
+
 export default function AwardRatesSettings() {
   const { token, settings } = useAuth();
   const [schedules, setSchedules] = useState<AwardSchedule[]>([]);
@@ -72,6 +115,7 @@ export default function AwardRatesSettings() {
   const [rates, setRates] = useState<AwardRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStream, setSelectedStream] = useState<string>('ALL');
+  const [selectedAwardFilter, setSelectedAwardFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [configuredTimezone, setConfiguredTimezone] = useState<string>(settings?.timezone || 'Australia/Perth');
@@ -79,6 +123,8 @@ export default function AwardRatesSettings() {
 
   // Import State
   const [showImportModal, setShowImportModal] = useState(false);
+  const [selectedPresetKey, setSelectedPresetKey] = useState<string>('SCHADS');
+  const [importAwardName, setImportAwardName] = useState('SCHADS Award');
   const [importScheduleName, setImportScheduleName] = useState('SCHADS Award 2025–2026');
   const [importEffectiveFrom, setImportEffectiveFrom] = useState('2025-07-01');
   const [importAwardCode, setImportAwardCode] = useState('MA000100');
@@ -264,6 +310,7 @@ export default function AwardRatesSettings() {
         body: JSON.stringify({
           csvText: rawCsvText,
           scheduleName: importScheduleName,
+          awardName: importAwardName,
           effectiveFrom: importEffectiveFrom,
           awardCode: importAwardCode,
           description: importDescription,
@@ -284,8 +331,18 @@ export default function AwardRatesSettings() {
     }
   };
 
+  const handlePresetChange = (presetKey: string) => {
+    setSelectedPresetKey(presetKey);
+    const preset = MODERN_AWARDS_PRESETS.find(p => p.key === presetKey);
+    if (!preset) return;
+    if (preset.awardName) setImportAwardName(preset.awardName);
+    if (preset.awardCode) setImportAwardCode(preset.awardCode);
+    if (preset.scheduleName) setImportScheduleName(preset.scheduleName);
+    if (preset.description) setImportDescription(preset.description);
+  };
+
   const handleDeleteSchedule = async (schedule: AwardSchedule) => {
-    if (!confirm(`Are you sure you want to delete the schedule "${schedule.name}" and all its ${schedule.rate_count} pay rates?`)) return;
+    if (!confirm(`Are you sure you want to delete the schedule "${schedule.name}" and all its ${schedule.rate_count} pay rates?\n\nThis action cannot be undone.`)) return;
     try {
       const res = await fetch(`/api/award-rates/schedules/${schedule.id}`, {
         method: 'DELETE',
@@ -293,16 +350,37 @@ export default function AwardRatesSettings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to delete schedule');
-      showNotification('success', 'Award schedule removed.');
+      showNotification('success', `Schedule "${schedule.name}" deleted successfully.`);
       fetchSchedules();
     } catch (e: any) {
       showNotification('error', e.message);
     }
   };
 
-  const handleExportCsv = () => {
+  const handleExportCsv = async () => {
     if (!selectedScheduleId) return;
-    window.location.href = `/api/award-rates/export?schedule_id=${selectedScheduleId}`;
+    try {
+      const sched = schedules.find(s => s.id === selectedScheduleId);
+      const res = await fetch(`/api/award-rates/export?schedule_id=${selectedScheduleId}`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      if (!res.ok) {
+        throw new Error('Unauthorized or failed to export CSV');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (sched?.name || 'Award_Pay_Rates').replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `${safeName}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showNotification('success', `Exported "${sched?.name || 'rates'}" as CSV.`);
+    } catch (e: any) {
+      showNotification('error', e.message || 'Export failed');
+    }
   };
 
   const handleTestDateLookup = async () => {
@@ -326,6 +404,29 @@ export default function AwardRatesSettings() {
   };
 
   const currentSchedule = schedules.find(s => s.id === selectedScheduleId);
+
+  const distinctAwards = React.useMemo(() => {
+    const map = new Map<string, { code: string; name: string; count: number }>();
+    schedules.forEach(s => {
+      const code = s.award_code || 'MA000100';
+      if (!map.has(code)) {
+        let displayName = s.name;
+        if (code === 'MA000100') displayName = 'SCHADS Award (MA000100)';
+        else if (code === 'MA000034') displayName = 'Nurses Award 2020 (MA000034)';
+        else if (code === 'MA000018') displayName = 'Aged Care Award 2010 (MA000018)';
+        else if (code === 'MA000027') displayName = 'Health Professionals (MA000027)';
+        map.set(code, { code, name: displayName, count: 0 });
+      }
+      const item = map.get(code)!;
+      item.count += 1;
+    });
+    return Array.from(map.values());
+  }, [schedules]);
+
+  const displayedSchedules = React.useMemo(() => {
+    if (selectedAwardFilter === 'ALL') return schedules;
+    return schedules.filter(s => s.award_code === selectedAwardFilter);
+  }, [schedules, selectedAwardFilter]);
 
   // Distinct streams from current schedule rates
   const streamList = React.useMemo(() => {
@@ -362,11 +463,11 @@ export default function AwardRatesSettings() {
               <h2 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
                 Modern Award Pay Rates & Version Archiving
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  SCHADS MA000100
+                  {currentSchedule?.award_code ? `${currentSchedule.award_code} • ${currentSchedule.name}` : 'Multi-Award Support'}
                 </span>
               </h2>
               <p className="text-xs text-[#8B949E] mt-0.5">
-                Version-controlled pay rate schedules with automatic effective-date transitions. Historical shifts retain their exact rates while upcoming financial year updates activate automatically on your specified date.
+                Version-controlled Modern Awards with automatic effective-date transitions. Supports SCHADS (MA000100), Nurses Award (MA000034), Aged Care, and custom awards with seamless financial year cutoffs.
               </p>
             </div>
           </div>
@@ -387,7 +488,7 @@ export default function AwardRatesSettings() {
             onClick={handleResetDefaultSchads}
             disabled={isImporting}
             className="px-3.5 py-2 bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50"
-            title="Load the 2024–2025 SCHADS rates spreadsheet"
+            title="Load the standard 2024–2025 SCHADS rates spreadsheet"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isImporting ? 'animate-spin' : ''}`} />
             <span>Load Provided SCHADS CSV</span>
@@ -396,26 +497,38 @@ export default function AwardRatesSettings() {
           <button
             type="button"
             onClick={() => {
-              setImportScheduleName(`SCHADS Award ${new Date().getFullYear() + 1}–${new Date().getFullYear() + 2}`);
-              setImportEffectiveFrom(`${new Date().getFullYear() + 1}-07-01`);
+              handlePresetChange(selectedPresetKey || 'SCHADS');
               fileInputRef.current?.click();
             }}
             className="px-3.5 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-md"
+            title="Upload CSV for SCHADS, Nurses Award, or custom award"
           >
             <Upload className="w-3.5 h-3.5" />
             <span>Upload New Award Schedule</span>
           </button>
 
           {currentSchedule && (
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="px-3 py-2 bg-brand-navy hover:bg-zinc-800 text-[#8B949E] hover:text-white border border-border-subtle rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
-              title="Download current schedule rates as CSV"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export CSV</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="px-3 py-2 bg-brand-navy hover:bg-zinc-800 text-[#8B949E] hover:text-white border border-border-subtle rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                title="Download current schedule rates as CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export CSV</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDeleteSchedule(currentSchedule)}
+                className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                title="Delete this award schedule and all its classifications"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Schedule</span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -493,67 +606,134 @@ export default function AwardRatesSettings() {
           </div>
         )}
 
-        {/* Schedule Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {schedules.map((sch) => {
-            const isSelected = sch.id === selectedScheduleId;
-            return (
-              <div
-                key={sch.id}
-                onClick={() => handleScheduleChange(sch.id)}
-                className={`p-4 rounded-xl border cursor-pointer transition-all relative ${
-                  isSelected 
-                    ? 'bg-brand-navy border-brand-teal ring-1 ring-brand-teal shadow-md' 
-                    : 'bg-brand-navy/50 border-border-subtle hover:border-zinc-600 hover:bg-brand-navy/80'
+        {/* Award Selection Filter Bar */}
+        {distinctAwards.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
+            <span className="text-xs font-semibold text-[#8B949E] mr-1">Award:</span>
+            <button
+              onClick={() => setSelectedAwardFilter('ALL')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                selectedAwardFilter === 'ALL'
+                  ? 'bg-brand-teal text-brand-navy shadow-sm'
+                  : 'bg-brand-navy text-[#8B949E] hover:text-white border border-border-subtle'
+              }`}
+            >
+              All Awards ({schedules.length})
+            </button>
+            {distinctAwards.map(a => (
+              <button
+                key={a.code}
+                onClick={() => setSelectedAwardFilter(a.code)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                  selectedAwardFilter === a.code
+                    ? 'bg-brand-teal text-brand-navy shadow-sm'
+                    : 'bg-brand-navy text-[#8B949E] hover:text-white border border-border-subtle'
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h4 className="font-semibold text-white text-sm">{sch.name}</h4>
-                    <span className="text-[11px] text-[#8B949E] block mt-0.5">
-                      Effective: <strong className="text-[#E6EDF3]">{sch.effective_from}</strong>
-                      <span className="text-[10px] text-zinc-500 block">00:00 midnight ({configuredTimezone})</span>
+                {a.name} ({a.count})
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Schedule Cards Grid */}
+        {displayedSchedules.length === 0 ? (
+          <div className="text-center py-10 bg-brand-navy/40 border border-dashed border-border-subtle rounded-xl p-8">
+            <Award className="w-10 h-10 text-zinc-500 mx-auto mb-3 opacity-60" />
+            <h4 className="text-sm font-semibold text-white">No Award Schedules Uploaded Yet</h4>
+            <p className="text-xs text-[#8B949E] mt-1 max-w-md mx-auto">
+              You haven't uploaded or activated any pay rate schedules for this award yet. You can upload any Modern Award spreadsheet (SCHADS, Nurses Award, etc.) or load the default SCHADS rates.
+            </p>
+            <div className="flex items-center justify-center gap-3 mt-4">
+              <button
+                type="button"
+                onClick={handleResetDefaultSchads}
+                className="px-3 py-1.5 bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Load Default SCHADS Award</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handlePresetChange(selectedPresetKey || 'SCHADS');
+                  fileInputRef.current?.click();
+                }}
+                className="px-3.5 py-1.5 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy rounded-lg text-xs font-semibold flex items-center gap-1.5"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>Upload Award Schedule</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {displayedSchedules.map((sch) => {
+              const isSelected = sch.id === selectedScheduleId;
+              return (
+                <div
+                  key={sch.id}
+                  onClick={() => handleScheduleChange(sch.id)}
+                  className={`p-4 rounded-xl border cursor-pointer transition-all relative ${
+                    isSelected 
+                      ? 'bg-brand-navy border-brand-teal ring-1 ring-brand-teal shadow-md' 
+                      : 'bg-brand-navy/50 border-border-subtle hover:border-zinc-600 hover:bg-brand-navy/80'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-semibold text-white text-sm">{sch.name}</h4>
+                        {sch.award_code && (
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                            {sch.award_code}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-[#8B949E] block mt-0.5">
+                        Effective: <strong className="text-[#E6EDF3]">{sch.effective_from}</strong>
+                        <span className="text-[10px] text-zinc-500 block">00:00 midnight ({configuredTimezone})</span>
+                      </span>
+                    </div>
+
+                    {/* Status Badge */}
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase border ${
+                      sch.status === 'ACTIVE'
+                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                        : sch.status === 'UPCOMING'
+                          ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                          : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                    }`}
+                    title={sch.transition_note || (sch.status === 'ACTIVE' ? 'Currently active' : sch.status === 'UPCOMING' ? `Activates on ${sch.effective_from}` : 'Archived')}
+                    >
+                      {sch.status === 'ACTIVE' ? 'Active' : sch.status === 'UPCOMING' ? 'Upcoming' : 'Archived'}
                     </span>
                   </div>
 
-                  {/* Status Badge */}
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase border ${
-                    sch.status === 'ACTIVE'
-                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                      : sch.status === 'UPCOMING'
-                        ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                        : 'bg-zinc-800 text-zinc-400 border-zinc-700'
-                  }`}
-                  title={sch.transition_note || (sch.status === 'ACTIVE' ? 'Currently active' : sch.status === 'UPCOMING' ? `Activates on ${sch.effective_from}` : 'Archived')}
-                  >
-                    {sch.status === 'ACTIVE' ? 'Active' : sch.status === 'UPCOMING' ? 'Upcoming' : 'Archived'}
-                  </span>
-                </div>
+                  <div className="mt-2 text-[10px] text-zinc-400 italic">
+                    {sch.transition_note || (sch.status === 'ACTIVE' ? 'In effect for all current shifts' : sch.status === 'UPCOMING' ? `Activates on ${sch.effective_from}` : 'Historical')}
+                  </div>
 
-                <div className="mt-2 text-[10px] text-zinc-400 italic">
-                  {sch.transition_note || (sch.status === 'ACTIVE' ? 'In effect for all current shifts' : sch.status === 'UPCOMING' ? `Activates on ${sch.effective_from}` : 'Historical')}
-                </div>
-
-                <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-[#8B949E]">
-                  <span>{sch.rate_count} Classifications</span>
-                  {schedules.length > 1 && (
+                  <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-[#8B949E]">
+                    <span>{sch.rate_count} Classifications</span>
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteSchedule(sch);
                       }}
-                      className="p-1 hover:text-rose-400 transition-colors"
-                      title="Delete this schedule"
+                      className="px-2 py-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 rounded text-[11px] font-medium flex items-center gap-1 transition-colors"
+                      title="Delete this schedule and all its pay rates"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" />
+                      <span>Delete</span>
                     </button>
-                  )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Main Table Card */}
@@ -763,14 +943,54 @@ export default function AwardRatesSettings() {
 
             {/* Modal Options */}
             <div className="p-4 bg-brand-bg/80 border-b border-border-subtle grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+              <div className="sm:col-span-2 lg:col-span-4">
+                <label className="block text-[#8B949E] font-medium mb-1 flex items-center justify-between">
+                  <span className="text-brand-teal font-semibold">Select Modern Award</span>
+                  <span className="text-[10px] text-zinc-400">Choose a preset or choose Custom to enter any award</span>
+                </label>
+                <select
+                  value={selectedPresetKey}
+                  onChange={(e) => handlePresetChange(e.target.value)}
+                  className="w-full px-3 py-2 bg-brand-navy border border-brand-teal/40 rounded-lg text-white font-medium focus:outline-none focus:border-brand-teal"
+                >
+                  {MODERN_AWARDS_PRESETS.map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
-                <label className="block text-[#8B949E] font-medium mb-1">Schedule Name / Period</label>
+                <label className="block text-[#8B949E] font-medium mb-1">Award Name</label>
+                <input
+                  type="text"
+                  value={importAwardName}
+                  onChange={(e) => setImportAwardName(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-brand-navy border border-border-subtle rounded-lg text-white focus:outline-none focus:border-brand-teal"
+                  placeholder="e.g. Nurses Award 2020"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#8B949E] font-medium mb-1">Award Code</label>
+                <input
+                  type="text"
+                  value={importAwardCode}
+                  onChange={(e) => setImportAwardCode(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-brand-navy border border-border-subtle rounded-lg text-white focus:outline-none focus:border-brand-teal font-mono"
+                  placeholder="e.g. MA000034"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#8B949E] font-medium mb-1">Schedule Name / Version</label>
                 <input
                   type="text"
                   value={importScheduleName}
                   onChange={(e) => setImportScheduleName(e.target.value)}
                   className="w-full px-3 py-1.5 bg-brand-navy border border-border-subtle rounded-lg text-white focus:outline-none focus:border-brand-teal"
-                  placeholder="e.g. SCHADS Award 2025–2026"
+                  placeholder="e.g. Nurses Award 2025–2026"
                 />
               </div>
 
@@ -787,25 +1007,14 @@ export default function AwardRatesSettings() {
                 />
               </div>
 
-              <div>
-                <label className="block text-[#8B949E] font-medium mb-1">Award Code</label>
-                <input
-                  type="text"
-                  value={importAwardCode}
-                  onChange={(e) => setImportAwardCode(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-brand-navy border border-border-subtle rounded-lg text-white focus:outline-none focus:border-brand-teal"
-                  placeholder="e.g. MA000100"
-                />
-              </div>
-
-              <div>
+              <div className="sm:col-span-2 lg:col-span-4">
                 <label className="block text-[#8B949E] font-medium mb-1">Description / Notes</label>
                 <input
                   type="text"
                   value={importDescription}
                   onChange={(e) => setImportDescription(e.target.value)}
                   className="w-full px-3 py-1.5 bg-brand-navy border border-border-subtle rounded-lg text-white focus:outline-none focus:border-brand-teal"
-                  placeholder="e.g. FWC Annual Wage Increase"
+                  placeholder="e.g. Fair Work Commission Annual Wage Review"
                 />
               </div>
             </div>
@@ -814,8 +1023,8 @@ export default function AwardRatesSettings() {
             <div className="p-3 bg-brand-navy/60 border-b border-border-subtle text-xs flex items-start gap-2.5 text-[#8B949E]">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <div>
-                <strong className="text-white">Non-Destructive Archiving: </strong>
-                Past SCHADS award schedules will be preserved in your database. When interpreting shifts, the system automatically checks the shift date and matches the exact rate schedule that was active on that day.
+                <strong className="text-white">Multi-Award &amp; Version Archiving: </strong>
+                You can import multiple Modern Awards (e.g. SCHADS for support workers, Nurses Award for nursing staff). Past award schedules remain permanently preserved in your database. When interpreting shifts, the system matches the staff member's award and the exact rates that were active on that shift date.
               </div>
             </div>
 

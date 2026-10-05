@@ -5614,10 +5614,12 @@ function getUnreadChatCount(db: any, userId: number) {
 
   app.get("/api/award-rates/schedules", authenticateToken, (req: any, res) => {
     try {
-      const schedules = getAwardSchedules(db);
+      const awardCode = req.query.award_code as string;
+      const schedules = getAwardSchedules(db, { awardCode });
       const timezone = getBusinessTimezone(db);
       const currentDate = getBusinessDateString(db);
-      res.json({ schedules, timezone, currentDate });
+      const summary = getAwardSummary(db);
+      res.json({ schedules, timezone, currentDate, summary });
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to fetch schedules" });
     }
@@ -5627,7 +5629,8 @@ function getUnreadChatCount(db: any, userId: number) {
     try {
       const dateStr = (req.query.date as string) || getBusinessDateString(db);
       const stream = req.query.stream as string;
-      const result = getAwardRatesForDate(db, dateStr, { stream });
+      const awardCode = req.query.award_code as string;
+      const result = getAwardRatesForDate(db, dateStr, { awardCode, stream });
       res.json(result);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to fetch rates for date" });
@@ -5768,8 +5771,17 @@ function getUnreadChatCount(db: any, userId: number) {
       }));
       const ws = xlsx.utils.json_to_sheet(formatted);
       const csv = xlsx.utils.sheet_to_csv(ws);
+      let filename = 'Award_Pay_Rates.csv';
+      if (scheduleId) {
+        const sched = db.prepare("SELECT name, award_code FROM award_schedules WHERE id = ?").get(scheduleId) as any;
+        if (sched?.name) {
+          filename = `${sched.name.replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`;
+        }
+      } else if (awardName) {
+        filename = `${awardName.replace(/[^a-zA-Z0-9_-]/g, '_')}_Pay_Rates.csv`;
+      }
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="${awardName || 'SCHADS'}_Award_Pay_Rates.csv"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(csv);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to export award rates" });
