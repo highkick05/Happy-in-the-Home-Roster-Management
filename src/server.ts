@@ -46,6 +46,8 @@ import {
   getOrganisationDetails,
   syncInvoiceToXero,
   sendTestInvoiceToXero,
+  getXeroPayItems,
+  classifyXeroEarningsRate,
 } from "./services/xeroService";
 import {
   initAwardRatesTable,
@@ -5493,9 +5495,11 @@ function getUnreadChatCount(db: any, userId: number) {
       // - 'accounting.contacts' for managing invoice contacts
       // - 'accounting.settings.read' for reading organization info and chart of accounts
       // - 'accounting.attachments' for uploading PDF invoice copies
+      // - 'payroll.payitems' for reading & syncing payroll pay items and earnings rates
+      // - 'payroll.settings.read' for reading payroll settings
       // - 'offline_access' for receiving refresh tokens
       const requestedScope = (req.query.scope as string) ||
-        'openid profile email accounting.invoices accounting.contacts accounting.settings.read accounting.attachments offline_access';
+        'openid profile email accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.payitems payroll.settings.read offline_access';
 
       const params = new URLSearchParams({
         response_type: 'code',
@@ -5934,6 +5938,137 @@ function getUnreadChatCount(db: any, userId: number) {
     } catch (e: any) {
       console.error("[PAY_ITEMS] Error deactivating pay item:", e);
       res.status(500).json({ error: e.message || "Failed to deactivate pay item" });
+    }
+  });
+
+  app.get("/api/xero/pay-items", authenticateToken, async (req: any, res) => {
+    try {
+      const settings = getXeroSettings(db);
+      const lastSyncRow = db.prepare("SELECT value FROM settings WHERE key = 'xero_pay_items_last_sync'").get() as any;
+      let lastSync = null;
+      if (lastSyncRow?.value) {
+        try {
+          lastSync = JSON.parse(lastSyncRow.value);
+        } catch {
+          lastSync = lastSyncRow.value;
+        }
+      }
+
+      if (!settings.xero_client_id) {
+        return res.json({
+          connected: false,
+          tenantName: '',
+          earningsRates: [],
+          lastSync,
+          error: "Xero Client ID is not configured. Go to Settings > Xero to set up your integration."
+        });
+      }
+
+      const result = await getXeroPayItems(db);
+      res.json({
+        ...result,
+        connected: result.success,
+        lastSync
+      });
+    } catch (e: any) {
+      console.error("[XERO_PAY_ITEMS] Error fetching Xero pay items:", e);
+      res.status(500).json({
+        connected: false,
+        error: e.message || "Failed to fetch Xero pay items",
+        earningsRates: []
+      });
+    }
+  });
+
+  app.post("/api/settings/pay-items/sync-xero", authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const settings = getXeroSettings(db);
+      if (!settings.xero_client_id) {
+        return res.status(400).json({
+          success: false,
+          error: "Xero is not configured. Please enter your Xero API credentials in Settings > Xero."
+        });
+      }
+
+      const xeroResult = await getXeroPayItems(db);
+      if (!xeroResult.success) {
+        return res.status(400).json({
+          success: false,
+          error: xeroResult.error || "Failed to fetch pay items from Xero Payroll API.",
+          needsReconnect: xeroResult.needsReconnect
+        });
+      }
+
+      const earningsRates = xeroResult.earningsRates || [];
+      if (earningsRates.length === 0) {
+        return res.json({
+          success: true,
+          message: "Connected to Xero, but no active Earnings Rates were found in your Xero organization.",
+          created: 0,
+          updated: 0,
+          total: 0,
+          items: db.prepare("SELECT * FROM pay_items WHERE is_active = 1 ORDER BY id ASC").all()
+        });
+      }
+
+      let createdCount = 0;
+      let updatedCount = 0;
+
+      const findByIdStmt = db.prepare("SELECT id, name, category, rate_type FROM pay_items WHERE xero_earnings_rate_id = ? AND xero_earnings_rate_id != ''");
+      const findByNameStmt = db.prepare("SELECT id, name, category, rate_type FROM pay_items WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))");
+      const updateStmt = db.prepare(`
+        UPDATE pay_items
+        SET name = ?, rate_type = ?, xero_earnings_rate_id = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+      const insertStmt = db.prepare(`
+        INSERT INTO pay_items (name, category, rate_type, xero_earnings_rate_id, is_active)
+        VALUES (?, ?, ?, ?, 1)
+      `);
+
+      for (const rate of earningsRates) {
+        if (!rate.id) continue;
+
+        // 1. Try finding by Xero Earnings Rate ID
+        let existing = findByIdStmt.get(rate.id) as any;
+
+        // 2. If not found by ID, try matching by name
+        if (!existing) {
+          existing = findByNameStmt.get(rate.name) as any;
+        }
+
+        const rateType = rate.typeOfUnits ? (rate.typeOfUnits === 'Hours' ? 'Hourly' : rate.typeOfUnits) : 'Hourly';
+
+        if (existing) {
+          updateStmt.run(rate.name, rateType, rate.id, existing.id);
+          updatedCount++;
+        } else {
+          insertStmt.run(rate.name, rate.suggestedCategory, rateType, rate.id);
+          createdCount++;
+        }
+      }
+
+      const nowIso = new Date().toISOString();
+      saveXeroSetting(db, 'xero_pay_items_last_sync', nowIso);
+
+      const allItems = db.prepare("SELECT * FROM pay_items WHERE is_active = 1 ORDER BY id ASC").all();
+
+      res.json({
+        success: true,
+        message: `Successfully synced ${earningsRates.length} pay items from Xero (${createdCount} added, ${updatedCount} updated).`,
+        created: createdCount,
+        updated: updatedCount,
+        total: earningsRates.length,
+        items: allItems,
+        lastSync: nowIso,
+        tenantName: xeroResult.tenantName
+      });
+    } catch (e: any) {
+      console.error("[PAY_ITEMS_SYNC] Error syncing pay items with Xero:", e);
+      res.status(500).json({
+        success: false,
+        error: e.message || "Failed to synchronize pay items with Xero."
+      });
     }
   });
 

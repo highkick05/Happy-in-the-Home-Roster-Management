@@ -15,7 +15,12 @@ import {
   Building2,
   HelpCircle,
   Layers,
-  Sparkles
+  Sparkles,
+  Link2,
+  ExternalLink,
+  Zap,
+  CheckCheck,
+  ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -28,6 +33,21 @@ export interface PayItem {
   is_active: number;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface XeroRateItem {
+  id: string;
+  name: string;
+  earningsType: string;
+  rateType: string;
+  typeOfUnits: string;
+  ratePerUnit: number;
+  multiplier: number;
+  accrueLeave?: boolean;
+  isExemptFromTax?: boolean;
+  isExemptFromSuper?: boolean;
+  currentRecord?: boolean;
+  suggestedCategory: 'Ordinary' | 'Penalty' | 'Overtime' | 'Allowance';
 }
 
 export default function PayItemsSettings() {
@@ -43,6 +63,21 @@ export default function PayItemsSettings() {
   const [editedXeroIds, setEditedXeroIds] = useState<Record<number, string>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
   const [savedSuccessId, setSavedSuccessId] = useState<number | null>(null);
+
+  // Xero live integration & sync state
+  const [xeroData, setXeroData] = useState<{
+    connected: boolean;
+    tenantName?: string;
+    earningsRates: XeroRateItem[];
+    lastSync?: string | null;
+    error?: string;
+    needsReconnect?: boolean;
+  }>({
+    connected: false,
+    earningsRates: []
+  });
+  const [syncingXero, setSyncingXero] = useState(false);
+  const [loadingXero, setLoadingXero] = useState(false);
 
   // Add Pay Item Modal State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -84,9 +119,105 @@ export default function PayItemsSettings() {
     }
   };
 
+  const fetchXeroPayItems = async () => {
+    setLoadingXero(true);
+    try {
+      const res = await fetch('/api/xero/pay-items', {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setXeroData({
+          connected: !!data.connected,
+          tenantName: data.tenantName || '',
+          earningsRates: Array.isArray(data.earningsRates) ? data.earningsRates : [],
+          lastSync: data.lastSync || null,
+          error: data.error,
+          needsReconnect: !!data.needsReconnect
+        });
+      }
+    } catch (e: any) {
+      console.warn('Error checking Xero pay items:', e);
+    } finally {
+      setLoadingXero(false);
+    }
+  };
+
   useEffect(() => {
     fetchPayItems();
+    fetchXeroPayItems();
   }, []);
+
+  const handleSyncFromXero = async () => {
+    setSyncingXero(true);
+    try {
+      const res = await fetch('/api/settings/pay-items/sync-xero', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to sync with Xero');
+      }
+
+      showNotification('success', data.message || `Successfully synced ${data.total || 0} pay items from Xero!`);
+      await fetchPayItems();
+      await fetchXeroPayItems();
+    } catch (e: any) {
+      showNotification('error', e.message || 'Error syncing pay items with Xero');
+    } finally {
+      setSyncingXero(false);
+    }
+  };
+
+  const handleAutoMatchByName = async () => {
+    if (!xeroData.earningsRates.length) {
+      showNotification('error', 'No Xero earnings rates loaded. Click "Sync from Xero" first.');
+      return;
+    }
+
+    let matchCount = 0;
+    const newEdits = { ...editedXeroIds };
+
+    for (const item of payItems) {
+      const currentId = item.xero_earnings_rate_id || '';
+      if (!currentId.trim()) {
+        const itemNameClean = item.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const matched = xeroData.earningsRates.find(xr => {
+          const xrNameClean = xr.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return xrNameClean.includes(itemNameClean) || itemNameClean.includes(xrNameClean);
+        });
+
+        if (matched) {
+          newEdits[item.id] = matched.id;
+          matchCount++;
+          try {
+            await fetch(`/api/settings/pay-items/${item.id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+              },
+              body: JSON.stringify({
+                xero_earnings_rate_id: matched.id
+              })
+            });
+          } catch {}
+        }
+      }
+    }
+
+    setEditedXeroIds(newEdits);
+    if (matchCount > 0) {
+      showNotification('success', `Auto-matched and saved ${matchCount} pay items to Xero Earnings Rates!`);
+      await fetchPayItems();
+    } else {
+      showNotification('error', 'No unmapped pay items could be matched by name.');
+    }
+  };
 
   const showNotification = (type: 'success' | 'error', text: string) => {
     setStatusMessage({ type, text });
@@ -296,7 +427,7 @@ export default function PayItemsSettings() {
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={fetchPayItems}
@@ -306,6 +437,29 @@ export default function PayItemsSettings() {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
+          </button>
+
+          {unmappedCount > 0 && xeroData.earningsRates.length > 0 && (
+            <button
+              type="button"
+              onClick={handleAutoMatchByName}
+              className="px-3 py-2 bg-brand-navy hover:bg-zinc-800 text-sky-400 border border-sky-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Auto-match unmapped pay items to Xero earnings rates with identical or similar names"
+            >
+              <CheckCheck className="w-3.5 h-3.5" />
+              <span>Auto-Match Rates</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSyncFromXero}
+            disabled={syncingXero || loading}
+            className="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-teal-500 hover:from-sky-400 hover:to-teal-400 text-brand-navy rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer disabled:opacity-50"
+            title="Fetch latest Pay Items directly from Xero and sync to portal database"
+          >
+            <Zap className={`w-3.5 h-3.5 ${syncingXero ? 'animate-bounce' : ''}`} />
+            <span>{syncingXero ? 'Syncing with Xero...' : 'Sync from Xero'}</span>
           </button>
 
           <button
@@ -369,27 +523,104 @@ export default function PayItemsSettings() {
 
         <div className="bg-brand-bg border border-border-subtle rounded-xl p-4 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-semibold text-[#8B949E] uppercase tracking-wider block">Xero Payroll Sync</span>
+            <span className="text-[11px] font-semibold text-[#8B949E] uppercase tracking-wider block">Xero Payroll API</span>
             <span className="text-xs font-semibold text-sky-400 mt-1 block flex items-center gap-1.5">
               <Building2 className="w-3.5 h-3.5" />
-              Earnings Rates
+              {xeroData.connected ? (xeroData.tenantName || 'Connected') : 'Disconnected'}
             </span>
           </div>
-          <div className="p-2 bg-sky-500/10 rounded-lg border border-sky-500/20 text-sky-400">
+          <div className={`p-2 rounded-lg border ${xeroData.connected ? 'bg-sky-500/10 border-sky-500/20 text-sky-400' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>
             <Sparkles className="w-5 h-5" />
           </div>
         </div>
       </div>
 
-      {/* Helpful Instructions Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 bg-brand-navy/60 border border-brand-teal/20 rounded-xl text-xs">
-        <div className="flex items-start gap-2.5 text-[#E6EDF3]">
-          <HelpCircle className="w-4 h-4 text-brand-teal shrink-0 mt-0.5" />
-          <div>
-            <strong className="text-white">How to map Xero Earnings Rates:</strong>{' '}
-            <span className="text-zinc-300">
-              In Xero, navigate to <strong>Settings &gt; Payroll Settings &gt; Pay Items &gt; Earnings</strong>. Click on an earnings rate, copy the unique GUID from your browser address bar (or API response), paste it into the field next to the pay item below, and click <strong>Save</strong>.
-            </span>
+      {/* Xero Live Sync & Status Bar */}
+      <div className={`p-4 rounded-xl border transition-all text-xs ${
+        xeroData.connected 
+          ? 'bg-gradient-to-r from-sky-950/40 via-brand-navy to-emerald-950/20 border-sky-500/30 shadow-sm'
+          : xeroData.needsReconnect
+            ? 'bg-amber-950/20 border-amber-500/30 text-amber-200'
+            : 'bg-brand-navy/70 border-border-subtle text-zinc-300'
+      }`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className={`p-2.5 rounded-lg border shrink-0 ${
+              xeroData.connected
+                ? 'bg-sky-500/15 border-sky-500/30 text-sky-400'
+                : xeroData.needsReconnect
+                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                  : 'bg-zinc-800 border-zinc-700 text-zinc-400'
+            }`}>
+              <Building2 className="w-5 h-5" />
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-white text-sm">
+                  {xeroData.connected
+                    ? `Connected to Xero: ${xeroData.tenantName || 'Organisation'}`
+                    : xeroData.needsReconnect
+                      ? 'Xero Payroll Scope Required'
+                      : 'Xero Connection Ready'}
+                </span>
+                {xeroData.connected && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Live Sync Ready
+                  </span>
+                )}
+                {xeroData.earningsRates.length > 0 && (
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20 font-mono">
+                    {xeroData.earningsRates.length} Xero Rates Found
+                  </span>
+                )}
+              </div>
+
+              <p className="text-zinc-400 text-xs mt-1">
+                {xeroData.connected ? (
+                  <>
+                    Export and sync your live Xero Payroll Pay Items directly into the portal database.
+                    {xeroData.lastSync && (
+                      <span className="text-zinc-400 ml-1.5 font-medium">
+                        • Last synced: {new Date(xeroData.lastSync).toLocaleString()}
+                      </span>
+                    )}
+                  </>
+                ) : xeroData.needsReconnect ? (
+                  'Your Xero account is connected for Invoicing, but requires the Payroll scope (payroll.payitems). Reconnect Xero in Settings to grant payroll permissions.'
+                ) : (
+                  'Connect to Xero to export your live Xero Pay Items into the portal database and keep them synchronized automatically.'
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {xeroData.connected ? (
+              <button
+                type="button"
+                onClick={handleSyncFromXero}
+                disabled={syncingXero}
+                className="px-3.5 py-2 bg-sky-500 hover:bg-sky-400 text-brand-navy rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingXero ? 'animate-spin' : ''}`} />
+                <span>{syncingXero ? 'Importing from Xero...' : 'Import & Sync from Xero'}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  const xeroTabBtn = document.querySelector('button:has(svg.lucide-building-2), button:has(svg.lucide-building)') as HTMLButtonElement;
+                  if (xeroTabBtn) xeroTabBtn.click();
+                  else showNotification('error', 'Go to Settings > Xero tab to connect your account.');
+                }}
+                className="px-3.5 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow cursor-pointer"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                <span>Go to Xero Settings</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -552,50 +783,83 @@ export default function PayItemsSettings() {
                         )}
                       </td>
 
-                      {/* Editable Xero Earnings Rate ID with In-line Save Button */}
-                      <td className="py-2 px-4">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={currentInputVal}
-                            onChange={(e) => handleXeroIdChange(item.id, e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                handleSaveXeroId(item);
-                              }
-                            }}
-                            placeholder="e.g. 7c32bf90-345f-4a11-85bc-9174dfbc029a"
-                            className={`flex-1 px-3 py-1.5 text-xs font-mono rounded-lg bg-brand-navy border text-white placeholder-zinc-500 focus:outline-none transition-colors ${
-                              isDirty 
-                                ? 'border-brand-teal ring-1 ring-brand-teal/40 bg-brand-navy/90' 
-                                : isMapped
-                                  ? 'border-emerald-500/30'
-                                  : 'border-border-subtle focus:border-brand-teal'
-                            }`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleSaveXeroId(item)}
-                            disabled={isSavingThis}
-                            className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 shrink-0 ${
-                              isSavedThis
-                                ? 'bg-emerald-500 text-brand-navy font-bold'
-                                : isDirty
-                                  ? 'bg-brand-teal hover:bg-brand-teal/90 text-brand-navy shadow-md animate-pulse'
-                                  : 'bg-brand-navy hover:bg-zinc-800 text-[#8B949E] hover:text-white border border-border-subtle'
-                            }`}
-                            title="Save Xero Earnings Rate GUID"
-                          >
-                            {isSavingThis ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            ) : isSavedThis ? (
-                              <Check className="w-3.5 h-3.5" />
-                            ) : (
-                              <Save className="w-3.5 h-3.5" />
-                            )}
-                            <span>{isSavedThis ? 'Saved' : 'Save'}</span>
-                          </button>
-                        </div>
+                      {/* Editable Xero Earnings Rate ID with In-line Save Button & Dropdown Picker */}
+                      <td className="py-2 px-4 min-w-[340px]">
+                        {(() => {
+                          const matchedXero = xeroData.earningsRates.find(xr => xr.id === (item.xero_earnings_rate_id || currentInputVal));
+                          return (
+                            <div className="space-y-1.5">
+                              {matchedXero && (
+                                <div className="text-[10px] text-sky-400 font-medium flex items-center gap-1.5 bg-sky-950/30 border border-sky-500/20 px-2 py-0.5 rounded">
+                                  <Building2 className="w-3 h-3 text-sky-400 shrink-0" />
+                                  <span>Xero: <strong>{matchedXero.name}</strong> ({matchedXero.earningsType || matchedXero.rateType})</span>
+                                </div>
+                              )}
+
+                              {xeroData.earningsRates.length > 0 && (
+                                <select
+                                  value={xeroData.earningsRates.some(r => r.id === currentInputVal) ? currentInputVal : ''}
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      handleXeroIdChange(item.id, e.target.value);
+                                    }
+                                  }}
+                                  className="w-full px-2 py-1 text-[11px] bg-brand-navy border border-border-subtle rounded text-zinc-300 focus:outline-none focus:border-brand-teal"
+                                >
+                                  <option value="">-- Select from {xeroData.earningsRates.length} Xero Rates --</option>
+                                  {xeroData.earningsRates.map(xr => (
+                                    <option key={xr.id} value={xr.id}>
+                                      {xr.name} ({xr.earningsType || xr.rateType})
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={currentInputVal}
+                                  onChange={(e) => handleXeroIdChange(item.id, e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleSaveXeroId(item);
+                                    }
+                                  }}
+                                  placeholder="e.g. 7c32bf90-345f-4a11-85bc-9174dfbc029a"
+                                  className={`flex-1 px-3 py-1.5 text-xs font-mono rounded-lg bg-brand-navy border text-white placeholder-zinc-500 focus:outline-none transition-colors ${
+                                    isDirty 
+                                      ? 'border-brand-teal ring-1 ring-brand-teal/40 bg-brand-navy/90' 
+                                      : isMapped
+                                        ? 'border-emerald-500/30'
+                                        : 'border-border-subtle focus:border-brand-teal'
+                                  }`}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveXeroId(item)}
+                                  disabled={isSavingThis}
+                                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 shrink-0 ${
+                                    isSavedThis
+                                      ? 'bg-emerald-500 text-brand-navy font-bold'
+                                      : isDirty
+                                        ? 'bg-brand-teal hover:bg-brand-teal/90 text-brand-navy shadow-md animate-pulse'
+                                        : 'bg-brand-navy hover:bg-zinc-800 text-[#8B949E] hover:text-white border border-border-subtle'
+                                  }`}
+                                  title="Save Xero Earnings Rate GUID"
+                                >
+                                  {isSavingThis ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  ) : isSavedThis ? (
+                                    <Check className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <Save className="w-3.5 h-3.5" />
+                                  )}
+                                  <span>{isSavedThis ? 'Saved' : 'Save'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Actions */}
@@ -666,6 +930,37 @@ export default function PayItemsSettings() {
             </div>
 
             <form onSubmit={handleCreatePayItem} className="p-5 space-y-4 text-xs">
+              {/* Quick Auto-Fill from Xero */}
+              {xeroData.earningsRates.length > 0 && (
+                <div className="p-3 bg-brand-bg/80 border border-sky-500/25 rounded-lg space-y-1.5">
+                  <label className="block text-sky-400 font-semibold text-[11px] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Quick Auto-Fill from Xero Rate:</span>
+                  </label>
+                  <select
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      if (!selectedId) return;
+                      const matched = xeroData.earningsRates.find(xr => xr.id === selectedId);
+                      if (matched) {
+                        setNewItemName(matched.name);
+                        setNewItemCategory(matched.suggestedCategory);
+                        setNewItemRateType(matched.typeOfUnits === 'Hours' ? 'Hourly' : (matched.typeOfUnits || 'Hourly'));
+                        setNewItemXeroId(matched.id);
+                      }
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-brand-navy border border-border-subtle rounded text-white text-xs focus:outline-none focus:border-brand-teal"
+                  >
+                    <option value="">-- Choose Xero Rate ({xeroData.earningsRates.length} available) --</option>
+                    {xeroData.earningsRates.map(xr => (
+                      <option key={xr.id} value={xr.id}>
+                        {xr.name} ({xr.earningsType || xr.rateType})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[#8B949E] font-medium mb-1">
                   Pay Item Name <span className="text-rose-400">*</span>
@@ -774,6 +1069,39 @@ export default function PayItemsSettings() {
             </div>
 
             <form onSubmit={handleUpdateItemDetails} className="p-5 space-y-4 text-xs">
+              {/* Quick Pick from Xero */}
+              {xeroData.earningsRates.length > 0 && (
+                <div className="p-3 bg-brand-bg/80 border border-sky-500/25 rounded-lg space-y-1.5">
+                  <label className="block text-sky-400 font-semibold text-[11px] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Choose Xero Earnings Rate to Map:</span>
+                  </label>
+                  <select
+                    value={xeroData.earningsRates.some(r => r.id === editingItem.xero_earnings_rate_id) ? editingItem.xero_earnings_rate_id : ''}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      if (!selectedId) return;
+                      const matched = xeroData.earningsRates.find(xr => xr.id === selectedId);
+                      if (matched) {
+                        setEditingItem({
+                          ...editingItem,
+                          xero_earnings_rate_id: matched.id,
+                          rate_type: matched.typeOfUnits === 'Hours' ? 'Hourly' : (matched.typeOfUnits || editingItem.rate_type)
+                        });
+                      }
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-brand-navy border border-border-subtle rounded text-white text-xs focus:outline-none focus:border-brand-teal"
+                  >
+                    <option value="">-- Select from {xeroData.earningsRates.length} Xero Rates --</option>
+                    {xeroData.earningsRates.map(xr => (
+                      <option key={xr.id} value={xr.id}>
+                        {xr.name} ({xr.earningsType || xr.rateType})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[#8B949E] font-medium mb-1">
                   Pay Item Name <span className="text-rose-400">*</span>

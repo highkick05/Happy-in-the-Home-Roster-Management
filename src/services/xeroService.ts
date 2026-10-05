@@ -142,6 +142,7 @@ export async function getValidAccessToken(db: any, forcedSettings?: XeroSettings
     
     // Attempt token request with required scopes (support both granular 2026+ and legacy broad scopes)
     const scopesToTry = [
+      'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.payitems payroll.settings.read',
       'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments',
       'accounting.invoices accounting.contacts accounting.attachments',
       'accounting.invoices accounting.contacts',
@@ -853,3 +854,177 @@ export async function sendTestInvoiceToXero(
     };
   }
 }
+
+/**
+ * Classifies a Xero earnings rate into a portal category:
+ * 'Ordinary' | 'Penalty' | 'Overtime' | 'Allowance'
+ */
+export function classifyXeroEarningsRate(rate: { Name?: string; EarningsType?: string }): 'Ordinary' | 'Penalty' | 'Overtime' | 'Allowance' {
+  const type = (rate.EarningsType || '').toUpperCase();
+  const name = (rate.Name || '').toLowerCase();
+
+  if (
+    type.includes('ALLOWANCE') ||
+    name.includes('allowance') ||
+    name.includes('sleepover') ||
+    name.includes('travel') ||
+    name.includes('mileage') ||
+    name.includes('transport') ||
+    name.includes('meal') ||
+    name.includes('kms') ||
+    name.includes('km')
+  ) {
+    return 'Allowance';
+  }
+  if (
+    type.includes('OVERTIME') ||
+    name.includes('overtime') ||
+    name.includes('o/t') ||
+    name.includes('1.5x') ||
+    name.includes('2.0x') ||
+    name.includes('2x') ||
+    name.includes('double time') ||
+    name.includes('time and a half')
+  ) {
+    return 'Overtime';
+  }
+  if (
+    type.includes('PENALTY') ||
+    name.includes('penalty') ||
+    name.includes('saturday') ||
+    name.includes('sunday') ||
+    name.includes('public holiday') ||
+    name.includes('night') ||
+    name.includes('evening') ||
+    name.includes('weekend') ||
+    name.includes('afternoon')
+  ) {
+    return 'Penalty';
+  }
+  if (
+    type.includes('ORDINARY') ||
+    name.includes('ordinary') ||
+    name.includes('weekday') ||
+    name.includes('standard') ||
+    name.includes('base')
+  ) {
+    return 'Ordinary';
+  }
+  return 'Ordinary';
+}
+
+export interface XeroPayItemRecord {
+  id: string;
+  name: string;
+  earningsType: string;
+  rateType: string;
+  typeOfUnits: string;
+  ratePerUnit: number;
+  multiplier: number;
+  accrueLeave: boolean;
+  isExemptFromTax: boolean;
+  isExemptFromSuper: boolean;
+  currentRecord: boolean;
+  accountCode?: string;
+  suggestedCategory: 'Ordinary' | 'Penalty' | 'Overtime' | 'Allowance';
+}
+
+/**
+ * Fetches pay items directly from Xero Payroll API.
+ */
+export async function getXeroPayItems(db: any): Promise<{
+  success: boolean;
+  tenantName: string;
+  tenantId: string;
+  earningsRates: XeroPayItemRecord[];
+  allowances?: any[];
+  deductions?: any[];
+  leaveTypes?: any[];
+  reimbursements?: any[];
+  error?: string;
+  needsReconnect?: boolean;
+}> {
+  try {
+    const { accessToken, tenantId, tenantName, settings } = await getValidAccessToken(db);
+
+    if (!accessToken) {
+      throw new Error('No valid Xero access token available. Please connect Xero in Settings.');
+    }
+
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${accessToken}`,
+      'Accept': 'application/json'
+    };
+    if (tenantId) {
+      headers['Xero-Tenant-Id'] = tenantId;
+    }
+
+    // Try AU Payroll PayItems endpoint first (1.0)
+    let res = await fetch('https://api.xero.com/payroll.xro/1.0/PayItems', {
+      headers
+    });
+
+    // If 404, try 2.0 (NZ/UK)
+    if (res.status === 404) {
+      res = await fetch('https://api.xero.com/payroll.xro/2.0/PayItems', {
+        headers
+      });
+    }
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      const errMsg = errBody.Detail || errBody.Message || errBody.error || res.statusText;
+      if (res.status === 401 || res.status === 403 || String(errMsg).toLowerCase().includes('scope') || String(errMsg).toLowerCase().includes('unauthorized')) {
+        return {
+          success: false,
+          tenantName: tenantName || 'Xero Organisation',
+          tenantId: tenantId || '',
+          earningsRates: [],
+          needsReconnect: true,
+          error: 'Xero Payroll access permission (payroll.payitems) is required. Please disconnect and reconnect Xero in Settings to authorize Payroll access.'
+        };
+      }
+      throw new Error(`Xero Payroll API error (${res.status}): ${errMsg}`);
+    }
+
+    const data = await res.json();
+    const rawPayItems = data.PayItems || data.payItems || data;
+    const rawRates: any[] = rawPayItems.EarningsRates || rawPayItems.earningsRates || [];
+
+    const earningsRates: XeroPayItemRecord[] = rawRates.map((r: any) => ({
+      id: r.EarningsRateID || r.earningsRateID || r.Id || r.id || '',
+      name: r.Name || r.name || 'Unnamed Rate',
+      earningsType: r.EarningsType || r.earningsType || '',
+      rateType: r.RateType || r.rateType || 'RATEPERUNIT',
+      typeOfUnits: r.TypeOfUnits || r.typeOfUnits || 'Hours',
+      ratePerUnit: Number(r.RatePerUnit || r.ratePerUnit || 0),
+      multiplier: Number(r.Multiplier || r.multiplier || 1),
+      accrueLeave: !!(r.AccrueLeave ?? r.accrueLeave),
+      isExemptFromTax: !!(r.IsExemptFromTax ?? r.isExemptFromTax),
+      isExemptFromSuper: !!(r.IsExemptFromSuper ?? r.isExemptFromSuper),
+      currentRecord: r.CurrentRecord !== false && r.currentRecord !== false,
+      accountCode: r.AccountCode || r.accountCode || '',
+      suggestedCategory: classifyXeroEarningsRate(r)
+    }));
+
+    return {
+      success: true,
+      tenantName: tenantName || 'Xero Organisation',
+      tenantId: tenantId || '',
+      earningsRates,
+      allowances: rawPayItems.AllowanceRates || rawPayItems.allowanceRates || [],
+      deductions: rawPayItems.DeductionTypes || rawPayItems.deductionTypes || [],
+      leaveTypes: rawPayItems.LeaveTypes || rawPayItems.leaveTypes || [],
+      reimbursements: rawPayItems.ReimbursementTypes || rawPayItems.reimbursementTypes || []
+    };
+  } catch (e: any) {
+    return {
+      success: false,
+      tenantName: '',
+      tenantId: '',
+      earningsRates: [],
+      error: e.message || 'Failed to fetch pay items from Xero'
+    };
+  }
+}
+
