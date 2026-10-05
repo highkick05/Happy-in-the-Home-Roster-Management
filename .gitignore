@@ -12,5 +12,6 @@ uploads/
 *.sqlite-shm
 *.sqlite-wal
 database.sqlite
+*.db
 *.bak
 dev-dist/

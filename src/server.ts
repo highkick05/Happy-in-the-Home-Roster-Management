@@ -939,28 +939,8 @@ try {
       );
     `);
 
-    const existingPayItemsCount = (db.prepare("SELECT COUNT(*) as count FROM pay_items").get() as any)?.count || 0;
-    if (existingPayItemsCount === 0) {
-      const defaultPayItems = [
-        { name: 'Ordinary Weekday', category: 'Ordinary', rate_type: 'Hourly', xero_earnings_rate_id: '' },
-        { name: 'Saturday Penalty', category: 'Penalty', rate_type: 'Hourly', xero_earnings_rate_id: '' },
-        { name: 'Sunday Penalty', category: 'Penalty', rate_type: 'Hourly', xero_earnings_rate_id: '' },
-        { name: 'Public Holiday', category: 'Penalty', rate_type: 'Hourly', xero_earnings_rate_id: '' },
-        { name: 'Night Shift', category: 'Penalty', rate_type: 'Hourly', xero_earnings_rate_id: '' },
-        { name: 'Sleepover Allowance', category: 'Allowance', rate_type: 'Hourly', xero_earnings_rate_id: '' },
-        { name: 'Travel Allowance', category: 'Allowance', rate_type: 'Hourly', xero_earnings_rate_id: '' },
-      ];
-
-      const insertPayItemStmt = db.prepare(`
-        INSERT INTO pay_items (name, category, rate_type, xero_earnings_rate_id, is_active)
-        VALUES (?, ?, ?, ?, 1)
-      `);
-
-      for (const item of defaultPayItems) {
-        insertPayItemStmt.run(item.name, item.category, item.rate_type, item.xero_earnings_rate_id);
-      }
-      console.log("[DEBUG] Seeded default pay items in pay_items table.");
-    }
+    // Purge any unmapped placeholder pay items so the portal only stores and lists items retrieved from Xero
+    db.exec("DELETE FROM pay_items WHERE TRIM(xero_earnings_rate_id) = '' OR xero_earnings_rate_id IS NULL");
   } catch (err) {
     console.error("[DEBUG] Error initializing pay_items table:", err);
   }
@@ -5839,8 +5819,8 @@ function getUnreadChatCount(db: any, userId: number) {
     try {
       const includeInactive = req.query.include_inactive === "true" || req.query.include_inactive === "1";
       const items = includeInactive
-        ? db.prepare("SELECT * FROM pay_items ORDER BY id ASC").all()
-        : db.prepare("SELECT * FROM pay_items WHERE is_active = 1 ORDER BY id ASC").all();
+        ? db.prepare("SELECT * FROM pay_items WHERE TRIM(xero_earnings_rate_id) != '' AND xero_earnings_rate_id IS NOT NULL ORDER BY id ASC").all()
+        : db.prepare("SELECT * FROM pay_items WHERE is_active = 1 AND TRIM(xero_earnings_rate_id) != '' AND xero_earnings_rate_id IS NOT NULL ORDER BY id ASC").all();
       res.json(items);
     } catch (e: any) {
       console.error("[PAY_ITEMS] Error fetching pay items:", e);
@@ -5999,6 +5979,9 @@ function getUnreadChatCount(db: any, userId: number) {
       }
 
       const earningsRates = xeroResult.earningsRates || [];
+      // Remove any leftover unmapped placeholder items so the portal only mirrors Xero
+      db.exec("DELETE FROM pay_items WHERE TRIM(xero_earnings_rate_id) = '' OR xero_earnings_rate_id IS NULL");
+
       if (earningsRates.length === 0) {
         return res.json({
           success: true,
@@ -6006,7 +5989,7 @@ function getUnreadChatCount(db: any, userId: number) {
           created: 0,
           updated: 0,
           total: 0,
-          items: db.prepare("SELECT * FROM pay_items WHERE is_active = 1 ORDER BY id ASC").all()
+          items: db.prepare("SELECT * FROM pay_items WHERE is_active = 1 AND TRIM(xero_earnings_rate_id) != '' AND xero_earnings_rate_id IS NOT NULL ORDER BY id ASC").all()
         });
       }
 

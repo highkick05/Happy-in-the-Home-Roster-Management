@@ -79,16 +79,9 @@ export default function PayItemsSettings() {
   const [syncingXero, setSyncingXero] = useState(false);
   const [loadingXero, setLoadingXero] = useState(false);
 
-  // Add Pay Item Modal State
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newItemName, setNewItemName] = useState('');
-  const [newItemCategory, setNewItemCategory] = useState<'Ordinary' | 'Penalty' | 'Overtime' | 'Allowance'>('Ordinary');
-  const [newItemRateType, setNewItemRateType] = useState('Hourly');
-  const [newItemXeroId, setNewItemXeroId] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   // Edit Pay Item Modal State
   const [editingItem, setEditingItem] = useState<PayItem | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchPayItems = async () => {
     setLoading(true);
@@ -262,46 +255,6 @@ export default function PayItemsSettings() {
     }
   };
 
-  const handleCreatePayItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newItemName.trim()) {
-      showNotification('error', 'Pay Item Name is required');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const res = await fetch('/api/settings/pay-items', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          name: newItemName.trim(),
-          category: newItemCategory,
-          rate_type: newItemRateType.trim() || 'Hourly',
-          xero_earnings_rate_id: newItemXeroId.trim()
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create pay item');
-
-      showNotification('success', `Pay item "${newItemName.trim()}" created successfully!`);
-      setShowAddModal(false);
-      setNewItemName('');
-      setNewItemCategory('Ordinary');
-      setNewItemRateType('Hourly');
-      setNewItemXeroId('');
-      fetchPayItems();
-    } catch (e: any) {
-      showNotification('error', e.message || 'Error creating pay item');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleUpdateItemDetails = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem || !editingItem.name.trim()) {
@@ -462,14 +415,16 @@ export default function PayItemsSettings() {
             <span>{syncingXero ? 'Syncing with Xero...' : 'Sync from Xero'}</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            className="px-3.5 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-md cursor-pointer"
+          <a
+            href="https://go.xero.com/app/payroll/settings/pay-items"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3.5 py-2 bg-brand-navy hover:bg-zinc-800 text-sky-400 hover:text-sky-300 border border-sky-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+            title="Open Xero Payroll Settings to add or configure pay items"
           >
-            <Plus className="w-4 h-4" />
-            <span>Add Pay Item</span>
-          </button>
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Open Xero Pay Items</span>
+          </a>
         </div>
       </div>
 
@@ -712,18 +667,30 @@ export default function PayItemsSettings() {
               <h3 className="text-sm font-semibold text-white">No Pay Items Found</h3>
               <p className="text-xs text-[#8B949E] max-w-md mx-auto">
                 {payItems.length === 0 
-                  ? 'No pay items exist yet. Click "Add Pay Item" to create your first rate mapping.'
+                  ? 'No pay items are in your portal database yet. Click "Sync from Xero" to import your organization\'s pay items, or open Xero to add new rates.'
                   : 'No pay items match the selected category, mapping filter, or search query.'}
               </p>
               {payItems.length === 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(true)}
-                  className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy font-semibold text-xs rounded-lg inline-flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add First Pay Item</span>
-                </button>
+                <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleSyncFromXero}
+                    disabled={syncingXero}
+                    className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-brand-navy font-bold text-xs rounded-lg inline-flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <Zap className={`w-4 h-4 ${syncingXero ? 'animate-bounce' : ''}`} />
+                    <span>{syncingXero ? 'Syncing...' : 'Sync from Xero'}</span>
+                  </button>
+                  <a
+                    href="https://go.xero.com/app/payroll/settings/pay-items"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-brand-navy hover:bg-zinc-800 text-sky-400 border border-sky-500/30 font-semibold text-xs rounded-lg inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open Xero Pay Items</span>
+                  </a>
+                </div>
               )}
             </div>
           ) : (
@@ -905,145 +872,6 @@ export default function PayItemsSettings() {
           </div>
         )}
       </div>
-
-      {/* Add Pay Item Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-          <div className="bg-brand-navy border border-border-subtle rounded-xl max-w-lg w-full shadow-2xl overflow-hidden">
-            <div className="p-4 border-b border-border-subtle flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-brand-teal/10 text-brand-teal rounded-lg border border-brand-teal/20">
-                  <Plus className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white">Add New Pay Item</h3>
-                  <p className="text-xs text-[#8B949E]">Create an award pay item and map it to Xero.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAddModal(false)}
-                className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreatePayItem} className="p-5 space-y-4 text-xs">
-              {/* Quick Auto-Fill from Xero */}
-              {xeroData.earningsRates.length > 0 && (
-                <div className="p-3 bg-brand-bg/80 border border-sky-500/25 rounded-lg space-y-1.5">
-                  <label className="block text-sky-400 font-semibold text-[11px] flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Quick Auto-Fill from Xero Rate:</span>
-                  </label>
-                  <select
-                    onChange={(e) => {
-                      const selectedId = e.target.value;
-                      if (!selectedId) return;
-                      const matched = xeroData.earningsRates.find(xr => xr.id === selectedId);
-                      if (matched) {
-                        setNewItemName(matched.name);
-                        setNewItemCategory(matched.suggestedCategory);
-                        setNewItemRateType(matched.typeOfUnits === 'Hours' ? 'Hourly' : (matched.typeOfUnits || 'Hourly'));
-                        setNewItemXeroId(matched.id);
-                      }
-                    }}
-                    className="w-full px-2.5 py-1.5 bg-brand-navy border border-border-subtle rounded text-white text-xs focus:outline-none focus:border-brand-teal"
-                  >
-                    <option value="">-- Choose Xero Rate ({xeroData.earningsRates.length} available) --</option>
-                    {xeroData.earningsRates.map(xr => (
-                      <option key={xr.id} value={xr.id}>
-                        {xr.name} ({xr.earningsType || xr.rateType})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-[#8B949E] font-medium mb-1">
-                  Pay Item Name <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newItemName}
-                  onChange={(e) => setNewItemName(e.target.value)}
-                  placeholder="e.g. Afternoon Shift Penalty, Client Transport Allowance"
-                  className="w-full px-3 py-2 bg-brand-bg border border-border-subtle rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-brand-teal"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[#8B949E] font-medium mb-1">
-                    Category <span className="text-rose-400">*</span>
-                  </label>
-                  <select
-                    value={newItemCategory}
-                    onChange={(e: any) => setNewItemCategory(e.target.value)}
-                    className="w-full px-3 py-2 bg-brand-bg border border-border-subtle rounded-lg text-white focus:outline-none focus:border-brand-teal"
-                  >
-                    <option value="Ordinary">Ordinary</option>
-                    <option value="Penalty">Penalty</option>
-                    <option value="Overtime">Overtime</option>
-                    <option value="Allowance">Allowance</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[#8B949E] font-medium mb-1">
-                    Rate Type
-                  </label>
-                  <select
-                    value={newItemRateType}
-                    onChange={(e) => setNewItemRateType(e.target.value)}
-                    className="w-full px-3 py-2 bg-brand-bg border border-border-subtle rounded-lg text-white focus:outline-none focus:border-brand-teal"
-                  >
-                    <option value="Hourly">Hourly</option>
-                    <option value="Fixed Rate">Fixed Rate</option>
-                    <option value="Per KM">Per KM</option>
-                    <option value="Per Shift">Per Shift</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[#8B949E] font-medium mb-1 flex items-center justify-between">
-                  <span>Xero Earnings Rate ID (GUID)</span>
-                  <span className="text-[10px] text-zinc-500">Optional (can map later)</span>
-                </label>
-                <input
-                  type="text"
-                  value={newItemXeroId}
-                  onChange={(e) => setNewItemXeroId(e.target.value)}
-                  placeholder="e.g. 7c32bf90-345f-4a11-85bc-9174dfbc029a"
-                  className="w-full px-3 py-2 bg-brand-bg border border-border-subtle rounded-lg text-white font-mono placeholder-zinc-500 focus:outline-none focus:border-brand-teal"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-border-subtle flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 bg-transparent hover:bg-zinc-800 text-[#8B949E] hover:text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy font-semibold text-xs rounded-lg flex items-center gap-1.5 shadow-md transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  {isSubmitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                  <span>Create Pay Item</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Edit Pay Item Modal */}
       {editingItem && (
