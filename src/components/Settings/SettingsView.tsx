@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {  Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download , RefreshCw, MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2, Info, Bot, Building2, Award } from 'lucide-react';
 import DatabaseSettings from './DatabaseSettings';
-import AwardRatesSettings from './AwardRatesSettings';
+import PayItemsSettings from './PayItemsSettings';
 import FundingTypesSettings from './FundingTypesSettings';
 import EmailWidgetSettings from './EmailWidgetSettings';
 import AiSettings from './AiSettings';
@@ -983,7 +983,7 @@ export default function SettingsView() {
 
       <div className="flex-1 bg-brand-navy border border-border-subtle rounded-xl overflow-x-auto flex flex-col shadow-sm">
         {activeTab === 'DATABASE' && <DatabaseSettings />}
-        {activeTab === 'AWARD_RATES' && <AwardRatesSettings />}
+        {activeTab === 'AWARD_RATES' && <PayItemsSettings />}
         {activeTab === 'AI' && <AiSettings />}
         {activeTab === 'XERO' && <XeroSettings />}
         {activeTab === 'GENERAL' && (

@@ -922,6 +922,47 @@ try {
     console.error("[DEBUG] Error auto-seeding SCHADS award rates:", err);
   }
 
+  // Pay Items Table Initialization & Default Seeding
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS pay_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        rate_type TEXT DEFAULT 'Hourly',
+        xero_earnings_rate_id TEXT NOT NULL DEFAULT '',
+        is_active INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    const existingPayItemsCount = (db.prepare("SELECT COUNT(*) as count FROM pay_items").get() as any)?.count || 0;
+    if (existingPayItemsCount === 0) {
+      const defaultPayItems = [
+        { name: 'Ordinary Weekday', category: 'Ordinary', rate_type: 'Hourly', xero_earnings_rate_id: '' },
+        { name: 'Saturday Penalty', category: 'Penalty', rate_type: 'Hourly', xero_earnings_rate_id: '' },
+        { name: 'Sunday Penalty', category: 'Penalty', rate_type: 'Hourly', xero_earnings_rate_id: '' },
+        { name: 'Public Holiday', category: 'Penalty', rate_type: 'Hourly', xero_earnings_rate_id: '' },
+        { name: 'Night Shift', category: 'Penalty', rate_type: 'Hourly', xero_earnings_rate_id: '' },
+        { name: 'Sleepover Allowance', category: 'Allowance', rate_type: 'Hourly', xero_earnings_rate_id: '' },
+        { name: 'Travel Allowance', category: 'Allowance', rate_type: 'Hourly', xero_earnings_rate_id: '' },
+      ];
+
+      const insertPayItemStmt = db.prepare(`
+        INSERT INTO pay_items (name, category, rate_type, xero_earnings_rate_id, is_active)
+        VALUES (?, ?, ?, ?, 1)
+      `);
+
+      for (const item of defaultPayItems) {
+        insertPayItemStmt.run(item.name, item.category, item.rate_type, item.xero_earnings_rate_id);
+      }
+      console.log("[DEBUG] Seeded default pay items in pay_items table.");
+    }
+  } catch (err) {
+    console.error("[DEBUG] Error initializing pay_items table:", err);
+  }
+
   try {
     db.exec("ALTER TABLE tasks ADD COLUMN assigned_to_id INTEGER");
   } catch (e: any) {}
@@ -5785,6 +5826,114 @@ function getUnreadChatCount(db: any, userId: number) {
       res.send(csv);
     } catch (e: any) {
       res.status(500).json({ error: e.message || "Failed to export award rates" });
+    }
+  });
+
+  // ==========================================
+  // Pay Items Mapping Configuration Endpoints
+  // ==========================================
+  app.get("/api/settings/pay-items", authenticateToken, (req: any, res) => {
+    try {
+      const includeInactive = req.query.include_inactive === "true" || req.query.include_inactive === "1";
+      const items = includeInactive
+        ? db.prepare("SELECT * FROM pay_items ORDER BY id ASC").all()
+        : db.prepare("SELECT * FROM pay_items WHERE is_active = 1 ORDER BY id ASC").all();
+      res.json(items);
+    } catch (e: any) {
+      console.error("[PAY_ITEMS] Error fetching pay items:", e);
+      res.status(500).json({ error: e.message || "Failed to fetch pay items" });
+    }
+  });
+
+  app.post("/api/settings/pay-items", authenticateToken, requireAdmin, (req: any, res) => {
+    try {
+      const { id, name, category, rate_type, xero_earnings_rate_id } = req.body;
+      if (!name || typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ error: "Pay item name is required" });
+      }
+      const allowedCategories = ["Ordinary", "Penalty", "Overtime", "Allowance"];
+      if (!category || !allowedCategories.includes(category)) {
+        return res.status(400).json({ error: "Valid category is required: 'Ordinary', 'Penalty', 'Overtime', 'Allowance'" });
+      }
+
+      const cleanName = name.trim();
+      const cleanRateType = rate_type && typeof rate_type === "string" ? rate_type.trim() : "Hourly";
+      const cleanXeroId = xero_earnings_rate_id && typeof xero_earnings_rate_id === "string" ? xero_earnings_rate_id.trim() : "";
+
+      if (id) {
+        const existing = db.prepare("SELECT * FROM pay_items WHERE id = ?").get(id) as any;
+        if (!existing) {
+          return res.status(404).json({ error: "Pay item not found" });
+        }
+        db.prepare(`
+          UPDATE pay_items
+          SET name = ?, category = ?, rate_type = ?, xero_earnings_rate_id = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(cleanName, category, cleanRateType, cleanXeroId, id);
+
+        const updated = db.prepare("SELECT * FROM pay_items WHERE id = ?").get(id);
+        return res.json({ success: true, message: "Pay item updated successfully", item: updated });
+      }
+
+      const result = db.prepare(`
+        INSERT INTO pay_items (name, category, rate_type, xero_earnings_rate_id, is_active)
+        VALUES (?, ?, ?, ?, 1)
+      `).run(cleanName, category, cleanRateType, cleanXeroId);
+
+      const newItem = db.prepare("SELECT * FROM pay_items WHERE id = ?").get(result.lastInsertRowid);
+      res.status(201).json({ success: true, message: "Pay item created successfully", item: newItem });
+    } catch (e: any) {
+      console.error("[PAY_ITEMS] Error creating/updating pay item:", e);
+      res.status(500).json({ error: e.message || "Failed to save pay item" });
+    }
+  });
+
+  app.put("/api/settings/pay-items/:id", authenticateToken, requireAdmin, (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid pay item ID" });
+
+      const existing = db.prepare("SELECT * FROM pay_items WHERE id = ?").get(id) as any;
+      if (!existing) {
+        return res.status(404).json({ error: "Pay item not found" });
+      }
+
+      const { name, category, rate_type, xero_earnings_rate_id, is_active } = req.body;
+      const updatedName = name !== undefined && typeof name === "string" ? name.trim() : existing.name;
+      const updatedCategory = category !== undefined ? category : existing.category;
+      const updatedRateType = rate_type !== undefined && typeof rate_type === "string" ? rate_type.trim() : existing.rate_type;
+      const updatedXeroId = xero_earnings_rate_id !== undefined && typeof xero_earnings_rate_id === "string" ? xero_earnings_rate_id.trim() : existing.xero_earnings_rate_id;
+      const updatedActive = is_active !== undefined ? (is_active ? 1 : 0) : existing.is_active;
+
+      db.prepare(`
+        UPDATE pay_items
+        SET name = ?, category = ?, rate_type = ?, xero_earnings_rate_id = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(updatedName, updatedCategory, updatedRateType, updatedXeroId, updatedActive, id);
+
+      const updated = db.prepare("SELECT * FROM pay_items WHERE id = ?").get(id);
+      res.json({ success: true, message: "Pay item updated successfully", item: updated });
+    } catch (e: any) {
+      console.error("[PAY_ITEMS] Error updating pay item:", e);
+      res.status(500).json({ error: e.message || "Failed to update pay item" });
+    }
+  });
+
+  app.delete("/api/settings/pay-items/:id", authenticateToken, requireAdmin, (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (!id) return res.status(400).json({ error: "Invalid pay item ID" });
+
+      const existing = db.prepare("SELECT * FROM pay_items WHERE id = ?").get(id) as any;
+      if (!existing) {
+        return res.status(404).json({ error: "Pay item not found" });
+      }
+
+      db.prepare("UPDATE pay_items SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+      res.json({ success: true, message: "Pay item deactivated successfully" });
+    } catch (e: any) {
+      console.error("[PAY_ITEMS] Error deactivating pay item:", e);
+      res.status(500).json({ error: e.message || "Failed to deactivate pay item" });
     }
   });
 
