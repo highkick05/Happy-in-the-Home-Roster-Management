@@ -1,0 +1,57 @@
+Stream,Classification,Code,Hourly,Weekly (38h),Annual,Casual,Saturday,Sunday,Public holiday,Casual Saturday,Casual Sunday,Afternoon shift,Night shift
+Social and community services,Level 1 pay point 1,1.1,27.55,1046.90,54439,34.44,41.33,55.10,68.88,48.21,61.99,30.99,31.68
+Social and community services,Level 1 pay point 2,1.2,28.44,1080.72,56197,35.55,42.66,56.88,71.10,49.77,63.99,32.00,32.71
+Social and community services,Level 1 pay point 3,1.3,29.45,1119.10,58193,36.81,44.18,58.90,73.63,51.54,66.26,33.13,33.87
+Social and community services,Level 2 pay point 1,2.1,36.22,1376.36,71571,45.28,54.33,72.44,90.55,63.39,81.50,40.75,41.65
+Social and community services,Level 2 pay point 2,2.2,37.36,1419.68,73823,46.70,56.04,74.72,93.40,65.38,84.06,42.03,42.96
+Social and community services,Level 2 pay point 3,2.3,38.50,1463.00,76076,48.13,57.75,77.00,96.25,67.38,86.63,43.31,44.28
+Social and community services,Level 2 pay point 4,2.4,39.53,1502.14,78111,49.41,59.30,79.06,98.83,69.18,88.94,44.47,45.46
+Social and community services,Level 3 pay point 1,3.1,40.49,1538.62,80008,50.61,60.74,80.98,101.23,70.86,91.10,45.55,46.56
+Social and community services,Level 3 pay point 2,3.2,41.66,1583.08,82320,52.08,62.49,83.32,104.15,72.91,93.73,46.87,47.91
+Social and community services,Level 3 pay point 3,3.3,42.55,1616.90,84079,53.19,63.83,85.10,106.38,74.46,95.74,47.87,48.93
+Social and community services,Level 3 pay point 4,3.4,43.42,1649.96,85798,54.28,65.13,86.84,108.55,75.99,97.70,48.85,49.93
+Social and community services,Level 4 pay point 1,4.1,46.70,1774.60,92279,58.38,70.05,93.40,116.75,81.73,105.08,52.54,53.71
+Social and community services,Level 4 pay point 2,4.2,47.92,1820.96,94690,59.90,71.88,95.84,119.80,83.86,107.82,53.91,55.11
+Social and community services,Level 4 pay point 3,4.3,49.16,1868.08,97140,61.45,73.74,98.32,122.90,86.03,110.61,55.30,56.53
+Social and community services,Level 4 pay point 4,4.4,50.25,1909.50,99294,62.81,75.38,100.50,125.63,87.94,113.06,56.53,57.79
+Social and community services,Level 5 pay point 1,5.1,53.43,2030.34,105578,66.79,80.15,106.86,133.57,93.50,120.22,60.11,61.44
+Social and community services,Level 5 pay point 2,5.2,54.58,2074.04,107850,68.22,81.87,109.16,136.45,95.52,122.81,61.40,62.77
+Social and community services,Level 5 pay point 3,5.3,55.85,2122.30,110360,69.81,83.78,111.70,139.63,97.74,125.66,62.83,64.23
+Social and community services,Level 6 pay point 1,6.1,58.37,2218.06,115339,72.96,87.56,116.74,145.92,102.15,131.33,65.67,67.13
+Social and community services,Level 6 pay point 2,6.2,59.66,2267.08,117888,74.57,89.49,119.32,149.15,104.41,134.23,67.12,68.61
+Social and community services,Level 6 pay point 3,6.3,60.95,2316.10,120437,76.19,91.43,121.90,152.38,106.66,137.14,68.57,70.09
+Social and community services,Level 7 pay point 1,7.1,63.13,2398.94,124745,78.91,94.70,126.26,157.83,110.48,142.04,71.02,72.60
+Social and community services,Level 7 pay point 2,7.2,64.46,2449.48,127373,80.57,96.69,128.92,161.15,112.81,145.04,72.52,74.13
+Social and community services,Level 7 pay point 3,7.3,65.77,2499.26,129962,82.21,98.66,131.54,164.43,115.10,147.98,73.99,75.64
+Social and community services,Level 8 pay point 1,8.1,68.49,2602.62,135336,85.61,102.73,136.98,171.23,119.86,154.10,77.05,78.76
+Social and community services,Level 8 pay point 2,8.2,69.84,2653.92,138004,87.30,104.76,139.68,174.60,122.22,157.14,78.57,80.32
+Social and community services,Level 8 pay point 3,8.3,71.19,2705.22,140671,88.99,106.79,142.38,177.98,124.58,160.18,80.09,81.87
+Crisis accommodation,Level 1 pay point 1,,40.49,1538.62,80008,50.61,60.74,80.98,101.23,70.86,91.10,45.55,46.56
+Crisis accommodation,Level 1 pay point 2,,41.66,1583.08,82320,52.08,62.49,83.32,104.15,72.91,93.73,46.87,47.91
+Crisis accommodation,Level 1 pay point 3,,42.55,1616.90,84079,53.19,63.83,85.10,106.38,74.46,95.74,47.87,48.93
+Crisis accommodation,Level 1 pay point 4,,43.42,1649.96,85798,54.28,65.13,86.84,108.55,75.99,97.70,48.85,49.93
+Crisis accommodation,Level 2 pay point 1,,46.70,1774.60,92279,58.38,70.05,93.40,116.75,81.73,105.08,52.54,53.71
+Crisis accommodation,Level 2 pay point 2,,47.92,1820.96,94690,59.90,71.88,95.84,119.80,83.86,107.82,53.91,55.11
+Crisis accommodation,Level 2 pay point 3,,49.16,1868.08,97140,61.45,73.74,98.32,122.90,86.03,110.61,55.30,56.53
+Crisis accommodation,Level 2 pay point 4,,50.25,1909.50,99294,62.81,75.38,100.50,125.63,87.94,113.06,56.53,57.79
+Crisis accommodation,Level 3 pay point 1,,53.43,2030.34,105578,66.79,80.15,106.86,133.57,93.50,120.22,60.11,61.44
+Crisis accommodation,Level 3 pay point 2,,54.58,2074.04,107850,68.22,81.87,109.16,136.45,95.52,122.81,61.40,62.77
+Crisis accommodation,Level 3 pay point 3,,55.85,2122.30,110360,69.81,83.78,111.70,139.63,97.74,125.66,62.83,64.23
+Crisis accommodation,Level 4 pay point 1,,58.37,2218.06,115339,72.96,87.56,116.74,145.92,102.15,131.33,65.67,67.13
+Crisis accommodation,Level 4 pay point 2,,59.66,2267.08,117888,74.57,89.49,119.32,149.15,104.41,134.23,67.12,68.61
+Crisis accommodation,Level 4 pay point 3,,60.95,2316.10,120437,76.19,91.43,121.90,152.38,106.66,137.14,68.57,70.09
+"Home care, disability care",Level 1 pay point 1,,27.28,1036.64,53905,34.10,40.92,54.56,68.20,47.74,61.38,30.69,31.37
+"Home care, disability care",Level 2 pay point 1,,28.86,1096.68,57027,36.08,43.29,57.72,72.15,50.51,64.94,32.47,33.19
+"Home care, disability care",Level 2 pay point 2,,29.06,1104.28,57423,36.32,43.59,58.12,72.65,50.86,65.38,32.69,33.42
+"Home care, disability care",Level 3 pay point 1,,29.45,1119.10,58193,36.81,44.18,58.90,73.63,51.54,66.26,33.13,33.87
+"Home care, disability care",Level 3 pay point 2,,30.36,1153.68,59991,37.95,45.54,60.72,75.90,53.13,68.31,34.16,34.91
+"Home care, disability care",Level 4 pay point 1,,32.13,1220.94,63489,40.16,48.20,64.26,80.33,56.23,72.29,36.15,36.95
+"Home care, disability care",Level 4 pay point 2,,32.77,1245.26,64754,40.96,49.16,65.54,81.93,57.35,73.73,36.87,37.69
+"Home care, disability care",Level 5 pay point 1,,34.45,1309.10,68073,43.06,51.68,68.90,86.13,60.29,77.51,38.76,39.62
+"Home care, disability care",Level 5 pay point 2,,35.81,1360.78,70761,44.76,53.72,71.62,89.53,62.67,80.57,40.29,41.18
+"Home care, aged care",Introductory,,32.61,1239.18,64437,40.76,48.92,65.22,81.53,57.07,73.37,36.69,37.50
+"Home care, aged care",Home carer,,34.42,1307.96,68014,43.03,51.63,68.84,86.05,60.24,77.45,38.72,39.58
+"Home care, aged care",Qualified,,36.23,1376.74,71590,45.29,54.35,72.46,90.57,63.40,81.52,40.76,41.66
+"Home care, aged care",Senior,,37.68,1431.84,74456,47.10,56.52,75.36,94.20,65.94,84.78,42.39,43.33
+"Home care, aged care",Specialist,,39.13,1486.94,77321,48.91,58.70,78.26,97.83,68.48,88.04,44.02,45.00
+"Home care, aged care",Team leader,,40.58,1542.04,80186,50.72,60.87,81.16,101.45,71.02,91.31,45.65,46.67

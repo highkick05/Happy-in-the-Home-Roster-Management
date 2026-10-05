@@ -47,6 +47,17 @@ import {
   syncInvoiceToXero,
   sendTestInvoiceToXero,
 } from "./services/xeroService";
+import {
+  initAwardRatesTable,
+  parseAwardCsv,
+  importAwardRates,
+  getAwardRates,
+  getAwardSummary,
+  getAwardSchedules,
+  getAwardRatesForDate,
+  getBusinessTimezone,
+  getBusinessDateString,
+} from "./services/awardRatesService";
 import fs from "fs";
 import morgan from "morgan";
 import winston from "winston";
@@ -894,6 +905,22 @@ try {
   try {
     db.exec("ALTER TABLE invoices ADD COLUMN xero_synced_at TEXT");
   } catch (e: any) {}
+
+  initAwardRatesTable(db);
+  try {
+    const existingAwardCount = (db.prepare("SELECT COUNT(*) as count FROM award_pay_rates").get() as any)?.count || 0;
+    if (existingAwardCount === 0) {
+      const csvPath = path.join(process.cwd(), 'src/data/schads_award_rates.csv');
+      if (fs.existsSync(csvPath)) {
+        const rawCsv = fs.readFileSync(csvPath, 'utf8');
+        const parsed = parseAwardCsv(rawCsv, { awardName: 'SCHADS Award' });
+        importAwardRates(db, parsed, { overwrite: true, awardCode: 'SCHADS Award' });
+        console.log(`[DEBUG] Auto-seeded ${parsed.length} SCHADS Award pay rates.`);
+      }
+    }
+  } catch (err) {
+    console.error("[DEBUG] Error auto-seeding SCHADS award rates:", err);
+  }
 
   try {
     db.exec("ALTER TABLE tasks ADD COLUMN assigned_to_id INTEGER");
@@ -5568,6 +5595,187 @@ function getUnreadChatCount(db: any, userId: number) {
       res.status(500).json({ error: e.message || "Failed to upload invoice to Xero." });
     }
   });
+
+  // --- Award Pay Rates APIs ---
+  app.get("/api/award-rates", authenticateToken, (req: any, res) => {
+    try {
+      const scheduleId = req.query.schedule_id ? parseInt(req.query.schedule_id as string) : undefined;
+      const awardName = req.query.award_name as string;
+      const stream = req.query.stream as string;
+      const search = req.query.search as string;
+      const rates = getAwardRates(db, { scheduleId, awardName, stream, search });
+      const summary = getAwardSummary(db);
+      res.json({ rates, summary });
+    } catch (e: any) {
+      console.error("[AWARD] Error fetching award rates:", e);
+      res.status(500).json({ error: e.message || "Failed to fetch award pay rates" });
+    }
+  });
+
+  app.get("/api/award-rates/schedules", authenticateToken, (req: any, res) => {
+    try {
+      const schedules = getAwardSchedules(db);
+      const timezone = getBusinessTimezone(db);
+      const currentDate = getBusinessDateString(db);
+      res.json({ schedules, timezone, currentDate });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to fetch schedules" });
+    }
+  });
+
+  app.get("/api/award-rates/for-date", authenticateToken, (req: any, res) => {
+    try {
+      const dateStr = (req.query.date as string) || getBusinessDateString(db);
+      const stream = req.query.stream as string;
+      const result = getAwardRatesForDate(db, dateStr, { stream });
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to fetch rates for date" });
+    }
+  });
+
+  app.get("/api/award-rates/summary", authenticateToken, (req: any, res) => {
+    try {
+      const summary = getAwardSummary(db);
+      res.json(summary);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to fetch summary" });
+    }
+  });
+
+  app.post("/api/award-rates/import", authenticateToken, requireAdmin, (req: any, res) => {
+    try {
+      const { csvText, rows, scheduleName, awardName, awardCode, effectiveFrom, effectiveDate, description, overwrite } = req.body;
+      const effDate = effectiveFrom || effectiveDate || new Date().toISOString().split('T')[0];
+      const schName = scheduleName || awardName || `SCHADS Award (${effDate.substring(0, 4)})`;
+
+      let parsedRows: any[] = [];
+      if (Array.isArray(rows) && rows.length > 0) {
+        parsedRows = rows;
+      } else if (csvText && typeof csvText === 'string') {
+        parsedRows = parseAwardCsv(csvText, { awardName: schName, awardCode, effectiveDate: effDate });
+      } else {
+        return res.status(400).json({ error: "Missing CSV data or rows array to import." });
+      }
+
+      if (parsedRows.length === 0) {
+        return res.status(400).json({ error: "No valid award rate rows found in the provided data." });
+      }
+
+      const result = importAwardRates(db, parsedRows, {
+        scheduleName: schName,
+        effectiveFrom: effDate,
+        awardCode: awardCode || 'MA000100',
+        description,
+        overwrite: overwrite === true || overwrite === 'true',
+      });
+
+      const summary = getAwardSummary(db);
+      res.json({
+        success: true,
+        message: `Successfully saved ${result.imported} rates and updated ${result.updated} rates under "${schName}" (Effective: ${effDate}).`,
+        result,
+        summary
+      });
+    } catch (e: any) {
+      console.error("[AWARD] Error importing award rates:", e);
+      res.status(500).json({ error: e.message || "Failed to import award pay rates" });
+    }
+  });
+
+  app.post("/api/award-rates/reset-default", authenticateToken, requireAdmin, (req: any, res) => {
+    try {
+      const csvPath = path.join(process.cwd(), 'src/data/schads_award_rates.csv');
+      if (!fs.existsSync(csvPath)) {
+        return res.status(404).json({ error: "Default SCHADS Award CSV file not found on server." });
+      }
+      const rawCsv = fs.readFileSync(csvPath, 'utf8');
+      const effDate = req.body?.effectiveFrom || '2024-07-01';
+      const schName = req.body?.scheduleName || 'SCHADS Award 2024–2025';
+      const parsed = parseAwardCsv(rawCsv, { awardName: schName, effectiveDate: effDate });
+      const result = importAwardRates(db, parsed, {
+        scheduleName: schName,
+        effectiveFrom: effDate,
+        awardCode: 'MA000100',
+        description: 'Standard Fair Work Modern Award SCHADS pay schedule.',
+        overwrite: true
+      });
+      const summary = getAwardSummary(db);
+      res.json({
+        success: true,
+        message: `Default SCHADS Award pay rates loaded successfully (${result.imported} rates imported under ${schName}).`,
+        result,
+        summary
+      });
+    } catch (e: any) {
+      console.error("[AWARD] Error resetting default SCHADS rates:", e);
+      res.status(500).json({ error: e.message || "Failed to reset SCHADS award rates" });
+    }
+  });
+
+  app.delete("/api/award-rates/schedules/:id", authenticateToken, requireAdmin, (req: any, res) => {
+    try {
+      const scheduleId = parseInt(req.params.id);
+      if (!scheduleId) return res.status(400).json({ error: "Invalid scheduleId" });
+      db.prepare("DELETE FROM award_pay_rates WHERE schedule_id = ?").run(scheduleId);
+      db.prepare("DELETE FROM award_schedules WHERE id = ?").run(scheduleId);
+      const summary = getAwardSummary(db);
+      res.json({ success: true, message: "Award schedule and all associated rates deleted.", summary });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to delete schedule" });
+    }
+  });
+
+  app.delete("/api/award-rates", authenticateToken, requireAdmin, (req: any, res) => {
+    try {
+      const { scheduleId, awardName, stream } = req.body || {};
+      if (scheduleId) {
+        db.prepare("DELETE FROM award_pay_rates WHERE schedule_id = ?").run(scheduleId);
+      } else if (awardName && stream) {
+        db.prepare("DELETE FROM award_pay_rates WHERE award_name = ? AND stream = ?").run(awardName, stream);
+      } else if (awardName) {
+        db.prepare("DELETE FROM award_pay_rates WHERE award_name = ?").run(awardName);
+      } else {
+        db.prepare("DELETE FROM award_pay_rates").run();
+      }
+      const summary = getAwardSummary(db);
+      res.json({ success: true, message: "Award rates cleared successfully.", summary });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to delete award rates" });
+    }
+  });
+
+  app.get("/api/award-rates/export", authenticateToken, (req: any, res) => {
+    try {
+      const scheduleId = req.query.schedule_id ? parseInt(req.query.schedule_id as string) : undefined;
+      const awardName = req.query.award_name as string;
+      const rates = getAwardRates(db, { scheduleId, awardName });
+      const formatted = rates.map(r => ({
+        'Stream': r.stream,
+        'Classification': r.classification,
+        'Code': r.pay_point_code || '',
+        'Hourly': r.hourly_rate,
+        'Weekly (38h)': r.weekly_rate || '',
+        'Annual': r.annual_rate || '',
+        'Casual': r.casual_rate || '',
+        'Saturday': r.saturday_rate || '',
+        'Sunday': r.sunday_rate || '',
+        'Public holiday': r.public_holiday_rate || '',
+        'Casual Saturday': r.casual_saturday_rate || '',
+        'Casual Sunday': r.casual_sunday_rate || '',
+        'Afternoon shift': r.afternoon_shift_rate || '',
+        'Night shift': r.night_shift_rate || '',
+      }));
+      const ws = xlsx.utils.json_to_sheet(formatted);
+      const csv = xlsx.utils.sheet_to_csv(ws);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${awardName || 'SCHADS'}_Award_Pay_Rates.csv"`);
+      res.send(csv);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to export award rates" });
+    }
+  });
+
   app.get("/api/emails/unread-count", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const stmt = db.prepare("SELECT value FROM settings WHERE key = ?");
