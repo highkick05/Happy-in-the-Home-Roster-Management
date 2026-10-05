@@ -1042,8 +1042,8 @@ export async function getXeroPayItems(db: any): Promise<{
 
     return {
       success: true,
-      tenantName: tenantName || 'Xero Organisation',
-      tenantId: tenantId || '',
+      tenantName: auth.tenantName || 'Xero Organisation',
+      tenantId: auth.tenantId || '',
       earningsRates,
       allowances: rawPayItems.AllowanceRates || rawPayItems.allowanceRates || [],
       deductions: rawPayItems.DeductionTypes || rawPayItems.deductionTypes || [],
