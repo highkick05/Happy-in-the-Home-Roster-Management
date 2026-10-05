@@ -21,7 +21,10 @@ import {
   Clock,
   Archive,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Stethoscope,
+  HeartHandshake,
+  Users
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -63,6 +66,91 @@ export interface AwardRate {
   night_shift_rate?: number;
   effective_date?: string;
   updated_at?: string;
+}
+
+export type AwardTabKey = 'SCHADS' | 'NURSES' | 'AGED_CARE' | 'HEALTH_PROF' | 'CUSTOM';
+
+export interface AwardTabConfig {
+  key: AwardTabKey;
+  code: string;
+  name: string;
+  shortName: string;
+  badge: string;
+  coverage: string;
+  description: string;
+  isPrimary?: boolean;
+}
+
+export const AWARD_TABS: AwardTabConfig[] = [
+  {
+    key: 'SCHADS',
+    code: 'MA000100',
+    name: 'SCHADS Award',
+    shortName: 'SCHADS',
+    badge: 'Focus: Active',
+    coverage: 'Social, Community, Home Care and Disability Services',
+    description: 'Social, Community, Home Care and Disability Services Industry Award 2010 [MA000100]',
+    isPrimary: true,
+  },
+  {
+    key: 'NURSES',
+    code: 'MA000034',
+    name: 'Nurses Award 2020',
+    shortName: 'Nurses Award',
+    badge: 'MA000034',
+    coverage: 'Registered Nurses, Enrolled Nurses & Assistants in Nursing (AIN)',
+    description: 'Nurses Award 2020 [MA000034] — Dedicated Module',
+  },
+  {
+    key: 'AGED_CARE',
+    code: 'MA000018',
+    name: 'Aged Care Award 2010',
+    shortName: 'Aged Care',
+    badge: 'MA000018',
+    coverage: 'Residential Care, Day Care & Home Care Direct Care Workers',
+    description: 'Aged Care Industry Award 2010 [MA000018] — Dedicated Module',
+  },
+  {
+    key: 'HEALTH_PROF',
+    code: 'MA000027',
+    name: 'Health Professionals',
+    shortName: 'Health Professionals',
+    badge: 'MA000027',
+    coverage: 'Physiotherapy, Occupational Therapy, Podiatry & Support Staff',
+    description: 'Health Professionals and Support Services Award 2020 [MA000027] — Dedicated Module',
+  },
+  {
+    key: 'CUSTOM',
+    code: 'CUSTOM',
+    name: 'Custom Awards & EBAs',
+    shortName: 'Custom / EBAs',
+    badge: 'EBA / Custom',
+    coverage: 'Enterprise Bargaining Agreements & Specialized Matrices',
+    description: 'Company-specific Enterprise Agreements and customized pay matrices',
+  }
+];
+
+export function isScheduleInTab(s: AwardSchedule, tabKey: AwardTabKey): boolean {
+  const code = (s.award_code || '').trim().toUpperCase();
+  const name = (s.name || '').toLowerCase();
+
+  if (tabKey === 'SCHADS') {
+    return code === 'MA000100' || name.includes('schads') || (!code && !name.includes('nurse') && !name.includes('aged') && !name.includes('health'));
+  }
+  if (tabKey === 'NURSES') {
+    return code === 'MA000034' || name.includes('nurse');
+  }
+  if (tabKey === 'AGED_CARE') {
+    return code === 'MA000018' || name.includes('aged care');
+  }
+  if (tabKey === 'HEALTH_PROF') {
+    return code === 'MA000027' || name.includes('health prof');
+  }
+  if (tabKey === 'CUSTOM') {
+    return !['MA000100', 'MA000034', 'MA000018', 'MA000027'].includes(code) &&
+      !name.includes('schads') && !name.includes('nurse') && !name.includes('aged care') && !name.includes('health prof');
+  }
+  return true;
 }
 
 const MODERN_AWARDS_PRESETS = [
@@ -110,12 +198,12 @@ const MODERN_AWARDS_PRESETS = [
 
 export default function AwardRatesSettings() {
   const { token, settings } = useAuth();
+  const [activeAwardTab, setActiveAwardTab] = useState<AwardTabKey>('SCHADS');
   const [schedules, setSchedules] = useState<AwardSchedule[]>([]);
   const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
   const [rates, setRates] = useState<AwardRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStream, setSelectedStream] = useState<string>('ALL');
-  const [selectedAwardFilter, setSelectedAwardFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [configuredTimezone, setConfiguredTimezone] = useState<string>(settings?.timezone || 'Australia/Perth');
@@ -128,7 +216,7 @@ export default function AwardRatesSettings() {
   const [importScheduleName, setImportScheduleName] = useState('SCHADS Award 2025–2026');
   const [importEffectiveFrom, setImportEffectiveFrom] = useState('2025-07-01');
   const [importAwardCode, setImportAwardCode] = useState('MA000100');
-  const [importDescription, setImportDescription] = useState('Fair Work Commission Annual Wage Review');
+  const [importDescription, setImportDescription] = useState('Fair Work Commission Annual Wage Review - SCHADS Award');
   const [overwriteExisting, setOverwriteExisting] = useState(true);
   const [previewRows, setPreviewRows] = useState<any[]>([]);
   const [rawCsvText, setRawCsvText] = useState('');
@@ -145,7 +233,7 @@ export default function AwardRatesSettings() {
     count?: number;
   } | null>(null);
 
-  const fetchSchedules = async (targetScheduleId?: number) => {
+  const fetchSchedules = async (targetScheduleId?: number, tabKeyOverride?: AwardTabKey) => {
     try {
       const res = await fetch('/api/award-rates/schedules', {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
@@ -157,13 +245,17 @@ export default function AwardRatesSettings() {
         if (data.timezone) setConfiguredTimezone(data.timezone);
         if (data.currentDate) setCurrentDateInTz(data.currentDate);
 
-        if (schList.length > 0) {
+        const currentTabKey = tabKeyOverride || activeAwardTab;
+        const currentTabSchedules = schList.filter(s => isScheduleInTab(s, currentTabKey));
+
+        if (currentTabSchedules.length > 0) {
           const activeOrFirst = targetScheduleId 
-            ? schList.find(s => s.id === targetScheduleId) || schList[0]
-            : schList.find(s => s.status === 'ACTIVE') || schList[0];
+            ? currentTabSchedules.find(s => s.id === targetScheduleId) || currentTabSchedules[0]
+            : currentTabSchedules.find(s => s.status === 'ACTIVE') || currentTabSchedules[0];
           setSelectedScheduleId(activeOrFirst.id);
           fetchRatesForSchedule(activeOrFirst.id);
         } else {
+          setSelectedScheduleId(null);
           setRates([]);
           setLoading(false);
         }
@@ -383,16 +475,43 @@ export default function AwardRatesSettings() {
     }
   };
 
+  const activeTabConfig = AWARD_TABS.find(t => t.key === activeAwardTab) || AWARD_TABS[0];
+
+  const handleTabSwitch = (newTab: AwardTabKey) => {
+    setActiveAwardTab(newTab);
+    setSelectedStream('ALL');
+    setSearchQuery('');
+    setTestResult(null);
+
+    const newTabSchedules = schedules.filter(s => isScheduleInTab(s, newTab));
+    if (newTabSchedules.length > 0) {
+      const activeOrFirst = newTabSchedules.find(s => s.status === 'ACTIVE') || newTabSchedules[0];
+      setSelectedScheduleId(activeOrFirst.id);
+      fetchRatesForSchedule(activeOrFirst.id);
+    } else {
+      setSelectedScheduleId(null);
+      setRates([]);
+    }
+  };
+
+  const handleOpenUploadModalForTab = (tabKey: AwardTabKey) => {
+    handlePresetChange(tabKey);
+    fileInputRef.current?.click();
+  };
+
   const handleTestDateLookup = async () => {
     try {
-      const res = await fetch(`/api/award-rates/for-date?date=${testDate}`, {
+      const codeParam = activeTabConfig.code && activeTabConfig.code !== 'CUSTOM'
+        ? `&award_code=${activeTabConfig.code}`
+        : '';
+      const res = await fetch(`/api/award-rates/for-date?date=${testDate}${codeParam}`, {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
       });
       if (res.ok) {
         const data = await res.json();
         setTestResult({
           date: data.date || testDate,
-          scheduleName: data.schedule?.name || 'No schedule found for this date',
+          scheduleName: data.schedule?.name || `No ${activeTabConfig.shortName} schedule found for this date`,
           effectiveFrom: data.schedule?.effective_from,
           timezone: data.timezone || configuredTimezone,
           count: Array.isArray(data.rates) ? data.rates.length : 0
@@ -405,28 +524,9 @@ export default function AwardRatesSettings() {
 
   const currentSchedule = schedules.find(s => s.id === selectedScheduleId);
 
-  const distinctAwards = React.useMemo(() => {
-    const map = new Map<string, { code: string; name: string; count: number }>();
-    schedules.forEach(s => {
-      const code = s.award_code || 'MA000100';
-      if (!map.has(code)) {
-        let displayName = s.name;
-        if (code === 'MA000100') displayName = 'SCHADS Award (MA000100)';
-        else if (code === 'MA000034') displayName = 'Nurses Award 2020 (MA000034)';
-        else if (code === 'MA000018') displayName = 'Aged Care Award 2010 (MA000018)';
-        else if (code === 'MA000027') displayName = 'Health Professionals (MA000027)';
-        map.set(code, { code, name: displayName, count: 0 });
-      }
-      const item = map.get(code)!;
-      item.count += 1;
-    });
-    return Array.from(map.values());
-  }, [schedules]);
-
   const displayedSchedules = React.useMemo(() => {
-    if (selectedAwardFilter === 'ALL') return schedules;
-    return schedules.filter(s => s.award_code === selectedAwardFilter);
-  }, [schedules, selectedAwardFilter]);
+    return schedules.filter(s => isScheduleInTab(s, activeAwardTab));
+  }, [schedules, activeAwardTab]);
 
   // Distinct streams from current schedule rates
   const streamList = React.useMemo(() => {
@@ -452,28 +552,86 @@ export default function AwardRatesSettings() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header Banner */}
+      {/* Sub-Tabs Bar: Dedicated Sections For Each Award */}
+      <div className="bg-brand-bg border border-border-subtle rounded-xl p-2 shadow-sm">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+          {AWARD_TABS.map((tab) => {
+            const isActive = activeAwardTab === tab.key;
+            const count = schedules.filter(s => isScheduleInTab(s, tab.key)).length;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => handleTabSwitch(tab.key)}
+                className={`px-3.5 py-2.5 rounded-lg text-xs font-semibold flex items-center gap-2.5 transition-all whitespace-nowrap border text-left cursor-pointer ${
+                  isActive
+                    ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/40 shadow-sm ring-1 ring-brand-teal/30'
+                    : 'bg-brand-navy/60 text-[#8B949E] hover:text-white hover:bg-brand-navy border-border-subtle'
+                }`}
+              >
+                {tab.key === 'SCHADS' && <Award className={`w-4 h-4 shrink-0 ${isActive ? 'text-brand-teal' : 'text-zinc-400'}`} />}
+                {tab.key === 'NURSES' && <Stethoscope className={`w-4 h-4 shrink-0 ${isActive ? 'text-brand-teal' : 'text-zinc-400'}`} />}
+                {tab.key === 'AGED_CARE' && <HeartHandshake className={`w-4 h-4 shrink-0 ${isActive ? 'text-brand-teal' : 'text-zinc-400'}`} />}
+                {tab.key === 'HEALTH_PROF' && <Users className={`w-4 h-4 shrink-0 ${isActive ? 'text-brand-teal' : 'text-zinc-400'}`} />}
+                {tab.key === 'CUSTOM' && <Layers className={`w-4 h-4 shrink-0 ${isActive ? 'text-brand-teal' : 'text-zinc-400'}`} />}
+
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span>{tab.name}</span>
+                    {tab.isPrimary && (
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-brand-teal text-brand-navy">
+                        Primary Focus
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-[10px] block ${isActive ? 'text-brand-teal/80' : 'text-zinc-500'}`}>
+                    {tab.code} • {count} {count === 1 ? 'version' : 'versions'}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Header Banner - Tailored Specifically to Current Award */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-brand-bg border border-border-subtle p-5 rounded-xl shadow-sm">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-brand-teal/10 text-brand-teal rounded-lg border border-brand-teal/20">
-              <Award className="w-5 h-5" />
+            <div className="p-2.5 bg-brand-teal/10 text-brand-teal rounded-lg border border-brand-teal/20">
+              {activeAwardTab === 'SCHADS' && <Award className="w-5 h-5" />}
+              {activeAwardTab === 'NURSES' && <Stethoscope className="w-5 h-5" />}
+              {activeAwardTab === 'AGED_CARE' && <HeartHandshake className="w-5 h-5" />}
+              {activeAwardTab === 'HEALTH_PROF' && <Users className="w-5 h-5" />}
+              {activeAwardTab === 'CUSTOM' && <Layers className="w-5 h-5" />}
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
-                Modern Award Pay Rates & Version Archiving
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  {currentSchedule?.award_code ? `${currentSchedule.award_code} • ${currentSchedule.name}` : 'Multi-Award Support'}
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg font-bold text-white tracking-wide">
+                  {activeTabConfig.name} Pay Rates &amp; Schedules
+                </h2>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                  {activeTabConfig.code}
                 </span>
-              </h2>
+                {activeTabConfig.isPrimary && (
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-brand-teal/15 text-brand-teal border border-brand-teal/30">
+                    Active Focus
+                  </span>
+                )}
+                {currentSchedule && (
+                  <span className="text-xs text-zinc-400 font-normal">
+                    Viewing: <strong className="text-white">{currentSchedule.name}</strong>
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-[#8B949E] mt-0.5">
-                Version-controlled Modern Awards with automatic effective-date transitions. Supports SCHADS (MA000100), Nurses Award (MA000034), Aged Care, and custom awards with seamless financial year cutoffs.
+                {activeTabConfig.description}. {activeTabConfig.coverage}.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Global Actions */}
+        {/* Award-Specific Actions */}
         <div className="flex flex-wrap items-center gap-2">
           <input 
             type="file" 
@@ -483,28 +641,27 @@ export default function AwardRatesSettings() {
             className="hidden" 
           />
 
-          <button
-            type="button"
-            onClick={handleResetDefaultSchads}
-            disabled={isImporting}
-            className="px-3.5 py-2 bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50"
-            title="Load the standard 2024–2025 SCHADS rates spreadsheet"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isImporting ? 'animate-spin' : ''}`} />
-            <span>Load Provided SCHADS CSV</span>
-          </button>
+          {activeAwardTab === 'SCHADS' && (
+            <button
+              type="button"
+              onClick={handleResetDefaultSchads}
+              disabled={isImporting}
+              className="px-3.5 py-2 bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+              title="Load the standard Fair Work SCHADS rates spreadsheet (2024–2025)"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isImporting ? 'animate-spin' : ''}`} />
+              <span>Load Default SCHADS CSV</span>
+            </button>
+          )}
 
           <button
             type="button"
-            onClick={() => {
-              handlePresetChange(selectedPresetKey || 'SCHADS');
-              fileInputRef.current?.click();
-            }}
-            className="px-3.5 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-md"
-            title="Upload CSV for SCHADS, Nurses Award, or custom award"
+            onClick={() => handleOpenUploadModalForTab(activeAwardTab)}
+            className="px-3.5 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-md cursor-pointer"
+            title={`Upload CSV schedule specifically for ${activeTabConfig.name}`}
           >
             <Upload className="w-3.5 h-3.5" />
-            <span>Upload New Award Schedule</span>
+            <span>Upload {activeTabConfig.shortName} Schedule</span>
           </button>
 
           {currentSchedule && (
@@ -512,8 +669,8 @@ export default function AwardRatesSettings() {
               <button
                 type="button"
                 onClick={handleExportCsv}
-                className="px-3 py-2 bg-brand-navy hover:bg-zinc-800 text-[#8B949E] hover:text-white border border-border-subtle rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
-                title="Download current schedule rates as CSV"
+                className="px-3 py-2 bg-brand-navy hover:bg-zinc-800 text-[#8B949E] hover:text-white border border-border-subtle rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                title={`Download current ${activeTabConfig.shortName} rates as CSV`}
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Export CSV</span>
@@ -522,8 +679,8 @@ export default function AwardRatesSettings() {
               <button
                 type="button"
                 onClick={() => handleDeleteSchedule(currentSchedule)}
-                className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
-                title="Delete this award schedule and all its classifications"
+                className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                title={`Delete this ${activeTabConfig.shortName} schedule and all its classifications`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete Schedule</span>
@@ -551,10 +708,10 @@ export default function AwardRatesSettings() {
           <div>
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <Layers className="w-4 h-4 text-brand-teal" />
-              Award Schedule Versions & Effective Dates
+              {activeTabConfig.shortName} Schedule Versions &amp; Effective Dates
             </h3>
             <p className="text-xs text-[#8B949E] mt-0.5">
-              Select an award schedule below to inspect its classifications, or upload a new financial year update.
+              Select an award schedule below to inspect its classifications, or upload a new financial year update for {activeTabConfig.name}.
             </p>
           </div>
 
@@ -566,12 +723,12 @@ export default function AwardRatesSettings() {
               value={testDate}
               onChange={(e) => setTestDate(e.target.value)}
               className="bg-transparent text-xs text-white border-0 focus:ring-0 p-0"
-              title="Verify which schedule applies to any shift date"
+              title={`Verify which ${activeTabConfig.shortName} schedule applies to any shift date`}
             />
             <button
               type="button"
               onClick={handleTestDateLookup}
-              className="px-2.5 py-1 bg-brand-teal/20 hover:bg-brand-teal/30 text-brand-teal text-[11px] font-semibold rounded transition-colors"
+              className="px-2.5 py-1 bg-brand-teal/20 hover:bg-brand-teal/30 text-brand-teal text-[11px] font-semibold rounded transition-colors cursor-pointer"
             >
               Test Shift Date
             </button>
@@ -583,7 +740,7 @@ export default function AwardRatesSettings() {
           <div className="flex items-center gap-2 text-[#E6EDF3]">
             <Clock className="w-4 h-4 text-brand-teal shrink-0" />
             <span>
-              <strong>Localization & Timezone:</strong> Aligned with <span className="text-[#8B949E]">Settings &gt; General &gt; Localization &amp; System:</span> <strong className="text-brand-teal font-mono">{configuredTimezone}</strong>
+              <strong>Localization &amp; Timezone:</strong> Aligned with <span className="text-[#8B949E]">Settings &gt; General &gt; Localization &amp; System:</span> <strong className="text-brand-teal font-mono">{configuredTimezone}</strong>
               {currentDateInTz && <span className="text-[#8B949E] ml-2">(Current Date: <strong className="text-white font-mono">{currentDateInTz}</strong>)</span>}
             </span>
           </div>
@@ -600,72 +757,82 @@ export default function AwardRatesSettings() {
                 For shift on <strong>{testResult.date}</strong> in <strong>{testResult.timezone || configuredTimezone}</strong>: System applies <strong>"{testResult.scheduleName}"</strong> {testResult.effectiveFrom ? `(Effective: ${testResult.effectiveFrom})` : ''} ({testResult.count} classifications).
               </span>
             </span>
-            <button onClick={() => setTestResult(null)} className="text-zinc-400 hover:text-white ml-2">
+            <button onClick={() => setTestResult(null)} className="text-zinc-400 hover:text-white ml-2 cursor-pointer">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
-        {/* Award Selection Filter Bar */}
-        {distinctAwards.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
-            <span className="text-xs font-semibold text-[#8B949E] mr-1">Award:</span>
-            <button
-              onClick={() => setSelectedAwardFilter('ALL')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                selectedAwardFilter === 'ALL'
-                  ? 'bg-brand-teal text-brand-navy shadow-sm'
-                  : 'bg-brand-navy text-[#8B949E] hover:text-white border border-border-subtle'
-              }`}
-            >
-              All Awards ({schedules.length})
-            </button>
-            {distinctAwards.map(a => (
-              <button
-                key={a.code}
-                onClick={() => setSelectedAwardFilter(a.code)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                  selectedAwardFilter === a.code
-                    ? 'bg-brand-teal text-brand-navy shadow-sm'
-                    : 'bg-brand-navy text-[#8B949E] hover:text-white border border-border-subtle'
-                }`}
-              >
-                {a.name} ({a.count})
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* Schedule Cards Grid */}
         {displayedSchedules.length === 0 ? (
-          <div className="text-center py-10 bg-brand-navy/40 border border-dashed border-border-subtle rounded-xl p-8">
-            <Award className="w-10 h-10 text-zinc-500 mx-auto mb-3 opacity-60" />
-            <h4 className="text-sm font-semibold text-white">No Award Schedules Uploaded Yet</h4>
-            <p className="text-xs text-[#8B949E] mt-1 max-w-md mx-auto">
-              You haven't uploaded or activated any pay rate schedules for this award yet. You can upload any Modern Award spreadsheet (SCHADS, Nurses Award, etc.) or load the default SCHADS rates.
-            </p>
-            <div className="flex items-center justify-center gap-3 mt-4">
-              <button
-                type="button"
-                onClick={handleResetDefaultSchads}
-                className="px-3 py-1.5 bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 rounded-lg text-xs font-semibold flex items-center gap-1.5"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Load Default SCHADS Award</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  handlePresetChange(selectedPresetKey || 'SCHADS');
-                  fileInputRef.current?.click();
-                }}
-                className="px-3.5 py-1.5 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy rounded-lg text-xs font-semibold flex items-center gap-1.5"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Upload Award Schedule</span>
-              </button>
+          activeAwardTab === 'SCHADS' ? (
+            <div className="text-center py-10 bg-brand-navy/40 border border-dashed border-border-subtle rounded-xl p-8">
+              <Award className="w-10 h-10 text-zinc-500 mx-auto mb-3 opacity-60" />
+              <h4 className="text-sm font-semibold text-white">No SCHADS Award Schedules Uploaded Yet</h4>
+              <p className="text-xs text-[#8B949E] mt-1 max-w-md mx-auto">
+                You haven't uploaded or activated any pay rate schedules for the SCHADS Award (MA000100) yet. You can load the official standard SCHADS rates or upload a new financial year CSV update.
+              </p>
+              <div className="flex items-center justify-center gap-3 mt-4">
+                <button
+                  type="button"
+                  onClick={handleResetDefaultSchads}
+                  className="px-3.5 py-2 bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Load Default SCHADS Award</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenUploadModalForTab('SCHADS')}
+                  className="px-3.5 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload SCHADS Schedule</span>
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="text-center py-10 bg-brand-navy/40 border border-dashed border-brand-teal/30 rounded-xl p-8 space-y-4">
+              <div className="p-3 bg-brand-teal/10 rounded-full w-14 h-14 flex items-center justify-center mx-auto text-brand-teal border border-brand-teal/20">
+                {activeAwardTab === 'NURSES' && <Stethoscope className="w-7 h-7" />}
+                {activeAwardTab === 'AGED_CARE' && <HeartHandshake className="w-7 h-7" />}
+                {activeAwardTab === 'HEALTH_PROF' && <Users className="w-7 h-7" />}
+                {activeAwardTab === 'CUSTOM' && <Layers className="w-7 h-7" />}
+              </div>
+              <div>
+                <div className="flex items-center justify-center gap-2">
+                  <h4 className="text-sm font-bold text-white">{activeTabConfig.name} ({activeTabConfig.code})</h4>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-brand-teal/15 text-brand-teal border border-brand-teal/30">
+                    Dedicated Sub-Tab
+                  </span>
+                </div>
+                <p className="text-xs text-[#8B949E] mt-1.5 max-w-lg mx-auto">
+                  This section is completely separated specifically for <strong>{activeTabConfig.name}</strong> pay rates and schedules. 
+                  Current development focus is on perfecting the <strong>SCHADS Award</strong>, but you can already upload and manage versioned schedules for {activeTabConfig.shortName} independently without affecting SCHADS.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleOpenUploadModalForTab(activeAwardTab)}
+                  className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy font-semibold text-xs rounded-lg inline-flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload {activeTabConfig.shortName} Schedule (CSV)</span>
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-white/5 max-w-md mx-auto text-[11px] text-zinc-400 flex flex-wrap justify-center gap-2">
+                <span className="px-2 py-1 rounded bg-black/30 border border-white/10 font-mono text-[10px]">
+                  Award Code: {activeTabConfig.code}
+                </span>
+                <span className="px-2 py-1 rounded bg-black/30 border border-white/10 text-[10px]">
+                  {activeTabConfig.coverage}
+                </span>
+              </div>
+            </div>
+          )
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {displayedSchedules.map((sch) => {
@@ -927,15 +1094,15 @@ export default function AwardRatesSettings() {
               <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Upload className="w-4 h-4 text-brand-teal" />
-                  Schedule & Import New Award Pay Rates
+                  Schedule &amp; Import {importAwardName || activeTabConfig.name} ({importAwardCode || activeTabConfig.code})
                 </h3>
                 <p className="text-xs text-[#8B949E] mt-0.5">
-                  Detected {previewRows.length} classifications in CSV file. Set the effective date below to schedule when these rates take effect.
+                  Detected {previewRows.length} classifications in CSV file. Set the effective date below to schedule when these rates take effect for {importAwardName || activeTabConfig.name}.
                 </p>
               </div>
               <button
                 onClick={() => setShowImportModal(false)}
-                className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
