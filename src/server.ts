@@ -5495,11 +5495,10 @@ function getUnreadChatCount(db: any, userId: number) {
       // - 'accounting.contacts' for managing invoice contacts
       // - 'accounting.settings.read' for reading organization info and chart of accounts
       // - 'accounting.attachments' for uploading PDF invoice copies
-      // - 'payroll.payitems' for reading & syncing payroll pay items and earnings rates
-      // - 'payroll.settings.read' for reading payroll settings
+      // - 'payroll.settings' and 'payroll.settings.read' for reading & syncing payroll pay items and earnings rates
       // - 'offline_access' for receiving refresh tokens
       const requestedScope = (req.query.scope as string) ||
-        'openid profile email accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.payitems payroll.settings.read offline_access';
+        'openid profile email accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read offline_access';
 
       const params = new URLSearchParams({
         response_type: 'code',

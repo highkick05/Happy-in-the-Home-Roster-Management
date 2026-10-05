@@ -140,9 +140,13 @@ export async function getValidAccessToken(db: any, forcedSettings?: XeroSettings
 
     const authHeader = 'Basic ' + Buffer.from(`${settings.xero_client_id}:${settings.xero_client_secret}`).toString('base64');
     
-    // Attempt token request with required scopes (support both granular 2026+ and legacy broad scopes)
+    // Attempt token request with required scopes (support both granular 2026+ and legacy broad scopes).
+    // In Xero Custom Connections, omitting the scope parameter automatically requests all scopes approved for the connection in developer.xero.com.
     const scopesToTry = [
-      'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.payitems payroll.settings.read',
+      '', // Omitting scope gets all approved scopes configured on the Custom Connection
+      'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read',
+      'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings.read',
+      'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings',
       'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments',
       'accounting.invoices accounting.contacts accounting.attachments',
       'accounting.invoices accounting.contacts',
@@ -158,16 +162,20 @@ export async function getValidAccessToken(db: any, forcedSettings?: XeroSettings
     let lastErrDetail = '';
 
     for (const scopeStr of scopesToTry) {
+      const bodyParams: Record<string, string> = {
+        grant_type: 'client_credentials',
+      };
+      if (scopeStr) {
+        bodyParams.scope = scopeStr;
+      }
+
       tokenRes = await fetch('https://identity.xero.com/connect/token', {
         method: 'POST',
         headers: {
           'Authorization': authHeader,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({
-          grant_type: 'client_credentials',
-          scope: scopeStr,
-        }).toString(),
+        body: new URLSearchParams(bodyParams).toString(),
       });
 
       tokenData = await tokenRes.json().catch(() => ({}));
@@ -945,19 +953,24 @@ export async function getXeroPayItems(db: any): Promise<{
   needsReconnect?: boolean;
 }> {
   try {
-    const { accessToken, tenantId, tenantName, settings } = await getValidAccessToken(db);
+    let auth = await getValidAccessToken(db);
 
-    if (!accessToken) {
+    if (!auth.accessToken) {
       throw new Error('No valid Xero access token available. Please connect Xero in Settings.');
     }
 
-    const headers: Record<string, string> = {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/json'
+    const buildHeaders = (token: string, tId: string) => {
+      const h: Record<string, string> = {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      };
+      if (tId) {
+        h['Xero-Tenant-Id'] = tId;
+      }
+      return h;
     };
-    if (tenantId) {
-      headers['Xero-Tenant-Id'] = tenantId;
-    }
+
+    let headers = buildHeaders(auth.accessToken, auth.tenantId);
 
     // Try AU Payroll PayItems endpoint first (1.0)
     let res = await fetch('https://api.xero.com/payroll.xro/1.0/PayItems', {
@@ -971,17 +984,37 @@ export async function getXeroPayItems(db: any): Promise<{
       });
     }
 
+    // If 401 or 403, cached token might not have payroll.settings scope. Force refresh token and retry once!
+    if (res.status === 401 || res.status === 403) {
+      try {
+        saveXeroSetting(db, 'xero_access_token', '');
+        saveXeroSetting(db, 'xero_token_expires_at', 0);
+        const forcedSettings = getXeroSettings(db);
+        forcedSettings.xero_access_token = '';
+        forcedSettings.xero_token_expires_at = 0;
+        auth = await getValidAccessToken(db, forcedSettings);
+        headers = buildHeaders(auth.accessToken, auth.tenantId);
+
+        res = await fetch('https://api.xero.com/payroll.xro/1.0/PayItems', { headers });
+        if (res.status === 404) {
+          res = await fetch('https://api.xero.com/payroll.xro/2.0/PayItems', { headers });
+        }
+      } catch (retryErr) {
+        console.warn('[XERO] Retry with fresh token error:', retryErr);
+      }
+    }
+
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
       const errMsg = errBody.Detail || errBody.Message || errBody.error || res.statusText;
       if (res.status === 401 || res.status === 403 || String(errMsg).toLowerCase().includes('scope') || String(errMsg).toLowerCase().includes('unauthorized')) {
         return {
           success: false,
-          tenantName: tenantName || 'Xero Organisation',
-          tenantId: tenantId || '',
+          tenantName: auth.tenantName || 'Xero Organisation',
+          tenantId: auth.tenantId || '',
           earningsRates: [],
           needsReconnect: true,
-          error: 'Xero Payroll access permission (payroll.payitems) is required. Please disconnect and reconnect Xero in Settings to authorize Payroll access.'
+          error: "Xero Payroll permission (payroll.settings or payroll.settings.read) is required. In your Xero Developer Portal (developer.xero.com > Configuration > Scopes), check 'payroll.settings' or 'payroll.settings.read', click Save, and then click Sync from Xero again."
         };
       }
       throw new Error(`Xero Payroll API error (${res.status}): ${errMsg}`);

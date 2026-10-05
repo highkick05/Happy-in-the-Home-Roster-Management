@@ -588,7 +588,7 @@ export default function PayItemsSettings() {
                     )}
                   </>
                 ) : xeroData.needsReconnect ? (
-                  'Your Xero account is connected for Invoicing, but requires the Payroll scope (payroll.payitems). Reconnect Xero in Settings to grant payroll permissions.'
+                  'Your Xero account requires the Payroll scope. In developer.xero.com under Scopes, check "payroll.settings" (or "payroll.settings.read"), click Save, and click Sync from Xero.'
                 ) : (
                   'Connect to Xero to export your live Xero Pay Items into the portal database and keep them synchronized automatically.'
                 )}
