@@ -278,9 +278,9 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-xl w-full max-w-2xl flex flex-col h-[90vh]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-2xl w-[96vw] max-w-5xl xl:max-w-6xl flex flex-col max-h-[92vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
-        <div className="flex justify-between items-center px-5 py-4 border-b border-white/[0.08] shrink-0 bg-[#09090b]">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-white/[0.08] shrink-0 bg-[#09090b]">
           <div>
             <h2 className="text-lg font-semibold text-white tracking-tight">{staff ? 'Edit Staff Details' : 'Add New Staff'}</h2>
             <p className="text-[12px] text-zinc-400 mt-0.5">
@@ -293,7 +293,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         </div>
 
         {/* Tab Navigation Bar */}
-        <div className="flex items-center gap-1.5 px-4 py-2 border-b border-white/[0.08] bg-[#0c0d10] overflow-x-auto shrink-0 custom-scrollbar">
+        <div className="flex items-center gap-2 px-6 py-2.5 border-b border-white/[0.08] bg-[#0c0d10] overflow-x-auto shrink-0 custom-scrollbar">
           {[
             { id: 'general', label: 'Profile & Role', icon: User },
             { id: 'personal', label: 'Contact & Personal', icon: Phone },
@@ -312,7 +312,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-[13px] font-medium transition-all whitespace-nowrap cursor-pointer ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-all whitespace-nowrap cursor-pointer ${
                   isActive
                     ? 'bg-brand-blue text-white shadow-sm shadow-brand-blue/20'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.05]'
@@ -337,107 +337,119 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         </div>
 
         {/* Modal Body / Tab Content */}
-        <div className="p-5 flex-1 overflow-y-auto custom-scrollbar">
+        <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
           <form id="staff-form" onSubmit={handleSubmit} className="space-y-5">
             {/* TAB 1: Profile & Role */}
             {activeTab === 'general' && (
-              <div className="space-y-5">
-                <AvatarSelector
-                  value={formData.avatarUrl}
-                  onChange={(url) => setFormData((prev: any) => ({ ...prev, avatarUrl: url }))}
-                  token={token}
-                  label="Profile Avatar"
-                />
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Avatar & Roles */}
+                <div className="lg:col-span-5 space-y-4">
+                  <AvatarSelector
+                    value={formData.avatarUrl}
+                    onChange={(url) => setFormData((prev: any) => ({ ...prev, avatarUrl: url }))}
+                    token={token}
+                    label="Profile Avatar"
+                  />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Account Role *</label>
-                    <select
-                      name="role"
-                      value={formData.role}
-                      onChange={handleChange}
-                      className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
-                    >
-                      <option value="STAFF">Staff</option>
-                      <option value="ADMIN">Admin</option>
-                    </select>
-                  </div>
+                  <div className="p-4 bg-black/40 border border-white/[0.08] rounded-xl space-y-3.5">
+                    <div>
+                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Account Role *</label>
+                      <select
+                        name="role"
+                        value={formData.role}
+                        onChange={handleChange}
+                        className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
+                      >
+                        <option value="STAFF">Staff</option>
+                        <option value="ADMIN">Admin</option>
+                      </select>
+                    </div>
 
-                  <div className="md:col-span-2">
-                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Primary Position</label>
-                    <select
-                      name="primaryPosition"
-                      value={formData.primaryPosition}
-                      onChange={handleChange}
-                      className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
-                    >
-                      <option value="">Select a position...</option>
-                      {positions.map(p => (
-                        <option key={p.id} value={p.name}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                    <div>
+                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Primary Position</label>
+                      <select
+                        name="primaryPosition"
+                        value={formData.primaryPosition}
+                        onChange={handleChange}
+                        className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
+                      >
+                        <option value="">Select a position...</option>
+                        {positions.map(p => (
+                          <option key={p.id} value={p.name}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                  <div className="md:col-span-2">
-                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Additional Positions</label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      {positions.filter(p => p.name !== formData.primaryPosition).map(p => (
-                        <label key={p.id} className="flex items-center space-x-2 text-[12px] text-zinc-300">
-                          <input 
-                            type="checkbox" 
-                            checked={(formData.additionalPositions || []).includes(p.name)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFormData(prev => ({ ...prev, additionalPositions: [...(prev.additionalPositions || []), p.name] }));
-                              } else {
-                                setFormData(prev => ({ ...prev, additionalPositions: (prev.additionalPositions || []).filter(name => name !== p.name) }));
-                              }
-                            }}
-                            className="rounded bg-black/40 border-white/[0.08] text-brand-blue focus:ring-brand-blue w-3.5 h-3.5"
-                          />
-                          <span>{p.name}</span>
+                    <div>
+                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Additional Positions</label>
+                      <div className="grid grid-cols-2 gap-2 mt-1">
+                        {positions.filter(p => p.name !== formData.primaryPosition).map(p => (
+                          <label key={p.id} className="flex items-center space-x-2 text-[12px] text-zinc-300">
+                            <input 
+                              type="checkbox" 
+                              checked={(formData.additionalPositions || []).includes(p.name)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData(prev => ({ ...prev, additionalPositions: [...(prev.additionalPositions || []), p.name] }));
+                                } else {
+                                  setFormData(prev => ({ ...prev, additionalPositions: (prev.additionalPositions || []).filter(name => name !== p.name) }));
+                                }
+                              }}
+                              className="rounded bg-[#121214] border-white/[0.08] text-brand-blue focus:ring-brand-blue w-3.5 h-3.5"
+                            />
+                            <span className="truncate">{p.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {formData.role === 'STAFF' && (
+                      <div className="flex items-center pt-2 border-t border-white/[0.06]">
+                        <input
+                          type="checkbox"
+                          id="canSwitchAdmin"
+                          name="canSwitchAdmin"
+                          checked={formData.canSwitchAdmin}
+                          onChange={(e) => setFormData(prev => ({ ...prev, canSwitchAdmin: e.target.checked }))}
+                          className="w-4 h-4 rounded border-white/[0.08] bg-[#121214] text-brand-blue focus:ring-brand-blue"
+                        />
+                        <label htmlFor="canSwitchAdmin" className="ml-2 block text-[13px] text-zinc-300">
+                          Allow switching to Admin portal
                         </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {formData.role === 'STAFF' && (
-                    <div className="md:col-span-2 flex items-center pt-1">
-                      <input
-                        type="checkbox"
-                        id="canSwitchAdmin"
-                        name="canSwitchAdmin"
-                        checked={formData.canSwitchAdmin}
-                        onChange={(e) => setFormData(prev => ({ ...prev, canSwitchAdmin: e.target.checked }))}
-                        className="w-4 h-4 rounded border-white/[0.08] bg-black/40 text-brand-blue focus:ring-brand-blue"
-                      />
-                      <label htmlFor="canSwitchAdmin" className="ml-2 block text-[13px] text-zinc-300">
-                        Allow switching to Admin portal
-                      </label>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">First Name *</label>
-                    <input required name="firstName" value={formData.firstName} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
-                  </div>
-                  <div>
-                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Last Name *</label>
-                    <input required name="lastName" value={formData.lastName} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Email *</label>
-                    <input type="email" required name="email" value={formData.email} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
-                  </div>
-                  {!staff && (
-                    <div>
-                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Password *</label>
-                      <input type="password" required name="password" value={formData.password} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                {/* Right Column: Name, Email & Password */}
+                <div className="lg:col-span-7 space-y-4">
+                  <div className="p-5 bg-black/40 border border-white/[0.08] rounded-xl space-y-4">
+                    <h3 className="text-sm font-semibold text-white tracking-tight pb-1 border-b border-white/[0.06]">Staff Identity &amp; Credentials</h3>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">First Name *</label>
+                        <input required name="firstName" value={formData.firstName} onChange={handleChange} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                      </div>
+                      <div>
+                        <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Last Name *</label>
+                        <input required name="lastName" value={formData.lastName} onChange={handleChange} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                      </div>
                     </div>
-                  )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className={staff ? 'sm:col-span-2' : ''}>
+                        <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Email *</label>
+                        <input type="email" required name="email" value={formData.email} onChange={handleChange} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                      </div>
+                      {!staff && (
+                        <div>
+                          <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Password *</label>
+                          <input type="password" required name="password" value={formData.password} onChange={handleChange} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -507,18 +519,18 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
 
                 <div className="p-4 bg-black/40 border border-white/[0.08] rounded-lg">
                   <h3 className="text-sm font-semibold text-white mb-3">Tax & Superannuation</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
                       <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Tax File Number (TFN)</label>
-                      <input name="taxNumber" value={formData.taxNumber} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" placeholder="e.g. 123 456 789" />
+                      <input name="taxNumber" value={formData.taxNumber} onChange={handleChange} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" placeholder="e.g. 123 456 789" />
                     </div>
                     <div>
                       <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Super Fund Name</label>
-                      <input name="superFundName" value={formData.superFundName} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" placeholder="Fund Name" />
+                      <input name="superFundName" value={formData.superFundName} onChange={handleChange} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" placeholder="Fund Name" />
                     </div>
                     <div>
                       <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Super Member Number</label>
-                      <input name="superMemberNumber" value={formData.superMemberNumber} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" placeholder="Member Number" />
+                      <input name="superMemberNumber" value={formData.superMemberNumber} onChange={handleChange} className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" placeholder="Member Number" />
                     </div>
                   </div>
                 </div>
@@ -736,7 +748,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-[12px] font-medium text-zinc-400 mb-1.5 flex items-center justify-between">
                       <span>Weekday Ordinary Rate</span>
