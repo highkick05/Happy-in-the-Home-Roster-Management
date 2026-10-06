@@ -616,10 +616,10 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
 
                       {formData.xeroEmployeeId || formData.xeroEmployeeName ? (
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-semibold text-sky-400 flex items-center gap-1.5 bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 rounded">
+                          <span className="text-[11px] font-medium text-sky-300 flex items-center gap-1.5 bg-sky-500/10 border border-sky-500/30 px-2.5 py-1 rounded">
                             <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-                            <strong className="px-1 py-0.2 rounded bg-sky-500/20 text-sky-300 font-bold uppercase text-[9px] tracking-wider border border-sky-500/30">XERO</strong>
-                            <span>Linked: {formData.xeroEmployeeName || 'Xero Employee'}</span>
+                            <span className="font-bold text-sky-400 tracking-wider text-[10px]">XERO:</span>
+                            <span className="text-white font-medium">{formData.xeroEmployeeName || 'Linked'}</span>
                           </span>
                           <button
                             type="button"

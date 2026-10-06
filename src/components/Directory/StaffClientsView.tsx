@@ -332,13 +332,25 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-brand-bg border-b border-border-subtle text-[10px] uppercase tracking-wider text-[#8B949E]">
-                <th className="px-4 py-2 font-semibold">{activeTab === 'PROVIDERS' || activeTab === 'CONTRACTORS' ? 'Company Name' : 'Name'}</th>
-                {(activeTab === 'PROVIDERS' || activeTab === 'CONTRACTORS') && <th className="px-4 py-2 font-semibold">Type</th>}
-                
-                {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Provider & Services</th>}
-                {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Funding</th>}
-                <th className="px-4 py-2 font-semibold">{activeTab === 'STAFF' ? 'Email/Role' : activeTab === 'CLIENTS' ? 'Contact Info' : 'Contact Info'}</th>
-                <th className="px-4 py-2 font-semibold text-right">Actions</th>
+                {activeTab === 'STAFF' ? (
+                  <>
+                    <th className="px-4 py-2 font-semibold">Name</th>
+                    <th className="px-4 py-2 font-semibold">Contact</th>
+                    <th className="px-4 py-2 font-semibold">Role</th>
+                    <th className="px-4 py-2 font-semibold">Xero Payroll</th>
+                    <th className="px-4 py-2 font-semibold text-right">Actions</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-4 py-2 font-semibold">{activeTab === 'PROVIDERS' || activeTab === 'CONTRACTORS' ? 'Company Name' : 'Name'}</th>
+                    {(activeTab === 'PROVIDERS' || activeTab === 'CONTRACTORS') && <th className="px-4 py-2 font-semibold">Type</th>}
+                    
+                    {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Provider & Services</th>}
+                    {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Funding</th>}
+                    <th className="px-4 py-2 font-semibold">Contact Info</th>
+                    <th className="px-4 py-2 font-semibold text-right">Actions</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle text-xs">
@@ -346,12 +358,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 const initials = `${(s.first_name || '').charAt(0)}${(s.last_name || '').charAt(0)}`.toUpperCase();
                 return (
                   <tr key={s.id} onClick={() => handleEditStaff(s)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer`}>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2.5">
                       <div className="flex items-center gap-3">
                         {s.avatar_url ? (
-                          <img src={getAvatarUrl(s.avatar_url)} alt={`${s.first_name}`} className="w-7 h-7 rounded-full border border-white/[0.08] bg-[#151515] shrink-0 object-cover" />
+                          <img src={getAvatarUrl(s.avatar_url)} alt={`${s.first_name}`} className="w-8 h-8 rounded-full border border-white/[0.08] bg-[#151515] shrink-0 object-cover" />
                         ) : (
-                          <div className="w-7 h-7 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal flex items-center justify-center text-[11px] font-semibold shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal flex items-center justify-center text-[11px] font-semibold shrink-0">
                             {initials || '?'}
                           </div>
                         )}
@@ -373,28 +385,42 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-2">
-                      <div className="text-[#E6EDF3]">{s.email}</div>
-                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold tracking-wider uppercase bg-brand-bg text-[#8B949E] border border-border-subtle">
-                          {s.role}
-                        </span>
-                        {(s.xero_employee_name || s.xero_employee_id) ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium bg-sky-500/10 text-sky-300 border border-sky-500/30" title={`Linked to Xero: ${s.xero_employee_name || s.xero_employee_id}`}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
-                            <span className="px-1 py-0.2 rounded bg-sky-500/20 text-sky-300 font-bold uppercase tracking-wider text-[9px] border border-sky-500/30">
-                              XERO
-                            </span>
-                            <span>{s.xero_employee_name || 'Linked'}</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800/80 text-zinc-500 border border-zinc-700/50" title="Not linked to Xero Employee">
-                            Xero: Unlinked
-                          </span>
-                        )}
-                      </div>
+                    <td className="px-4 py-2.5">
+                      <div className="text-[#E6EDF3] font-medium">{s.email}</div>
+                      {s.phone && (
+                        <div className="text-[#8B949E] text-xs mt-0.5">{s.phone}</div>
+                      )}
                     </td>
-                    <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase border ${
+                        s.role === 'ADMIN' 
+                          ? 'bg-purple-500/10 text-purple-300 border-purple-500/30' 
+                          : 'bg-brand-bg text-[#8B949E] border-border-subtle'
+                      }`}>
+                        {s.role}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {(s.xero_employee_name || s.xero_employee_id) ? (
+                        <div 
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-sky-500/10 text-sky-300 border border-sky-500/30"
+                          title={`Linked to Xero Employee: ${s.xero_employee_name || s.xero_employee_id}`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
+                          <span className="font-bold text-sky-400 tracking-wider text-[10px]">XERO:</span>
+                          <span className="text-[#E6EDF3] font-medium">{s.xero_employee_name || 'Linked'}</span>
+                        </div>
+                      ) : (
+                        <span 
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800/60 text-zinc-500 border border-zinc-700/50"
+                          title="Not linked to Xero Employee"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
+                          Not Linked
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <button 
                         onClick={() => { setContractStaffMember(s); setIsContractModalOpen(true); }}
                         className="p-1.5 text-[#8B949E] hover:text-emerald-400 transition-colors rounded-md hover:bg-white/[0.04]"
