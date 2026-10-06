@@ -1061,3 +1061,125 @@ export async function getXeroPayItems(db: any): Promise<{
   }
 }
 
+export interface XeroEmployeeRecord {
+  id: string;
+  firstName: string;
+  lastName: string;
+  name: string;
+  status: string;
+  email?: string;
+  ordinaryEarningsRateID?: string;
+}
+
+/**
+ * Fetches employees directly from Xero Payroll API.
+ */
+export async function getXeroEmployees(db: any): Promise<{
+  success: boolean;
+  tenantName: string;
+  tenantId: string;
+  employees: XeroEmployeeRecord[];
+  error?: string;
+  needsReconnect?: boolean;
+}> {
+  try {
+    let auth = await getValidAccessToken(db);
+
+    if (!auth.accessToken) {
+      throw new Error('No valid Xero access token available. Please connect Xero in Settings.');
+    }
+
+    const buildHeaders = (token: string, tId: string) => {
+      const h: Record<string, string> = {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      };
+      if (tId) {
+        h['Xero-Tenant-Id'] = tId;
+      }
+      return h;
+    };
+
+    let headers = buildHeaders(auth.accessToken, auth.tenantId);
+
+    // Try AU Payroll Employees endpoint first (1.0)
+    let res = await fetch('https://api.xero.com/payroll.xro/1.0/Employees', {
+      headers
+    });
+
+    if (res.status === 404) {
+      res = await fetch('https://api.xero.com/payroll.xro/2.0/Employees', {
+        headers
+      });
+    }
+
+    if (res.status === 401 || res.status === 403) {
+      try {
+        saveXeroSetting(db, 'xero_access_token', '');
+        saveXeroSetting(db, 'xero_token_expires_at', 0);
+        const forcedSettings = getXeroSettings(db);
+        forcedSettings.xero_access_token = '';
+        forcedSettings.xero_token_expires_at = 0;
+        auth = await getValidAccessToken(db, forcedSettings);
+        headers = buildHeaders(auth.accessToken, auth.tenantId);
+
+        res = await fetch('https://api.xero.com/payroll.xro/1.0/Employees', { headers });
+        if (res.status === 404) {
+          res = await fetch('https://api.xero.com/payroll.xro/2.0/Employees', { headers });
+        }
+      } catch (retryErr) {
+        console.warn('[XERO] Retry with fresh token error for employees:', retryErr);
+      }
+    }
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      const errMsg = errBody.Detail || errBody.Message || errBody.error || res.statusText;
+      if (res.status === 401 || res.status === 403 || String(errMsg).toLowerCase().includes('scope') || String(errMsg).toLowerCase().includes('unauthorized')) {
+        return {
+          success: false,
+          tenantName: auth.tenantName || 'Xero Organisation',
+          tenantId: auth.tenantId || '',
+          employees: [],
+          needsReconnect: true,
+          error: "Xero Payroll permission (payroll.employees or payroll.employees.read) is required to view and link employees."
+        };
+      }
+      throw new Error(`Xero Payroll API error (${res.status}): ${errMsg}`);
+    }
+
+    const data = await res.json();
+    const rawList: any[] = data.Employees || data.employees || [];
+
+    const employees: XeroEmployeeRecord[] = rawList.map((emp: any) => {
+      const firstName = emp.FirstName || emp.firstName || '';
+      const lastName = emp.LastName || emp.lastName || '';
+      const name = `${firstName} ${lastName}`.trim() || emp.Name || 'Unknown Employee';
+      return {
+        id: emp.EmployeeID || emp.employeeID || emp.Id || emp.id || '',
+        firstName,
+        lastName,
+        name,
+        status: (emp.Status || emp.status || 'ACTIVE').toUpperCase(),
+        email: emp.Email || emp.email || '',
+        ordinaryEarningsRateID: emp.OrdinaryEarningsRateID || emp.ordinaryEarningsRateID || ''
+      };
+    });
+
+    return {
+      success: true,
+      tenantName: auth.tenantName || 'Xero Organisation',
+      tenantId: auth.tenantId || '',
+      employees
+    };
+  } catch (e: any) {
+    return {
+      success: false,
+      tenantName: '',
+      tenantId: '',
+      employees: [],
+      error: e.message || 'Failed to fetch employees from Xero'
+    };
+  }
+}
+

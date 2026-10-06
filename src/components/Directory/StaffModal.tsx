@@ -16,6 +16,8 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
 
   const [positions, setPositions] = useState<any[]>([]);
   const [payItems, setPayItems] = useState<any[]>([]);
+  const [xeroEmployees, setXeroEmployees] = useState<any[]>([]);
+  const [loadingXero, setLoadingXero] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -32,6 +34,17 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
           if (Array.isArray(data)) setPayItems(data);
         })
         .catch(err => console.error("Failed to load pay items", err));
+
+      setLoadingXero(true);
+      fetch('/api/xero/employees', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data.employees)) {
+            setXeroEmployees(data.employees);
+          }
+        })
+        .catch(err => console.error("Failed to load Xero employees", err))
+        .finally(() => setLoadingXero(false));
     }
   }, [isOpen, token]);
 
@@ -77,6 +90,8 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
     payRatePublicHolidayId: staff?.pay_rate_public_holiday_id || '',
     payRateNdisTravelId: staff?.pay_rate_ndis_travel_id || '',
     payRateHomeCareTravelId: staff?.pay_rate_home_care_travel_id || '',
+    xeroEmployeeId: staff?.xero_employee_id || '',
+    xeroEmployeeName: staff?.xero_employee_name || '',
   });
 
   useEffect(() => {
@@ -109,6 +124,8 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         payRatePublicHolidayId: staff.pay_rate_public_holiday_id || '',
         payRateNdisTravelId: staff.pay_rate_ndis_travel_id || '',
         payRateHomeCareTravelId: staff.pay_rate_home_care_travel_id || '',
+        xeroEmployeeId: staff.xero_employee_id || '',
+        xeroEmployeeName: staff.xero_employee_name || '',
       });
     } else {
       setFormData({
@@ -139,9 +156,47 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         payRatePublicHolidayId: '',
         payRateNdisTravelId: '',
         payRateHomeCareTravelId: '',
+        xeroEmployeeId: '',
+        xeroEmployeeName: '',
       });
     }
   }, [staff, isOpen]);
+
+  // Helper to find best matching Xero employee for this staff member
+  const suggestedXeroMatch = React.useMemo(() => {
+    if (!xeroEmployees.length) return null;
+    const currentFirst = (formData.firstName || '').trim().toLowerCase();
+    const currentLast = (formData.lastName || '').trim().toLowerCase();
+    const currentFullName = `${currentFirst} ${currentLast}`.trim();
+    const currentEmail = (formData.email || '').trim().toLowerCase();
+
+    if (!currentFirst && !currentLast && !currentEmail) return null;
+
+    // 1. Exact full name match
+    let found = xeroEmployees.find(e => (e.name || '').trim().toLowerCase() === currentFullName);
+    if (found) return found;
+
+    // 2. First and last name exact match
+    found = xeroEmployees.find(e => (e.firstName || '').trim().toLowerCase() === currentFirst && (e.lastName || '').trim().toLowerCase() === currentLast);
+    if (found) return found;
+
+    // 3. Email match
+    if (currentEmail) {
+      found = xeroEmployees.find(e => (e.email || '').trim().toLowerCase() === currentEmail);
+      if (found) return found;
+    }
+
+    // 4. Contains both first and last name (handles middle names in Xero like "Andrea Marie Cerezo")
+    if (currentFirst && currentLast) {
+      found = xeroEmployees.find(e => {
+        const xn = (e.name || '').toLowerCase();
+        return xn.includes(currentFirst) && xn.includes(currentLast);
+      });
+      if (found) return found;
+    }
+
+    return null;
+  }, [xeroEmployees, formData.firstName, formData.lastName, formData.email]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -398,6 +453,76 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                   >
                     ⚡ Auto-Fill SCHADS 2.1 Preset
                   </button>
+                )}
+              </div>
+
+              {/* Xero Employee / Staff Name Mapping */}
+              <div className="mb-4 p-3 bg-black/40 border border-sky-500/25 rounded-lg space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <label className="block text-[12px] font-semibold text-sky-400 flex items-center gap-1.5">
+                    <span>Xero Staff / Employee Profile</span>
+                    <span className="text-[10px] text-zinc-400 font-normal">
+                      (Used when pushing pay runs &amp; timesheets to Xero)
+                    </span>
+                  </label>
+                  {formData.xeroEmployeeId ? (
+                    <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      Linked: {formData.xeroEmployeeName || 'Xero Employee'}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-400">
+                      Not linked to Xero
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-2">
+                  <select
+                    name="xeroEmployeeId"
+                    value={formData.xeroEmployeeId}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      const matched = xeroEmployees.find(emp => emp.id === selectedId);
+                      setFormData(prev => ({
+                        ...prev,
+                        xeroEmployeeId: selectedId,
+                        xeroEmployeeName: matched ? matched.name : '',
+                        ...(matched?.ordinaryEarningsRateID && !prev.payRateWeekdayId ? { payRateWeekdayId: matched.ordinaryEarningsRateID } : {})
+                      }));
+                    }}
+                    className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[12px] text-white outline-none focus:border-sky-400 transition-colors"
+                  >
+                    <option value="">-- Choose Xero Staff Name to Link ({xeroEmployees.length} in Xero) --</option>
+                    {xeroEmployees.map(emp => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} {emp.email ? `• ${emp.email}` : ''} {emp.status !== 'ACTIVE' ? `(${emp.status})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Auto-match suggestion helper banner */}
+                {!formData.xeroEmployeeId && suggestedXeroMatch && (
+                  <div className="flex items-center justify-between gap-2 p-2 bg-sky-500/10 border border-sky-500/30 rounded text-[11px] text-sky-300">
+                    <span className="truncate">
+                      ✨ Suggested Match: <strong>{suggestedXeroMatch.name}</strong> {suggestedXeroMatch.email ? `(${suggestedXeroMatch.email})` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          xeroEmployeeId: suggestedXeroMatch.id,
+                          xeroEmployeeName: suggestedXeroMatch.name,
+                          ...(suggestedXeroMatch.ordinaryEarningsRateID && !prev.payRateWeekdayId ? { payRateWeekdayId: suggestedXeroMatch.ordinaryEarningsRateID } : {})
+                        }));
+                      }}
+                      className="px-2.5 py-1 bg-sky-500 hover:bg-sky-400 text-brand-navy font-bold rounded text-[10px] shrink-0 transition-colors cursor-pointer"
+                    >
+                      Link Now
+                    </button>
+                  </div>
                 )}
               </div>
 

@@ -375,9 +375,21 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                     </td>
                     <td className="px-4 py-2">
                       <div className="text-[#E6EDF3]">{s.email}</div>
-                      <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold tracking-wider uppercase bg-brand-bg text-[#8B949E] border border-border-subtle mt-0.5">
-                        {s.role}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold tracking-wider uppercase bg-brand-bg text-[#8B949E] border border-border-subtle">
+                          {s.role}
+                        </span>
+                        {s.xero_employee_name ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-sky-500/10 text-sky-400 border border-sky-500/25" title={`Linked to Xero: ${s.xero_employee_name}`}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
+                            <span>{s.xero_employee_name}</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-zinc-800/80 text-zinc-500 border border-zinc-700/50" title="Not linked to Xero Employee">
+                            Xero: Unlinked
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                       <button 
