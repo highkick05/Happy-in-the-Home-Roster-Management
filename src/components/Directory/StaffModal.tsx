@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, RefreshCw, AlertCircle, Edit3 } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import { getAvatarUrl } from '../../utils/avatar';
 import AvatarSelector from '../ui/AvatarSelector';
@@ -18,6 +18,35 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
   const [payItems, setPayItems] = useState<any[]>([]);
   const [xeroEmployees, setXeroEmployees] = useState<any[]>([]);
   const [loadingXero, setLoadingXero] = useState(false);
+  const [xeroError, setXeroError] = useState<string>('');
+  const [isManualXero, setIsManualXero] = useState(false);
+
+  const fetchXeroEmployees = () => {
+    setLoadingXero(true);
+    setXeroError('');
+    fetch('/api/xero/employees', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.employees) && data.employees.length > 0) {
+          setXeroEmployees(data.employees);
+          setXeroError('');
+        } else {
+          setXeroEmployees(data.employees || []);
+          if (data.error) {
+            setXeroError(data.error);
+          } else if (data.warning) {
+            setXeroError(data.warning);
+          } else if (!data.connected) {
+            setXeroError('Xero is not connected or no employees found. If using OAuth, please ensure Payroll Employees permission is authorized in Settings > Xero.');
+          }
+        }
+      })
+      .catch(err => {
+        console.error("Failed to load Xero employees", err);
+        setXeroError(err.message || "Failed to load Xero employees");
+      })
+      .finally(() => setLoadingXero(false));
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -35,16 +64,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         })
         .catch(err => console.error("Failed to load pay items", err));
 
-      setLoadingXero(true);
-      fetch('/api/xero/employees', { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json())
-        .then(data => {
-          if (Array.isArray(data.employees)) {
-            setXeroEmployees(data.employees);
-          }
-        })
-        .catch(err => console.error("Failed to load Xero employees", err))
-        .finally(() => setLoadingXero(false));
+      fetchXeroEmployees();
     }
   }, [isOpen, token]);
 
@@ -457,53 +477,150 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
               </div>
 
               {/* Xero Employee / Staff Name Mapping */}
-              <div className="mb-4 p-3 bg-black/40 border border-sky-500/25 rounded-lg space-y-2">
+              <div className="mb-4 p-3 bg-black/40 border border-sky-500/25 rounded-lg space-y-2.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                  <label className="block text-[12px] font-semibold text-sky-400 flex items-center gap-1.5">
-                    <span>Xero Staff / Employee Profile</span>
-                    <span className="text-[10px] text-zinc-400 font-normal">
-                      (Used when pushing pay runs &amp; timesheets to Xero)
-                    </span>
-                  </label>
-                  {formData.xeroEmployeeId ? (
-                    <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      Linked: {formData.xeroEmployeeName || 'Xero Employee'}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-amber-400">
-                      Not linked to Xero
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <label className="text-[12px] font-semibold text-sky-400 flex items-center gap-1.5">
+                      <span>Xero Staff / Employee Profile</span>
+                      <span className="text-[10px] text-zinc-400 font-normal">
+                        (Links rostered hours to Xero payroll)
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      disabled={loadingXero}
+                      onClick={fetchXeroEmployees}
+                      className="px-2 py-0.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded text-[10px] font-medium flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
+                      title="Sync and refresh employees from Xero"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${loadingXero ? 'animate-spin' : ''}`} />
+                      <span>{loadingXero ? 'Syncing...' : 'Sync Xero Staff'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsManualXero(!isManualXero)}
+                      className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded text-[10px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <Edit3 className="w-3 h-3 text-zinc-400" />
+                      <span>{isManualXero ? 'Pick from List' : 'Enter Manually'}</span>
+                    </button>
+
+                    {formData.xeroEmployeeId || formData.xeroEmployeeName ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          Linked: {formData.xeroEmployeeName || 'Xero Employee'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, xeroEmployeeId: '', xeroEmployeeName: '' }))}
+                          className="text-[10px] text-zinc-400 hover:text-rose-400 underline cursor-pointer"
+                          title="Unlink this staff member from Xero"
+                        >
+                          Unlink
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded">
+                        Not linked to Xero
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2">
-                  <select
-                    name="xeroEmployeeId"
-                    value={formData.xeroEmployeeId}
-                    onChange={(e) => {
-                      const selectedId = e.target.value;
-                      const matched = xeroEmployees.find(emp => emp.id === selectedId);
-                      setFormData(prev => ({
-                        ...prev,
-                        xeroEmployeeId: selectedId,
-                        xeroEmployeeName: matched ? matched.name : '',
-                        ...(matched?.ordinaryEarningsRateID && !prev.payRateWeekdayId ? { payRateWeekdayId: matched.ordinaryEarningsRateID } : {})
-                      }));
-                    }}
-                    className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[12px] text-white outline-none focus:border-sky-400 transition-colors"
-                  >
-                    <option value="">-- Choose Xero Staff Name to Link ({xeroEmployees.length} in Xero) --</option>
-                    {xeroEmployees.map(emp => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.name} {emp.email ? `• ${emp.email}` : ''} {emp.status !== 'ACTIVE' ? `(${emp.status})` : ''}
+                {/* If Xero Error or permissions notice is present */}
+                {xeroError && (
+                  <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded text-[11px] text-amber-200 space-y-1">
+                    <div className="flex items-start gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-amber-300">Xero Employee Sync Notice:</p>
+                        <p className="text-zinc-300 text-[11px] break-words">{xeroError}</p>
+                      </div>
+                    </div>
+                    <div className="pt-1 flex items-center justify-between text-[10px] text-zinc-400 border-t border-amber-500/20">
+                      <span>To fetch employees automatically, re-authorize with Payroll permissions in Settings &gt; Xero.</span>
+                      {!isManualXero && (
+                        <button
+                          type="button"
+                          onClick={() => setIsManualXero(true)}
+                          className="text-sky-400 hover:text-sky-300 font-semibold underline cursor-pointer shrink-0 ml-2"
+                        >
+                          Type Name Manually
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Manual entry inputs */}
+                {isManualXero ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <div>
+                      <label className="block text-[11px] text-zinc-400 mb-1">
+                        Xero Employee Full Name <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="xeroEmployeeName"
+                        value={formData.xeroEmployeeName}
+                        onChange={(e) => setFormData(prev => ({ ...prev, xeroEmployeeName: e.target.value }))}
+                        placeholder="e.g. Jane Doe (as written in Xero)"
+                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-[12px] text-white outline-none focus:border-sky-400 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-zinc-400 mb-1">
+                        Xero Employee ID / GUID <span className="text-zinc-500">(Optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="xeroEmployeeId"
+                        value={formData.xeroEmployeeId}
+                        onChange={(e) => setFormData(prev => ({ ...prev, xeroEmployeeId: e.target.value }))}
+                        placeholder="e.g. 81a95b2c-... (Optional)"
+                        className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-1.5 text-[12px] text-white outline-none focus:border-sky-400 transition-colors font-mono"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  /* Dropdown selection */
+                  <div className="grid grid-cols-1 gap-2">
+                    <select
+                      name="xeroEmployeeId"
+                      value={formData.xeroEmployeeId}
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        const matched = xeroEmployees.find(emp => emp.id === selectedId);
+                        setFormData(prev => ({
+                          ...prev,
+                          xeroEmployeeId: selectedId,
+                          xeroEmployeeName: matched ? matched.name : '',
+                          ...(matched?.ordinaryEarningsRateID && !prev.payRateWeekdayId ? { payRateWeekdayId: matched.ordinaryEarningsRateID } : {})
+                        }));
+                      }}
+                      className="w-full bg-brand-navy border border-border-subtle rounded-md px-3 py-2 text-[12px] text-white outline-none focus:border-sky-400 transition-colors"
+                    >
+                      <option value="">
+                        {xeroEmployees.length === 0
+                          ? `-- No Xero Staff Loaded (${loadingXero ? 'Syncing...' : '0 found'}) - Click 'Enter Manually' or 'Sync Xero Staff' --`
+                          : `-- Choose Xero Staff Name to Link (${xeroEmployees.length} in Xero) --`}
                       </option>
-                    ))}
-                  </select>
-                </div>
+                      {xeroEmployees.map(emp => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name} {emp.email ? `• ${emp.email}` : ''} {emp.status !== 'ACTIVE' ? `(${emp.status})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Auto-match suggestion helper banner */}
-                {!formData.xeroEmployeeId && suggestedXeroMatch && (
+                {!formData.xeroEmployeeId && !isManualXero && suggestedXeroMatch && (
                   <div className="flex items-center justify-between gap-2 p-2 bg-sky-500/10 border border-sky-500/30 rounded text-[11px] text-sky-300">
                     <span className="truncate">
                       ✨ Suggested Match: <strong>{suggestedXeroMatch.name}</strong> {suggestedXeroMatch.email ? `(${suggestedXeroMatch.email})` : ''}

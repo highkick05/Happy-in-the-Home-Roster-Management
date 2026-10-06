@@ -144,6 +144,8 @@ export async function getValidAccessToken(db: any, forcedSettings?: XeroSettings
     // In Xero Custom Connections, omitting the scope parameter automatically requests all scopes approved for the connection in developer.xero.com.
     const scopesToTry = [
       '', // Omitting scope gets all approved scopes configured on the Custom Connection
+      'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets',
+      'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees.read',
       'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read',
       'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings.read',
       'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings',

@@ -579,9 +579,14 @@ export default function XeroSettings() {
                   👉 <strong>Next Step:</strong> Ensure your <strong>Client ID</strong> and <strong>Client Secret</strong> are entered below, then click the blue <strong>"Connect with Xero (Authorize Popup)"</strong> button above to link your Xero organisation.
                 </div>
               ) : (
-                <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-300 text-[11px] flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Linked to Xero organisation: <strong>{statusData.organisation?.name || statusData.tenantName || 'Happy in the Home'}</strong></span>
+                <div className="space-y-1.5">
+                  <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-300 text-[11px] flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Linked to Xero organisation: <strong>{statusData.organisation?.name || statusData.tenantName || 'Happy in the Home'}</strong></span>
+                  </div>
+                  <div className="p-2 bg-sky-500/10 border border-sky-500/20 rounded-lg text-sky-200 text-[11px] flex items-center justify-between gap-2">
+                    <span>💡 <strong>Staff &amp; Payroll:</strong> To sync employees and award pay rates, click <strong>"Re-authorize with Xero"</strong> above if your current connection was authorized before adding payroll permissions.</span>
+                  </div>
                 </div>
               )}
             </div>

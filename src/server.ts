@@ -946,6 +946,24 @@ try {
     console.error("[DEBUG] Error initializing pay_items table:", err);
   }
 
+  // Persistent cache table for Xero Employees to ensure staff mapping is instant and reliable
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS xero_employees (
+        id TEXT PRIMARY KEY,
+        first_name TEXT DEFAULT '',
+        last_name TEXT DEFAULT '',
+        name TEXT NOT NULL,
+        email TEXT DEFAULT '',
+        status TEXT DEFAULT 'ACTIVE',
+        ordinary_earnings_rate_id TEXT DEFAULT '',
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (err) {
+    console.error("[DEBUG] Error initializing xero_employees table:", err);
+  }
+
   // Ensure staff users table has payroll rate mapping columns
   try { db.exec("ALTER TABLE users ADD COLUMN pay_rate_weekday_id TEXT DEFAULT ''"); } catch (e: any) {}
   try { db.exec("ALTER TABLE users ADD COLUMN pay_rate_saturday_id TEXT DEFAULT ''"); } catch (e: any) {}
@@ -5487,9 +5505,11 @@ function getUnreadChatCount(db: any, userId: number) {
       // - 'accounting.settings.read' for reading organization info and chart of accounts
       // - 'accounting.attachments' for uploading PDF invoice copies
       // - 'payroll.settings' and 'payroll.settings.read' for reading & syncing payroll pay items and earnings rates
+      // - 'payroll.employees' and 'payroll.employees.read' for viewing and mapping staff to Xero employees
+      // - 'payroll.timesheets' for timesheets and pay run export
       // - 'offline_access' for receiving refresh tokens
       const requestedScope = (req.query.scope as string) ||
-        'openid profile email accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read offline_access';
+        'openid profile email accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets offline_access';
 
       const params = new URLSearchParams({
         response_type: 'code',
@@ -5983,16 +6003,154 @@ function getUnreadChatCount(db: any, userId: number) {
       }
 
       const result = await getXeroEmployees(db);
+
+      // If live fetch was successful and returned employees, cache them in DB
+      if (result.success && Array.isArray(result.employees) && result.employees.length > 0) {
+        try {
+          const insertStmt = db.prepare(`
+            INSERT INTO xero_employees (id, first_name, last_name, name, email, status, ordinary_earnings_rate_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+              first_name = excluded.first_name,
+              last_name = excluded.last_name,
+              name = excluded.name,
+              email = excluded.email,
+              status = excluded.status,
+              ordinary_earnings_rate_id = excluded.ordinary_earnings_rate_id,
+              updated_at = CURRENT_TIMESTAMP
+          `);
+          const tx = db.transaction((list: any[]) => {
+            for (const emp of list) {
+              if (emp.id) {
+                insertStmt.run(
+                  emp.id,
+                  emp.firstName || '',
+                  emp.lastName || '',
+                  emp.name || 'Unknown',
+                  emp.email || '',
+                  emp.status || 'ACTIVE',
+                  emp.ordinaryEarningsRateID || ''
+                );
+              }
+            }
+          });
+          tx(result.employees);
+        } catch (cacheErr) {
+          console.warn("[XERO] Error caching employees into db:", cacheErr);
+        }
+
+        return res.json({
+          ...result,
+          connected: true
+        });
+      }
+
+      // Check if we have cached employees in the local database
+      let cachedEmployees: any[] = [];
+      try {
+        cachedEmployees = db.prepare("SELECT id, first_name as firstName, last_name as lastName, name, email, status, ordinary_earnings_rate_id as ordinaryEarningsRateID FROM xero_employees ORDER BY name ASC").all();
+      } catch (dbErr) {}
+
+      if (cachedEmployees.length > 0) {
+        return res.json({
+          success: true,
+          connected: result.success,
+          tenantName: result.tenantName || 'Xero Organisation',
+          employees: cachedEmployees,
+          fromCache: true,
+          warning: result.error || undefined
+        });
+      }
+
       res.json({
         ...result,
         connected: result.success
       });
     } catch (e: any) {
       console.error("[XERO_EMPLOYEES] Error fetching Xero employees:", e);
+      let cachedEmployees: any[] = [];
+      try {
+        cachedEmployees = db.prepare("SELECT id, first_name as firstName, last_name as lastName, name, email, status, ordinary_earnings_rate_id as ordinaryEarningsRateID FROM xero_employees ORDER BY name ASC").all();
+      } catch (dbErr) {}
+
+      if (cachedEmployees.length > 0) {
+        return res.json({
+          success: true,
+          connected: false,
+          employees: cachedEmployees,
+          fromCache: true,
+          warning: e.message
+        });
+      }
+
       res.status(500).json({
         connected: false,
         error: e.message || "Failed to fetch Xero employees",
         employees: []
+      });
+    }
+  });
+
+  app.post("/api/xero/employees/sync", authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const settings = getXeroSettings(db);
+      if (!settings.xero_client_id) {
+        return res.status(400).json({
+          success: false,
+          error: "Xero is not configured. Please enter your Xero API credentials in Settings > Xero."
+        });
+      }
+
+      const result = await getXeroEmployees(db);
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          error: result.error || "Failed to fetch employees from Xero Payroll API.",
+          needsReconnect: result.needsReconnect
+        });
+      }
+
+      const list = result.employees || [];
+      const insertStmt = db.prepare(`
+        INSERT INTO xero_employees (id, first_name, last_name, name, email, status, ordinary_earnings_rate_id, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+          first_name = excluded.first_name,
+          last_name = excluded.last_name,
+          name = excluded.name,
+          email = excluded.email,
+          status = excluded.status,
+          ordinary_earnings_rate_id = excluded.ordinary_earnings_rate_id,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+      const tx = db.transaction((arr: any[]) => {
+        for (const emp of arr) {
+          if (emp.id) {
+            insertStmt.run(
+              emp.id,
+              emp.firstName || '',
+              emp.lastName || '',
+              emp.name || 'Unknown',
+              emp.email || '',
+              emp.status || 'ACTIVE',
+              emp.ordinaryEarningsRateID || ''
+            );
+          }
+        }
+      });
+      tx(list);
+
+      res.json({
+        success: true,
+        message: `Successfully synced ${list.length} employees from Xero!`,
+        total: list.length,
+        employees: list
+      });
+    } catch (e: any) {
+      console.error("[XERO_EMPLOYEES_SYNC] Error syncing employees:", e);
+      res.status(500).json({
+        success: false,
+        error: e.message || "Failed to sync Xero employees"
       });
     }
   });
