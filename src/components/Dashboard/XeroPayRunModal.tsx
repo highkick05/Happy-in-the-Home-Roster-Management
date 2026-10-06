@@ -40,6 +40,52 @@ export default function XeroPayRunModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [needsReconnect, setNeedsReconnect] = useState<boolean>(false);
+  const [isReauthorizing, setIsReauthorizing] = useState<boolean>(false);
+  const [reauthSuccess, setReauthSuccess] = useState<string>('');
+
+  // Listen for OAuth success message from popup window
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'XERO_AUTH_SUCCESS') {
+        setIsReauthorizing(false);
+        setNeedsReconnect(false);
+        setErrorMessage('');
+        setReauthSuccess('Xero successfully re-authorized with updated payroll permissions!');
+        fetchPreviewAndCalendars();
+        setTimeout(() => setReauthSuccess(''), 6000);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [startDate, endDate]);
+
+  const handleReauthorizeXero = async () => {
+    setIsReauthorizing(true);
+    setReauthSuccess('');
+    try {
+      const redirectUri = `${window.location.origin}/api/xero/callback`;
+      const res = await fetch(`/api/xero/auth-url?redirect_uri=${encodeURIComponent(redirectUri)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || 'Could not generate Xero authorization URL.');
+      }
+      const popup = window.open(
+        data.url,
+        'xero_oauth_popup',
+        'width=650,height=750,menubar=no,toolbar=no,location=no,status=no'
+      );
+      if (!popup) {
+        alert('Please allow popups in your browser to complete Xero authentication.');
+        setIsReauthorizing(false);
+      }
+    } catch (err: any) {
+      setIsReauthorizing(false);
+      alert(err.message || 'Failed to start Xero authorization.');
+    }
+  };
 
   const fetchPreviewAndCalendars = async () => {
     setLoading(true);
@@ -80,6 +126,8 @@ export default function XeroPayRunModal({
         } else if (calData.calendars.length > 0) {
           setSelectedCalendarId(calData.calendars[0].id);
         }
+      } else if (calData?.needsReconnect) {
+        setNeedsReconnect(true);
       }
     } catch (e: any) {
       console.error(e);
@@ -140,6 +188,9 @@ export default function XeroPayRunModal({
 
       const data = await res.json();
       if (!res.ok || !data.success) {
+        if (data.needsReconnect || res.status === 401 || (data.error && (data.error.includes('401') || data.error.toLowerCase().includes('authorizationunsuccessful')))) {
+          setNeedsReconnect(true);
+        }
         throw new Error(data.error || 'Failed to create Draft Pay Run in Xero');
       }
 
@@ -267,13 +318,66 @@ export default function XeroPayRunModal({
           ) : (
             /* Review & Create View */
             <>
+              {reauthSuccess && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-xs text-emerald-300 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{reauthSuccess}</span>
+                </div>
+              )}
+
               {errorMessage && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-xs text-rose-300 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <strong className="block text-rose-200">Error preparing Xero Pay Run:</strong>
-                    <span>{errorMessage}</span>
+                <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs space-y-2.5">
+                  <div className="flex items-start gap-2 text-rose-300">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <strong className="block text-rose-200 font-semibold">Error preparing Xero Pay Run:</strong>
+                      <span className="text-zinc-300">{errorMessage}</span>
+                    </div>
                   </div>
+
+                  {(needsReconnect || errorMessage.includes('401') || errorMessage.toLowerCase().includes('authorizationunsuccessful') || errorMessage.toLowerCase().includes('permission')) && (
+                    <div className="pt-2 border-t border-rose-500/20 space-y-2">
+                      <div className="text-[11px] text-zinc-300 bg-black/40 p-2.5 rounded-lg border border-white/[0.06] space-y-1.5">
+                        <div className="font-semibold text-amber-300 flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>Why this happened:</span>
+                        </div>
+                        <ul className="list-disc pl-4 space-y-1 text-zinc-300">
+                          <li>
+                            Your active Xero token does not have the <strong>Payroll Pay Runs</strong> permission (<code className="text-sky-300 bg-sky-950/60 px-1 py-0.2 rounded font-mono">payroll.payruns</code> and <code className="text-sky-300 bg-sky-950/60 px-1 py-0.2 rounded font-mono">payroll.payslip</code>), or was authorized before pay runs were enabled.
+                          </li>
+                          <li>
+                            Or your Xero user account does not have the <strong>Payroll Admin</strong> role within your Xero organisation.
+                          </li>
+                          <li>
+                            In <span className="text-sky-400 font-medium">developer.xero.com &gt; My Apps &gt; Configuration &gt; Scopes</span>, ensure <strong>payroll.payruns</strong> and <strong>payroll.payslip</strong> are enabled.
+                          </li>
+                        </ul>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={handleReauthorizeXero}
+                          disabled={isReauthorizing}
+                          className="px-3.5 py-2 bg-sky-500 hover:bg-sky-400 text-brand-navy font-bold rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isReauthorizing ? 'animate-spin' : ''}`} />
+                          <span>{isReauthorizing ? 'Opening Xero...' : 'Re-authorize with Xero (Grant Payroll Permissions)'}</span>
+                        </button>
+
+                        <a
+                          href="/settings"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-xs font-medium flex items-center gap-1 transition-colors"
+                        >
+                          <span>Open Xero Settings</span>
+                          <ExternalLink className="w-3 h-3 text-zinc-400" />
+                        </a>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

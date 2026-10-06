@@ -379,13 +379,16 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                         <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold tracking-wider uppercase bg-brand-bg text-[#8B949E] border border-border-subtle">
                           {s.role}
                         </span>
-                        {s.xero_employee_name ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-sky-500/10 text-sky-400 border border-sky-500/25" title={`Linked to Xero: ${s.xero_employee_name}`}>
+                        {(s.xero_employee_name || s.xero_employee_id) ? (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium bg-sky-500/10 text-sky-300 border border-sky-500/30" title={`Linked to Xero: ${s.xero_employee_name || s.xero_employee_id}`}>
                             <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
-                            <span>{s.xero_employee_name}</span>
+                            <span className="px-1 py-0.2 rounded bg-sky-500/20 text-sky-300 font-bold uppercase tracking-wider text-[9px] border border-sky-500/30">
+                              XERO
+                            </span>
+                            <span>{s.xero_employee_name || 'Linked'}</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-zinc-800/80 text-zinc-500 border border-zinc-700/50" title="Not linked to Xero Employee">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800/80 text-zinc-500 border border-zinc-700/50" title="Not linked to Xero Employee">
                             Xero: Unlinked
                           </span>
                         )}

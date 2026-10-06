@@ -146,6 +146,8 @@ export async function getValidAccessToken(db: any, forcedSettings?: XeroSettings
     // In Xero Custom Connections, omitting the scope parameter automatically requests all scopes approved for the connection in developer.xero.com.
     const scopesToTry = [
       '', // Omitting scope gets all approved scopes configured on the Custom Connection
+      'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read',
+      'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payslip',
       'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets',
       'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees.read',
       'accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read',
@@ -1234,6 +1236,7 @@ export interface StaffPayRunBreakdown {
 export async function getXeroPayrollCalendars(db: any): Promise<{
   success: boolean;
   calendars: XeroPayrollCalendar[];
+  needsReconnect?: boolean;
   error?: string;
 }> {
   try {
@@ -1257,6 +1260,14 @@ export async function getXeroPayrollCalendars(db: any): Promise<{
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
       const errMsg = errBody.Detail || errBody.Message || errBody.error || res.statusText;
+      if (res.status === 401 || res.status === 403 || String(errMsg).toLowerCase().includes('unauthorized') || String(errMsg).toLowerCase().includes('scope') || String(errMsg).toLowerCase().includes('authorizationunsuccessful')) {
+        return {
+          success: false,
+          calendars: [],
+          needsReconnect: true,
+          error: `Xero Payroll authorization error (${res.status}): ${errMsg}. Please re-authorize Xero in Settings to grant payroll permissions.`
+        };
+      }
       throw new Error(`Xero Payroll Calendars API error (${res.status}): ${errMsg}`);
     }
 
@@ -1275,9 +1286,11 @@ export async function getXeroPayrollCalendars(db: any): Promise<{
       calendars
     };
   } catch (e: any) {
+    const isAuthErr = String(e.message).includes('401') || String(e.message).toLowerCase().includes('authorizationunsuccessful') || String(e.message).toLowerCase().includes('unauthorized') || String(e.message).toLowerCase().includes('scope');
     return {
       success: false,
       calendars: [],
+      needsReconnect: isAuthErr,
       error: e.message || 'Failed to fetch Xero payroll calendars'
     };
   }
@@ -1551,6 +1564,7 @@ export async function createXeroDraftPayRun(db: any, params: {
   staffIds?: number[];
 }): Promise<{
   success: boolean;
+  needsReconnect?: boolean;
   payRunId?: string;
   payRunStatus?: string;
   periodStartDate?: string;
@@ -1563,7 +1577,7 @@ export async function createXeroDraftPayRun(db: any, params: {
   error?: string;
 }> {
   try {
-    const auth = await getValidAccessToken(db);
+    let auth = await getValidAccessToken(db);
     if (!auth.accessToken) {
       throw new Error('No valid Xero access token available. Please connect Xero in Settings.');
     }
@@ -1575,6 +1589,29 @@ export async function createXeroDraftPayRun(db: any, params: {
     if (auth.tenantId) {
       headers['Xero-Tenant-Id'] = auth.tenantId;
     }
+
+    // Auto-refresh token if 401 occurs
+    let hasRefreshed = false;
+    const refreshTokenAndRetry = async () => {
+      if (hasRefreshed) return false;
+      hasRefreshed = true;
+      try {
+        saveXeroSetting(db, 'xero_access_token', '');
+        saveXeroSetting(db, 'xero_token_expires_at', 0);
+        const forcedSettings = getXeroSettings(db);
+        forcedSettings.xero_access_token = '';
+        forcedSettings.xero_token_expires_at = 0;
+        auth = await getValidAccessToken(db, forcedSettings);
+        headers['Authorization'] = `Bearer ${auth.accessToken}`;
+        if (auth.tenantId) {
+          headers['Xero-Tenant-Id'] = auth.tenantId;
+        }
+        return true;
+      } catch (retryErr) {
+        console.warn('[XERO_PAYRUN] Retry with fresh token error:', retryErr);
+        return false;
+      }
+    };
 
     // 1. Calculate pay run breakdown
     const preview = previewXeroPayRun(db, { startDate: params.startDate, endDate: params.endDate });
@@ -1592,6 +1629,13 @@ export async function createXeroDraftPayRun(db: any, params: {
     // 2. Fetch payroll calendars
     const calResult = await getXeroPayrollCalendars(db);
     if (!calResult.success || calResult.calendars.length === 0) {
+      if (calResult.needsReconnect) {
+        return {
+          success: false,
+          needsReconnect: true,
+          error: calResult.error || 'Xero Payroll authorization expired. Please re-authorize Xero.'
+        };
+      }
       throw new Error(calResult.error || 'No Payroll Calendars found in Xero. Please set up a Payroll Calendar in Xero Payroll Settings.');
     }
 
@@ -1604,7 +1648,10 @@ export async function createXeroDraftPayRun(db: any, params: {
     let payRunId = '';
     let payRunObj: any = null;
 
-    const draftRunsRes = await fetch('https://api.xero.com/payroll.xro/1.0/PayRuns?where=PayRunStatus=="DRAFT"', { headers });
+    let draftRunsRes = await fetch('https://api.xero.com/payroll.xro/1.0/PayRuns?where=PayRunStatus=="DRAFT"', { headers });
+    if ((draftRunsRes.status === 401 || draftRunsRes.status === 403) && (await refreshTokenAndRetry())) {
+      draftRunsRes = await fetch('https://api.xero.com/payroll.xro/1.0/PayRuns?where=PayRunStatus=="DRAFT"', { headers });
+    }
     if (draftRunsRes.ok) {
       const draftData = await draftRunsRes.json();
       const existingDrafts: any[] = draftData.PayRuns || [];
@@ -1616,15 +1663,30 @@ export async function createXeroDraftPayRun(db: any, params: {
     }
 
     if (!payRunId) {
-      const createRes = await fetch('https://api.xero.com/payroll.xro/1.0/PayRuns', {
+      let createRes = await fetch('https://api.xero.com/payroll.xro/1.0/PayRuns', {
         method: 'POST',
         headers,
         body: JSON.stringify([{ PayrollCalendarID: targetCalendar.id }])
       });
 
+      if ((createRes.status === 401 || createRes.status === 403) && (await refreshTokenAndRetry())) {
+        createRes = await fetch('https://api.xero.com/payroll.xro/1.0/PayRuns', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify([{ PayrollCalendarID: targetCalendar.id }])
+        });
+      }
+
       if (!createRes.ok) {
         const errBody = await createRes.json().catch(() => ({}));
         const errMsg = errBody.Detail || errBody.Message || errBody.error || createRes.statusText;
+        if (createRes.status === 401 || createRes.status === 403 || String(errMsg).toLowerCase().includes('authorizationunsuccessful') || String(errMsg).toLowerCase().includes('scope') || String(errMsg).toLowerCase().includes('unauthorized')) {
+          return {
+            success: false,
+            needsReconnect: true,
+            error: "Failed to create Draft Pay Run in Xero (401): AuthorizationUnsuccessful. Your Xero connection does not have the required Payroll Pay Runs permission ('payroll.payruns' and 'payroll.payslip'), or the authorized user lacks the 'Payroll Admin' role in Xero. Please re-authorize Xero to grant the updated payroll permissions."
+          };
+        }
         throw new Error(`Failed to create Draft Pay Run in Xero (${createRes.status}): ${errMsg}`);
       }
 
@@ -1733,9 +1795,16 @@ export async function createXeroDraftPayRun(db: any, params: {
       staffSummary
     };
   } catch (e: any) {
+    const isAuthErr = String(e.message).includes('401') || 
+      String(e.message).toLowerCase().includes('authorizationunsuccessful') || 
+      String(e.message).toLowerCase().includes('unauthorized') ||
+      String(e.message).toLowerCase().includes('scope');
     return {
       success: false,
-      error: e.message || 'Failed to create Draft Pay Run in Xero'
+      needsReconnect: isAuthErr,
+      error: isAuthErr 
+        ? "Failed to create Draft Pay Run in Xero (401): AuthorizationUnsuccessful. Your Xero connection is missing the Payroll Pay Runs permission ('payroll.payruns' and 'payroll.payslip'), or your user account lacks the 'Payroll Admin' role in Xero. Please re-authorize Xero to grant the required permissions."
+        : (e.message || 'Failed to create Draft Pay Run in Xero')
     };
   }
 }

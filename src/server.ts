@@ -5510,9 +5510,11 @@ function getUnreadChatCount(db: any, userId: number) {
       // - 'payroll.settings' and 'payroll.settings.read' for reading & syncing payroll pay items and earnings rates
       // - 'payroll.employees' and 'payroll.employees.read' for viewing and mapping staff to Xero employees
       // - 'payroll.timesheets' for timesheets and pay run export
+      // - 'payroll.payruns' and 'payroll.payruns.read' for creating and managing draft pay runs
+      // - 'payroll.payslip' and 'payroll.payslip.read' for populating award earnings and travel into employee payslips
       // - 'offline_access' for receiving refresh tokens
       const requestedScope = (req.query.scope as string) ||
-        'openid profile email accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets offline_access';
+        'openid profile email accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read offline_access';
 
       const params = new URLSearchParams({
         response_type: 'code',
