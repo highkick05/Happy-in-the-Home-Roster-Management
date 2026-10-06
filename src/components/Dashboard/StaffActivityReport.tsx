@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
-import { Activity, Calendar, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { Activity, Calendar, RefreshCw, SlidersHorizontal, Send } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CycleSelector from '../ui/CycleSelector';
+import XeroPayRunModal from './XeroPayRunModal';
 
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
@@ -23,6 +24,7 @@ export default function StaffActivityReport() {
   const [staffList, setStaffList] = useState<any[]>([]);
   const [staffFilter, setStaffFilter] = useLocalStorage('activity_staff_filter', '');
 
+  const [isPayRunModalOpen, setIsPayRunModalOpen] = useState(false);
   const [showColumnDropdown, setShowColumnDropdown] = useState(false);
   const [visibleColumns, setVisibleColumns] = useLocalStorage<string[]>('activity_visible_columns', [
     'shiftId',
@@ -217,8 +219,19 @@ export default function StaffActivityReport() {
             onClick={fetchReport}
             disabled={loading}
             className="flex items-center px-3 py-2 bg-brand-navy hover:bg-[#1f262e] text-[#E6EDF3] rounded-md text-xs transition-colors border border-border-subtle"
+            title="Refresh report data"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+
+          {/* Send to Xero Pay Run Button */}
+          <button
+            onClick={() => setIsPayRunModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-sky-500 hover:bg-sky-400 text-brand-navy font-bold rounded-md text-xs transition-colors shadow-sm cursor-pointer shrink-0"
+            title="Send employees pay run info to Xero to create a Draft Pay Run"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>Send to Xero Pay Run</span>
           </button>
         </div>
       </div>
@@ -365,6 +378,16 @@ export default function StaffActivityReport() {
           </div>
         )}
       </div>
+
+      {/* Xero Pay Run Creation Modal */}
+      <XeroPayRunModal
+        isOpen={isPayRunModalOpen}
+        onClose={() => setIsPayRunModalOpen(false)}
+        startDate={dateRange.start}
+        endDate={dateRange.end}
+        token={token || ''}
+        onSuccess={() => fetchReport()}
+      />
     </div>
   );
 }

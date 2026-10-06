@@ -49,6 +49,9 @@ import {
   getXeroPayItems,
   classifyXeroEarningsRate,
   getXeroEmployees,
+  getXeroPayrollCalendars,
+  previewXeroPayRun,
+  createXeroDraftPayRun,
 } from "./services/xeroService";
 import {
   initAwardRatesTable,
@@ -6152,6 +6155,56 @@ function getUnreadChatCount(db: any, userId: number) {
         success: false,
         error: e.message || "Failed to sync Xero employees"
       });
+    }
+  });
+
+  app.get("/api/xero/calendars", authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const result = await getXeroPayrollCalendars(db);
+      res.json(result);
+    } catch (e: any) {
+      console.error("[XERO_CALENDARS] Error:", e);
+      res.status(500).json({ success: false, calendars: [], error: e.message });
+    }
+  });
+
+  app.get("/api/xero/payrun/preview", authenticateToken, requireAdmin, (req: any, res) => {
+    try {
+      const { startDate, endDate, staffId } = req.query;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ success: false, error: "startDate and endDate are required." });
+      }
+      const preview = previewXeroPayRun(db, {
+        startDate: String(startDate),
+        endDate: String(endDate),
+        staffId: staffId ? String(staffId) : undefined
+      });
+      res.json(preview);
+    } catch (e: any) {
+      console.error("[XERO_PAYRUN_PREVIEW] Error:", e);
+      res.status(500).json({ success: false, error: e.message || "Failed to preview pay run" });
+    }
+  });
+
+  app.post("/api/xero/payrun/create", authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const { startDate, endDate, payrollCalendarId, staffIds } = req.body;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ success: false, error: "startDate and endDate are required." });
+      }
+      const result = await createXeroDraftPayRun(db, {
+        startDate: String(startDate),
+        endDate: String(endDate),
+        payrollCalendarId,
+        staffIds
+      });
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      res.json(result);
+    } catch (e: any) {
+      console.error("[XERO_PAYRUN_CREATE] Error:", e);
+      res.status(500).json({ success: false, error: e.message || "Failed to create Draft Pay Run in Xero" });
     }
   });
 
