@@ -15,6 +15,7 @@ interface StaffModalProps {
 export default function StaffModal({ isOpen, onClose, onSave, token, staff }: StaffModalProps) {
 
   const [positions, setPositions] = useState<any[]>([]);
+  const [payItems, setPayItems] = useState<any[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -24,6 +25,13 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
           if (Array.isArray(data)) setPositions(data);
         })
         .catch(err => console.error("Failed to load positions", err));
+
+      fetch('/api/settings/pay-items', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data)) setPayItems(data);
+        })
+        .catch(err => console.error("Failed to load pay items", err));
     }
   }, [isOpen, token]);
 
@@ -63,6 +71,12 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
     primaryPosition: staff?.primary_position || '',
     additionalPositions: parseAdditionalPositions(staff?.additional_positions),
     avatarUrl: getAvatarUrl(staff?.avatar_url || Math.random().toString(36).substring(7)),
+    payRateWeekdayId: staff?.pay_rate_weekday_id || '',
+    payRateSaturdayId: staff?.pay_rate_saturday_id || '',
+    payRateSundayId: staff?.pay_rate_sunday_id || '',
+    payRatePublicHolidayId: staff?.pay_rate_public_holiday_id || '',
+    payRateNdisTravelId: staff?.pay_rate_ndis_travel_id || '',
+    payRateHomeCareTravelId: staff?.pay_rate_home_care_travel_id || '',
   });
 
   useEffect(() => {
@@ -89,6 +103,12 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         primaryPosition: staff.primary_position || '',
         additionalPositions: parseAdditionalPositions(staff.additional_positions),
         avatarUrl: getAvatarUrl(staff.avatar_url || staff.first_name || 'Staff'),
+        payRateWeekdayId: staff.pay_rate_weekday_id || '',
+        payRateSaturdayId: staff.pay_rate_saturday_id || '',
+        payRateSundayId: staff.pay_rate_sunday_id || '',
+        payRatePublicHolidayId: staff.pay_rate_public_holiday_id || '',
+        payRateNdisTravelId: staff.pay_rate_ndis_travel_id || '',
+        payRateHomeCareTravelId: staff.pay_rate_home_care_travel_id || '',
       });
     } else {
       setFormData({
@@ -113,6 +133,12 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         primaryPosition: '',
         additionalPositions: [],
         avatarUrl: getAvatarUrl(Math.random().toString(36).substring(7)),
+        payRateWeekdayId: '',
+        payRateSaturdayId: '',
+        payRateSundayId: '',
+        payRatePublicHolidayId: '',
+        payRateNdisTravelId: '',
+        payRateHomeCareTravelId: '',
       });
     }
   }, [staff, isOpen]);
@@ -328,6 +354,173 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                 <div>
                   <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Super Member Number</label>
                   <input name="superMemberNumber" value={formData.superMemberNumber} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" placeholder="Member Number" />
+                </div>
+              </div>
+            </div>
+
+            {/* Payroll & Award Pay Items (Xero) */}
+            <div className="pt-4 border-t border-white/[0.08]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                <div>
+                  <h3 className="text-md font-medium text-white flex items-center gap-2">
+                    <span>Payroll &amp; Award Rates (Xero)</span>
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      Sync Ready
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    Link this staff member to Xero Pay Items for automated ordinary hours, weekend penalties, and travel allowances.
+                  </p>
+                </div>
+                {payItems.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const weekday = payItems.find(p => p.name.toLowerCase().includes('schads 2.1') && !p.name.toLowerCase().includes('sat') && !p.name.toLowerCase().includes('sun') && !p.name.toLowerCase().includes('holiday'));
+                      const sat = payItems.find(p => p.name.toLowerCase().includes('schads 2.1') && p.name.toLowerCase().includes('sat'));
+                      const sun = payItems.find(p => p.name.toLowerCase().includes('schads 2.1') && p.name.toLowerCase().includes('sun'));
+                      const pub = payItems.find(p => p.name.toLowerCase().includes('schads 2.1') && (p.name.toLowerCase().includes('holiday') || p.name.toLowerCase().includes('public')));
+                      const schadsTravel = payItems.find(p => p.name.toLowerCase().includes('vehicle') && p.name.toLowerCase().includes('schads'));
+                      const timeTravel = payItems.find(p => p.name.toLowerCase().includes('time travel') || p.name.toLowerCase().includes('base rate'));
+
+                      setFormData(prev => ({
+                        ...prev,
+                        payRateWeekdayId: weekday ? weekday.xero_earnings_rate_id : prev.payRateWeekdayId,
+                        payRateSaturdayId: sat ? sat.xero_earnings_rate_id : prev.payRateSaturdayId,
+                        payRateSundayId: sun ? sun.xero_earnings_rate_id : prev.payRateSundayId,
+                        payRatePublicHolidayId: pub ? pub.xero_earnings_rate_id : prev.payRatePublicHolidayId,
+                        payRateNdisTravelId: schadsTravel ? schadsTravel.xero_earnings_rate_id : (timeTravel ? timeTravel.xero_earnings_rate_id : prev.payRateNdisTravelId),
+                        payRateHomeCareTravelId: schadsTravel ? schadsTravel.xero_earnings_rate_id : (timeTravel ? timeTravel.xero_earnings_rate_id : prev.payRateHomeCareTravelId),
+                      }));
+                    }}
+                    className="px-2.5 py-1 bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 rounded text-[11px] font-semibold transition-colors cursor-pointer self-start sm:self-auto"
+                    title="Automatically apply SCHADS 2.1 Casual shift and travel pay items"
+                  >
+                    ⚡ Auto-Fill SCHADS 2.1 Preset
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5 flex items-center justify-between">
+                    <span>Weekday Ordinary Rate</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">Mon–Fri</span>
+                  </label>
+                  <select
+                    name="payRateWeekdayId"
+                    value={formData.payRateWeekdayId}
+                    onChange={handleChange}
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[12px] text-white outline-none focus:border-brand-blue transition-colors"
+                  >
+                    <option value="">-- Select Weekday Pay Item --</option>
+                    {payItems.map(p => (
+                      <option key={p.id} value={p.xero_earnings_rate_id}>
+                        {p.name} ({p.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5 flex items-center justify-between">
+                    <span>Saturday Penalty Rate</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">1.4x / Sat</span>
+                  </label>
+                  <select
+                    name="payRateSaturdayId"
+                    value={formData.payRateSaturdayId}
+                    onChange={handleChange}
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[12px] text-white outline-none focus:border-brand-blue transition-colors"
+                  >
+                    <option value="">-- Select Saturday Pay Item --</option>
+                    {payItems.map(p => (
+                      <option key={p.id} value={p.xero_earnings_rate_id}>
+                        {p.name} ({p.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5 flex items-center justify-between">
+                    <span>Sunday Penalty Rate</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">1.8x / Sun</span>
+                  </label>
+                  <select
+                    name="payRateSundayId"
+                    value={formData.payRateSundayId}
+                    onChange={handleChange}
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[12px] text-white outline-none focus:border-brand-blue transition-colors"
+                  >
+                    <option value="">-- Select Sunday Pay Item --</option>
+                    {payItems.map(p => (
+                      <option key={p.id} value={p.xero_earnings_rate_id}>
+                        {p.name} ({p.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5 flex items-center justify-between">
+                    <span>Public Holiday Rate</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">2.2x / Pub Hol</span>
+                  </label>
+                  <select
+                    name="payRatePublicHolidayId"
+                    value={formData.payRatePublicHolidayId}
+                    onChange={handleChange}
+                    className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[12px] text-white outline-none focus:border-brand-blue transition-colors"
+                  >
+                    <option value="">-- Select Public Holiday Pay Item --</option>
+                    {payItems.map(p => (
+                      <option key={p.id} value={p.xero_earnings_rate_id}>
+                        {p.name} ({p.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Separate Travel Allowances: NDIS vs Home Care */}
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5 flex items-center justify-between">
+                    <span className="text-emerald-400 font-semibold">NDIS Travel Allowance</span>
+                    <span className="text-[10px] text-zinc-500">NDIS Shifts</span>
+                  </label>
+                  <select
+                    name="payRateNdisTravelId"
+                    value={formData.payRateNdisTravelId}
+                    onChange={handleChange}
+                    className="w-full bg-black/40 border border-emerald-500/30 rounded-md px-3 py-2 text-[12px] text-white outline-none focus:border-brand-teal transition-colors"
+                  >
+                    <option value="">-- Select NDIS Travel Pay Item --</option>
+                    {payItems.map(p => (
+                      <option key={p.id} value={p.xero_earnings_rate_id}>
+                        {p.name} ({p.category} - {p.rate_type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5 flex items-center justify-between">
+                    <span className="text-sky-400 font-semibold">Home Care Travel Allowance</span>
+                    <span className="text-[10px] text-zinc-500">HCP Shifts</span>
+                  </label>
+                  <select
+                    name="payRateHomeCareTravelId"
+                    value={formData.payRateHomeCareTravelId}
+                    onChange={handleChange}
+                    className="w-full bg-black/40 border border-sky-500/30 rounded-md px-3 py-2 text-[12px] text-white outline-none focus:border-brand-teal transition-colors"
+                  >
+                    <option value="">-- Select Home Care Travel Pay Item --</option>
+                    {payItems.map(p => (
+                      <option key={p.id} value={p.xero_earnings_rate_id}>
+                        {p.name} ({p.category} - {p.rate_type})
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>

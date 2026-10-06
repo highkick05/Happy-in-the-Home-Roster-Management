@@ -945,6 +945,14 @@ try {
     console.error("[DEBUG] Error initializing pay_items table:", err);
   }
 
+  // Ensure staff users table has payroll rate mapping columns
+  try { db.exec("ALTER TABLE users ADD COLUMN pay_rate_weekday_id TEXT DEFAULT ''"); } catch (e: any) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN pay_rate_saturday_id TEXT DEFAULT ''"); } catch (e: any) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN pay_rate_sunday_id TEXT DEFAULT ''"); } catch (e: any) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN pay_rate_public_holiday_id TEXT DEFAULT ''"); } catch (e: any) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN pay_rate_ndis_travel_id TEXT DEFAULT ''"); } catch (e: any) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN pay_rate_home_care_travel_id TEXT DEFAULT ''"); } catch (e: any) {}
+
   try {
     db.exec("ALTER TABLE tasks ADD COLUMN assigned_to_id INTEGER");
   } catch (e: any) {}
@@ -7185,14 +7193,14 @@ app.get("/api/health", (req, res) => {
     if (req.user.role !== "ADMIN" || requestedRole === "STAFF") {
       const staff = db
         .prepare(
-          `SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, ${joinedExpr}, ${createdExpr} FROM users WHERE role = ?${busyFilter}`,
+          `SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, ${joinedExpr}, ${createdExpr} FROM users WHERE role = ?${busyFilter}`,
         )
         .all("STAFF", ...busyParams);
       return res.json(staff);
     }
     const staff = db
       .prepare(
-        `SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, ${joinedExpr}, ${createdExpr} FROM users WHERE 1=1${busyFilter}`,
+        `SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, ${joinedExpr}, ${createdExpr} FROM users WHERE 1=1${busyFilter}`,
       )
       .all(...busyParams);
     res.json(staff);
@@ -7243,13 +7251,19 @@ app.get("/api/health", (req, res) => {
       primaryPosition,
       additionalPositions,
       joinedDate,
+      payRateWeekdayId,
+      payRateSaturdayId,
+      payRateSundayId,
+      payRatePublicHolidayId,
+      payRateNdisTravelId,
+      payRateHomeCareTravelId,
     } = req.body;
     try {
       const hash = bcrypt.hashSync(password, 10);
       const nowIso = new Date().toISOString();
       const safeJoinedDate = joinedDate ? String(joinedDate).split('T')[0] : nowIso.split('T')[0];
       const stmt = db.prepare(
-        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, joined_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, joined_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
       const info = stmt.run(
         email,
@@ -7272,6 +7286,12 @@ app.get("/api/health", (req, res) => {
         avatarUrl || null,
         primaryPosition || null,
         additionalPositions ? JSON.stringify(additionalPositions) : "[]",
+        payRateWeekdayId || "",
+        payRateSaturdayId || "",
+        payRateSundayId || "",
+        payRatePublicHolidayId || "",
+        payRateNdisTravelId || "",
+        payRateHomeCareTravelId || "",
         safeJoinedDate,
         nowIso
       );
@@ -7292,6 +7312,12 @@ app.get("/api/health", (req, res) => {
         taxNumber,
         superFundName,
         superMemberNumber,
+        pay_rate_weekday_id: payRateWeekdayId || "",
+        pay_rate_saturday_id: payRateSaturdayId || "",
+        pay_rate_sunday_id: payRateSundayId || "",
+        pay_rate_public_holiday_id: payRatePublicHolidayId || "",
+        pay_rate_ndis_travel_id: payRateNdisTravelId || "",
+        pay_rate_home_care_travel_id: payRateHomeCareTravelId || "",
         joined_date: safeJoinedDate,
         created_at: nowIso,
       });
@@ -7327,12 +7353,18 @@ app.get("/api/health", (req, res) => {
       primaryPosition,
       additionalPositions,
       joinedDate,
+      payRateWeekdayId,
+      payRateSaturdayId,
+      payRateSundayId,
+      payRatePublicHolidayId,
+      payRateNdisTravelId,
+      payRateHomeCareTravelId,
     } = req.body;
     const { id } = req.params;
     try {
       const safeJoinedDate = joinedDate ? String(joinedDate).split('T')[0] : null;
       const stmt = db.prepare(
-        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = ?, additional_positions = ?, joined_date = COALESCE(?, joined_date) WHERE id = ?",
+        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = ?, additional_positions = ?, pay_rate_weekday_id = COALESCE(?, pay_rate_weekday_id), pay_rate_saturday_id = COALESCE(?, pay_rate_saturday_id), pay_rate_sunday_id = COALESCE(?, pay_rate_sunday_id), pay_rate_public_holiday_id = COALESCE(?, pay_rate_public_holiday_id), pay_rate_ndis_travel_id = COALESCE(?, pay_rate_ndis_travel_id), pay_rate_home_care_travel_id = COALESCE(?, pay_rate_home_care_travel_id), joined_date = COALESCE(?, joined_date) WHERE id = ?",
       );
       stmt.run(
         email,
@@ -7354,6 +7386,12 @@ app.get("/api/health", (req, res) => {
         avatarUrl || null,
         primaryPosition || null,
         additionalPositions ? JSON.stringify(additionalPositions) : "[]",
+        payRateWeekdayId !== undefined ? payRateWeekdayId : null,
+        payRateSaturdayId !== undefined ? payRateSaturdayId : null,
+        payRateSundayId !== undefined ? payRateSundayId : null,
+        payRatePublicHolidayId !== undefined ? payRatePublicHolidayId : null,
+        payRateNdisTravelId !== undefined ? payRateNdisTravelId : null,
+        payRateHomeCareTravelId !== undefined ? payRateHomeCareTravelId : null,
         safeJoinedDate,
         id,
       );
