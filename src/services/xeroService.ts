@@ -1557,6 +1557,23 @@ export function previewXeroPayRun(db: any, params: {
 /**
  * Creates or populates a Draft Pay Run in Xero AU Payroll for the given fortnight.
  */
+export function formatXeroDate(val?: string): string {
+  if (!val) return '';
+  const match = String(val).match(/\/Date\((\d+)([+-]\d+)?\)\//);
+  if (match) {
+    const timestamp = parseInt(match[1], 10);
+    const d = new Date(timestamp);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = monthNames[d.getUTCMonth()];
+      const year = d.getUTCFullYear();
+      return `${day} ${month} ${year}`;
+    }
+  }
+  return val;
+}
+
 export async function createXeroDraftPayRun(db: any, params: {
   startDate: string;
   endDate: string;
@@ -1711,50 +1728,130 @@ export async function createXeroDraftPayRun(db: any, params: {
       existingPayslips = payRunObj?.Payslips || [];
     }
 
+    // Pre-fetch all earnings rates from Xero/DB so we have exact RatePerUnit and multipliers
+    const payItemRatesMap = new Map<string, { ratePerUnit: number; multiplier: number; earningsType: string }>();
+    try {
+      const payItemsRes = await getXeroPayItems(db);
+      if (payItemsRes.success && Array.isArray(payItemsRes.earningsRates)) {
+        for (const er of payItemsRes.earningsRates) {
+          payItemRatesMap.set(er.id, {
+            ratePerUnit: er.ratePerUnit || 0,
+            multiplier: er.multiplier || 1,
+            earningsType: er.earningsType || ''
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[XERO_PAYRUN] Could not load pay items map:', e);
+    }
+
     // 5. Update each employee's payslip with their award hours & travel
     let employeesUpdated = 0;
     const staffSummary: any[] = [];
     const executionWarnings: string[] = [];
 
     for (const staff of eligibleStaff) {
-      const earningsLines: any[] = [];
+      const targetEntries = [
+        { id: staff.payRateWeekdayId, units: staff.weekdayHours, desc: 'Weekday', defaultRate: undefined },
+        { id: staff.payRateSaturdayId, units: staff.saturdayHours, desc: 'Saturday', defaultRate: undefined },
+        { id: staff.payRateSundayId, units: staff.sundayHours, desc: 'Sunday', defaultRate: undefined },
+        { id: staff.payRatePublicHolidayId, units: staff.publicHolidayHours, desc: 'Public Holiday', defaultRate: undefined },
+        { id: staff.payRateNdisTravelId, units: staff.ndisTravelKm, desc: 'NDIS Travel', defaultRate: 0.99 },
+        { id: staff.payRateHomeCareTravelId, units: staff.homeCareTravelKm, desc: 'Home Care Travel', defaultRate: 0.99 },
+      ].filter(e => !!e.id && e.units > 0);
 
-      if (staff.weekdayHours > 0 && staff.payRateWeekdayId) {
-        earningsLines.push({ EarningsRateID: staff.payRateWeekdayId, NumberOfUnits: staff.weekdayHours });
-      }
-      if (staff.saturdayHours > 0 && staff.payRateSaturdayId) {
-        earningsLines.push({ EarningsRateID: staff.payRateSaturdayId, NumberOfUnits: staff.saturdayHours });
-      }
-      if (staff.sundayHours > 0 && staff.payRateSundayId) {
-        earningsLines.push({ EarningsRateID: staff.payRateSundayId, NumberOfUnits: staff.sundayHours });
-      }
-      if (staff.publicHolidayHours > 0 && staff.payRatePublicHolidayId) {
-        earningsLines.push({ EarningsRateID: staff.payRatePublicHolidayId, NumberOfUnits: staff.publicHolidayHours });
-      }
-      if (staff.ndisTravelKm > 0 && staff.payRateNdisTravelId) {
-        earningsLines.push({ EarningsRateID: staff.payRateNdisTravelId, NumberOfUnits: staff.ndisTravelKm });
-      }
-      if (staff.homeCareTravelKm > 0 && staff.payRateHomeCareTravelId) {
-        earningsLines.push({ EarningsRateID: staff.payRateHomeCareTravelId, NumberOfUnits: staff.homeCareTravelKm });
-      }
-
-      if (earningsLines.length === 0) continue;
+      if (targetEntries.length === 0) continue;
 
       const payslip = existingPayslips.find((p: any) => p.EmployeeID === staff.xeroEmployeeId);
 
       try {
         let slipRes: any;
         if (payslip && payslip.PayslipID) {
+          // 1. Fetch current draft payslip from Xero to preserve existing template lines & ordinary base rates
+          let existingLines: any[] = [];
+          try {
+            const getSlipRes = await fetch(`https://api.xero.com/payroll.xro/1.0/Payslip/${payslip.PayslipID}`, { headers });
+            if (getSlipRes.ok) {
+              const getSlipData = await getSlipRes.json();
+              const psObj = getSlipData.Payslip || getSlipData.Payslips?.[0];
+              if (psObj && Array.isArray(psObj.EarningsLines)) {
+                existingLines = psObj.EarningsLines;
+              }
+            }
+          } catch (getErr) {
+            console.warn('[XERO_PAYRUN] Could not fetch detailed payslip:', getErr);
+          }
+
+          // Determine employee's base ordinary rate from existing template lines
+          const baseLine = existingLines.find((el: any) => Number(el.RatePerUnit || 0) > 0);
+          const baseOrdinaryRate = baseLine ? Number(baseLine.RatePerUnit) : 0;
+
+          // Clone existing lines so Xero does not delete them or reject missing ordinary rates
+          const finalLines: any[] = existingLines.map((el: any) => ({
+            EarningsRateID: el.EarningsRateID,
+            NumberOfUnits: el.NumberOfUnits || 0,
+            RatePerUnit: el.RatePerUnit !== undefined && el.RatePerUnit !== null ? Number(el.RatePerUnit) : undefined,
+            FixedAmount: el.FixedAmount !== undefined && el.FixedAmount !== null ? Number(el.FixedAmount) : undefined
+          }));
+
+          // Merge target hours into existing template lines, or append new lines with RatePerUnit
+          for (const entry of targetEntries) {
+            const existingIdx = finalLines.findIndex(l => l.EarningsRateID === entry.id);
+            if (existingIdx >= 0) {
+              finalLines[existingIdx].NumberOfUnits = entry.units;
+              if (finalLines[existingIdx].RatePerUnit === undefined && entry.defaultRate !== undefined) {
+                finalLines[existingIdx].RatePerUnit = entry.defaultRate;
+              }
+            } else {
+              // Not in template - dynamically append new EarningsLine to the payslip
+              const rateInfo = payItemRatesMap.get(entry.id);
+              let lineRate: number | undefined = undefined;
+              if (rateInfo && rateInfo.ratePerUnit > 0) {
+                lineRate = rateInfo.ratePerUnit;
+              } else if (rateInfo && rateInfo.multiplier > 1 && baseOrdinaryRate > 0) {
+                lineRate = parseFloat((baseOrdinaryRate * rateInfo.multiplier).toFixed(4));
+              } else if (entry.defaultRate !== undefined) {
+                lineRate = entry.defaultRate;
+              } else if (baseOrdinaryRate > 0) {
+                lineRate = baseOrdinaryRate;
+              }
+
+              const newLine: any = {
+                EarningsRateID: entry.id,
+                NumberOfUnits: entry.units
+              };
+              if (lineRate !== undefined && !isNaN(lineRate) && lineRate > 0) {
+                newLine.RatePerUnit = lineRate;
+              }
+              finalLines.push(newLine);
+            }
+          }
+
           slipRes = await fetch(`https://api.xero.com/payroll.xro/1.0/Payslip/${payslip.PayslipID}`, {
             method: 'POST',
             headers,
-            body: JSON.stringify([{ EarningsLines: earningsLines }])
+            body: JSON.stringify([{ EarningsLines: finalLines }])
           });
         } else {
+          // If no pre-existing draft payslip summary was created by Xero
+          const newLines: any[] = targetEntries.map(entry => {
+            const rateInfo = payItemRatesMap.get(entry.id);
+            const line: any = {
+              EarningsRateID: entry.id,
+              NumberOfUnits: entry.units
+            };
+            if (rateInfo && rateInfo.ratePerUnit > 0) {
+              line.RatePerUnit = rateInfo.ratePerUnit;
+            } else if (entry.defaultRate !== undefined) {
+              line.RatePerUnit = entry.defaultRate;
+            }
+            return line;
+          });
+
           slipRes = await fetch('https://api.xero.com/payroll.xro/1.0/Payslip', {
             method: 'POST',
             headers,
-            body: JSON.stringify([{ PayRunID: payRunId, EmployeeID: staff.xeroEmployeeId, EarningsLines: earningsLines }])
+            body: JSON.stringify([{ PayRunID: payRunId, EmployeeID: staff.xeroEmployeeId, EarningsLines: newLines }])
           });
         }
 
@@ -1763,12 +1860,24 @@ export async function createXeroDraftPayRun(db: any, params: {
           staffSummary.push({
             staffName: staff.portalName,
             xeroEmployeeId: staff.xeroEmployeeId,
-            linesSent: earningsLines.length,
+            linesSent: targetEntries.length,
             status: 'SUCCESS'
           });
         } else {
           const errData = await slipRes.json().catch(() => ({}));
-          const errMsg = errData.Detail || errData.Message || 'Failed to update payslip';
+          const valErrors: string[] = [];
+          if (errData.Elements && Array.isArray(errData.Elements)) {
+            for (const el of errData.Elements) {
+              if (el.ValidationErrors && Array.isArray(el.ValidationErrors)) {
+                for (const ve of el.ValidationErrors) {
+                  if (ve.Message) valErrors.push(ve.Message);
+                }
+              }
+            }
+          }
+          const errMsg = valErrors.length > 0
+            ? valErrors.join('; ')
+            : (errData.Detail || errData.Message || 'Failed to update payslip');
           executionWarnings.push(`${staff.portalName}: ${errMsg}`);
           staffSummary.push({
             staffName: staff.portalName,
@@ -1786,9 +1895,9 @@ export async function createXeroDraftPayRun(db: any, params: {
       success: true,
       payRunId,
       payRunStatus: payRunObj?.PayRunStatus || 'DRAFT',
-      periodStartDate: payRunObj?.PayRunPeriodStartDate || params.startDate,
-      periodEndDate: payRunObj?.PayRunPeriodEndDate || params.endDate,
-      paymentDate: payRunObj?.PaymentDate,
+      periodStartDate: formatXeroDate(payRunObj?.PayRunPeriodStartDate) || params.startDate,
+      periodEndDate: formatXeroDate(payRunObj?.PayRunPeriodEndDate) || params.endDate,
+      paymentDate: formatXeroDate(payRunObj?.PaymentDate),
       calendarName: targetCalendar.name,
       employeesUpdated,
       warnings: executionWarnings,
