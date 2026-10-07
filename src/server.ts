@@ -2746,6 +2746,16 @@ try {
         logger.warn("Migration/Query warning:", e.message);
     }
 
+    const isHomeCare = isHC;
+    let manualGstType: string | null = null;
+    let hasAnyExplicitGst = false;
+    if (servicesData.length > 0) {
+      hasAnyExplicitGst = servicesData.some((p: any) => p.gstType !== undefined || p.hasGst !== undefined);
+      if (servicesData[0].gstType !== undefined) {
+        manualGstType = servicesData[0].gstType;
+      }
+    }
+
     if (servicesData.length > 0) {
       servicesData.forEach((sd) => {
         let srv = null;
@@ -2847,6 +2857,18 @@ try {
               mappedUnit = "Kilometre";
             }
 
+            let itemHasGst = false;
+            if (sd.gstType !== undefined && sd.gstType !== null && sd.gstType !== '') {
+              itemHasGst = (sd.gstType === '10%' || sd.gstType === '10' || sd.gstType === 'GST 10%' || sd.hasGst === true);
+            } else if (sd.hasGst !== undefined) {
+              itemHasGst = !!sd.hasGst;
+            } else if (manualGstType !== null) {
+              itemHasGst = manualGstType === '10%';
+            } else {
+              itemHasGst = isHomeCare;
+            }
+            const itemGst = itemHasGst ? (Math.round(amt * 0.1 * 100) / 100) : 0;
+
             lineItems.push({
               date: sd.date || shiftDateStr,
               time: sd.omitTime ? "" : (sd.time || timeStr),
@@ -2860,6 +2882,9 @@ try {
               unit: mappedUnit,
               rate: parseFloat(finalRate.toFixed(2)),
               amount: parseFloat(amt.toFixed(2)),
+              gstType: itemHasGst ? '10%' : 'GST Free',
+              hasGst: itemHasGst,
+              gst: itemGst,
             });
           }
         }
@@ -2942,32 +2967,17 @@ try {
       .format(start)
       .replace(/\//g, "-");
 
-    let manualGstType: string | null = null;
-    if (shift.services_json) {
-      try {
-        const parsed = JSON.parse(shift.services_json);
-        if (
-          Array.isArray(parsed) &&
-          parsed.length > 0 &&
-          parsed[0].gstType !== undefined
-        ) {
-          manualGstType = parsed[0].gstType;
-        }
-      } catch (e) {}
-    }
-
-    const isHomeCare =
-      shift.funding_type === "HCP" ||
-      shift.funding_type === "Home Care" ||
-      shift.funding_type === "HOME_CARE";
-
     let gstAmount = 0;
-    const computedGst = lineItems.reduce((acc: number, curr: any) => acc + (Math.round((curr.amount || 0) * 0.1 * 100) / 100), 0);
-    if (manualGstType) {
+    if (hasAnyExplicitGst) {
+      gstAmount = lineItems.reduce((acc: number, curr: any) => acc + (curr.gst !== undefined ? curr.gst : (curr.hasGst ? Math.round((curr.amount || 0) * 0.1 * 100) / 100 : 0)), 0);
+    } else if (manualGstType) {
+      const computedGst = lineItems.reduce((acc: number, curr: any) => acc + (Math.round((curr.amount || 0) * 0.1 * 100) / 100), 0);
       gstAmount = manualGstType === "10%" ? computedGst : 0;
     } else {
+      const computedGst = lineItems.reduce((acc: number, curr: any) => acc + (Math.round((curr.amount || 0) * 0.1 * 100) / 100), 0);
       gstAmount = isHomeCare ? computedGst : 0;
     }
+    gstAmount = Math.round(gstAmount * 100) / 100;
 
     const totalAmount = subtotal + gstAmount;
 
@@ -16673,9 +16683,12 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           ? null
           : services[0].serviceId;
         if (mainServiceId === 'custom' || mainServiceId === 'orientation') mainServiceId = null;
-        if (req.body.gstType && services.length > 0) {
-          services[0].gstType = req.body.gstType;
-        }
+        // Preserve each service item's individual gstType, falling back to top-level gstType
+        services.forEach((s: any) => {
+          if (!s.gstType) {
+            s.gstType = req.body.gstType || "GST Free";
+          }
+        });
 
         if (!startTime && !endTime) {
           services.forEach((s: any) => s.omitTime = true);

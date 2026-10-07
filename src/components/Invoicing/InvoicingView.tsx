@@ -26,8 +26,9 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
     customName?: string;
     customUnit?: string;
     customRate?: string;
+    gstType?: string;
   }[]>([
-    { serviceId: '', qtyOverride: '', rateOverride: '' }
+    { serviceId: '', qtyOverride: '', rateOverride: '', gstType: 'GST Free' }
   ]);
   
   const [options, setOptions] = useState<{ clients: any[], staff: any[], services: any[] }>({ clients: [], staff: [], services: [] });
@@ -48,9 +49,6 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
     return options.services.filter(s => selectedClient.service_ids.includes(s.id) || selectedServiceIds.includes(s.id));
   }, [selectedClient, options.services, selectedServices]);
 
-
-;
-
   useEffect(() => {
     fetchOptions();
   }, []);
@@ -68,8 +66,23 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
     }
   };
 
+  const handleTopGstChange = (newGst: string) => {
+    setFormData(prev => ({ ...prev, gstType: newGst }));
+    if (newGst === 'GST Free' || newGst === '10%') {
+      setSelectedServices(prev => prev.map(s => ({ ...s, gstType: newGst })));
+    }
+  };
+
   const addService = () => {
-    setSelectedServices([...selectedServices, { serviceId: '', qtyOverride: '', rateOverride: '' }]);
+    setSelectedServices([
+      ...selectedServices, 
+      { 
+        serviceId: '', 
+        qtyOverride: '', 
+        rateOverride: '', 
+        gstType: formData.gstType === '10%' ? '10%' : 'GST Free' 
+      }
+    ]);
   };
 
   const addCustomService = () => {
@@ -83,7 +96,8 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
         isCustom: true,
         customName: '',
         customUnit: 'Hour',
-        customRate: '0.00'
+        customRate: '0.00',
+        gstType: formData.gstType === '10%' ? '10%' : 'GST Free'
       }
     ]);
   };
@@ -175,12 +189,27 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
     const fresh = [...selectedServices];
     (fresh[index] as any)[field] = value;
     setSelectedServices(fresh);
+
+    if (field === 'gstType') {
+      const all10 = fresh.every(s => (s.gstType || 'GST Free') === '10%');
+      const allFree = fresh.every(s => (s.gstType || 'GST Free') === 'GST Free');
+      if (all10) {
+        setFormData(prev => ({ ...prev, gstType: '10%' }));
+      } else if (allFree) {
+        setFormData(prev => ({ ...prev, gstType: 'GST Free' }));
+      } else {
+        setFormData(prev => ({ ...prev, gstType: 'Mixed' }));
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const validServices = selectedServices.filter(s => s.serviceId);
+    const validServices = selectedServices.filter(s => s.serviceId).map(s => ({
+      ...s,
+      gstType: s.gstType || (formData.gstType === '10%' ? '10%' : 'GST Free')
+    }));
     if (validServices.length === 0) {
       alert("Please select or create at least one service item.");
       return;
@@ -316,10 +345,13 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
           <select
             className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none font-mono text-sm"
             value={formData.gstType}
-            onChange={e => setFormData({ ...formData, gstType: e.target.value })}
+            onChange={e => handleTopGstChange(e.target.value)}
           >
             <option value="GST Free">GST Free</option>
             <option value="10%">GST (10%)</option>
+            {formData.gstType === 'Mixed' && (
+              <option value="Mixed">Mixed (Per-Item GST)</option>
+            )}
           </select>
         </div>
       </div>
@@ -400,7 +432,7 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
                           className="w-full bg-[#09090b] border border-white/[0.08] rounded py-1 px-2 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none"
                         />
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-4 gap-2">
                         <div className="space-y-1">
                           <span className="text-[11px] text-zinc-500 font-medium font-sans">Unit</span>
                           <select
@@ -446,15 +478,31 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
                             className="w-full bg-[#09090b] border border-white/[0.08] rounded py-1 px-2 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none font-mono"
                           />
                         </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-zinc-500 font-medium">GST</span>
+                          <select
+                            value={row.gstType || (formData.gstType === '10%' ? '10%' : 'GST Free')}
+                            onChange={e => updateService(idx, 'gstType', e.target.value)}
+                            className="w-full bg-[#09090b] border border-white/[0.08] rounded py-1 px-1.5 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none font-sans"
+                          >
+                            <option value="GST Free">GST Free</option>
+                            <option value="10%">10% GST</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
                     
                     <div className="flex justify-end pt-1">
-                      <div className="text-right flex items-center bg-brand-teal/5 px-2 py-1 rounded border border-brand-teal/20 text-xs text-zinc-300">
-                        <span className="text-zinc-500 text-[10px] font-medium mr-2">SUBTOTAL</span>
+                      <div className="text-right flex items-center bg-brand-teal/5 px-2 py-1 rounded border border-brand-teal/20 text-xs text-zinc-300 gap-2">
+                        <span className="text-zinc-500 text-[10px] font-medium mr-1">SUBTOTAL</span>
                         <span className="text-brand-teal font-bold font-mono">
                           ${(Number(row.customRate || 0) * Number(row.qtyOverride || 1)).toFixed(2)}
                         </span>
+                        {(row.gstType === '10%' || (!row.gstType && formData.gstType === '10%')) && (
+                          <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-mono">
+                            + ${(Math.round(Number(row.customRate || 0) * Number(row.qtyOverride || 1) * 0.1 * 100) / 100).toFixed(2)} GST
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -478,8 +526,8 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
                     </div>
 
                     {row.serviceId && (
-                      <div className="flex md:items-center justify-between text-[11px] bg-[#09090b]/50 p-1.5 rounded border border-white/[0.08]/50 mt-1">
-                        <div className="flex items-center space-x-4">
+                      <div className="flex md:items-center justify-between text-[11px] bg-[#09090b]/50 p-1.5 rounded border border-white/[0.08]/50 mt-1 flex-wrap gap-2">
+                        <div className="flex items-center space-x-4 flex-wrap gap-y-1">
                           <div>
                             <span className="text-zinc-500 font-medium mr-1.5">Unit</span>
                             <span className="text-zinc-300">{unit}</span>
@@ -513,11 +561,27 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
                               />
                             )}
                           </div>
+                          <div className="flex items-center">
+                            <span className="text-zinc-500 font-medium mr-1.5">GST</span>
+                            <select
+                              value={row.gstType || (formData.gstType === '10%' ? '10%' : 'GST Free')}
+                              onChange={e => updateService(idx, 'gstType', e.target.value)}
+                              className="bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-0.5 text-zinc-300 focus:border-brand-teal outline-none font-sans text-[11px]"
+                            >
+                              <option value="GST Free">GST Free</option>
+                              <option value="10%">10% GST</option>
+                            </select>
+                          </div>
                         </div>
                         
-                        <div className="text-right flex items-center bg-indigo-500/10 px-2 py-0.5 rounded border border-brand-teal/20">
-                          <span className="text-zinc-400 font-medium mr-2">SUBTOTAL</span>
+                        <div className="text-right flex items-center bg-indigo-500/10 px-2 py-0.5 rounded border border-brand-teal/20 gap-2">
+                          <span className="text-zinc-400 font-medium">SUBTOTAL</span>
                           <span className="text-brand-teal font-bold">${subtotal.toFixed(2)}</span>
+                          {(row.gstType === '10%' || (!row.gstType && formData.gstType === '10%')) && (
+                            <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded border border-amber-500/20 font-mono">
+                              + ${(Math.round(subtotal * 0.1 * 100) / 100).toFixed(2)} GST
+                            </span>
+                          )}
                         </div>
                       </div>
                     )}
@@ -531,39 +595,34 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
 
       <div className="pt-4 border-t border-white/[0.08] flex flex-col md:flex-row md:items-end justify-between gap-4 mt-4">
         {(() => {
-          const computedSubtotal = selectedServices.reduce((acc, s) => {
-             let { rate, unit, name } = getServiceDetails(s.serviceId);
-             if (s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== '') {
-                rate = Number(s.rateOverride);
-             }
-             const isProviderTravel = name?.toLowerCase().includes('provider travel') || false;
-             const isABT = name?.toLowerCase().includes('activity based transport') || false;
-             const isTravelOrTransport = isProviderTravel || isABT;
-             let effectiveQty = 0;
-             if (s.qtyOverride !== undefined && s.qtyOverride !== '') {
-               effectiveQty = Number(s.qtyOverride);
-             } else {
-               effectiveQty = isTravelOrTransport ? 0 : (unit === 'Hour' ? shiftHours : 1);
-             }
-             return acc + (effectiveQty * rate);
-          }, 0);
-          
-          const computedGst = formData.gstType === '10%' ? selectedServices.reduce((acc, s) => {
-             let { rate, unit, name } = getServiceDetails(s.serviceId);
-             if (s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== '') {
-                rate = Number(s.rateOverride);
-             }
-             const isProviderTravel = name?.toLowerCase().includes('provider travel') || false;
-             const isABT = name?.toLowerCase().includes('activity based transport') || false;
-             const isTravelOrTransport = isProviderTravel || isABT;
-             let effectiveQty = 0;
-             if (s.qtyOverride !== undefined && s.qtyOverride !== '') {
-               effectiveQty = Number(s.qtyOverride);
-             } else {
-               effectiveQty = isTravelOrTransport ? 0 : (unit === 'Hour' ? shiftHours : 1);
-             }
-             return acc + (Math.round((effectiveQty * rate) * 0.1 * 100) / 100);
-          }, 0) : 0;
+          let computedSubtotal = 0;
+          let computedGst = 0;
+
+          selectedServices.forEach(s => {
+            let { rate, unit, name } = getServiceDetails(s.serviceId);
+            if (s.rateOverride !== undefined && s.rateOverride !== null && s.rateOverride !== '') {
+               rate = Number(s.rateOverride);
+            }
+            const isProviderTravel = name?.toLowerCase().includes('provider travel') || false;
+            const isABT = name?.toLowerCase().includes('activity based transport') || false;
+            const isTravelOrTransport = isProviderTravel || isABT;
+            let effectiveQty = 0;
+            if (s.qtyOverride !== undefined && s.qtyOverride !== '') {
+              effectiveQty = Number(s.qtyOverride);
+            } else {
+              effectiveQty = isTravelOrTransport ? 0 : (unit === 'Hour' ? shiftHours : 1);
+            }
+            const itemAmt = effectiveQty * rate;
+            computedSubtotal += itemAmt;
+
+            const itemGstSetting = s.gstType || (formData.gstType === '10%' ? '10%' : 'GST Free');
+            const isItemTaxable = itemGstSetting === '10%' || itemGstSetting === 'GST 10%';
+            if (isItemTaxable) {
+              computedGst += Math.round(itemAmt * 0.1 * 100) / 100;
+            }
+          });
+
+          computedGst = Math.round(computedGst * 100) / 100;
           const computedTotal = computedSubtotal + computedGst;
 
           return (
@@ -574,11 +633,13 @@ function ManualInvoiceForm({ token, onGenerated, onClose }: { token: string | nu
               </div>
               <div className="flex items-center justify-between text-xs text-zinc-400 mb-1 w-48">
                 <span>GST:</span>
-                <span className="font-mono">${computedGst.toFixed(2)}</span>
+                <span className={`font-mono ${computedGst > 0 ? 'text-amber-400 font-semibold' : ''}`}>
+                  ${computedGst.toFixed(2)}
+                </span>
               </div>
               <div className="flex items-center justify-between w-48 pt-1 border-t border-white/[0.08]">
                 <span>Total:</span>
-                <span className="text-brand-teal font-mono">${computedTotal.toFixed(2)}</span>
+                <span className="text-brand-teal font-mono font-bold">${computedTotal.toFixed(2)}</span>
               </div>
             </div>
           );

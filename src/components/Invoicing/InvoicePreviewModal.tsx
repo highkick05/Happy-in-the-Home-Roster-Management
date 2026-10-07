@@ -178,8 +178,11 @@ export default function InvoicePreviewModal({ shiftId, invoiceId, onClose }: Pro
                          <td className="py-4 px-2 whitespace-nowrap text-zinc-600">{item.date}</td>
                          <td className="py-4 px-2">
                             <div className="font-medium text-zinc-900 leading-tight mb-1">{item.serviceName}</div>
-                            <div className="text-xs text-zinc-500 font-mono tracking-tight mb-1">
-                                {(shift.funding_type === 'HCP' || shift.funding_type === 'Home Care') ? 'Serv. ID:' : 'Code:'} {item.code || 'N/A'}
+                            <div className="text-xs text-zinc-500 font-mono tracking-tight mb-1 flex items-center gap-2">
+                                <span>{(shift.funding_type === 'HCP' || shift.funding_type === 'Home Care') ? 'Serv. ID:' : 'Code:'} {item.code || 'N/A'}</span>
+                                {item.hasGst && (
+                                   <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded font-sans">10% GST</span>
+                                )}
                             </div>
                             {item.metadata && (
                                <div className="text-xs text-zinc-500 italic mt-0.5">{item.metadata}</div>
