@@ -2927,6 +2927,8 @@ try {
 
       const amt = hours * shift.rate;
       subtotal += amt;
+      const itemHasGst = isHomeCare;
+      const itemGst = itemHasGst ? Math.round(amt * 0.1 * 100) / 100 : 0;
       lineItems.push({
         date: shiftDateStr,
         time: timeStr,
@@ -2938,6 +2940,9 @@ try {
         unit: fallbackUnit,
         rate: shift.rate,
         amount: amt,
+        gstType: itemHasGst ? '10%' : 'GST Free',
+        hasGst: itemHasGst,
+        gst: itemGst,
       });
 
       if (shift.provider_travel_km > 0) {
@@ -2947,6 +2952,7 @@ try {
             ? travelCost / shift.provider_travel_km
             : 1.0;
         subtotal += travelCost;
+        const travelGst = isHomeCare ? Math.round(travelCost * 0.1 * 100) / 100 : 0;
         lineItems.push({
           date: shiftDateStr,
           time: timeStr,
@@ -2958,12 +2964,16 @@ try {
           unit: "Kilometre",
           rate: travelRate,
           amount: travelCost,
+          gstType: isHomeCare ? '10%' : 'GST Free',
+          hasGst: isHomeCare,
+          gst: travelGst,
         });
       }
       if (shift.abt_km > 0) {
         const abtCost = shift.abt_cost || (shift.abt_km * 1.00);
         const abtRate = shift.abt_km > 0 ? abtCost / shift.abt_km : 1.0;
         subtotal += abtCost;
+        const abtGst = isHomeCare ? Math.round(abtCost * 0.1 * 100) / 100 : 0;
         lineItems.push({
           date: shiftDateStr,
           time: timeStr,
@@ -2975,6 +2985,9 @@ try {
           unit: "Kilometre",
           rate: abtRate,
           amount: abtCost,
+          gstType: isHomeCare ? '10%' : 'GST Free',
+          hasGst: isHomeCare,
+          gst: abtGst,
         });
       }
     }
@@ -3200,6 +3213,7 @@ try {
       rb.funding_type === "HCP" ||
       rb.funding_type === "Home Care" ||
       rb.funding_type === "HOME_CARE";
+    const isHomeCare = isHC;
     let invoicePrefix = isHC
       ? settingsMap.hcInvoicePrefix
       : settingsMap.ndisInvoicePrefix;
@@ -3324,6 +3338,8 @@ try {
       }
 
       const description = `${srvName} - ${dayCategory}`;
+      const itemHasGst = isHomeCare;
+      const itemGst = itemHasGst ? Math.round(finalRate * 0.1 * 100) / 100 : 0;
 
       allLineItems.push({
         date: dateStr,
@@ -3336,6 +3352,9 @@ try {
         unit: "Day",
         rate: finalRate,
         amount: finalRate,
+        gstType: itemHasGst ? '10%' : 'GST Free',
+        hasGst: itemHasGst,
+        gst: itemGst,
       });
       subtotal += finalRate;
     }
@@ -3353,10 +3372,6 @@ try {
       .format(new Date(rb.start_time))
       .replace(/\//g, "-");
 
-    const isHomeCare =
-      rb.funding_type === "HCP" ||
-      rb.funding_type === "Home Care" ||
-      rb.funding_type === "HOME_CARE";
     const gstAmount = isHomeCare ? allLineItems.reduce((acc: number, curr: any) => acc + (Math.round((curr.amount || 0) * 0.1 * 100) / 100), 0) : 0;
     const totalAmount = subtotal + gstAmount;
 
@@ -17836,13 +17851,14 @@ app.post(
 
     // Table Header
     doc.font("Helvetica-Bold").fontSize(10);
-    doc.text("DATE", 50, currentY, { width: 60, align: "left" });
-    doc.text("DESCRIPTION", 110, currentY, { width: 150, align: "left" });
-    doc.text("TIME", 265, currentY, { width: 100, align: "left" });
-    doc.text("QTY", 370, currentY, { width: 35, align: "right" });
-    doc.text("UNIT", 410, currentY, { width: 55, align: "left" });
-    doc.text("RATE", 470, currentY, { width: 50, align: "right" });
-    doc.text("AMOUNT", 525, currentY, { width: 55, align: "right" });
+    doc.text("DATE", 50, currentY, { width: 55, align: "left" });
+    doc.text("DESCRIPTION", 108, currentY, { width: 142, align: "left" });
+    doc.text("TIME", 255, currentY, { width: 75, align: "left" });
+    doc.text("QTY", 335, currentY, { width: 30, align: "right" });
+    doc.text("UNIT", 370, currentY, { width: 40, align: "left" });
+    doc.text("RATE", 415, currentY, { width: 50, align: "right" });
+    doc.text("GST", 470, currentY, { width: 48, align: "right" });
+    doc.text("AMOUNT", 522, currentY, { width: 58, align: "right" });
 
     doc
       .moveTo(50, currentY + 15)
@@ -17855,7 +17871,7 @@ app.post(
     lineItems.forEach((item: any) => {
       let safeServiceName = item.serviceName || "Unknown Service";
       let textHeight =
-        doc.heightOfString(safeServiceName, { width: 150 }) || 15;
+        doc.heightOfString(safeServiceName, { width: 142 }) || 15;
       let blockHeight = textHeight + 20 + (item.metadata ? 12 : 0);
 
       // Automatically add page if the required height for this line item exceeds the margin
@@ -17863,27 +17879,28 @@ app.post(
         doc.addPage();
         // Print Header again for the new page
         doc.font("Helvetica-Bold").fontSize(10);
-        doc.text("DATE", 50, 50, { width: 60, align: "left" });
-        doc.text("DESCRIPTION", 110, 50, { width: 150, align: "left" });
-        doc.text("TIME", 265, 50, { width: 100, align: "left" });
-        doc.text("QTY", 370, 50, { width: 35, align: "right" });
-        doc.text("UNIT", 410, 50, { width: 55, align: "left" });
-        doc.text("RATE", 470, 50, { width: 50, align: "right" });
-        doc.text("AMOUNT", 525, 50, { width: 55, align: "right" });
+        doc.text("DATE", 50, 50, { width: 55, align: "left" });
+        doc.text("DESCRIPTION", 108, 50, { width: 142, align: "left" });
+        doc.text("TIME", 255, 50, { width: 75, align: "left" });
+        doc.text("QTY", 335, 50, { width: 30, align: "right" });
+        doc.text("UNIT", 370, 50, { width: 40, align: "left" });
+        doc.text("RATE", 415, 50, { width: 50, align: "right" });
+        doc.text("GST", 470, 50, { width: 48, align: "right" });
+        doc.text("AMOUNT", 522, 50, { width: 58, align: "right" });
         doc.moveTo(50, 65).lineTo(580, 65).stroke();
         currentY = 75;
       }
 
       doc.font("Helvetica").fontSize(10);
-      doc.text(item.date, 50, currentY, { width: 60, align: "left" });
+      doc.text(item.date, 50, currentY, { width: 55, align: "left" });
 
       doc
         .fontSize(9)
-        .text(item.time, 265, currentY, { width: 100, align: "left" });
+        .text(item.time, 255, currentY, { width: 75, align: "left" });
       doc.fontSize(10);
 
       // Calculate dynamic height for description block
-      doc.text(safeServiceName, 110, currentY, { width: 150, align: "left" });
+      doc.text(safeServiceName, 108, currentY, { width: 142, align: "left" });
 
       let descY = currentY + textHeight + 2;
       const codePrefix =
@@ -17892,28 +17909,39 @@ app.post(
         shift.funding_type === "HOME_CARE"
           ? "Serv. ID:"
           : "Code:";
-      doc.fontSize(9).text(`${codePrefix} ${item.code || "N/A"}`, 110, descY, {
-        width: 150,
+      doc.fontSize(9).text(`${codePrefix} ${item.code || "N/A"}`, 108, descY, {
+        width: 142,
         align: "left",
       });
 
       if (item.metadata) {
         descY += 12;
-        doc.text(item.metadata, 110, descY, { width: 150, align: "left" });
+        doc.text(item.metadata, 108, descY, { width: 142, align: "left" });
       }
 
       doc.fontSize(10);
-      doc.text(item.qty.toString(), 370, currentY, {
-        width: 35,
+      doc.text(item.qty.toString(), 335, currentY, {
+        width: 30,
         align: "right",
       });
-      doc.text(item.unit, 410, currentY, { width: 55, align: "left" });
-      doc.text(`$${item.rate.toFixed(2)}`, 470, currentY, {
+      doc.text(item.unit, 370, currentY, { width: 40, align: "left" });
+      doc.text(`$${Number(item.rate).toFixed(2)}`, 415, currentY, {
         width: 50,
         align: "right",
       });
-      doc.text(`$${item.amount.toFixed(2)}`, 525, currentY, {
-        width: 55,
+
+      const lineGst = item.gst !== undefined
+        ? Number(item.gst)
+        : (item.hasGst
+            ? Math.round((Number(item.amount) || 0) * 0.1 * 100) / 100
+            : (isHomeCare ? Math.round((Number(item.amount) || 0) * 0.1 * 100) / 100 : 0));
+
+      doc.text(`$${lineGst.toFixed(2)}`, 470, currentY, {
+        width: 48,
+        align: "right",
+      });
+      doc.text(`$${Number(item.amount).toFixed(2)}`, 522, currentY, {
+        width: 58,
         align: "right",
       });
 

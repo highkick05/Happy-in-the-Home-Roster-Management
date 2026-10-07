@@ -164,37 +164,46 @@ export default function InvoicePreviewModal({ shiftId, invoiceId, onClose }: Pro
                 <thead>
                    <tr className="border-b-2 border-zinc-900 text-xs uppercase tracking-wider font-semibold text-zinc-900">
                       <th className="py-3 px-2 w-[12%]">Date</th>
-                      <th className="py-3 px-2 w-[35%]">Description</th>
-                      <th className="py-3 px-2 w-[20%]">Time</th>
+                      <th className="py-3 px-2 w-[30%]">Description</th>
+                      <th className="py-3 px-2 w-[16%]">Time</th>
                       <th className="py-3 px-2 text-right">Qty</th>
                       <th className="py-3 px-2 text-left">Unit</th>
                       <th className="py-3 px-2 text-right">Rate</th>
+                      <th className="py-3 px-2 text-right">GST</th>
                       <th className="py-3 px-2 text-right">Amount</th>
                    </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200">
-                   {lineItems.map((item: any, i: number) => (
-                      <tr key={i} className="group">
-                         <td className="py-4 px-2 whitespace-nowrap text-zinc-600">{item.date}</td>
-                         <td className="py-4 px-2">
-                            <div className="font-medium text-zinc-900 leading-tight mb-1">{item.serviceName}</div>
-                            <div className="text-xs text-zinc-500 font-mono tracking-tight mb-1 flex items-center gap-2">
-                                <span>{(shift.funding_type === 'HCP' || shift.funding_type === 'Home Care') ? 'Serv. ID:' : 'Code:'} {item.code || 'N/A'}</span>
-                                {item.hasGst && (
-                                   <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded font-sans">10% GST</span>
-                                )}
-                            </div>
-                            {item.metadata && (
-                               <div className="text-xs text-zinc-500 italic mt-0.5">{item.metadata}</div>
-                            )}
-                         </td>
-                         <td className="py-4 px-2 whitespace-nowrap text-zinc-600 text-xs">{item.time}</td>
-                         <td className="py-4 px-2 text-right text-zinc-700">{item.qty}</td>
-                         <td className="py-4 px-2 text-left text-zinc-500 text-xs">{item.unit}</td>
-                         <td className="py-4 px-2 text-right text-zinc-700">${Number(item.rate).toFixed(2)}</td>
-                         <td className="py-4 px-2 text-right font-medium text-zinc-900">${Number(item.amount).toFixed(2)}</td>
-                      </tr>
-                   ))}
+                   {lineItems.map((item: any, i: number) => {
+                      const itemGst = item.gst !== undefined 
+                        ? Number(item.gst) 
+                        : (item.hasGst 
+                            ? Math.round(Number(item.amount || 0) * 0.1 * 100) / 100 
+                            : (isHomeCare ? Math.round(Number(item.amount || 0) * 0.1 * 100) / 100 : 0));
+                      return (
+                         <tr key={i} className="group">
+                            <td className="py-4 px-2 whitespace-nowrap text-zinc-600">{item.date}</td>
+                            <td className="py-4 px-2">
+                               <div className="font-medium text-zinc-900 leading-tight mb-1">{item.serviceName}</div>
+                               <div className="text-xs text-zinc-500 font-mono tracking-tight mb-1 flex items-center gap-2">
+                                   <span>{(shift.funding_type === 'HCP' || shift.funding_type === 'Home Care') ? 'Serv. ID:' : 'Code:'} {item.code || 'N/A'}</span>
+                                   {itemGst > 0 && (
+                                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded font-sans">10% GST</span>
+                                   )}
+                               </div>
+                               {item.metadata && (
+                                  <div className="text-xs text-zinc-500 italic mt-0.5">{item.metadata}</div>
+                               )}
+                            </td>
+                            <td className="py-4 px-2 whitespace-nowrap text-zinc-600 text-xs">{item.time}</td>
+                            <td className="py-4 px-2 text-right text-zinc-700">{item.qty}</td>
+                            <td className="py-4 px-2 text-left text-zinc-500 text-xs">{item.unit}</td>
+                            <td className="py-4 px-2 text-right text-zinc-700">${Number(item.rate).toFixed(2)}</td>
+                            <td className="py-4 px-2 text-right text-zinc-700 font-medium whitespace-nowrap">${itemGst.toFixed(2)}</td>
+                            <td className="py-4 px-2 text-right font-medium text-zinc-900 whitespace-nowrap">${Number(item.amount).toFixed(2)}</td>
+                         </tr>
+                      );
+                   })}
                 </tbody>
              </table>
           </div>
