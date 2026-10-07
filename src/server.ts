@@ -391,6 +391,15 @@ async function startServer() {
         custom_staff_name TEXT,
         attachments_json TEXT
       );
+      CREATE TABLE IF NOT EXISTS respite_bookings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL,
+        start_time DATETIME NOT NULL,
+        end_time DATETIME NOT NULL,
+        status TEXT NOT NULL DEFAULT 'DRAFT',
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
     // Auto-migrate chat_messages table to add file columns if missing
@@ -2560,6 +2569,11 @@ try {
       console.error("Failed to parse merged invoice services_json:", e);
     }
 
+    const isHomeCare =
+      shift.funding_type === "HCP" ||
+      shift.funding_type === "Home Care" ||
+      shift.funding_type === "HOME_CARE";
+
     const lineItems: any[] = [];
     let subtotal = 0;
 
@@ -2638,10 +2652,6 @@ try {
       }
     });
 
-    const isHomeCare =
-      shift.funding_type === "HCP" ||
-      shift.funding_type === "Home Care" ||
-      shift.funding_type === "HOME_CARE";
     const gstAmount = lineItems.reduce((acc: number, curr: any) => acc + (curr.gst !== undefined ? curr.gst : (curr.hasGst ? Math.round((curr.amount || 0) * 0.1 * 100) / 100 : 0)), 0);
     const totalAmount = subtotal + gstAmount;
 
