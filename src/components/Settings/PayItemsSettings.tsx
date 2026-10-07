@@ -12,7 +12,8 @@ import {
   Tag,
   Award,
   Zap,
-  Info
+  Info,
+  Plus
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -132,6 +133,8 @@ export default function PayItemsSettings() {
   const [savedRuleKey, setSavedRuleKey] = useState<string | null>(null);
   const [autoMappingCatId, setAutoMappingCatId] = useState<number | null>(null);
   const [editingCat, setEditingCat] = useState<PayCategoryItem | null>(null);
+  const [isAddingCat, setIsAddingCat] = useState(false);
+  const [newCat, setNewCat] = useState({ name: '', employment_type: 'Casual', description: '' });
 
   // Raw Pay Items State
   const [payItems, setPayItems] = useState<PayItem[]>([]);
@@ -256,6 +259,36 @@ export default function PayItemsSettings() {
       showNotification('error', e.message || 'Error syncing pay items with Xero');
     } finally {
       setSyncingXero(false);
+    }
+  };
+
+  const handleCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCat.name.trim()) return;
+    try {
+      const authToken = token || localStorage.getItem('token') || '';
+      const res = await fetch('/api/pay-categories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+        },
+        body: JSON.stringify({
+          name: newCat.name.trim(),
+          employment_type: newCat.employment_type || 'Casual',
+          description: newCat.description || ''
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to create pay category');
+      }
+      showNotification('success', `Created pay category "${newCat.name}"`);
+      setIsAddingCat(false);
+      setNewCat({ name: '', employment_type: 'Casual', description: '' });
+      await fetchPayCategories();
+    } catch (err: any) {
+      showNotification('error', err.message || 'Failed to create pay category');
     }
   };
 
@@ -600,15 +633,36 @@ export default function PayItemsSettings() {
         <div className="space-y-6">
           {/* Search bar & info banner */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <input
-                type="text"
-                placeholder="Search pay categories..."
-                value={categorySearch}
-                onChange={(e) => setCategorySearch(e.target.value)}
-                className="w-full bg-[#121214] border border-border-subtle rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 outline-none focus:border-brand-teal transition-colors"
-              />
+            <div className="flex items-center gap-3 flex-1 flex-wrap">
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <input
+                  type="text"
+                  placeholder="Search pay categories..."
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  className="w-full bg-[#121214] border border-border-subtle rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 outline-none focus:border-brand-teal transition-colors"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsAddingCat(true)}
+                className="px-3 py-1.5 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Pay Category</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSyncFromXero}
+                disabled={syncingXero}
+                className="px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingXero ? 'animate-spin' : ''}`} />
+                <span>Pull Rates from Xero</span>
+              </button>
             </div>
 
             <div className="flex items-center gap-2 text-xs text-[#8B949E]">
@@ -992,6 +1046,94 @@ export default function PayItemsSettings() {
                   className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy font-bold rounded-lg text-xs shadow-md transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Category Modal */}
+      {isAddingCat && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#121214] border border-white/10 rounded-xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-4 border-b border-white/[0.08] mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-brand-teal/10 text-brand-teal rounded-lg border border-brand-teal/20">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Add New Pay Category</h3>
+                  <p className="text-[11px] text-[#8B949E]">Define a position/level award rate structure</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddingCat(false)}
+                className="text-zinc-400 hover:text-white p-1 rounded-md hover:bg-white/[0.05] transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCategory} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                  Category Name <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ordinary Hours, Support Worker Level 2"
+                  value={newCat.name}
+                  onChange={(e) => setNewCat(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full bg-[#18181c] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 outline-none focus:border-brand-teal transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                  Employment Type
+                </label>
+                <select
+                  value={newCat.employment_type}
+                  onChange={(e) => setNewCat(prev => ({ ...prev, employment_type: e.target.value }))}
+                  className="w-full bg-[#18181c] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-brand-teal transition-colors"
+                >
+                  <option value="Casual">Casual</option>
+                  <option value="Part-Time">Part-Time</option>
+                  <option value="Full-Time">Full-Time</option>
+                  <option value="Contractor">Contractor</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                  Description / Notes (Optional)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Base award category for standard care workers..."
+                  value={newCat.description}
+                  onChange={(e) => setNewCat(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full bg-[#18181c] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 outline-none focus:border-brand-teal transition-colors"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-white/[0.08] flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingCat(false)}
+                  className="px-4 py-2 bg-transparent hover:bg-white/[0.05] text-zinc-400 hover:text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newCat.name.trim()}
+                  className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy font-bold rounded-lg text-xs shadow-md transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Create Category
                 </button>
               </div>
             </form>

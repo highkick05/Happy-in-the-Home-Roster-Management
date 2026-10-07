@@ -6411,6 +6411,45 @@ function getUnreadChatCount(db: any, userId: number) {
 
   function syncPayCategoriesFromXero(db: any) {
     try {
+      // Helper to detect if a pay item or category name represents a penalty, multiplier, overtime, or allowance
+      const isMultiplierOrPenalty = (name: string, rateTypeName?: string, rateType?: string, earningsType?: string, mult?: number) => {
+        const n = (name || '').toLowerCase();
+        const rtn = (rateTypeName || '').toLowerCase();
+        const rt = (rateType || '').toLowerCase();
+        const et = (earningsType || '').toLowerCase();
+        const m = Number(mult || 0);
+
+        if (m > 1.0) return true;
+        if (rtn.includes('multiple') || rt.includes('multiple')) return true;
+        if (et.includes('overtime') || et.includes('allowance') || et.includes('lump') || et.includes('bonus')) return true;
+
+        return (
+          n.includes('saturday') || 
+          n.includes('sunday') || 
+          n.includes('holiday') || 
+          n.includes('weekend') ||
+          n.includes('night') || 
+          n.includes('evening') || 
+          n.includes('afternoon') ||
+          n.includes('overtime') || 
+          n.includes('o/t') ||
+          n.includes('1.5x') || 
+          n.includes('2.0x') || 
+          n.includes('2.5x') ||
+          n.includes('150%') || 
+          n.includes('200%') || 
+          n.includes('250%') ||
+          n.includes('sleepover') || 
+          n.includes('sleep over') || 
+          n.includes('travel') || 
+          n.includes('km') || 
+          n.includes('kilometre') || 
+          n.includes('mileage') || 
+          n.includes('allowance') ||
+          n.includes('reimburse')
+        );
+      };
+
       // Clean up any unlinked fake or artificial pay categories
       db.prepare(`
         DELETE FROM pay_categories 
@@ -6421,30 +6460,45 @@ function getUnreadChatCount(db: any, userId: number) {
       const payItems = db.prepare("SELECT * FROM pay_items WHERE is_active = 1 AND TRIM(xero_earnings_rate_id) != ''").all() as any[];
       if (!payItems || payItems.length === 0) return { created: 0, total: 0 };
 
-      // Strictly include ONLY those earning Names that have Rate Types of "Multiple of Employees Ordinary Earnings Rate" (or multipliers)
-      const candidates = payItems.filter(p => {
-        const rateTypeName = (p.rate_type_name || '').toLowerCase();
-        const rateType = (p.rate_type || '').toLowerCase();
-        const mult = Number(p.multiplier || 0);
-
-        const isMultipleType = 
-          rateTypeName.includes('multiple') || 
-          rateType.includes('multiple') || 
-          rateTypeName.includes('ordinary earnings rate');
-
-        const hasMultiplier = mult > 0 && mult !== 1.0;
-
-        return isMultipleType || hasMultiplier;
-      });
-
-      // Remove any previously created pay categories that are not among the multiple rate candidates
-      const candidateXeroIds = new Set(candidates.map(c => c.xero_earnings_rate_id).filter(Boolean));
+      // Purge any mistakenly created pay categories for multipliers, penalties, overtime, or travel
       const allActiveCats = db.prepare("SELECT * FROM pay_categories").all() as any[];
       for (const cat of allActiveCats) {
-        if (!cat.xero_earnings_rate_id || !candidateXeroIds.has(cat.xero_earnings_rate_id)) {
+        const linkedItem = cat.xero_earnings_rate_id ? payItems.find(p => p.xero_earnings_rate_id === cat.xero_earnings_rate_id) : null;
+        const isBad = isMultiplierOrPenalty(
+          cat.name,
+          linkedItem?.rate_type_name,
+          linkedItem?.rate_type,
+          linkedItem?.earnings_type,
+          linkedItem?.multiplier
+        );
+
+        if (isBad) {
           db.prepare("DELETE FROM pay_category_rules WHERE category_id = ?").run(cat.id);
           db.prepare("DELETE FROM pay_categories WHERE id = ?").run(cat.id);
           db.prepare("UPDATE users SET pay_category_id = NULL WHERE pay_category_id = ?").run(cat.id);
+        }
+      }
+
+      // Candidates for Pay Categories are base/ordinary earnings rates that have multipliers applying to them
+      let candidates = payItems.filter(p => !isMultiplierOrPenalty(
+        p.name,
+        p.rate_type_name,
+        p.rate_type,
+        p.earnings_type,
+        p.multiplier
+      ));
+
+      // Fallback: If strict filtering eliminated everything, find the primary Ordinary Time Earnings rate
+      if (candidates.length === 0) {
+        const ordinaryRate = payItems.find(p => 
+          (p.earnings_type || '').toLowerCase().includes('ordinary') || 
+          (p.category || '').toLowerCase() === 'ordinary' ||
+          (p.name || '').toLowerCase().includes('ordinary')
+        );
+        if (ordinaryRate) {
+          candidates = [ordinaryRate];
+        } else if (payItems.length > 0) {
+          candidates = [payItems[0]];
         }
       }
 
@@ -6460,19 +6514,20 @@ function getUnreadChatCount(db: any, userId: number) {
 
       for (const item of candidates) {
         const key = item.name.toLowerCase().trim();
-        let cat = catMap.get(key) || catMap.get(item.xero_earnings_rate_id);
+        let cat = catMap.get(key) || (item.xero_earnings_rate_id ? catMap.get(item.xero_earnings_rate_id) : null);
         if (!cat) {
           const empType = item.name.toLowerCase().includes('part') ? 'Part-Time' : (item.name.toLowerCase().includes('full') ? 'Full-Time' : 'Casual');
           const info = insertCat.run(item.name, item.xero_earnings_rate_id, empType, `Award Pay Category pulled from Xero rate "${item.name}"`);
           cat = { id: Number(info.lastInsertRowid), name: item.name, xero_earnings_rate_id: item.xero_earnings_rate_id };
           catMap.set(key, cat);
-          catMap.set(item.xero_earnings_rate_id, cat);
+          if (item.xero_earnings_rate_id) catMap.set(item.xero_earnings_rate_id, cat);
           createdCount++;
         }
         autoMatchPayCategoryRules(db, cat.id, item, payItems, false);
       }
 
-      return { created: createdCount, total: existingCats.length + createdCount };
+      const finalCount = db.prepare("SELECT COUNT(*) as cnt FROM pay_categories WHERE is_active = 1").get() as any;
+      return { created: createdCount, total: finalCount?.cnt || 0 };
     } catch (err) {
       console.error("[DEBUG] Error syncing pay categories from Xero:", err);
       return { created: 0, error: err };
@@ -7794,6 +7849,27 @@ app.get("/api/health", (req, res) => {
     } catch (e: any) {
       console.error("[PAY_CATEGORY_RULE_SAVE_ERROR]", e);
       res.status(500).json({ error: e.message || "Failed to save pay rule" });
+    }
+  });
+
+  app.post("/api/pay-categories", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { name, employment_type, description, xero_earnings_rate_id } = req.body;
+      if (!name || !name.trim()) {
+        return res.status(400).json({ error: "Category name is required" });
+      }
+
+      const insert = db.prepare("INSERT INTO pay_categories (name, employment_type, description, xero_earnings_rate_id) VALUES (?, ?, ?, ?)");
+      const info = insert.run(name.trim(), employment_type || 'Casual', description || '', xero_earnings_rate_id || '');
+      const newId = Number(info.lastInsertRowid);
+
+      const payItems = db.prepare("SELECT * FROM pay_items WHERE is_active = 1").all() as any[];
+      const baseItem = xero_earnings_rate_id ? payItems.find(p => p.xero_earnings_rate_id === xero_earnings_rate_id) : null;
+      autoMatchPayCategoryRules(db, newId, baseItem, payItems, false);
+
+      res.json({ success: true, id: newId });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to create pay category" });
     }
   });
 
