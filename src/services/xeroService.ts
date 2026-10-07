@@ -577,12 +577,26 @@ export async function syncInvoiceToXero(
     const qty = Number(item.qty || 1);
     const unitAmount = Number(item.rate !== undefined ? item.rate : (item.amount ? item.amount / qty : invoiceRow.amount));
 
+    // Resolve GST status per individual line item, falling back to invoice-wide isGstApplicable
+    let itemHasGst = isGstApplicable;
+    if (item.hasGst !== undefined && item.hasGst !== null) {
+      itemHasGst = Boolean(item.hasGst);
+    } else if (item.gstType !== undefined && item.gstType !== null && item.gstType !== '') {
+      itemHasGst = item.gstType === '10%' || item.gstType === '10' || item.gstType === 'GST 10%';
+    } else if (item.gst !== undefined && item.gst !== null) {
+      itemHasGst = Number(item.gst) > 0;
+    }
+
+    const taxType = itemHasGst
+      ? (settings.xero_tax_type_gst || 'OUTPUT')
+      : (settings.xero_tax_type_free || 'BASEXCLUDED');
+
     return {
       Description: descParts.join(' ').trim(),
       Quantity: qty,
       UnitAmount: parseFloat(unitAmount.toFixed(2)),
       AccountCode: settings.xero_account_code || '200',
-      TaxType: isGstApplicable ? (settings.xero_tax_type_gst || 'OUTPUT') : (settings.xero_tax_type_free || 'BASEXCLUDED'),
+      TaxType: taxType,
     };
   });
 
