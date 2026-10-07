@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, RefreshCw, AlertCircle, Edit3, User, Phone, Landmark, DollarSign } from 'lucide-react';
+import { X, RefreshCw, AlertCircle, Edit3, User, Phone, Landmark, DollarSign, Zap } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import { getAvatarUrl } from '../../utils/avatar';
 import AvatarSelector from '../ui/AvatarSelector';
