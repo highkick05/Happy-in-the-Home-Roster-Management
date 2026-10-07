@@ -1044,21 +1044,31 @@ export async function getXeroPayItems(db: any): Promise<{
     const rawPayItems = data.PayItems || data.payItems || data;
     const rawRates: any[] = rawPayItems.EarningsRates || rawPayItems.earningsRates || [];
 
-    const earningsRates: XeroPayItemRecord[] = rawRates.map((r: any) => ({
-      id: r.EarningsRateID || r.earningsRateID || r.Id || r.id || '',
-      name: r.Name || r.name || 'Unnamed Rate',
-      earningsType: r.EarningsType || r.earningsType || '',
-      rateType: r.RateType || r.rateType || 'RATEPERUNIT',
-      typeOfUnits: r.TypeOfUnits || r.typeOfUnits || 'Hours',
-      ratePerUnit: Number(r.RatePerUnit || r.ratePerUnit || 0),
-      multiplier: Number(r.Multiplier || r.multiplier || 1),
-      accrueLeave: !!(r.AccrueLeave ?? r.accrueLeave),
-      isExemptFromTax: !!(r.IsExemptFromTax ?? r.isExemptFromTax),
-      isExemptFromSuper: !!(r.IsExemptFromSuper ?? r.isExemptFromSuper),
-      currentRecord: r.CurrentRecord !== false && r.currentRecord !== false,
-      accountCode: r.AccountCode || r.accountCode || '',
-      suggestedCategory: classifyXeroEarningsRate(r)
-    }));
+    const earningsRates: XeroPayItemRecord[] = rawRates.map((r: any) => {
+      const rawRateType = String(r.RateType || r.rateType || '').trim();
+      const rawMult = r.Multiplier !== undefined && r.Multiplier !== null ? Number(r.Multiplier) : (r.multiplier !== undefined && r.multiplier !== null ? Number(r.multiplier) : 0);
+      const isMultiple = rawRateType.toUpperCase().includes('MULTIPLE') || 
+                         rawRateType.toLowerCase().includes('multiple of employees ordinary earnings rate') ||
+                         rawMult > 0;
+      const mult = isMultiple ? (rawMult > 0 ? rawMult : 1.0) : 0;
+      const displayRateType = isMultiple ? 'Multiple of Employees Ordinary Earnings Rate' : (rawRateType.toUpperCase() === 'RATEPERUNIT' ? 'Rate per Unit' : (rawRateType || 'Rate per Unit'));
+
+      return {
+        id: r.EarningsRateID || r.earningsRateID || r.Id || r.id || '',
+        name: r.Name || r.name || 'Unnamed Rate',
+        earningsType: r.EarningsType || r.earningsType || '',
+        rateType: displayRateType,
+        typeOfUnits: r.TypeOfUnits || r.typeOfUnits || 'Hours',
+        ratePerUnit: Number(r.RatePerUnit || r.ratePerUnit || 0),
+        multiplier: mult,
+        accrueLeave: !!(r.AccrueLeave ?? r.accrueLeave),
+        isExemptFromTax: !!(r.IsExemptFromTax ?? r.isExemptFromTax),
+        isExemptFromSuper: !!(r.IsExemptFromSuper ?? r.isExemptFromSuper),
+        currentRecord: r.CurrentRecord !== false && r.currentRecord !== false,
+        accountCode: r.AccountCode || r.accountCode || '',
+        suggestedCategory: classifyXeroEarningsRate(r)
+      };
+    });
 
     return {
       success: true,
