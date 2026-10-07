@@ -138,11 +138,11 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   }, [type]);
 
   const [staff, setStaff] = useState<any[]>([]);
-  const [positions, setPositions] = useState<any[]>([]);
-  const [updatingPositionStaffId, setUpdatingPositionStaffId] = useState<number | null>(null);
   const [clients, setClients] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
   const [contractors, setContractors] = useState<any[]>([]);
+  const [payItems, setPayItems] = useState<any[]>([]);
+  const [updatingStaffPayId, setUpdatingStaffPayId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [clientTab, setClientTab] = useLocalStorage<'NDIS' | 'HOME_CARE'>('directory_client_tab', 'NDIS');
   const [staffTab, setStaffTab] = useLocalStorage<'STAFF' | 'ADMIN'>('directory_staff_tab', 'STAFF');
@@ -164,63 +164,9 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [isContractorModalOpen, setIsContractorModalOpen] = useState(false);
   const [selectedContractor, setSelectedContractor] = useState<any>(null);
 
-  const fetchPositions = async () => {
-    try {
-      const res = await fetch('/api/positions', {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPositions(Array.isArray(data) ? data : []);
-      }
-    } catch (err) {
-      console.error('Error fetching positions:', err);
-    }
-  };
-
   useEffect(() => {
     fetchData();
-    if (activeTab === 'STAFF') {
-      fetchPositions();
-    }
   }, [activeTab]);
-
-  const handleUpdateStaffPosition = async (staffId: number, newPositionId: string) => {
-    setUpdatingPositionStaffId(staffId);
-    const numId = newPositionId ? Number(newPositionId) : null;
-    const matchedPos = positions.find(p => p.id === numId);
-
-    // Instant local optimistic update
-    setStaff(prev => prev.map(s => {
-      if (s.id === staffId) {
-        return {
-          ...s,
-          position_id: numId,
-          primary_position: matchedPos ? matchedPos.name : (newPositionId ? s.primary_position : '')
-        };
-      }
-      return s;
-    }));
-
-    try {
-      const res = await fetch(`/api/staff/${staffId}/position`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({ positionId: numId })
-      });
-      if (!res.ok) {
-        fetchData();
-      }
-    } catch (err) {
-      console.error('Failed to update staff position:', err);
-      fetchData();
-    } finally {
-      setUpdatingPositionStaffId(null);
-    }
-  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -235,6 +181,17 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
         else if (activeTab === 'CLIENTS') setClients(data);
         else if (activeTab === 'CONTRACTORS') setContractors(data);
         else setProviders(data);
+      }
+
+      if (activeTab === 'STAFF') {
+        fetch('/api/settings/pay-items', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (Array.isArray(data)) setPayItems(data);
+          })
+          .catch(() => {});
       }
     } catch (e) {
       console.error(e);
@@ -261,6 +218,29 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleUpdateStaffPayRate = async (staffId: number, field: string, payItemId: string) => {
+    setUpdatingStaffPayId(staffId);
+    try {
+      const res = await fetch(`/api/staff/${staffId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          [field]: payItemId
+        })
+      });
+      if (res.ok) {
+        setStaff(prev => prev.map(s => s.id === staffId ? { ...s, [field]: payItemId } : s));
+      }
+    } catch (e) {
+      console.error('Failed to update staff pay rate:', e);
+    } finally {
+      setUpdatingStaffPayId(null);
     }
   };
 
@@ -393,6 +373,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                     <th className="px-4 py-2 font-semibold">Name</th>
                     <th className="px-4 py-2 font-semibold">Contact</th>
                     <th className="px-4 py-2 font-semibold">Role</th>
+                    <th className="px-4 py-2 font-semibold">Pay Category</th>
                     <th className="px-4 py-2 font-semibold">Xero Payroll</th>
                     <th className="px-4 py-2 font-semibold text-right">Actions</th>
                   </>
@@ -447,35 +428,36 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                         <div className="text-[#8B949E] text-xs mt-0.5">{s.phone}</div>
                       )}
                     </td>
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase border ${
+                        s.role === 'ADMIN' 
+                          ? 'bg-purple-500/10 text-purple-300 border-purple-500/30' 
+                          : 'bg-brand-bg text-[#8B949E] border-border-subtle'
+                      }`}>
+                        {s.role}
+                      </span>
+                    </td>
                     <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {s.role === 'ADMIN' && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase bg-purple-500/15 text-purple-300 border border-purple-500/30 shrink-0">
-                            ADMIN
-                          </span>
-                        )}
+                      {payItems.length > 0 ? (
                         <select
-                          value={
-                            s.position_id ||
-                            positions.find(p => p.name?.toLowerCase().trim() === s.primary_position?.toLowerCase().trim())?.id ||
-                            ''
-                          }
-                          onChange={(e) => handleUpdateStaffPosition(s.id, e.target.value)}
-                          disabled={updatingPositionStaffId === s.id}
-                          className="bg-[#121214] border border-white/10 hover:border-brand-teal/50 focus:border-brand-teal text-[#E6EDF3] text-[11px] rounded-md px-2 py-1 outline-none transition-colors cursor-pointer max-w-[210px] truncate shadow-sm disabled:opacity-50"
-                          title={s.primary_position ? `Assigned Position: ${s.primary_position}` : 'Assign a position to link award pay rates'}
+                          value={s.pay_rate_weekday_id || ''}
+                          disabled={updatingStaffPayId === s.id}
+                          onChange={(e) => handleUpdateStaffPayRate(s.id, 'payRateWeekdayId', e.target.value)}
+                          className="bg-brand-bg border border-border-subtle rounded px-2 py-1 text-[11px] text-[#E6EDF3] focus:outline-none focus:border-brand-teal max-w-[170px] truncate cursor-pointer disabled:opacity-50"
+                          title="Assign Primary / Weekday Pay Category"
                         >
-                          <option value="">-- Assign Position --</option>
-                          {positions.map(p => (
-                            <option key={p.id} value={p.id}>
+                          <option value="">-- No Category --</option>
+                          {payItems.map((p: any) => (
+                            <option key={p.id} value={p.xero_earnings_rate_id}>
                               {p.name}
                             </option>
                           ))}
                         </select>
-                        {updatingPositionStaffId === s.id && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-brand-teal animate-ping" title="Saving position..." />
-                        )}
-                      </div>
+                      ) : (
+                        <span className="text-[11px] text-[#8B949E] italic">
+                          {s.pay_rate_weekday_id ? 'Mapped' : 'Unassigned'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5">
                       {(s.xero_employee_name || s.xero_employee_id) ? (
@@ -715,7 +697,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               })}
 
               {(activeTab === 'STAFF' && displayStaff.length === 0) && (
-                <tr><td colSpan={3} className="px-4 py-6 text-center text-[#8B949E]">No staff found in this category.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-[#8B949E]">No staff found in this category.</td></tr>
               )}
               {(activeTab === 'CLIENTS' && displayClients.length === 0) && (
                 <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No clients found in this category.</td></tr>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
   Save, 
@@ -20,11 +20,7 @@ import {
   ExternalLink,
   Zap,
   CheckCheck,
-  ArrowRight,
-  Briefcase,
-  Users,
-  Award,
-  Info
+  ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -54,105 +50,8 @@ export interface XeroRateItem {
   suggestedCategory: 'Ordinary' | 'Penalty' | 'Overtime' | 'Allowance';
 }
 
-export interface PositionPayRule {
-  id?: number;
-  category_key: string;
-  xero_earnings_rate_id: string;
-  pay_item_name: string;
-  multiplier: number;
-}
-
-export interface PositionItem {
-  id: number;
-  name: string;
-  employment_type?: string;
-  description?: string;
-  staff_count: number;
-  assigned_staff?: { id: number; name: string; avatar_url?: string }[];
-  pay_rules: Record<string, PositionPayRule>;
-}
-
-export const PAY_RULE_CATEGORIES = [
-  { 
-    key: 'weekday', 
-    label: 'Ordinary Time Earnings (Weekday)', 
-    multiplierBadge: '1.0x Base', 
-    description: 'Standard hourly pay rate for Monday to Friday rostered care hours',
-    colorTheme: 'emerald'
-  },
-  { 
-    key: 'saturday', 
-    label: 'Saturday Penalty (150%)', 
-    multiplierBadge: '1.5x Penalty', 
-    description: '150% penalty rate for all Saturday shifts under SCHADS Award',
-    colorTheme: 'amber'
-  },
-  { 
-    key: 'sunday', 
-    label: 'Sunday Penalty (200%)', 
-    multiplierBadge: '2.0x Penalty', 
-    description: '200% penalty rate for Sunday rostered shifts',
-    colorTheme: 'orange'
-  },
-  { 
-    key: 'public_holiday', 
-    label: 'Public Holiday (250%)', 
-    multiplierBadge: '2.5x Penalty', 
-    description: '250% penalty rate for official public holiday shifts',
-    colorTheme: 'rose'
-  },
-  { 
-    key: 'night_shift', 
-    label: 'Active Night Shift Loading', 
-    multiplierBadge: '1.15x Night', 
-    description: 'Shift loading for active overnight shifts spanning past 8:00 PM',
-    colorTheme: 'indigo'
-  },
-  { 
-    key: 'sleepover', 
-    label: 'Sleepover Allowance', 
-    multiplierBadge: 'Flat / Night', 
-    description: 'Designated flat allowance for inactive sleepover care shifts',
-    colorTheme: 'purple'
-  },
-  { 
-    key: 'ndis_travel', 
-    label: 'NDIS Travel Allowance', 
-    multiplierBadge: 'Per Km', 
-    description: 'Per kilometre staff travel reimbursement for NDIS client shifts ($0.99/km)',
-    colorTheme: 'teal'
-  },
-  { 
-    key: 'home_care_travel', 
-    label: 'Home Care Travel Allowance', 
-    multiplierBadge: 'Per Km / Hr', 
-    description: 'Reimbursement rate for Home Care Package (HCP) staff travel and transport',
-    colorTheme: 'sky'
-  },
-];
-
 export default function PayItemsSettings() {
   const { token } = useAuth();
-  const [activeSubTab, setActiveSubTab] = useState<'POSITIONS' | 'XERO_CATALOG'>('POSITIONS');
-
-  // Positions State
-  const [positions, setPositions] = useState<PositionItem[]>([]);
-  const [loadingPositions, setLoadingPositions] = useState(true);
-  const [positionSearch, setPositionSearch] = useState('');
-  const [savingPosId, setSavingPosId] = useState<number | null>(null);
-  const [autoMappingPosId, setAutoMappingPosId] = useState<number | null>(null);
-
-  // Position Modals
-  const [isAddPosModalOpen, setIsAddPosModalOpen] = useState(false);
-  const [newPosData, setNewPosData] = useState({
-    name: '',
-    employment_type: 'Casual',
-    description: '',
-    autoMapOnCreate: true
-  });
-  const [editingPos, setEditingPos] = useState<PositionItem | null>(null);
-
-  // Raw Pay Items State
   const [payItems, setPayItems] = useState<PayItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -160,7 +59,7 @@ export default function PayItemsSettings() {
   const [selectedMappingStatus, setSelectedMappingStatus] = useState<string>('ALL');
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // In-line editing state for Xero Earnings Rate IDs in raw catalog
+  // In-line editing state for Xero Earnings Rate IDs
   const [editedXeroIds, setEditedXeroIds] = useState<Record<number, string>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
   const [savedSuccessId, setSavedSuccessId] = useState<number | null>(null);
@@ -180,37 +79,14 @@ export default function PayItemsSettings() {
   const [syncingXero, setSyncingXero] = useState(false);
   const [loadingXero, setLoadingXero] = useState(false);
 
-  // Edit Pay Item Modal State
+  // Add & Edit Pay Category Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryType, setNewCategoryType] = useState<'Ordinary' | 'Penalty' | 'Overtime' | 'Allowance'>('Ordinary');
+  const [newRateType, setNewRateType] = useState('Hourly');
+  const [newXeroId, setNewXeroId] = useState('');
   const [editingItem, setEditingItem] = useState<PayItem | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const showNotification = (type: 'success' | 'error', text: string) => {
-    setStatusMessage({ type, text });
-    setTimeout(() => {
-      setStatusMessage(null);
-    }, 4500);
-  };
-
-  const fetchPositions = async () => {
-    setLoadingPositions(true);
-    try {
-      const res = await fetch('/api/positions', {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPositions(Array.isArray(data) ? data : []);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        showNotification('error', err.error || 'Failed to load positions');
-      }
-    } catch (e: any) {
-      console.error('Error fetching positions:', e);
-      showNotification('error', e.message || 'Error fetching positions');
-    } finally {
-      setLoadingPositions(false);
-    }
-  };
 
   const fetchPayItems = async () => {
     setLoading(true);
@@ -223,6 +99,7 @@ export default function PayItemsSettings() {
         const items: PayItem[] = Array.isArray(data) ? data : (data.payItems || data.pay_items || []);
         setPayItems(items);
 
+        // Prepopulate the local edit state with current Xero IDs
         const edits: Record<number, string> = {};
         items.forEach(item => {
           edits[item.id] = item.xero_earnings_rate_id || '';
@@ -265,7 +142,6 @@ export default function PayItemsSettings() {
   };
 
   useEffect(() => {
-    fetchPositions();
     fetchPayItems();
     fetchXeroPayItems();
   }, []);
@@ -286,7 +162,8 @@ export default function PayItemsSettings() {
       }
 
       showNotification('success', data.message || `Successfully synced ${data.total || 0} pay items from Xero!`);
-      await Promise.all([fetchPayItems(), fetchXeroPayItems(), fetchPositions()]);
+      await fetchPayItems();
+      await fetchXeroPayItems();
     } catch (e: any) {
       showNotification('error', e.message || 'Error syncing pay items with Xero');
     } finally {
@@ -294,794 +171,903 @@ export default function PayItemsSettings() {
     }
   };
 
-  const handleCreatePosition = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPosData.name.trim()) return;
-    try {
-      const res = await fetch('/api/admin/positions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          name: newPosData.name.trim(),
-          employment_type: newPosData.employment_type,
-          description: newPosData.description.trim()
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to create position');
-      }
+  const handleAutoMatchByName = async () => {
+    if (!xeroData.earningsRates.length) {
+      showNotification('error', 'No Xero earnings rates loaded. Click "Sync from Xero" first.');
+      return;
+    }
 
-      if (newPosData.autoMapOnCreate && data.id) {
-        await fetch(`/api/admin/positions/${data.id}/auto-map`, {
-          method: 'POST',
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-        }).catch(() => {});
-      }
+    let matchCount = 0;
+    const newEdits = { ...editedXeroIds };
 
-      showNotification('success', `Created classification "${newPosData.name.trim()}"`);
-      setIsAddPosModalOpen(false);
-      setNewPosData({ name: '', employment_type: 'Casual', description: '', autoMapOnCreate: true });
-      await fetchPositions();
-    } catch (err: any) {
-      showNotification('error', err.message || 'Failed to create position');
+    for (const item of payItems) {
+      const currentId = item.xero_earnings_rate_id || '';
+      if (!currentId.trim()) {
+        const itemNameClean = item.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const matched = xeroData.earningsRates.find(xr => {
+          const xrNameClean = xr.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return xrNameClean.includes(itemNameClean) || itemNameClean.includes(xrNameClean);
+        });
+
+        if (matched) {
+          newEdits[item.id] = matched.id;
+          matchCount++;
+          try {
+            await fetch(`/api/settings/pay-items/${item.id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+              },
+              body: JSON.stringify({
+                xero_earnings_rate_id: matched.id
+              })
+            });
+          } catch {}
+        }
+      }
+    }
+
+    setEditedXeroIds(newEdits);
+    if (matchCount > 0) {
+      showNotification('success', `Auto-matched and saved ${matchCount} pay items to Xero Earnings Rates!`);
+      await fetchPayItems();
+    } else {
+      showNotification('error', 'No unmapped pay items could be matched by name.');
     }
   };
 
-  const handleUpdatePositionDetails = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingPos || !editingPos.name.trim()) return;
+  const showNotification = (type: 'success' | 'error', text: string) => {
+    setStatusMessage({ type, text });
+    setTimeout(() => setStatusMessage(null), 5000);
+  };
+
+  const handleXeroIdChange = (id: number, value: string) => {
+    setEditedXeroIds(prev => ({
+      ...prev,
+      [id]: value
+    }));
+  };
+
+  const handleSaveXeroId = async (item: PayItem) => {
+    const rawVal = editedXeroIds[item.id];
+    const newXeroId = rawVal !== undefined ? rawVal.trim() : (item.xero_earnings_rate_id || '');
+    setSavingId(item.id);
+
     try {
-      const res = await fetch(`/api/admin/positions/${editingPos.id}`, {
+      const res = await fetch(`/api/settings/pay-items/${item.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          name: editingPos.name.trim(),
-          employment_type: editingPos.employment_type || 'Casual',
-          description: editingPos.description || ''
+          xero_earnings_rate_id: newXeroId
         })
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to update position');
-      }
-      showNotification('success', `Updated classification "${editingPos.name}"`);
-      setEditingPos(null);
-      await fetchPositions();
-    } catch (err: any) {
-      showNotification('error', err.message || 'Failed to update position');
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update Xero ID');
+
+      setPayItems(prev => prev.map(p => p.id === item.id ? { ...p, xero_earnings_rate_id: newXeroId } : p));
+      setSavedSuccessId(item.id);
+      setTimeout(() => setSavedSuccessId(null), 2500);
+      showNotification('success', `Saved Xero Earnings Rate GUID for "${item.name}"`);
+    } catch (e: any) {
+      showNotification('error', e.message || 'Error updating Xero GUID');
+    } finally {
+      setSavingId(null);
     }
   };
 
-  const handleDeletePosition = async (posId: number, posName: string) => {
-    if (!confirm(`Are you sure you want to delete "${posName}"? Any staff assigned to this role will need their position reassigned.`)) {
+  const handleCreatePayCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) {
+      showNotification('error', 'Pay category name is required');
       return;
     }
+
+    setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/admin/positions/${posId}`, {
+      const res = await fetch('/api/settings/pay-items', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          name: newCategoryName.trim(),
+          category: newCategoryType,
+          rate_type: newRateType.trim() || 'Hourly',
+          xero_earnings_rate_id: (newXeroId || '').trim()
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create pay category');
+
+      showNotification('success', `Pay Category "${newCategoryName.trim()}" created successfully!`);
+      setShowAddModal(false);
+      setNewCategoryName('');
+      setNewCategoryType('Ordinary');
+      setNewRateType('Hourly');
+      setNewXeroId('');
+      fetchPayItems();
+    } catch (e: any) {
+      showNotification('error', e.message || 'Error creating pay category');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateItemDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem || !editingItem.name.trim()) {
+      showNotification('error', 'Pay Item Name is required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/settings/pay-items/${editingItem.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          name: editingItem.name.trim(),
+          category: editingItem.category,
+          rate_type: editingItem.rate_type.trim() || 'Hourly',
+          xero_earnings_rate_id: (editingItem.xero_earnings_rate_id || '').trim()
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update pay item');
+
+      showNotification('success', `Pay item "${editingItem.name}" updated successfully!`);
+      setEditingItem(null);
+      fetchPayItems();
+    } catch (e: any) {
+      showNotification('error', e.message || 'Error updating pay item');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeletePayItem = async (item: PayItem) => {
+    if (!confirm(`Are you sure you want to remove pay item "${item.name}"?\n\nThis will deactivate it from timesheet rate calculations.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/settings/pay-items/${item.id}`, {
         method: 'DELETE',
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to delete position');
-      }
-      showNotification('success', `Deleted position "${posName}"`);
-      await fetchPositions();
-    } catch (err: any) {
-      showNotification('error', err.message || 'Failed to delete position');
-    }
-  };
-
-  const handleAutoMapPosition = async (posId: number, posName: string) => {
-    setAutoMappingPosId(posId);
-    try {
-      const res = await fetch(`/api/admin/positions/${posId}/auto-map`, {
-        method: 'POST',
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-      });
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to auto-map pay items');
-      }
-      showNotification('success', `Auto-mapped matching Xero pay rates for "${posName}"`);
-      await fetchPositions();
-    } catch (err: any) {
-      showNotification('error', err.message || 'Failed to auto-map position');
-    } finally {
-      setAutoMappingPosId(null);
+      if (!res.ok) throw new Error(data.error || 'Failed to delete pay item');
+
+      showNotification('success', `Pay item "${item.name}" deactivated.`);
+      fetchPayItems();
+    } catch (e: any) {
+      showNotification('error', e.message || 'Error deleting pay item');
     }
   };
 
-  const handleUpdatePositionPayRule = async (posId: number, categoryKey: string, xeroEarningsRateId: string) => {
-    setSavingPosId(posId);
-    const selectedPayItem = payItems.find(p => p.xero_earnings_rate_id === xeroEarningsRateId);
-    const rateName = selectedPayItem ? selectedPayItem.name : '';
+  // Filter Pay Items
+  const filteredItems = payItems.filter(item => {
+    if (selectedCategory !== 'ALL' && item.category !== selectedCategory) return false;
+    
+    const isMapped = !!(item.xero_earnings_rate_id && item.xero_earnings_rate_id.trim());
+    if (selectedMappingStatus === 'MAPPED' && !isMapped) return false;
+    if (selectedMappingStatus === 'UNMAPPED' && isMapped) return false;
 
-    // Update local state immediately
-    setPositions(prev => prev.map(p => {
-      if (p.id === posId) {
-        return {
-          ...p,
-          pay_rules: {
-            ...p.pay_rules,
-            [categoryKey]: {
-              category_key: categoryKey,
-              xero_earnings_rate_id: xeroEarningsRateId,
-              pay_item_name: rateName,
-              multiplier: 1.0
-            }
-          }
-        };
-      }
-      return p;
-    }));
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchName = item.name.toLowerCase().includes(q);
+      const matchCat = item.category.toLowerCase().includes(q);
+      const matchXero = (item.xero_earnings_rate_id || '').toLowerCase().includes(q);
+      if (!matchName && !matchCat && !matchXero) return false;
+    }
 
-    try {
-      const currentPos = positions.find(p => p.id === posId);
-      const updatedRules = {
-        ...(currentPos?.pay_rules || {}),
-        [categoryKey]: {
-          xero_earnings_rate_id: xeroEarningsRateId,
-          pay_item_name: rateName,
-          multiplier: 1.0
-        }
-      };
+    return true;
+  });
 
-      const res = await fetch(`/api/admin/positions/${posId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          name: currentPos?.name || '',
-          pay_rules: updatedRules
-        })
-      });
-      if (!res.ok) {
-        fetchPositions();
-      }
-    } catch (err) {
-      console.error('Failed to save position pay rule:', err);
-      fetchPositions();
-    } finally {
-      setSavingPosId(null);
+  // Calculate Metrics
+  const totalItems = payItems.length;
+  const mappedCount = payItems.filter(i => !!(i.xero_earnings_rate_id && i.xero_earnings_rate_id.trim())).length;
+  const unmappedCount = totalItems - mappedCount;
+  const mappingPercent = totalItems > 0 ? Math.round((mappedCount / totalItems) * 100) : 0;
+
+  const getCategoryBadgeClass = (category: string) => {
+    switch (category) {
+      case 'Ordinary':
+        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+      case 'Penalty':
+        return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+      case 'Overtime':
+        return 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+      case 'Allowance':
+        return 'bg-sky-500/10 text-sky-400 border-sky-500/30';
+      default:
+        return 'bg-zinc-800 text-zinc-300 border-zinc-700';
     }
   };
-
-  // Filter positions
-  const filteredPositions = useMemo(() => {
-    return positions.filter(pos => {
-      if (!positionSearch.trim()) return true;
-      const q = positionSearch.toLowerCase();
-      return (
-        pos.name.toLowerCase().includes(q) ||
-        (pos.employment_type && pos.employment_type.toLowerCase().includes(q)) ||
-        (pos.description && pos.description.toLowerCase().includes(q))
-      );
-    });
-  }, [positions, positionSearch]);
-
-  // Overall metrics
-  const totalPositionsCount = positions.length;
-  const fullyMappedPositionsCount = positions.filter(p => {
-    const rules = p.pay_rules || {};
-    return !!(rules.weekday?.xero_earnings_rate_id && rules.saturday?.xero_earnings_rate_id && rules.sunday?.xero_earnings_rate_id && rules.public_holiday?.xero_earnings_rate_id);
-  }).length;
-  const totalStaffAssignedCount = positions.reduce((acc, curr) => acc + (curr.staff_count || 0), 0);
-  const totalSyncedPayItems = payItems.filter(p => !!p.xero_earnings_rate_id).length;
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Toast Notification */}
-      {statusMessage && (
-        <div 
-          className={`p-4 rounded-xl border flex items-center justify-between shadow-lg transition-all ${
-            statusMessage.type === 'success' 
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
-              : 'bg-red-500/10 border-red-500/30 text-red-300'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            {statusMessage.type === 'success' ? (
-              <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
-            ) : (
-              <AlertCircle className="w-5 h-5 shrink-0 text-red-400" />
-            )}
-            <span className="text-sm font-medium">{statusMessage.text}</span>
-          </div>
-          <button 
-            type="button" 
-            onClick={() => setStatusMessage(null)}
-            className="p-1 hover:bg-white/10 rounded-md transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Main Header Banner */}
+      {/* Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-brand-bg border border-border-subtle p-5 rounded-xl shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-brand-teal/10 text-brand-teal rounded-lg border border-brand-teal/20">
-            <Award className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-lg font-bold text-white tracking-wide">
-                Award Pay Rates &amp; Positions Architecture
-              </h2>
-              <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-full bg-brand-teal/15 text-brand-teal border border-brand-teal/30">
-                SCHADS Award Engine
-              </span>
-              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 font-mono">
-                Xero Connected
-              </span>
+        <div>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 bg-brand-teal/10 text-brand-teal rounded-lg border border-brand-teal/20">
+              <CreditCard className="w-5 h-5" />
             </div>
-            <p className="text-xs text-[#8B949E] mt-0.5">
-              Three-Layer Role Architecture: manage defined job classifications, map each role to its Xero pay items, and let staff inherit award rules automatically.
-            </p>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg font-bold text-white tracking-wide">
+                  Pay Items &amp; Xero Earnings Rate Mapping
+                </h2>
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                  Payroll Sync
+                </span>
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-brand-teal/15 text-brand-teal border border-brand-teal/30">
+                  Award Engine
+                </span>
+              </div>
+              <p className="text-xs text-[#8B949E] mt-0.5">
+                Map each roster penalty, overtime, ordinary, and allowance pay item to its corresponding Xero Earnings Rate GUID for automated payroll export.
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Global Actions */}
+        {/* Header Actions */}
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={() => {
-              fetchPositions();
-              fetchPayItems();
-              fetchXeroPayItems();
-            }}
-            disabled={loadingPositions || loading}
+            onClick={fetchPayItems}
+            disabled={loading}
             className="px-3 py-2 bg-brand-navy hover:bg-zinc-800 text-[#8B949E] hover:text-white border border-border-subtle rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="Refresh positions and pay items"
+            title="Refresh pay items from server"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${(loadingPositions || loading) ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
           </button>
+
+          {unmappedCount > 0 && xeroData.earningsRates.length > 0 && (
+            <button
+              type="button"
+              onClick={handleAutoMatchByName}
+              className="px-3 py-2 bg-brand-navy hover:bg-zinc-800 text-sky-400 border border-sky-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Auto-match unmapped pay items to Xero earnings rates with identical or similar names"
+            >
+              <CheckCheck className="w-3.5 h-3.5" />
+              <span>Auto-Match Rates</span>
+            </button>
+          )}
 
           <button
             type="button"
             onClick={handleSyncFromXero}
             disabled={syncingXero || loading}
-            className="px-3.5 py-2 bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-            title="Sync latest Earnings Rates from Xero Payroll"
+            className="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-teal-500 hover:from-sky-400 hover:to-teal-400 text-brand-navy rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer disabled:opacity-50"
+            title="Fetch latest Pay Items directly from Xero and sync to portal database"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${syncingXero ? 'animate-spin' : ''}`} />
-            <span>{syncingXero ? 'Syncing with Xero...' : 'Pull Rates from Xero'}</span>
+            <Zap className={`w-3.5 h-3.5 ${syncingXero ? 'animate-bounce' : ''}`} />
+            <span>{syncingXero ? 'Syncing with Xero...' : 'Sync from Xero'}</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setIsAddPosModalOpen(true)}
-            className="px-3.5 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+            onClick={() => setShowAddModal(true)}
+            className="px-3.5 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-md cursor-pointer"
+            title="Create a new pay category"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Position</span>
+            <span>Add Pay Category</span>
           </button>
+
+          <a
+            href="https://go.xero.com/app/payroll/settings/pay-items"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3.5 py-2 bg-brand-navy hover:bg-zinc-800 text-sky-400 hover:text-sky-300 border border-sky-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+            title="Open Xero Payroll Settings to add or configure pay items"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Open Xero Pay Items</span>
+          </a>
         </div>
       </div>
 
-      {/* KPI Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-brand-bg border border-border-subtle p-4 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-xs text-[#8B949E]">
-            <span className="font-medium">Total Positions</span>
-            <Briefcase className="w-4 h-4 text-brand-teal" />
+      {/* Notifications */}
+      {statusMessage && (
+        <div className={`p-3 rounded-lg text-xs flex items-center gap-2 border transition-all ${
+          statusMessage.type === 'success' 
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
+            : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+        }`}>
+          {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+          <span className="font-medium">{statusMessage.text}</span>
+        </div>
+      )}
+
+      {/* Metrics & Info Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="bg-brand-bg border border-border-subtle rounded-xl p-4 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-[#8B949E] uppercase tracking-wider block">Total Pay Items</span>
+            <span className="text-xl font-bold text-white mt-1 block">{totalItems}</span>
           </div>
-          <div className="text-2xl font-bold text-white tracking-tight">
-            {totalPositionsCount}
+          <div className="p-2 bg-brand-navy rounded-lg border border-border-subtle text-zinc-400">
+            <Layers className="w-5 h-5" />
           </div>
-          <p className="text-[11px] text-zinc-500">Defined classifications</p>
         </div>
 
-        <div className="bg-brand-bg border border-border-subtle p-4 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-xs text-[#8B949E]">
-            <span className="font-medium">Fully Mapped Roles</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        <div className="bg-brand-bg border border-border-subtle rounded-xl p-4 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-[#8B949E] uppercase tracking-wider block">Mapped to Xero</span>
+            <span className="text-xl font-bold text-emerald-400 mt-1 block flex items-center gap-2">
+              {mappedCount} <span className="text-xs font-normal text-zinc-400 font-sans">({mappingPercent}%)</span>
+            </span>
           </div>
-          <div className="text-2xl font-bold text-emerald-400 tracking-tight">
-            {fullyMappedPositionsCount} <span className="text-xs text-zinc-500 font-normal">/ {totalPositionsCount}</span>
+          <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-400">
+            <CheckCircle2 className="w-5 h-5" />
           </div>
-          <p className="text-[11px] text-zinc-500">Ordinary &amp; penalty ready</p>
         </div>
 
-        <div className="bg-brand-bg border border-border-subtle p-4 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-xs text-[#8B949E]">
-            <span className="font-medium">Staff Assigned</span>
-            <Users className="w-4 h-4 text-purple-400" />
+        <div className="bg-brand-bg border border-border-subtle rounded-xl p-4 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-[#8B949E] uppercase tracking-wider block">Unmapped Items</span>
+            <span className={`text-xl font-bold mt-1 block ${unmappedCount > 0 ? 'text-amber-400' : 'text-zinc-500'}`}>
+              {unmappedCount}
+            </span>
           </div>
-          <div className="text-2xl font-bold text-white tracking-tight">
-            {totalStaffAssignedCount}
+          <div className={`p-2 rounded-lg border ${unmappedCount > 0 ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-brand-navy border-border-subtle text-zinc-600'}`}>
+            <AlertCircle className="w-5 h-5" />
           </div>
-          <p className="text-[11px] text-zinc-500">Inheriting award pay rates</p>
         </div>
 
-        <div className="bg-brand-bg border border-border-subtle p-4 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-xs text-[#8B949E]">
-            <span className="font-medium">Xero Pay Items</span>
-            <CreditCard className="w-4 h-4 text-sky-400" />
+        <div className="bg-brand-bg border border-border-subtle rounded-xl p-4 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-[#8B949E] uppercase tracking-wider block">Xero Payroll API</span>
+            <span className="text-xs font-semibold text-sky-400 mt-1 block flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5" />
+              {xeroData.connected ? (xeroData.tenantName || 'Connected') : 'Disconnected'}
+            </span>
           </div>
-          <div className="text-2xl font-bold text-sky-400 tracking-tight">
-            {totalSyncedPayItems}
+          <div className={`p-2 rounded-lg border ${xeroData.connected ? 'bg-sky-500/10 border-sky-500/20 text-sky-400' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}>
+            <Sparkles className="w-5 h-5" />
           </div>
-          <p className="text-[11px] text-zinc-500">Synced payroll earnings rates</p>
         </div>
       </div>
 
-      {/* Sub-Tab Navigation Bar */}
-      <div className="flex items-center gap-2 border-b border-border-subtle pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('POSITIONS')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-            activeSubTab === 'POSITIONS'
-              ? 'bg-brand-teal/15 text-brand-teal border border-brand-teal/30 shadow-sm'
-              : 'text-[#8B949E] hover:text-white hover:bg-white/[0.04]'
-          }`}
-        >
-          <Briefcase className="w-4 h-4" />
-          <span>Positions Catalog &amp; Pay Rules ({positions.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('XERO_CATALOG')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-            activeSubTab === 'XERO_CATALOG'
-              ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30 shadow-sm'
-              : 'text-[#8B949E] hover:text-white hover:bg-white/[0.04]'
-          }`}
-        >
-          <CreditCard className="w-4 h-4" />
-          <span>Synced Xero Pay Items Catalog ({payItems.length})</span>
-        </button>
-      </div>
-
-      {/* ======================================================== */}
-      {/* SUB-TAB 1: POSITIONS CATALOG & POSITION PAY RULES        */}
-      {/* ======================================================== */}
-      {activeSubTab === 'POSITIONS' && (
-        <div className="space-y-6">
-          {/* Controls & Search */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-brand-bg/60 border border-border-subtle p-3 rounded-xl">
-            <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <input
-                type="text"
-                placeholder="Search job classifications or employment types..."
-                value={positionSearch}
-                onChange={(e) => setPositionSearch(e.target.value)}
-                className="w-full bg-[#121214] border border-border-subtle rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 outline-none focus:border-brand-teal transition-colors"
-              />
-              {positionSearch && (
-                <button
-                  type="button"
-                  onClick={() => setPositionSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+      {/* Xero Live Sync & Status Bar */}
+      <div className={`p-4 rounded-xl border transition-all text-xs ${
+        xeroData.connected 
+          ? 'bg-gradient-to-r from-sky-950/40 via-brand-navy to-emerald-950/20 border-sky-500/30 shadow-sm'
+          : xeroData.needsReconnect
+            ? 'bg-amber-950/20 border-amber-500/30 text-amber-200'
+            : 'bg-brand-navy/70 border-border-subtle text-zinc-300'
+      }`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className={`p-2.5 rounded-lg border shrink-0 ${
+              xeroData.connected
+                ? 'bg-sky-500/15 border-sky-500/30 text-sky-400'
+                : xeroData.needsReconnect
+                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                  : 'bg-zinc-800 border-zinc-700 text-zinc-400'
+            }`}>
+              <Building2 className="w-5 h-5" />
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-[#8B949E]">
-              <Info className="w-3.5 h-3.5 text-brand-teal" />
-              <span>Workers in Staff directory inherit their position's mapped rates automatically.</span>
-            </div>
-          </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-white text-sm">
+                  {xeroData.connected
+                    ? `Connected to Xero: ${xeroData.tenantName || 'Organisation'}`
+                    : xeroData.needsReconnect
+                      ? 'Xero Payroll Scope Required'
+                      : 'Xero Connection Ready'}
+                </span>
+                {xeroData.connected && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Live Sync Ready
+                  </span>
+                )}
+                {xeroData.earningsRates.length > 0 && (
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20 font-mono">
+                    {xeroData.earningsRates.length} Xero Rates Found
+                  </span>
+                )}
+              </div>
 
-          {/* Positions List */}
-          {loadingPositions ? (
-            <div className="flex flex-col items-center justify-center p-12 text-[#8B949E] space-y-2">
-              <RefreshCw className="w-6 h-6 animate-spin text-brand-teal" />
-              <span className="text-xs">Loading Positions Catalog...</span>
-            </div>
-          ) : filteredPositions.length === 0 ? (
-            <div className="p-12 text-center bg-brand-bg border border-border-subtle rounded-xl space-y-3">
-              <Briefcase className="w-10 h-10 mx-auto text-zinc-600" />
-              <h3 className="text-sm font-semibold text-white">No Positions Found</h3>
-              <p className="text-xs text-[#8B949E] max-w-md mx-auto">
-                {positionSearch ? 'No positions match your search term.' : 'Create your first job classification (e.g. Support Worker – Level 2.1) to begin mapping Xero award pay rates.'}
+              <p className="text-zinc-400 text-xs mt-1">
+                {xeroData.connected ? (
+                  <>
+                    Export and sync your live Xero Payroll Pay Items directly into the portal database.
+                    {xeroData.lastSync && (
+                      <span className="text-zinc-400 ml-1.5 font-medium">
+                        • Last synced: {new Date(xeroData.lastSync).toLocaleString()}
+                      </span>
+                    )}
+                  </>
+                ) : xeroData.needsReconnect ? (
+                  'Your Xero account requires the Payroll scope. In developer.xero.com under Scopes, check "payroll.settings" (or "payroll.settings.read"), click Save, and click Sync from Xero.'
+                ) : (
+                  'Connect to Xero to export your live Xero Pay Items into the portal database and keep them synchronized automatically.'
+                )}
               </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {xeroData.connected ? (
               <button
                 type="button"
-                onClick={() => setIsAddPosModalOpen(true)}
-                className="px-4 py-2 bg-brand-teal text-brand-navy font-bold rounded-lg text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+                onClick={handleSyncFromXero}
+                disabled={syncingXero}
+                className="px-3.5 py-2 bg-sky-500 hover:bg-sky-400 text-brand-navy rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow cursor-pointer disabled:opacity-50"
               >
-                <Plus className="w-4 h-4" />
-                <span>Create New Position</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingXero ? 'animate-spin' : ''}`} />
+                <span>{syncingXero ? 'Importing from Xero...' : 'Import & Sync from Xero'}</span>
               </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  const xeroTabBtn = document.querySelector('button:has(svg.lucide-building-2), button:has(svg.lucide-building)') as HTMLButtonElement;
+                  if (xeroTabBtn) xeroTabBtn.click();
+                  else showNotification('error', 'Go to Settings > Xero tab to connect your account.');
+                }}
+                className="px-3.5 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow cursor-pointer"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                <span>Go to Xero Settings</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Table Card */}
+      <div className="bg-brand-bg border border-border-subtle rounded-xl shadow-sm overflow-hidden flex flex-col">
+        {/* Filter Controls Bar */}
+        <div className="p-4 border-b border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Category Filter Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+            <span className="text-xs font-semibold text-[#8B949E] mr-1">Category:</span>
+            {['ALL', 'Ordinary', 'Penalty', 'Overtime', 'Allowance'].map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                  selectedCategory === cat
+                    ? 'bg-brand-teal text-brand-navy shadow-sm'
+                    : 'bg-brand-navy text-[#8B949E] hover:text-white border border-border-subtle'
+                }`}
+              >
+                {cat === 'ALL' ? 'All Categories' : cat}
+              </button>
+            ))}
+
+            <div className="h-4 w-px bg-border-subtle mx-1 hidden sm:block" />
+
+            {/* Status Filter */}
+            <span className="text-xs font-semibold text-[#8B949E] mr-1 hidden sm:inline">Status:</span>
+            <button
+              type="button"
+              onClick={() => setSelectedMappingStatus(selectedMappingStatus === 'MAPPED' ? 'ALL' : 'MAPPED')}
+              className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors border cursor-pointer ${
+                selectedMappingStatus === 'MAPPED'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-brand-navy text-[#8B949E] hover:text-white border-border-subtle'
+              }`}
+            >
+              Mapped ({mappedCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedMappingStatus(selectedMappingStatus === 'UNMAPPED' ? 'ALL' : 'UNMAPPED')}
+              className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors border cursor-pointer ${
+                selectedMappingStatus === 'UNMAPPED'
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  : 'bg-brand-navy text-[#8B949E] hover:text-white border-border-subtle'
+              }`}
+            >
+              Unmapped ({unmappedCount})
+            </button>
+          </div>
+
+          {/* Search Box */}
+          <div className="relative w-full md:w-72">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              placeholder="Search pay item or Xero GUID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-8 py-1.5 text-xs bg-brand-navy border border-border-subtle rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-brand-teal"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Data Table */}
+        <div className="overflow-x-auto">
+          {loading ? (
+            <div className="p-12 text-center text-[#8B949E] text-xs flex items-center justify-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-brand-teal" />
+              <span>Loading Pay Items...</span>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="p-12 text-center space-y-3">
+              <div className="p-3 bg-brand-navy/60 rounded-full w-12 h-12 flex items-center justify-center mx-auto text-[#8B949E] border border-border-subtle">
+                <Tag className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-semibold text-white">No Pay Items Found</h3>
+              <p className="text-xs text-[#8B949E] max-w-md mx-auto">
+                {payItems.length === 0 
+                  ? 'No pay items are in your portal database yet. Click "Sync from Xero" to import your organization\'s pay items, or open Xero to add new rates.'
+                  : 'No pay items match the selected category, mapping filter, or search query.'}
+              </p>
+              {payItems.length === 0 && (
+                <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(true)}
+                    className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy font-bold text-xs rounded-lg inline-flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Pay Category</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSyncFromXero}
+                    disabled={syncingXero}
+                    className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-brand-navy font-bold text-xs rounded-lg inline-flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <Zap className={`w-4 h-4 ${syncingXero ? 'animate-bounce' : ''}`} />
+                    <span>{syncingXero ? 'Syncing...' : 'Sync from Xero'}</span>
+                  </button>
+                  <a
+                    href="https://go.xero.com/app/payroll/settings/pay-items"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-brand-navy hover:bg-zinc-800 text-sky-400 border border-sky-500/30 font-semibold text-xs rounded-lg inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open Xero Pay Items</span>
+                  </a>
+                </div>
+              )}
             </div>
           ) : (
-            <div className="space-y-6">
-              {filteredPositions.map((pos) => {
-                const rules = pos.pay_rules || {};
-                const mappedCount = PAY_RULE_CATEGORIES.filter(cat => !!rules[cat.key]?.xero_earnings_rate_id).length;
-                const isFullyMapped = mappedCount >= 4;
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-border-subtle bg-brand-navy/70 text-[#8B949E] uppercase tracking-wider text-[10px]">
+                  <th className="py-3 px-4 font-semibold">Pay Item Name</th>
+                  <th className="py-3 px-3 font-semibold">Category</th>
+                  <th className="py-3 px-3 font-semibold">Rate Type</th>
+                  <th className="py-3 px-3 font-semibold text-center">Mapping Status</th>
+                  <th className="py-3 px-4 font-semibold min-w-[320px]">Xero Earnings Rate ID (GUID)</th>
+                  <th className="py-3 px-4 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {filteredItems.map((item) => {
+                  const currentInputVal = editedXeroIds[item.id] !== undefined ? editedXeroIds[item.id] : (item.xero_earnings_rate_id || '');
+                  const isDirty = currentInputVal !== (item.xero_earnings_rate_id || '');
+                  const isMapped = !!(item.xero_earnings_rate_id && item.xero_earnings_rate_id.trim());
+                  const isSavingThis = savingId === item.id;
+                  const isSavedThis = savedSuccessId === item.id;
 
-                return (
-                  <div
-                    key={pos.id}
-                    className="bg-brand-bg border border-border-subtle rounded-xl overflow-hidden shadow-sm transition-all hover:border-zinc-700"
-                  >
-                    {/* Position Card Header */}
-                    <div className="p-4 bg-white/[0.02] border-b border-border-subtle flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          <h3 className="text-base font-bold text-white tracking-wide">
-                            {pos.name}
-                          </h3>
-                          {pos.employment_type && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-500/10 text-purple-300 border border-purple-500/30">
-                              {pos.employment_type}
-                            </span>
-                          )}
-                          <span 
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold border flex items-center gap-1 ${
-                              isFullyMapped 
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
-                                : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                            }`}
-                          >
-                            {isFullyMapped ? <Check className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                            <span>{mappedCount}/{PAY_RULE_CATEGORIES.length} Pay Rules Mapped</span>
-                          </span>
+                  return (
+                    <tr key={item.id} className="hover:bg-brand-navy/50 transition-colors">
+                      {/* Name */}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="font-semibold text-white flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-brand-teal/80" />
+                          <span>{item.name}</span>
                         </div>
+                      </td>
 
-                        {pos.description && (
-                          <p className="text-xs text-[#8B949E] line-clamp-1">
-                            {pos.description}
-                          </p>
+                      {/* Category */}
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <span className={`inline-block px-2.5 py-0.5 rounded text-[11px] font-semibold border ${getCategoryBadgeClass(item.category)}`}>
+                          {item.category}
+                        </span>
+                      </td>
+
+                      {/* Rate Type */}
+                      <td className="py-3 px-3 whitespace-nowrap text-zinc-300 font-medium">
+                        {item.rate_type || 'Hourly'}
+                      </td>
+
+                      {/* Mapping Status Indicator Badge */}
+                      <td className="py-3 px-3 whitespace-nowrap text-center">
+                        {isMapped ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                            <span>Mapped</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/25">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>Unmapped</span>
+                          </span>
                         )}
+                      </td>
 
-                        {/* Assigned Staff Preview */}
-                        <div className="flex items-center gap-2 pt-1 text-[11px] text-zinc-400 flex-wrap">
-                          <Users className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                          <span className="font-semibold text-zinc-300">
-                            {pos.staff_count} {pos.staff_count === 1 ? 'Staff Member' : 'Staff Members'} Assigned:
-                          </span>
-                          {pos.assigned_staff && pos.assigned_staff.length > 0 ? (
-                            <span className="text-zinc-400">
-                              {pos.assigned_staff.slice(0, 5).map(s => s.name).join(', ')}
-                              {pos.assigned_staff.length > 5 ? ` +${pos.assigned_staff.length - 5} more` : ''}
-                            </span>
-                          ) : (
-                            <span className="text-zinc-500 italic">None assigned in /staff yet</span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Header Actions */}
-                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => handleAutoMapPosition(pos.id, pos.name)}
-                          disabled={autoMappingPosId === pos.id || payItems.length === 0}
-                          className="px-2.5 py-1.5 bg-brand-navy hover:bg-zinc-800 text-sky-400 hover:text-sky-300 border border-sky-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                          title="Automatically scan synced Xero pay items and map matching ordinary, penalty, and allowance rates"
-                        >
-                          <Zap className={`w-3.5 h-3.5 ${autoMappingPosId === pos.id ? 'animate-spin' : ''}`} />
-                          <span>{autoMappingPosId === pos.id ? 'Auto-Matching...' : 'Auto-Match from Xero'}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setEditingPos(pos)}
-                          className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-md transition-colors cursor-pointer"
-                          title="Edit Position Details"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDeletePosition(pos.id, pos.name)}
-                          className="p-1.5 text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
-                          title="Delete Position"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Position Pay Rules Matrix */}
-                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 bg-black/20">
-                      {PAY_RULE_CATEGORIES.map(cat => {
-                        const rule = rules[cat.key];
-                        const isMapped = !!(rule && rule.xero_earnings_rate_id);
-
-                        return (
-                          <div 
-                            key={cat.key}
-                            className={`p-3 rounded-lg border flex flex-col justify-between transition-colors ${
-                              isMapped 
-                                ? 'bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15]' 
-                                : 'bg-red-500/[0.02] border-red-500/20'
-                            }`}
-                          >
-                            <div className="space-y-1 mb-2.5">
-                              <div className="flex items-center justify-between gap-1.5">
-                                <span className="text-[11px] font-semibold text-zinc-200 truncate">
-                                  {cat.label}
-                                </span>
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold tracking-wider font-mono bg-zinc-800 text-zinc-400 shrink-0">
-                                  {cat.multiplierBadge}
-                                </span>
-                              </div>
-                              <p className="text-[10px] text-zinc-500 leading-tight line-clamp-1">
-                                {cat.description}
-                              </p>
-                            </div>
-
-                            {/* Dropdown Selector */}
-                            <div className="space-y-1">
-                              <select
-                                value={rule?.xero_earnings_rate_id || ''}
-                                onChange={(e) => handleUpdatePositionPayRule(pos.id, cat.key, e.target.value)}
-                                disabled={savingPosId === pos.id}
-                                className={`w-full text-[11px] rounded-md px-2 py-1.5 outline-none transition-colors cursor-pointer truncate ${
-                                  isMapped
-                                    ? 'bg-[#121214] border border-white/10 text-white focus:border-brand-teal'
-                                    : 'bg-[#161314] border border-amber-500/30 text-amber-300 focus:border-amber-400'
-                                }`}
-                              >
-                                <option value="">-- Select Xero Pay Item --</option>
-                                {payItems.map(pi => (
-                                  <option key={pi.id} value={pi.xero_earnings_rate_id}>
-                                    {pi.name} ({pi.category})
-                                  </option>
-                                ))}
-                              </select>
-
-                              {isMapped ? (
-                                <div className="flex items-center justify-between text-[10px] text-emerald-400 pt-0.5">
-                                  <span className="flex items-center gap-1 truncate">
-                                    <Check className="w-3 h-3 text-emerald-400 shrink-0" />
-                                    <span className="truncate">{rule.pay_item_name || 'Mapped'}</span>
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdatePositionPayRule(pos.id, cat.key, '')}
-                                    className="text-[9px] text-zinc-500 hover:text-rose-400 underline ml-1 shrink-0"
-                                  >
-                                    Clear
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="text-[10px] text-amber-400/90 flex items-center gap-1 pt-0.5">
-                                  <AlertCircle className="w-3 h-3 text-amber-400 shrink-0" />
-                                  <span>Not mapped to Xero</span>
+                      {/* Editable Xero Earnings Rate ID with In-line Save Button & Dropdown Picker */}
+                      <td className="py-2 px-4 min-w-[340px]">
+                        {(() => {
+                          const matchedXero = xeroData.earningsRates.find(xr => xr.id === (item.xero_earnings_rate_id || currentInputVal));
+                          return (
+                            <div className="space-y-1.5">
+                              {matchedXero && (
+                                <div className="text-[10px] text-sky-400 font-medium flex items-center gap-1.5 bg-sky-950/30 border border-sky-500/20 px-2 py-0.5 rounded">
+                                  <Building2 className="w-3 h-3 text-sky-400 shrink-0" />
+                                  <span>Xero: <strong>{matchedXero.name}</strong> ({matchedXero.earningsType || matchedXero.rateType})</span>
                                 </div>
                               )}
+
+                              {xeroData.earningsRates.length > 0 && (
+                                <select
+                                  value={xeroData.earningsRates.some(r => r.id === currentInputVal) ? currentInputVal : ''}
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      handleXeroIdChange(item.id, e.target.value);
+                                    }
+                                  }}
+                                  className="w-full px-2 py-1 text-[11px] bg-brand-navy border border-border-subtle rounded text-zinc-300 focus:outline-none focus:border-brand-teal"
+                                >
+                                  <option value="">-- Select from {xeroData.earningsRates.length} Xero Rates --</option>
+                                  {xeroData.earningsRates.map(xr => (
+                                    <option key={xr.id} value={xr.id}>
+                                      {xr.name} ({xr.earningsType || xr.rateType})
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={currentInputVal}
+                                  onChange={(e) => handleXeroIdChange(item.id, e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleSaveXeroId(item);
+                                    }
+                                  }}
+                                  placeholder="e.g. 7c32bf90-345f-4a11-85bc-9174dfbc029a"
+                                  className={`flex-1 px-3 py-1.5 text-xs font-mono rounded-lg bg-brand-navy border text-white placeholder-zinc-500 focus:outline-none transition-colors ${
+                                    isDirty 
+                                      ? 'border-brand-teal ring-1 ring-brand-teal/40 bg-brand-navy/90' 
+                                      : isMapped
+                                        ? 'border-emerald-500/30'
+                                        : 'border-border-subtle focus:border-brand-teal'
+                                  }`}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveXeroId(item)}
+                                  disabled={isSavingThis}
+                                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50 shrink-0 ${
+                                    isSavedThis
+                                      ? 'bg-emerald-500 text-brand-navy font-bold'
+                                      : isDirty
+                                        ? 'bg-brand-teal hover:bg-brand-teal/90 text-brand-navy shadow-md animate-pulse'
+                                        : 'bg-brand-navy hover:bg-zinc-800 text-[#8B949E] hover:text-white border border-border-subtle'
+                                  }`}
+                                  title="Save Xero Earnings Rate GUID"
+                                >
+                                  {isSavingThis ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  ) : isSavedThis ? (
+                                    <Check className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <Save className="w-3.5 h-3.5" />
+                                  )}
+                                  <span>{isSavedThis ? 'Saved' : 'Save'}</span>
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+                          );
+                        })()}
+                      </td>
 
-      {/* ======================================================== */}
-      {/* SUB-TAB 2: SYNCED XERO PAY ITEMS CATALOG                 */}
-      {/* ======================================================== */}
-      {activeSubTab === 'XERO_CATALOG' && (
-        <div className="space-y-6">
-          {/* Filter Bar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-brand-bg/60 border border-border-subtle p-4 rounded-xl">
-            <div className="flex items-center gap-3 flex-1 max-w-md">
-              <div className="relative w-full">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                <input
-                  type="text"
-                  placeholder="Search Xero pay items or rate GUIDs..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#121214] border border-border-subtle rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 outline-none focus:border-brand-teal transition-colors"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-[#8B949E]">Category:</span>
-              {(['ALL', 'Ordinary', 'Penalty', 'Overtime', 'Allowance'] as const).map(cat => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors cursor-pointer ${
-                    selectedCategory === cat
-                      ? 'bg-brand-teal/20 text-brand-teal border border-brand-teal/30'
-                      : 'text-[#8B949E] hover:text-white hover:bg-white/[0.04]'
-                  }`}
-                >
-                  {cat === 'ALL' ? 'All Categories' : cat}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Pay Items Table */}
-          <div className="bg-brand-bg border border-border-subtle rounded-xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-[#E6EDF3]">
-                <thead className="bg-brand-navy/60 text-[#8B949E] border-b border-border-subtle text-[11px] uppercase tracking-wider font-semibold">
-                  <tr>
-                    <th className="py-3 px-4">Pay Item Name</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">Rate Type</th>
-                    <th className="py-3 px-4">Xero Earnings Rate ID (GUID)</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle">
-                  {payItems
-                    .filter(pi => {
-                      if (selectedCategory !== 'ALL' && pi.category !== selectedCategory) return false;
-                      if (searchQuery.trim()) {
-                        const q = searchQuery.toLowerCase();
-                        return (
-                          pi.name.toLowerCase().includes(q) ||
-                          pi.xero_earnings_rate_id?.toLowerCase().includes(q)
-                        );
-                      }
-                      return true;
-                    })
-                    .map((item) => (
-                      <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3.5 px-4 font-semibold text-white">
-                          {item.name}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                            item.category === 'Ordinary' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
-                            item.category === 'Penalty' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
-                            item.category === 'Overtime' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
-                            'bg-sky-500/10 text-sky-400 border-sky-500/30'
-                          }`}>
-                            {item.category}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-zinc-400">
-                          {item.rate_type || 'Hourly'}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-[11px] text-zinc-300">
-                          {item.xero_earnings_rate_id || <span className="text-zinc-600 italic">Not set</span>}
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          {item.xero_earnings_rate_id ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Active</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-amber-400">
-                              <AlertCircle className="w-3.5 h-3.5" />
-                              <span>Unlinked</span>
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  {payItems.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="py-12 text-center text-zinc-500 space-y-2">
-                        <CreditCard className="w-8 h-8 mx-auto text-zinc-600 mb-2" />
-                        <p className="text-sm font-medium text-white">No Pay Items in Portal Database</p>
-                        <p className="text-xs text-zinc-400">Click "Pull Rates from Xero" above to import your organization's pay items.</p>
+                      {/* Actions */}
+                      <td className="py-3 px-4 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setEditingItem(item)}
+                            className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors cursor-pointer"
+                            title="Edit Pay Item Name & Category"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePayItem(item)}
+                            className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
+                            title="Deactivate Pay Item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
-      )}
 
-      {/* ======================================================== */}
-      {/* MODAL: ADD NEW POSITION CLASSIFICATION                   */}
-      {/* ======================================================== */}
-      {isAddPosModalOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111114] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-white/[0.08] flex justify-between items-center bg-[#151518]">
+        {/* Footer info */}
+        {filteredItems.length > 0 && (
+          <div className="p-3 bg-brand-navy/60 border-t border-border-subtle flex flex-col sm:flex-row items-center justify-between text-[11px] text-[#8B949E] gap-2">
+            <span>
+              Showing {filteredItems.length} of {payItems.length} pay items ({selectedCategory === 'ALL' ? 'All Categories' : selectedCategory})
+            </span>
+            <span className="flex items-center gap-1 text-zinc-400">
+              <span className="text-emerald-400 font-semibold">{mappedCount} mapped</span>
+              <span>/</span>
+              <span className="text-amber-400 font-semibold">{unmappedCount} unmapped</span>
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Add Pay Category Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-brand-navy border border-border-subtle rounded-xl max-w-lg w-full shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-border-subtle flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Briefcase className="w-5 h-5 text-brand-teal" />
-                <h2 className="text-base font-bold text-white">Create Job Classification</h2>
+                <div className="p-2 bg-brand-teal/10 text-brand-teal rounded-lg border border-brand-teal/20">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Add Pay Category</h3>
+                  <p className="text-xs text-[#8B949E]">Create a pay category and map it to Xero earnings rates.</p>
+                </div>
               </div>
-              <button 
-                type="button" 
-                onClick={() => setIsAddPosModalOpen(false)} 
-                className="text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreatePosition} className="p-6 space-y-4">
+            <form onSubmit={handleCreatePayCategory} className="p-5 space-y-4 text-xs">
+              {/* Quick Auto-Fill from Xero */}
+              {xeroData.earningsRates.length > 0 && (
+                <div className="p-3 bg-brand-bg/80 border border-sky-500/25 rounded-lg space-y-1.5">
+                  <label className="block text-sky-400 font-semibold text-[11px] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Quick Auto-Fill from Xero Rate:</span>
+                  </label>
+                  <select
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      if (!selectedId) return;
+                      const matched = xeroData.earningsRates.find(xr => xr.id === selectedId);
+                      if (matched) {
+                        setNewCategoryName(matched.name);
+                        setNewCategoryType(matched.suggestedCategory);
+                        setNewRateType(matched.typeOfUnits === 'Hours' ? 'Hourly' : (matched.typeOfUnits || 'Hourly'));
+                        setNewXeroId(matched.id);
+                      }
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-brand-navy border border-border-subtle rounded text-white text-xs focus:outline-none focus:border-brand-teal cursor-pointer"
+                  >
+                    <option value="">-- Choose Xero Rate ({xeroData.earningsRates.length} available) --</option>
+                    {xeroData.earningsRates.map(xr => (
+                      <option key={xr.id} value={xr.id}>
+                        {xr.name} ({xr.earningsType || xr.rateType})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  Classification Title <span className="text-rose-400">*</span>
+                <label className="block text-[#8B949E] font-medium mb-1">
+                  Pay Category Name <span className="text-rose-400">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Support Worker – Level 2.1 (Casual) or Domestic Cleaner"
-                  value={newPosData.name}
-                  onChange={(e) => setNewPosData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full bg-[#18181c] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 outline-none focus:border-brand-teal transition-colors"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="e.g. Ordinary Hours, Saturday Penalty, Sleepover"
+                  className="w-full px-3 py-2 bg-brand-bg border border-border-subtle rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-brand-teal"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  Employment Type
-                </label>
-                <select
-                  value={newPosData.employment_type}
-                  onChange={(e) => setNewPosData(prev => ({ ...prev, employment_type: e.target.value }))}
-                  className="w-full bg-[#18181c] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-brand-teal transition-colors"
-                >
-                  <option value="Casual">Casual</option>
-                  <option value="Part-Time">Part-Time</option>
-                  <option value="Full-Time">Full-Time</option>
-                  <option value="Contractor">Contractor</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#8B949E] font-medium mb-1">
+                    Category Type <span className="text-rose-400">*</span>
+                  </label>
+                  <select
+                    value={newCategoryType}
+                    onChange={(e: any) => setNewCategoryType(e.target.value)}
+                    className="w-full px-3 py-2 bg-brand-bg border border-border-subtle rounded-lg text-white focus:outline-none focus:border-brand-teal"
+                  >
+                    <option value="Ordinary">Ordinary</option>
+                    <option value="Penalty">Penalty</option>
+                    <option value="Overtime">Overtime</option>
+                    <option value="Allowance">Allowance</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[#8B949E] font-medium mb-1">
+                    Rate Type
+                  </label>
+                  <select
+                    value={newRateType}
+                    onChange={(e) => setNewRateType(e.target.value)}
+                    className="w-full px-3 py-2 bg-brand-bg border border-border-subtle rounded-lg text-white focus:outline-none focus:border-brand-teal"
+                  >
+                    <option value="Hourly">Hourly</option>
+                    <option value="Fixed Rate">Fixed Rate</option>
+                    <option value="Per KM">Per KM</option>
+                    <option value="Per Shift">Per Shift</option>
+                  </select>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  Description / Award Notes (Optional)
+                <label className="block text-[#8B949E] font-medium mb-1 flex items-center justify-between">
+                  <span>Xero Earnings Rate ID (GUID)</span>
+                  <span className="text-[10px] text-zinc-500">Optional (can map later)</span>
                 </label>
-                <textarea
-                  rows={3}
-                  placeholder="Overview of this role's duties, SCHADS award level, or specific rate rules..."
-                  value={newPosData.description}
-                  onChange={(e) => setNewPosData(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full bg-[#18181c] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 outline-none focus:border-brand-teal transition-colors"
+                <input
+                  type="text"
+                  value={newXeroId}
+                  onChange={(e) => setNewXeroId(e.target.value)}
+                  placeholder="e.g. 7c32bf90-345f-4a11-85bc-9174dfbc029a"
+                  className="w-full px-3 py-2 bg-brand-bg border border-border-subtle rounded-lg text-white font-mono placeholder-zinc-500 focus:outline-none focus:border-brand-teal"
                 />
               </div>
 
-              <div className="pt-2">
-                <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={newPosData.autoMapOnCreate}
-                    onChange={(e) => setNewPosData(prev => ({ ...prev, autoMapOnCreate: e.target.checked }))}
-                    className="rounded bg-black/40 border-white/10 text-brand-teal focus:ring-brand-teal"
-                  />
-                  <span>Automatically scan and map matching Xero pay rates on creation</span>
-                </label>
-              </div>
-
-              <div className="pt-4 border-t border-white/[0.08] flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-border-subtle flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsAddPosModalOpen(false)}
-                  className="px-4 py-2 bg-transparent hover:bg-white/[0.05] text-zinc-400 hover:text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 bg-transparent hover:bg-zinc-800 text-[#8B949E] hover:text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={!newPosData.name.trim()}
-                  className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy font-bold rounded-lg text-xs shadow-md transition-colors cursor-pointer disabled:opacity-50"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy font-semibold text-xs rounded-lg flex items-center gap-1.5 shadow-md transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  Create Classification
+                  {isSubmitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  <span>Create Pay Category</span>
                 </button>
               </div>
             </form>
@@ -1089,82 +1075,138 @@ export default function PayItemsSettings() {
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* MODAL: EDIT POSITION DETAILS                             */}
-      {/* ======================================================== */}
-      {editingPos && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111114] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-white/[0.08] flex justify-between items-center bg-[#151518]">
+      {/* Edit Pay Item Modal */}
+      {editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-brand-navy border border-border-subtle rounded-xl max-w-lg w-full shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-border-subtle flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Edit2 className="w-4 h-4 text-brand-teal" />
-                <h2 className="text-base font-bold text-white">Edit Classification Details</h2>
+                <div className="p-2 bg-brand-teal/10 text-brand-teal rounded-lg border border-brand-teal/20">
+                  <Edit2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Edit Pay Item</h3>
+                  <p className="text-xs text-[#8B949E]">Update pay item details and mapping.</p>
+                </div>
               </div>
-              <button 
-                type="button" 
-                onClick={() => setEditingPos(null)} 
-                className="text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              <button
+                type="button"
+                onClick={() => setEditingItem(null)}
+                className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleUpdatePositionDetails} className="p-6 space-y-4">
+            <form onSubmit={handleUpdateItemDetails} className="p-5 space-y-4 text-xs">
+              {/* Quick Pick from Xero */}
+              {xeroData.earningsRates.length > 0 && (
+                <div className="p-3 bg-brand-bg/80 border border-sky-500/25 rounded-lg space-y-1.5">
+                  <label className="block text-sky-400 font-semibold text-[11px] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Choose Xero Earnings Rate to Map:</span>
+                  </label>
+                  <select
+                    value={xeroData.earningsRates.some(r => r.id === editingItem.xero_earnings_rate_id) ? editingItem.xero_earnings_rate_id : ''}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      if (!selectedId) return;
+                      const matched = xeroData.earningsRates.find(xr => xr.id === selectedId);
+                      if (matched) {
+                        setEditingItem({
+                          ...editingItem,
+                          xero_earnings_rate_id: matched.id,
+                          rate_type: matched.typeOfUnits === 'Hours' ? 'Hourly' : (matched.typeOfUnits || editingItem.rate_type)
+                        });
+                      }
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-brand-navy border border-border-subtle rounded text-white text-xs focus:outline-none focus:border-brand-teal"
+                  >
+                    <option value="">-- Select from {xeroData.earningsRates.length} Xero Rates --</option>
+                    {xeroData.earningsRates.map(xr => (
+                      <option key={xr.id} value={xr.id}>
+                        {xr.name} ({xr.earningsType || xr.rateType})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  Classification Title <span className="text-rose-400">*</span>
+                <label className="block text-[#8B949E] font-medium mb-1">
+                  Pay Item Name <span className="text-rose-400">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  value={editingPos.name}
-                  onChange={(e) => setEditingPos(prev => prev ? ({ ...prev, name: e.target.value }) : null)}
-                  className="w-full bg-[#18181c] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-brand-teal transition-colors"
+                  value={editingItem.name}
+                  onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-brand-bg border border-border-subtle rounded-lg text-white focus:outline-none focus:border-brand-teal"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  Employment Type
-                </label>
-                <select
-                  value={editingPos.employment_type || 'Casual'}
-                  onChange={(e) => setEditingPos(prev => prev ? ({ ...prev, employment_type: e.target.value }) : null)}
-                  className="w-full bg-[#18181c] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-brand-teal transition-colors"
-                >
-                  <option value="Casual">Casual</option>
-                  <option value="Part-Time">Part-Time</option>
-                  <option value="Full-Time">Full-Time</option>
-                  <option value="Contractor">Contractor</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#8B949E] font-medium mb-1">
+                    Category <span className="text-rose-400">*</span>
+                  </label>
+                  <select
+                    value={editingItem.category}
+                    onChange={(e: any) => setEditingItem({ ...editingItem, category: e.target.value })}
+                    className="w-full px-3 py-2 bg-brand-bg border border-border-subtle rounded-lg text-white focus:outline-none focus:border-brand-teal"
+                  >
+                    <option value="Ordinary">Ordinary</option>
+                    <option value="Penalty">Penalty</option>
+                    <option value="Overtime">Overtime</option>
+                    <option value="Allowance">Allowance</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[#8B949E] font-medium mb-1">
+                    Rate Type
+                  </label>
+                  <select
+                    value={editingItem.rate_type || 'Hourly'}
+                    onChange={(e) => setEditingItem({ ...editingItem, rate_type: e.target.value })}
+                    className="w-full px-3 py-2 bg-brand-bg border border-border-subtle rounded-lg text-white focus:outline-none focus:border-brand-teal"
+                  >
+                    <option value="Hourly">Hourly</option>
+                    <option value="Fixed Rate">Fixed Rate</option>
+                    <option value="Per KM">Per KM</option>
+                    <option value="Per Shift">Per Shift</option>
+                  </select>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  Description
+                <label className="block text-[#8B949E] font-medium mb-1">
+                  Xero Earnings Rate ID (GUID)
                 </label>
-                <textarea
-                  rows={3}
-                  value={editingPos.description || ''}
-                  onChange={(e) => setEditingPos(prev => prev ? ({ ...prev, description: e.target.value }) : null)}
-                  className="w-full bg-[#18181c] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-brand-teal transition-colors"
+                <input
+                  type="text"
+                  value={editingItem.xero_earnings_rate_id || ''}
+                  onChange={(e) => setEditingItem({ ...editingItem, xero_earnings_rate_id: e.target.value })}
+                  placeholder="e.g. 7c32bf90-345f-4a11-85bc-9174dfbc029a"
+                  className="w-full px-3 py-2 bg-brand-bg border border-border-subtle rounded-lg text-white font-mono focus:outline-none focus:border-brand-teal"
                 />
               </div>
 
-              <div className="pt-4 border-t border-white/[0.08] flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-border-subtle flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setEditingPos(null)}
-                  className="px-4 py-2 bg-transparent hover:bg-white/[0.05] text-zinc-400 hover:text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                  onClick={() => setEditingItem(null)}
+                  className="px-4 py-2 bg-transparent hover:bg-zinc-800 text-[#8B949E] hover:text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={!editingPos.name.trim()}
-                  className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy font-bold rounded-lg text-xs shadow-md transition-colors cursor-pointer disabled:opacity-50"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-brand-teal hover:bg-brand-teal/90 text-brand-navy font-semibold text-xs rounded-lg flex items-center gap-1.5 shadow-md transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  Save Changes
+                  {isSubmitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>Save Changes</span>
                 </button>
               </div>
             </form>
