@@ -988,12 +988,46 @@ try {
 
   // Three-Layer Role Architecture schema extensions
   try { db.exec("ALTER TABLE users ADD COLUMN position_id INTEGER REFERENCES positions(id)"); } catch (e: any) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN pay_category_id INTEGER REFERENCES pay_categories(id)"); } catch (e: any) {}
   try { db.exec("ALTER TABLE positions ADD COLUMN employment_type TEXT DEFAULT 'Casual'"); } catch (e: any) {}
   try { db.exec("ALTER TABLE positions ADD COLUMN description TEXT DEFAULT ''"); } catch (e: any) {}
   try { db.exec("ALTER TABLE positions ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch (e: any) {}
   try { db.exec("ALTER TABLE positions ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch (e: any) {}
 
-  // Tier 2: position_pay_items table
+  // Dedicated Award Pay Categories schema (pulled directly from Xero)
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS pay_categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        xero_earnings_rate_id TEXT DEFAULT '',
+        employment_type TEXT DEFAULT 'Casual',
+        description TEXT DEFAULT '',
+        is_active INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS pay_category_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_id INTEGER NOT NULL,
+        rule_key TEXT NOT NULL,
+        xero_earnings_rate_id TEXT NOT NULL DEFAULT '',
+        pay_item_name TEXT DEFAULT '',
+        multiplier REAL DEFAULT 1.0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (category_id) REFERENCES pay_categories(id) ON DELETE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_pay_category_rules_cat_key ON pay_category_rules (category_id, rule_key);
+      DELETE FROM pay_categories 
+      WHERE (TRIM(xero_earnings_rate_id) = '' OR xero_earnings_rate_id IS NULL)
+        AND name IN ('Administration', 'Domestic Cleaner', 'Enrolled Nurse', 'Manager', 'Registered Nurse', 'Support Worker', 'Support Worker – Level 3.1 (Part-Time)', 'Support Worker – Level 2.1 (Casual)');
+    `);
+  } catch (err) {
+    console.error("[DEBUG] Error setting up pay_categories and rules schema:", err);
+  }
+
+  // Tier 2: position_pay_items table (legacy fallback)
   try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS position_pay_items (
@@ -1005,8 +1039,7 @@ try {
         multiplier REAL DEFAULT 1.0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (position_id) REFERENCES positions(id) ON DELETE CASCADE,
-        UNIQUE(position_id, category_key)
+        FOREIGN KEY (position_id) REFERENCES positions(id) ON DELETE CASCADE
       );
     `);
   } catch (err) {
@@ -1908,27 +1941,27 @@ try {
 
   
   try {
-    const defaultPositions = [
-      { name: 'Support Worker – Level 2.1 (Casual)', employment_type: 'Casual', description: 'Direct person-centered care and assistance to clients under SCHADS Level 2.1 (Casual).' },
-      { name: 'Support Worker – Level 3.1 (Part-Time)', employment_type: 'Part-Time', description: 'Support Worker Level 3.1 performing complex support and personal care (Part-Time).' },
-      { name: 'Domestic Cleaner', employment_type: 'Casual', description: 'Domestic assistance and household maintenance in clients homes.' },
-      { name: 'Registered Nurse', employment_type: 'Part-Time', description: 'Registered clinical nursing care, assessments, and medication management.' },
-      { name: 'Enrolled Nurse', employment_type: 'Casual', description: 'Clinical care delivery under the supervision of a Registered Nurse.' },
-      { name: 'Administration', employment_type: 'Part-Time', description: 'Administrative and operational support.' },
-      { name: 'Manager', employment_type: 'Full-Time', description: 'Care operations and service management.' }
+    // Only standard Onboarding Hub positions: Support Worker, Enrolled Nurse, Registered Nurse, Administration, Manager
+    const standardPositions = [
+      'Support Worker',
+      'Enrolled Nurse',
+      'Registered Nurse',
+      'Administration',
+      'Manager'
     ];
-    const insertPos = db.prepare("INSERT OR IGNORE INTO positions (name, employment_type, description) VALUES (?, ?, ?)");
-    defaultPositions.forEach(p => insertPos.run(p.name, p.employment_type, p.description));
+    const insertPos = db.prepare("INSERT OR IGNORE INTO positions (name) VALUES (?)");
+    standardPositions.forEach(name => insertPos.run(name));
 
-    // Automatically link staff users to position_id based on primary_position if null
+    // Purge any artificial position names like "Support Worker – Level %" or "Domestic Cleaner"
+    db.prepare("DELETE FROM positions WHERE name LIKE 'Support Worker – Level%' OR name = 'Domestic Cleaner'").run();
+
+    // Link staff users to position_id strictly matching their primary_position from Onboarding Hub
     try {
       db.exec(`
         UPDATE users 
         SET position_id = (
           SELECT id FROM positions 
           WHERE LOWER(positions.name) = LOWER(users.primary_position)
-             OR (LOWER(users.primary_position) = 'support worker' AND LOWER(positions.name) LIKE 'support worker – level 2.1%')
-             OR (LOWER(users.primary_position) LIKE '%' || LOWER(positions.name) || '%')
           LIMIT 1
         )
         WHERE (position_id IS NULL OR position_id = 0) AND primary_position IS NOT NULL AND TRIM(primary_position) != '';
@@ -1937,7 +1970,7 @@ try {
       console.error("[DEBUG] Error auto-linking users position_id:", err);
     }
   } catch(e: any) {
-    console.error("Error seeding positions:", e.message);
+    console.error("Error setting positions:", e.message);
   }
 
   // Auto-assign avatars if missing
@@ -6300,6 +6333,148 @@ function getUnreadChatCount(db: any, userId: number) {
     }
   });
 
+  function autoMatchPayCategoryRules(db: any, catId: number, baseItem: any, allPayItems: any[], forceOverwrite: boolean = false) {
+    try {
+      const existingRules = db.prepare("SELECT rule_key, xero_earnings_rate_id FROM pay_category_rules WHERE category_id = ?").all(catId) as any[];
+      const existingMap = new Map<string, string>();
+      for (const r of existingRules) {
+        if (r.xero_earnings_rate_id) existingMap.set(r.rule_key, r.xero_earnings_rate_id);
+      }
+
+      const findRate = (matchKeywords: string[], rejectKeywords: string[] = []) => {
+        return allPayItems.find(pi => {
+          const n = (pi.name || '').toLowerCase();
+          const match = matchKeywords.some(k => n.includes(k.toLowerCase()));
+          const reject = rejectKeywords.some(r => n.includes(r.toLowerCase()));
+          return match && !reject;
+        });
+      };
+
+      const setRuleIfEmpty = (ruleKey: string, matchedItem: any, multiplier: number = 1.0) => {
+        if (!matchedItem || !matchedItem.xero_earnings_rate_id) return;
+        if (!forceOverwrite && existingMap.has(ruleKey) && existingMap.get(ruleKey)) return;
+
+        db.prepare("DELETE FROM pay_category_rules WHERE category_id = ? AND rule_key = ?").run(catId, ruleKey);
+        db.prepare(`
+          INSERT INTO pay_category_rules (category_id, rule_key, xero_earnings_rate_id, pay_item_name, multiplier, updated_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).run(catId, ruleKey, matchedItem.xero_earnings_rate_id, matchedItem.name, multiplier);
+      };
+
+      // 1. Weekday
+      if (baseItem) setRuleIfEmpty('weekday', baseItem, 1.0);
+
+      // 2. Saturday Penalty (150%)
+      const sat = findRate(['saturday', 'sat penalty', '150%'], ['sunday', 'holiday']) 
+        || allPayItems.find(pi => pi.multiplier === 1.5);
+      setRuleIfEmpty('saturday', sat, 1.5);
+
+      // 3. Sunday Penalty (200%)
+      const sun = findRate(['sunday', 'sun penalty', '200%'], ['saturday', 'holiday'])
+        || allPayItems.find(pi => pi.multiplier === 2.0);
+      setRuleIfEmpty('sunday', sun, 2.0);
+
+      // 4. Public Holiday (250%)
+      const pub = findRate(['public holiday', 'pub holiday', 'holiday', '250%'], ['saturday', 'sunday'])
+        || allPayItems.find(pi => pi.multiplier === 2.5);
+      setRuleIfEmpty('public_holiday', pub, 2.5);
+
+      // 5. Active Night Shift Loading (1.15x)
+      const night = findRate(['night', 'night loading', 'active night'], ['sleepover', 'travel'])
+        || allPayItems.find(pi => pi.multiplier === 1.15);
+      setRuleIfEmpty('night_shift', night, 1.15);
+
+      // 6. Sleepover Allowance
+      const sleep = findRate(['sleepover', 'sleep over', 'sleep'], ['travel', 'vehicle']);
+      setRuleIfEmpty('sleepover', sleep, 1.0);
+
+      // 7. NDIS Travel Allowance
+      const ndisTravel = findRate(['ndis travel', 'ndis km', 'ndis kilometre', 'travel allowance'], ['home care', 'hcp'])
+        || findRate(['travel', 'kilometre', 'km'], ['home care', 'hcp']);
+      setRuleIfEmpty('ndis_travel', ndisTravel, 1.0);
+
+      // 8. Home Care Travel Allowance
+      const hcTravel = findRate(['home care travel', 'hcp travel', 'home care km', 'hcp km'], [])
+        || findRate(['home care', 'hcp'], ['ndis'])
+        || ndisTravel;
+      setRuleIfEmpty('home_care_travel', hcTravel, 1.0);
+    } catch (e) {
+      console.error("[DEBUG] Error auto-matching pay category rules:", e);
+    }
+  }
+
+  function syncPayCategoriesFromXero(db: any) {
+    try {
+      // Clean up any unlinked fake or artificial pay categories
+      db.prepare(`
+        DELETE FROM pay_categories 
+        WHERE (TRIM(xero_earnings_rate_id) = '' OR xero_earnings_rate_id IS NULL)
+          AND name IN ('Administration', 'Domestic Cleaner', 'Enrolled Nurse', 'Manager', 'Registered Nurse', 'Support Worker', 'Support Worker – Level 3.1 (Part-Time)', 'Support Worker – Level 2.1 (Casual)')
+      `).run();
+
+      const payItems = db.prepare("SELECT * FROM pay_items WHERE is_active = 1 AND TRIM(xero_earnings_rate_id) != ''").all() as any[];
+      if (!payItems || payItems.length === 0) return { created: 0, total: 0 };
+
+      const isPenaltyOrAllowance = (name: string) => {
+        const n = (name || '').toLowerCase();
+        return n.includes('saturday') || n.includes('sunday') || n.includes('holiday') || 
+               n.includes('night') || n.includes('sleepover') || n.includes('travel') || 
+               n.includes('allowance') || n.includes('kilometre') || n.includes('km') ||
+               n.includes('overtime') || n.includes('150%') || n.includes('200%') || n.includes('250%');
+      };
+
+      const isPureTravelReimbursement = (name: string) => {
+        const n = (name || '').toLowerCase();
+        return (n.includes('travel') && (n.includes('km') || n.includes('kilometre') || n.includes('mileage') || n.includes('reimburse')))
+            || n.includes('per km');
+      };
+
+      // In Xero, any earnings rate that has multipliers, or is Ordinary/Hourly earnings rate
+      let candidates = payItems.filter(p => {
+        if (isPureTravelReimbursement(p.name)) return false;
+        const n = (p.name || '').toLowerCase();
+        const cat = (p.category || '').toLowerCase();
+        const hasMultiplier = p.multiplier && Number(p.multiplier) > 0;
+        const isOrdinary = cat.includes('ordinary') || n.includes('ordinary');
+        const isHourly = (p.rate_type || '').toLowerCase().includes('hour');
+        return hasMultiplier || isOrdinary || isHourly || (!isPenaltyOrAllowance(p.name));
+      });
+
+      if (candidates.length === 0 && payItems.length > 0) {
+        candidates = payItems.filter(p => !isPureTravelReimbursement(p.name));
+      }
+
+      const existingCats = db.prepare("SELECT * FROM pay_categories WHERE is_active = 1").all() as any[];
+      const catMap = new Map<string, any>();
+      for (const c of existingCats) {
+        catMap.set(c.name.toLowerCase().trim(), c);
+        if (c.xero_earnings_rate_id) catMap.set(c.xero_earnings_rate_id, c);
+      }
+
+      const insertCat = db.prepare("INSERT INTO pay_categories (name, xero_earnings_rate_id, employment_type, description) VALUES (?, ?, ?, ?)");
+      let createdCount = 0;
+
+      for (const item of candidates) {
+        const key = item.name.toLowerCase().trim();
+        let cat = catMap.get(key) || catMap.get(item.xero_earnings_rate_id);
+        if (!cat) {
+          const empType = item.name.toLowerCase().includes('part') ? 'Part-Time' : (item.name.toLowerCase().includes('full') ? 'Full-Time' : 'Casual');
+          const info = insertCat.run(item.name, item.xero_earnings_rate_id, empType, `Award Pay Category pulled from Xero rate "${item.name}"`);
+          cat = { id: Number(info.lastInsertRowid), name: item.name, xero_earnings_rate_id: item.xero_earnings_rate_id };
+          catMap.set(key, cat);
+          catMap.set(item.xero_earnings_rate_id, cat);
+          createdCount++;
+        }
+        autoMatchPayCategoryRules(db, cat.id, item, payItems, false);
+      }
+
+      return { created: createdCount, total: existingCats.length + createdCount };
+    } catch (err) {
+      console.error("[DEBUG] Error syncing pay categories from Xero:", err);
+      return { created: 0, error: err };
+    }
+  }
+
   app.post("/api/settings/pay-items/sync-xero", authenticateToken, requireAdmin, async (req: any, res) => {
     try {
       const settings = getXeroSettings(db);
@@ -6341,12 +6516,12 @@ function getUnreadChatCount(db: any, userId: number) {
       const findByNameStmt = db.prepare("SELECT id, name, category, rate_type FROM pay_items WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))");
       const updateStmt = db.prepare(`
         UPDATE pay_items
-        SET name = ?, rate_type = ?, xero_earnings_rate_id = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP
+        SET name = ?, rate_type = ?, multiplier = ?, default_rate = ?, xero_earnings_rate_id = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `);
       const insertStmt = db.prepare(`
-        INSERT INTO pay_items (name, category, rate_type, xero_earnings_rate_id, is_active)
-        VALUES (?, ?, ?, ?, 1)
+        INSERT INTO pay_items (name, category, rate_type, multiplier, default_rate, xero_earnings_rate_id, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, 1)
       `);
 
       for (const rate of earningsRates) {
@@ -6361,18 +6536,23 @@ function getUnreadChatCount(db: any, userId: number) {
         }
 
         const rateType = rate.typeOfUnits ? (rate.typeOfUnits === 'Hours' ? 'Hourly' : rate.typeOfUnits) : 'Hourly';
+        const multiplierVal = rate.multiplier !== undefined ? Number(rate.multiplier) : 1.0;
+        const defaultRateVal = rate.ratePerUnit !== undefined ? Number(rate.ratePerUnit) : 0.0;
 
         if (existing) {
-          updateStmt.run(rate.name, rateType, rate.id, existing.id);
+          updateStmt.run(rate.name, rateType, multiplierVal, defaultRateVal, rate.id, existing.id);
           updatedCount++;
         } else {
-          insertStmt.run(rate.name, rate.suggestedCategory, rateType, rate.id);
+          insertStmt.run(rate.name, rate.suggestedCategory, rateType, multiplierVal, defaultRateVal, rate.id);
           createdCount++;
         }
       }
 
       const nowIso = new Date().toISOString();
       saveXeroSetting(db, 'xero_pay_items_last_sync', nowIso);
+
+      // Automatically sync and auto-match Award Pay Categories derived from Xero earnings rates
+      syncPayCategoriesFromXero(db);
 
       const allItems = db.prepare("SELECT * FROM pay_items WHERE is_active = 1 ORDER BY id ASC").all();
 
@@ -7440,88 +7620,27 @@ app.get("/api/health", (req, res) => {
   });
 
   
+  // --- Positions Catalog (Onboarding Hub & Staff Roles) ---
   app.get("/api/positions", authenticateToken, (req: any, res: any) => {
     try {
-      const positions = db.prepare(`
-        SELECT p.*,
-          (SELECT COUNT(*) FROM users u WHERE u.position_id = p.id OR (u.position_id IS NULL AND LOWER(u.primary_position) = LOWER(p.name))) as staff_count
-        FROM positions p 
-        ORDER BY p.name ASC
-      `).all() as any[];
-
-      // Load position pay items rules
-      const allPayRules = db.prepare("SELECT * FROM position_pay_items").all() as any[];
-      const rulesByPos = new Map<number, any>();
-      for (const r of allPayRules) {
-        if (!rulesByPos.has(r.position_id)) rulesByPos.set(r.position_id, {});
-        rulesByPos.get(r.position_id)[r.category_key] = {
-          id: r.id,
-          category_key: r.category_key,
-          xero_earnings_rate_id: r.xero_earnings_rate_id,
-          pay_item_name: r.pay_item_name,
-          multiplier: r.multiplier
-        };
-      }
-
-      // Load assigned staff members for avatar/name previews
-      const staffList = db.prepare(`
-        SELECT id, first_name, last_name, avatar_url, position_id, primary_position 
-        FROM users 
-        WHERE role = 'STAFF' OR role = 'ADMIN'
-      `).all() as any[];
-
-      const enriched = positions.map(pos => {
-        const assigned = staffList.filter(u => u.position_id === pos.id || (!u.position_id && u.primary_position && u.primary_position.toLowerCase().trim() === pos.name.toLowerCase().trim()));
-        return {
-          ...pos,
-          staff_count: assigned.length,
-          assigned_staff: assigned.map(u => ({
-            id: u.id,
-            name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Staff',
-            avatar_url: u.avatar_url
-          })),
-          pay_rules: rulesByPos.get(pos.id) || {}
-        };
-      });
-
-      res.json(enriched);
+      const positions = db.prepare("SELECT * FROM positions ORDER BY name ASC").all();
+      res.json(positions);
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
-      res.status(500).json({ error: "Internal Server Error" });
+      res.status(500).json({ error: e.message });
     }
   });
 
   app.post("/api/admin/positions", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const { name, employment_type = 'Casual', description = '', pay_rules } = req.body;
+      const { name, employment_type = 'Casual', description = '' } = req.body;
       if (!name || !name.trim()) return res.status(400).json({ error: "Position name is required" });
       const stmt = db.prepare("INSERT INTO positions (name, employment_type, description) VALUES (?, ?, ?)");
       const info = stmt.run(name.trim(), employment_type || 'Casual', description || '');
-      const newId = Number(info.lastInsertRowid);
-
-      if (pay_rules && typeof pay_rules === 'object') {
-        const insertRule = db.prepare(`
-          INSERT INTO position_pay_items (position_id, category_key, xero_earnings_rate_id, pay_item_name, multiplier)
-          VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(position_id, category_key) DO UPDATE SET
-            xero_earnings_rate_id = excluded.xero_earnings_rate_id,
-            pay_item_name = excluded.pay_item_name,
-            multiplier = excluded.multiplier,
-            updated_at = CURRENT_TIMESTAMP
-        `);
-        for (const [key, rule] of Object.entries<any>(pay_rules)) {
-          if (rule && (rule.xero_earnings_rate_id || rule.pay_item_name)) {
-            insertRule.run(newId, key, rule.xero_earnings_rate_id || '', rule.pay_item_name || '', Number(rule.multiplier) || 1.0);
-          }
-        }
-      }
-
-      res.json({ id: newId, name: name.trim(), employment_type, description, pay_rules: pay_rules || {} });
+      res.json({ id: Number(info.lastInsertRowid), name: name.trim() });
     } catch (e: any) {
       if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
         return res.status(400).json({ error: "A position with this name already exists" });
       }
-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: e.message || "Internal Server Error" });
     }
   });
@@ -7529,7 +7648,7 @@ app.get("/api/health", (req, res) => {
   app.put("/api/admin/positions/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const { name, employment_type, description, pay_rules } = req.body;
+      const { name, employment_type, description } = req.body;
       if (!name || !name.trim()) return res.status(400).json({ error: "Position title is required" });
 
       db.prepare(`
@@ -7538,24 +7657,8 @@ app.get("/api/health", (req, res) => {
         WHERE id = ?
       `).run(name.trim(), employment_type || null, description !== undefined ? description : null, id);
 
-      if (pay_rules && typeof pay_rules === 'object') {
-        const upsertRule = db.prepare(`
-          INSERT INTO position_pay_items (position_id, category_key, xero_earnings_rate_id, pay_item_name, multiplier)
-          VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(position_id, category_key) DO UPDATE SET
-            xero_earnings_rate_id = excluded.xero_earnings_rate_id,
-            pay_item_name = excluded.pay_item_name,
-            multiplier = excluded.multiplier,
-            updated_at = CURRENT_TIMESTAMP
-        `);
-        for (const [key, rule] of Object.entries<any>(pay_rules)) {
-          upsertRule.run(id, key, rule?.xero_earnings_rate_id || '', rule?.pay_item_name || '', Number(rule?.multiplier) || 1.0);
-        }
-      }
-
       res.json({ success: true });
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: e.message || "Internal Server Error" });
     }
   });
@@ -7563,101 +7666,224 @@ app.get("/api/health", (req, res) => {
   app.delete("/api/admin/positions/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
       const { id } = req.params;
-      db.prepare("DELETE FROM position_pay_items WHERE position_id = ?").run(id);
       db.prepare("UPDATE users SET position_id = NULL WHERE position_id = ?").run(id);
       db.prepare("DELETE FROM positions WHERE id = ?").run(id);
       res.json({ success: true });
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
       res.status(500).json({ error: "Internal Server Error" });
     }
   });
 
-  app.post("/api/admin/positions/:id/auto-map", authenticateToken, requireAdmin, (req: any, res: any) => {
+  // --- Award Pay Categories (Pulled directly from Xero) ---
+  app.get("/api/pay-categories", authenticateToken, (req: any, res: any) => {
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS pay_category_rules (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          category_id INTEGER NOT NULL,
+          rule_key TEXT NOT NULL,
+          xero_earnings_rate_id TEXT NOT NULL DEFAULT '',
+          pay_item_name TEXT DEFAULT '',
+          multiplier REAL DEFAULT 1.0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (category_id) REFERENCES pay_categories(id) ON DELETE CASCADE
+        );
+        DELETE FROM pay_categories 
+        WHERE (TRIM(xero_earnings_rate_id) = '' OR xero_earnings_rate_id IS NULL)
+          AND name IN ('Administration', 'Domestic Cleaner', 'Enrolled Nurse', 'Manager', 'Registered Nurse', 'Support Worker', 'Support Worker – Level 3.1 (Part-Time)', 'Support Worker – Level 2.1 (Casual)');
+      `);
+
+      let categories = db.prepare("SELECT * FROM pay_categories WHERE is_active = 1 ORDER BY name ASC").all() as any[];
+      if (categories.length === 0) {
+        const xeroItemCount = db.prepare("SELECT COUNT(*) as cnt FROM pay_items WHERE is_active = 1 AND TRIM(xero_earnings_rate_id) != ''").get() as any;
+        if (xeroItemCount && xeroItemCount.cnt > 0) {
+          syncPayCategoriesFromXero(db);
+          categories = db.prepare("SELECT * FROM pay_categories WHERE is_active = 1 ORDER BY name ASC").all() as any[];
+        }
+      }
+
+      const allRules = db.prepare("SELECT * FROM pay_category_rules").all() as any[];
+      const rulesByCat = new Map<number, any>();
+      for (const r of allRules) {
+        if (!rulesByCat.has(r.category_id)) rulesByCat.set(r.category_id, {});
+        rulesByCat.get(r.category_id)[r.rule_key] = {
+          id: r.id,
+          rule_key: r.rule_key,
+          xero_earnings_rate_id: r.xero_earnings_rate_id,
+          pay_item_name: r.pay_item_name,
+          multiplier: r.multiplier
+        };
+      }
+
+      const staffList = db.prepare(`
+        SELECT id, first_name, last_name, avatar_url, pay_category_id, xero_employee_name 
+        FROM users 
+        WHERE role = 'STAFF' OR role = 'ADMIN'
+      `).all() as any[];
+
+      const enriched = categories.map(cat => {
+        const assigned = staffList.filter(u => u.pay_category_id === cat.id);
+        return {
+          ...cat,
+          staff_count: assigned.length,
+          assigned_staff: assigned.map(u => ({
+            id: u.id,
+            name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Staff',
+            avatar_url: u.avatar_url
+          })),
+          pay_rules: rulesByCat.get(cat.id) || {}
+        };
+      });
+
+      res.json(enriched);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to load pay categories" });
+    }
+  });
+
+  app.put("/api/pay-categories/:id/rule", authenticateToken, (req: any, res: any) => {
+    try {
+      const catId = Number(req.params.id);
+      const { rule_key, xero_earnings_rate_id, pay_item_name, multiplier } = req.body;
+      if (!rule_key) return res.status(400).json({ error: "rule_key is required" });
+      if (isNaN(catId)) return res.status(400).json({ error: "Valid category id is required" });
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS pay_category_rules (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          category_id INTEGER NOT NULL,
+          rule_key TEXT NOT NULL,
+          xero_earnings_rate_id TEXT NOT NULL DEFAULT '',
+          pay_item_name TEXT DEFAULT '',
+          multiplier REAL DEFAULT 1.0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (category_id) REFERENCES pay_categories(id) ON DELETE CASCADE
+        );
+      `);
+
+      const cleanXeroId = xero_earnings_rate_id ? String(xero_earnings_rate_id).trim() : '';
+
+      // Delete existing rule for this category and rule_key
+      db.prepare("DELETE FROM pay_category_rules WHERE category_id = ? AND rule_key = ?").run(catId, rule_key);
+
+      let finalName = pay_item_name || '';
+      let finalMultiplier = Number(multiplier) || 1.0;
+
+      if (cleanXeroId) {
+        const matchedItem = db.prepare("SELECT name, multiplier FROM pay_items WHERE xero_earnings_rate_id = ?").get(cleanXeroId) as any;
+        if (matchedItem) {
+          if (!finalName) finalName = matchedItem.name;
+          if (!multiplier && matchedItem.multiplier) finalMultiplier = Number(matchedItem.multiplier);
+        }
+
+        db.prepare(`
+          INSERT INTO pay_category_rules (category_id, rule_key, xero_earnings_rate_id, pay_item_name, multiplier, updated_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).run(catId, rule_key, cleanXeroId, finalName, finalMultiplier);
+      }
+
+      db.prepare("UPDATE pay_categories SET updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(catId);
+
+      res.json({ success: true, category_id: catId, rule_key, xero_earnings_rate_id: cleanXeroId, pay_item_name: finalName });
+    } catch (e: any) {
+      console.error("[PAY_CATEGORY_RULE_SAVE_ERROR]", e);
+      res.status(500).json({ error: e.message || "Failed to save pay rule" });
+    }
+  });
+
+  app.put("/api/pay-categories/:id", authenticateToken, (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const pos = db.prepare("SELECT * FROM positions WHERE id = ?").get(id) as any;
-      if (!pos) return res.status(404).json({ error: "Position not found" });
+      const { name, employment_type, description, pay_rules } = req.body;
+      if (name && name.trim()) {
+        db.prepare(`
+          UPDATE pay_categories 
+          SET name = ?, employment_type = COALESCE(?, employment_type), description = COALESCE(?, description), updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(name.trim(), employment_type || null, description !== undefined ? description : null, id);
+      }
+
+      if (pay_rules && typeof pay_rules === 'object') {
+        for (const [key, rule] of Object.entries<any>(pay_rules)) {
+          db.prepare("DELETE FROM pay_category_rules WHERE category_id = ? AND rule_key = ?").run(id, key);
+          if (rule?.xero_earnings_rate_id) {
+            db.prepare(`
+              INSERT INTO pay_category_rules (category_id, rule_key, xero_earnings_rate_id, pay_item_name, multiplier)
+              VALUES (?, ?, ?, ?, ?)
+            `).run(id, key, rule.xero_earnings_rate_id, rule.pay_item_name || '', Number(rule.multiplier) || 1.0);
+          }
+        }
+      }
+
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to update pay category" });
+    }
+  });
+
+  app.delete("/api/pay-categories/:id", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      db.prepare("DELETE FROM pay_category_rules WHERE category_id = ?").run(id);
+      db.prepare("UPDATE users SET pay_category_id = NULL WHERE pay_category_id = ?").run(id);
+      db.prepare("DELETE FROM pay_categories WHERE id = ?").run(id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to delete pay category" });
+    }
+  });
+
+  app.post("/api/pay-categories/pull-from-xero", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const syncRes = syncPayCategoriesFromXero(db);
+      const categories = db.prepare("SELECT * FROM pay_categories WHERE is_active = 1 ORDER BY name ASC").all();
+      res.json({ success: true, ...syncRes, categories });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to pull pay categories from Xero" });
+    }
+  });
+
+  app.post("/api/pay-categories/:id/auto-match", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const cat = db.prepare("SELECT * FROM pay_categories WHERE id = ?").get(id) as any;
+      if (!cat) return res.status(404).json({ error: "Pay category not found" });
 
       const activeItems = db.prepare("SELECT * FROM pay_items WHERE is_active = 1 AND xero_earnings_rate_id != ''").all() as any[];
       if (activeItems.length === 0) {
-        return res.status(400).json({ error: "No pay items synced from Xero yet. Click 'Sync from Xero' first." });
+        return res.status(400).json({ error: "No pay items synced from Xero yet. Click 'Pull Rates from Xero' first." });
       }
 
-      const posName = pos.name.toLowerCase();
-      const levelMatch = posName.match(/\b\d+\.\d+\b/);
-      const levelStr = levelMatch ? levelMatch[0] : '';
+      autoMatchPayCategoryRules(db, cat.id, { xero_earnings_rate_id: cat.xero_earnings_rate_id, name: cat.name }, activeItems, true);
 
-      const rules: Record<string, any> = {};
-
-      const findItem = (category: string, matchKeywords: string[], rejectKeywords: string[] = []) => {
-        if (levelStr) {
-          const found = activeItems.find(pi => {
-            const n = pi.name.toLowerCase();
-            const catMatches = !category || pi.category === category;
-            return catMatches && n.includes(levelStr) && matchKeywords.some(k => n.includes(k)) && !rejectKeywords.some(r => n.includes(r));
-          });
-          if (found) return found;
-        }
-        const found = activeItems.find(pi => {
-          const n = pi.name.toLowerCase();
-          const catMatches = !category || pi.category === category;
-          return catMatches && matchKeywords.some(k => n.includes(k)) && !rejectKeywords.some(r => n.includes(r));
-        });
-        return found;
-      };
-
-      // Weekday: Ordinary
-      const weekday = findItem('Ordinary', ['ordinary', 'weekday', 'base', 'day'], ['sat', 'sun', 'holiday', 'overtime', 'night', 'sleepover']) 
-        || activeItems.find(pi => pi.category === 'Ordinary');
-      if (weekday) rules.weekday = { xero_earnings_rate_id: weekday.xero_earnings_rate_id, pay_item_name: weekday.name, multiplier: 1.0 };
-
-      // Saturday: Penalty 150%
-      const sat = findItem('Penalty', ['sat', '150%'], ['sun', 'holiday', 'night', 'sleepover']);
-      if (sat) rules.saturday = { xero_earnings_rate_id: sat.xero_earnings_rate_id, pay_item_name: sat.name, multiplier: 1.5 };
-
-      // Sunday: Penalty 200%
-      const sun = findItem('Penalty', ['sun', '200%'], ['sat', 'holiday', 'night', 'sleepover']);
-      if (sun) rules.sunday = { xero_earnings_rate_id: sun.xero_earnings_rate_id, pay_item_name: sun.name, multiplier: 2.0 };
-
-      // Public Holiday: Penalty 250%
-      const pub = findItem('Penalty', ['public', 'holiday', '250%'], ['sat', 'sun', 'night']);
-      if (pub) rules.public_holiday = { xero_earnings_rate_id: pub.xero_earnings_rate_id, pay_item_name: pub.name, multiplier: 2.5 };
-
-      // Active Night Shift Loading
-      const night = findItem('', ['night', 'active night'], ['sleepover', 'travel']);
-      if (night) rules.night_shift = { xero_earnings_rate_id: night.xero_earnings_rate_id, pay_item_name: night.name, multiplier: 1.15 };
-
-      // Sleepover Allowance
-      const sleepover = findItem('', ['sleepover'], ['travel']);
-      if (sleepover) rules.sleepover = { xero_earnings_rate_id: sleepover.xero_earnings_rate_id, pay_item_name: sleepover.name, multiplier: 1.0 };
-
-      // NDIS Travel Allowance
-      const ndisTravel = findItem('Allowance', ['travel', 'vehicle', 'kilometre', 'km'], ['home care', 'hcp']) 
-        || activeItems.find(pi => pi.name.toLowerCase().includes('travel') || pi.name.toLowerCase().includes('vehicle'));
-      if (ndisTravel) rules.ndis_travel = { xero_earnings_rate_id: ndisTravel.xero_earnings_rate_id, pay_item_name: ndisTravel.name, multiplier: 1.0 };
-
-      // Home Care Travel Allowance
-      const hcTravel = findItem('Allowance', ['home care', 'hcp', 'travel', 'vehicle'], []) || ndisTravel;
-      if (hcTravel) rules.home_care_travel = { xero_earnings_rate_id: hcTravel.xero_earnings_rate_id, pay_item_name: hcTravel.name, multiplier: 1.0 };
-
-      const upsertRule = db.prepare(`
-        INSERT INTO position_pay_items (position_id, category_key, xero_earnings_rate_id, pay_item_name, multiplier)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(position_id, category_key) DO UPDATE SET
-          xero_earnings_rate_id = excluded.xero_earnings_rate_id,
-          pay_item_name = excluded.pay_item_name,
-          multiplier = excluded.multiplier,
-          updated_at = CURRENT_TIMESTAMP
-      `);
-      for (const [key, rule] of Object.entries<any>(rules)) {
-        upsertRule.run(id, key, rule.xero_earnings_rate_id, rule.pay_item_name, rule.multiplier);
+      const rules = db.prepare("SELECT * FROM pay_category_rules WHERE category_id = ?").all(id) as any[];
+      const rulesObj: Record<string, any> = {};
+      for (const r of rules) {
+        rulesObj[r.rule_key] = {
+          xero_earnings_rate_id: r.xero_earnings_rate_id,
+          pay_item_name: r.pay_item_name,
+          multiplier: r.multiplier
+        };
       }
 
-      res.json({ success: true, pay_rules: rules });
+      res.json({ success: true, pay_rules: rulesObj });
     } catch (e: any) {
-      logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
-      res.status(500).json({ error: e.message || "Internal Server Error" });
+      res.status(500).json({ error: e.message || "Failed to auto-match pay category rules" });
+    }
+  });
+
+  app.patch("/api/staff/:id/pay-category", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const { payCategoryId } = req.body;
+      const targetCatId = payCategoryId ? Number(payCategoryId) : null;
+      db.prepare("UPDATE users SET pay_category_id = ? WHERE id = ?").run(targetCatId, id);
+      const updated = db.prepare("SELECT id, pay_category_id, (SELECT name FROM pay_categories WHERE pay_categories.id = users.pay_category_id) as pay_category_name FROM users WHERE id = ?").get(id);
+      res.json({ success: true, staff: updated });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to update staff pay category" });
     }
   });
 
@@ -7735,17 +7961,18 @@ app.get("/api/health", (req, res) => {
     }
 
     const requestedRole = req.query.role ? String(req.query.role).toUpperCase() : null;
+    const staffSelectFields = `id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, position_id, pay_category_id, (SELECT name FROM pay_categories WHERE pay_categories.id = users.pay_category_id) as pay_category_name, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, xero_employee_id, xero_employee_name, ${joinedExpr}, ${createdExpr}`;
     if (req.user.role !== "ADMIN" || requestedRole === "STAFF") {
       const staff = db
         .prepare(
-          `SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, position_id, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, xero_employee_id, xero_employee_name, ${joinedExpr}, ${createdExpr} FROM users WHERE role = ?${busyFilter}`,
+          `SELECT ${staffSelectFields} FROM users WHERE role = ?${busyFilter}`,
         )
         .all("STAFF", ...busyParams);
       return res.json(staff);
     }
     const staff = db
       .prepare(
-        `SELECT id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, position_id, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, xero_employee_id, xero_employee_name, ${joinedExpr}, ${createdExpr} FROM users WHERE 1=1${busyFilter}`,
+        `SELECT ${staffSelectFields} FROM users WHERE 1=1${busyFilter}`,
       )
       .all(...busyParams);
     res.json(staff);
@@ -7810,13 +8037,14 @@ app.get("/api/health", (req, res) => {
       const nowIso = new Date().toISOString();
       const safeJoinedDate = joinedDate ? String(joinedDate).split('T')[0] : nowIso.split('T')[0];
       const targetPosId = req.body.positionId || req.body.position_id || null;
+      const targetPayCatId = req.body.payCategoryId || req.body.pay_category_id || null;
       let targetPosName = primaryPosition || null;
       if (targetPosId && !targetPosName) {
         const pos = db.prepare("SELECT name FROM positions WHERE id = ?").get(targetPosId) as any;
         if (pos) targetPosName = pos.name;
       }
       const stmt = db.prepare(
-        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, position_id, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, xero_employee_id, xero_employee_name, joined_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, position_id, pay_category_id, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, xero_employee_id, xero_employee_name, joined_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
       const info = stmt.run(
         email,
@@ -7840,6 +8068,7 @@ app.get("/api/health", (req, res) => {
         targetPosName,
         additionalPositions ? JSON.stringify(additionalPositions) : "[]",
         targetPosId,
+        targetPayCatId ? Number(targetPayCatId) : null,
         payRateWeekdayId || "",
         payRateSaturdayId || "",
         payRateSundayId || "",
@@ -7924,13 +8153,14 @@ app.get("/api/health", (req, res) => {
     try {
       const safeJoinedDate = joinedDate ? String(joinedDate).split('T')[0] : null;
       const targetPosId = req.body.positionId !== undefined ? req.body.positionId : (req.body.position_id !== undefined ? req.body.position_id : null);
+      const targetPayCatId = req.body.payCategoryId !== undefined ? req.body.payCategoryId : (req.body.pay_category_id !== undefined ? req.body.pay_category_id : null);
       let targetPosName = primaryPosition;
       if (targetPosId && !targetPosName) {
         const pos = db.prepare("SELECT name FROM positions WHERE id = ?").get(targetPosId) as any;
         if (pos) targetPosName = pos.name;
       }
       const stmt = db.prepare(
-        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = COALESCE(?, primary_position), additional_positions = ?, position_id = COALESCE(?, position_id), pay_rate_weekday_id = COALESCE(?, pay_rate_weekday_id), pay_rate_saturday_id = COALESCE(?, pay_rate_saturday_id), pay_rate_sunday_id = COALESCE(?, pay_rate_sunday_id), pay_rate_public_holiday_id = COALESCE(?, pay_rate_public_holiday_id), pay_rate_ndis_travel_id = COALESCE(?, pay_rate_ndis_travel_id), pay_rate_home_care_travel_id = COALESCE(?, pay_rate_home_care_travel_id), xero_employee_id = COALESCE(?, xero_employee_id), xero_employee_name = COALESCE(?, xero_employee_name), joined_date = COALESCE(?, joined_date) WHERE id = ?",
+        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = COALESCE(?, primary_position), additional_positions = ?, position_id = COALESCE(?, position_id), pay_category_id = COALESCE(?, pay_category_id), pay_rate_weekday_id = COALESCE(?, pay_rate_weekday_id), pay_rate_saturday_id = COALESCE(?, pay_rate_saturday_id), pay_rate_sunday_id = COALESCE(?, pay_rate_sunday_id), pay_rate_public_holiday_id = COALESCE(?, pay_rate_public_holiday_id), pay_rate_ndis_travel_id = COALESCE(?, pay_rate_ndis_travel_id), pay_rate_home_care_travel_id = COALESCE(?, pay_rate_home_care_travel_id), xero_employee_id = COALESCE(?, xero_employee_id), xero_employee_name = COALESCE(?, xero_employee_name), joined_date = COALESCE(?, joined_date) WHERE id = ?",
       );
       stmt.run(
         email,
@@ -7953,6 +8183,7 @@ app.get("/api/health", (req, res) => {
         targetPosName || null,
         additionalPositions ? JSON.stringify(additionalPositions) : "[]",
         targetPosId,
+        targetPayCatId,
         payRateWeekdayId !== undefined ? payRateWeekdayId : null,
         payRateSaturdayId !== undefined ? payRateSaturdayId : null,
         payRateSundayId !== undefined ? payRateSundayId : null,

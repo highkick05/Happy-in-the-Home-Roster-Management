@@ -1356,7 +1356,7 @@ export function previewXeroPayRun(db: any, params: {
     SELECT s.*,
            u.id as staff_user_id, u.first_name as staff_first_name, u.last_name as staff_last_name, u.email as staff_email,
            u.xero_employee_id, u.xero_employee_name,
-           u.position_id, u.primary_position,
+           u.pay_category_id, u.position_id, u.primary_position,
            u.pay_rate_weekday_id, u.pay_rate_saturday_id, u.pay_rate_sunday_id, u.pay_rate_public_holiday_id,
            u.pay_rate_ndis_travel_id, u.pay_rate_home_care_travel_id,
            srv.name as service_name
@@ -1385,19 +1385,12 @@ export function previewXeroPayRun(db: any, params: {
     if (pi.xero_earnings_rate_id) payItemMap.set(pi.xero_earnings_rate_id, pi.name);
   }
 
-  // Three-Layer Role Architecture: Load position pay rules
-  const posPayRules = db.prepare("SELECT position_id, category_key, xero_earnings_rate_id, pay_item_name FROM position_pay_items").all() as any[];
-  const posRuleMap = new Map<number, Map<string, { id: string; name: string }>>();
-  for (const pr of posPayRules) {
-    if (!posRuleMap.has(pr.position_id)) posRuleMap.set(pr.position_id, new Map());
-    posRuleMap.get(pr.position_id)!.set(pr.category_key, { id: pr.xero_earnings_rate_id, name: pr.pay_item_name });
-  }
-
-  // Load positions to map position names to IDs as fallback
-  const allPositions = db.prepare("SELECT id, name FROM positions").all() as any[];
-  const posNameToId = new Map<string, number>();
-  for (const p of allPositions) {
-    if (p.name) posNameToId.set(p.name.toLowerCase().trim(), p.id);
+  // Load Award Pay Category rules
+  const allCatRules = db.prepare("SELECT category_id, rule_key, xero_earnings_rate_id, pay_item_name FROM pay_category_rules").all() as any[];
+  const catRuleMap = new Map<number, Map<string, { id: string; name: string }>>();
+  for (const cr of allCatRules) {
+    if (!catRuleMap.has(cr.category_id)) catRuleMap.set(cr.category_id, new Map());
+    catRuleMap.get(cr.category_id)!.set(cr.rule_key, { id: cr.xero_earnings_rate_id, name: cr.pay_item_name });
   }
 
   const staffMap = new Map<number, StaffPayRunBreakdown>();
@@ -1452,15 +1445,14 @@ export function previewXeroPayRun(db: any, params: {
     }
 
     if (!staffMap.has(shift.staff_user_id)) {
-      const effectivePosId = shift.position_id || (shift.primary_position ? posNameToId.get(shift.primary_position.toLowerCase().trim()) : null);
-      const posRules = effectivePosId ? posRuleMap.get(effectivePosId) : null;
+      const catRules = shift.pay_category_id ? catRuleMap.get(shift.pay_category_id) : null;
 
-      const weekdayPayId = posRules?.get('weekday')?.id || shift.pay_rate_weekday_id || '';
-      const saturdayPayId = posRules?.get('saturday')?.id || shift.pay_rate_saturday_id || '';
-      const sundayPayId = posRules?.get('sunday')?.id || shift.pay_rate_sunday_id || '';
-      const publicHolidayPayId = posRules?.get('public_holiday')?.id || shift.pay_rate_public_holiday_id || '';
-      const ndisTravelPayId = posRules?.get('ndis_travel')?.id || shift.pay_rate_ndis_travel_id || '';
-      const homeCareTravelPayId = posRules?.get('home_care_travel')?.id || shift.pay_rate_home_care_travel_id || '';
+      const weekdayPayId = shift.pay_rate_weekday_id || catRules?.get('weekday')?.id || '';
+      const saturdayPayId = shift.pay_rate_saturday_id || catRules?.get('saturday')?.id || '';
+      const sundayPayId = shift.pay_rate_sunday_id || catRules?.get('sunday')?.id || '';
+      const publicHolidayPayId = shift.pay_rate_public_holiday_id || catRules?.get('public_holiday')?.id || '';
+      const ndisTravelPayId = shift.pay_rate_ndis_travel_id || catRules?.get('ndis_travel')?.id || '';
+      const homeCareTravelPayId = shift.pay_rate_home_care_travel_id || catRules?.get('home_care_travel')?.id || '';
 
       staffMap.set(shift.staff_user_id, {
         staffId: shift.staff_user_id,
@@ -1470,17 +1462,17 @@ export function previewXeroPayRun(db: any, params: {
         xeroEmployeeName: shift.xero_employee_name || '',
         isLinked: !!(shift.xero_employee_id || shift.xero_employee_name),
         payRateWeekdayId: weekdayPayId,
-        payRateWeekdayName: payItemMap.get(weekdayPayId) || posRules?.get('weekday')?.name || '',
+        payRateWeekdayName: payItemMap.get(weekdayPayId) || catRules?.get('weekday')?.name || '',
         payRateSaturdayId: saturdayPayId,
-        payRateSaturdayName: payItemMap.get(saturdayPayId) || posRules?.get('saturday')?.name || '',
+        payRateSaturdayName: payItemMap.get(saturdayPayId) || catRules?.get('saturday')?.name || '',
         payRateSundayId: sundayPayId,
-        payRateSundayName: payItemMap.get(sundayPayId) || posRules?.get('sunday')?.name || '',
+        payRateSundayName: payItemMap.get(sundayPayId) || catRules?.get('sunday')?.name || '',
         payRatePublicHolidayId: publicHolidayPayId,
-        payRatePublicHolidayName: payItemMap.get(publicHolidayPayId) || posRules?.get('public_holiday')?.name || '',
+        payRatePublicHolidayName: payItemMap.get(publicHolidayPayId) || catRules?.get('public_holiday')?.name || '',
         payRateNdisTravelId: ndisTravelPayId,
-        payRateNdisTravelName: payItemMap.get(ndisTravelPayId) || posRules?.get('ndis_travel')?.name || '',
+        payRateNdisTravelName: payItemMap.get(ndisTravelPayId) || catRules?.get('ndis_travel')?.name || '',
         payRateHomeCareTravelId: homeCareTravelPayId,
-        payRateHomeCareTravelName: payItemMap.get(homeCareTravelPayId) || posRules?.get('home_care_travel')?.name || '',
+        payRateHomeCareTravelName: payItemMap.get(homeCareTravelPayId) || catRules?.get('home_care_travel')?.name || '',
         weekdayHours: 0,
         saturdayHours: 0,
         sundayHours: 0,

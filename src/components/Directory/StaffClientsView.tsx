@@ -163,6 +163,8 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [selectedProvider, setSelectedProvider] = useState<any>(null);
   const [isContractorModalOpen, setIsContractorModalOpen] = useState(false);
   const [selectedContractor, setSelectedContractor] = useState<any>(null);
+  const [payCategories, setPayCategories] = useState<any[]>([]);
+  const [updatingPayCategoryStaffId, setUpdatingPayCategoryStaffId] = useState<number | null>(null);
 
   const fetchPositions = async () => {
     try {
@@ -178,47 +180,63 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
     }
   };
 
+  const fetchPayCategories = async () => {
+    try {
+      const res = await fetch('/api/pay-categories', {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPayCategories(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('Error fetching pay categories:', err);
+    }
+  };
+
   useEffect(() => {
     fetchData();
     if (activeTab === 'STAFF') {
       fetchPositions();
+      fetchPayCategories();
     }
   }, [activeTab]);
 
-  const handleUpdateStaffPosition = async (staffId: number, newPositionId: string) => {
-    setUpdatingPositionStaffId(staffId);
-    const numId = newPositionId ? Number(newPositionId) : null;
-    const matchedPos = positions.find(p => p.id === numId);
+  const handleUpdateStaffPayCategory = async (staffId: number, newCatId: string) => {
+    setUpdatingPayCategoryStaffId(staffId);
+    const numId = newCatId ? Number(newCatId) : null;
+    const matchedCat = payCategories.find(c => c.id === numId);
 
     // Instant local optimistic update
     setStaff(prev => prev.map(s => {
       if (s.id === staffId) {
         return {
           ...s,
-          position_id: numId,
-          primary_position: matchedPos ? matchedPos.name : (newPositionId ? s.primary_position : '')
+          pay_category_id: numId,
+          pay_category_name: matchedCat ? matchedCat.name : ''
         };
       }
       return s;
     }));
 
     try {
-      const res = await fetch(`/api/staff/${staffId}/position`, {
+      const authToken = token || localStorage.getItem('token') || '';
+      const res = await fetch(`/api/staff/${staffId}/pay-category`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
         },
-        body: JSON.stringify({ positionId: numId })
+        body: JSON.stringify({ payCategoryId: numId })
       });
       if (!res.ok) {
         fetchData();
       }
     } catch (err) {
-      console.error('Failed to update staff position:', err);
+      console.error('Failed to update staff pay category:', err);
       fetchData();
     } finally {
-      setUpdatingPositionStaffId(null);
+      setUpdatingPayCategoryStaffId(null);
     }
   };
 
@@ -392,8 +410,8 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                   <>
                     <th className="px-4 py-2 font-semibold">Name</th>
                     <th className="px-4 py-2 font-semibold">Contact</th>
-                    <th className="px-4 py-2 font-semibold">Role / Pay Category</th>
-                    <th className="px-4 py-2 font-semibold">Xero Payroll</th>
+                    <th className="px-4 py-2 font-semibold">Role</th>
+                    <th className="px-4 py-2 font-semibold">Xero Payroll &amp; Pay Category</th>
                     <th className="px-4 py-2 font-semibold text-right">Actions</th>
                   </>
                 ) : (
@@ -447,55 +465,66 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                         <div className="text-[#8B949E] text-xs mt-0.5">{s.phone}</div>
                       )}
                     </td>
-                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {s.role === 'ADMIN' && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase bg-purple-500/15 text-purple-300 border border-purple-500/30 shrink-0">
-                            ADMIN
+                    <td className="px-4 py-2.5">
+                      <div className="flex flex-col gap-1 items-start">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase border ${
+                          s.role === 'ADMIN' 
+                            ? 'bg-purple-500/10 text-purple-300 border-purple-500/30' 
+                            : 'bg-brand-bg text-[#8B949E] border-border-subtle'
+                        }`}>
+                          {s.role}
+                        </span>
+                        {s.primary_position && (
+                          <span className="text-[11px] text-zinc-300 font-medium truncate max-w-[170px]" title={s.primary_position}>
+                            {s.primary_position}
                           </span>
-                        )}
-                        <select
-                          value={
-                            s.position_id ||
-                            positions.find(p => p.name?.toLowerCase().trim() === s.primary_position?.toLowerCase().trim())?.id ||
-                            ''
-                          }
-                          onChange={(e) => handleUpdateStaffPosition(s.id, e.target.value)}
-                          disabled={updatingPositionStaffId === s.id}
-                          className="bg-[#121214] border border-white/10 hover:border-brand-teal/50 focus:border-brand-teal text-[#E6EDF3] text-[11px] rounded-md px-2 py-1 outline-none transition-colors cursor-pointer max-w-[210px] truncate shadow-sm disabled:opacity-50"
-                          title={s.primary_position ? `Assigned Pay Category: ${s.primary_position}` : 'Assign a pay category to link award pay rates'}
-                        >
-                          <option value="">-- Select Pay Category --</option>
-                          {positions.map(p => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                        {updatingPositionStaffId === s.id && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-brand-teal animate-ping" title="Saving position..." />
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-2.5">
-                      {(s.xero_employee_name || s.xero_employee_id) ? (
-                        <div 
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-sky-500/10 text-sky-300 border border-sky-500/30"
-                          title={`Linked to Xero Employee: ${s.xero_employee_name || s.xero_employee_id}`}
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
-                          <span className="font-bold text-sky-400 tracking-wider text-[10px]">XERO:</span>
-                          <span className="text-[#E6EDF3] font-medium">{s.xero_employee_name || 'Linked'}</span>
+                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {(s.xero_employee_name || s.xero_employee_id) ? (
+                            <div 
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium bg-sky-500/10 text-sky-300 border border-sky-500/30"
+                              title={`Linked to Xero Employee: ${s.xero_employee_name || s.xero_employee_id}`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
+                              <span className="font-bold text-sky-400 tracking-wider text-[9px]">XERO:</span>
+                              <span className="text-[#E6EDF3] font-medium truncate max-w-[120px]">{s.xero_employee_name || 'Linked'}</span>
+                            </div>
+                          ) : (
+                            <span 
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-medium bg-zinc-800/60 text-zinc-500 border border-zinc-700/50"
+                              title="Not linked to Xero Employee"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
+                              Not Linked
+                            </span>
+                          )}
                         </div>
-                      ) : (
-                        <span 
-                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800/60 text-zinc-500 border border-zinc-700/50"
-                          title="Not linked to Xero Employee"
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
-                          Not Linked
-                        </span>
-                      )}
+
+                        {/* Pay Category Selector */}
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={s.pay_category_id || ''}
+                            onChange={(e) => handleUpdateStaffPayCategory(s.id, e.target.value)}
+                            disabled={updatingPayCategoryStaffId === s.id}
+                            className="bg-[#121214] border border-white/10 hover:border-brand-teal/50 focus:border-brand-teal text-[#E6EDF3] text-[10px] rounded px-1.5 py-0.5 outline-none transition-colors cursor-pointer max-w-[190px] truncate shadow-sm disabled:opacity-50"
+                            title={s.pay_category_name ? `Assigned Xero Pay Category: ${s.pay_category_name}` : 'Assign a Xero Pay Category to inherit award rates'}
+                          >
+                            <option value="">-- Pay Category --</option>
+                            {payCategories.map(c => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+                          {updatingPayCategoryStaffId === s.id && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-brand-teal animate-ping" title="Saving pay category..." />
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <button 

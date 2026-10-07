@@ -15,6 +15,7 @@ interface StaffModalProps {
 export default function StaffModal({ isOpen, onClose, onSave, token, staff }: StaffModalProps) {
   const [activeTab, setActiveTab] = useState<'general' | 'personal' | 'financial'>('general');
   const [positions, setPositions] = useState<any[]>([]);
+  const [payCategories, setPayCategories] = useState<any[]>([]);
   const [payItems, setPayItems] = useState<any[]>([]);
   const [xeroEmployees, setXeroEmployees] = useState<any[]>([]);
   const [loadingXero, setLoadingXero] = useState(false);
@@ -57,6 +58,13 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
           if (Array.isArray(data)) setPositions(data);
         })
         .catch(err => console.error("Failed to load positions", err));
+
+      fetch('/api/pay-categories', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data)) setPayCategories(data);
+        })
+        .catch(err => console.error("Failed to load pay categories", err));
 
       fetch('/api/settings/pay-items', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json())
@@ -111,6 +119,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
     payRatePublicHolidayId: staff?.pay_rate_public_holiday_id || '',
     payRateNdisTravelId: staff?.pay_rate_ndis_travel_id || '',
     payRateHomeCareTravelId: staff?.pay_rate_home_care_travel_id || '',
+    payCategoryId: staff?.pay_category_id ? Number(staff.pay_category_id) : null,
     xeroEmployeeId: staff?.xero_employee_id || '',
     xeroEmployeeName: staff?.xero_employee_name || '',
   });
@@ -145,6 +154,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         payRatePublicHolidayId: staff.pay_rate_public_holiday_id || '',
         payRateNdisTravelId: staff.pay_rate_ndis_travel_id || '',
         payRateHomeCareTravelId: staff.pay_rate_home_care_travel_id || '',
+        payCategoryId: staff.pay_category_id ? Number(staff.pay_category_id) : null,
         xeroEmployeeId: staff.xero_employee_id || '',
         xeroEmployeeName: staff.xero_employee_name || '',
       });
@@ -177,6 +187,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
         payRatePublicHolidayId: '',
         payRateNdisTravelId: '',
         payRateHomeCareTravelId: '',
+        payCategoryId: null,
         xeroEmployeeId: '',
         xeroEmployeeName: '',
       });
@@ -358,21 +369,9 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                       >
                         <option value="">Select a job classification...</option>
                         {positions.map(p => (
-                          <option key={p.id} value={p.name}>{p.name} {p.employment_type ? `(${p.employment_type})` : ''}</option>
+                          <option key={p.id} value={p.name}>{p.name}</option>
                         ))}
                       </select>
-
-                      {formData.primaryPosition && (
-                        <div className="mt-2 p-2.5 rounded-lg bg-brand-teal/10 border border-brand-teal/20 text-xs text-brand-teal flex items-start gap-2">
-                          <Zap className="w-4 h-4 shrink-0 mt-0.5 text-brand-teal" />
-                          <div>
-                            <span className="font-semibold text-white block">Award Pay Rates Inherited: {formData.primaryPosition}</span>
-                            <span className="text-[11px] text-zinc-300">
-                              Automatically inherits weekday ordinary, weekend penalty (150%/200%), public holiday (250%), night/sleepover, and travel allowances configured in Settings &gt; Award Pay Rates.
-                            </span>
-                          </div>
-                        </div>
-                      )}
                     </div>
 
                     <div>
@@ -399,7 +398,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                     </div>
 
                     {/* Xero Employee Profile Mapping (Simplified, clean) */}
-                    <div className="p-3 bg-black/50 border border-sky-500/20 rounded-lg space-y-2 mt-2">
+                    <div className="p-3 bg-black/50 border border-sky-500/20 rounded-lg space-y-2.5 mt-2">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                         <label className="text-[12px] font-semibold text-sky-400 flex items-center gap-1.5">
                           <span>Xero Payroll Profile</span>
@@ -496,6 +495,28 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                           </button>
                         </div>
                       )}
+
+                      {/* Assigned Xero Pay Category */}
+                      <div className="pt-2 border-t border-sky-500/15">
+                        <label className="text-[11px] font-semibold text-sky-300 block mb-1">
+                          Assigned Xero Pay Category
+                        </label>
+                        <select
+                          value={formData.payCategoryId || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, payCategoryId: e.target.value ? Number(e.target.value) : null }))}
+                          className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-teal"
+                        >
+                          <option value="">-- No Pay Category Assigned --</option>
+                          {payCategories.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[10px] text-zinc-500 mt-1">
+                          Pulled from Xero. Determines penalty rates and travel allowances in draft pay runs.
+                        </p>
+                      </div>
                     </div>
 
                     {formData.role === 'STAFF' && (
