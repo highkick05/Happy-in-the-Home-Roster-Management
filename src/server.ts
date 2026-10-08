@@ -6127,6 +6127,15 @@ function getUnreadChatCount(db: any, userId: number) {
       }
 
       const result = await getXeroPayItems(db);
+      if (result.success && Array.isArray(result.earningsRates)) {
+        const activeIds = result.earningsRates.map((r: any) => r.id).filter(Boolean);
+        if (activeIds.length > 0) {
+          const placeholders = activeIds.map(() => '?').join(',');
+          // Automatically purge inactive pay items and unmap rules
+          db.prepare(`DELETE FROM pay_items WHERE xero_earnings_rate_id != '' AND xero_earnings_rate_id IS NOT NULL AND xero_earnings_rate_id NOT IN (${placeholders})`).run(...activeIds);
+          db.prepare(`DELETE FROM pay_category_rules WHERE xero_earnings_rate_id != '' AND xero_earnings_rate_id IS NOT NULL AND xero_earnings_rate_id NOT IN (${placeholders})`).run(...activeIds);
+        }
+      }
       res.json({
         ...result,
         connected: result.success,
@@ -6565,6 +6574,7 @@ function getUnreadChatCount(db: any, userId: number) {
 
   function autoMatchPayCategoryRules(db: any, catId: number, baseItem: any, allPayItems: any[], forceOverwrite: boolean = false) {
     try {
+      const activePayItems = (allPayItems || []).filter(p => p.is_active !== 0 && p.xero_earnings_rate_id);
       const catRecord = db.prepare("SELECT * FROM pay_categories WHERE id = ?").get(catId) as any;
       const catName = (catRecord?.name || baseItem?.name || '').trim();
 
@@ -6575,7 +6585,7 @@ function getUnreadChatCount(db: any, userId: number) {
       }
 
       const getBestItemForRule = (ruleKey: string) => {
-        const candidates = allPayItems
+        const candidates = activePayItems
           .map(it => ({ item: it, score: scorePayItem(catName, it, ruleKey) }))
           .filter(c => c.score > 0)
           .sort((a, b) => b.score - a.score);
@@ -6601,8 +6611,8 @@ function getUnreadChatCount(db: any, userId: number) {
       // 1. Weekday - category base item
       let weekdayItem = baseItem;
       if (!weekdayItem || !weekdayItem.xero_earnings_rate_id) {
-        weekdayItem = allPayItems.find(p => !isMultiplierPayItem(p) && !isNonBasePayItem(p) && getCoreIdentity(p.name) === getCoreIdentity(catName))
-          || allPayItems.find(p => !isMultiplierPayItem(p) && !isNonBasePayItem(p));
+        weekdayItem = activePayItems.find(p => !isMultiplierPayItem(p) && !isNonBasePayItem(p) && getCoreIdentity(p.name) === getCoreIdentity(catName))
+          || activePayItems.find(p => !isMultiplierPayItem(p) && !isNonBasePayItem(p));
       }
       if (weekdayItem && weekdayItem.xero_earnings_rate_id) {
         setRule('weekday', weekdayItem, 1.0);

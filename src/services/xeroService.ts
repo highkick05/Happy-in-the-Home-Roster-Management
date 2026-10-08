@@ -957,6 +957,30 @@ export interface XeroPayItemRecord {
   suggestedCategory: 'Ordinary' | 'Penalty' | 'Overtime' | 'Allowance';
 }
 
+export function isXeroRecordActive(r: any): boolean {
+  if (!r) return false;
+  // 1. Explicit booleans
+  if (r.CurrentRecord === false || r.currentRecord === false) return false;
+  if (r.IsActive === false || r.isActive === false) return false;
+
+  // 2. String representations of false / inactive
+  const cr = String(r.CurrentRecord ?? r.currentRecord ?? '').trim().toLowerCase();
+  if (cr === 'false' || cr === '0' || cr === 'no') return false;
+
+  const ia = String(r.IsActive ?? r.isActive ?? '').trim().toLowerCase();
+  if (ia === 'false' || ia === '0' || ia === 'no') return false;
+
+  const status = String(r.Status || r.status || '').trim().toUpperCase();
+  if (status === 'INACTIVE' || status === 'ARCHIVED' || status === 'DELETED') return false;
+
+  // 3. In Xero AU Payroll, when CurrentRecord is provided, it is true for active records
+  if (r.CurrentRecord !== undefined || r.currentRecord !== undefined) {
+    if (cr !== 'true' && cr !== '1' && cr !== '') return false;
+  }
+
+  return true;
+}
+
 /**
  * Fetches pay items directly from Xero Payroll API.
  */
@@ -1043,7 +1067,7 @@ export async function getXeroPayItems(db: any): Promise<{
     const data = await res.json();
     const rawPayItems = data.PayItems || data.payItems || data;
     const rawRates: any[] = (rawPayItems.EarningsRates || rawPayItems.earningsRates || [])
-      .filter((r: any) => r.CurrentRecord !== false && r.currentRecord !== false);
+      .filter(isXeroRecordActive);
 
     const earningsRates: XeroPayItemRecord[] = rawRates.map((r: any) => {
       const rawRateType = String(r.RateType || r.rateType || '').trim();
@@ -1065,7 +1089,7 @@ export async function getXeroPayItems(db: any): Promise<{
         accrueLeave: !!(r.AccrueLeave ?? r.accrueLeave),
         isExemptFromTax: !!(r.IsExemptFromTax ?? r.isExemptFromTax),
         isExemptFromSuper: !!(r.IsExemptFromSuper ?? r.isExemptFromSuper),
-        currentRecord: r.CurrentRecord !== false && r.currentRecord !== false,
+        currentRecord: true,
         accountCode: r.AccountCode || r.accountCode || '',
         suggestedCategory: classifyXeroEarningsRate(r)
       };
@@ -1076,10 +1100,10 @@ export async function getXeroPayItems(db: any): Promise<{
       tenantName: auth.tenantName || 'Xero Organisation',
       tenantId: auth.tenantId || '',
       earningsRates,
-      allowances: rawPayItems.AllowanceRates || rawPayItems.allowanceRates || [],
-      deductions: rawPayItems.DeductionTypes || rawPayItems.deductionTypes || [],
-      leaveTypes: rawPayItems.LeaveTypes || rawPayItems.leaveTypes || [],
-      reimbursements: rawPayItems.ReimbursementTypes || rawPayItems.reimbursementTypes || []
+      allowances: (rawPayItems.AllowanceRates || rawPayItems.allowanceRates || []).filter(isXeroRecordActive),
+      deductions: (rawPayItems.DeductionTypes || rawPayItems.deductionTypes || []).filter(isXeroRecordActive),
+      leaveTypes: (rawPayItems.LeaveTypes || rawPayItems.leaveTypes || []).filter(isXeroRecordActive),
+      reimbursements: (rawPayItems.ReimbursementTypes || rawPayItems.reimbursementTypes || []).filter(isXeroRecordActive)
     };
   } catch (e: any) {
     return {

@@ -461,7 +461,7 @@ export default function PayItemsSettings() {
 
   // Source of truth for pay items: live Xero rates when connected, otherwise clean synced pay items
   const availablePayItems = useMemo(() => {
-    // 1. If we have live Xero earnings rates from the Xero API, that is the single source of truth
+    // 1. If we have live Xero earnings rates from the Xero API, that is the single source of truth (only active items)
     if (xeroData.earningsRates && xeroData.earningsRates.length > 0) {
       return xeroData.earningsRates
         .filter(r => r.id && r.currentRecord !== false)
@@ -472,12 +472,32 @@ export default function PayItemsSettings() {
           xero_earnings_rate_id: r.id
         }));
     }
-    // 2. Otherwise use payItems from database with valid xero_earnings_rate_id
+    // 2. Otherwise use payItems from database with valid xero_earnings_rate_id and is_active = 1
     return payItems.filter(pi => 
+      pi.is_active !== 0 &&
       pi.xero_earnings_rate_id && 
       pi.xero_earnings_rate_id.trim() !== ''
     );
   }, [xeroData.earningsRates, payItems]);
+
+  // Catalog of strictly active pay items: never display inactive pay items in the portal
+  const activePayItemsList = useMemo(() => {
+    if (xeroData.connected && xeroData.earningsRates && xeroData.earningsRates.length > 0) {
+      const activeXeroMap = new Map(
+        xeroData.earningsRates.filter(r => r.currentRecord !== false).map(r => [r.id, r])
+      );
+      return payItems.filter(item => 
+        item.is_active !== 0 && 
+        item.xero_earnings_rate_id && 
+        activeXeroMap.has(item.xero_earnings_rate_id)
+      );
+    }
+    return payItems.filter(item => 
+      item.is_active !== 0 && 
+      item.xero_earnings_rate_id && 
+      item.xero_earnings_rate_id.trim() !== ''
+    );
+  }, [payItems, xeroData.connected, xeroData.earningsRates]);
 
   // Filter categories
   const filteredCategories = useMemo(() => {
@@ -495,7 +515,7 @@ export default function PayItemsSettings() {
 
   // Filter raw catalog
   const filteredRawItems = useMemo(() => {
-    let result = payItems;
+    let result = activePayItemsList;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(item => 
@@ -507,7 +527,7 @@ export default function PayItemsSettings() {
       result = result.filter(item => item.category === selectedCategory);
     }
     return result;
-  }, [payItems, searchQuery, selectedCategory]);
+  }, [activePayItemsList, searchQuery, selectedCategory]);
 
   const fullyMappedCount = useMemo(() => {
     return payCategories.filter(c => {
@@ -642,9 +662,9 @@ export default function PayItemsSettings() {
 
         <div className="bg-brand-bg border border-border-subtle p-4 rounded-xl flex items-center justify-between">
           <div>
-            <div className="text-[11px] font-medium text-[#8B949E]">Xero Pay Items</div>
-            <div className="text-2xl font-bold text-sky-400 mt-1">{payItems.length}</div>
-            <div className="text-[10px] text-sky-500/80 mt-0.5">Synced payroll earnings rates</div>
+            <div className="text-[11px] font-medium text-[#8B949E]">Active Xero Pay Items</div>
+            <div className="text-2xl font-bold text-sky-400 mt-1">{activePayItemsList.length}</div>
+            <div className="text-[10px] text-sky-500/80 mt-0.5">Active synced earnings rates</div>
           </div>
           <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
             <CreditCard className="w-5 h-5" />
@@ -677,7 +697,7 @@ export default function PayItemsSettings() {
           }`}
         >
           <CreditCard className="w-4 h-4" />
-          <span>Synced Xero Pay Items Catalog ({payItems.length})</span>
+          <span>Synced Xero Pay Items Catalog ({activePayItemsList.length})</span>
         </button>
       </div>
 
@@ -831,7 +851,9 @@ export default function PayItemsSettings() {
                     <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       {PAY_RULE_CATEGORIES.map((ruleCategory) => {
                         const rule = rules[ruleCategory.key];
-                        const isMapped = !!(rule && rule.xero_earnings_rate_id);
+                        const activeMatchedItem = rule?.xero_earnings_rate_id ? availablePayItems.find(p => p.xero_earnings_rate_id === rule.xero_earnings_rate_id) : null;
+                        const isMapped = !!activeMatchedItem;
+                        const isInactiveMapping = !!(rule?.xero_earnings_rate_id && !activeMatchedItem);
                         const isSaving = savingRuleKey === `${cat.id}-${ruleCategory.key}`;
                         const isSaved = savedRuleKey === `${cat.id}-${ruleCategory.key}`;
 
@@ -841,6 +863,8 @@ export default function PayItemsSettings() {
                             className={`p-3 rounded-lg border flex flex-col justify-between transition-colors ${
                               isMapped 
                                 ? 'bg-white/[0.03] border-white/[0.08] hover:border-white/[0.15]' 
+                                : isInactiveMapping
+                                ? 'bg-rose-500/[0.04] border-rose-500/30'
                                 : 'bg-red-500/[0.02] border-red-500/20'
                             }`}
                           >
@@ -861,16 +885,18 @@ export default function PayItemsSettings() {
                             {/* Dropdown Selector */}
                             <div className="space-y-1">
                               <select
-                                value={rule?.xero_earnings_rate_id || ''}
+                                value={activeMatchedItem ? rule.xero_earnings_rate_id : ''}
                                 onChange={(e) => handleUpdateCategoryPayRule(cat.id, ruleCategory.key, e.target.value)}
                                 disabled={isSaving}
                                 className={`w-full text-[11px] rounded-md px-2 py-1.5 outline-none transition-colors cursor-pointer truncate ${
                                   isMapped
                                     ? 'bg-[#121214] border border-white/10 text-white focus:border-brand-teal'
+                                    : isInactiveMapping
+                                    ? 'bg-[#181112] border border-rose-500/40 text-rose-300 focus:border-rose-400'
                                     : 'bg-[#161314] border border-amber-500/30 text-amber-300 focus:border-amber-400'
                                 }`}
                               >
-                                <option value="">-- Select Xero Pay Item --</option>
+                                <option value="">-- Select Active Xero Pay Item --</option>
                                 {availablePayItems.map(pi => (
                                   <option key={pi.id} value={pi.xero_earnings_rate_id}>
                                     {pi.name} ({pi.category})
@@ -894,9 +920,22 @@ export default function PayItemsSettings() {
                                   <span className="flex items-center gap-1 truncate">
                                     <Check className="w-3 h-3 text-emerald-400 shrink-0" />
                                     <span className="truncate">
-                                      {availablePayItems.find(p => p.xero_earnings_rate_id === rule.xero_earnings_rate_id)?.name || 
-                                       rule.pay_item_name || 'Mapped'}
+                                      {activeMatchedItem.name}
                                     </span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateCategoryPayRule(cat.id, ruleCategory.key, '')}
+                                    className="text-[9px] text-zinc-500 hover:text-rose-400 underline ml-1 shrink-0 cursor-pointer"
+                                  >
+                                    Clear
+                                  </button>
+                                </div>
+                              ) : isInactiveMapping ? (
+                                <div className="flex items-center justify-between text-[10px] text-rose-400 pt-0.5">
+                                  <span className="flex items-center gap-1 truncate" title="This earnings rate was marked inactive in Xero">
+                                    <AlertCircle className="w-3 h-3 text-rose-400 shrink-0" />
+                                    <span className="truncate">Inactive in Xero (Select active rate)</span>
                                   </span>
                                   <button
                                     type="button"
