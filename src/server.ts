@@ -952,30 +952,13 @@ try {
       );
     `);
 
-    // Purge any unmapped, artificial, or fabricated pay items so the portal only mirrors genuine Xero rates
+    // Purge any unmapped pay items so the portal only mirrors genuine Xero rates
     db.exec(`
       DELETE FROM pay_items 
       WHERE TRIM(xero_earnings_rate_id) = '' 
-         OR xero_earnings_rate_id IS NULL 
-         OR name LIKE 'SCHADS %' 
-         OR name LIKE '%(1.5x)%' 
-         OR name LIKE '%(2.0x)%' 
-         OR name LIKE '%(2.5x)%' 
-         OR name LIKE '%(1.15x)%' 
-         OR name LIKE '%(1.4x)%' 
-         OR name LIKE '%(1.8x)%' 
-         OR name LIKE '%(2.2x)%';
+         OR xero_earnings_rate_id IS NULL;
 
-      DELETE FROM pay_category_rules 
-      WHERE pay_item_name LIKE 'SCHADS %' 
-         OR pay_item_name LIKE '%(1.5x)%' 
-         OR pay_item_name LIKE '%(2.0x)%' 
-         OR pay_item_name LIKE '%(2.5x)%';
-
-      DELETE FROM pay_categories 
-      WHERE name LIKE 'SCHADS %' 
-         OR name LIKE '%(1.5x)%' 
-         OR name LIKE '%(2.0x)%';
+      UPDATE pay_category_rules SET multiplier = 1.0 WHERE multiplier != 1.0;
     `);
   } catch (err) {
     console.error("[DEBUG] Error initializing pay_items table:", err);
@@ -6005,28 +5988,11 @@ function getUnreadChatCount(db: any, userId: number) {
   // ==========================================
   app.get("/api/settings/pay-items", authenticateToken, (req: any, res) => {
     try {
-      // Purge any legacy unmapped or artificial names before returning
+      // Purge any unmapped items with no Xero ID
       db.exec(`
         DELETE FROM pay_items 
         WHERE TRIM(xero_earnings_rate_id) = '' 
-           OR xero_earnings_rate_id IS NULL 
-           OR name LIKE '%SCHADS%' 
-           OR name LIKE '%(1.5x)%' 
-           OR name LIKE '%(2.0x)%' 
-           OR name LIKE '%(2.5x)%' 
-           OR name LIKE '%(1.15x)%' 
-           OR name LIKE '%(1.4x)%' 
-           OR name LIKE '%(1.8x)%' 
-           OR name LIKE '%(2.2x)%'
-           OR name LIKE '%x)%';
-
-        DELETE FROM pay_category_rules 
-        WHERE pay_item_name LIKE '%SCHADS%' 
-           OR pay_item_name LIKE '%(1.5x)%' 
-           OR pay_item_name LIKE '%(2.0x)%' 
-           OR pay_item_name LIKE '%(2.5x)%' 
-           OR pay_item_name LIKE '%(1.15x)%' 
-           OR pay_item_name LIKE '%x)%';
+           OR xero_earnings_rate_id IS NULL;
 
         UPDATE pay_category_rules SET multiplier = 1.0 WHERE multiplier != 1.0;
       `);
@@ -6126,11 +6092,14 @@ function getUnreadChatCount(db: any, userId: number) {
         return res.status(404).json({ error: "Pay item not found" });
       }
 
-      db.prepare("UPDATE pay_items SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
-      res.json({ success: true, message: "Pay item deactivated successfully" });
+      db.prepare("DELETE FROM pay_items WHERE id = ?").run(id);
+      if (existing.xero_earnings_rate_id) {
+        db.prepare("DELETE FROM pay_category_rules WHERE xero_earnings_rate_id = ?").run(existing.xero_earnings_rate_id);
+      }
+      res.json({ success: true, message: "Pay item removed successfully" });
     } catch (e: any) {
-      console.error("[PAY_ITEMS] Error deactivating pay item:", e);
-      res.status(500).json({ error: e.message || "Failed to deactivate pay item" });
+      console.error("[PAY_ITEMS] Error removing pay item:", e);
+      res.status(500).json({ error: e.message || "Failed to remove pay item" });
     }
   });
 
@@ -6792,14 +6761,11 @@ function getUnreadChatCount(db: any, userId: number) {
         db.exec("DELETE FROM pay_category_rules");
       }
       
-      // Remove any unmapped or artificial names
+      // Remove any unmapped items with no Xero ID
       db.exec(`
         DELETE FROM pay_items 
         WHERE TRIM(xero_earnings_rate_id) = '' 
-           OR xero_earnings_rate_id IS NULL 
-           OR name LIKE 'SCHADS %' 
-           OR name LIKE '%(1.5x)%' 
-           OR name LIKE '%(2.0x)%';
+           OR xero_earnings_rate_id IS NULL;
       `);
 
       if (earningsRates.length === 0) {
@@ -8011,17 +7977,11 @@ app.get("/api/health", (req, res) => {
       const rulesByCat = new Map<number, any>();
       for (const r of allRules) {
         if (!rulesByCat.has(r.category_id)) rulesByCat.set(r.category_id, {});
-        // Sanitize legacy artificial names
-        let cleanItemName = r.pay_item_name || '';
-        if (cleanItemName.includes('SCHADS') || cleanItemName.includes('(1.5x)') || cleanItemName.includes('(2.0x)')) {
-          const matchedItem = db.prepare("SELECT name FROM pay_items WHERE xero_earnings_rate_id = ? AND name NOT LIKE '%SCHADS%' AND name NOT LIKE '%(1.5x)%'").get(r.xero_earnings_rate_id) as any;
-          cleanItemName = matchedItem ? matchedItem.name : '';
-        }
         rulesByCat.get(r.category_id)[r.rule_key] = {
           id: r.id,
           rule_key: r.rule_key,
           xero_earnings_rate_id: r.xero_earnings_rate_id,
-          pay_item_name: cleanItemName,
+          pay_item_name: r.pay_item_name,
           multiplier: 1.0
         };
       }

@@ -342,6 +342,27 @@ export default function PayItemsSettings() {
     }
   };
 
+  const handleDeletePayItem = async (itemId: number, itemName: string) => {
+    if (!confirm(`Are you sure you want to remove pay item "${itemName}" from your portal?`)) {
+      return;
+    }
+    try {
+      const authToken = token || localStorage.getItem('token') || '';
+      const res = await fetch(`/api/settings/pay-items/${itemId}`, {
+        method: 'DELETE',
+        headers: { ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) }
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to delete pay item');
+      }
+      showNotification('success', `Removed pay item "${itemName}" from portal`);
+      await Promise.all([fetchPayItems(), fetchPayCategories()]);
+    } catch (e: any) {
+      showNotification('error', e.message || 'Error deleting pay item');
+    }
+  };
+
   const handleAutoMapCategory = async (catId: number, catName: string) => {
     setAutoMappingCatId(catId);
     try {
@@ -443,7 +464,7 @@ export default function PayItemsSettings() {
     // 1. If we have live Xero earnings rates from the Xero API, that is the single source of truth
     if (xeroData.earningsRates && xeroData.earningsRates.length > 0) {
       return xeroData.earningsRates
-        .filter(r => r.id && !r.name.includes('(1.5x)') && !r.name.includes('(2.0x)') && !r.name.includes('(2.5x)') && !r.name.includes('(1.15x)') && !r.name.startsWith('SCHADS ') && !r.name.includes('SCHADS'))
+        .filter(r => r.id && r.currentRecord !== false)
         .map(r => ({
           id: r.id,
           name: r.name,
@@ -451,16 +472,10 @@ export default function PayItemsSettings() {
           xero_earnings_rate_id: r.id
         }));
     }
-    // 2. Otherwise use payItems, strictly filtering out any artificial or portal-generated names
+    // 2. Otherwise use payItems from database with valid xero_earnings_rate_id
     return payItems.filter(pi => 
       pi.xero_earnings_rate_id && 
-      pi.xero_earnings_rate_id.trim() !== '' &&
-      !pi.name.includes('(1.5x)') &&
-      !pi.name.includes('(2.0x)') &&
-      !pi.name.includes('(2.5x)') &&
-      !pi.name.includes('(1.15x)') &&
-      !pi.name.startsWith('SCHADS ') &&
-      !pi.name.includes('SCHADS')
+      pi.xero_earnings_rate_id.trim() !== ''
     );
   }, [xeroData.earningsRates, payItems]);
 
@@ -880,7 +895,7 @@ export default function PayItemsSettings() {
                                     <Check className="w-3 h-3 text-emerald-400 shrink-0" />
                                     <span className="truncate">
                                       {availablePayItems.find(p => p.xero_earnings_rate_id === rule.xero_earnings_rate_id)?.name || 
-                                       (rule.pay_item_name && !rule.pay_item_name.includes('SCHADS') && !rule.pay_item_name.includes('(1.5x)') ? rule.pay_item_name : 'Mapped')}
+                                       rule.pay_item_name || 'Mapped'}
                                     </span>
                                   </span>
                                   <button
@@ -960,12 +975,13 @@ export default function PayItemsSettings() {
                     <th className="px-4 py-3 font-semibold">Rate Type</th>
                     <th className="px-4 py-3 font-semibold">Xero Earnings Rate ID</th>
                     <th className="px-4 py-3 font-semibold text-center">Status</th>
+                    <th className="px-4 py-3 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   {filteredRawItems.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-[#8B949E]">
+                      <td colSpan={6} className="px-4 py-8 text-center text-[#8B949E]">
                         No pay items found. Click "Pull Rates from Xero" to import your rates.
                       </td>
                     </tr>
@@ -997,6 +1013,16 @@ export default function PayItemsSettings() {
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                             Active
                           </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePayItem(item.id, item.name)}
+                            className="p-1.5 text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
+                            title="Remove pay item from portal"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </td>
                       </tr>
                     ))

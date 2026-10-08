@@ -1042,7 +1042,8 @@ export async function getXeroPayItems(db: any): Promise<{
 
     const data = await res.json();
     const rawPayItems = data.PayItems || data.payItems || data;
-    const rawRates: any[] = rawPayItems.EarningsRates || rawPayItems.earningsRates || [];
+    const rawRates: any[] = (rawPayItems.EarningsRates || rawPayItems.earningsRates || [])
+      .filter((r: any) => r.CurrentRecord !== false && r.currentRecord !== false);
 
     const earningsRates: XeroPayItemRecord[] = rawRates.map((r: any) => {
       const rawRateType = String(r.RateType || r.rateType || '').trim();
