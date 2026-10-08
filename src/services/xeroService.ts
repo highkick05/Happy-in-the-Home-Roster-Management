@@ -1965,7 +1965,32 @@ export async function createXeroDraftPayRun(db: any, params: {
 
           // Determine employee's base ordinary rate from existing template lines
           const baseLine = existingLines.find((el: any) => Number(el.RatePerUnit || 0) > 0);
-          const baseOrdinaryRate = baseLine ? Number(baseLine.RatePerUnit) : 0;
+          let baseOrdinaryRate = baseLine ? Number(baseLine.RatePerUnit) : 0;
+
+          // If base rate not found on draft payslip, fetch employee PayTemplate from Xero
+          if (!baseOrdinaryRate || isNaN(baseOrdinaryRate) || baseOrdinaryRate <= 0) {
+            try {
+              const empRes = await fetch(`https://api.xero.com/payroll.xro/1.0/Employees/${staff.xeroEmployeeId}`, { headers });
+              if (empRes.ok) {
+                const empData = await empRes.json();
+                const empObj = empData.Employees?.[0] || empData.Employee;
+                const tmplLines = empObj?.PayTemplate?.EarningsLines || [];
+                const tmplBase = tmplLines.find((l: any) => Number(l.RatePerUnit || 0) > 0);
+                if (tmplBase) {
+                  baseOrdinaryRate = Number(tmplBase.RatePerUnit);
+                }
+              }
+            } catch (empErr) {
+              console.warn('[XERO_PAYRUN] Could not fetch employee template rate:', empErr);
+            }
+          }
+
+          if (!baseOrdinaryRate || isNaN(baseOrdinaryRate) || baseOrdinaryRate <= 0) {
+            const wkdayInfo = payItemRatesMap.get(staff.payRateWeekdayId);
+            if (wkdayInfo && wkdayInfo.ratePerUnit > 0) {
+              baseOrdinaryRate = wkdayInfo.ratePerUnit;
+            }
+          }
 
           // Clean existing lines so Xero does not reject RatePerUnit <= 0 or missing rates
           const finalLines: any[] = existingLines.map((el: any) => {
@@ -1984,10 +2009,9 @@ export async function createXeroDraftPayRun(db: any, params: {
             return clean;
           });
 
-          // Merge target hours into existing template lines, or append new lines
+          // Merge target hours into existing template lines, or append new lines with required RatePerUnit
           for (const entry of targetEntries) {
             const rateInfo = payItemRatesMap.get(entry.id);
-            const isMultipleRate = rateInfo?.isMultiple ?? false;
 
             let lineRate: number | undefined = undefined;
             if (entry.isHomeCareTravel) {
@@ -1997,23 +2021,22 @@ export async function createXeroDraftPayRun(db: any, params: {
               } else if (baseOrdinaryRate > 0) {
                 lineRate = baseOrdinaryRate;
               }
-            } else if (!isMultipleRate) {
-              if (rateInfo && rateInfo.ratePerUnit > 0) {
-                lineRate = rateInfo.ratePerUnit;
-              } else if (entry.defaultRate !== undefined && entry.defaultRate > 0) {
-                lineRate = entry.defaultRate;
-              } else if (baseOrdinaryRate > 0) {
-                lineRate = baseOrdinaryRate;
-              }
+            } else if (entry.desc === 'NDIS Travel') {
+              lineRate = (rateInfo && rateInfo.ratePerUnit > 0) ? rateInfo.ratePerUnit : 0.99;
+            } else if (rateInfo && rateInfo.ratePerUnit > 0) {
+              lineRate = rateInfo.ratePerUnit;
+            } else if (rateInfo && rateInfo.multiplier > 1 && baseOrdinaryRate > 0) {
+              lineRate = parseFloat((baseOrdinaryRate * rateInfo.multiplier).toFixed(4));
+            } else if (baseOrdinaryRate > 0) {
+              lineRate = baseOrdinaryRate;
+            } else if (entry.defaultRate !== undefined && entry.defaultRate > 0) {
+              lineRate = entry.defaultRate;
             }
 
             const existingIdx = finalLines.findIndex(l => l.EarningsRateID === entry.id);
             if (existingIdx >= 0) {
               finalLines[existingIdx].NumberOfUnits = Number(entry.units.toFixed(2));
-              if (isMultipleRate) {
-                // Xero AU Payroll prohibits RatePerUnit for MultipleOfOrdinaryEarningsRate
-                delete finalLines[existingIdx].RatePerUnit;
-              } else if (lineRate !== undefined && lineRate > 0) {
+              if (lineRate !== undefined && lineRate > 0) {
                 finalLines[existingIdx].RatePerUnit = Number(lineRate.toFixed(4));
               }
             } else {
@@ -2022,60 +2045,62 @@ export async function createXeroDraftPayRun(db: any, params: {
                 EarningsRateID: entry.id,
                 NumberOfUnits: Number(entry.units.toFixed(2))
               };
-              if (!isMultipleRate && lineRate !== undefined && lineRate > 0) {
+              if (lineRate !== undefined && lineRate > 0) {
                 newLine.RatePerUnit = Number(lineRate.toFixed(4));
               }
               finalLines.push(newLine);
             }
           }
 
+          const arrayPayload = [{ PayslipID: payslipId, EarningsLines: finalLines }];
           const singlePayload = { PayslipID: payslipId, EarningsLines: finalLines };
-          const arrayPayload = [singlePayload];
 
-          // 1. Try single entity update to /Payslip/{payslipId}
-          slipRes = await fetch(`https://api.xero.com/payroll.xro/1.0/Payslip/${payslipId}`, {
+          // 1. Post to standard /payroll.xro/1.0/Payslip endpoint with arrayPayload
+          slipRes = await fetch('https://api.xero.com/payroll.xro/1.0/Payslip', {
             method: 'POST',
             headers,
-            body: JSON.stringify(singlePayload)
+            body: JSON.stringify(arrayPayload)
           });
 
-          // 2. If single entity POST returned error, fallback to bulk array POST to /Payslip
+          // 2. Fallback to /Payslip/{payslipId} with single entity if bulk endpoint fails
           if (!slipRes.ok) {
             try {
-              const arrayRes = await fetch('https://api.xero.com/payroll.xro/1.0/Payslip', {
+              const singleRes = await fetch(`https://api.xero.com/payroll.xro/1.0/Payslip/${payslipId}`, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify(arrayPayload)
+                body: JSON.stringify(singlePayload)
               });
-              if (arrayRes.ok) {
-                slipRes = arrayRes;
+              if (singleRes.ok) {
+                slipRes = singleRes;
               }
-            } catch (bulkErr) {}
+            } catch (singleErr) {}
           }
         } else {
           // If no pre-existing draft payslip summary was created by Xero
           const newLines: any[] = targetEntries.map(entry => {
             const rateInfo = payItemRatesMap.get(entry.id);
-            const isMultipleRate = rateInfo?.isMultiple ?? false;
 
             let lineRate: number | undefined = undefined;
             if (entry.isHomeCareTravel) {
-              if (rateInfo && rateInfo.ratePerUnit > 0) {
-                lineRate = rateInfo.ratePerUnit;
-              }
-            } else if (!isMultipleRate) {
-              if (rateInfo && rateInfo.ratePerUnit > 0) {
-                lineRate = rateInfo.ratePerUnit;
-              } else if (entry.defaultRate !== undefined && entry.defaultRate > 0) {
-                lineRate = entry.defaultRate;
-              }
+              if (rateInfo && rateInfo.ratePerUnit > 0) lineRate = rateInfo.ratePerUnit;
+              else if (baseOrdinaryRate > 0) lineRate = baseOrdinaryRate;
+            } else if (entry.desc === 'NDIS Travel') {
+              lineRate = (rateInfo && rateInfo.ratePerUnit > 0) ? rateInfo.ratePerUnit : 0.99;
+            } else if (rateInfo && rateInfo.ratePerUnit > 0) {
+              lineRate = rateInfo.ratePerUnit;
+            } else if (rateInfo && rateInfo.multiplier > 1 && baseOrdinaryRate > 0) {
+              lineRate = parseFloat((baseOrdinaryRate * rateInfo.multiplier).toFixed(4));
+            } else if (baseOrdinaryRate > 0) {
+              lineRate = baseOrdinaryRate;
+            } else if (entry.defaultRate !== undefined && entry.defaultRate > 0) {
+              lineRate = entry.defaultRate;
             }
 
             const line: any = {
               EarningsRateID: entry.id,
               NumberOfUnits: Number(entry.units.toFixed(2))
             };
-            if (!isMultipleRate && lineRate !== undefined && lineRate > 0) {
+            if (lineRate !== undefined && lineRate > 0) {
               line.RatePerUnit = Number(lineRate.toFixed(4));
             }
             return line;
