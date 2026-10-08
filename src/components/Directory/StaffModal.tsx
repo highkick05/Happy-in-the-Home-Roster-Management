@@ -495,28 +495,6 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                           </button>
                         </div>
                       )}
-
-                      {/* Assigned Xero Pay Category */}
-                      <div className="pt-2 border-t border-sky-500/15">
-                        <label className="text-[11px] font-semibold text-sky-300 block mb-1">
-                          Assigned Xero Pay Category
-                        </label>
-                        <select
-                          value={formData.payCategoryId || ''}
-                          onChange={(e) => setFormData(prev => ({ ...prev, payCategoryId: e.target.value ? Number(e.target.value) : null }))}
-                          className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-teal"
-                        >
-                          <option value="">-- No Pay Category Assigned --</option>
-                          {payCategories.map(c => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-[10px] text-zinc-500 mt-1">
-                          Pulled from Xero. Determines penalty rates and travel allowances in draft pay runs.
-                        </p>
-                      </div>
                     </div>
 
                     {formData.role === 'STAFF' && (
