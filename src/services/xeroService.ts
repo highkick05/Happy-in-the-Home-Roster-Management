@@ -2055,26 +2055,12 @@ export async function createXeroDraftPayRun(db: any, params: {
           const arrayPayload = [{ PayslipID: payslipId, EarningsLines: finalLines }];
           const singlePayload = { PayslipID: payslipId, EarningsLines: finalLines };
 
-          // 1. Post to standard /payroll.xro/1.0/Payslip endpoint with arrayPayload
+          // Post to standard /payroll.xro/1.0/Payslip endpoint with arrayPayload
           slipRes = await fetch('https://api.xero.com/payroll.xro/1.0/Payslip', {
             method: 'POST',
             headers,
             body: JSON.stringify(arrayPayload)
           });
-
-          // 2. Fallback to /Payslip/{payslipId} with single entity if bulk endpoint fails
-          if (!slipRes.ok) {
-            try {
-              const singleRes = await fetch(`https://api.xero.com/payroll.xro/1.0/Payslip/${payslipId}`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(singlePayload)
-              });
-              if (singleRes.ok) {
-                slipRes = singleRes;
-              }
-            } catch (singleErr) {}
-          }
         } else {
           // If no pre-existing draft payslip summary was created by Xero
           const newLines: any[] = targetEntries.map(entry => {
@@ -2128,59 +2114,47 @@ export async function createXeroDraftPayRun(db: any, params: {
             errData = JSON.parse(rawText);
           } catch (e) {}
 
+          console.error(`[XERO_PAYRUN_ERROR] ${staff.portalName} (${staff.xeroEmployeeId}):`, rawText || JSON.stringify(errData));
+
           const valErrors: string[] = [];
 
-          // 1. Direct ValidationErrors array (common in Xero AU Payroll)
-          if (Array.isArray(errData?.ValidationErrors)) {
-            for (const ve of errData.ValidationErrors) {
-              if (ve?.Message) valErrors.push(ve.Message);
+          // Deep recursive extraction of all ValidationErrors across the entire Xero response tree
+          const extractErrorsRecursive = (curr: any) => {
+            if (!curr) return;
+            if (Array.isArray(curr)) {
+              for (const item of curr) extractErrorsRecursive(item);
+              return;
             }
-          }
-
-          // 2. Elements[].ValidationErrors (common in Xero Accounting API)
-          if (Array.isArray(errData?.Elements)) {
-            for (const el of errData.Elements) {
-              if (Array.isArray(el?.ValidationErrors)) {
-                for (const ve of el.ValidationErrors) {
-                  if (ve?.Message) valErrors.push(ve.Message);
-                }
-              }
-            }
-          }
-
-          // 3. Payslip(s) validation errors
-          if (Array.isArray(errData?.Payslips)) {
-            for (const ps of errData.Payslips) {
-              if (Array.isArray(ps?.ValidationErrors)) {
-                for (const ve of ps.ValidationErrors) {
-                  if (ve?.Message) valErrors.push(ve.Message);
-                }
-              }
-              if (Array.isArray(ps?.EarningsLines)) {
-                for (const el of ps.EarningsLines) {
-                  if (Array.isArray(el?.ValidationErrors)) {
-                    for (const ve of el.ValidationErrors) {
-                      if (ve?.Message) valErrors.push(ve.Message);
+            if (typeof curr === 'object') {
+              for (const [key, val] of Object.entries(curr)) {
+                const k = key.toLowerCase();
+                if (k.includes('validationerror') || k === 'errors' || k.includes('problem')) {
+                  if (Array.isArray(val)) {
+                    for (const v of val) {
+                      if (typeof v === 'string') valErrors.push(v);
+                      else if (v?.Message) valErrors.push(v.Message);
+                      else if (v?.message) valErrors.push(v.message);
+                      else if (typeof v === 'object') extractErrorsRecursive(v);
                     }
+                  } else if (typeof val === 'string') {
+                    valErrors.push(val);
+                  } else if (typeof val === 'object') {
+                    if ((val as any)?.Message) valErrors.push((val as any).Message);
+                    else if ((val as any)?.message) valErrors.push((val as any).message);
+                    else extractErrorsRecursive(val);
                   }
+                } else if (k === 'message' && typeof val === 'string' && val !== 'A validation exception occurred') {
+                  valErrors.push(val);
+                } else {
+                  extractErrorsRecursive(val);
                 }
               }
             }
-          }
-          if (errData?.Payslip && Array.isArray(errData.Payslip.ValidationErrors)) {
-            for (const ve of errData.Payslip.ValidationErrors) {
-              if (ve?.Message) valErrors.push(ve.Message);
-            }
-          }
+          };
 
-          // 4. Invalid fields
-          if (Array.isArray(errData?.invalidFields)) {
-            for (const f of errData.invalidFields) {
-              valErrors.push(`${f.name || 'Field'}: ${f.reason || 'Invalid'}`);
-            }
-          }
+          extractErrorsRecursive(errData);
 
-          // 5. XML regex if returned in XML format
+          // XML regex if returned in XML format
           if (rawText && (rawText.startsWith('<') || rawText.includes('</'))) {
             const xmlMsgs = Array.from(rawText.matchAll(/<Message>(.*?)<\/Message>/g)).map(m => m[1]);
             for (const m of xmlMsgs) {
@@ -2190,9 +2164,21 @@ export async function createXeroDraftPayRun(db: any, params: {
             }
           }
 
-          const errMsg = valErrors.length > 0
-            ? valErrors.join('; ')
-            : (errData.Detail || (errData.Message && errData.Message !== 'A validation exception occurred' ? errData.Message : '') || (rawText && rawText.length < 150 ? rawText.trim() : `Xero Validation Error (${slipRes.status})`));
+          let errMsg = '';
+          const uniqueErrors = Array.from(new Set(valErrors.filter(Boolean)));
+          if (uniqueErrors.length > 0) {
+            errMsg = uniqueErrors.join('; ');
+          } else if (errData.Detail) {
+            errMsg = errData.Detail;
+          } else if (errData.Message && errData.Message !== 'A validation exception occurred') {
+            errMsg = errData.Message;
+          } else if (errData.Type === 'ValidationException' || errData.Message === 'A validation exception occurred') {
+            errMsg = "A validation exception occurred in Xero. Please check employee setup in Xero (ensure Tax Declaration, Superannuation Membership, and Pay Template are fully completed in Xero Payroll).";
+          } else if (rawText && rawText.length < 150) {
+            errMsg = rawText.trim();
+          } else {
+            errMsg = `Xero Validation Error (${slipRes.status})`;
+          }
 
           executionWarnings.push(`${staff.portalName}: ${errMsg}`);
           staffSummary.push({
