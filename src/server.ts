@@ -6339,11 +6339,22 @@ function getUnreadChatCount(db: any, userId: number) {
     }
   });
 
+  function extractLevelKey(name: string): string | null {
+    if (!name) return null;
+    const ppMatch = name.match(/\blevel\s*(\d+)\s*(?:pay\s*point|pp)?\s*(\d+)\b/i);
+    if (ppMatch) return `${ppMatch[1]}.${ppMatch[2]}`;
+    const m = name.match(/\b(?:level\s*|l)?(\d+)[.\s_-](\d+)\b/i);
+    if (m) return `${m[1]}.${m[2]}`;
+    return null;
+  }
+
   function cleanStem(name: string): string {
     if (!name) return '';
     return name
       .toLowerCase()
-      .replace(/\b(saturday|sat|sunday|sun|weekend|public\s+holiday|pub\s+hol|holiday|night\s+shift|night\s+loading|active\s+night|night|evening|afternoon|overtime|o\/t)\b/gi, '')
+      .replace(/\blevel\s*(\d+)\s*(?:pay\s*point|pp)\s*(\d+)\b/gi, (m, g1, g2) => 'lvl_' + g1 + '_' + g2)
+      .replace(/\b(?:level\s*|l)?(\d+)[.\s_-](\d+)\b/gi, (m, g1, g2) => 'lvl_' + g1 + '_' + g2)
+      .replace(/\b(saturday|sat|sunday|sun|weekend|public\s+holiday|pub\s+hol|holiday|night\s+shift|night\s+loading|active\s+night|night|evening|afternoon|overtime|o\/t|weekday|mon-fri|monday|tuesday|wednesday|thursday|friday)\b/gi, '')
       .replace(/\b\d+(\.\d+)?\s*%/g, '')
       .replace(/\b\d+(\.\d+)?\s*x\b/gi, '')
       .replace(/\b(penalty|loading|multiplier|multiple)\b/gi, '')
@@ -6381,6 +6392,28 @@ function getUnreadChatCount(db: any, userId: number) {
   function doesMultiplierBelongToBase(base: any, mult: any, allBases: any[]): boolean {
     const baseName = (base.name || '').toLowerCase();
     const multName = (mult.name || '').toLowerCase();
+
+    const baseLvl = extractLevelKey(baseName);
+    const multLvl = extractLevelKey(multName);
+
+    // If both specify an award level (e.g. 4.1, 2.1)
+    if (baseLvl && multLvl) {
+      if (baseLvl !== multLvl) return false;
+      const isBaseCasual = baseName.includes('casual');
+      const isMultCasual = multName.includes('casual');
+      const isBasePerm = baseName.includes('part') || baseName.includes('full') || baseName.includes('permanent');
+      const isMultPerm = multName.includes('part') || multName.includes('full') || multName.includes('permanent');
+
+      if (isBaseCasual && isMultPerm) return false;
+      if (isBasePerm && isMultCasual) return false;
+      return true;
+    }
+
+    // If multiplier specifies a distinct level, but base has no level
+    if (multLvl && !baseLvl) {
+      return false;
+    }
+
     const baseStem = cleanStem(baseName);
     const multStem = cleanStem(multName);
 
@@ -6389,6 +6422,8 @@ function getUnreadChatCount(db: any, userId: number) {
       if (baseStem.includes(multStem) || multStem.includes(baseStem)) {
         const otherBases = allBases.filter(b => b.id !== base.id);
         const isBetter = otherBases.some(o => {
+          const oLvl = extractLevelKey(o.name || '');
+          if (oLvl && multLvl) return oLvl === multLvl;
           const oStem = cleanStem(o.name || '');
           return oStem === multStem || (oStem.includes(multStem) && oStem.length > baseStem.length);
         });
@@ -6425,20 +6460,59 @@ function getUnreadChatCount(db: any, userId: number) {
       const multiplierItems = allPayItems.filter(isMultiplierPayItem);
       const potentialBaseItems = allPayItems.filter(p => !isNonBasePayItem(p) && !isMultiplierPayItem(p));
 
+      const catName = (baseItem?.name || '');
+
       // Multipliers strictly belonging to this base item
       const relatedMultipliers = baseItem 
         ? multiplierItems.filter(m => doesMultiplierBelongToBase(baseItem, m, potentialBaseItems))
         : [];
 
-      // Helper to find in related multipliers only
+      // Multiplier search pool: prefer strictly related multipliers, otherwise fall back to all multiplier items
+      const multiplierPool = relatedMultipliers.length > 0 ? relatedMultipliers : multiplierItems;
+
+      // Smart score-based search to find the best matching multiplier for this Pay Category
       const findMultiplierRate = (matchKeywords: string[], rejectKeywords: string[] = [], targetMult?: number) => {
-        return relatedMultipliers.find(pi => {
+        let bestItem: any = null;
+        let bestScore = -100;
+
+        for (const pi of multiplierPool) {
           const n = (pi.name || '').toLowerCase();
-          const match = matchKeywords.some(k => n.includes(k.toLowerCase()));
-          const reject = rejectKeywords.some(r => n.includes(r.toLowerCase()));
-          const multMatch = targetMult !== undefined ? Number(pi.multiplier) === targetMult : true;
-          return (match || (targetMult !== undefined && multMatch)) && !reject;
-        });
+          if (rejectKeywords.some(r => n.includes(r.toLowerCase()))) continue;
+
+          let score = 0;
+          const kwMatch = matchKeywords.some(k => n.includes(k.toLowerCase()));
+          if (kwMatch) score += 50;
+
+          if (targetMult !== undefined) {
+            if (Number(pi.multiplier) === targetMult) score += 30;
+            else if (Number(pi.multiplier) > 0) score += 10;
+          }
+
+          if (score === 0) continue;
+
+          // Award level matching (e.g. 4.1 vs 4.1 or 2.1)
+          const catLvl = extractLevelKey(catName);
+          const itemLvl = extractLevelKey(n);
+          if (catLvl && itemLvl) {
+            if (catLvl === itemLvl) score += 100;
+            else score -= 200; // Strong penalty if levels mismatch
+          }
+
+          // Stem matching
+          const catStem = cleanStem(catName);
+          const itemStem = cleanStem(n);
+          if (catStem && itemStem) {
+            if (catStem === itemStem) score += 40;
+            else if (catStem.includes(itemStem) || itemStem.includes(catStem)) score += 20;
+          }
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestItem = pi;
+          }
+        }
+
+        return bestScore > 0 ? bestItem : null;
       };
 
       // Helper to find allowances/general rates in all pay items
@@ -6467,19 +6541,19 @@ function getUnreadChatCount(db: any, userId: number) {
         setRuleIfEmpty('weekday', baseItem, 1.0);
       }
 
-      // 2. Saturday Penalty (150%) - strictly searched in relatedMultipliers
+      // 2. Saturday Penalty (150%) - strictly searched and scored against Category Name
       const sat = findMultiplierRate(['saturday', 'sat penalty', '150%'], ['sunday', 'holiday'], 1.5);
       setRuleIfEmpty('saturday', sat, 1.5);
 
-      // 3. Sunday Penalty (200%) - strictly searched in relatedMultipliers
+      // 3. Sunday Penalty (200%) - strictly searched and scored against Category Name
       const sun = findMultiplierRate(['sunday', 'sun penalty', '200%'], ['saturday', 'holiday'], 2.0);
       setRuleIfEmpty('sunday', sun, 2.0);
 
-      // 4. Public Holiday (250%) - strictly searched in relatedMultipliers
+      // 4. Public Holiday (250%) - strictly searched and scored against Category Name
       const pub = findMultiplierRate(['public holiday', 'pub holiday', 'holiday', '250%'], ['saturday', 'sunday'], 2.5);
       setRuleIfEmpty('public_holiday', pub, 2.5);
 
-      // 5. Active Night Shift Loading (1.15x) - strictly searched in relatedMultipliers
+      // 5. Active Night Shift Loading (1.15x) - strictly searched and scored against Category Name
       const night = findMultiplierRate(['night', 'night loading', 'active night'], ['sleepover', 'travel'], 1.15);
       setRuleIfEmpty('night_shift', night, 1.15);
 
