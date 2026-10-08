@@ -1678,7 +1678,7 @@ export function previewXeroPayRun(db: any, params: {
     if (s.ndisTravelKm > 0 && !s.payRateNdisTravelId) {
       warnings.push('Missing NDIS Travel Pay Item');
     }
-    if (s.homeCareTravelKm > 0 && !s.payRateHomeCareTravelId) {
+    if ((s.homeCareTravelHours > 0 || s.homeCareTravelKm > 0) && !s.payRateHomeCareTravelId) {
       warnings.push('Missing Home Care Travel Pay Item');
     }
 
@@ -1802,7 +1802,7 @@ export async function createXeroDraftPayRun(db: any, params: {
       eligibleStaff = eligibleStaff.filter(s => params.staffIds!.includes(s.staffId));
     }
 
-    eligibleStaff = eligibleStaff.filter(s => !!s.xeroEmployeeId && (s.totalHours > 0 || s.ndisTravelKm > 0 || s.homeCareTravelKm > 0));
+    eligibleStaff = eligibleStaff.filter(s => !!s.xeroEmployeeId && (s.totalHours > 0 || s.ndisTravelKm > 0 || s.homeCareTravelHours > 0 || s.homeCareTravelKm > 0));
 
     if (eligibleStaff.length === 0) {
       throw new Error('No staff members with worked hours are linked to a Xero Employee profile. Please link staff members in their Staff Profile first.');
@@ -1893,16 +1893,20 @@ export async function createXeroDraftPayRun(db: any, params: {
       existingPayslips = payRunObj?.Payslips || [];
     }
 
-    // Pre-fetch all earnings rates from Xero/DB so we have exact RatePerUnit and multipliers
-    const payItemRatesMap = new Map<string, { ratePerUnit: number; multiplier: number; earningsType: string }>();
+    // Pre-fetch all earnings rates from Xero/DB so we have exact RatePerUnit, multipliers and rate types
+    const payItemRatesMap = new Map<string, { ratePerUnit: number; multiplier: number; earningsType: string; isMultiple: boolean; rateType: string }>();
     try {
       const payItemsRes = await getXeroPayItems(db);
       if (payItemsRes.success && Array.isArray(payItemsRes.earningsRates)) {
         for (const er of payItemsRes.earningsRates) {
+          const rawRateType = String(er.rateType || '').toUpperCase();
+          const isMultiple = rawRateType.includes('MULTIPLE') || (er.multiplier !== undefined && er.multiplier > 0 && er.multiplier !== 1.0);
           payItemRatesMap.set(er.id, {
             ratePerUnit: er.ratePerUnit || 0,
             multiplier: er.multiplier || 1,
-            earningsType: er.earningsType || ''
+            earningsType: er.earningsType || '',
+            rateType: er.rateType || '',
+            isMultiple
           });
         }
       }
@@ -1916,13 +1920,14 @@ export async function createXeroDraftPayRun(db: any, params: {
     const executionWarnings: string[] = [];
 
     for (const staff of eligibleStaff) {
+      // Home Care Travel is calculated as a decimal fraction of an hour (time) * employee's hourly rate
       const targetEntries = [
-        { id: staff.payRateWeekdayId, units: staff.weekdayHours, desc: 'Weekday', defaultRate: undefined },
-        { id: staff.payRateSaturdayId, units: staff.saturdayHours, desc: 'Saturday', defaultRate: undefined },
-        { id: staff.payRateSundayId, units: staff.sundayHours, desc: 'Sunday', defaultRate: undefined },
-        { id: staff.payRatePublicHolidayId, units: staff.publicHolidayHours, desc: 'Public Holiday', defaultRate: undefined },
-        { id: staff.payRateNdisTravelId, units: staff.ndisTravelKm, desc: 'NDIS Travel', defaultRate: 0.99 },
-        { id: staff.payRateHomeCareTravelId, units: staff.homeCareTravelKm, desc: 'Home Care Travel', defaultRate: 0.99 },
+        { id: staff.payRateWeekdayId, units: staff.weekdayHours, desc: 'Weekday', defaultRate: undefined, isHomeCareTravel: false },
+        { id: staff.payRateSaturdayId, units: staff.saturdayHours, desc: 'Saturday', defaultRate: undefined, isHomeCareTravel: false },
+        { id: staff.payRateSundayId, units: staff.sundayHours, desc: 'Sunday', defaultRate: undefined, isHomeCareTravel: false },
+        { id: staff.payRatePublicHolidayId, units: staff.publicHolidayHours, desc: 'Public Holiday', defaultRate: undefined, isHomeCareTravel: false },
+        { id: staff.payRateNdisTravelId, units: staff.ndisTravelKm, desc: 'NDIS Travel', defaultRate: 0.99, isHomeCareTravel: false },
+        { id: staff.payRateHomeCareTravelId, units: staff.homeCareTravelHours, desc: 'Home Care Travel', defaultRate: undefined, isHomeCareTravel: true },
       ].filter(e => !!e.id && e.units > 0);
 
       if (targetEntries.length === 0) {
@@ -1962,64 +1967,116 @@ export async function createXeroDraftPayRun(db: any, params: {
           const baseLine = existingLines.find((el: any) => Number(el.RatePerUnit || 0) > 0);
           const baseOrdinaryRate = baseLine ? Number(baseLine.RatePerUnit) : 0;
 
-          // Clone existing lines so Xero does not delete them or reject missing ordinary rates
-          const finalLines: any[] = existingLines.map((el: any) => ({
-            EarningsRateID: el.EarningsRateID,
-            NumberOfUnits: el.NumberOfUnits || 0,
-            RatePerUnit: el.RatePerUnit !== undefined && el.RatePerUnit !== null ? Number(el.RatePerUnit) : undefined,
-            FixedAmount: el.FixedAmount !== undefined && el.FixedAmount !== null ? Number(el.FixedAmount) : undefined
-          }));
+          // Clean existing lines so Xero does not reject RatePerUnit <= 0 or missing rates
+          const finalLines: any[] = existingLines.map((el: any) => {
+            const clean: any = {
+              EarningsRateID: el.EarningsRateID,
+              NumberOfUnits: el.NumberOfUnits !== undefined && el.NumberOfUnits !== null ? Number(el.NumberOfUnits) : 0
+            };
+            const rateVal = Number(el.RatePerUnit);
+            if (!isNaN(rateVal) && rateVal > 0) {
+              clean.RatePerUnit = rateVal;
+            }
+            const fixVal = Number(el.FixedAmount);
+            if (!isNaN(fixVal) && fixVal > 0) {
+              clean.FixedAmount = fixVal;
+            }
+            return clean;
+          });
 
-          // Merge target hours into existing template lines, or append new lines with RatePerUnit
+          // Merge target hours into existing template lines, or append new lines
           for (const entry of targetEntries) {
-            const existingIdx = finalLines.findIndex(l => l.EarningsRateID === entry.id);
-            if (existingIdx >= 0) {
-              finalLines[existingIdx].NumberOfUnits = entry.units;
-              if (finalLines[existingIdx].RatePerUnit === undefined && entry.defaultRate !== undefined) {
-                finalLines[existingIdx].RatePerUnit = entry.defaultRate;
-              }
-            } else {
-              // Not in template - dynamically append new EarningsLine to the payslip
-              const rateInfo = payItemRatesMap.get(entry.id);
-              let lineRate: number | undefined = undefined;
+            const rateInfo = payItemRatesMap.get(entry.id);
+            const isMultipleRate = rateInfo?.isMultiple ?? false;
+
+            let lineRate: number | undefined = undefined;
+            if (entry.isHomeCareTravel) {
+              // Home Care travel allowance is calculated as a decimal fraction of an hour (time) * employee's hourly rate
               if (rateInfo && rateInfo.ratePerUnit > 0) {
                 lineRate = rateInfo.ratePerUnit;
-              } else if (rateInfo && rateInfo.multiplier > 1 && baseOrdinaryRate > 0) {
-                lineRate = parseFloat((baseOrdinaryRate * rateInfo.multiplier).toFixed(4));
-              } else if (entry.defaultRate !== undefined) {
+              } else if (baseOrdinaryRate > 0) {
+                lineRate = baseOrdinaryRate;
+              }
+            } else if (!isMultipleRate) {
+              if (rateInfo && rateInfo.ratePerUnit > 0) {
+                lineRate = rateInfo.ratePerUnit;
+              } else if (entry.defaultRate !== undefined && entry.defaultRate > 0) {
                 lineRate = entry.defaultRate;
               } else if (baseOrdinaryRate > 0) {
                 lineRate = baseOrdinaryRate;
               }
+            }
 
+            const existingIdx = finalLines.findIndex(l => l.EarningsRateID === entry.id);
+            if (existingIdx >= 0) {
+              finalLines[existingIdx].NumberOfUnits = Number(entry.units.toFixed(2));
+              if (isMultipleRate) {
+                // Xero AU Payroll prohibits RatePerUnit for MultipleOfOrdinaryEarningsRate
+                delete finalLines[existingIdx].RatePerUnit;
+              } else if (lineRate !== undefined && lineRate > 0) {
+                finalLines[existingIdx].RatePerUnit = Number(lineRate.toFixed(4));
+              }
+            } else {
+              // Not in template - dynamically append new EarningsLine to the payslip
               const newLine: any = {
                 EarningsRateID: entry.id,
-                NumberOfUnits: entry.units
+                NumberOfUnits: Number(entry.units.toFixed(2))
               };
-              if (lineRate !== undefined && !isNaN(lineRate) && lineRate > 0) {
-                newLine.RatePerUnit = lineRate;
+              if (!isMultipleRate && lineRate !== undefined && lineRate > 0) {
+                newLine.RatePerUnit = Number(lineRate.toFixed(4));
               }
               finalLines.push(newLine);
             }
           }
 
+          const singlePayload = { PayslipID: payslipId, EarningsLines: finalLines };
+          const arrayPayload = [singlePayload];
+
+          // 1. Try single entity update to /Payslip/{payslipId}
           slipRes = await fetch(`https://api.xero.com/payroll.xro/1.0/Payslip/${payslipId}`, {
             method: 'POST',
             headers,
-            body: JSON.stringify([{ PayslipID: payslipId, EarningsLines: finalLines }])
+            body: JSON.stringify(singlePayload)
           });
+
+          // 2. If single entity POST returned error, fallback to bulk array POST to /Payslip
+          if (!slipRes.ok) {
+            try {
+              const arrayRes = await fetch('https://api.xero.com/payroll.xro/1.0/Payslip', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(arrayPayload)
+              });
+              if (arrayRes.ok) {
+                slipRes = arrayRes;
+              }
+            } catch (bulkErr) {}
+          }
         } else {
           // If no pre-existing draft payslip summary was created by Xero
           const newLines: any[] = targetEntries.map(entry => {
             const rateInfo = payItemRatesMap.get(entry.id);
+            const isMultipleRate = rateInfo?.isMultiple ?? false;
+
+            let lineRate: number | undefined = undefined;
+            if (entry.isHomeCareTravel) {
+              if (rateInfo && rateInfo.ratePerUnit > 0) {
+                lineRate = rateInfo.ratePerUnit;
+              }
+            } else if (!isMultipleRate) {
+              if (rateInfo && rateInfo.ratePerUnit > 0) {
+                lineRate = rateInfo.ratePerUnit;
+              } else if (entry.defaultRate !== undefined && entry.defaultRate > 0) {
+                lineRate = entry.defaultRate;
+              }
+            }
+
             const line: any = {
               EarningsRateID: entry.id,
-              NumberOfUnits: entry.units
+              NumberOfUnits: Number(entry.units.toFixed(2))
             };
-            if (rateInfo && rateInfo.ratePerUnit > 0) {
-              line.RatePerUnit = rateInfo.ratePerUnit;
-            } else if (entry.defaultRate !== undefined) {
-              line.RatePerUnit = entry.defaultRate;
+            if (!isMultipleRate && lineRate !== undefined && lineRate > 0) {
+              line.RatePerUnit = Number(lineRate.toFixed(4));
             }
             return line;
           });
@@ -2040,20 +2097,78 @@ export async function createXeroDraftPayRun(db: any, params: {
             status: 'SUCCESS'
           });
         } else {
-          const errData = await slipRes.json().catch(() => ({}));
+          const rawText = await slipRes.text().catch(() => '');
+          let errData: any = {};
+          try {
+            errData = JSON.parse(rawText);
+          } catch (e) {}
+
           const valErrors: string[] = [];
-          if (errData.Elements && Array.isArray(errData.Elements)) {
+
+          // 1. Direct ValidationErrors array (common in Xero AU Payroll)
+          if (Array.isArray(errData?.ValidationErrors)) {
+            for (const ve of errData.ValidationErrors) {
+              if (ve?.Message) valErrors.push(ve.Message);
+            }
+          }
+
+          // 2. Elements[].ValidationErrors (common in Xero Accounting API)
+          if (Array.isArray(errData?.Elements)) {
             for (const el of errData.Elements) {
-              if (el.ValidationErrors && Array.isArray(el.ValidationErrors)) {
+              if (Array.isArray(el?.ValidationErrors)) {
                 for (const ve of el.ValidationErrors) {
-                  if (ve.Message) valErrors.push(ve.Message);
+                  if (ve?.Message) valErrors.push(ve.Message);
                 }
               }
             }
           }
+
+          // 3. Payslip(s) validation errors
+          if (Array.isArray(errData?.Payslips)) {
+            for (const ps of errData.Payslips) {
+              if (Array.isArray(ps?.ValidationErrors)) {
+                for (const ve of ps.ValidationErrors) {
+                  if (ve?.Message) valErrors.push(ve.Message);
+                }
+              }
+              if (Array.isArray(ps?.EarningsLines)) {
+                for (const el of ps.EarningsLines) {
+                  if (Array.isArray(el?.ValidationErrors)) {
+                    for (const ve of el.ValidationErrors) {
+                      if (ve?.Message) valErrors.push(ve.Message);
+                    }
+                  }
+                }
+              }
+            }
+          }
+          if (errData?.Payslip && Array.isArray(errData.Payslip.ValidationErrors)) {
+            for (const ve of errData.Payslip.ValidationErrors) {
+              if (ve?.Message) valErrors.push(ve.Message);
+            }
+          }
+
+          // 4. Invalid fields
+          if (Array.isArray(errData?.invalidFields)) {
+            for (const f of errData.invalidFields) {
+              valErrors.push(`${f.name || 'Field'}: ${f.reason || 'Invalid'}`);
+            }
+          }
+
+          // 5. XML regex if returned in XML format
+          if (rawText && (rawText.startsWith('<') || rawText.includes('</'))) {
+            const xmlMsgs = Array.from(rawText.matchAll(/<Message>(.*?)<\/Message>/g)).map(m => m[1]);
+            for (const m of xmlMsgs) {
+              if (m && m !== 'A validation exception occurred' && !valErrors.includes(m)) {
+                valErrors.push(m);
+              }
+            }
+          }
+
           const errMsg = valErrors.length > 0
             ? valErrors.join('; ')
-            : (errData.Detail || errData.Message || 'Failed to update payslip');
+            : (errData.Detail || (errData.Message && errData.Message !== 'A validation exception occurred' ? errData.Message : '') || (rawText && rawText.length < 150 ? rawText.trim() : `Xero Validation Error (${slipRes.status})`));
+
           executionWarnings.push(`${staff.portalName}: ${errMsg}`);
           staffSummary.push({
             staffName: staff.portalName,

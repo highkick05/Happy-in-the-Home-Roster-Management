@@ -106,7 +106,7 @@ export default function XeroPayRunModal({
       // Auto-select all ready staff
       if (Array.isArray(preview.staff)) {
         const readyIds = preview.staff
-          .filter((s: any) => s.isLinked && (s.totalHours > 0 || s.ndisTravelKm > 0 || s.homeCareTravelKm > 0))
+          .filter((s: any) => s.isLinked && (s.totalHours > 0 || s.ndisTravelKm > 0 || s.homeCareTravelKm > 0 || s.homeCareTravelHours > 0))
           .map((s: any) => s.staffId);
         setSelectedStaffIds(readyIds);
       }
@@ -152,7 +152,7 @@ export default function XeroPayRunModal({
   const handleSelectAll = () => {
     if (!previewData?.staff) return;
     const eligible = previewData.staff
-      .filter((s: any) => s.isLinked && (s.totalHours > 0 || s.ndisTravelKm > 0 || s.homeCareTravelKm > 0))
+      .filter((s: any) => s.isLinked && (s.totalHours > 0 || s.ndisTravelKm > 0 || s.homeCareTravelKm > 0 || s.homeCareTravelHours > 0))
       .map((s: any) => s.staffId);
     
     if (selectedStaffIds.length === eligible.length) {
@@ -207,7 +207,7 @@ export default function XeroPayRunModal({
   if (!isOpen) return null;
 
   const staffList = previewData?.staff || [];
-  const eligibleStaff = staffList.filter((s: any) => s.totalHours > 0 || s.ndisTravelKm > 0 || s.homeCareTravelKm > 0);
+  const eligibleStaff = staffList.filter((s: any) => s.totalHours > 0 || s.ndisTravelKm > 0 || s.homeCareTravelKm > 0 || s.homeCareTravelHours > 0);
   const unlinkedStaff = eligibleStaff.filter((s: any) => !s.isLinked);
 
   return (
@@ -438,12 +438,12 @@ export default function XeroPayRunModal({
 
                 <div>
                   <label className="block text-[11px] text-zinc-400 mb-1 font-medium">
-                    Total Travel Distance
+                    Travel &amp; Allowances
                   </label>
                   <div className="text-xs font-semibold text-white px-2.5 py-1.5 bg-brand-navy border border-border-subtle rounded-md flex items-center justify-between">
-                    <span>{((previewData?.totals?.ndisTravelKm || 0) + (previewData?.totals?.homeCareTravelKm || 0)).toFixed(1)} km</span>
+                    <span>{previewData?.totals?.ndisTravelKm || 0} km NDIS</span>
                     <span className="text-[10px] text-zinc-400 font-normal">
-                      NDIS: {previewData?.totals?.ndisTravelKm || 0} km • HCP: {previewData?.totals?.homeCareTravelKm || 0} km
+                      HCP: {previewData?.totals?.homeCareTravelHours !== undefined ? previewData.totals.homeCareTravelHours : 0} hrs
                     </span>
                   </div>
                 </div>
@@ -491,7 +491,7 @@ export default function XeroPayRunModal({
                         <th className="px-3 py-2 text-right">Saturday</th>
                         <th className="px-3 py-2 text-right">Sunday</th>
                         <th className="px-3 py-2 text-right">Pub Hol</th>
-                        <th className="px-3 py-2 text-right">NDIS Travel</th>
+                        <th className="px-3 py-2 text-right">NDIS (km)</th>
                         <th className="px-3 py-2 text-right">HCP Travel</th>
                         <th className="px-3 py-2 text-right font-bold text-zinc-300">Total Hrs</th>
                       </tr>
@@ -570,8 +570,8 @@ export default function XeroPayRunModal({
                                 </span>
                               </td>
                               <td className="px-3 py-2 text-right">
-                                <span className={staff.homeCareTravelKm > 0 ? 'text-sky-400 font-medium' : 'text-zinc-600'}>
-                                  {staff.homeCareTravelKm > 0 ? `${staff.homeCareTravelKm}km` : '-'}
+                                <span className={staff.homeCareTravelHours > 0 ? 'text-sky-400 font-medium' : 'text-zinc-600'}>
+                                  {staff.homeCareTravelHours > 0 ? `${parseFloat(staff.homeCareTravelHours.toFixed(2))} hrs` : '-'}
                                 </span>
                               </td>
                               <td className="px-3 py-2 text-right font-bold text-white">
