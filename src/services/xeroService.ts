@@ -1947,6 +1947,8 @@ export async function createXeroDraftPayRun(db: any, params: {
 
       try {
         let slipRes: any;
+        let baseOrdinaryRate = 0;
+
         if (payslipId) {
           // 1. Fetch current draft payslip from Xero to preserve existing template lines & ordinary base rates
           let existingLines: any[] = [];
@@ -1965,7 +1967,7 @@ export async function createXeroDraftPayRun(db: any, params: {
 
           // Determine employee's base ordinary rate from existing template lines
           const baseLine = existingLines.find((el: any) => Number(el.RatePerUnit || 0) > 0);
-          let baseOrdinaryRate = baseLine ? Number(baseLine.RatePerUnit) : 0;
+          if (baseLine) baseOrdinaryRate = Number(baseLine.RatePerUnit);
 
           // If base rate not found on draft payslip, fetch employee PayTemplate from Xero
           if (!baseOrdinaryRate || isNaN(baseOrdinaryRate) || baseOrdinaryRate <= 0) {
@@ -2013,8 +2015,13 @@ export async function createXeroDraftPayRun(db: any, params: {
           for (const entry of targetEntries) {
             const rateInfo = payItemRatesMap.get(entry.id);
 
+            const isMultipleRate = rateInfo ? rateInfo.isMultiple : false;
             let lineRate: number | undefined = undefined;
-            if (entry.isHomeCareTravel) {
+
+            if (isMultipleRate) {
+              // Rate is MultipleOfOrdinaryEarningsRate: Xero calculates the rate automatically based on employee's ordinary rate and item's multiplier. Do NOT send RatePerUnit!
+              lineRate = undefined;
+            } else if (entry.isHomeCareTravel) {
               // Home Care travel allowance is calculated as a decimal fraction of an hour (time) * employee's hourly rate
               if (rateInfo && rateInfo.ratePerUnit > 0) {
                 lineRate = rateInfo.ratePerUnit;
@@ -2025,8 +2032,6 @@ export async function createXeroDraftPayRun(db: any, params: {
               lineRate = (rateInfo && rateInfo.ratePerUnit > 0) ? rateInfo.ratePerUnit : 0.99;
             } else if (rateInfo && rateInfo.ratePerUnit > 0) {
               lineRate = rateInfo.ratePerUnit;
-            } else if (rateInfo && rateInfo.multiplier > 1 && baseOrdinaryRate > 0) {
-              lineRate = parseFloat((baseOrdinaryRate * rateInfo.multiplier).toFixed(4));
             } else if (baseOrdinaryRate > 0) {
               lineRate = baseOrdinaryRate;
             } else if (entry.defaultRate !== undefined && entry.defaultRate > 0) {
@@ -2038,6 +2043,8 @@ export async function createXeroDraftPayRun(db: any, params: {
               finalLines[existingIdx].NumberOfUnits = Number(entry.units.toFixed(2));
               if (lineRate !== undefined && lineRate > 0) {
                 finalLines[existingIdx].RatePerUnit = Number(lineRate.toFixed(4));
+              } else if (isMultipleRate) {
+                delete finalLines[existingIdx].RatePerUnit;
               }
             } else {
               // Not in template - dynamically append new EarningsLine to the payslip
@@ -2065,17 +2072,18 @@ export async function createXeroDraftPayRun(db: any, params: {
           // If no pre-existing draft payslip summary was created by Xero
           const newLines: any[] = targetEntries.map(entry => {
             const rateInfo = payItemRatesMap.get(entry.id);
+            const isMultipleRate = rateInfo ? rateInfo.isMultiple : false;
 
             let lineRate: number | undefined = undefined;
-            if (entry.isHomeCareTravel) {
+            if (isMultipleRate) {
+              lineRate = undefined;
+            } else if (entry.isHomeCareTravel) {
               if (rateInfo && rateInfo.ratePerUnit > 0) lineRate = rateInfo.ratePerUnit;
               else if (baseOrdinaryRate > 0) lineRate = baseOrdinaryRate;
             } else if (entry.desc === 'NDIS Travel') {
               lineRate = (rateInfo && rateInfo.ratePerUnit > 0) ? rateInfo.ratePerUnit : 0.99;
             } else if (rateInfo && rateInfo.ratePerUnit > 0) {
               lineRate = rateInfo.ratePerUnit;
-            } else if (rateInfo && rateInfo.multiplier > 1 && baseOrdinaryRate > 0) {
-              lineRate = parseFloat((baseOrdinaryRate * rateInfo.multiplier).toFixed(4));
             } else if (baseOrdinaryRate > 0) {
               lineRate = baseOrdinaryRate;
             } else if (entry.defaultRate !== undefined && entry.defaultRate > 0) {

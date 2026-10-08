@@ -65,37 +65,37 @@ export interface PayCategoryItem {
 export const PAY_RULE_CATEGORIES = [
   { 
     key: 'weekday', 
-    label: 'Ordinary Time Earnings (Weekday)', 
+    label: 'Ordinary Weekday Shifts', 
     multiplierBadge: '1.0x Base', 
     description: 'Standard hourly pay rate for Monday to Friday rostered care hours',
     colorTheme: 'emerald'
   },
   { 
     key: 'saturday', 
-    label: 'Saturday Penalty (150%)', 
-    multiplierBadge: '1.5x Penalty', 
-    description: '150% penalty rate for all Saturday shifts under SCHADS Award',
+    label: 'Saturday Shift Rate', 
+    multiplierBadge: 'Saturday', 
+    description: 'Rostered Saturday care shift pay item from Xero',
     colorTheme: 'amber'
   },
   { 
     key: 'sunday', 
-    label: 'Sunday Penalty (200%)', 
-    multiplierBadge: '2.0x Penalty', 
-    description: '200% penalty rate for Sunday rostered shifts',
+    label: 'Sunday Shift Rate', 
+    multiplierBadge: 'Sunday', 
+    description: 'Rostered Sunday care shift pay item from Xero',
     colorTheme: 'orange'
   },
   { 
     key: 'public_holiday', 
-    label: 'Public Holiday (250%)', 
-    multiplierBadge: '2.5x Penalty', 
-    description: '250% penalty rate for official public holiday shifts',
+    label: 'Public Holiday Rate', 
+    multiplierBadge: 'Public Hol', 
+    description: 'Official public holiday rostered care shift pay item from Xero',
     colorTheme: 'rose'
   },
   { 
     key: 'night_shift', 
     label: 'Active Night Shift Loading', 
-    multiplierBadge: '1.15x Night', 
-    description: 'Shift loading for active overnight shifts spanning past 8:00 PM',
+    multiplierBadge: 'Night Loading', 
+    description: 'Shift loading pay item for active overnight shifts',
     colorTheme: 'indigo'
   },
   { 
@@ -108,15 +108,15 @@ export const PAY_RULE_CATEGORIES = [
   { 
     key: 'ndis_travel', 
     label: 'NDIS Travel Allowance', 
-    multiplierBadge: 'Per Km', 
+    multiplierBadge: 'Per Km ($0.99)', 
     description: 'Per kilometre staff travel reimbursement for NDIS client shifts ($0.99/km)',
     colorTheme: 'teal'
   },
   { 
     key: 'home_care_travel', 
     label: 'Home Care Travel Allowance', 
-    multiplierBadge: 'Per Km / Hr', 
-    description: 'Reimbursement rate for Home Care Package (HCP) staff travel and transport',
+    multiplierBadge: 'Time (Hours)', 
+    description: 'Decimal fraction of an hour (time) travel allowance for Home Care shifts',
     colorTheme: 'sky'
   },
 ];
@@ -520,14 +520,14 @@ export default function PayItemsSettings() {
                 Award Pay Categories Architecture
               </h2>
               <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-full bg-brand-teal/15 text-brand-teal border border-brand-teal/30">
-                SCHADS Award Engine
+                Xero Payroll Rates Engine
               </span>
               <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 font-mono">
                 Xero Connected
               </span>
             </div>
             <p className="text-xs text-[#8B949E] mt-0.5">
-              Manage Pay Categories pulled from Xero. Assign Ordinary earnings rates, penalty multipliers (Saturday, Sunday, Public Holiday), overnight loadings, and NDIS &amp; Home Care travel allowances.
+              Map and manage your actual pay items directly synchronized from Xero. Configure your Ordinary rates, weekend/holiday penalty rates, and NDIS &amp; Home Care travel allowances using real Xero items.
             </p>
           </div>
         </div>
@@ -809,7 +809,7 @@ export default function PayItemsSettings() {
                                   {ruleCategory.label}
                                 </span>
                                 <span className="px-1.5 py-0.2 rounded text-[9px] font-bold tracking-wider font-mono bg-zinc-800 text-zinc-400 shrink-0">
-                                  {ruleCategory.multiplierBadge}
+                                  {rule?.multiplier && rule.multiplier > 1 ? `${rule.multiplier}x Xero` : ruleCategory.multiplierBadge}
                                 </span>
                               </div>
                               <p className="text-[10px] text-zinc-500 leading-tight line-clamp-1">
@@ -830,11 +830,6 @@ export default function PayItemsSettings() {
                                 }`}
                               >
                                 <option value="">-- Select Xero Pay Item --</option>
-                                {rule?.xero_earnings_rate_id && !payItems.some(p => p.xero_earnings_rate_id === rule.xero_earnings_rate_id) && (
-                                  <option value={rule.xero_earnings_rate_id}>
-                                    {rule.pay_item_name || rule.xero_earnings_rate_id} (Mapped)
-                                  </option>
-                                )}
                                 {payItems
                                   .filter(pi => pi.xero_earnings_rate_id && pi.xero_earnings_rate_id.trim() !== '')
                                   .map(pi => (

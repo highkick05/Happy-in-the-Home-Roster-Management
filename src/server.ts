@@ -952,8 +952,31 @@ try {
       );
     `);
 
-    // Purge any unmapped placeholder pay items so the portal only stores and lists items retrieved from Xero
-    db.exec("DELETE FROM pay_items WHERE TRIM(xero_earnings_rate_id) = '' OR xero_earnings_rate_id IS NULL");
+    // Purge any unmapped, artificial, or fabricated pay items so the portal only mirrors genuine Xero rates
+    db.exec(`
+      DELETE FROM pay_items 
+      WHERE TRIM(xero_earnings_rate_id) = '' 
+         OR xero_earnings_rate_id IS NULL 
+         OR name LIKE 'SCHADS %' 
+         OR name LIKE '%(1.5x)%' 
+         OR name LIKE '%(2.0x)%' 
+         OR name LIKE '%(2.5x)%' 
+         OR name LIKE '%(1.15x)%' 
+         OR name LIKE '%(1.4x)%' 
+         OR name LIKE '%(1.8x)%' 
+         OR name LIKE '%(2.2x)%';
+
+      DELETE FROM pay_category_rules 
+      WHERE pay_item_name LIKE 'SCHADS %' 
+         OR pay_item_name LIKE '%(1.5x)%' 
+         OR pay_item_name LIKE '%(2.0x)%' 
+         OR pay_item_name LIKE '%(2.5x)%';
+
+      DELETE FROM pay_categories 
+      WHERE name LIKE 'SCHADS %' 
+         OR name LIKE '%(1.5x)%' 
+         OR name LIKE '%(2.0x)%';
+    `);
   } catch (err) {
     console.error("[DEBUG] Error initializing pay_items table:", err);
   }
@@ -6569,14 +6592,10 @@ function getUnreadChatCount(db: any, userId: number) {
 
         const existing = existingMap.get(ruleKey);
         if (existing && !forceOverwrite) {
-          const existingScore = scorePayItem(catName, { name: existing.pay_item_name || '' }, ruleKey);
-          const newScore = scorePayItem(catName, matchedItem, ruleKey);
-          if (existingScore > 0 && existingScore >= newScore) {
-            return; // Existing mapping is already optimal, leave it intact!
-          }
+          return; // Existing mapping is already configured by user, leave it intact!
         }
 
-        const multVal = Number(matchedItem.multiplier) > 0 ? Number(matchedItem.multiplier) : defaultMultiplier;
+        const multVal = Number(matchedItem.multiplier) > 0 ? Number(matchedItem.multiplier) : 1.0;
         db.prepare("DELETE FROM pay_category_rules WHERE category_id = ? AND rule_key = ?").run(catId, ruleKey);
         db.prepare(`
           INSERT INTO pay_category_rules (category_id, rule_key, xero_earnings_rate_id, pay_item_name, multiplier, updated_at)
@@ -6594,21 +6613,21 @@ function getUnreadChatCount(db: any, userId: number) {
         setRule('weekday', weekdayItem, 1.0);
       }
 
-      // 2. Saturday Penalty (150%)
+      // 2. Saturday Rate (uses actual Xero rate and multiplier)
       const sat = getBestItemForRule('saturday');
-      setRule('saturday', sat, 1.5);
+      setRule('saturday', sat, 1.0);
 
-      // 3. Sunday Penalty (200%)
+      // 3. Sunday Rate (uses actual Xero rate and multiplier)
       const sun = getBestItemForRule('sunday');
-      setRule('sunday', sun, 2.0);
+      setRule('sunday', sun, 1.0);
 
-      // 4. Public Holiday (250%)
+      // 4. Public Holiday Rate (uses actual Xero rate and multiplier)
       const pub = getBestItemForRule('public_holiday');
-      setRule('public_holiday', pub, 2.5);
+      setRule('public_holiday', pub, 1.0);
 
-      // 5. Active Night Shift Loading (1.15x)
+      // 5. Active Night Shift Loading (uses actual Xero rate and multiplier)
       const night = getBestItemForRule('night_shift');
-      setRule('night_shift', night, 1.15);
+      setRule('night_shift', night, 1.0);
 
       // 6. Sleepover Allowance
       const sleep = getBestItemForRule('sleepover');
@@ -6735,8 +6754,27 @@ function getUnreadChatCount(db: any, userId: number) {
       }
 
       const earningsRates = xeroResult.earningsRates || [];
-      // Remove any leftover unmapped placeholder items so the portal only mirrors Xero
-      db.exec("DELETE FROM pay_items WHERE TRIM(xero_earnings_rate_id) = '' OR xero_earnings_rate_id IS NULL");
+      const validXeroIds = earningsRates.map(r => r.id).filter(Boolean);
+      
+      // Strict one-way reconciliation: Purge all pay items and rules that do not exist in the connected Xero organization
+      if (validXeroIds.length > 0) {
+        const placeholders = validXeroIds.map(() => '?').join(',');
+        db.prepare(`DELETE FROM pay_items WHERE xero_earnings_rate_id NOT IN (${placeholders})`).run(...validXeroIds);
+        db.prepare(`DELETE FROM pay_category_rules WHERE xero_earnings_rate_id NOT IN (${placeholders})`).run(...validXeroIds);
+      } else {
+        db.exec("DELETE FROM pay_items");
+        db.exec("DELETE FROM pay_category_rules");
+      }
+      
+      // Remove any unmapped or artificial names
+      db.exec(`
+        DELETE FROM pay_items 
+        WHERE TRIM(xero_earnings_rate_id) = '' 
+           OR xero_earnings_rate_id IS NULL 
+           OR name LIKE 'SCHADS %' 
+           OR name LIKE '%(1.5x)%' 
+           OR name LIKE '%(2.0x)%';
+      `);
 
       if (earningsRates.length === 0) {
         return res.json({
@@ -7938,17 +7976,9 @@ app.get("/api/health", (req, res) => {
 
       let categories = db.prepare("SELECT * FROM pay_categories WHERE is_active = 1 ORDER BY name ASC").all() as any[];
       const xeroItemCount = db.prepare("SELECT COUNT(*) as cnt FROM pay_items WHERE is_active = 1 AND TRIM(xero_earnings_rate_id) != ''").get() as any;
-      if (xeroItemCount && xeroItemCount.cnt > 0) {
+      if (categories.length === 0 && xeroItemCount && xeroItemCount.cnt > 0) {
         syncPayCategoriesFromXero(db);
         categories = db.prepare("SELECT * FROM pay_categories WHERE is_active = 1 ORDER BY name ASC").all() as any[];
-        const payItems = db.prepare("SELECT * FROM pay_items WHERE is_active = 1 AND TRIM(xero_earnings_rate_id) != ''").all() as any[];
-        for (const cat of categories) {
-          const baseItem = cat.xero_earnings_rate_id 
-            ? payItems.find(p => p.xero_earnings_rate_id === cat.xero_earnings_rate_id)
-            : payItems.find(p => p.name.toLowerCase().trim() === cat.name.toLowerCase().trim())
-              || { xero_earnings_rate_id: cat.xero_earnings_rate_id, name: cat.name };
-          autoMatchPayCategoryRules(db, cat.id, baseItem, payItems, false);
-        }
       }
 
       const allRules = db.prepare("SELECT * FROM pay_category_rules").all() as any[];
