@@ -66,7 +66,7 @@ export const PAY_RULE_CATEGORIES = [
   { 
     key: 'weekday', 
     label: 'Ordinary Weekday Shifts', 
-    multiplierBadge: '1.0x Base', 
+    multiplierBadge: 'Weekday', 
     description: 'Standard hourly pay rate for Monday to Friday rostered care hours',
     colorTheme: 'emerald'
   },
@@ -87,7 +87,7 @@ export const PAY_RULE_CATEGORIES = [
   { 
     key: 'public_holiday', 
     label: 'Public Holiday Rate', 
-    multiplierBadge: 'Public Hol', 
+    multiplierBadge: 'Public Holiday', 
     description: 'Official public holiday rostered care shift pay item from Xero',
     colorTheme: 'rose'
   },
@@ -101,21 +101,21 @@ export const PAY_RULE_CATEGORIES = [
   { 
     key: 'sleepover', 
     label: 'Sleepover Allowance', 
-    multiplierBadge: 'Flat / Night', 
+    multiplierBadge: 'Sleepover', 
     description: 'Designated flat allowance for inactive sleepover care shifts',
     colorTheme: 'purple'
   },
   { 
     key: 'ndis_travel', 
     label: 'NDIS Travel Allowance', 
-    multiplierBadge: 'Per Km ($0.99)', 
-    description: 'Per kilometre staff travel reimbursement for NDIS client shifts ($0.99/km)',
+    multiplierBadge: 'Per Km', 
+    description: 'Per kilometre staff travel reimbursement for NDIS client shifts',
     colorTheme: 'teal'
   },
   { 
     key: 'home_care_travel', 
     label: 'Home Care Travel Allowance', 
-    multiplierBadge: 'Time (Hours)', 
+    multiplierBadge: 'Travel Time', 
     description: 'Decimal fraction of an hour (time) travel allowance for Home Care shifts',
     colorTheme: 'sky'
   },
@@ -383,7 +383,7 @@ export default function PayItemsSettings() {
     setSavingRuleKey(key);
 
     const cleanXeroId = (xeroEarningsRateId || '').trim();
-    const selectedPayItem = payItems.find(p => p.xero_earnings_rate_id === cleanXeroId);
+    const selectedPayItem = availablePayItems.find(p => p.xero_earnings_rate_id === cleanXeroId) || payItems.find(p => p.xero_earnings_rate_id === cleanXeroId);
     const rateName = selectedPayItem ? selectedPayItem.name : '';
 
     // Update local state immediately with zero delay
@@ -397,7 +397,7 @@ export default function PayItemsSettings() {
               rule_key: ruleKey,
               xero_earnings_rate_id: cleanXeroId,
               pay_item_name: rateName,
-              multiplier: selectedPayItem && (selectedPayItem as any).multiplier ? Number((selectedPayItem as any).multiplier) : 1.0
+              multiplier: 1.0
             }
           }
         };
@@ -437,6 +437,32 @@ export default function PayItemsSettings() {
       setSavingRuleKey(null);
     }
   };
+
+  // Source of truth for pay items: live Xero rates when connected, otherwise clean synced pay items
+  const availablePayItems = useMemo(() => {
+    // 1. If we have live Xero earnings rates from the Xero API, that is the single source of truth
+    if (xeroData.earningsRates && xeroData.earningsRates.length > 0) {
+      return xeroData.earningsRates
+        .filter(r => r.id && !r.name.includes('(1.5x)') && !r.name.includes('(2.0x)') && !r.name.includes('(2.5x)') && !r.name.includes('(1.15x)') && !r.name.startsWith('SCHADS ') && !r.name.includes('SCHADS'))
+        .map(r => ({
+          id: r.id,
+          name: r.name,
+          category: r.suggestedCategory || 'Ordinary',
+          xero_earnings_rate_id: r.id
+        }));
+    }
+    // 2. Otherwise use payItems, strictly filtering out any artificial or portal-generated names
+    return payItems.filter(pi => 
+      pi.xero_earnings_rate_id && 
+      pi.xero_earnings_rate_id.trim() !== '' &&
+      !pi.name.includes('(1.5x)') &&
+      !pi.name.includes('(2.0x)') &&
+      !pi.name.includes('(2.5x)') &&
+      !pi.name.includes('(1.15x)') &&
+      !pi.name.startsWith('SCHADS ') &&
+      !pi.name.includes('SCHADS')
+    );
+  }, [xeroData.earningsRates, payItems]);
 
   // Filter categories
   const filteredCategories = useMemo(() => {
@@ -809,7 +835,7 @@ export default function PayItemsSettings() {
                                   {ruleCategory.label}
                                 </span>
                                 <span className="px-1.5 py-0.2 rounded text-[9px] font-bold tracking-wider font-mono bg-zinc-800 text-zinc-400 shrink-0">
-                                  {rule?.multiplier && rule.multiplier > 1 ? `${rule.multiplier}x Xero` : ruleCategory.multiplierBadge}
+                                  {ruleCategory.multiplierBadge}
                                 </span>
                               </div>
                               <p className="text-[10px] text-zinc-500 leading-tight line-clamp-1">
@@ -830,13 +856,11 @@ export default function PayItemsSettings() {
                                 }`}
                               >
                                 <option value="">-- Select Xero Pay Item --</option>
-                                {payItems
-                                  .filter(pi => pi.xero_earnings_rate_id && pi.xero_earnings_rate_id.trim() !== '')
-                                  .map(pi => (
-                                    <option key={pi.id} value={pi.xero_earnings_rate_id}>
-                                      {pi.name} ({pi.category})
-                                    </option>
-                                  ))}
+                                {availablePayItems.map(pi => (
+                                  <option key={pi.id} value={pi.xero_earnings_rate_id}>
+                                    {pi.name} ({pi.category})
+                                  </option>
+                                ))}
                               </select>
 
                               {/* Status Indicators: Saving spinner / Saved checkmark / Mapped / Unmapped */}
@@ -854,7 +878,10 @@ export default function PayItemsSettings() {
                                 <div className="flex items-center justify-between text-[10px] text-emerald-400 pt-0.5">
                                   <span className="flex items-center gap-1 truncate">
                                     <Check className="w-3 h-3 text-emerald-400 shrink-0" />
-                                    <span className="truncate">{rule.pay_item_name || 'Mapped'}</span>
+                                    <span className="truncate">
+                                      {availablePayItems.find(p => p.xero_earnings_rate_id === rule.xero_earnings_rate_id)?.name || 
+                                       (rule.pay_item_name && !rule.pay_item_name.includes('SCHADS') && !rule.pay_item_name.includes('(1.5x)') ? rule.pay_item_name : 'Mapped')}
+                                    </span>
                                   </span>
                                   <button
                                     type="button"

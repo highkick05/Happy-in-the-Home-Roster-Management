@@ -6005,6 +6005,32 @@ function getUnreadChatCount(db: any, userId: number) {
   // ==========================================
   app.get("/api/settings/pay-items", authenticateToken, (req: any, res) => {
     try {
+      // Purge any legacy unmapped or artificial names before returning
+      db.exec(`
+        DELETE FROM pay_items 
+        WHERE TRIM(xero_earnings_rate_id) = '' 
+           OR xero_earnings_rate_id IS NULL 
+           OR name LIKE '%SCHADS%' 
+           OR name LIKE '%(1.5x)%' 
+           OR name LIKE '%(2.0x)%' 
+           OR name LIKE '%(2.5x)%' 
+           OR name LIKE '%(1.15x)%' 
+           OR name LIKE '%(1.4x)%' 
+           OR name LIKE '%(1.8x)%' 
+           OR name LIKE '%(2.2x)%'
+           OR name LIKE '%x)%';
+
+        DELETE FROM pay_category_rules 
+        WHERE pay_item_name LIKE '%SCHADS%' 
+           OR pay_item_name LIKE '%(1.5x)%' 
+           OR pay_item_name LIKE '%(2.0x)%' 
+           OR pay_item_name LIKE '%(2.5x)%' 
+           OR pay_item_name LIKE '%(1.15x)%' 
+           OR pay_item_name LIKE '%x)%';
+
+        UPDATE pay_category_rules SET multiplier = 1.0 WHERE multiplier != 1.0;
+      `);
+
       const includeInactive = req.query.include_inactive === "true" || req.query.include_inactive === "1";
       const items = includeInactive
         ? db.prepare("SELECT * FROM pay_items WHERE TRIM(xero_earnings_rate_id) != '' AND xero_earnings_rate_id IS NOT NULL ORDER BY id ASC").all()
@@ -7985,12 +8011,18 @@ app.get("/api/health", (req, res) => {
       const rulesByCat = new Map<number, any>();
       for (const r of allRules) {
         if (!rulesByCat.has(r.category_id)) rulesByCat.set(r.category_id, {});
+        // Sanitize legacy artificial names
+        let cleanItemName = r.pay_item_name || '';
+        if (cleanItemName.includes('SCHADS') || cleanItemName.includes('(1.5x)') || cleanItemName.includes('(2.0x)')) {
+          const matchedItem = db.prepare("SELECT name FROM pay_items WHERE xero_earnings_rate_id = ? AND name NOT LIKE '%SCHADS%' AND name NOT LIKE '%(1.5x)%'").get(r.xero_earnings_rate_id) as any;
+          cleanItemName = matchedItem ? matchedItem.name : '';
+        }
         rulesByCat.get(r.category_id)[r.rule_key] = {
           id: r.id,
           rule_key: r.rule_key,
           xero_earnings_rate_id: r.xero_earnings_rate_id,
-          pay_item_name: r.pay_item_name,
-          multiplier: r.multiplier
+          pay_item_name: cleanItemName,
+          multiplier: 1.0
         };
       }
 
@@ -8047,19 +8079,18 @@ app.get("/api/health", (req, res) => {
       db.prepare("DELETE FROM pay_category_rules WHERE category_id = ? AND rule_key = ?").run(catId, rule_key);
 
       let finalName = pay_item_name || '';
-      let finalMultiplier = Number(multiplier) || 1.0;
+      let finalMultiplier = 1.0;
 
       if (cleanXeroId) {
-        const matchedItem = db.prepare("SELECT name, multiplier FROM pay_items WHERE xero_earnings_rate_id = ?").get(cleanXeroId) as any;
-        if (matchedItem) {
-          if (!finalName) finalName = matchedItem.name;
-          if (!multiplier && matchedItem.multiplier) finalMultiplier = Number(matchedItem.multiplier);
+        const matchedItem = db.prepare("SELECT name FROM pay_items WHERE xero_earnings_rate_id = ?").get(cleanXeroId) as any;
+        if (matchedItem && !finalName) {
+          finalName = matchedItem.name;
         }
 
         db.prepare(`
           INSERT INTO pay_category_rules (category_id, rule_key, xero_earnings_rate_id, pay_item_name, multiplier, updated_at)
           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `).run(catId, rule_key, cleanXeroId, finalName, finalMultiplier);
+        `).run(catId, rule_key, cleanXeroId, finalName, 1.0);
       }
 
       db.prepare("UPDATE pay_categories SET updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(catId);
