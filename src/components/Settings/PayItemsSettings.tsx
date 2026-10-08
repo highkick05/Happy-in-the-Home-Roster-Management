@@ -355,6 +355,20 @@ export default function PayItemsSettings() {
         throw new Error(data.error || 'Failed to auto-map pay items');
       }
       showNotification('success', `Auto-matched matching Xero pay rates for "${catName}"`);
+      if (data.pay_rules) {
+        setPayCategories(prev => prev.map(c => {
+          if (c.id === catId) {
+            return {
+              ...c,
+              pay_rules: {
+                ...c.pay_rules,
+                ...data.pay_rules
+              }
+            };
+          }
+          return c;
+        }));
+      }
       await fetchPayCategories();
     } catch (err: any) {
       showNotification('error', err.message || 'Failed to auto-map pay category');
