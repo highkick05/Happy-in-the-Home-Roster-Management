@@ -1228,6 +1228,8 @@ export interface StaffPayRunBreakdown {
   xeroEmployeeId: string;
   xeroEmployeeName: string;
   isLinked: boolean;
+  payCategoryId?: number | null;
+  payCategoryName?: string;
   payRateWeekdayId: string;
   payRateWeekdayName: string;
   payRateSaturdayId: string;
@@ -1406,21 +1408,8 @@ export function previewXeroPayRun(db: any, params: {
   const staffMap = new Map<number, StaffPayRunBreakdown>();
 
   for (const shift of shifts) {
-    let scheduledHrs = (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / 3600000;
-    let hours = Math.max(0, scheduledHrs);
-    if (shift.actual_start_time && shift.actual_finish_time) {
-      let actualHrs = (new Date(shift.actual_finish_time).getTime() - new Date(shift.actual_start_time).getTime()) / 3600000;
-      if (actualHrs > 0.01) hours = actualHrs;
-    }
-
-    let servicesArray: any[] = [];
-    try { servicesArray = shift.services_json ? JSON.parse(shift.services_json) : []; } catch {}
-    for (const sData of servicesArray) {
-      if (sData.qtyOverride !== undefined && sData.qtyOverride !== "" && Number(sData.qtyOverride) > 0) {
-        hours = Number(sData.qtyOverride);
-        break;
-      }
-    }
+    const scheduledHrs = (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / 3600000;
+    const shiftHours = Math.max(0, scheduledHrs);
 
     const rosterT = new Date(shift.start_time);
     const ymd = formatInTimeZone(rosterT, timezone, 'yyyy-MM-dd');
@@ -1437,32 +1426,161 @@ export function previewXeroPayRun(db: any, params: {
     }
 
     const isHomeCare = shift.funding_type === "HCP" || shift.funding_type === "Home Care" || shift.funding_type === "HOME_CARE";
-    let ndisKm = 0;
-    let ndisReimb = 0;
-    let hcKm = 0;
-    let hcHrs = 0;
-    let hcReimb = 0;
-
-    if (isHomeCare) {
-      hcKm = shift.home_care_travel_km || shift.provider_travel_km || 0;
-      hcHrs = (shift.provider_travel_minutes || 0) / 60;
-      hcReimb = shift.home_care_travel_total || 0;
-    } else {
-      const provKm = shift.provider_travel_km || 0;
-      const abtKm = shift.abt_km || 0;
-      ndisKm = provKm + abtKm;
-      ndisReimb = parseFloat((ndisKm * 0.99).toFixed(2));
+    let calculatedMins = shift.provider_travel_minutes || 0;
+    if (isHomeCare && calculatedMins === 0) {
+      if (shift.travel_breakdown) {
+        try {
+          const breakdown = JSON.parse(shift.travel_breakdown);
+          for (const b of breakdown) {
+            const m = b.match(/\(([0-9.]+) mins\)/);
+            if (m) calculatedMins += parseFloat(m[1]);
+          }
+        } catch(e) {}
+      }
+      if (calculatedMins === 0 && shift.transport_route_log) {
+        try {
+          const tLog = JSON.parse(shift.transport_route_log);
+          if (tLog && tLog.homeCareTravel && tLog.homeCareTravel.minutes !== undefined) {
+            calculatedMins = tLog.homeCareTravel.minutes;
+          } else if (tLog && tLog.homeCareTravel && tLog.homeCareTravel.legs) {
+            calculatedMins = tLog.homeCareTravel.legs.reduce((sum: number, l: any) => sum + (l.durationMins || 0), 0);
+          }
+        } catch(e) {}
+      }
     }
 
-    if (!staffMap.has(shift.staff_user_id)) {
-      const catRules = shift.pay_category_id ? catRuleMap.get(shift.pay_category_id) : null;
+    let servicesArray: any[] = [];
+    try { servicesArray = shift.services_json ? JSON.parse(shift.services_json) : []; } catch {}
+    let hasProviderTravelService = false;
+    let hasABTService = false;
+    for (const sData of servicesArray) {
+      const sName = (sData.name || sData.customName || '').toLowerCase();
+      if (sName.includes('provider travel')) hasProviderTravelService = true;
+      if (sName.includes('activity based transport')) hasABTService = true;
+    }
 
-      const weekdayPayId = shift.pay_rate_weekday_id || catRules?.get('weekday')?.id || '';
-      const saturdayPayId = shift.pay_rate_saturday_id || catRules?.get('saturday')?.id || '';
-      const sundayPayId = shift.pay_rate_sunday_id || catRules?.get('sunday')?.id || '';
-      const publicHolidayPayId = shift.pay_rate_public_holiday_id || catRules?.get('public_holiday')?.id || '';
-      const ndisTravelPayId = shift.pay_rate_ndis_travel_id || catRules?.get('ndis_travel')?.id || '';
-      const homeCareTravelPayId = shift.pay_rate_home_care_travel_id || catRules?.get('home_care_travel')?.id || '';
+    const hcKm = shift.respite_booking_id ? 0 : (shift.provider_travel_km || shift.home_care_travel_km || 0);
+    const hcHrs = shift.respite_booking_id ? 0 : (calculatedMins / 60);
+    const hcReimb = shift.respite_booking_id ? 0 : (shift.home_care_travel_total || 0);
+
+    const provKm = (shift.respite_booking_id ? 0 : shift.provider_travel_km || 0) * (hasProviderTravelService ? 1 : 0);
+    const abtKm = (shift.respite_booking_id ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0);
+    const ndisKm = provKm + abtKm;
+    const ndisReimb = parseFloat((ndisKm * 0.99).toFixed(2));
+
+    if (!staffMap.has(shift.staff_user_id)) {
+      let effectivePayCatId: number | null = shift.pay_category_id ? Number(shift.pay_category_id) : null;
+      let effectivePayCatName = '';
+
+      // Fallback A: Match Xero employee ordinary rate to pay categories
+      if (!effectivePayCatId && shift.xero_employee_id) {
+        try {
+          const xeroEmp = db.prepare("SELECT * FROM xero_employees WHERE id = ?").get(shift.xero_employee_id) as any;
+          if (xeroEmp && xeroEmp.ordinary_earnings_rate_id) {
+            const matchedCat = db.prepare("SELECT * FROM pay_categories WHERE is_active = 1 AND xero_earnings_rate_id = ?").get(xeroEmp.ordinary_earnings_rate_id) as any;
+            if (matchedCat) {
+              effectivePayCatId = matchedCat.id;
+              effectivePayCatName = matchedCat.name;
+              try { db.prepare("UPDATE users SET pay_category_id = ? WHERE id = ?").run(matchedCat.id, shift.staff_user_id); } catch(e) {}
+            }
+          }
+        } catch(e) {}
+      }
+
+      // Fallback B: Match staff position to pay categories
+      if (!effectivePayCatId && shift.primary_position) {
+        try {
+          const posCat = db.prepare("SELECT * FROM pay_categories WHERE is_active = 1 AND (LOWER(name) = LOWER(?) OR LOWER(name) LIKE '%' || LOWER(?) || '%') ORDER BY id ASC LIMIT 1").get(shift.primary_position, shift.primary_position) as any;
+          if (posCat) {
+            effectivePayCatId = posCat.id;
+            effectivePayCatName = posCat.name;
+            try { db.prepare("UPDATE users SET pay_category_id = ? WHERE id = ?").run(posCat.id, shift.staff_user_id); } catch(e) {}
+          }
+        } catch(e) {}
+      }
+
+      // Fallback C: Default to first active pay category if staff is linked to Xero
+      if (!effectivePayCatId && shift.xero_employee_id) {
+        try {
+          const defaultCat = db.prepare("SELECT * FROM pay_categories WHERE is_active = 1 ORDER BY id ASC LIMIT 1").get() as any;
+          if (defaultCat) {
+            effectivePayCatId = defaultCat.id;
+            effectivePayCatName = defaultCat.name;
+            try { db.prepare("UPDATE users SET pay_category_id = ? WHERE id = ?").run(defaultCat.id, shift.staff_user_id); } catch(e) {}
+          }
+        } catch(e) {}
+      }
+
+      if (effectivePayCatId && !effectivePayCatName) {
+        try {
+          const catRec = db.prepare("SELECT name FROM pay_categories WHERE id = ?").get(effectivePayCatId) as any;
+          if (catRec) effectivePayCatName = catRec.name;
+        } catch(e) {}
+      }
+
+      const catRules = effectivePayCatId ? catRuleMap.get(effectivePayCatId) : null;
+
+      let weekdayPayId = shift.pay_rate_weekday_id || catRules?.get('weekday')?.id || '';
+      let saturdayPayId = shift.pay_rate_saturday_id || catRules?.get('saturday')?.id || '';
+      let sundayPayId = shift.pay_rate_sunday_id || catRules?.get('sunday')?.id || '';
+      let publicHolidayPayId = shift.pay_rate_public_holiday_id || catRules?.get('public_holiday')?.id || '';
+      let ndisTravelPayId = shift.pay_rate_ndis_travel_id || catRules?.get('ndis_travel')?.id || '';
+      let homeCareTravelPayId = shift.pay_rate_home_care_travel_id || catRules?.get('home_care_travel')?.id || '';
+
+      // If weekday rate is still empty, fallback to Xero employee's ordinary rate or first active base pay item
+      if (!weekdayPayId && shift.xero_employee_id) {
+        try {
+          const xeroEmp = db.prepare("SELECT ordinary_earnings_rate_id FROM xero_employees WHERE id = ?").get(shift.xero_employee_id) as any;
+          if (xeroEmp && xeroEmp.ordinary_earnings_rate_id) {
+            weekdayPayId = xeroEmp.ordinary_earnings_rate_id;
+          }
+        } catch(e) {}
+      }
+      if (!weekdayPayId) {
+        try {
+          const basePi = db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND (multiplier <= 1.0 OR multiplier IS NULL) AND TRIM(xero_earnings_rate_id) != '' ORDER BY id ASC LIMIT 1").get() as any;
+          if (basePi) weekdayPayId = basePi.xero_earnings_rate_id;
+        } catch(e) {}
+      }
+
+      // If Saturday rate is empty, fallback to pay item with saturday / 1.5x
+      if (!saturdayPayId) {
+        try {
+          const satPi = db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND (LOWER(name) LIKE '%saturday%' OR LOWER(name) LIKE '%sat%') AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any;
+          if (satPi) saturdayPayId = satPi.xero_earnings_rate_id;
+        } catch(e) {}
+      }
+
+      // If Sunday rate is empty, fallback to pay item with sunday / 2.0x
+      if (!sundayPayId) {
+        try {
+          const sunPi = db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND (LOWER(name) LIKE '%sunday%' OR LOWER(name) LIKE '%sun%') AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any;
+          if (sunPi) sundayPayId = sunPi.xero_earnings_rate_id;
+        } catch(e) {}
+      }
+
+      // If Public Holiday rate is empty, fallback to holiday pay item
+      if (!publicHolidayPayId) {
+        try {
+          const pubPi = db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND (LOWER(name) LIKE '%public%holiday%' OR LOWER(name) LIKE '%pub%hol%' OR LOWER(name) LIKE '%holiday%') AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any;
+          if (pubPi) publicHolidayPayId = pubPi.xero_earnings_rate_id;
+        } catch(e) {}
+      }
+
+      // Always resolve NDIS Travel and Home Care Travel from active pay items
+      if (!ndisTravelPayId) {
+        try {
+          const ndisPi = db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND (LOWER(name) LIKE '%ndis%travel%' OR LOWER(name) LIKE '%ndis%km%' OR (LOWER(name) LIKE '%travel%' AND LOWER(name) NOT LIKE '%home care%')) AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any;
+          if (ndisPi) ndisTravelPayId = ndisPi.xero_earnings_rate_id;
+        } catch(e) {}
+      }
+      if (!homeCareTravelPayId) {
+        try {
+          const hcPi = db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND (LOWER(name) LIKE '%home care%travel%' OR LOWER(name) LIKE '%hcp%travel%' OR LOWER(name) LIKE '%home care%km%' OR LOWER(name) LIKE '%hcp%km%' OR (LOWER(name) LIKE '%travel%' AND LOWER(name) NOT LIKE '%ndis%')) AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any
+            || db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND LOWER(name) LIKE '%travel%' AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any;
+          if (hcPi) homeCareTravelPayId = hcPi.xero_earnings_rate_id;
+        } catch(e) {}
+      }
 
       staffMap.set(shift.staff_user_id, {
         staffId: shift.staff_user_id,
@@ -1471,6 +1589,8 @@ export function previewXeroPayRun(db: any, params: {
         xeroEmployeeId: shift.xero_employee_id || '',
         xeroEmployeeName: shift.xero_employee_name || '',
         isLinked: !!(shift.xero_employee_id || shift.xero_employee_name),
+        payCategoryId: effectivePayCatId,
+        payCategoryName: effectivePayCatName,
         payRateWeekdayId: weekdayPayId,
         payRateWeekdayName: payItemMap.get(weekdayPayId) || catRules?.get('weekday')?.name || '',
         payRateSaturdayId: saturdayPayId,
@@ -1499,16 +1619,19 @@ export function previewXeroPayRun(db: any, params: {
     }
 
     const rec = staffMap.get(shift.staff_user_id)!;
-    if (dayCategory === 'Public Holiday') rec.publicHolidayHours += hours;
-    else if (dayCategory === 'Saturday') rec.saturdayHours += hours;
-    else if (dayCategory === 'Sunday') rec.sundayHours += hours;
-    else rec.weekdayHours += hours;
+    if (dayCategory === 'Public Holiday') rec.publicHolidayHours += shiftHours;
+    else if (dayCategory === 'Saturday') rec.saturdayHours += shiftHours;
+    else if (dayCategory === 'Sunday') rec.sundayHours += shiftHours;
+    else rec.weekdayHours += shiftHours;
 
-    rec.ndisTravelKm += ndisKm;
-    rec.ndisTravelPay += ndisReimb;
-    rec.homeCareTravelKm += hcKm;
-    rec.homeCareTravelHours += hcHrs;
-    rec.homeCareTravelPay += hcReimb;
+    if (isHomeCare) {
+      rec.homeCareTravelKm += hcKm;
+      rec.homeCareTravelHours += hcHrs;
+      rec.homeCareTravelPay += hcReimb;
+    } else {
+      rec.ndisTravelKm += ndisKm;
+      rec.ndisTravelPay += ndisReimb;
+    }
   }
 
   const overallTotals = {
@@ -1802,17 +1925,28 @@ export async function createXeroDraftPayRun(db: any, params: {
         { id: staff.payRateHomeCareTravelId, units: staff.homeCareTravelKm, desc: 'Home Care Travel', defaultRate: 0.99 },
       ].filter(e => !!e.id && e.units > 0);
 
-      if (targetEntries.length === 0) continue;
+      if (targetEntries.length === 0) {
+        console.warn(`[XERO_PAYRUN] No valid target entries for ${staff.portalName} (${staff.totalHours} hrs)`);
+        executionWarnings.push(`${staff.portalName}: Could not push ${staff.totalHours} hours to Xero because no Pay Category or Pay Items could be resolved. Please check staff pay category in Directory.`);
+        staffSummary.push({
+          staffName: staff.portalName,
+          xeroEmployeeId: staff.xeroEmployeeId,
+          status: 'SKIPPED',
+          error: 'No Pay Category or Pay Items resolved'
+        });
+        continue;
+      }
 
-      const payslip = existingPayslips.find((p: any) => p.EmployeeID === staff.xeroEmployeeId);
+      const payslip = existingPayslips.find((p: any) => (p.EmployeeID || p.EmployeeId || p.employeeID) === staff.xeroEmployeeId);
+      const payslipId = payslip?.PayslipID || payslip?.PayslipId || payslip?.id;
 
       try {
         let slipRes: any;
-        if (payslip && payslip.PayslipID) {
+        if (payslipId) {
           // 1. Fetch current draft payslip from Xero to preserve existing template lines & ordinary base rates
           let existingLines: any[] = [];
           try {
-            const getSlipRes = await fetch(`https://api.xero.com/payroll.xro/1.0/Payslip/${payslip.PayslipID}`, { headers });
+            const getSlipRes = await fetch(`https://api.xero.com/payroll.xro/1.0/Payslip/${payslipId}`, { headers });
             if (getSlipRes.ok) {
               const getSlipData = await getSlipRes.json();
               const psObj = getSlipData.Payslip || getSlipData.Payslips?.[0];
@@ -1869,10 +2003,10 @@ export async function createXeroDraftPayRun(db: any, params: {
             }
           }
 
-          slipRes = await fetch(`https://api.xero.com/payroll.xro/1.0/Payslip/${payslip.PayslipID}`, {
+          slipRes = await fetch(`https://api.xero.com/payroll.xro/1.0/Payslip/${payslipId}`, {
             method: 'POST',
             headers,
-            body: JSON.stringify([{ EarningsLines: finalLines }])
+            body: JSON.stringify([{ PayslipID: payslipId, EarningsLines: finalLines }])
           });
         } else {
           // If no pre-existing draft payslip summary was created by Xero

@@ -283,6 +283,26 @@ export default function XeroPayRunModal({
                 </div>
               </div>
 
+              {submitResult.staffSummary && submitResult.staffSummary.length > 0 && (
+                <div className="max-w-md mx-auto p-3 bg-black/40 border border-white/[0.08] rounded-xl text-left text-xs space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                  <div className="text-[11px] font-semibold text-zinc-400 mb-1 uppercase tracking-wider">Employee Payslip Status:</div>
+                  {submitResult.staffSummary.map((s: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between py-1.5 px-2 rounded bg-white/[0.03] border border-white/[0.04] text-[11px]">
+                      <span className="text-white font-medium">{s.staffName}</span>
+                      {s.status === 'SUCCESS' ? (
+                        <span className="text-emerald-400 flex items-center gap-1 font-semibold">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> {s.linesSent} rates sent
+                        </span>
+                      ) : (
+                        <span className="text-amber-400 flex items-center gap-1" title={s.error}>
+                          <AlertCircle className="w-3.5 h-3.5" /> {s.error || 'Skipped'}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {submitResult.warnings && submitResult.warnings.length > 0 && (
                 <div className="max-w-md mx-auto p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-left text-[11px] text-amber-200 space-y-1">
                   <div className="font-semibold text-amber-300 flex items-center gap-1.5">
@@ -502,7 +522,15 @@ export default function XeroPayRunModal({
                               </td>
                               <td className="px-3 py-2 font-medium text-white">
                                 <div>{staff.portalName}</div>
-                                {staff.email && <div className="text-[10px] text-zinc-500">{staff.email}</div>}
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  {staff.payCategoryName ? (
+                                    <span className="text-[10px] text-sky-400 bg-sky-950/60 border border-sky-800/50 rounded px-1.5 py-0.2">
+                                      {staff.payCategoryName}
+                                    </span>
+                                  ) : staff.email ? (
+                                    <span className="text-[10px] text-zinc-500">{staff.email}</span>
+                                  ) : null}
+                                </div>
                               </td>
                               <td className="px-3 py-2">
                                 {staff.isLinked ? (

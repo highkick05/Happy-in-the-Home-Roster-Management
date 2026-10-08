@@ -497,6 +497,25 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                       )}
                     </div>
 
+                    {/* Pay Category Selector */}
+                    <div>
+                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Award Pay Category</label>
+                      <select
+                        name="payCategoryId"
+                        value={formData.payCategoryId || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, payCategoryId: e.target.value ? Number(e.target.value) : null }))}
+                        className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors cursor-pointer"
+                      >
+                        <option value="">-- No Pay Category (Inherit Default) --</option>
+                        {payCategories.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-zinc-500 mt-1">
+                        Determines ordinary weekday pay rate and weekend / holiday penalty multipliers pushed to Xero.
+                      </p>
+                    </div>
+
                     {formData.role === 'STAFF' && (
                       <div className="flex items-center pt-2 border-t border-white/[0.06]">
                         <input
