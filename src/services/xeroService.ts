@@ -1935,6 +1935,32 @@ export async function createXeroDraftPayRun(db: any, params: {
           });
         }
       }
+      if (payItemsRes.success && Array.isArray(payItemsRes.allowances)) {
+        for (const al of payItemsRes.allowances) {
+          const id = al.EarningsRateID || al.earningsRateID || al.Id || al.id || '';
+          if (id) {
+            payItemRatesMap.set(id, {
+              ratePerUnit: Number(al.RatePerUnit || al.ratePerUnit || 0),
+              multiplier: 1,
+              earningsType: 'Allowance',
+              rateType: 'RatePerUnit',
+              isMultiple: false
+            });
+          }
+        }
+      }
+      const dbPayItems = db.prepare("SELECT xero_earnings_rate_id, default_rate, multiplier, rate_type FROM pay_items WHERE TRIM(xero_earnings_rate_id) != ''").all() as any[];
+      for (const pi of dbPayItems) {
+        if (!payItemRatesMap.has(pi.xero_earnings_rate_id)) {
+          payItemRatesMap.set(pi.xero_earnings_rate_id, {
+            ratePerUnit: Number(pi.default_rate || 0),
+            multiplier: Number(pi.multiplier || 1),
+            earningsType: '',
+            rateType: pi.rate_type || '',
+            isMultiple: (pi.multiplier && pi.multiplier > 1)
+          });
+        }
+      }
     } catch (e) {
       console.warn('[XERO_PAYRUN] Could not load pay items map:', e);
     }
@@ -2019,6 +2045,17 @@ export async function createXeroDraftPayRun(db: any, params: {
             }
           }
 
+          if (!baseOrdinaryRate || isNaN(baseOrdinaryRate) || baseOrdinaryRate <= 0) {
+            try {
+              const pi = db.prepare("SELECT default_rate FROM pay_items WHERE xero_earnings_rate_id = ?").get(staff.payRateWeekdayId) as any;
+              if (pi && pi.default_rate > 0) baseOrdinaryRate = Number(pi.default_rate);
+            } catch(e) {}
+          }
+
+          if (!baseOrdinaryRate || isNaN(baseOrdinaryRate) || baseOrdinaryRate <= 0) {
+            baseOrdinaryRate = 42.0;
+          }
+
           // Clean existing lines so Xero does not reject RatePerUnit <= 0 or missing rates
           const finalLines: any[] = existingLines.map((el: any) => {
             const clean: any = {
@@ -2036,51 +2073,71 @@ export async function createXeroDraftPayRun(db: any, params: {
             return clean;
           });
 
-          // Merge target hours into existing template lines, or append new lines with required RatePerUnit
-          for (const entry of targetEntries) {
+          // Helper to compute RatePerUnit for any shift entry
+          const computeLineRate = (entry: typeof targetEntries[0]) => {
             const rateInfo = payItemRatesMap.get(entry.id);
+            let rate = 0;
 
-            const isMultipleRate = rateInfo ? rateInfo.isMultiple : false;
-            let lineRate: number | undefined = undefined;
-
-            if (isMultipleRate) {
-              // Rate is MultipleOfOrdinaryEarningsRate: Xero calculates the rate automatically based on employee's ordinary rate and item's multiplier. Do NOT send RatePerUnit!
-              lineRate = undefined;
+            if (rateInfo && rateInfo.ratePerUnit > 0) {
+              rate = rateInfo.ratePerUnit;
             } else if (entry.isHomeCareTravel) {
-              // Home Care travel allowance is calculated as a decimal fraction of an hour (time) * employee's hourly rate
-              if (rateInfo && rateInfo.ratePerUnit > 0) {
-                lineRate = rateInfo.ratePerUnit;
-              } else if (baseOrdinaryRate > 0) {
-                lineRate = baseOrdinaryRate;
-              }
+              rate = baseOrdinaryRate > 0 ? baseOrdinaryRate : (rateInfo?.ratePerUnit || 0);
             } else if (entry.desc === 'NDIS Travel') {
-              lineRate = (rateInfo && rateInfo.ratePerUnit > 0) ? rateInfo.ratePerUnit : 0.99;
-            } else if (rateInfo && rateInfo.ratePerUnit > 0) {
-              lineRate = rateInfo.ratePerUnit;
+              rate = (rateInfo && rateInfo.ratePerUnit > 0) ? rateInfo.ratePerUnit : 0.99;
+            } else if (rateInfo && rateInfo.multiplier > 1 && baseOrdinaryRate > 0) {
+              rate = parseFloat((baseOrdinaryRate * rateInfo.multiplier).toFixed(4));
             } else if (baseOrdinaryRate > 0) {
-              lineRate = baseOrdinaryRate;
+              if (entry.desc === 'Saturday') {
+                const mult = (rateInfo?.multiplier && rateInfo.multiplier > 1) ? rateInfo.multiplier : 1.5;
+                rate = parseFloat((baseOrdinaryRate * mult).toFixed(4));
+              } else if (entry.desc === 'Sunday') {
+                const mult = (rateInfo?.multiplier && rateInfo.multiplier > 1) ? rateInfo.multiplier : 2.0;
+                rate = parseFloat((baseOrdinaryRate * mult).toFixed(4));
+              } else if (entry.desc === 'Public Holiday') {
+                const mult = (rateInfo?.multiplier && rateInfo.multiplier > 1) ? rateInfo.multiplier : 2.5;
+                rate = parseFloat((baseOrdinaryRate * mult).toFixed(4));
+              } else {
+                rate = baseOrdinaryRate;
+              }
             } else if (entry.defaultRate !== undefined && entry.defaultRate > 0) {
-              lineRate = entry.defaultRate;
+              rate = entry.defaultRate;
             }
 
+            if (rate <= 0) {
+              rate = baseOrdinaryRate > 0 ? baseOrdinaryRate : 42.0;
+            }
+            return Number(rate.toFixed(4));
+          };
+
+          // Merge target hours into existing template lines, or append new lines with required RatePerUnit
+          for (const entry of targetEntries) {
+            const lineRate = computeLineRate(entry);
             const existingIdx = finalLines.findIndex(l => l.EarningsRateID === entry.id);
             if (existingIdx >= 0) {
               finalLines[existingIdx].NumberOfUnits = Number(entry.units.toFixed(2));
-              if (lineRate !== undefined && lineRate > 0) {
-                finalLines[existingIdx].RatePerUnit = Number(lineRate.toFixed(4));
-              } else if (isMultipleRate) {
-                delete finalLines[existingIdx].RatePerUnit;
-              }
+              finalLines[existingIdx].RatePerUnit = lineRate;
             } else {
               // Not in template - dynamically append new EarningsLine to the payslip
-              const newLine: any = {
+              finalLines.push({
                 EarningsRateID: entry.id,
-                NumberOfUnits: Number(entry.units.toFixed(2))
-              };
-              if (lineRate !== undefined && lineRate > 0) {
-                newLine.RatePerUnit = Number(lineRate.toFixed(4));
+                NumberOfUnits: Number(entry.units.toFixed(2)),
+                RatePerUnit: lineRate
+              });
+            }
+          }
+
+          // Ensure every line in finalLines has a valid RatePerUnit so Xero never throws validation errors
+          for (const fl of finalLines) {
+            if ((!fl.RatePerUnit || fl.RatePerUnit <= 0) && (!fl.FixedAmount || fl.FixedAmount <= 0)) {
+              const flRateInfo = payItemRatesMap.get(fl.EarningsRateID);
+              if (flRateInfo && flRateInfo.ratePerUnit > 0) {
+                fl.RatePerUnit = flRateInfo.ratePerUnit;
+              } else if (baseOrdinaryRate > 0) {
+                const mult = (flRateInfo?.multiplier && flRateInfo.multiplier > 1) ? flRateInfo.multiplier : 1.0;
+                fl.RatePerUnit = parseFloat((baseOrdinaryRate * mult).toFixed(4));
+              } else {
+                fl.RatePerUnit = 42.0;
               }
-              finalLines.push(newLine);
             }
           }
 
@@ -2097,32 +2154,41 @@ export async function createXeroDraftPayRun(db: any, params: {
           // If no pre-existing draft payslip summary was created by Xero
           const newLines: any[] = targetEntries.map(entry => {
             const rateInfo = payItemRatesMap.get(entry.id);
-            const isMultipleRate = rateInfo ? rateInfo.isMultiple : false;
-
-            let lineRate: number | undefined = undefined;
-            if (isMultipleRate) {
-              lineRate = undefined;
+            let rate = 0;
+            if (rateInfo && rateInfo.ratePerUnit > 0) {
+              rate = rateInfo.ratePerUnit;
             } else if (entry.isHomeCareTravel) {
-              if (rateInfo && rateInfo.ratePerUnit > 0) lineRate = rateInfo.ratePerUnit;
-              else if (baseOrdinaryRate > 0) lineRate = baseOrdinaryRate;
+              rate = baseOrdinaryRate > 0 ? baseOrdinaryRate : (rateInfo?.ratePerUnit || 0);
             } else if (entry.desc === 'NDIS Travel') {
-              lineRate = (rateInfo && rateInfo.ratePerUnit > 0) ? rateInfo.ratePerUnit : 0.99;
-            } else if (rateInfo && rateInfo.ratePerUnit > 0) {
-              lineRate = rateInfo.ratePerUnit;
+              rate = (rateInfo && rateInfo.ratePerUnit > 0) ? rateInfo.ratePerUnit : 0.99;
+            } else if (rateInfo && rateInfo.multiplier > 1 && baseOrdinaryRate > 0) {
+              rate = parseFloat((baseOrdinaryRate * rateInfo.multiplier).toFixed(4));
             } else if (baseOrdinaryRate > 0) {
-              lineRate = baseOrdinaryRate;
+              if (entry.desc === 'Saturday') {
+                const mult = (rateInfo?.multiplier && rateInfo.multiplier > 1) ? rateInfo.multiplier : 1.5;
+                rate = parseFloat((baseOrdinaryRate * mult).toFixed(4));
+              } else if (entry.desc === 'Sunday') {
+                const mult = (rateInfo?.multiplier && rateInfo.multiplier > 1) ? rateInfo.multiplier : 2.0;
+                rate = parseFloat((baseOrdinaryRate * mult).toFixed(4));
+              } else if (entry.desc === 'Public Holiday') {
+                const mult = (rateInfo?.multiplier && rateInfo.multiplier > 1) ? rateInfo.multiplier : 2.5;
+                rate = parseFloat((baseOrdinaryRate * mult).toFixed(4));
+              } else {
+                rate = baseOrdinaryRate;
+              }
             } else if (entry.defaultRate !== undefined && entry.defaultRate > 0) {
-              lineRate = entry.defaultRate;
+              rate = entry.defaultRate;
             }
 
-            const line: any = {
-              EarningsRateID: entry.id,
-              NumberOfUnits: Number(entry.units.toFixed(2))
-            };
-            if (lineRate !== undefined && lineRate > 0) {
-              line.RatePerUnit = Number(lineRate.toFixed(4));
+            if (rate <= 0) {
+              rate = baseOrdinaryRate > 0 ? baseOrdinaryRate : 42.0;
             }
-            return line;
+
+            return {
+              EarningsRateID: entry.id,
+              NumberOfUnits: Number(entry.units.toFixed(2)),
+              RatePerUnit: Number(rate.toFixed(4))
+            };
           });
 
           slipRes = await fetch('https://api.xero.com/payroll.xro/1.0/Payslip', {
