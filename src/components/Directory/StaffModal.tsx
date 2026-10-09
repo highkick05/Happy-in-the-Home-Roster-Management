@@ -289,7 +289,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-2xl w-[96vw] max-w-5xl xl:max-w-6xl flex flex-col max-h-[92vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-[#09090b] border border-white/[0.08] rounded-xl shadow-2xl w-[96vw] max-w-5xl xl:max-w-6xl flex flex-col h-[85vh] max-h-[850px] min-h-[580px] overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b border-white/[0.08] shrink-0 bg-[#09090b]">
           <div>
