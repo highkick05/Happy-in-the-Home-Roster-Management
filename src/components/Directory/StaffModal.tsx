@@ -13,7 +13,7 @@ interface StaffModalProps {
 }
 
 export default function StaffModal({ isOpen, onClose, onSave, token, staff }: StaffModalProps) {
-  const [activeTab, setActiveTab] = useState<'general' | 'personal' | 'financial'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'personal' | 'financial' | 'xero'>('general');
   const [positions, setPositions] = useState<any[]>([]);
   const [payCategories, setPayCategories] = useState<any[]>([]);
   const [payItems, setPayItems] = useState<any[]>([]);
@@ -309,6 +309,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
             { id: 'general', label: 'Profile & Role', icon: User },
             { id: 'personal', label: 'Contact & Personal', icon: Phone },
             { id: 'financial', label: 'Financial & Tax', icon: Landmark },
+            { id: 'xero', label: 'Xero Payroll', icon: DollarSign },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -395,125 +396,6 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                           </label>
                         ))}
                       </div>
-                    </div>
-
-                    {/* Xero Employee Profile Mapping (Simplified, clean) */}
-                    <div className="p-3 bg-black/50 border border-sky-500/20 rounded-lg space-y-2.5 mt-2">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                        <label className="text-[12px] font-semibold text-sky-400 flex items-center gap-1.5">
-                          <span>Xero Payroll Profile</span>
-                          <span className="text-[10px] text-zinc-400 font-normal">(For timesheets &amp; payslips)</span>
-                        </label>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            disabled={loadingXero}
-                            onClick={fetchXeroEmployees}
-                            className="px-2 py-0.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded text-[10px] font-medium flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
-                          >
-                            <RefreshCw className={`w-3 h-3 ${loadingXero ? 'animate-spin' : ''}`} />
-                            <span>{loadingXero ? 'Syncing...' : 'Sync Xero'}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setIsManualXero(!isManualXero)}
-                            className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded text-[10px] font-medium transition-colors cursor-pointer"
-                          >
-                            <span>{isManualXero ? 'List' : 'Manual'}</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {formData.xeroEmployeeId || formData.xeroEmployeeName ? (
-                        <div className="flex items-center justify-between bg-sky-500/10 border border-sky-500/30 px-3 py-1.5 rounded text-xs">
-                          <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-sky-400" />
-                            <span className="text-zinc-400 text-[11px]">Linked Employee:</span>
-                            <span className="font-semibold text-white">{formData.xeroEmployeeName || 'Linked'}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setFormData(prev => ({ ...prev, xeroEmployeeId: '', xeroEmployeeName: '' }))}
-                            className="text-[11px] text-zinc-400 hover:text-rose-400 underline cursor-pointer"
-                          >
-                            Unlink
-                          </button>
-                        </div>
-                      ) : isManualXero ? (
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            placeholder="Type exact Xero employee name..."
-                            value={formData.xeroEmployeeName}
-                            onChange={(e) => setFormData(prev => ({ ...prev, xeroEmployeeName: e.target.value }))}
-                            className="flex-1 bg-[#121214] border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue"
-                          />
-                        </div>
-                      ) : (
-                        <select
-                          value={formData.xeroEmployeeId || ''}
-                          onChange={(e) => {
-                            const emp = xeroEmployees.find(x => x.id === e.target.value);
-                            setFormData(prev => ({
-                              ...prev,
-                              xeroEmployeeId: e.target.value,
-                              xeroEmployeeName: emp ? emp.name : prev.xeroEmployeeName
-                            }));
-                          }}
-                          className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue"
-                        >
-                          <option value="">
-                            {xeroEmployees.length === 0
-                              ? `-- No Xero Staff Loaded (Click 'Sync Xero') --`
-                              : `-- Select Xero Staff Profile (${xeroEmployees.length} found) --`}
-                          </option>
-                          {xeroEmployees.map(emp => (
-                            <option key={emp.id} value={emp.id}>
-                              {emp.name} {emp.email ? `(${emp.email})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-
-                      {!formData.xeroEmployeeId && !isManualXero && suggestedXeroMatch && (
-                        <div className="flex items-center justify-between gap-2 p-1.5 bg-sky-500/10 border border-sky-500/30 rounded text-[11px] text-sky-300">
-                          <span className="truncate">
-                            ✨ Suggested: <strong>{suggestedXeroMatch.name}</strong>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFormData(prev => ({
-                                ...prev,
-                                xeroEmployeeId: suggestedXeroMatch.id,
-                                xeroEmployeeName: suggestedXeroMatch.name,
-                              }));
-                            }}
-                            className="px-2 py-0.5 bg-sky-500 hover:bg-sky-400 text-black font-semibold rounded text-[10px] shrink-0"
-                          >
-                            Link
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Pay Category Selector */}
-                    <div>
-                      <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Award Pay Category</label>
-                      <select
-                        name="payCategoryId"
-                        value={formData.payCategoryId || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, payCategoryId: e.target.value ? Number(e.target.value) : null }))}
-                        className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors cursor-pointer"
-                      >
-                        <option value="">-- No Pay Category (Inherit Default) --</option>
-                        {payCategories.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                      <p className="text-[11px] text-zinc-500 mt-1">
-                        Determines ordinary weekday pay rate and weekend / holiday penalty multipliers pushed to Xero.
-                      </p>
                     </div>
 
                     {formData.role === 'STAFF' && (
@@ -649,6 +531,169 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                 </div>
               </div>
             )}
+
+            {/* TAB 4: Xero Payroll */}
+            {activeTab === 'xero' && (
+              <div className="space-y-5">
+                <div className="p-5 bg-black/40 border border-white/[0.08] rounded-xl space-y-5">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white tracking-tight pb-1 border-b border-white/[0.06] flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-sky-400" />
+                      <span>Xero Payroll Integration &amp; Pay Categories</span>
+                    </h3>
+                    <p className="text-[12px] text-zinc-400 mt-1">
+                      Link this staff member to their Xero employee profile and award classification for seamless timesheet pushing and payslip generation.
+                    </p>
+                  </div>
+
+                  {xeroError && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-2 text-xs text-amber-300">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="font-medium">Xero Sync Notice</p>
+                        <p className="text-zinc-400">{xeroError}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Xero Employee Profile Mapping Card */}
+                  <div className="p-4 bg-black/50 border border-sky-500/20 rounded-lg space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <label className="text-[13px] font-semibold text-sky-400 flex items-center gap-1.5">
+                          <span>Xero Payroll Profile</span>
+                          <span className="text-[11px] text-zinc-400 font-normal">(For timesheets &amp; payslips)</span>
+                        </label>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">
+                          Matches worked roster shifts directly to the employee in Xero Payroll AU.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={loadingXero}
+                          onClick={fetchXeroEmployees}
+                          className="px-2.5 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${loadingXero ? 'animate-spin' : ''}`} />
+                          <span>{loadingXero ? 'Syncing...' : 'Sync Xero'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsManualXero(!isManualXero)}
+                          className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded text-[11px] font-medium transition-colors cursor-pointer"
+                        >
+                          <span>{isManualXero ? 'List Selection' : 'Manual Entry'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {formData.xeroEmployeeId || formData.xeroEmployeeName ? (
+                      <div className="flex items-center justify-between bg-sky-500/10 border border-sky-500/30 px-3.5 py-2.5 rounded-lg text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse" />
+                          <div>
+                            <span className="text-zinc-400 text-[11px] block">Linked Xero Employee:</span>
+                            <span className="font-semibold text-white text-[13px]">{formData.xeroEmployeeName || 'Linked'}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, xeroEmployeeId: '', xeroEmployeeName: '' }))}
+                          className="text-[11px] text-zinc-400 hover:text-rose-400 underline cursor-pointer px-2 py-1 rounded hover:bg-white/[0.04]"
+                        >
+                          Unlink Profile
+                        </button>
+                      </div>
+                    ) : isManualXero ? (
+                      <div className="space-y-1.5">
+                        <input
+                          type="text"
+                          placeholder="Type exact Xero employee name (e.g. Andrea Cerezo)..."
+                          value={formData.xeroEmployeeName}
+                          onChange={(e) => setFormData(prev => ({ ...prev, xeroEmployeeName: e.target.value }))}
+                          className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue"
+                        />
+                        <p className="text-[11px] text-zinc-500">
+                          Enter the exact employee name as registered in Xero Payroll AU.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <select
+                          value={formData.xeroEmployeeId || ''}
+                          onChange={(e) => {
+                            const emp = xeroEmployees.find(x => x.id === e.target.value);
+                            setFormData(prev => ({
+                              ...prev,
+                              xeroEmployeeId: e.target.value,
+                              xeroEmployeeName: emp ? emp.name : prev.xeroEmployeeName
+                            }));
+                          }}
+                          className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue"
+                        >
+                          <option value="">
+                            {xeroEmployees.length === 0
+                              ? `-- No Xero Staff Loaded (Click 'Sync Xero') --`
+                              : `-- Select Xero Staff Profile (${xeroEmployees.length} found) --`}
+                          </option>
+                          {xeroEmployees.map(emp => (
+                            <option key={emp.id} value={emp.id}>
+                              {emp.name} {emp.email ? `(${emp.email})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[11px] text-zinc-500">
+                          Select the matching staff profile synced from Xero.
+                        </p>
+                      </div>
+                    )}
+
+                    {!formData.xeroEmployeeId && !isManualXero && suggestedXeroMatch && (
+                      <div className="flex items-center justify-between gap-2 p-2 bg-sky-500/10 border border-sky-500/30 rounded-lg text-xs text-sky-300">
+                        <span className="truncate">
+                          ✨ Suggested match based on name/email: <strong>{suggestedXeroMatch.name}</strong>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              xeroEmployeeId: suggestedXeroMatch.id,
+                              xeroEmployeeName: suggestedXeroMatch.name,
+                            }));
+                          }}
+                          className="px-2.5 py-1 bg-sky-500 hover:bg-sky-400 text-black font-semibold rounded text-[11px] shrink-0 cursor-pointer shadow-sm"
+                        >
+                          Link Now
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Award Pay Category Card */}
+                  <div className="p-4 bg-black/40 border border-white/[0.08] rounded-lg space-y-2.5">
+                    <div>
+                      <label className="block text-[13px] font-semibold text-white mb-1">Award Pay Category</label>
+                      <p className="text-[11px] text-zinc-400 mb-2">
+                        Sets the Fair Work SCHADS classification (e.g. Level 2.1 Casual), base ordinary hourly rate, and Saturday, Sunday &amp; Public Holiday multipliers.
+                      </p>
+                      <select
+                        name="payCategoryId"
+                        value={formData.payCategoryId || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, payCategoryId: e.target.value ? Number(e.target.value) : null }))}
+                        className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors cursor-pointer"
+                      >
+                        <option value="">-- No Pay Category (Inherit Default) --</option>
+                        {payCategories.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </form>
         </div>
 
@@ -667,7 +712,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
               <button
                 type="button"
                 onClick={() => {
-                  const tabKeys = ['general', 'personal', 'financial'] as const;
+                  const tabKeys = ['general', 'personal', 'financial', 'xero'] as const;
                   const idx = tabKeys.indexOf(activeTab);
                   if (idx > 0) setActiveTab(tabKeys[idx - 1]);
                 }}
@@ -677,11 +722,11 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
               </button>
             )}
 
-            {activeTab !== 'financial' ? (
+            {activeTab !== 'xero' ? (
               <button
                 type="button"
                 onClick={() => {
-                  const tabKeys = ['general', 'personal', 'financial'] as const;
+                  const tabKeys = ['general', 'personal', 'financial', 'xero'] as const;
                   const idx = tabKeys.indexOf(activeTab);
                   if (idx < tabKeys.length - 1) setActiveTab(tabKeys[idx + 1]);
                 }}
