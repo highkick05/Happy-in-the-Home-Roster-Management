@@ -8,6 +8,7 @@ const VAPID_PRIVATE_KEY = 'XFEVMuT0GKOCFwEoxi7PZt6MGALJih-1LUR7OWy_Nwk';
 webpush.setVapidDetails('mailto:admin@happyinthehome.org', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 import { setupQuotePdfRoutes } from "./quotePdf";
 import express from "express";
+import { execSync } from "child_process";
 import { Server as SocketIOServer } from "socket.io";
 import http from "http";
 
@@ -7058,6 +7059,27 @@ function getUnreadChatCount(db: any, userId: number) {
 
 app.get("/api/health", (req, res) => {
     res.json({ status: "ok", time: new Date().toISOString() });
+  });
+
+  app.get("/api/version", (req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    let version = "unknown";
+    try {
+      version = execSync("git rev-parse --short HEAD").toString().trim();
+    } catch (e) {
+      // Fallback: check index.html in dist for asset bundle hash
+      try {
+        const indexPath = path.join(process.cwd(), "dist", "index.html");
+        if (fs.existsSync(indexPath)) {
+          const content = fs.readFileSync(indexPath, "utf-8");
+          const m = content.match(/assets\/index-([A-Za-z0-9_-]+)\.js/);
+          if (m && m[1]) version = m[1];
+        }
+      } catch (err) {}
+    }
+    res.json({ version, timestamp: Date.now() });
   });
 
   app.get(
@@ -21319,10 +21341,22 @@ function resolveFilePath(systemName) {
     });
   } else {
     const distPath = path.join(process.cwd(), "dist");
+
+    // Explicit non-cached routes for service worker and manifests
+    app.get(["/sw.js", "/custom-sw.js", "/manifest.webmanifest", "/workbox-*.js"], (req: any, res: any, next: any) => {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      res.setHeader("Surrogate-Control", "no-store");
+      next();
+    });
+
     app.use(express.static(distPath, {
-      setHeaders: (res, path) => {
-        if (path.endsWith('sw.js') || path.includes('workbox-') || path.endsWith('custom-sw.js') || path.endsWith('manifest.webmanifest')) {
-          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('sw.js') || filePath.includes('workbox-') || filePath.endsWith('custom-sw.js') || filePath.endsWith('manifest.webmanifest')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
         }
       }
     }));
