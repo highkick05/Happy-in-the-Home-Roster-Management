@@ -7066,10 +7066,27 @@ app.get("/api/health", (req, res) => {
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
     let version = "unknown";
+
+    // 1. Check dist/version.json generated at build time
     try {
-      version = execSync("git rev-parse --short HEAD").toString().trim();
-    } catch (e) {
-      // Fallback: check index.html in dist for asset bundle hash
+      const versionFile = path.join(process.cwd(), "dist", "version.json");
+      if (fs.existsSync(versionFile)) {
+        const data = JSON.parse(fs.readFileSync(versionFile, "utf-8"));
+        if (data && data.version && data.version !== "unknown") {
+          version = data.version;
+        }
+      }
+    } catch (err) {}
+
+    // 2. Check git rev-parse if running directly from source
+    if (version === "unknown") {
+      try {
+        version = execSync("git rev-parse --short HEAD").toString().trim();
+      } catch (e) {}
+    }
+
+    // 3. Fallback: check index.html in dist for asset bundle hash
+    if (version === "unknown") {
       try {
         const indexPath = path.join(process.cwd(), "dist", "index.html");
         if (fs.existsSync(indexPath)) {

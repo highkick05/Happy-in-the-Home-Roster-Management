@@ -70,9 +70,21 @@ declare const __APP_VERSION__: string | undefined;
 
   let isUpdating = false;
 
-  const triggerCleanReload = async () => {
+  const triggerCleanReload = async (targetVersion?: string) => {
     if (isUpdating || window.location.pathname.startsWith('/shifts/claim')) return;
+    
+    // Loop prevention: prevent re-triggering reload if we already attempted within the last 30 seconds
+    const lastAttempt = Number(sessionStorage.getItem('last_auto_update_attempt') || 0);
+    const lastAttemptVersion = sessionStorage.getItem('last_auto_update_version') || '';
+    if (Date.now() - lastAttempt < 30000 && lastAttemptVersion === (targetVersion || '')) {
+      console.warn('[Auto-Update] Update attempt throttled to avoid refresh loops.');
+      return;
+    }
+
     isUpdating = true;
+    sessionStorage.setItem('last_auto_update_attempt', String(Date.now()));
+    if (targetVersion) sessionStorage.setItem('last_auto_update_version', targetVersion);
+
     console.log('[Auto-Update] Newer version detected on server. Performing cache cleanup and reload...');
 
     try {
@@ -90,7 +102,7 @@ declare const __APP_VERSION__: string | undefined;
       console.warn('[Auto-Update] Error during cache wipe:', e);
     }
 
-    const cleanUrl = window.location.href.split('#')[0].split('?')[0];
+    const cleanUrl = window.location.origin + window.location.pathname;
     window.location.replace(`${cleanUrl}?v=${Date.now()}`);
   };
 
@@ -106,8 +118,9 @@ declare const __APP_VERSION__: string | undefined;
       if (res.ok) {
         const data = await res.json();
         if (data && data.version && data.version !== 'unknown') {
+          // If the server reported version differs from the client bundle version
           if (data.version !== currentClientVersion) {
-            await triggerCleanReload();
+            await triggerCleanReload(data.version);
           }
         }
       }
