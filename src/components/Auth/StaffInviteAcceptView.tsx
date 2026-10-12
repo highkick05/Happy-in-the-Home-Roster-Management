@@ -67,6 +67,13 @@ export default function StaffInviteAcceptView() {
           const data = await res.json();
           if (Array.isArray(data)) {
             setAddressSuggestions(data);
+          } else if (Array.isArray(data?.suggestions)) {
+            const formatted = data.suggestions
+              .map((s: any) => s.placePrediction?.text?.text || '')
+              .filter(Boolean);
+            setAddressSuggestions(formatted);
+          } else {
+            setAddressSuggestions([]);
           }
         }
       } catch (e) {
