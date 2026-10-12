@@ -4409,37 +4409,59 @@ try {
           `If you have any questions, please reach out to your administrator.\n\n` +
           `Warm regards,\nHappy in the Home Team`,
         html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0b1120; color: #ffffff; padding: 32px 24px; border-radius: 12px; border: 1px solid #1e293b;">
-            <div style="text-align: center; margin-bottom: 24px;">
-              ${
-                logoImgSrc
-                  ? `<div style="margin-bottom: 14px; text-align: center;">
-                       <img src="${logoImgSrc}" alt="Happy in the Home" style="max-height: 70px; max-width: 220px; object-fit: contain; display: inline-block;" />
-                     </div>`
-                  : `<h1 style="color: #2dd4bf; margin: 0 0 4px 0; font-size: 24px; font-weight: 700;">Happy in the Home</h1>`
-              }
-              <p style="color: #94a3b8; font-size: 13px; margin: 0; font-weight: 500;">Staff Portal Account Invitation</p>
-            </div>
-            <div style="background: #111827; padding: 24px; border-radius: 8px; border: 1px solid #1f2937; margin-bottom: 24px;">
-              <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0; color: #e2e8f0;">
-                Hello,
-              </p>
-              <p style="font-size: 14px; line-height: 1.6; color: #cbd5e1; margin: 0 0 20px 0;">
-                You have been invited to join the <strong>Happy in the Home</strong> care team! Click the button below to register your staff user profile, add your contact details, and set your password:
-              </p>
-              <div style="text-align: center; margin: 28px 0;">
-                <a href="${inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #0d9488 0%, #10b981 100%); color: #ffffff; text-decoration: none; padding: 13px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);">
-                  Create Staff Account &rarr;
-                </a>
+          <div style="background-color: #0B0E14; padding: 40px 16px; min-height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+            <div style="max-width: 580px; margin: 0 auto; background-color: #161B22; border-radius: 16px; border: 1px solid #30363D; overflow: hidden; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);">
+              
+              <!-- Brand Header -->
+              <div style="background-color: #0f141c; padding: 36px 24px 28px 24px; text-align: center; border-bottom: 1px solid #21262d;">
+                ${
+                  logoImgSrc
+                    ? `<div style="text-align: center; margin: 0 auto 16px auto;">
+                         <img src="${logoImgSrc}" alt="Happy in the Home" style="max-height: 110px; max-width: 280px; width: auto; height: auto; object-fit: contain; display: inline-block; vertical-align: middle;" />
+                       </div>`
+                    : `<h1 style="color: #2dd4bf; margin: 0 0 6px 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em;">Happy in the Home</h1>`
+                }
+                <div style="display: inline-block; padding: 4px 14px; background-color: rgba(33, 139, 159, 0.15); border: 1px solid rgba(33, 139, 159, 0.35); border-radius: 9999px;">
+                  <span style="color: #5eead4; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Staff Portal Account Invitation</span>
+                </div>
               </div>
-              <p style="font-size: 12px; line-height: 1.5; color: #94a3b8; margin: 16px 0 0 0;">
-                Or copy and paste this link into your mobile or desktop browser:<br />
-                <a href="${inviteLink}" style="color: #38bdf8; word-break: break-all;">${inviteLink}</a>
-              </p>
+
+              <!-- Main Content Body -->
+              <div style="padding: 32px 28px;">
+                <p style="font-size: 16px; line-height: 1.6; margin: 0 0 16px 0; color: #E6EDF3; font-weight: 500;">
+                  Hello,
+                </p>
+                <p style="font-size: 14px; line-height: 1.7; color: #cbd5e1; margin: 0 0 24px 0;">
+                  You have been invited to join the <strong style="color: #ffffff;">Happy in the Home</strong> care team! Click the button below to register your staff user profile, add your contact details, and set your password:
+                </p>
+
+                <!-- Call to action button -->
+                <div style="text-align: center; margin: 32px 0;">
+                  <a href="${inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #218b9f 0%, #89c540 100%); color: #ffffff; text-decoration: none; padding: 14px 34px; border-radius: 10px; font-size: 15px; font-weight: 600; box-shadow: 0 6px 20px rgba(33, 139, 159, 0.35); letter-spacing: 0.01em;">
+                    Create Staff Account &rarr;
+                  </a>
+                </div>
+
+                <!-- Direct link box -->
+                <div style="background-color: #0B0E14; border: 1px solid #30363D; border-radius: 10px; padding: 16px; margin-top: 28px;">
+                  <p style="font-size: 12px; line-height: 1.5; color: #8B949E; margin: 0 0 8px 0; font-weight: 500;">
+                    Or copy and paste this link into your mobile or desktop browser:
+                  </p>
+                  <a href="${inviteLink}" style="color: #38bdf8; font-size: 12px; word-break: break-all; text-decoration: underline; line-height: 1.4;">${inviteLink}</a>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div style="background-color: #0f141c; padding: 20px 24px; border-top: 1px solid #21262d; text-align: center;">
+                <p style="font-size: 12px; color: #8B949E; margin: 0 0 4px 0;">
+                  This invitation link is valid for 7 days.
+                </p>
+                <p style="font-size: 11px; color: #484f58; margin: 0;">
+                  &copy; ${new Date().getFullYear()} Happy in the Home. All rights reserved.
+                </p>
+              </div>
+
             </div>
-            <p style="font-size: 12px; color: #64748b; text-align: center; margin: 0;">
-              This invitation link expires in 7 days.<br />&copy; ${new Date().getFullYear()} Happy in the Home. All rights reserved.
-            </p>
           </div>
         `,
       };
