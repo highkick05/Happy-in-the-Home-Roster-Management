@@ -6,8 +6,8 @@ import App from './App.tsx';
 if ('serviceWorker' in navigator) {
   let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    // Never force reload while user is on time-critical shift claim route
-    if (window.location.pathname.startsWith('/shifts/claim')) {
+    // Never force reload while user is on time-critical shift claim or onboarding invite route
+    if (window.location.pathname.startsWith('/shifts/claim') || window.location.pathname.startsWith('/invite')) {
       return;
     }
     if (!refreshing) {
@@ -29,8 +29,8 @@ createRoot(document.getElementById('root')!).render(
 const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
-    // When the PWA detects a new version, automatically click refresh for them unless on shift claim
-    if (!window.location.pathname.startsWith('/shifts/claim')) {
+    // When the PWA detects a new version, automatically click refresh for them unless on shift claim or invite onboarding
+    if (!window.location.pathname.startsWith('/shifts/claim') && !window.location.pathname.startsWith('/invite')) {
       updateSW(true);
     }
   },
@@ -71,7 +71,7 @@ declare const __APP_VERSION__: string | undefined;
   let isUpdating = false;
 
   const triggerCleanReload = async (targetVersion?: string) => {
-    if (isUpdating || window.location.pathname.startsWith('/shifts/claim')) return;
+    if (isUpdating || window.location.pathname.startsWith('/shifts/claim') || window.location.pathname.startsWith('/invite')) return;
     
     // Loop prevention: prevent re-triggering reload if we already attempted within the last 30 seconds
     const lastAttempt = Number(sessionStorage.getItem('last_auto_update_attempt') || 0);

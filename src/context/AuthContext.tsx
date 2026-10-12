@@ -43,8 +43,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         value: async (...args: Parameters<typeof fetch>) => {
           const response = await originalFetch(...args);
           if (response.status === 401 || response.status === 403) {
-            // Option to redirect to login if not already there, unless it's a kiosk view or shift claim view
-            if (window.location.pathname !== '/login' && !window.location.pathname.startsWith('/kiosk') && !window.location.pathname.startsWith('/shifts/claim')) {
+            // Option to redirect to login if not already there, unless it's a kiosk view, shift claim view, or staff invite view
+            if (
+              window.location.pathname !== '/login' &&
+              !window.location.pathname.startsWith('/kiosk') &&
+              !window.location.pathname.startsWith('/shifts/claim') &&
+              !window.location.pathname.startsWith('/invite') &&
+              !window.location.pathname.startsWith('/reset-password')
+            ) {
               logout();
               window.location.replace('/login');
             }

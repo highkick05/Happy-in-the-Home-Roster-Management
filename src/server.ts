@@ -7434,7 +7434,6 @@ app.get("/api/health", (req, res) => {
 
   app.get(
     "/api/places/autocomplete",
-    authenticateToken,
     async (req: any, res: any) => {
       const { input } = req.query;
       if (!input) return res.status(400).json({ error: "Input required" });
