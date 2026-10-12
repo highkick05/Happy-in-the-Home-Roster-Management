@@ -4357,44 +4357,61 @@ try {
 
       const s = getSmtpSettings();
 
-      // Retrieve configured Website Logo from settings
-      let websiteLogoUrl = "";
-      const logoSetting = db.prepare("SELECT value FROM settings WHERE key = 'websiteLogo'").get() as any;
+      // Retrieve configured Letterhead Logo (falling back to websiteLogo if not set)
+      let chosenLogoUrl = "";
+      const logoSetting = db.prepare("SELECT value FROM settings WHERE key = 'letterheadLogo'").get() as any;
       if (logoSetting && logoSetting.value) {
         try {
           const parsed = JSON.parse(logoSetting.value);
           if (parsed && typeof parsed === 'string' && parsed.trim()) {
-            websiteLogoUrl = parsed.trim();
+            chosenLogoUrl = parsed.trim();
           }
         } catch (e) {
           if (typeof logoSetting.value === 'string' && logoSetting.value.trim()) {
-            websiteLogoUrl = logoSetting.value.trim();
+            chosenLogoUrl = logoSetting.value.trim();
           }
         }
       }
 
-      // If website logo is a relative path (e.g. /api/assets/...), prepend appUrl
+      // If letterheadLogo isn't set, fallback to websiteLogo
+      if (!chosenLogoUrl) {
+        const webLogoSetting = db.prepare("SELECT value FROM settings WHERE key = 'websiteLogo'").get() as any;
+        if (webLogoSetting && webLogoSetting.value) {
+          try {
+            const parsed = JSON.parse(webLogoSetting.value);
+            if (parsed && typeof parsed === 'string' && parsed.trim()) {
+              chosenLogoUrl = parsed.trim();
+            }
+          } catch (e) {
+            if (typeof webLogoSetting.value === 'string' && webLogoSetting.value.trim()) {
+              chosenLogoUrl = webLogoSetting.value.trim();
+            }
+          }
+        }
+      }
+
+      // If logo is a relative path (e.g. /api/assets/...), prepend appUrl
       let fullLogoUrl = "";
       let logoAttachment: any = null;
-      if (websiteLogoUrl) {
-        if (websiteLogoUrl.startsWith("http://") || websiteLogoUrl.startsWith("https://")) {
-          fullLogoUrl = websiteLogoUrl;
+      if (chosenLogoUrl) {
+        if (chosenLogoUrl.startsWith("http://") || chosenLogoUrl.startsWith("https://")) {
+          fullLogoUrl = chosenLogoUrl;
         } else {
-          fullLogoUrl = `${appUrl}${websiteLogoUrl.startsWith('/') ? '' : '/'}${websiteLogoUrl}`;
+          fullLogoUrl = `${appUrl}${chosenLogoUrl.startsWith('/') ? '' : '/'}${chosenLogoUrl}`;
           // Also check if local asset file exists on disk to embed as inline CID attachment (guarantees display in all email clients)
-          const filename = path.basename(websiteLogoUrl);
+          const filename = path.basename(chosenLogoUrl);
           const localAssetFile = path.join(persistentAssetsDir, filename);
           if (fs.existsSync(localAssetFile)) {
             logoAttachment = {
               filename,
               path: localAssetFile,
-              cid: 'business-logo',
+              cid: 'letterhead-logo',
             };
           }
         }
       }
 
-      const logoImgSrc = logoAttachment ? 'cid:business-logo' : fullLogoUrl;
+      const logoImgSrc = logoAttachment ? 'cid:letterhead-logo' : fullLogoUrl;
 
       const mailOptions: any = {
         from: s.from,
@@ -4409,54 +4426,54 @@ try {
           `If you have any questions, please reach out to your administrator.\n\n` +
           `Warm regards,\nHappy in the Home Team`,
         html: `
-          <div style="background-color: #0B0E14; padding: 40px 16px; min-height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-            <div style="max-width: 580px; margin: 0 auto; background-color: #161B22; border-radius: 16px; border: 1px solid #30363D; overflow: hidden; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);">
+          <div style="background-color: #f1f5f9; padding: 40px 16px; min-height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+            <div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);">
               
-              <!-- Brand Header -->
-              <div style="background-color: #0f141c; padding: 36px 24px 28px 24px; text-align: center; border-bottom: 1px solid #21262d;">
+              <!-- Brand Header with Crisp White Background for Letterhead Logo -->
+              <div style="background-color: #ffffff; padding: 36px 28px 24px 28px; text-align: center; border-bottom: 1px solid #f1f5f9;">
                 ${
                   logoImgSrc
                     ? `<div style="text-align: center; margin: 0 auto 16px auto;">
-                         <img src="${logoImgSrc}" alt="Happy in the Home" style="max-height: 110px; max-width: 280px; width: auto; height: auto; object-fit: contain; display: inline-block; vertical-align: middle;" />
+                         <img src="${logoImgSrc}" alt="Happy in the Home" style="max-height: 100px; max-width: 280px; width: auto; height: auto; object-fit: contain; display: inline-block; vertical-align: middle;" />
                        </div>`
-                    : `<h1 style="color: #2dd4bf; margin: 0 0 6px 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em;">Happy in the Home</h1>`
+                    : `<h1 style="color: #0f766e; margin: 0 0 8px 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em;">Happy in the Home</h1>`
                 }
-                <div style="display: inline-block; padding: 4px 14px; background-color: rgba(33, 139, 159, 0.15); border: 1px solid rgba(33, 139, 159, 0.35); border-radius: 9999px;">
-                  <span style="color: #5eead4; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Staff Portal Account Invitation</span>
+                <div style="display: inline-block; padding: 5px 16px; background-color: #f0fdfa; border: 1px solid #ccfbf1; border-radius: 9999px;">
+                  <span style="color: #0d9488; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Staff Portal Account Invitation</span>
                 </div>
               </div>
 
               <!-- Main Content Body -->
-              <div style="padding: 32px 28px;">
-                <p style="font-size: 16px; line-height: 1.6; margin: 0 0 16px 0; color: #E6EDF3; font-weight: 500;">
+              <div style="padding: 32px 32px 28px 32px; background-color: #ffffff;">
+                <p style="font-size: 16px; line-height: 1.6; margin: 0 0 16px 0; color: #1e293b; font-weight: 600;">
                   Hello,
                 </p>
-                <p style="font-size: 14px; line-height: 1.7; color: #cbd5e1; margin: 0 0 24px 0;">
-                  You have been invited to join the <strong style="color: #ffffff;">Happy in the Home</strong> care team! Click the button below to register your staff user profile, add your contact details, and set your password:
+                <p style="font-size: 15px; line-height: 1.7; color: #334155; margin: 0 0 26px 0;">
+                  You have been invited to join the <strong style="color: #0f172a;">Happy in the Home</strong> care team! Click the button below to register your staff user profile, add your contact details, and set your password:
                 </p>
 
                 <!-- Call to action button -->
-                <div style="text-align: center; margin: 32px 0;">
-                  <a href="${inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #218b9f 0%, #89c540 100%); color: #ffffff; text-decoration: none; padding: 14px 34px; border-radius: 10px; font-size: 15px; font-weight: 600; box-shadow: 0 6px 20px rgba(33, 139, 159, 0.35); letter-spacing: 0.01em;">
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #0d9488 0%, #10b981 100%); color: #ffffff; text-decoration: none; padding: 14px 34px; border-radius: 10px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35); letter-spacing: 0.01em;">
                     Create Staff Account &rarr;
                   </a>
                 </div>
 
                 <!-- Direct link box -->
-                <div style="background-color: #0B0E14; border: 1px solid #30363D; border-radius: 10px; padding: 16px; margin-top: 28px;">
-                  <p style="font-size: 12px; line-height: 1.5; color: #8B949E; margin: 0 0 8px 0; font-weight: 500;">
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-top: 26px;">
+                  <p style="font-size: 12px; line-height: 1.5; color: #64748b; margin: 0 0 8px 0; font-weight: 500;">
                     Or copy and paste this link into your mobile or desktop browser:
                   </p>
-                  <a href="${inviteLink}" style="color: #38bdf8; font-size: 12px; word-break: break-all; text-decoration: underline; line-height: 1.4;">${inviteLink}</a>
+                  <a href="${inviteLink}" style="color: #0284c7; font-size: 12px; word-break: break-all; text-decoration: underline; line-height: 1.4;">${inviteLink}</a>
                 </div>
               </div>
 
               <!-- Footer -->
-              <div style="background-color: #0f141c; padding: 20px 24px; border-top: 1px solid #21262d; text-align: center;">
-                <p style="font-size: 12px; color: #8B949E; margin: 0 0 4px 0;">
+              <div style="background-color: #f8fafc; padding: 20px 24px; border-top: 1px solid #e2e8f0; text-align: center;">
+                <p style="font-size: 12px; color: #64748b; margin: 0 0 4px 0;">
                   This invitation link is valid for 7 days.
                 </p>
-                <p style="font-size: 11px; color: #484f58; margin: 0;">
+                <p style="font-size: 11px; color: #94a3b8; margin: 0;">
                   &copy; ${new Date().getFullYear()} Happy in the Home. All rights reserved.
                 </p>
               </div>
