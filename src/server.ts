@@ -1667,6 +1667,20 @@ try {
         expires_at DATETIME
       );
       CREATE INDEX IF NOT EXISTS idx_shift_claim_tokens_lookup ON shift_claim_tokens(code, shift_id);
+      CREATE TABLE IF NOT EXISTS staff_invites (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        token TEXT UNIQUE NOT NULL,
+        email TEXT NOT NULL,
+        role TEXT DEFAULT 'STAFF',
+        primary_position TEXT,
+        position_id INTEGER,
+        pay_category_id INTEGER,
+        created_by_user_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME NOT NULL,
+        accepted_at DATETIME
+      );
+      CREATE INDEX IF NOT EXISTS idx_staff_invites_token ON staff_invites(token);
     `);
     console.log("[DEBUG] Completed client_ledger_entries table setup.");
 
@@ -4298,6 +4312,237 @@ try {
     } catch (error) {
       console.error("Reset password error:", error);
       res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  // --- Staff Invitation Routes ---
+  app.post("/api/staff/invite", authenticateToken, requireAdmin, async (req: any, res: any) => {
+    const { email, primaryPosition, positionId, payCategoryId } = req.body;
+    if (!email || !email.trim()) {
+      return res.status(400).json({ error: "Email address is required." });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check if user with email already exists
+    const existing = db.prepare("SELECT id FROM users WHERE LOWER(email) = ?").get(cleanEmail);
+    if (existing) {
+      return res.status(400).json({ error: "A user account with this email address already exists." });
+    }
+
+    try {
+      const token = crypto.randomBytes(32).toString("hex");
+      const expires = new Date(Date.now() + 7 * 24 * 3600000).toISOString(); // 7 days validity
+
+      // Invalidate any older unaccepted invites for this email
+      db.prepare("DELETE FROM staff_invites WHERE LOWER(email) = ? AND accepted_at IS NULL").run(cleanEmail);
+
+      let posName = primaryPosition || null;
+      const targetPosId = positionId ? Number(positionId) : null;
+      if (targetPosId && !posName) {
+        const p = db.prepare("SELECT name FROM positions WHERE id = ?").get(targetPosId) as any;
+        if (p) posName = p.name;
+      }
+
+      db.prepare(`
+        INSERT INTO staff_invites (token, email, role, primary_position, position_id, pay_category_id, created_by_user_id, expires_at)
+        VALUES (?, ?, 'STAFF', ?, ?, ?, ?, ?)
+      `).run(token, cleanEmail, posName, targetPosId, payCategoryId ? Number(payCategoryId) : null, req.user?.id || null, expires);
+
+      const appUrl =
+        req.headers.origin ||
+        (req.headers.referer ? new URL(req.headers.referer).origin : null) ||
+        process.env.APP_URL || process.env.BASE_URL || "https://care.happyinthehome.org";
+      const inviteLink = `${appUrl}/invite/${token}`;
+
+      const s = getSmtpSettings();
+
+      const mailOptions = {
+        from: s.from,
+        to: cleanEmail,
+        subject: "Invitation to Join Happy in the Home - Create Your Staff Account",
+        text:
+          `Hello,\n\n` +
+          `You have been invited to join the Happy in the Home team!\n\n` +
+          `Please click the link below to set up your staff profile, enter your contact details, and create your account password:\n\n` +
+          `${inviteLink}\n\n` +
+          `This invitation link is valid for 7 days.\n\n` +
+          `If you have any questions, please reach out to your administrator.\n\n` +
+          `Warm regards,\nHappy in the Home Team`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0b1120; color: #ffffff; padding: 32px 24px; border-radius: 12px; border: 1px solid #1e293b;">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <h1 style="color: #2dd4bf; margin: 0; font-size: 24px; font-weight: 700;">Happy in the Home</h1>
+              <p style="color: #94a3b8; font-size: 13px; margin-top: 6px;">Staff Portal Account Invitation</p>
+            </div>
+            <div style="background: #111827; padding: 24px; border-radius: 8px; border: 1px solid #1f2937; margin-bottom: 24px;">
+              <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0; color: #e2e8f0;">
+                Hello,
+              </p>
+              <p style="font-size: 14px; line-height: 1.6; color: #cbd5e1; margin: 0 0 20px 0;">
+                You have been invited to join the <strong>Happy in the Home</strong> care team! Click the button below to register your staff user profile, add your contact details, and set your password:
+              </p>
+              <div style="text-align: center; margin: 28px 0;">
+                <a href="${inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #0d9488 0%, #10b981 100%); color: #ffffff; text-decoration: none; padding: 13px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);">
+                  Create Staff Account &rarr;
+                </a>
+              </div>
+              <p style="font-size: 12px; line-height: 1.5; color: #94a3b8; margin: 16px 0 0 0;">
+                Or copy and paste this link into your mobile or desktop browser:<br />
+                <a href="${inviteLink}" style="color: #38bdf8; word-break: break-all;">${inviteLink}</a>
+              </p>
+            </div>
+            <p style="font-size: 12px; color: #64748b; text-align: center; margin: 0;">
+              This invitation link expires in 7 days.<br />&copy; ${new Date().getFullYear()} Happy in the Home. All rights reserved.
+            </p>
+          </div>
+        `,
+      };
+
+      await getTransporter().sendMail(mailOptions);
+      res.json({
+        success: true,
+        message: `Invitation email successfully sent to ${cleanEmail}`,
+        inviteLink,
+      });
+    } catch (error: any) {
+      console.error("Staff invite error:", error);
+      res.status(500).json({ error: error.message || "Failed to send invitation email" });
+    }
+  });
+
+  app.get("/api/staff/invite/:token", (req, res) => {
+    const { token } = req.params;
+    if (!token) return res.status(400).json({ error: "Invitation token required" });
+
+    try {
+      const invite = db.prepare(`
+        SELECT id, email, role, primary_position, position_id, pay_category_id, expires_at, accepted_at
+        FROM staff_invites
+        WHERE token = ?
+      `).get(token) as any;
+
+      if (!invite) {
+        return res.status(404).json({ error: "Invalid invitation link." });
+      }
+
+      if (invite.accepted_at) {
+        return res.status(400).json({ error: "This invitation has already been accepted." });
+      }
+
+      if (new Date(invite.expires_at) < new Date()) {
+        return res.status(400).json({ error: "This invitation link has expired. Please ask your administrator to send a new invite." });
+      }
+
+      res.json({
+        valid: true,
+        email: invite.email,
+        primaryPosition: invite.primary_position,
+      });
+    } catch (e: any) {
+      console.error("Invite lookup error:", e);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  app.post("/api/staff/invite/accept", (req, res) => {
+    const { token, password, firstName, lastName, phone, address } = req.body;
+
+    if (!token) return res.status(400).json({ error: "Invitation token is required." });
+    if (!password || password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters long." });
+    if (!firstName || !firstName.trim()) return res.status(400).json({ error: "First Name is required." });
+    if (!lastName || !lastName.trim()) return res.status(400).json({ error: "Last Name is required." });
+    if (!phone || !phone.trim()) return res.status(400).json({ error: "Mobile number is required." });
+    if (!address || !address.trim()) return res.status(400).json({ error: "Full address is required." });
+
+    try {
+      const invite = db.prepare(`
+        SELECT id, email, role, primary_position, position_id, pay_category_id, expires_at, accepted_at
+        FROM staff_invites
+        WHERE token = ?
+      `).get(token) as any;
+
+      if (!invite) {
+        return res.status(404).json({ error: "Invalid invitation link." });
+      }
+
+      if (invite.accepted_at) {
+        return res.status(400).json({ error: "This invitation has already been accepted." });
+      }
+
+      if (new Date(invite.expires_at) < new Date()) {
+        return res.status(400).json({ error: "This invitation link has expired." });
+      }
+
+      const existingUser = db.prepare("SELECT id FROM users WHERE LOWER(email) = ?").get(invite.email.toLowerCase()) as any;
+      if (existingUser) {
+        return res.status(400).json({ error: "A user account with this email already exists. Please log in instead." });
+      }
+
+      const passwordHash = bcrypt.hashSync(password, 10);
+      const nowIso = new Date().toISOString();
+      const safeJoinedDate = nowIso.split('T')[0];
+
+      const stmt = db.prepare(`
+        INSERT INTO users (
+          email, password_hash, role, first_name, last_name, phone, address,
+          primary_position, position_id, pay_category_id,
+          joined_date, created_at, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+      `);
+
+      const info = stmt.run(
+        invite.email.toLowerCase(),
+        passwordHash,
+        invite.role || 'STAFF',
+        firstName.trim(),
+        lastName.trim(),
+        phone.trim(),
+        address.trim(),
+        invite.primary_position || 'Support Worker',
+        invite.position_id || null,
+        invite.pay_category_id || null,
+        safeJoinedDate,
+        nowIso
+      );
+
+      // Mark invite as accepted
+      db.prepare("UPDATE staff_invites SET accepted_at = ? WHERE id = ?").run(nowIso, invite.id);
+
+      const newUserId = info.lastInsertRowid;
+      const newUser = db.prepare("SELECT * FROM users WHERE id = ?").get(newUserId) as any;
+
+      const userRole = newUser.role || 'STAFF';
+      const authToken = jwt.sign({ id: newUser.id, role: userRole }, JWT_SECRET, {
+        expiresIn: "180d",
+      });
+
+      // Fetch safe settings
+      const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+      const settings = settingsRows.reduce((acc, row) => {
+        try {
+          return { ...acc, [row.key]: JSON.parse(row.value) };
+        } catch (e) {
+          return { ...acc, [row.key]: row.value };
+        }
+      }, {});
+
+      res.json({
+        token: authToken,
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          role: userRole,
+          firstName: newUser.first_name,
+          lastName: newUser.last_name,
+          canSwitchAdmin: !!newUser.can_switch_admin,
+          avatarUrl: newUser.avatar_url,
+        },
+        settings,
+      });
+    } catch (e: any) {
+      console.error("Invite accept error:", e);
+      res.status(500).json({ error: e.message || "Failed to create staff account" });
     }
   });
 

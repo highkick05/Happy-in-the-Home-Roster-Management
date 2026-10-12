@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { motion } from 'motion/react';
-import { Plus, Edit2, Ban, CheckCircle, UsersIcon, UserPlus, Calendar, FileText, Tractor, Sparkles, Zap, Wrench, Activity, Droplet, Apple, Footprints, Smile, Mic } from 'lucide-react';
+import { Plus, Edit2, Ban, CheckCircle, UsersIcon, UserPlus, Calendar, FileText, Tractor, Sparkles, Zap, Wrench, Activity, Droplet, Apple, Footprints, Smile, Mic, Mail } from 'lucide-react';
 import StaffModal from './StaffModal';
+import InviteStaffModal from './InviteStaffModal';
 import ClientModal from './ClientModal';
 import ClientRosterModal from './ClientRosterModal';
 import ProviderModal from './ProviderModal';
@@ -148,6 +149,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [staffTab, setStaffTab] = useLocalStorage<'STAFF' | 'ADMIN'>('directory_staff_tab', 'STAFF');
 
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
+  const [isInviteStaffModalOpen, setIsInviteStaffModalOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
 
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
@@ -390,13 +392,25 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               {activeTab === 'CONTRACTORS' ? 'Services' : 'Providers'} <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-brand-navy border border-border-subtle text-[#8B949E]">{activeTab === 'CONTRACTORS' ? contractors.length : sortedProviders.length}</span>
             </div>
           )}
-          <button 
-            onClick={handleAddNew}
-            className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green hover:opacity-90 text-white text-xs font-medium rounded-md transition-all shadow-sm shrink-0"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add {activeTab === 'STAFF' ? 'Staff' : activeTab === 'CLIENTS' ? 'Client' : activeTab === 'CONTRACTORS' ? 'Service' : 'Provider'}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button 
+              onClick={handleAddNew}
+              className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green hover:opacity-90 text-white text-xs font-medium rounded-md transition-all shadow-sm shrink-0 cursor-pointer"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              Add {activeTab === 'STAFF' ? 'Staff' : activeTab === 'CLIENTS' ? 'Client' : activeTab === 'CONTRACTORS' ? 'Service' : 'Provider'}
+            </button>
+            {activeTab === 'STAFF' && (
+              <button 
+                onClick={() => setIsInviteStaffModalOpen(true)}
+                className="flex items-center px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-sky-300 border border-sky-500/30 text-xs font-medium rounded-md transition-all shadow-sm shrink-0 cursor-pointer"
+                title="Send an email invitation link for a staff member to create their account"
+              >
+                <Mail className="w-3.5 h-3.5 mr-1.5" />
+                Invite New Staff
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-x-auto">
@@ -772,6 +786,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
         }}
         token={token!}
         staff={selectedStaff}
+      />
+
+      <InviteStaffModal
+        isOpen={isInviteStaffModalOpen}
+        onClose={() => setIsInviteStaffModalOpen(false)}
+        token={token!}
       />
 
       <ClientModal

@@ -15,6 +15,7 @@ import FloatingChatIcon from './components/FloatingChatIcon';
 import Login from './components/Auth/Login';
 import ForgotPasswordView from './components/Auth/ForgotPasswordView';
 import ResetPasswordView from './components/Auth/ResetPasswordView';
+import StaffInviteAcceptView from './components/Auth/StaffInviteAcceptView';
 
 import StaffClientsView from './components/Directory/StaffClientsView';
 import ClientDashboardView from './components/Directory/ClientDashboardView';
@@ -517,6 +518,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPasswordView />} />
             <Route path="/reset-password/:token" element={<ResetPasswordView />} />
+            <Route path="/invite/:token" element={<StaffInviteAcceptView />} />
             <Route path="/shifts/claim/:id" element={<ClaimShiftView />} />
             <Route path="/kiosk/wallboard" element={<WallboardView />} />
             <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
