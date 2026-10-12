@@ -239,7 +239,7 @@ export default function StaffInviteAcceptView() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
           {/* First Name & Last Name */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
@@ -297,6 +297,10 @@ export default function StaffInviteAcceptView() {
             </label>
             <input
               type="text"
+              name="residential_address_lookup"
+              autoComplete="new-password"
+              autoCorrect="off"
+              spellCheck="false"
               required
               placeholder="Start typing your street address..."
               value={address}
