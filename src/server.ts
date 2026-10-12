@@ -4430,11 +4430,11 @@ try {
             <div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);">
               
               <!-- Brand Header with Crisp White Background for Letterhead Logo -->
-              <div style="background-color: #ffffff; padding: 36px 28px 24px 28px; text-align: center; border-bottom: 1px solid #f1f5f9;">
+              <div style="background-color: #ffffff; padding: 40px 28px 24px 28px; text-align: center; border-bottom: 1px solid #f1f5f9;">
                 ${
                   logoImgSrc
-                    ? `<div style="text-align: center; margin: 0 auto 16px auto;">
-                         <img src="${logoImgSrc}" alt="Happy in the Home" style="max-height: 100px; max-width: 280px; width: auto; height: auto; object-fit: contain; display: inline-block; vertical-align: middle;" />
+                    ? `<div style="text-align: center; margin: 0 auto 18px auto;">
+                         <img src="${logoImgSrc}" alt="Happy in the Home" style="max-height: 150px; max-width: 360px; width: auto; height: auto; object-fit: contain; display: inline-block; vertical-align: middle;" />
                        </div>`
                     : `<h1 style="color: #0f766e; margin: 0 0 8px 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em;">Happy in the Home</h1>`
                 }
