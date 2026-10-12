@@ -4576,7 +4576,7 @@ try {
           email, password_hash, role, first_name, last_name, phone, address,
           primary_position, position_id, pay_category_id,
           joined_date, created_at, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
       `);
 
       const info = stmt.run(
