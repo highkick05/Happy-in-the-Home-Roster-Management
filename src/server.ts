@@ -4357,7 +4357,46 @@ try {
 
       const s = getSmtpSettings();
 
-      const mailOptions = {
+      // Retrieve configured Website Logo from settings
+      let websiteLogoUrl = "";
+      const logoSetting = db.prepare("SELECT value FROM settings WHERE key = 'websiteLogo'").get() as any;
+      if (logoSetting && logoSetting.value) {
+        try {
+          const parsed = JSON.parse(logoSetting.value);
+          if (parsed && typeof parsed === 'string' && parsed.trim()) {
+            websiteLogoUrl = parsed.trim();
+          }
+        } catch (e) {
+          if (typeof logoSetting.value === 'string' && logoSetting.value.trim()) {
+            websiteLogoUrl = logoSetting.value.trim();
+          }
+        }
+      }
+
+      // If website logo is a relative path (e.g. /api/assets/...), prepend appUrl
+      let fullLogoUrl = "";
+      let logoAttachment: any = null;
+      if (websiteLogoUrl) {
+        if (websiteLogoUrl.startsWith("http://") || websiteLogoUrl.startsWith("https://")) {
+          fullLogoUrl = websiteLogoUrl;
+        } else {
+          fullLogoUrl = `${appUrl}${websiteLogoUrl.startsWith('/') ? '' : '/'}${websiteLogoUrl}`;
+          // Also check if local asset file exists on disk to embed as inline CID attachment (guarantees display in all email clients)
+          const filename = path.basename(websiteLogoUrl);
+          const localAssetFile = path.join(persistentAssetsDir, filename);
+          if (fs.existsSync(localAssetFile)) {
+            logoAttachment = {
+              filename,
+              path: localAssetFile,
+              cid: 'business-logo',
+            };
+          }
+        }
+      }
+
+      const logoImgSrc = logoAttachment ? 'cid:business-logo' : fullLogoUrl;
+
+      const mailOptions: any = {
         from: s.from,
         to: cleanEmail,
         subject: "Invitation to Join Happy in the Home - Create Your Staff Account",
@@ -4372,8 +4411,14 @@ try {
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0b1120; color: #ffffff; padding: 32px 24px; border-radius: 12px; border: 1px solid #1e293b;">
             <div style="text-align: center; margin-bottom: 24px;">
-              <h1 style="color: #2dd4bf; margin: 0; font-size: 24px; font-weight: 700;">Happy in the Home</h1>
-              <p style="color: #94a3b8; font-size: 13px; margin-top: 6px;">Staff Portal Account Invitation</p>
+              ${
+                logoImgSrc
+                  ? `<div style="margin-bottom: 14px; text-align: center;">
+                       <img src="${logoImgSrc}" alt="Happy in the Home" style="max-height: 70px; max-width: 220px; object-fit: contain; display: inline-block;" />
+                     </div>`
+                  : `<h1 style="color: #2dd4bf; margin: 0 0 4px 0; font-size: 24px; font-weight: 700;">Happy in the Home</h1>`
+              }
+              <p style="color: #94a3b8; font-size: 13px; margin: 0; font-weight: 500;">Staff Portal Account Invitation</p>
             </div>
             <div style="background: #111827; padding: 24px; border-radius: 8px; border: 1px solid #1f2937; margin-bottom: 24px;">
               <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0; color: #e2e8f0;">
@@ -4398,6 +4443,10 @@ try {
           </div>
         `,
       };
+
+      if (logoAttachment) {
+        mailOptions.attachments = [logoAttachment];
+      }
 
       await getTransporter().sendMail(mailOptions);
       res.json({
