@@ -354,27 +354,44 @@ export default function TrainingView() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/[0.04]">
-                    {staffTraining.filter(r => (r.title + ' ' + r.first_name + ' ' + r.last_name).toLowerCase().includes(searchQuery.toLowerCase())).map(r => (
-                      <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="px-4 py-2.5 text-[13px] text-white">{r.first_name} {r.last_name}</td>
-                        <td className="px-4 py-2.5 text-[13px] text-zinc-300">{r.title}</td>
-                        <td className="px-4 py-2.5 text-[13px] text-zinc-400">{new Date(r.completion_date).toLocaleDateString()}</td>
-                        <td className="px-4 py-2.5 text-[13px]">
-                          {r.expiry_date ? (
-                            <span className={new Date(r.expiry_date) < new Date() ? 'text-red-400 font-medium' : 'text-zinc-400'}>
-                              {new Date(r.expiry_date).toLocaleDateString()}
-                            </span>
-                          ) : <span className="text-zinc-600">-</span>}
-                        </td>
-                        <td className="px-4 py-2.5 text-[13px]">
-                          {r.certificate_file_path ? (
-                            <a href={`${r.certificate_file_path}${r.certificate_file_path.includes('?') ? '&' : '?'}token=${token}`} target="_blank" rel="noopener noreferrer" className="flex items-center text-brand-teal hover:text-brand-teal/80 transition-colors">
-                              <FileText className="w-3.5 h-3.5 mr-1.5" /> Download
-                            </a>
-                          ) : <span className="text-zinc-600">-</span>}
-                        </td>
-                      </tr>
-                    ))}
+                    {staffTraining.filter(r => {
+                      const modTitle = r.module_title || r.title || modules.find(m => m.id === r.training_module_id)?.title || '';
+                      const staffName = `${r.first_name || ''} ${r.last_name || ''}`;
+                      return (modTitle + ' ' + staffName).toLowerCase().includes(searchQuery.toLowerCase());
+                    }).map(r => {
+                      const modTitle = r.module_title || r.title || modules.find(m => m.id === r.training_module_id)?.title || 'Unknown Module';
+                      const creditHours = r.hours_credited > 0 ? r.hours_credited : (r.module_hours || modules.find(m => m.id === r.training_module_id)?.hours || 0);
+                      return (
+                        <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="px-4 py-2.5 text-[13px] text-white font-medium">{r.first_name} {r.last_name}</td>
+                          <td className="px-4 py-2.5 text-[13px] text-zinc-300">
+                            <div className="flex items-center gap-2">
+                              <span>{modTitle}</span>
+                              {creditHours > 0 && (
+                                <span className="text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded font-medium">
+                                  {creditHours} hr{creditHours === 1 ? '' : 's'}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5 text-[13px] text-zinc-400">{new Date(r.completion_date).toLocaleDateString()}</td>
+                          <td className="px-4 py-2.5 text-[13px]">
+                            {r.expiry_date ? (
+                              <span className={new Date(r.expiry_date) < new Date() ? 'text-red-400 font-medium' : 'text-zinc-400'}>
+                                {new Date(r.expiry_date).toLocaleDateString()}
+                              </span>
+                            ) : <span className="text-zinc-600">-</span>}
+                          </td>
+                          <td className="px-4 py-2.5 text-[13px]">
+                            {r.certificate_file_path ? (
+                              <a href={`${r.certificate_file_path}${r.certificate_file_path.includes('?') ? '&' : '?'}token=${token}`} target="_blank" rel="noopener noreferrer" className="flex items-center text-brand-teal hover:text-brand-teal/80 transition-colors">
+                                <FileText className="w-3.5 h-3.5 mr-1.5" /> Download
+                              </a>
+                            ) : <span className="text-zinc-600">-</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {staffTraining.length === 0 && (
                       <tr>
                         <td colSpan={5} className="px-4 py-8 text-center text-zinc-500 text-[13px]">

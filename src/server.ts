@@ -9647,18 +9647,20 @@ app.get("/api/health", (req, res) => {
       let staffTraining;
       if (req.user.role === 'ADMIN') {
          staffTraining = db.prepare(`
-            SELECT st.*, u.first_name, u.last_name, u.avatar_url, m.title as module_title 
+            SELECT st.*, u.first_name, u.last_name, u.avatar_url, 
+                   m.title as module_title, m.title as title, m.hours as module_hours 
             FROM staff_training st
             JOIN users u ON st.staff_id = u.id
-            JOIN training_modules m ON st.training_module_id = m.id
+            LEFT JOIN training_modules m ON st.training_module_id = m.id
             ORDER BY st.created_at DESC
          `).all();
       } else {
          staffTraining = db.prepare(`
-            SELECT st.*, u.first_name, u.last_name, u.avatar_url, m.title as module_title 
+            SELECT st.*, u.first_name, u.last_name, u.avatar_url, 
+                   m.title as module_title, m.title as title, m.hours as module_hours 
             FROM staff_training st
             JOIN users u ON st.staff_id = u.id
-            JOIN training_modules m ON st.training_module_id = m.id
+            LEFT JOIN training_modules m ON st.training_module_id = m.id
             WHERE st.staff_id = ?
             ORDER BY st.created_at DESC
          `).all(req.user.id);
