@@ -8201,22 +8201,33 @@ app.get("/api/health", (req, res) => {
             files = stepData.files || [];
           }
 
+          const isOptional = (step.is_mandatory === 0 || step.is_mandatory === false || step.is_mandatory === '0');
+
           if (step.upload_required === 0) {
             if (stepData.status === 'completed') {
-               compliance[key] = { label: step.title, status: "VALID", expiry: null, issued: null, fileName: "Confirmation Completed", fileId: null, isConfirmation: true };
+               compliance[key] = { label: step.title, status: "VALID", expiry: null, issued: null, fileName: "Confirmation Completed", fileId: null, isConfirmation: true, isMandatory: !isOptional };
             } else {
-               compliance[key] = { label: step.title, status: "MISSING", expiry: null, issued: null, fileName: null, fileId: null, isConfirmation: true };
+               if (isOptional) {
+                 continue;
+               }
+               compliance[key] = { label: step.title, status: "MISSING", expiry: null, issued: null, fileName: null, fileId: null, isConfirmation: true, isMandatory: true };
             }
             continue;
           }
           if (files.length === 0) {
-            compliance[key] = { label: step.title, status: "MISSING", expiry: null, issued: null, fileName: null, fileId: null };
+            if (isOptional) {
+              continue;
+            }
+            compliance[key] = { label: step.title, status: "MISSING", expiry: null, issued: null, fileName: null, fileId: null, isMandatory: true };
             continue;
           }
 
           const fileMeta = filesMap.get(files[0].id);
           if (!fileMeta) {
-            compliance[key] = { label: step.title, status: "MISSING", expiry: null, issued: null, fileName: null, fileId: null };
+            if (isOptional) {
+              continue;
+            }
+            compliance[key] = { label: step.title, status: "MISSING", expiry: null, issued: null, fileName: null, fileId: null, isMandatory: true };
             continue;
           }
 
@@ -8243,7 +8254,8 @@ app.get("/api/health", (req, res) => {
             issued: fileMeta.date_issued || null,
             fileName: fileMeta.original_name,
             fileId: fileMeta.id,
-            daysUntilExpiry: daysDiff
+            daysUntilExpiry: daysDiff,
+            isMandatory: !isOptional
           };
         }
 

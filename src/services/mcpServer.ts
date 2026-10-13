@@ -2315,7 +2315,7 @@ export function getExpiredMandatoryDocumentsLogic(db: Database.Database) {
               });
               totalMissingCount++;
             }
-          } else if (step.is_mandatory || step.upload_required) {
+          } else if (step.is_mandatory) {
             missingDocs.push({
               title: step.title,
               category: "Mandatory Document Missing",

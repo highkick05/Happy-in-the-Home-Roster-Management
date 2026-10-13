@@ -1256,6 +1256,7 @@ export default function ComplianceDashboard() {
                 let valid = 0;
 
                 Object.values(complianceObj).forEach((item: any) => {
+                  if (item.isMandatory === false && item.status === 'MISSING') return;
                   if (item.status === 'EXPIRED') expired++;
                   else if (item.status === 'EXPIRING_SOON') expiring++;
                   else if (item.status === 'MISSING') missing++;
@@ -1263,7 +1264,7 @@ export default function ComplianceDashboard() {
                 });
 
                 const totalUploaded = expired + expiring + valid;
-                const totalItems = Object.keys(complianceObj).length;
+                const totalItems = Object.values(complianceObj).filter((item: any) => !(item.isMandatory === false && item.status === 'MISSING')).length;
 
                 return {
                   expired,
@@ -1366,7 +1367,9 @@ export default function ComplianceDashboard() {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                              {Object.entries(staff.compliance || {}).map(([key, item]: [string, any]) => {
+                              {Object.entries(staff.compliance || {})
+                                .filter(([_, item]: [string, any]) => !(item.isMandatory === false && item.status === 'MISSING'))
+                                .map(([key, item]: [string, any]) => {
                                 const label = item.label || 'Unknown Document';
                                 
                                 let boxStyle = 'bg-brand-navy border-border-subtle';
@@ -1395,8 +1398,15 @@ export default function ComplianceDashboard() {
                                   <div key={key} className={`px-4 py-3 rounded-lg border flex flex-col justify-between h-full min-h-[120px] shadow-sm ${boxStyle}`}>
                                     <div>
                                       <div className="flex items-start justify-between gap-2 mb-2">
-                                        <span className="text-[11px] font-semibold text-[#E6EDF3] leading-tight">{label}</span>
-                                        <span className={`flex items-center gap-1.5 text-[10px] font-semibold leading-none uppercase ${textStyle}`}>
+                                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                          <span className="text-[11px] font-semibold text-[#E6EDF3] leading-tight">{label}</span>
+                                          {item.isMandatory === false && (
+                                            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 uppercase tracking-wider shrink-0">
+                                              Optional
+                                            </span>
+                                          )}
+                                        </div>
+                                        <span className={`flex items-center gap-1.5 text-[10px] font-semibold leading-none uppercase ${textStyle} shrink-0`}>
                                           <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
                                           {statusLabel}
                                         </span>
