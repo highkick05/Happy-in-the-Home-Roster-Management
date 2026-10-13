@@ -290,7 +290,9 @@ export default function StaffActivityReport() {
                     {visibleColumns.includes('serviceProvided') && (
                       <td className="px-3 py-2 font-medium col_service_provided">
                         <span className={
-                          row.isCustomService
+                          row.isTraining
+                            ? 'text-purple-400 font-semibold'
+                            : row.isCustomService
                             ? 'text-purple-400'
                             : /nurs|medic/i.test(row.serviceProvided || '')
                             ? 'text-pink-400'
@@ -303,6 +305,7 @@ export default function StaffActivityReport() {
                     {visibleColumns.includes('dayCategory') && (
                       <td className="px-3 py-2 text-center">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                          row.dayCategory === 'Training' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
                           row.dayCategory === 'Public Holiday' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
                           row.dayCategory === 'Sunday' ? 'bg-brand-blue/10 text-brand-blue border border-brand-blue/20' :
                           row.dayCategory === 'Saturday' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
@@ -339,7 +342,7 @@ export default function StaffActivityReport() {
             <h3 className="text-xs font-semibold text-[#E6EDF3] uppercase tracking-wider mb-4 flex items-center">
               <Activity className="w-4 h-4 mr-2 text-brand-teal" /> Unit Totals
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
               <div className="bg-brand-navy rounded-lg p-3 border border-border-subtle">
                 <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Weekday Hrs</div>
                 <div className="text-lg font-bold text-[#E6EDF3] tabular-nums">{reportData.totals.weekdayHours} <span className="text-xs font-normal text-[#8B949E]">hrs</span></div>
@@ -355,6 +358,10 @@ export default function StaffActivityReport() {
               <div className="bg-brand-navy rounded-lg p-3 border border-border-subtle">
                 <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Pub Hol Hrs</div>
                 <div className="text-lg font-bold text-[#E6EDF3] tabular-nums">{reportData.totals.publicHolidayHours} <span className="text-xs font-normal text-[#8B949E]">hrs</span></div>
+              </div>
+              <div className="bg-gradient-to-br from-purple-500/10 to-indigo-500/10 rounded-lg p-3 border border-purple-500/20">
+                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Training Hrs</div>
+                <div className="text-lg font-bold text-purple-400 tabular-nums">{reportData.totals.trainingHours !== undefined ? reportData.totals.trainingHours : 0} <span className="text-xs font-normal text-purple-400/70">hrs</span></div>
               </div>
               <div className="bg-gradient-to-br from-brand-teal/10 to-brand-green/10 rounded-lg p-3 border border-brand-teal/20">
                 <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Travel Km</div>

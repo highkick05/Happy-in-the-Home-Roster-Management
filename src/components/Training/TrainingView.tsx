@@ -20,6 +20,7 @@ export default function TrainingView() {
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
   const [expiryMonths, setExpiryMonths] = useState(0);
+  const [hours, setHours] = useState<number | string>(0);
   
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -61,7 +62,7 @@ export default function TrainingView() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ title, url, description, expiry_months: expiryMonths, tags })
+        body: JSON.stringify({ title, url, description, expiry_months: expiryMonths, tags, hours: Number(hours) || 0 })
       });
       if (res.ok) {
         setShowModuleModal(false);
@@ -210,6 +211,7 @@ export default function TrainingView() {
                         setDescription('');
                         setTags('');
                         setExpiryMonths(0);
+                        setHours(0);
                         setShowModuleModal(true);
                       }}
                       className="flex items-center px-3 py-1.5 bg-brand-teal/20 text-brand-teal hover:bg-brand-teal/30 border border-brand-teal/30 text-[13px] font-medium rounded transition-colors"
@@ -239,6 +241,11 @@ export default function TrainingView() {
                               )}
                               <h3 className="text-[14px] font-medium text-white">{mod.title}</h3>
                               {mod.expiry_months > 0 && <span className="text-[11px] text-zinc-500 whitespace-nowrap px-2 py-0.5 bg-black/20 rounded">Expires {mod.expiry_months} mo</span>}
+                              {mod.hours > 0 && (
+                                <span className="text-[11px] text-purple-300 whitespace-nowrap px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded font-medium">
+                                  {mod.hours} hr{mod.hours === 1 ? '' : 's'}
+                                </span>
+                              )}
                             </div>
                             {mod.description && <p className="text-[12px] text-zinc-400 line-clamp-2 leading-relaxed">{mod.description}</p>}
                           </div>
@@ -311,6 +318,7 @@ export default function TrainingView() {
                                 setDescription(mod.description || '');
                                 setTags(mod.tags || '');
                                 setExpiryMonths(mod.expiry_months || 0);
+                                setHours(mod.hours || 0);
                                 setShowModuleModal(true);
                               }} className="p-1.5 text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 rounded transition-colors">
                                 <Edit className="w-3.5 h-3.5" />
@@ -447,6 +455,19 @@ export default function TrainingView() {
                 />
                 <p className="text-[10px] text-zinc-500 mt-1">If set, expiry dates will be auto-calculated upon completion.</p>
               </div>
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Assigned Hours (Hours to complete module)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.25"
+                  value={hours}
+                  onChange={e => setHours(e.target.value)}
+                  placeholder="e.g. 1.5 (Hours paid to staff)"
+                  className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
+                />
+                <p className="text-[10px] text-zinc-500 mt-1">Staff will be credited with these hours in Staff Activity upon certificate upload.</p>
+              </div>
               <div className="pt-4 border-t border-white/[0.08] flex justify-end space-x-2">
                 <button
                   type="button"
@@ -479,6 +500,23 @@ export default function TrainingView() {
               </button>
             </div>
             <form onSubmit={handleUploadSubmit} className="p-5 space-y-4 bg-[#09090b] rounded-b-xl">
+              {(() => {
+                const mod = modules.find(m => m.id === uploadModuleId);
+                if (!mod) return null;
+                return (
+                  <div className="bg-white/5 border border-white/10 rounded-lg p-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] text-zinc-400 font-medium">Training Module</div>
+                      <div className="text-sm text-white font-semibold">{mod.title}</div>
+                    </div>
+                    {mod.hours > 0 && (
+                      <span className="text-xs font-semibold text-purple-300 bg-purple-500/20 border border-purple-500/30 px-2.5 py-1 rounded-md shrink-0">
+                        ⚡ {mod.hours} hr{mod.hours === 1 ? '' : 's'} credited to Activity
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
               <div>
                 <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Completion Date</label>
                 <input

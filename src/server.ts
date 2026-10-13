@@ -1955,15 +1955,38 @@ try {
     console.error("Migration error last_chat_read users:", err);
   }
 
-  // Add tags to training_modules
+  // Add tags and hours to training_modules
   try {
     const tableInfoTraining = db.prepare("PRAGMA table_info(training_modules)").all() as any[];
     if (!tableInfoTraining.some(col => col.name === 'tags')) {
       db.exec("ALTER TABLE training_modules ADD COLUMN tags TEXT");
       console.log("[DEBUG] Added tags to training_modules table.");
     }
+    if (!tableInfoTraining.some(col => col.name === 'hours')) {
+      db.exec("ALTER TABLE training_modules ADD COLUMN hours REAL DEFAULT 0");
+      console.log("[DEBUG] Added hours to training_modules table.");
+    }
   } catch (err) {
-    console.error("Migration error tags training_modules:", err);
+    console.error("Migration error tags/hours training_modules:", err);
+  }
+
+  // Add start_time, end_time, hours_credited to staff_training
+  try {
+    const tableInfoStaffTraining = db.prepare("PRAGMA table_info(staff_training)").all() as any[];
+    if (!tableInfoStaffTraining.some(col => col.name === 'start_time')) {
+      db.exec("ALTER TABLE staff_training ADD COLUMN start_time TEXT");
+      console.log("[DEBUG] Added start_time to staff_training table.");
+    }
+    if (!tableInfoStaffTraining.some(col => col.name === 'end_time')) {
+      db.exec("ALTER TABLE staff_training ADD COLUMN end_time TEXT");
+      console.log("[DEBUG] Added end_time to staff_training table.");
+    }
+    if (!tableInfoStaffTraining.some(col => col.name === 'hours_credited')) {
+      db.exec("ALTER TABLE staff_training ADD COLUMN hours_credited REAL DEFAULT 0");
+      console.log("[DEBUG] Added hours_credited to staff_training table.");
+    }
+  } catch (err) {
+    console.error("Migration error staff_training columns:", err);
   }
 
   
@@ -9649,9 +9672,9 @@ app.get("/api/health", (req, res) => {
 
   app.post('/api/training/modules', authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const { title, url, description, expiry_months, tags } = req.body;
-      const result = db.prepare('INSERT INTO training_modules (title, url, description, expiry_months, tags) VALUES (?, ?, ?, ?, ?)').run(
-        title, url, description, expiry_months || 0, tags
+      const { title, url, description, expiry_months, tags, hours } = req.body;
+      const result = db.prepare('INSERT INTO training_modules (title, url, description, expiry_months, tags, hours) VALUES (?, ?, ?, ?, ?, ?)').run(
+        title, url, description, expiry_months || 0, tags, Number(hours) || 0
       );
       res.json({ id: result.lastInsertRowid });
     } catch (e) {
@@ -9662,9 +9685,9 @@ app.get("/api/health", (req, res) => {
 
   app.put('/api/training/modules/:id', authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const { title, url, description, expiry_months, tags } = req.body;
-      db.prepare('UPDATE training_modules SET title = ?, url = ?, description = ?, expiry_months = ?, tags = ? WHERE id = ?').run(
-        title, url, description, expiry_months || 0, tags, req.params.id
+      const { title, url, description, expiry_months, tags, hours } = req.body;
+      db.prepare('UPDATE training_modules SET title = ?, url = ?, description = ?, expiry_months = ?, tags = ?, hours = ? WHERE id = ?').run(
+        title, url, description, expiry_months || 0, tags, Number(hours) || 0, req.params.id
       );
       res.json({ success: true });
     } catch (e) {
@@ -9720,16 +9743,36 @@ app.get("/api/health", (req, res) => {
           }
       }
 
+      // Look up module assigned hours
+      const mod = db.prepare('SELECT id, hours FROM training_modules WHERE id = ?').get(training_module_id) as any;
+      const assignedHours = mod && mod.hours ? Number(mod.hours) : 0;
+      const uploadNow = new Date();
+      const startTimeIso = uploadNow.toISOString();
+      const endTimeIso = new Date(uploadNow.getTime() + assignedHours * 3600000).toISOString();
+
       // Check if entry exists for this user and module
-      const existingRecord = db.prepare('SELECT id FROM staff_training WHERE staff_id = ? AND training_module_id = ?').get(targetUserId, training_module_id) as any;
+      const existingRecord = db.prepare('SELECT id, start_time, hours_credited FROM staff_training WHERE staff_id = ? AND training_module_id = ?').get(targetUserId, training_module_id) as any;
       
       if (existingRecord) {
-         db.prepare('UPDATE staff_training SET status = ?, completion_date = ?, expiry_date = ?, certificate_file_path = COALESCE(?, certificate_file_path) WHERE id = ?').run(
-           'COMPLETED', completion_date, expiry_date || null, certificatePath, existingRecord.id
+         db.prepare(`
+           UPDATE staff_training 
+           SET status = 'COMPLETED', 
+               completion_date = ?, 
+               expiry_date = ?, 
+               certificate_file_path = COALESCE(?, certificate_file_path),
+               start_time = COALESCE(start_time, ?),
+               end_time = ?,
+               hours_credited = ?
+           WHERE id = ?
+         `).run(
+           completion_date, expiry_date || null, certificatePath, startTimeIso, endTimeIso, assignedHours, existingRecord.id
          );
       } else {
-         db.prepare('INSERT INTO staff_training (staff_id, training_module_id, status, completion_date, expiry_date, certificate_file_path) VALUES (?, ?, ?, ?, ?, ?)').run(
-           targetUserId, training_module_id, 'COMPLETED', completion_date, expiry_date || null, certificatePath
+         db.prepare(`
+           INSERT INTO staff_training (staff_id, training_module_id, status, completion_date, expiry_date, certificate_file_path, start_time, end_time, hours_credited) 
+           VALUES (?, ?, 'COMPLETED', ?, ?, ?, ?, ?, ?)
+         `).run(
+           targetUserId, training_module_id, completion_date, expiry_date || null, certificatePath, startTimeIso, endTimeIso, assignedHours
          );
       }
 
@@ -17297,6 +17340,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
             clientName: shift.client_first_name
               ? `${shift.client_first_name} ${shift.client_last_name || ""}`.trim()
               : "-",
+            rawSortTime: shift.start_time,
           });
 
           if (!isHomeCare && prov_km > 0 && hasProviderTravelService) {
@@ -17318,6 +17362,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
               clientName: shift.client_first_name
                 ? `${shift.client_first_name} ${shift.client_last_name || ""}`.trim()
                 : "-",
+              rawSortTime: shift.start_time,
             });
           }
 
@@ -17340,14 +17385,94 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
               clientName: shift.client_first_name
                 ? `${shift.client_first_name} ${shift.client_last_name || ""}`.trim()
                 : "-",
+              rawSortTime: shift.start_time,
             });
           }
 
           return rows;
         });
 
+        // Query completed staff training modules
+        let trainingQuery = `
+          SELECT st.*, tm.title as module_title, tm.hours as module_hours,
+                 u.first_name as staff_first_name, u.last_name as staff_last_name
+          FROM staff_training st
+          JOIN training_modules tm ON st.training_module_id = tm.id
+          JOIN users u ON st.staff_id = u.id
+          WHERE st.status = 'COMPLETED'
+            AND (st.hours_credited > 0 OR tm.hours > 0)
+        `;
+        const trainingParams: any[] = [];
+        if (startDate) {
+          const startUtc = fromZonedTime(`${startDate}T00:00:00`, timezone).toISOString();
+          trainingQuery += ` AND (st.start_time >= ? OR (st.start_time IS NULL AND st.completion_date >= ?))`;
+          trainingParams.push(startUtc, startDate);
+        }
+        if (endDate) {
+          const dateObj = new Date(endDate);
+          dateObj.setUTCDate(dateObj.getUTCDate() + 1);
+          const endNextDay = dateObj.toISOString().split('T')[0];
+          const endUtc = fromZonedTime(`${endNextDay}T00:00:00`, timezone).toISOString();
+          trainingQuery += ` AND (st.start_time < ? OR (st.start_time IS NULL AND st.completion_date <= ?))`;
+          trainingParams.push(endUtc, endDate);
+        }
+        if (staffId) {
+          trainingQuery += ` AND st.staff_id = ?`;
+          trainingParams.push(staffId);
+        }
+        trainingQuery += ` ORDER BY COALESCE(st.start_time, st.completion_date) DESC`;
+
+        const completedTrainings = db.prepare(trainingQuery).all(...trainingParams) as any[];
+
+        totals.trainingHours = 0;
+
+        const trainingRows = completedTrainings.map((st) => {
+          const creditHrs = parseFloat((st.hours_credited > 0 ? st.hours_credited : (st.module_hours || 0)).toFixed(2));
+          totals.trainingHours += creditHrs;
+
+          let stStart = st.start_time ? new Date(st.start_time) : (st.completion_date ? new Date(`${st.completion_date}T09:00:00`) : new Date());
+          let stEnd = st.end_time ? new Date(st.end_time) : new Date(stStart.getTime() + creditHrs * 3600000);
+
+          const parts = shiftDateFormatter.formatToParts(stStart);
+          let weekdayStr = parts.find((p: any) => p.type === "weekday")?.value || "";
+          const dayOnly = parts.find((p: any) => p.type === "day")?.value || "";
+          const monthOnly = parts.find((p: any) => p.type === "month")?.value || "";
+          const yearOnly = parts.find((p: any) => p.type === "year")?.value || "";
+          const dayStr = `${weekdayStr} ${dayOnly}/${monthOnly}/${yearOnly}`;
+
+          const timeStr = st.start_time ? `${timeFormatter.format(stStart)} - ${timeFormatter.format(stEnd)}` : "Completed";
+
+          return {
+            id: `tr_${st.id}`,
+            shiftId: `TR-${st.id}`,
+            dateAndDay: dayStr,
+            timeString: timeStr,
+            serviceProvided: `Training: ${st.module_title}`,
+            isCustomService: false,
+            isTraining: true,
+            hoursWorked: creditHrs,
+            shiftDuration: creditHrs,
+            dayCategory: "Training",
+            travelKm: 0,
+            travelHours: undefined,
+            travelReimbursement: undefined,
+            providerTravelKm: 0,
+            abtKm: 0,
+            staffName: `${st.staff_first_name} ${st.staff_last_name}`,
+            clientName: "-",
+            rawSortTime: st.start_time || `${st.completion_date}T00:00:00`,
+          };
+        });
+
+        // Combine activityLog and trainingRows, sorted by date/time
+        const combinedLog = [...activityLog, ...trainingRows].sort((a: any, b: any) => {
+          const timeA = a.rawSortTime ? new Date(a.rawSortTime).getTime() : 0;
+          const timeB = b.rawSortTime ? new Date(b.rawSortTime).getTime() : 0;
+          return timeB - timeA;
+        });
+
         res.json({
-          log: activityLog,
+          log: combinedLog,
           totals: {
             weekdayHours: parseFloat(totals.weekdayHours.toFixed(2)),
             saturdayHours: parseFloat(totals.saturdayHours.toFixed(2)),
@@ -17355,6 +17480,7 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
             publicHolidayHours: parseFloat(
               totals.publicHolidayHours.toFixed(2),
             ),
+            trainingHours: parseFloat((totals.trainingHours || 0).toFixed(2)),
             travelKm: parseFloat(totals.travelKm.toFixed(2)),
             travelHrs: parseFloat(totals.travelHrs.toFixed(2)),
             travelPayTotal: parseFloat((totals.travelPayTotal || 0).toFixed(2)),
