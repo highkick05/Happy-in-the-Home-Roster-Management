@@ -1243,6 +1243,7 @@ export default function ComplianceDashboard() {
           <div className="bg-brand-navy">
             {(() => {
               const filteredCompliance = complianceData.filter(staff => {
+                if (staff.status === 'SUSPENDED') return false;
                 const sTerm = complianceSearch.toLowerCase();
                 const fullName = `${staff.first_name || ''} ${staff.last_name || ''}`.toLowerCase();
                 const email = (staff.email || '').toLowerCase();

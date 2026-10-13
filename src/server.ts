@@ -8108,7 +8108,7 @@ app.get("/api/health", (req, res) => {
 
   app.get("/api/admin/staff-compliance", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const staffList = db.prepare("SELECT id, first_name, last_name, email, onboarding_json, primary_position, additional_positions FROM users WHERE role = 'STAFF'").all() as any[];
+      const staffList = db.prepare("SELECT id, first_name, last_name, email, onboarding_json, primary_position, additional_positions, status FROM users WHERE role = 'STAFF' AND (status IS NULL OR status != 'SUSPENDED')").all() as any[];
       const allFiles = db.prepare("SELECT id, date_issued, date_expires, original_name FROM files").all() as any[];
       const filesMap = new Map(allFiles.map((f) => [f.id, f]));
       
@@ -8264,6 +8264,7 @@ app.get("/api/health", (req, res) => {
           first_name: staff.first_name || staff.firstName || "",
           last_name: staff.last_name || staff.lastName || "",
           email: staff.email,
+          status: staff.status || "ACTIVE",
           compliance,
         };
       });
@@ -21615,7 +21616,7 @@ function resolveFilePath(systemName) {
           const dynamicSteps = db.prepare("SELECT * FROM onboarding_hub_steps WHERE requires_expiry = 1").all() as any[];
           if (dynamicSteps.length === 0) return;
 
-          const staffList = db.prepare("SELECT id, first_name, last_name, email, onboarding_json FROM users WHERE role = 'STAFF'").all() as any[];
+          const staffList = db.prepare("SELECT id, first_name, last_name, email, onboarding_json FROM users WHERE role = 'STAFF' AND (status IS NULL OR status != 'SUSPENDED')").all() as any[];
           const allFiles = db.prepare("SELECT id, date_expires, original_name FROM files").all() as any[];
           const filesMap = new Map(allFiles.map(f => [f.id, f]));
 

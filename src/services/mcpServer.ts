@@ -2228,7 +2228,7 @@ export function getExpiredMandatoryDocumentsLogic(db: Database.Database) {
   const staffMembers = db.prepare(`
     SELECT id, first_name, last_name, email, role, primary_position, additional_positions
     FROM users 
-    WHERE (role = 'STAFF' OR role = 'ADMIN') AND (status IS NULL OR status != 'ARCHIVED')
+    WHERE (role = 'STAFF' OR role = 'ADMIN') AND (status IS NULL OR (status != 'ARCHIVED' AND status != 'SUSPENDED'))
     ORDER BY first_name ASC
   `).all() as any[];
 
