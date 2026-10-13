@@ -146,7 +146,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [contractors, setContractors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientTab, setClientTab] = useLocalStorage<'NDIS' | 'HOME_CARE'>('directory_client_tab', 'NDIS');
-  const [staffTab, setStaffTab] = useLocalStorage<'STAFF' | 'ADMIN'>('directory_staff_tab', 'STAFF');
+  const [staffTab, setStaffTab] = useLocalStorage<'STAFF' | 'ADMIN' | 'SUSPENDED'>('directory_staff_tab', 'STAFF');
 
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [isInviteStaffModalOpen, setIsInviteStaffModalOpen] = useState(false);
@@ -343,9 +343,14 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const displayClients = clientTab === 'NDIS' ? ndisClients : homeCareClients;
 
   const sortedStaff = [...staff].sort(sortClients);
-  const staffRoleStaff = sortedStaff.filter(s => s.role === 'STAFF');
-  const staffRoleAdmin = sortedStaff.filter(s => s.role === 'ADMIN');
-  const displayStaff = staffTab === 'STAFF' ? staffRoleStaff : staffRoleAdmin;
+  const staffRoleStaff = sortedStaff.filter(s => s.role === 'STAFF' && s.status !== 'SUSPENDED');
+  const staffRoleAdmin = sortedStaff.filter(s => s.role === 'ADMIN' && s.status !== 'SUSPENDED');
+  const staffRoleSuspended = sortedStaff.filter(s => s.status === 'SUSPENDED');
+  const displayStaff = staffTab === 'STAFF' 
+    ? staffRoleStaff 
+    : staffTab === 'ADMIN' 
+      ? staffRoleAdmin 
+      : staffRoleSuspended;
 
   const sortedProviders = [...providers].sort((a: any, b: any) => {
     const nameA = a.company_name?.toLowerCase() || '';
@@ -385,6 +390,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 className={`flex items-center px-4 py-2 text-xs font-medium transition-colors border-b-2 mb-[-1px] ${staffTab === 'ADMIN' ? 'border-brand-green text-[#E6EDF3] bg-brand-navy' : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3] hover:bg-brand-navy/50'}`}
               >
                 Admins <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${staffTab === 'ADMIN' ? 'bg-brand-green/10 text-brand-green' : 'bg-brand-navy border border-border-subtle text-[#8B949E]'}`}>{staffRoleAdmin.length}</span>
+              </button>
+              <button
+                onClick={() => setStaffTab('SUSPENDED')}
+                className={`flex items-center px-4 py-2 text-xs font-medium transition-colors border-b-2 mb-[-1px] ${staffTab === 'SUSPENDED' ? 'border-red-500 text-[#E6EDF3] bg-brand-navy' : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3] hover:bg-brand-navy/50'}`}
+              >
+                Suspended <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${staffTab === 'SUSPENDED' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-brand-navy border border-border-subtle text-[#8B949E]'}`}>{staffRoleSuspended.length}</span>
               </button>
             </div>
           ) : (
@@ -553,8 +564,8 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                       </button>
                       <button 
                         onClick={() => handleToggleStatus(s.id, s.status || 'ACTIVE')} 
-                        className="p-1.5 text-[#8B949E] hover:text-red-400 transition-colors rounded-md hover:bg-white/[0.04]"
-                        title={s.status === 'SUSPENDED' ? 'Reactivate' : 'Suspend'}
+                        className={`p-1.5 transition-colors rounded-md hover:bg-white/[0.04] ${s.status === 'SUSPENDED' ? 'text-emerald-400 hover:text-emerald-300' : 'text-[#8B949E] hover:text-red-400'}`}
+                        title={s.status === 'SUSPENDED' ? 'Unsuspend' : 'Suspend'}
                       >
                         {s.status === 'SUSPENDED' ? <CheckCircle className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
                       </button>
@@ -758,7 +769,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
               })}
 
               {(activeTab === 'STAFF' && displayStaff.length === 0) && (
-                <tr><td colSpan={3} className="px-4 py-6 text-center text-[#8B949E]">No staff found in this category.</td></tr>
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No {staffTab === 'SUSPENDED' ? 'suspended personnel' : staffTab === 'ADMIN' ? 'admins' : 'staff'} found.</td></tr>
               )}
               {(activeTab === 'CLIENTS' && displayClients.length === 0) && (
                 <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No clients found in this category.</td></tr>
