@@ -247,7 +247,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
           actual_start_time: new Date().toISOString(),
           odometer_start_reading: odometerReading ? Math.round(Number(odometerReading)).toString() : '',
           odometer_start_photo: odometerPhoto,
-          vehicle_id: selectedVehicleId ? Number(selectedVehicleId) : null
+          vehicle_id: (shift.fundingType === 'NDIS' || !shift.fundingType) && selectedVehicleId ? Number(selectedVehicleId) : null
         })
       });
       if (res.ok) {
@@ -601,7 +601,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                       onChange={e => handleNotesChange(e.target.value)}
                     />
                   </div>
-                  {(() => {
+                  {isNDIS && (() => {
                     const vId = (shift as any).vehicle_id || (shift as any).vehicleId || selectedVehicleId;
                     const assignedVehicle = vehicles.find(v => String(v.id) === String(vId));
                     if (!assignedVehicle) return null;
@@ -634,7 +634,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                     <span className="text-zinc-300 font-bold block mb-2 text-xs uppercase tracking-wider">Shift Notes</span>
                     <p className="text-sm md:text-base leading-relaxed text-zinc-100 text-center bg-black/40 rounded-lg p-3 border border-zinc-700/50">{shift.notes || "No notes provided."}</p>
                   </div>
-                  {(() => {
+                  {isNDIS && (() => {
                     const vId = (shift as any).vehicle_id || (shift as any).vehicleId || selectedVehicleId;
                     const assignedVehicle = vehicles.find(v => String(v.id) === String(vId));
                     if (!assignedVehicle) return null;
@@ -660,76 +660,78 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
 
               {shift.status === 'PUBLISHED' && (
                 <div className="flex flex-col gap-3">
-                  {/* Vehicle Selection */}
-                  <div className="bg-zinc-800/90 border border-zinc-700/80 rounded-xl p-4 shadow-sm space-y-2.5">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="text-xs md:text-sm font-extrabold text-zinc-100 uppercase tracking-widest flex items-center mb-1">
-                          <Car className="w-4 h-4 mr-2 text-brand-teal shrink-0" /> SHIFT VEHICLE
-                        </h4>
-                        <p className="text-xs text-zinc-400 leading-snug font-medium">
-                          Select the vehicle you are using for this shift.
-                        </p>
+                  {/* Vehicle Selection - NDIS shifts only */}
+                  {isNDIS && (
+                    <div className="bg-zinc-800/90 border border-zinc-700/80 rounded-xl p-4 shadow-sm space-y-2.5">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="text-xs md:text-sm font-extrabold text-zinc-100 uppercase tracking-widest flex items-center mb-1">
+                            <Car className="w-4 h-4 mr-2 text-brand-teal shrink-0" /> SHIFT VEHICLE
+                          </h4>
+                          <p className="text-xs text-zinc-400 leading-snug font-medium">
+                            Select the vehicle you are using for this shift.
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    <div>
-                      <select
-                        className="w-full bg-black/60 border border-zinc-700 rounded-xl py-2.5 px-3.5 text-sm md:text-base text-white focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal transition-colors"
-                        value={selectedVehicleId}
-                        onChange={e => setSelectedVehicleId(e.target.value)}
-                      >
-                        {vehicles.length === 0 ? (
-                          <option value="">No vehicles found</option>
-                        ) : (
-                          <>
-                            {vehicles.filter(v => v.ownership === 'PRIVATE').length > 0 && (
-                              <optgroup label="Personal Vehicles (Staff)">
-                                {vehicles
-                                  .filter(v => v.ownership === 'PRIVATE')
-                                  .map(v => (
-                                    <option key={v.id} value={v.id}>
-                                      {v.name} ({v.rego || 'No Rego'}){v.is_primary ? ' ★ Primary' : ''}
-                                    </option>
-                                  ))}
-                              </optgroup>
-                            )}
-                            {vehicles.filter(v => v.ownership === 'COMPANY').length > 0 && (
-                              <optgroup label="Company Vehicles">
-                                {vehicles
-                                  .filter(v => v.ownership === 'COMPANY')
-                                  .map(v => (
-                                    <option key={v.id} value={v.id}>
-                                      {v.name} ({v.rego || 'No Rego'}) - Company Vehicle
-                                    </option>
-                                  ))}
-                              </optgroup>
-                            )}
-                          </>
-                        )}
-                      </select>
-                    </div>
+                      <div>
+                        <select
+                          className="w-full bg-black/60 border border-zinc-700 rounded-xl py-2.5 px-3.5 text-sm md:text-base text-white focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal transition-colors"
+                          value={selectedVehicleId}
+                          onChange={e => setSelectedVehicleId(e.target.value)}
+                        >
+                          {vehicles.length === 0 ? (
+                            <option value="">No vehicles found</option>
+                          ) : (
+                            <>
+                              {vehicles.filter(v => v.ownership === 'PRIVATE').length > 0 && (
+                                <optgroup label="Personal Vehicles (Staff)">
+                                  {vehicles
+                                    .filter(v => v.ownership === 'PRIVATE')
+                                    .map(v => (
+                                      <option key={v.id} value={v.id}>
+                                        {v.name} ({v.rego || 'No Rego'}){v.is_primary ? ' ★ Primary' : ''}
+                                      </option>
+                                    ))}
+                                </optgroup>
+                              )}
+                              {vehicles.filter(v => v.ownership === 'COMPANY').length > 0 && (
+                                <optgroup label="Company Vehicles">
+                                  {vehicles
+                                    .filter(v => v.ownership === 'COMPANY')
+                                    .map(v => (
+                                      <option key={v.id} value={v.id}>
+                                        {v.name} ({v.rego || 'No Rego'}) - Company Vehicle
+                                      </option>
+                                    ))}
+                                </optgroup>
+                              )}
+                            </>
+                          )}
+                        </select>
+                      </div>
 
-                    {(() => {
-                      const sel = vehicles.find(v => String(v.id) === String(selectedVehicleId));
-                      if (sel && sel.ownership === 'COMPANY') {
-                        return (
-                          <div className="p-2.5 bg-amber-950/40 border border-amber-500/30 rounded-lg text-xs text-amber-300 flex items-start leading-relaxed">
-                            <Info className="w-4 h-4 mr-2 text-amber-400 shrink-0 mt-0.5" />
-                            <div className="space-y-1.5 w-full">
-                              <div>
-                                <strong>Company Vehicle Selected:</strong> Provider Travel starts and ends at the Business Address. In accordance with policy, staff travel KM reimbursement is not credited for company vehicle use.
-                              </div>
-                              <div className="font-bold text-amber-200 tracking-wide text-[11px] uppercase bg-amber-900/50 px-2.5 py-1 rounded border border-amber-500/40 flex items-center">
-                                <span>REMINDER: ENTER ALL TRAVEL DESTINATIONS AS PER NORMAL</span>
+                      {(() => {
+                        const sel = vehicles.find(v => String(v.id) === String(selectedVehicleId));
+                        if (sel && sel.ownership === 'COMPANY') {
+                          return (
+                            <div className="p-2.5 bg-amber-950/40 border border-amber-500/30 rounded-lg text-xs text-amber-300 flex items-start leading-relaxed">
+                              <Info className="w-4 h-4 mr-2 text-amber-400 shrink-0 mt-0.5" />
+                              <div className="space-y-1.5 w-full">
+                                <div>
+                                  <strong>Company Vehicle Selected:</strong> Provider Travel starts and ends at the Business Address. In accordance with policy, staff travel KM reimbursement is not credited for company vehicle use.
+                                </div>
+                                <div className="font-bold text-amber-200 tracking-wide text-[11px] uppercase bg-amber-900/50 px-2.5 py-1 rounded border border-amber-500/40 flex items-center">
+                                  <span>REMINDER: ENTER ALL TRAVEL DESTINATIONS AS PER NORMAL</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  )}
 
                   <>
                     {isNDIS && (
