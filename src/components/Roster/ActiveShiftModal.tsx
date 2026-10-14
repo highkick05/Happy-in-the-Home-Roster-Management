@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera, RotateCcw, CheckSquare } from 'lucide-react';
+import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera, RotateCcw, CheckSquare, Car } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ShiftEvent } from './types';
 
@@ -64,6 +64,9 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
 
   const [odometerReading, setOdometerReading] = useState('');
   const [odometerPhoto, setOdometerPhoto] = useState('');
+
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
 
   const [showCancelPrompt, setShowCancelPrompt] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -179,6 +182,40 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
     }
   }, [isOpen, shift]);
 
+  useEffect(() => {
+    if (!isOpen || !shift || !token) return;
+    const fetchVehicles = async () => {
+      try {
+        const res = await fetch('/api/vehicles', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setVehicles(data);
+
+          const existingVehicleId = (shift as any).vehicle_id || (shift as any).vehicleId;
+          if (existingVehicleId && data.some((v: any) => String(v.id) === String(existingVehicleId))) {
+            setSelectedVehicleId(String(existingVehicleId));
+          } else {
+            const privateVehicles = data.filter((v: any) => v.ownership === 'PRIVATE');
+            const companyVehicles = data.filter((v: any) => v.ownership === 'COMPANY');
+            const defaultPrivate = privateVehicles.find((v: any) => v.is_primary) || privateVehicles[0];
+            if (defaultPrivate) {
+              setSelectedVehicleId(String(defaultPrivate.id));
+            } else if (companyVehicles.length > 0) {
+              setSelectedVehicleId(String(companyVehicles[0].id));
+            } else if (data.length > 0) {
+              setSelectedVehicleId(String(data[0].id));
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load vehicles:', err);
+      }
+    };
+    fetchVehicles();
+  }, [isOpen, shift?.id, (shift as any)?.vehicle_id, (shift as any)?.vehicleId, token]);
+
 
   const getShortDateBadge = (dateString: Date) => {
     const d = new Date(dateString);
@@ -209,7 +246,8 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
         body: JSON.stringify({
           actual_start_time: new Date().toISOString(),
           odometer_start_reading: odometerReading ? Math.round(Number(odometerReading)).toString() : '',
-          odometer_start_photo: odometerPhoto
+          odometer_start_photo: odometerPhoto,
+          vehicle_id: selectedVehicleId ? Number(selectedVehicleId) : null
         })
       });
       if (res.ok) {
@@ -563,6 +601,27 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                       onChange={e => handleNotesChange(e.target.value)}
                     />
                   </div>
+                  {(() => {
+                    const vId = (shift as any).vehicle_id || (shift as any).vehicleId || selectedVehicleId;
+                    const assignedVehicle = vehicles.find(v => String(v.id) === String(vId));
+                    if (!assignedVehicle) return null;
+                    return (
+                      <div className="bg-zinc-800/80 border border-zinc-700 rounded-xl px-3.5 py-2 flex items-center justify-between text-xs">
+                        <span className="text-zinc-400 flex items-center font-medium">
+                          <Car className="w-3.5 h-3.5 mr-1.5 text-brand-teal shrink-0" />
+                          Vehicle:
+                        </span>
+                        <span className="font-semibold text-zinc-200">
+                          {assignedVehicle.name} ({assignedVehicle.rego || 'No Rego'})
+                          {assignedVehicle.ownership === 'COMPANY' ? (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">Company</span>
+                          ) : (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-700 text-zinc-300">Personal</span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -575,11 +634,98 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                     <span className="text-zinc-300 font-bold block mb-2 text-xs uppercase tracking-wider">Shift Notes</span>
                     <p className="text-sm md:text-base leading-relaxed text-zinc-100 text-center bg-black/40 rounded-lg p-3 border border-zinc-700/50">{shift.notes || "No notes provided."}</p>
                   </div>
+                  {(() => {
+                    const vId = (shift as any).vehicle_id || (shift as any).vehicleId || selectedVehicleId;
+                    const assignedVehicle = vehicles.find(v => String(v.id) === String(vId));
+                    if (!assignedVehicle) return null;
+                    return (
+                      <div className="bg-zinc-800/80 border border-zinc-700 rounded-xl px-3.5 py-2 flex items-center justify-between text-xs">
+                        <span className="text-zinc-400 flex items-center font-medium">
+                          <Car className="w-3.5 h-3.5 mr-1.5 text-brand-teal shrink-0" />
+                          Vehicle:
+                        </span>
+                        <span className="font-semibold text-zinc-200">
+                          {assignedVehicle.name} ({assignedVehicle.rego || 'No Rego'})
+                          {assignedVehicle.ownership === 'COMPANY' ? (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">Company</span>
+                          ) : (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-700 text-zinc-300">Personal</span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
               {shift.status === 'PUBLISHED' && (
-                <div className="flex flex-col">
+                <div className="flex flex-col gap-3">
+                  {/* Vehicle Selection */}
+                  <div className="bg-zinc-800/90 border border-zinc-700/80 rounded-xl p-4 shadow-sm space-y-2.5">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="text-xs md:text-sm font-extrabold text-zinc-100 uppercase tracking-widest flex items-center mb-1">
+                          <Car className="w-4 h-4 mr-2 text-brand-teal shrink-0" /> SHIFT VEHICLE
+                        </h4>
+                        <p className="text-xs text-zinc-400 leading-snug font-medium">
+                          Select the vehicle you are using for this shift.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <select
+                        className="w-full bg-black/60 border border-zinc-700 rounded-xl py-2.5 px-3.5 text-sm md:text-base text-white focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal transition-colors"
+                        value={selectedVehicleId}
+                        onChange={e => setSelectedVehicleId(e.target.value)}
+                      >
+                        {vehicles.length === 0 ? (
+                          <option value="">No vehicles found</option>
+                        ) : (
+                          <>
+                            {vehicles.filter(v => v.ownership === 'PRIVATE').length > 0 && (
+                              <optgroup label="Personal Vehicles (Staff)">
+                                {vehicles
+                                  .filter(v => v.ownership === 'PRIVATE')
+                                  .map(v => (
+                                    <option key={v.id} value={v.id}>
+                                      {v.name} ({v.rego || 'No Rego'}){v.is_primary ? ' ★ Primary' : ''}
+                                    </option>
+                                  ))}
+                              </optgroup>
+                            )}
+                            {vehicles.filter(v => v.ownership === 'COMPANY').length > 0 && (
+                              <optgroup label="Company Vehicles">
+                                {vehicles
+                                  .filter(v => v.ownership === 'COMPANY')
+                                  .map(v => (
+                                    <option key={v.id} value={v.id}>
+                                      {v.name} ({v.rego || 'No Rego'}) - Company Vehicle
+                                    </option>
+                                  ))}
+                              </optgroup>
+                            )}
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    {(() => {
+                      const sel = vehicles.find(v => String(v.id) === String(selectedVehicleId));
+                      if (sel && sel.ownership === 'COMPANY') {
+                        return (
+                          <div className="p-2.5 bg-amber-950/40 border border-amber-500/30 rounded-lg text-xs text-amber-300 flex items-start leading-relaxed">
+                            <Info className="w-4 h-4 mr-2 text-amber-400 shrink-0 mt-0.5" />
+                            <span>
+                              <strong>Company Vehicle Selected:</strong> Provider Travel starts and ends at the Business Address. In accordance with policy, staff travel KM reimbursement is not credited for company vehicle use.
+                            </span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+
                   <>
                     {isNDIS && (
                       <div className="bg-indigo-900/40 border-2 border-indigo-500/30 shadow-md rounded-xl p-4 space-y-4 mt-1">

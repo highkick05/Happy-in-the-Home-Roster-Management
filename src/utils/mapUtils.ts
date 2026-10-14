@@ -170,3 +170,33 @@ export const getRecordCoordinates = async (tableName: 'clients' | 'users', recor
 };
 
 export const formatCoords = (coords: any[]) => coords && coords.length === 2 ? `[${coords[0].toFixed(2)}, ${coords[1].toFixed(2)}]` : '';
+
+const addressCoordsCache = new Map<string, [number, number]>();
+
+export const getAddressCoordinates = async (addressText?: string): Promise<[number, number]> => {
+  if (addressText) addressText = addressText.trim();
+  if (!addressText) {
+    return [153.025, -27.48];
+  }
+  if (addressCoordsCache.has(addressText)) {
+    return addressCoordsCache.get(addressText)!;
+  }
+
+  try {
+    const apiKey = process.env.Maps_API_KEY || process.env.Maps_PLATFORM_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
+    const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText)}&key=${apiKey}`;
+    const res = await fetch(geoUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        const location = data.results[0].geometry.location;
+        const coords: [number, number] = [location.lng, location.lat];
+        addressCoordsCache.set(addressText, coords);
+        return coords;
+      }
+    }
+  } catch (e) {
+    console.warn(`[DEBUG Geocode] Geocoding failed for address "${addressText}":`, e);
+  }
+  return [153.025, -27.48];
+};

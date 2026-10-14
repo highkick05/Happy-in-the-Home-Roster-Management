@@ -38,5 +38,7 @@ export interface ShiftEvent {
   travelBreakdown?: string;
   actualStartTime?: string;
   actualFinishTime?: string;
+  vehicleId?: number;
+  vehicle_id?: number;
 }
 

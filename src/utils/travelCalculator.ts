@@ -1,6 +1,6 @@
 // DO NOT MODIFY
 import db from '../../db.js';
-import { getGoogleRoutesDistance, getRecordCoordinates, formatCoords } from './mapUtils.js';
+import { getGoogleRoutesDistance, getRecordCoordinates, getAddressCoordinates, formatCoords } from './mapUtils.js';
 
 export const calculateProviderTravel = async (shift: any) => {
   if (shift.respite_booking_id) return { distance: 0, cost: 0, routeLogs: [] };
@@ -12,16 +12,46 @@ export const calculateProviderTravel = async (shift: any) => {
     return { distance: 0, cost: 0, routeLogs: [] };
   }
 
+  let isCompanyVehicle = false;
+  if (shift.vehicle_id) {
+    const v = db.prepare('SELECT ownership FROM vehicles WHERE id = ?').get(shift.vehicle_id) as any;
+    if (v && v.ownership === 'COMPANY') {
+      isCompanyVehicle = true;
+    }
+  }
+
   const staff = db.prepare('SELECT address, first_name, last_name FROM users WHERE id = ?').get(shift.staff_id) as any;
   const client = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(shift.client_id) as any;
   
   const staffName = staff ? `${staff.first_name} ${staff.last_name}`.trim() : 'Unknown Staff';
   const clientName = client ? `${client.first_name} ${client.last_name}`.trim() : 'Unknown Client';
   
-  const staffHomeCoords = await getRecordCoordinates('users', shift.staff_id, staff?.address);
+  let originAddress = staff?.address;
+  let originLabel = 'Staff Home';
+  let originCoords = await getRecordCoordinates('users', shift.staff_id, staff?.address);
+
+  if (isCompanyVehicle) {
+    const settingRow = db.prepare("SELECT value FROM settings WHERE key = 'businessAddress'").get() as any;
+    let bAddress = '';
+    if (settingRow && settingRow.value) {
+      try {
+        bAddress = typeof settingRow.value === 'string' && (settingRow.value.startsWith('"') || settingRow.value.startsWith('{')) 
+          ? JSON.parse(settingRow.value) 
+          : settingRow.value;
+      } catch (e) {
+        bAddress = settingRow.value;
+      }
+    }
+    if (bAddress && typeof bAddress === 'string' && bAddress.trim()) {
+      originAddress = bAddress.trim();
+      originLabel = 'Business Address';
+      originCoords = await getAddressCoordinates(originAddress);
+    }
+  }
+
   const clientCoords = await getRecordCoordinates('clients', shift.client_id, client?.address);
 
-  const staffHomeStr = `Staff Home (${staff?.address || 'Unknown'}) ${formatCoords(staffHomeCoords)}`;
+  const originStr = `${originLabel} (${originAddress || 'Unknown'}) ${formatCoords(originCoords)}`;
   const clientHomeStr = `Client Home (${client?.address || 'Unknown'}) ${formatCoords(clientCoords)}`;
 
   try {
@@ -69,11 +99,11 @@ export const calculateProviderTravel = async (shift: any) => {
       totalMins += apportionedMins;
       routeLogs.push({ description: `(50% Apportionment) ${prevClientStr} to ${clientHomeStr}`, distance: apportionedDist, durationMins: apportionedMins, waypoints: [prevClientCoords, clientCoords], addressStart: prevClientInfo?.address, addressEnd: client?.address });
     } else {
-      console.log(`[NDIS Travel] No incoming chaining (Gap: ${prevGapMins === Infinity ? 'N/A' : prevGapMins.toFixed(0)} mins). Using Staff Home.`);
-      const { distance: distHome, minutes: minsHome } = await getGoogleRoutesDistance([staffHomeCoords, clientCoords]);
+      console.log(`[NDIS Travel] No incoming chaining (Gap: ${prevGapMins === Infinity ? 'N/A' : prevGapMins.toFixed(0)} mins). Using ${originLabel}.`);
+      const { distance: distHome, minutes: minsHome } = await getGoogleRoutesDistance([originCoords, clientCoords]);
       totalDist += distHome;
       totalMins += minsHome;
-      routeLogs.push({ description: `(100% Allocation) ${staffHomeStr} to ${clientHomeStr}`, distance: distHome, durationMins: minsHome, waypoints: [staffHomeCoords, clientCoords], addressStart: staff?.address, addressEnd: client?.address });
+      routeLogs.push({ description: `(100% Allocation) ${originStr} to ${clientHomeStr}`, distance: distHome, durationMins: minsHome, waypoints: [originCoords, clientCoords], addressStart: originAddress, addressEnd: client?.address });
     }
 
     // Outgoing Trip
@@ -93,11 +123,11 @@ export const calculateProviderTravel = async (shift: any) => {
       totalMins += apportionedMins;
       routeLogs.push({ description: `(50% Apportionment) ${clientHomeStr} to ${nextClientStr}`, distance: apportionedDist, durationMins: apportionedMins, waypoints: [clientCoords, nextClientCoords], addressStart: client?.address, addressEnd: nextClientInfo?.address });
     } else {
-      console.log(`[NDIS Travel] No chaining for end (Gap: ${nextGapMins === Infinity ? 'N/A' : nextGapMins.toFixed(0)} mins). Using Return to Staff Home.`);
-      const { distance: distReturn, minutes: minsReturn } = await getGoogleRoutesDistance([clientCoords, staffHomeCoords]);
+      console.log(`[NDIS Travel] No chaining for end (Gap: ${nextGapMins === Infinity ? 'N/A' : nextGapMins.toFixed(0)} mins). Using Return to ${originLabel}.`);
+      const { distance: distReturn, minutes: minsReturn } = await getGoogleRoutesDistance([clientCoords, originCoords]);
       totalDist += distReturn;
       totalMins += minsReturn;
-      routeLogs.push({ description: `(100% Allocation) ${clientHomeStr} to Staff Home (Return trip)`, distance: distReturn, durationMins: minsReturn, waypoints: [clientCoords, staffHomeCoords], addressStart: client?.address, addressEnd: staff?.address });
+      routeLogs.push({ description: `(100% Allocation) ${clientHomeStr} to ${originLabel} (Return trip)`, distance: distReturn, durationMins: minsReturn, waypoints: [clientCoords, originCoords], addressStart: client?.address, addressEnd: originAddress });
     }
 
     // Enforce MMM6 Boundary Checks (Hard cap at 60 mins)

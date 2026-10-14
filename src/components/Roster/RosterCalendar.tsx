@@ -235,6 +235,8 @@ export default function RosterCalendar() {
           startOdometer: d.odometer_start_reading ? Math.round(Number(d.odometer_start_reading)).toString() : null,
           endOdometer: d.odometer_end_reading ? Math.round(Number(d.odometer_end_reading)).toString() : null,
           isHistorical: d.is_historical,
+          vehicleId: d.vehicle_id,
+          vehicle_id: d.vehicle_id,
         }));
         
         const mappedRespites: any[] = [];

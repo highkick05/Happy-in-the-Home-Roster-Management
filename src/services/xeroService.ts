@@ -1488,8 +1488,16 @@ export function previewXeroPayRun(db: any, params: {
     const hcHrs = shift.respite_booking_id ? 0 : (calculatedMins / 60);
     const hcReimb = shift.respite_booking_id ? 0 : (shift.home_care_travel_total || 0);
 
-    const provKm = (shift.respite_booking_id ? 0 : shift.provider_travel_km || 0) * (hasProviderTravelService ? 1 : 0);
-    const abtKm = (shift.respite_booking_id ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0);
+    let isCompanyVehicle = false;
+    if (shift.vehicle_id) {
+      const v = db.prepare('SELECT ownership FROM vehicles WHERE id = ?').get(shift.vehicle_id) as any;
+      if (v && v.ownership === 'COMPANY') {
+        isCompanyVehicle = true;
+      }
+    }
+
+    const provKm = isCompanyVehicle ? 0 : ((shift.respite_booking_id ? 0 : shift.provider_travel_km || 0) * (hasProviderTravelService ? 1 : 0));
+    const abtKm = isCompanyVehicle ? 0 : ((shift.respite_booking_id ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0));
     const ndisKm = provKm + abtKm;
     const ndisReimb = parseFloat((ndisKm * 0.99).toFixed(2));
 

@@ -15700,9 +15700,9 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
     }
   });
 
-  app.post("/api/shifts/:id/start", authenticateToken, (req: any, res: any) => {
+  app.post("/api/shifts/:id/start", authenticateToken, async (req: any, res: any) => {
     const { id } = req.params;
-    const { odometer_start_reading, odometer_start_photo, actual_start_time } =
+    const { odometer_start_reading, odometer_start_photo, actual_start_time, vehicle_id } =
       req.body;
     try {
       const shift = db
@@ -15714,15 +15714,37 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
 
       // Use the provided local check-in time, fallback to server time
       const startTime = actual_start_time || new Date().toISOString();
-      db.prepare(
-        "UPDATE shifts SET actual_start_time = ?, status = ?, odometer_start_reading = ?, odometer_start_photo = ? WHERE id = ?",
-      ).run(
-        startTime,
-        "IN_PROGRESS",
-        odometer_start_reading || null,
-        odometer_start_photo || null,
-        id,
-      );
+      if (vehicle_id !== undefined) {
+        db.prepare(
+          "UPDATE shifts SET actual_start_time = ?, status = ?, odometer_start_reading = ?, odometer_start_photo = ?, vehicle_id = ? WHERE id = ?",
+        ).run(
+          startTime,
+          "IN_PROGRESS",
+          odometer_start_reading || null,
+          odometer_start_photo || null,
+          vehicle_id ? Number(vehicle_id) : null,
+          id,
+        );
+      } else {
+        db.prepare(
+          "UPDATE shifts SET actual_start_time = ?, status = ?, odometer_start_reading = ?, odometer_start_photo = ? WHERE id = ?",
+        ).run(
+          startTime,
+          "IN_PROGRESS",
+          odometer_start_reading || null,
+          odometer_start_photo || null,
+          id,
+        );
+      }
+
+      if (shift.staff_id && shift.start_time) {
+        try {
+          await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);
+        } catch (cascadeErr) {
+          console.error("Error recalculating day travel on start shift:", cascadeErr);
+        }
+      }
+
       res.json({ success: true, actual_start_time: startTime });
     } catch (e: any) {
       logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -17294,8 +17316,19 @@ const shiftsByDay = Array(7).fill(null).map(() => []);
           const hc_travel_total = shift.respite_booking_id
             ? 0
             : shift.home_care_travel_total || 0;
-          const prov_km = (shift.respite_booking_id ? 0 : shift.provider_travel_km || 0) * (hasProviderTravelService ? 1 : 0);
-          const abt_km = (shift.respite_booking_id ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0);
+          let isCompanyVehicle = false;
+          if (shift.vehicle_id) {
+            const v = db.prepare('SELECT ownership FROM vehicles WHERE id = ?').get(shift.vehicle_id) as any;
+            if (v && v.ownership === 'COMPANY') {
+              isCompanyVehicle = true;
+            }
+          }
+
+          const raw_prov_km = (shift.respite_booking_id ? 0 : shift.provider_travel_km || 0) * (hasProviderTravelService ? 1 : 0);
+          const raw_abt_km = (shift.respite_booking_id ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0);
+
+          const prov_km = isCompanyVehicle ? 0 : raw_prov_km;
+          const abt_km = isCompanyVehicle ? 0 : raw_abt_km;
 
           totals.travelKm += isHomeCare ? hc_travel_km : prov_km + abt_km;
           totals.travelHrs += isHomeCare ? hc_travel_hrs : 0;
