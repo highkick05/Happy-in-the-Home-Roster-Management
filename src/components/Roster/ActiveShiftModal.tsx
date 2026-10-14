@@ -716,9 +716,14 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                         return (
                           <div className="p-2.5 bg-amber-950/40 border border-amber-500/30 rounded-lg text-xs text-amber-300 flex items-start leading-relaxed">
                             <Info className="w-4 h-4 mr-2 text-amber-400 shrink-0 mt-0.5" />
-                            <span>
-                              <strong>Company Vehicle Selected:</strong> Provider Travel starts and ends at the Business Address. In accordance with policy, staff travel KM reimbursement is not credited for company vehicle use.
-                            </span>
+                            <div className="space-y-1.5 w-full">
+                              <div>
+                                <strong>Company Vehicle Selected:</strong> Provider Travel starts and ends at the Business Address. In accordance with policy, staff travel KM reimbursement is not credited for company vehicle use.
+                              </div>
+                              <div className="font-bold text-amber-200 tracking-wide text-[11px] uppercase bg-amber-900/50 px-2.5 py-1 rounded border border-amber-500/40 flex items-center">
+                                <span>REMINDER: ENTER ALL TRAVEL DESTINATIONS AS PER NORMAL</span>
+                              </div>
+                            </div>
                           </div>
                         );
                       }
