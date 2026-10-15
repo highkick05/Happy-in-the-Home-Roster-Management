@@ -144,8 +144,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [clients, setClients] = useState<any[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
   const [contractors, setContractors] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [clientTab, setClientTab] = useLocalStorage<'NDIS' | 'HOME_CARE'>('directory_client_tab', 'NDIS');
+  const [clientTab, setClientTab] = useLocalStorage<'NDIS' | 'HOME_CARE' | 'SUSPENDED'>('directory_client_tab', 'NDIS');
   const [staffTab, setStaffTab] = useLocalStorage<'STAFF' | 'ADMIN' | 'SUSPENDED'>('directory_staff_tab', 'STAFF');
 
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
@@ -338,9 +337,15 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
     return nameA.localeCompare(nameB);
   };
 
-  const ndisClients = clients.filter(c => !isHomeCare(c)).sort(sortClients);
-  const homeCareClients = clients.filter(c => isHomeCare(c)).sort(sortClients);
-  const displayClients = clientTab === 'NDIS' ? ndisClients : homeCareClients;
+  const activeClients = clients.filter(c => c.status !== 'SUSPENDED');
+  const suspendedClients = clients.filter(c => c.status === 'SUSPENDED').sort(sortClients);
+  const ndisClients = activeClients.filter(c => !isHomeCare(c)).sort(sortClients);
+  const homeCareClients = activeClients.filter(c => isHomeCare(c)).sort(sortClients);
+  const displayClients = clientTab === 'NDIS' 
+    ? ndisClients 
+    : clientTab === 'HOME_CARE' 
+      ? homeCareClients 
+      : suspendedClients;
 
   const sortedStaff = [...staff].sort(sortClients);
   const staffRoleStaff = sortedStaff.filter(s => s.role === 'STAFF' && s.status !== 'SUSPENDED');
@@ -375,6 +380,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 className={`flex items-center px-4 py-2 text-xs font-medium transition-colors border-b-2 mb-[-1px] ${clientTab === 'HOME_CARE' ? 'border-brand-green text-[#E6EDF3] bg-brand-navy' : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3] hover:bg-brand-navy/50'}`}
               >
                 Home Care <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'HOME_CARE' ? 'bg-brand-green/10 text-brand-green' : 'bg-brand-navy border border-border-subtle text-[#8B949E]'}`}>{homeCareClients.length}</span>
+              </button>
+              <button
+                onClick={() => setClientTab('SUSPENDED')}
+                className={`flex items-center px-4 py-2 text-xs font-medium transition-colors border-b-2 mb-[-1px] ${clientTab === 'SUSPENDED' ? 'border-red-500 text-[#E6EDF3] bg-brand-navy' : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3] hover:bg-brand-navy/50'}`}
+              >
+                Suspended <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${clientTab === 'SUSPENDED' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-brand-navy border border-border-subtle text-[#8B949E]'}`}>{suspendedClients.length}</span>
               </button>
             </div>
           ) : activeTab === 'STAFF' ? (
@@ -616,8 +627,13 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                       )}
                     </td>
                     <td className="px-4 py-2">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider ${isHomeCare(c) ? 'bg-brand-green/10 text-brand-green border border-brand-green/20' : 'bg-brand-teal/10 text-brand-teal border border-brand-teal/20'}`}>
+                          {isHomeCare(c) ? 'Home Care' : 'NDIS'}
+                        </span>
+                      </div>
                       <div className="text-[#E6EDF3] font-mono text-xs">
-                        {c.funding_type === 'HOME_CARE' ? (
+                        {isHomeCare(c) ? (
                           <>Home Care ID: {c.my_aged_care_id || c.ndis_number || 'N/A'}</>
                         ) : (
                           <>NDIS Number: {c.ndis_number || 'N/A'}</>
@@ -643,8 +659,8 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                       </button>
                       <button 
                         onClick={() => handleToggleStatus(c.id, c.status || 'ACTIVE')} 
-                        className="p-1.5 text-[#8B949E] hover:text-red-400 transition-colors rounded-md hover:bg-white/[0.04]"
-                        title={c.status === 'SUSPENDED' ? 'Reactivate' : 'Suspend'}
+                        className={`p-1.5 transition-colors rounded-md hover:bg-white/[0.04] ${c.status === 'SUSPENDED' ? 'text-emerald-400 hover:text-emerald-300' : 'text-[#8B949E] hover:text-red-400'}`}
+                        title={c.status === 'SUSPENDED' ? 'Unsuspend' : 'Suspend'}
                       >
                         {c.status === 'SUSPENDED' ? <CheckCircle className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
                       </button>
@@ -772,7 +788,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No {staffTab === 'SUSPENDED' ? 'suspended personnel' : staffTab === 'ADMIN' ? 'admins' : 'staff'} found.</td></tr>
               )}
               {(activeTab === 'CLIENTS' && displayClients.length === 0) && (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No clients found in this category.</td></tr>
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-[#8B949E]">No {clientTab === 'SUSPENDED' ? 'suspended clients' : clientTab === 'HOME_CARE' ? 'Home Care clients' : 'NDIS clients'} found.</td></tr>
               )}
               {(activeTab === 'CONTRACTORS' && contractors.length === 0) && (
                 <tr><td colSpan={4} className="px-4 py-6 text-center text-[#8B949E]">No services found.</td></tr>
