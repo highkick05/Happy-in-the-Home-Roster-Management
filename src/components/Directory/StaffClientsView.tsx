@@ -138,6 +138,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
     setActiveTab(type);
   }, [type]);
 
+  const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
   const [updatingPositionStaffId, setUpdatingPositionStaffId] = useState<number | null>(null);
