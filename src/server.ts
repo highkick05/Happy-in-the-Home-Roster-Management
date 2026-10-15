@@ -4419,22 +4419,75 @@ try {
       if (chosenLogoUrl) {
         if (chosenLogoUrl.startsWith("http://") || chosenLogoUrl.startsWith("https://")) {
           fullLogoUrl = chosenLogoUrl;
+        } else if (chosenLogoUrl.startsWith("data:image/")) {
+          try {
+            const match = chosenLogoUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+            if (match) {
+              const mimeType = match[1];
+              const rawBuf = Buffer.from(match[2], 'base64');
+              if (rawBuf.length > 0) {
+                const ext = mimeType.split('/')[1] || 'png';
+                logoAttachment = {
+                  filename: `logo.${ext}`,
+                  content: rawBuf,
+                  contentType: mimeType,
+                  cid: 'letterhead-logo',
+                  contentDisposition: 'inline',
+                };
+              }
+            }
+          } catch (e) {
+            console.error("Error parsing base64 logo for staff invite:", e);
+          }
         } else {
           fullLogoUrl = `${appUrl}${chosenLogoUrl.startsWith('/') ? '' : '/'}${chosenLogoUrl}`;
           // Also check if local asset file exists on disk to embed as inline CID attachment (guarantees display in all email clients)
-          const filename = path.basename(chosenLogoUrl);
-          const localAssetFile = path.join(persistentAssetsDir, filename);
-          if (fs.existsSync(localAssetFile)) {
-            logoAttachment = {
-              filename,
-              path: localAssetFile,
-              cid: 'letterhead-logo',
-            };
+          const fileWithQuery = chosenLogoUrl.split("/").pop() || "";
+          const cleanFilename = fileWithQuery.split("?")[0].split("#")[0];
+          if (cleanFilename) {
+            const candidatePaths = [
+              path.join(process.cwd(), "uploads", "assets", cleanFilename),
+              path.join(process.cwd(), "data", "uploads", "assets", cleanFilename),
+              path.join(process.cwd(), "assets", cleanFilename),
+              path.join(persistentAssetsDir, cleanFilename),
+            ];
+            for (const candidatePath of candidatePaths) {
+              try {
+                if (fs.existsSync(candidatePath) && fs.statSync(candidatePath).isFile() && fs.statSync(candidatePath).size > 0) {
+                  const fileBuffer = fs.readFileSync(candidatePath);
+                  if (fileBuffer && fileBuffer.length > 0) {
+                    const ext = path.extname(cleanFilename).toLowerCase();
+                    const mimeTypes: Record<string, string> = {
+                      '.png': 'image/png',
+                      '.jpg': 'image/jpeg',
+                      '.jpeg': 'image/jpeg',
+                      '.gif': 'image/gif',
+                      '.webp': 'image/webp',
+                      '.svg': 'image/svg+xml',
+                    };
+                    logoAttachment = {
+                      filename: cleanFilename,
+                      content: fileBuffer,
+                      contentType: mimeTypes[ext] || 'image/png',
+                      cid: 'letterhead-logo',
+                      contentDisposition: 'inline',
+                    };
+                    break;
+                  }
+                }
+              } catch (e) {
+                // Continue checking other candidates
+              }
+            }
           }
         }
       }
 
-      const logoImgSrc = logoAttachment ? 'cid:letterhead-logo' : fullLogoUrl;
+      // Only use 'cid:letterhead-logo' if we have a valid, non-empty inline attachment buffer.
+      // If no valid attachment is loaded, fallback to fullLogoUrl only if it is an external URL, otherwise empty string (so text header renders cleanly without broken img tags).
+      const logoImgSrc = logoAttachment
+        ? 'cid:letterhead-logo'
+        : (fullLogoUrl.startsWith('http://') || fullLogoUrl.startsWith('https://')) ? fullLogoUrl : '';
 
       const mailOptions: any = {
         from: s.from,
