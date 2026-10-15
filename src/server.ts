@@ -4530,9 +4530,15 @@ try {
 
                 <!-- Call to action button -->
                 <div style="text-align: center; margin: 30px 0;">
-                  <a href="${inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #0d9488 0%, #10b981 100%); color: #ffffff; text-decoration: none; padding: 14px 34px; border-radius: 10px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 14px rgba(13, 148, 136, 0.35); letter-spacing: 0.01em;">
-                    Create Staff Account &rarr;
-                  </a>
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto; border-collapse: separate;" align="center">
+                    <tr>
+                      <td align="center" bgcolor="#0d9488" style="border-radius: 10px; background-color: #0d9488; background: #0d9488 linear-gradient(135deg, #0d9488 0%, #10b981 100%);">
+                        <a href="${inviteLink}" target="_blank" style="display: inline-block; background-color: #0d9488; background: #0d9488 linear-gradient(135deg, #0d9488 0%, #10b981 100%); color: #ffffff !important; text-decoration: none; padding: 14px 34px; border-radius: 10px; font-size: 15px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; letter-spacing: 0.01em; border: 1px solid #0d9488;">
+                          <span style="color: #ffffff !important; font-weight: 600; text-decoration: none;">Create Staff Account &rarr;</span>
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
                 </div>
 
                 <!-- Direct link box -->
