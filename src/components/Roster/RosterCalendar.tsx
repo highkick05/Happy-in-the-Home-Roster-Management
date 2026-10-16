@@ -18,6 +18,7 @@ import AddRespiteBookingModal from './AddRespiteBookingModal';
 import ShiftDetailsModal from './ShiftDetailsModal';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import ActiveShiftModal from './ActiveShiftModal';
+import PrintRosterModal from './PrintRosterModal';
 
 const locales = {
   'en-US': enUS,
@@ -102,6 +103,7 @@ export default function RosterCalendar() {
   const [selectedShift, setSelectedShift] = useState<ShiftEvent | null>(null);
   const [copiedShift, setCopiedShift] = useState<ShiftEvent | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   // Filters and Grouping
   const [clientFilter, setClientFilter] = useLocalStorage<string>('roster_client_filter', '');
@@ -663,22 +665,33 @@ export default function RosterCalendar() {
     setIsRespiteModalOpen(true);
   };
 
-  const handlePrintPdf = async () => {
+  const activeFilterDescription = React.useMemo(() => {
+    if (clientFilter) {
+      const c = clientList.find(c => c.id.toString() === clientFilter);
+      return c ? `Client: ${c.first_name} ${c.last_name}` : 'Filtered by Client';
+    }
+    if (staffFilter) {
+      if (staffFilter === 'unassigned') return 'Unassigned Staff Shifts';
+      const s = staffList.find(s => s.id.toString() === staffFilter);
+      return s ? `Staff: ${s.first_name} ${s.last_name}` : 'Filtered by Staff';
+    }
+    if (user?.role !== 'ADMIN') {
+      return `Staff: ${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+    }
+    return 'All Staff & Clients';
+  }, [clientFilter, staffFilter, clientList, staffList, user]);
+
+  const handlePrintPdfWithOptions = async (rangeStart: Date, rangeEnd: Date) => {
     try {
-      const startDayStr = settings?.invoicingStartDay || 'Monday';
-      const weekStartsOn = DAYS_OF_WEEK.indexOf(startDayStr) !== -1 ? DAYS_OF_WEEK.indexOf(startDayStr) : 1;
-      const weekStart = startOfWeek(date, { weekStartsOn: weekStartsOn as any });
-      const weekEnd = endOfWeek(date, { weekStartsOn: weekStartsOn as any });
-      
-      const startIso = weekStart.toISOString();
-      const endIso = weekEnd.toISOString();
+      const startIso = rangeStart.toISOString();
+      const endIso = rangeEnd.toISOString();
       
       const [shiftsRes, respiteRes] = await Promise.all([
         fetch(`/api/shifts?start=${startIso}&end=${endIso}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
         fetch(`/api/respite-bookings`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
       ]);
       
-      let currentWeekShifts: any[] = [];
+      let inRangeShifts: any[] = [];
       if (shiftsRes.ok && respiteRes.ok) {
         const shiftsData = await shiftsRes.json();
         const respiteData = await respiteRes.json();
@@ -710,12 +723,14 @@ export default function RosterCalendar() {
           clientName: d.client_first_name + ' ' + d.client_last_name,
           status: d.status,
           isRespiteWrapper: true,
-          respiteData: d
+          respiteData: d,
+          serviceName: 'Respite / STA'
         }));
         
-        currentWeekShifts = [...mappedIndividual, ...mappedRespite].filter(shift => {
+        inRangeShifts = [...mappedIndividual, ...mappedRespite].filter(shift => {
           const sDate = new Date(shift.start);
-          if (!(sDate >= weekStart && sDate <= weekEnd)) return false;
+          const eDate = new Date(shift.end);
+          if (sDate > rangeEnd || eDate < rangeStart) return false;
 
           if (user?.role === 'ADMIN') {
             if (clientFilter && shift.clientId?.toString() !== clientFilter) return false;
@@ -762,11 +777,11 @@ export default function RosterCalendar() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          startDate: weekStart.toISOString(),
-          endDate: weekEnd.toISOString(),
+          startDate: rangeStart.toISOString(),
+          endDate: rangeEnd.toISOString(),
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           view: activeView,
-          shifts: currentWeekShifts,
+          shifts: inRangeShifts,
           groupBy,
           filterName
         })
@@ -782,10 +797,10 @@ export default function RosterCalendar() {
       a.style.display = 'none';
       a.href = url;
       
-      const startStr = format(weekStart, 'MMM_dd');
-      const endStr = format(weekEnd, 'MMM_dd');
+      const startStr = format(rangeStart, 'dd_MMM_yyyy');
+      const endStr = format(rangeEnd, 'dd_MMM_yyyy');
       const safeName = filterName ? filterName.replace(/[^a-zA-Z0-9]+/g, '_') : 'All';
-      a.download = `${safeName}_${startStr}_${endStr}_Roster.pdf`;
+      a.download = `${safeName}_${startStr}_to_${endStr}_Roster.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -1285,7 +1300,7 @@ export default function RosterCalendar() {
                     {/* Secondary Actions */}
                     <div className="flex items-center gap-2">
                       <button 
-                          onClick={handlePrintPdf}
+                          onClick={() => setIsPrintModalOpen(true)}
                           className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto gap-1.5"
                         >
                           <Printer className="w-3.5 h-3.5" />
@@ -1338,7 +1353,7 @@ export default function RosterCalendar() {
           )}
           {user?.role !== 'ADMIN' && (
             <button 
-              onClick={handlePrintPdf}
+              onClick={() => setIsPrintModalOpen(true)}
               className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto gap-1.5"
               title="Print Weekly Roster"
             >
@@ -1517,6 +1532,15 @@ export default function RosterCalendar() {
           clientList={clientList}
         />
       )}
+
+      <PrintRosterModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        currentDate={date}
+        invoicingStartDay={settings?.invoicingStartDay}
+        activeFilterDescription={activeFilterDescription}
+        onPrint={handlePrintPdfWithOptions}
+      />
     </div>
   );
 }

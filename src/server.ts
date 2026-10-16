@@ -13539,165 +13539,255 @@ app.get("/api/health", (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename="Roster.pdf"`);
         doc.pipe(res);
 
-        const formatDate = (dateString) => {
-           const d = new Date(dateString);
-           return new Intl.DateTimeFormat('en-AU', { 
-               timeZone: tz, 
-               day: '2-digit', 
-               month: '2-digit', 
-               year: 'numeric' 
-           }).format(d);
+        const formatDate = (dateObj) => {
+          return new Intl.DateTimeFormat('en-AU', { 
+            timeZone: tz, 
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric' 
+          }).format(dateObj);
         };
 
         const titleText = filterName ? `${filterName} - Roster` : `Roster`;
-        const subTitleText = `${formatDate(startDate)} to ${formatDate(endDate || startDate)}`;
 
-const shiftsByDay = Array(7).fill(null).map(() => []);
-        
-        
+        // Calculate overall total hours across all shifts
+        const allShifts = shifts || [];
         let totalOverallHours = 0;
-        const dailyTotalHours = Array(7).fill(0);
-        
-        const thisWeekShifts = shifts || [];
-        thisWeekShifts.forEach(shift => {
-          const shiftDate = new Date(shift.start);
-          const weekdayStr = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(shiftDate);
-          const daysMap = { 'Mon': 0, 'Tue': 1, 'Wed': 2, 'Thu': 3, 'Fri': 4, 'Sat': 5, 'Sun': 6 };
-          let d = daysMap[weekdayStr];
-          
-          if (d >= 0 && d <= 6) {
-             shiftsByDay[d].push(shift);
-             const durationMs = new Date(shift.end).getTime() - new Date(shift.start).getTime();
-             const hours = durationMs / (1000 * 60 * 60);
-             dailyTotalHours[d] += hours;
-             totalOverallHours += hours;
+        allShifts.forEach(shift => {
+          const durationMs = new Date(shift.end).getTime() - new Date(shift.start).getTime();
+          const hours = durationMs / (1000 * 60 * 60);
+          if (!isNaN(hours) && hours > 0) {
+            totalOverallHours += hours;
           }
         });
 
-        
-        shiftsByDay.forEach(dayShifts => {
-           dayShifts.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-        });
-        
-        
-        const initialY = doc.y;
-        doc.fontSize(16).fillColor('#000000').text(titleText, { align: 'center' });
-        doc.fontSize(12).fillColor('#555555').text(subTitleText, { align: 'center' });
-        
-        doc.fontSize(12).fillColor('#000000').text(`Total Hours: ${totalOverallHours.toFixed(2)}`, 30, initialY, { align: 'right', width: doc.page.width - 60 });
-        
-        // Reset y just to be safe
-        doc.y = initialY + 40;
+        // Determine date boundaries
+        const startD = new Date(startDate);
+        const endD = new Date(endDate || startDate);
 
-        doc.moveDown(1);
-        
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        const colWidth = (doc.page.width - 60) / 7;
-        let startY = doc.y;
-        
-        const drawHeader = () => {
-          doc.fillColor('#000000').fontSize(11);
-          days.forEach((d, i) => {
-            doc.text(d, 30 + i * colWidth, startY, { width: colWidth, align: 'center' });
+        // Build array of 7-day week blocks
+        const weeks = [];
+        let currWeekStart = new Date(startD);
+
+        while (currWeekStart <= endD) {
+          const weekDays = [];
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(currWeekStart);
+            d.setDate(d.getDate() + i);
+
+            const dayName = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long' }).format(d);
+            const dateFormatted = new Intl.DateTimeFormat('en-AU', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
+
+            weekDays.push({
+              date: d,
+              dayName,
+              dateFormatted
+            });
+          }
+
+          const currWeekEnd = new Date(weekDays[6].date);
+          currWeekEnd.setHours(23, 59, 59, 999);
+
+          const startMonthStr = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'long', year: 'numeric' }).format(currWeekStart);
+          const endMonthStr = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'long', year: 'numeric' }).format(currWeekEnd);
+          const monthDisplay = startMonthStr === endMonthStr ? startMonthStr : `${startMonthStr} – ${endMonthStr}`;
+
+          weeks.push({
+            weekStart: new Date(currWeekStart),
+            weekEnd: currWeekEnd,
+            monthDisplay,
+            days: weekDays
           });
-          doc.moveTo(30, startY + 15).lineTo(doc.page.width - 30, startY + 15).strokeColor('#cccccc').stroke();
-          startY += 20;
-        };
-        
-        drawHeader();
-        
-        
-        
-        const maxShifts = Math.max(...shiftsByDay.map(d => d.length));
-        let currentY = startY;
-        
-        for (let i = 0; i < maxShifts; i++) {
-           let rowMaxHeight = 0;
-           
-           // Calculate max height for this row
-           for (let d = 0; d < 7; d++) {
-             const shift = shiftsByDay[d][i];
-             if (shift) {
-                const sStart = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(shift.start));
-                const sEnd = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(shift.end));
+
+          const nextStart = new Date(currWeekStart);
+          nextStart.setDate(nextStart.getDate() + 7);
+          if (nextStart > endD && weeks.length > 0) {
+            break;
+          }
+          currWeekStart = nextStart;
+        }
+
+        // Render each week
+        weeks.forEach((w, weekIdx) => {
+          if (weekIdx > 0) {
+            doc.addPage();
+          }
+
+          const shiftsByDay = Array(7).fill(null).map(() => []);
+          const dailyTotalHours = Array(7).fill(0);
+          let weekTotalHours = 0;
+
+          allShifts.forEach(shift => {
+            const shiftStart = new Date(shift.start);
+            const shiftDateFormatted = new Intl.DateTimeFormat('en-AU', { 
+              timeZone: tz, 
+              day: '2-digit', 
+              month: '2-digit', 
+              year: 'numeric' 
+            }).format(shiftStart);
+
+            const dayIdx = w.days.findIndex(d => d.dateFormatted === shiftDateFormatted);
+            if (dayIdx !== -1) {
+              shiftsByDay[dayIdx].push(shift);
+              const durationMs = new Date(shift.end).getTime() - new Date(shift.start).getTime();
+              const hours = durationMs / (1000 * 60 * 60);
+              if (!isNaN(hours) && hours > 0) {
+                dailyTotalHours[dayIdx] += hours;
+                weekTotalHours += hours;
+              }
+            }
+          });
+
+          shiftsByDay.forEach(dayShifts => {
+            dayShifts.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+          });
+
+          const initialY = doc.y;
+          doc.fontSize(15).fillColor('#000000').font('Helvetica-Bold').text(titleText, 30, initialY, { align: 'center', width: doc.page.width - 60 });
+          doc.fontSize(10.5).fillColor('#4b5563').font('Helvetica').text(
+            `${w.monthDisplay.toUpperCase()}  •  ${w.days[0].dateFormatted} to ${w.days[6].dateFormatted}`, 
+            30, 
+            doc.y + 3, 
+            { align: 'center', width: doc.page.width - 60 }
+          );
+
+          if (weeks.length > 1) {
+            doc.fontSize(10).fillColor('#111827').font('Helvetica-Bold')
+              .text(`Week Hours: ${weekTotalHours.toFixed(2)}`, 30, initialY, { align: 'right', width: doc.page.width - 60 });
+            doc.fontSize(8.5).fillColor('#4b5563').font('Helvetica')
+              .text(`Overall Total: ${totalOverallHours.toFixed(2)}`, 30, initialY + 14, { align: 'right', width: doc.page.width - 60 });
+          } else {
+            doc.fontSize(11).fillColor('#000000').font('Helvetica-Bold')
+              .text(`Total Hours: ${totalOverallHours.toFixed(2)}`, 30, initialY + 4, { align: 'right', width: doc.page.width - 60 });
+          }
+
+          doc.y = initialY + 42;
+          doc.moveDown(0.5);
+
+          const colWidth = (doc.page.width - 60) / 7;
+          let startY = doc.y;
+
+          const drawHeader = () => {
+            w.days.forEach((dayInfo, i) => {
+              const colX = 30 + i * colWidth;
+              doc.fillColor('#000000').fontSize(10).font('Helvetica-Bold');
+              doc.text(dayInfo.dayName, colX, startY, { width: colWidth, align: 'center' });
+              doc.fillColor('#4b5563').fontSize(8.5).font('Helvetica');
+              doc.text(dayInfo.dateFormatted, colX, startY + 12, { width: colWidth, align: 'center' });
+            });
+            doc.moveTo(30, startY + 26).lineTo(doc.page.width - 30, startY + 26).strokeColor('#cccccc').stroke();
+            startY += 32;
+          };
+
+          drawHeader();
+
+          const maxShifts = Math.max(...shiftsByDay.map(d => d.length), 0);
+          let currentY = startY;
+
+          for (let i = 0; i < maxShifts; i++) {
+            let rowMaxHeight = 0;
+
+            for (let d = 0; d < 7; d++) {
+              const shift = shiftsByDay[d][i];
+              if (shift) {
+                const sStart = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(shift.start));
+                const sEnd = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(shift.end));
                 const timeText = `${sStart} - ${sEnd}`;
-                
+
                 let namesText = groupBy === 'STAFF' 
                   ? `${shift.clientName || 'Unassigned'} (${shift.staffName || 'Unassigned'})` 
                   : `${shift.staffName || 'Unassigned'} (${shift.clientName || 'Unassigned'})`;
-                
+
                 if (shift.title && (shift.isRespiteWrapper || shift.title.includes('Respite') || shift.title.includes('STA'))) {
-                   namesText = shift.title;
+                  namesText = shift.title;
                 }
+
+                const serviceText = shift.serviceName || (shift.isRespiteWrapper ? 'Respite / STA' : '');
 
                 doc.fontSize(8);
                 const tHeight = doc.heightOfString(timeText, { width: colWidth - 8 });
                 const nHeight = doc.heightOfString(namesText, { width: colWidth - 8 });
-                const boxH = tHeight + nHeight + 12;
+                doc.fontSize(7.5);
+                const sHeight = serviceText ? doc.heightOfString(serviceText, { width: colWidth - 8 }) : 0;
+                const boxH = tHeight + nHeight + (serviceText ? sHeight + 3 : 0) + 10;
                 if (boxH > rowMaxHeight) rowMaxHeight = boxH;
-             }
-           }
-           
-           if (rowMaxHeight === 0) continue;
-           
-           if (currentY + rowMaxHeight > doc.page.height - 30) {
+              }
+            }
+
+            if (rowMaxHeight === 0) continue;
+
+            if (currentY + rowMaxHeight > doc.page.height - 45) {
               doc.addPage();
               startY = 30;
               drawHeader();
               currentY = startY;
-           }
-           
-           for (let d = 0; d < 7; d++) {
-             const shift = shiftsByDay[d][i];
-             if (shift) {
-                const sStart = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(shift.start));
-                const sEnd = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date(shift.end));
+            }
+
+            for (let d = 0; d < 7; d++) {
+              const shift = shiftsByDay[d][i];
+              if (shift) {
+                const sStart = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(shift.start));
+                const sEnd = new Intl.DateTimeFormat('en-AU', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(shift.end));
                 const timeText = `${sStart} - ${sEnd}`;
-                
+
                 let namesText = groupBy === 'STAFF' 
                   ? `${shift.clientName || 'Unassigned'} (${shift.staffName || 'Unassigned'})` 
                   : `${shift.staffName || 'Unassigned'} (${shift.clientName || 'Unassigned'})`;
 
                 if (shift.title && (shift.isRespiteWrapper || shift.title.includes('Respite') || shift.title.includes('STA'))) {
-                   namesText = shift.title;
+                  namesText = shift.title;
                 }
-                
-                // Color mapping like frontend
+
+                const serviceText = shift.serviceName || (shift.isRespiteWrapper ? 'Respite / STA' : '');
+
                 let bgColor = '#0ea5e9'; // PUBLISHED
                 if (shift.status === 'DRAFT') bgColor = '#52525b';
-                if (shift.status === 'COMPLETED') bgColor = '#a3e635';
-                if (shift.status === 'IN_PROGRESS') bgColor = '#f59e0b';
-                if (shift.status === 'PENDING_SYNC') bgColor = '#f97316';
-                if (shift.status === 'CANCELLED') bgColor = '#ef4444';
-                if (shift.isRespiteWrapper) bgColor = '#8b5cf6';
-                
+                if (shift.status === 'COMPLETED') bgColor = '#16a34a';
+                if (shift.status === 'IN_PROGRESS') bgColor = '#d97706';
+                if (shift.status === 'PENDING_SYNC') bgColor = '#ea580c';
+                if (shift.status === 'CANCELLED') bgColor = '#dc2626';
+                if (shift.isRespiteWrapper) bgColor = '#7c3aed';
+
                 doc.fillColor(bgColor).rect(30 + d * colWidth + 2, currentY, colWidth - 4, rowMaxHeight).fill();
-                doc.fillColor('#ffffff').fontSize(8);
-                doc.text(timeText, 30 + d * colWidth + 4, currentY + 4, { width: colWidth - 8 });
-                doc.text(namesText, 30 + d * colWidth + 4, currentY + 4 + doc.heightOfString(timeText, { width: colWidth - 8 }), { width: colWidth - 8 });
-             }
-           }
-           
-           currentY += rowMaxHeight + 4;
-        }
-        
-        // --- Add Daily Subtotals ---
-        if (currentY + 30 > doc.page.height - 30) {
+                
+                let textCursorY = currentY + 3;
+                doc.fillColor('#ffffff').fontSize(8).font('Helvetica-Bold');
+                doc.text(timeText, 30 + d * colWidth + 4, textCursorY, { width: colWidth - 8 });
+                textCursorY += doc.heightOfString(timeText, { width: colWidth - 8 });
+
+                doc.font('Helvetica');
+                doc.text(namesText, 30 + d * colWidth + 4, textCursorY, { width: colWidth - 8 });
+                textCursorY += doc.heightOfString(namesText, { width: colWidth - 8 });
+
+                if (serviceText) {
+                  doc.fontSize(7.5).fillColor('#f8fafc').font('Helvetica-Bold');
+                  doc.text(serviceText, 30 + d * colWidth + 4, textCursorY + 1, { width: colWidth - 8 });
+                  doc.font('Helvetica');
+                }
+              }
+            }
+
+            currentY += rowMaxHeight + 4;
+          }
+
+          // --- Add Daily Subtotals ---
+          if (currentY + 35 > doc.page.height - 30) {
             doc.addPage();
             currentY = 30;
-        } else {
-            currentY += 10;
-        }
-        
-        doc.moveTo(30, currentY).lineTo(doc.page.width - 30, currentY).strokeColor('#cccccc').stroke();
-        currentY += 10;
-        
-        doc.fillColor('#000000').fontSize(10);
-        for (let d = 0; d < 7; d++) {
+          } else {
+            currentY += 8;
+          }
+
+          doc.moveTo(30, currentY).lineTo(doc.page.width - 30, currentY).strokeColor('#cccccc').stroke();
+          currentY += 6;
+
+          doc.fillColor('#111827').fontSize(9.5).font('Helvetica-Bold');
+          for (let d = 0; d < 7; d++) {
             const hrs = dailyTotalHours[d] > 0 ? dailyTotalHours[d].toFixed(2) + ' hrs' : '-';
             doc.text(hrs, 30 + d * colWidth, currentY, { width: colWidth, align: 'center' });
-        }
-        
+          }
+        });
+
         doc.end();
       } catch (e) {
         console.error(`API Error: ${e}`);
