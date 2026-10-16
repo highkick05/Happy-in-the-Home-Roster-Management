@@ -298,7 +298,7 @@ export default function StaffActivityReport() {
                             ? 'text-pink-400'
                             : 'text-brand-teal'
                         }>
-                          {row.serviceProvided || '-'}
+                          {row.serviceProvided && row.serviceProvided !== '-' ? row.serviceProvided : ((row.services_json && String(row.services_json).toLowerCase().includes('orientation')) ? 'Orientation' : '-')}
                         </span>
                       </td>
                     )}

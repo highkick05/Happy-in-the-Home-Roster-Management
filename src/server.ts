@@ -13702,7 +13702,30 @@ app.get("/api/health", (req, res) => {
                   namesText = shift.title;
                 }
 
-                const serviceText = shift.serviceName || (shift.isRespiteWrapper ? 'Respite / STA' : '');
+                let serviceText = shift.serviceName || '';
+                if (!serviceText || serviceText === 'Unknown Service') {
+                  if (shift.servicesData && shift.servicesData.length > 0) {
+                    for (const sd of shift.servicesData) {
+                      if (sd.serviceId === 'orientation' || sd.customName === 'Orientation' || String(sd.serviceId).toLowerCase().includes('orientation') || String(sd.name).toLowerCase() === 'orientation' || String(sd.serviceName).toLowerCase() === 'orientation') {
+                        serviceText = 'Orientation';
+                        break;
+                      }
+                      if (sd.serviceName && sd.serviceName !== 'Unknown Service') {
+                        serviceText = sd.serviceName;
+                        break;
+                      }
+                      if (sd.customName) {
+                        serviceText = sd.customName;
+                        break;
+                      }
+                    }
+                  }
+                  if (!serviceText && shift.services_json && String(shift.services_json).toLowerCase().includes('orientation')) {
+                    serviceText = 'Orientation';
+                  } else if (!serviceText && shift.isRespiteWrapper) {
+                    serviceText = 'Respite / STA';
+                  }
+                }
 
                 doc.fontSize(8);
                 const tHeight = doc.heightOfString(timeText, { width: colWidth - 8 });
@@ -13738,7 +13761,30 @@ app.get("/api/health", (req, res) => {
                   namesText = shift.title;
                 }
 
-                const serviceText = shift.serviceName || (shift.isRespiteWrapper ? 'Respite / STA' : '');
+                let serviceText = shift.serviceName || '';
+                if (!serviceText || serviceText === 'Unknown Service') {
+                  if (shift.servicesData && shift.servicesData.length > 0) {
+                    for (const sd of shift.servicesData) {
+                      if (sd.serviceId === 'orientation' || sd.customName === 'Orientation' || String(sd.serviceId).toLowerCase().includes('orientation') || String(sd.name).toLowerCase() === 'orientation' || String(sd.serviceName).toLowerCase() === 'orientation') {
+                        serviceText = 'Orientation';
+                        break;
+                      }
+                      if (sd.serviceName && sd.serviceName !== 'Unknown Service') {
+                        serviceText = sd.serviceName;
+                        break;
+                      }
+                      if (sd.customName) {
+                        serviceText = sd.customName;
+                        break;
+                      }
+                    }
+                  }
+                  if (!serviceText && shift.services_json && String(shift.services_json).toLowerCase().includes('orientation')) {
+                    serviceText = 'Orientation';
+                  } else if (!serviceText && shift.isRespiteWrapper) {
+                    serviceText = 'Respite / STA';
+                  }
+                }
 
                 let bgColor = '#0ea5e9'; // PUBLISHED
                 if (shift.status === 'DRAFT') bgColor = '#52525b';
@@ -14283,7 +14329,10 @@ app.get("/api/health", (req, res) => {
           let parsed = s.services_json ? JSON.parse(s.services_json) : [];
           if (Array.isArray(parsed)) {
              for (const sd of parsed) {
-                 if (sd.serviceId && !sd.serviceName) {
+                 if (sd.serviceId === 'orientation' || sd.customName === 'Orientation' || String(sd.serviceId).toLowerCase().includes('orientation') || String(sd.name).toLowerCase() === 'orientation') {
+                     sd.serviceName = 'Orientation';
+                     sd.customName = 'Orientation';
+                 } else if (sd.serviceId && !sd.serviceName) {
                      let srv = servicesMap.get(sd.serviceId);
                      if (srv) {
                          if (srv.status === 'ARCHIVED') {
@@ -14312,6 +14361,18 @@ app.get("/api/health", (req, res) => {
              }
           }
           s.servicesData = parsed;
+          if (!s.service_name) {
+            if (s.servicesData && s.servicesData.length > 0) {
+              const s0 = s.servicesData[0];
+              if (s0.serviceId === 'orientation' || s0.customName === 'Orientation' || String(s0.serviceId).toLowerCase().includes('orientation') || String(s0.name).toLowerCase() === 'orientation') {
+                s.service_name = 'Orientation';
+              } else if (s0.customName) {
+                s.service_name = s0.customName;
+              }
+            } else if (s.services_json && String(s.services_json).toLowerCase().includes('orientation')) {
+              s.service_name = 'Orientation';
+            }
+          }
         } catch (e) {
           s.servicesData = [];
         }
@@ -14325,7 +14386,10 @@ app.get("/api/health", (req, res) => {
         let parsed = s.services_json ? JSON.parse(s.services_json) : [];
         if (Array.isArray(parsed)) {
            for (const sd of parsed) {
-               if (sd.serviceId && !sd.serviceName) {
+               if (sd.serviceId === 'orientation' || sd.customName === 'Orientation' || String(sd.serviceId).toLowerCase().includes('orientation') || String(sd.name).toLowerCase() === 'orientation') {
+                   sd.serviceName = 'Orientation';
+                   sd.customName = 'Orientation';
+               } else if (sd.serviceId && !sd.serviceName) {
                    let srv = servicesMap.get(sd.serviceId);
                      if (srv) {
                          if (srv.status === 'ARCHIVED') {
@@ -14354,6 +14418,18 @@ app.get("/api/health", (req, res) => {
            }
         }
         s.servicesData = parsed;
+        if (!s.service_name) {
+          if (s.servicesData && s.servicesData.length > 0) {
+            const s0 = s.servicesData[0];
+            if (s0.serviceId === 'orientation' || s0.customName === 'Orientation' || String(s0.serviceId).toLowerCase().includes('orientation') || String(s0.name).toLowerCase() === 'orientation') {
+              s.service_name = 'Orientation';
+            } else if (s0.customName) {
+              s.service_name = s0.customName;
+            }
+          } else if (s.services_json && String(s.services_json).toLowerCase().includes('orientation')) {
+            s.service_name = 'Orientation';
+          }
+        }
       } catch (e) {
         s.servicesData = [];
       }
@@ -14483,6 +14559,11 @@ app.get("/api/health", (req, res) => {
         let isAbtApproved = false;
 
         for (const sData of processedServicesData) {
+          if (sData.serviceId === 'orientation' || sData.customName === 'Orientation' || String(sData.serviceId).toLowerCase().includes('orientation') || String(sData.name).toLowerCase() === 'orientation') {
+            sData.customName = 'Orientation';
+            sData.serviceName = 'Orientation';
+            sData.name = 'Orientation';
+          }
           const srv = db
             .prepare("SELECT name, unit FROM services WHERE id = ?")
             .get(sData.serviceId) as any;
@@ -14890,6 +14971,11 @@ app.get("/api/health", (req, res) => {
         if (servicesData) {
           isAbtApproved = false;
           for (const sData of processedServicesData) {
+            if (sData.serviceId === 'orientation' || sData.customName === 'Orientation' || String(sData.serviceId).toLowerCase().includes('orientation') || String(sData.name).toLowerCase() === 'orientation') {
+              sData.customName = 'Orientation';
+              sData.serviceName = 'Orientation';
+              sData.name = 'Orientation';
+            }
             const srv = db
               .prepare("SELECT name, unit FROM services WHERE id = ?")
               .get(sData.serviceId) as any;
@@ -17339,7 +17425,10 @@ app.get("/api/health", (req, res) => {
           if (servicesArray.length > 0) {
             for (const sData of servicesArray) {
               let serviceName = '';
-              if (sData.isCustom || sData.serviceId === null || sData.serviceId === 'custom' || (String(sData.serviceId).startsWith('custom'))) {
+              const isOrient = sData.serviceId === 'orientation' || sData.customName === 'Orientation' || String(sData.serviceId).toLowerCase().includes('orientation') || String(sData.name).toLowerCase() === 'orientation' || String(sData.serviceName).toLowerCase() === 'orientation';
+              if (isOrient) {
+                serviceName = 'Orientation';
+              } else if (sData.isCustom || sData.serviceId === null || sData.serviceId === 'custom' || (String(sData.serviceId).startsWith('custom'))) {
                 serviceName = sData.customName || sData.name || "Custom Service";
                 isCustomService = true;
               } else {
@@ -17411,7 +17500,10 @@ app.get("/api/health", (req, res) => {
           } else if (servicesArray.length > 0) {
             const primarySData = servicesArray[0];
             const primaryId = primarySData?.serviceId;
-            if (primarySData?.isCustom || primaryId === null || primaryId === 'custom' || String(primaryId).startsWith('custom')) {
+            const isOrient = primaryId === 'orientation' || primarySData?.customName === 'Orientation' || String(primaryId).toLowerCase().includes('orientation') || String(primarySData?.name).toLowerCase() === 'orientation' || String(primarySData?.serviceName).toLowerCase() === 'orientation';
+            if (isOrient) {
+              serviceProvided = 'Orientation';
+            } else if (primarySData?.isCustom || primaryId === null || primaryId === 'custom' || String(primaryId).startsWith('custom')) {
                 serviceProvided = primarySData?.customName || primarySData?.name || "Custom Service";
             } else if (primaryId && primaryId !== shift.service_id) {
               const mainSrv = db
@@ -17421,6 +17513,9 @@ app.get("/api/health", (req, res) => {
                 serviceProvided = mainSrv.name;
               }
             }
+          }
+          if (!serviceProvided && shift.services_json && String(shift.services_json).toLowerCase().includes('orientation')) {
+            serviceProvided = 'Orientation';
           }
 
           const isHomeCare =

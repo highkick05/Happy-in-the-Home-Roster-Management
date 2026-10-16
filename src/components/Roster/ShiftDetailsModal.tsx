@@ -714,7 +714,8 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                     {sData.map((sd: any, idx: number) => {
                       const sIdStr = String(sd.serviceId);
                       const fullService = servicesList.find(s => String(s.id) === sIdStr);
-                      const serviceName = fullService ? fullService.name : (sd.serviceName || sd.customName || sd.name || (idx === 0 ? shift.serviceName : 'Unknown Service'));
+                      const isOrient = sIdStr.toLowerCase().includes('orientation') || String(sd.customName).toLowerCase() === 'orientation' || String(shift.serviceName).toLowerCase() === 'orientation';
+                      const serviceName = isOrient ? 'Orientation' : (fullService ? fullService.name : (sd.serviceName || sd.customName || sd.name || (idx === 0 ? shift.serviceName : 'Unknown Service')));
 
                       const lowerName = (serviceName || '').toLowerCase();
                       const codeLower = `${sd.serviceCode || ''} ${fullService?.code || ''}`.toLowerCase();

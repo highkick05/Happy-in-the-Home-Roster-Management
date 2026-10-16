@@ -350,6 +350,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                 ...s,
                 serviceId: s.serviceId === 'custom' ? 'custom' : (s.serviceId === 'orientation' ? 'orientation' : (s.serviceId ? parseInt(s.serviceId, 10) : null)),
                 customName: s.serviceId === 'orientation' ? 'Orientation' : s.customName,
+                serviceName: s.serviceId === 'orientation' ? 'Orientation' : (name || s.customName || ''),
+                name: s.serviceId === 'orientation' ? 'Orientation' : (name || s.customName || ''),
                 qtyOverride: effectiveQty,
                 rateOverride: effectiveRate
             };

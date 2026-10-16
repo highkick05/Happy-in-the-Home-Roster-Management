@@ -215,7 +215,13 @@ export default function RosterCalendar() {
           clientName: `${d.client_first_name} ${d.client_last_name}`,
           status: d.status,
           serviceId: d.service_id,
-          serviceName: d.service_name,
+          serviceName: d.service_name || (
+            d.servicesData?.[0]?.serviceId === 'orientation' ||
+            d.servicesData?.[0]?.customName === 'Orientation' ||
+            (d.services_json && String(d.services_json).toLowerCase().includes('orientation'))
+              ? 'Orientation'
+              : (d.servicesData?.[0]?.customName || '')
+          ),
           serviceCode: d.service_code,
           serviceRate: d.service_rate,
           serviceUnit: d.service_unit,
@@ -697,20 +703,37 @@ export default function RosterCalendar() {
         const respiteData = await respiteRes.json();
         
         const individualShifts = shiftsData.filter((d: any) => !d.respite_booking_id);
-        const mappedIndividual = individualShifts.map((d: any) => ({
-          id: d.id,
-          title: d.client_first_name + ' ' + d.client_last_name + ' (' + (d.staff_first_name || 'Unassigned') + ')',
-          start: new Date(d.start_time),
-          end: new Date(d.end_time),
-          staffId: d.staff_id,
-          staffName: d.staff_id ? d.staff_first_name + ' ' + d.staff_last_name : 'Unassigned',
-          clientId: d.client_id,
-          clientName: d.client_first_name + ' ' + d.client_last_name,
-          status: d.status,
-          serviceId: d.service_id,
-          serviceName: d.service_name,
-          fundingType: d.funding_type
-        }));
+        const mappedIndividual = individualShifts.map((d: any) => {
+          let sName = d.service_name;
+          if (!sName) {
+            if (d.servicesData && d.servicesData.length > 0) {
+              const s0 = d.servicesData[0];
+              if (s0.serviceId === 'orientation' || s0.customName === 'Orientation' || String(s0.serviceId).toLowerCase().includes('orientation') || String(s0.name).toLowerCase() === 'orientation') {
+                sName = 'Orientation';
+              } else if (s0.customName) {
+                sName = s0.customName;
+              }
+            } else if (d.services_json && String(d.services_json).toLowerCase().includes('orientation')) {
+              sName = 'Orientation';
+            }
+          }
+          return {
+            id: d.id,
+            title: d.client_first_name + ' ' + d.client_last_name + ' (' + (d.staff_first_name || 'Unassigned') + ')',
+            start: new Date(d.start_time),
+            end: new Date(d.end_time),
+            staffId: d.staff_id,
+            staffName: d.staff_id ? d.staff_first_name + ' ' + d.staff_last_name : 'Unassigned',
+            clientId: d.client_id,
+            clientName: d.client_first_name + ' ' + d.client_last_name,
+            status: d.status,
+            serviceId: d.service_id,
+            serviceName: sName,
+            servicesData: d.servicesData,
+            services_json: d.services_json,
+            fundingType: d.funding_type
+          };
+        });
         
         const mappedRespite = respiteData.map((d: any) => ({
           id: 'respite-' + d.id,
