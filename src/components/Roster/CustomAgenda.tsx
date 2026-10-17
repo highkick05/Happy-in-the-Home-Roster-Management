@@ -21,18 +21,18 @@ export default function CustomAgenda({ events, date, length, localizer, componen
   const AgendaEvent = components?.agenda?.event || components?.event || (({ event }: any) => <div>{event.title}</div>);
 
   return (
-    <div className="h-full overflow-y-auto p-2 md:p-6 custom-agenda-view bg-zinc-950/20">
+    <div className="h-full overflow-y-auto p-2 sm:p-3 md:p-6 custom-agenda-view bg-zinc-950/20">
       {groupedEvents.length === 0 ? (
         <div className="flex items-center justify-center p-4 md:p-8 text-zinc-500 font-medium bg-black/20 rounded-xl border border-white/5 mx-2 md:mx-0">
           No shifts found starting from {format(date, 'd MMM yyyy')} for the next {length || 30} days.
         </div>
       ) : (
         groupedEvents.map(group => (
-          <div key={group.dateLabel} className="flex flex-col gap-3 mb-6 relative">
-            <h2 className="text-xl md:text-2xl font-bold tracking-tight text-brand-teal uppercase border-b border-zinc-800 pb-2 mb-2">
+          <div key={group.dateLabel} className="flex flex-col gap-1.5 sm:gap-2 md:gap-3 mb-3 sm:mb-4 md:mb-6 relative">
+            <h2 className="text-sm sm:text-base md:text-2xl font-bold tracking-tight text-brand-teal uppercase border-b border-zinc-800 pb-1 sm:pb-1.5 md:pb-2 mb-1 sm:mb-2">
               {group.dateLabel}
             </h2>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1 sm:gap-1.5 md:gap-2">
               {group.events.map(event => (
                 <div key={event.id} onClick={() => onSelectEvent && onSelectEvent(event)} className="w-full">
                   <AgendaEvent event={event} />

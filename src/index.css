@@ -263,17 +263,17 @@ input:-webkit-autofill:active {
   width: 100%;
 }
 
-/* Mobile responsive Agenda View */
-@media (max-width: 640px) {
+/* Mobile and tablet responsive Agenda View */
+@media (max-width: 1023px) {
   .rbc-agenda-view table.rbc-agenda-table tbody > tr {
     display: flex;
     flex-direction: column;
     border-bottom: 1px solid #3f3f46 !important;
-    padding: 8px 12px !important;
+    padding: 4px 8px !important;
   }
   .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
     display: block;
-    padding: 4px 0 !important;
+    padding: 2px 0 !important;
     border: none !important;
   }
   .rbc-agenda-view table.rbc-agenda-table tbody > tr:last-child {
@@ -283,12 +283,12 @@ input:-webkit-autofill:active {
     border-left-width: 0 !important;
   }
   .rbc-agenda-date-cell {
-    font-size: 15px;
+    font-size: 13px;
   }
   .rbc-agenda-time-cell {
-    font-size: 14px;
+    font-size: 12px;
     color: #a1a1aa;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
   }
   .rbc-toolbar {
     flex-direction: column !important;
