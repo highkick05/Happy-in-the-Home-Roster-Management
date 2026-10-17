@@ -1346,7 +1346,7 @@ export default function RosterCalendar() {
           <div className="flex flex-col gap-2 w-full lg:hidden">
             {/* Row 1: Time, Client Name, Funding badge & Status */}
             <div className="flex items-center gap-2 w-full min-w-0 justify-between">
-              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <div className="shrink-0 flex flex-col justify-center px-2 py-0.5 rounded-md bg-zinc-800/90 border border-zinc-700/60 text-zinc-200 font-mono text-[10px] font-semibold tracking-tight shadow-xs">
                   <div className="flex items-center gap-1">
                     <Clock className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
@@ -1361,15 +1361,15 @@ export default function RosterCalendar() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 min-w-0 truncate">
-                  <span className="font-bold text-zinc-100 text-xs leading-tight tracking-tight truncate" title={clientDisplayName}>
+                <div className="flex items-center gap-2 min-w-0 truncate">
+                  <span className="font-extrabold text-zinc-100 text-sm leading-tight tracking-tight uppercase truncate" title={clientDisplayName}>
                     {clientDisplayName}
                   </span>
                   {fundingBadgeLabel && (
-                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold tracking-wider uppercase border shrink-0 ${
+                    <span className={`px-2 py-0.5 rounded text-[11px] font-extrabold tracking-wider uppercase border shrink-0 shadow-xs ${
                       fundingBadgeLabel === 'HCP'
-                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-                        : 'bg-purple-500/15 border-purple-500/30 text-purple-300'
+                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                        : 'bg-purple-500/20 border-purple-500/40 text-purple-300'
                     }`}>
                       {fundingBadgeLabel}
                     </span>
@@ -1398,7 +1398,7 @@ export default function RosterCalendar() {
               </div>
             </div>
 
-            {/* Row 2: Assigned Staff with position & Services */}
+            {/* Row 2: Assigned Staff (without position in brackets) & Services */}
             <div className="flex flex-wrap items-center gap-1.5 w-full min-w-0 text-[10px]">
               {event.isRespiteWrapper ? (
                 <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10px] font-medium shrink-0 shadow-xs">
@@ -1407,12 +1407,9 @@ export default function RosterCalendar() {
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 text-[10px] font-medium shrink-0 max-w-[50%] shadow-xs" title={event.staffName || 'Unassigned'}>
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 text-[10px] font-medium shrink-0 shadow-xs" title={event.staffName || 'Unassigned'}>
                     <User className="w-3 h-3 text-zinc-400 shrink-0" />
                     <span className="truncate">{event.staffName || 'Unassigned'}</span>
-                    {staffPosition && (
-                      <span className="text-zinc-400 text-[9px] font-normal truncate">({staffPosition})</span>
-                    )}
                   </div>
 
                   {/* Service Provided Pills */}
@@ -1430,7 +1427,7 @@ export default function RosterCalendar() {
                         }
                         const badgeInfo = getServiceBadge(srvName);
                         return (
-                          <div key={idx} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md ${badgeInfo.badgeStyle} text-[10px] font-medium truncate min-w-0 shadow-xs`} title={srvName}>
+                          <div key={idx} className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md ${badgeInfo.badgeStyle} text-[10px] font-medium truncate min-w-0 shadow-xs`} title={srvName}>
                             {badgeInfo.icon}
                             <span className="truncate">{srvName}</span>
                           </div>
@@ -1441,7 +1438,7 @@ export default function RosterCalendar() {
                     (() => {
                       const badgeInfo = getServiceBadge(event.serviceName);
                       return (
-                        <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md ${badgeInfo.badgeStyle} text-[10px] font-medium truncate min-w-0 shadow-xs`} title={event.serviceName}>
+                        <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md ${badgeInfo.badgeStyle} text-[10px] font-medium truncate min-w-0 shadow-xs`} title={event.serviceName}>
                           {badgeInfo.icon}
                           <span className="truncate">{event.serviceName}</span>
                         </div>
@@ -1452,9 +1449,12 @@ export default function RosterCalendar() {
               )}
             </div>
 
-            {/* Row 3: Travel distance & travel time micro-badges */}
+            {/* Row 3: Travel time label followed by distance & time micro-badges */}
             {!event.isRespiteWrapper && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider shrink-0">
+                  Travel time:
+                </span>
                 <div 
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[9px] font-medium shadow-xs"
                   title="Distance from staff member's house to client's house"
@@ -1497,22 +1497,22 @@ export default function RosterCalendar() {
             {/* Middle Section (3 Tiers) */}
             <div className="flex flex-col gap-1.5 flex-1 min-w-0 px-4 border-l border-zinc-700/50">
               {/* Row 1: Client Name in bold, clean font with funding stream badge (NDIS or HCP) */}
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="font-bold text-zinc-100 text-sm leading-tight tracking-tight truncate">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="font-extrabold text-zinc-100 text-base leading-tight tracking-tight uppercase truncate">
                   {clientDisplayName}
                 </span>
                 {fundingBadgeLabel && (
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border shadow-xs shrink-0 ${
+                  <span className={`px-2.5 py-0.5 rounded text-xs font-extrabold tracking-wider uppercase border shadow-xs shrink-0 ${
                     fundingBadgeLabel === 'HCP'
-                      ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-                      : 'bg-purple-500/15 border-purple-500/30 text-purple-300'
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                      : 'bg-purple-500/20 border-purple-500/40 text-purple-300'
                   }`}>
                     {fundingBadgeLabel}
                   </span>
                 )}
               </div>
               
-              {/* Row 2: Assigned Staff member with a user icon and position title. Then Service pills with icons after */}
+              {/* Row 2: Assigned Staff member (without position in brackets) & Service pills */}
               <div className="flex flex-wrap items-center gap-3 w-full min-w-0 text-[11px]">
                 {event.isRespiteWrapper ? (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10px] font-medium shadow-xs">
@@ -1524,9 +1524,6 @@ export default function RosterCalendar() {
                     <div className="flex items-center gap-1.5 shrink-0 text-zinc-300 font-medium">
                       <User className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                       <span>{event.staffName || 'Unassigned'}</span>
-                      {staffPosition && (
-                        <span className="text-zinc-400 font-normal">({staffPosition})</span>
-                      )}
                     </div>
 
                     {/* Service Pills with animated icons */}
@@ -1566,9 +1563,12 @@ export default function RosterCalendar() {
                 )}
               </div>
 
-              {/* Row 3: Calculate the distance to the Clients house from the Staff members house as a badge and then time it takes to travel there as another badge */}
+              {/* Row 3: Travel time label followed by distance & time micro-badges */}
               {!event.isRespiteWrapper && (
                 <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider shrink-0">
+                    Travel time:
+                  </span>
                   <div 
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[10px] font-medium tracking-tight shadow-xs"
                     title="Distance from staff member's house to client's house"
