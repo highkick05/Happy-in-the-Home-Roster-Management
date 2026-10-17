@@ -10,7 +10,7 @@ import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
-import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer } from 'lucide-react';
+import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer, Clock, User, Briefcase } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
 import AddHistoricalShiftModal from './AddHistoricalShiftModal';
@@ -1035,7 +1035,7 @@ export default function RosterCalendar() {
         }
       };
 
-      let containerClass = 'transition-all shadow-sm border-y border-white/[0.05] p-2 sm:p-2.5 lg:p-3.5 ';
+      let containerClass = 'transition-all shadow-md rounded-xl border border-white/[0.08] p-2.5 sm:p-3 lg:p-3.5 backdrop-blur-sm ';
       let badgeLabel = event.status;
       let badgeClass = 'text-zinc-400 bg-zinc-900 border-zinc-700/50';
       
@@ -1084,22 +1084,24 @@ export default function RosterCalendar() {
 
       return (
         <div 
-           className={`${containerClass} rounded-r-xl cursor-pointer w-full group relative`}
+           className={`${containerClass} cursor-pointer w-full group relative`}
            onMouseDown={handleMouseDown}
            onMouseUp={handleMouseUp}
            onMouseLeave={handleMouseUp}
            onTouchStart={handleMouseDown}
            onTouchEnd={handleMouseUp}
         >
-          {/* Mobile & Tablet Compact Layout (Two lines only) */}
-          <div className="flex flex-col gap-1 w-full lg:hidden">
-            {/* Line 1: Time on left, Client Name in middle, Status badge on right */}
-            <div className="flex items-center gap-2 w-full min-w-0 justify-between">
-              <div className="text-zinc-300 font-mono text-[11px] font-medium whitespace-nowrap shrink-0 flex items-center gap-1">
+          {/* Mobile & Tablet Compact Layout (Two lines only, professionally structured) */}
+          <div className="flex flex-col gap-2 w-full lg:hidden">
+            {/* Line 1: Time on left with icon, Client Name in middle, Status badge on right */}
+            <div className="flex items-center gap-2.5 w-full min-w-0 justify-between">
+              {/* Time Pill */}
+              <div className="shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-800/90 border border-zinc-700/60 text-zinc-200 font-mono text-[11px] font-semibold tracking-tight shadow-xs min-w-[115px] sm:min-w-[125px]">
                 {event.isRespiteWrapper ? (
-                  <span className="text-brand-teal/90 font-medium text-[9px] bg-indigo-500/10 px-1.5 py-0.5 rounded border border-brand-teal/20">Multi-day</span>
+                  <span className="text-brand-teal/90 font-medium text-[9px] bg-indigo-500/10 px-1 py-0.5 rounded border border-brand-teal/20">Multi-day</span>
                 ) : (
                   <>
+                    <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
                     <span>{startText}</span>
                     <span className="text-zinc-500 font-bold">–</span>
                     <span>{endText}</span>
@@ -1108,11 +1110,12 @@ export default function RosterCalendar() {
               </div>
 
               {/* Client's name in middle */}
-              <div className="font-semibold text-zinc-100 text-[11px] sm:text-xs leading-tight tracking-wide truncate flex-1 min-w-0 px-1" title={event.title}>
+              <div className="font-semibold text-zinc-100 text-[12px] sm:text-xs leading-tight tracking-tight truncate flex-1 min-w-0 px-0.5" title={event.title}>
                 {event.title}
               </div>
 
-              <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 inline-flex items-center gap-1 rounded-full border shrink-0 ${badgeClass}`}>
+              {/* Status Badge */}
+              <span className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 inline-flex items-center gap-1 rounded-full border shadow-xs shrink-0 ${badgeClass}`}>
                 {isInProgress && (
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
@@ -1123,20 +1126,24 @@ export default function RosterCalendar() {
               </span>
             </div>
 
-            {/* Line 2: Staff Name followed by Service Provided text */}
-            <div className="flex items-center gap-2 w-full min-w-0 text-[10px] text-zinc-400">
+            {/* Line 2: Staff Name chip followed by Service Provided chip */}
+            <div className="flex items-center gap-2 w-full min-w-0 text-[10px]">
               {event.isRespiteWrapper ? (
-                <span className="text-violet-400 font-medium text-[9px] bg-violet-500/10 px-1.5 py-0.5 rounded border border-violet-500/20 truncate">
-                  STA / Respite
-                </span>
+                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10px] font-medium shrink-0">
+                  <Bed className="w-3 h-3 text-violet-400 shrink-0" />
+                  <span>STA / Respite</span>
+                </div>
               ) : (
                 <>
-                  <span className="truncate shrink-0 font-medium text-zinc-300" title={event.staffName || 'Unassigned'}>
-                    👨‍💼 {event.staffName || 'Unassigned'}
-                  </span>
+                  {/* Staff Pill */}
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 text-[10px] font-medium shrink-0 max-w-[45%] shadow-xs" title={event.staffName || 'Unassigned'}>
+                    <User className="w-3 h-3 text-zinc-400 shrink-0" />
+                    <span className="truncate">{event.staffName || 'Unassigned'}</span>
+                  </div>
                   
+                  {/* Service Provided Pill */}
                   {event.servicesData && event.servicesData.length > 0 ? (
-                    <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
                       {event.servicesData.map((sd: any, idx: number) => {
                         const srv = servicesList.find((s: any) => String(s.id) === String(sd.serviceId));
                         let srvName = srv ? srv.name : (sd.serviceName || (idx === 0 ? event.serviceName : 'Unknown Service'));
@@ -1148,23 +1155,25 @@ export default function RosterCalendar() {
                           }
                         }
                         return (
-                          <span key={idx} className="bg-black/40 text-brand-teal px-1.5 py-0.5 rounded text-[9px] truncate min-w-0 max-w-full" title={srvName}>
-                            {srvName}
-                          </span>
+                          <div key={idx} className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-brand-teal/15 border border-brand-teal/30 text-brand-teal text-[10px] font-medium truncate min-w-0 flex-1 shadow-xs" title={srvName}>
+                            <Briefcase className="w-3 h-3 text-brand-teal/70 shrink-0" />
+                            <span className="truncate">{srvName}</span>
+                          </div>
                         );
                       })}
                     </div>
                   ) : event.serviceName ? (
-                    <span className="bg-black/40 text-brand-teal px-1.5 py-0.5 rounded text-[9px] truncate min-w-0 max-w-full flex-1" title={event.serviceName}>
-                      {event.serviceName}
-                    </span>
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-brand-teal/15 border border-brand-teal/30 text-brand-teal text-[10px] font-medium truncate min-w-0 flex-1 shadow-xs" title={event.serviceName}>
+                      <Briefcase className="w-3 h-3 text-brand-teal/70 shrink-0" />
+                      <span className="truncate">{event.serviceName}</span>
+                    </div>
                   ) : null}
                 </>
               )}
             </div>
           </div>
 
-          {/* Desktop Layout (Preserved original spacious layout) */}
+          {/* Desktop Layout (Preserved original spacious layout, modernized icons) */}
           <div className="hidden lg:flex lg:flex-row lg:items-center lg:gap-6 w-full">
             {/* Time Column */}
             <div className="text-zinc-300 font-mono text-xs whitespace-nowrap shrink-0 min-w-[160px] flex items-center gap-1.5">
@@ -1172,7 +1181,8 @@ export default function RosterCalendar() {
                 <span className="text-brand-teal/80 font-medium text-[10px] bg-indigo-500/5 px-2 py-0.5 rounded border border-brand-teal/10">Multi-day</span>
               ) : (
                 <>
-                  {startText} <span className="text-zinc-600 font-bold">–</span> {endText}
+                  <Clock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                  <span>{startText}</span> <span className="text-zinc-600 font-bold">–</span> <span>{endText}</span>
                 </>
               )}
             </div>
@@ -1188,9 +1198,9 @@ export default function RosterCalendar() {
                   <span className="text-violet-400 font-medium text-[10px]">STA / Respite</span>
                 ) : (
                   <>
-                    <div className="flex items-center gap-1 shrink-0 min-w-0">
-                      <span className="text-zinc-400 font-medium text-xs truncate">
-                        👨‍💼 {event.staffName || 'Unassigned'}
+                    <div className="flex items-center gap-1.5 shrink-0 min-w-0">
+                      <span className="text-zinc-300 font-medium text-xs truncate flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-zinc-400 shrink-0" /> {event.staffName || 'Unassigned'}
                       </span>
                     </div>
                     {event.servicesData && event.servicesData.length > 0 ? (
@@ -1206,7 +1216,8 @@ export default function RosterCalendar() {
                             }
                           }
                           return (
-                            <span key={idx} className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-[10px] max-w-full truncate" title={srvName}>
+                            <span key={idx} className="bg-brand-teal/15 border border-brand-teal/30 text-brand-teal px-2 py-0.5 rounded text-[10px] max-w-full truncate flex items-center gap-1" title={srvName}>
+                              <Briefcase className="w-3 h-3 text-brand-teal/70 shrink-0" />
                               {srvName}
                             </span>
                           );
@@ -1215,7 +1226,8 @@ export default function RosterCalendar() {
                     ) : (
                       event.serviceName && (
                         <div className="flex flex-wrap gap-1 min-w-0">
-                          <span className="bg-black/40 text-brand-teal px-2 py-0.5 rounded text-[10px] max-w-full truncate" title={event.serviceName}>
+                          <span className="bg-brand-teal/15 border border-brand-teal/30 text-brand-teal px-2 py-0.5 rounded text-[10px] max-w-full truncate flex items-center gap-1" title={event.serviceName}>
+                            <Briefcase className="w-3 h-3 text-brand-teal/70 shrink-0" />
                             {event.serviceName}
                           </span>
                         </div>
