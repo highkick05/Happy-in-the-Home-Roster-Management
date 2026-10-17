@@ -1472,8 +1472,91 @@ export default function RosterCalendar() {
       );
     };
 
+    const CustomToolbar = (toolbar: any) => {
+      const goToBack = () => {
+        toolbar.onNavigate('PREV');
+      };
+      const goToNext = () => {
+        toolbar.onNavigate('NEXT');
+      };
+      const goToCurrent = () => {
+        toolbar.onNavigate('TODAY');
+      };
+
+      const viewNames = toolbar.views || [];
+
+      return (
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-1 md:gap-4 mb-0.5 md:mb-2 px-0.5 md:px-0">
+          {/* Action buttons: Today, Back, Next, Print Roster all on the SAME line on mobile */}
+          <div className="flex items-center gap-1 w-full md:w-auto justify-between md:justify-start order-1">
+            <div className="grid grid-cols-4 gap-1 w-full md:flex md:w-auto md:gap-1.5">
+              <button
+                type="button"
+                onClick={goToCurrent}
+                className="px-2 py-1 bg-brand-bg hover:bg-zinc-800 border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[10px] sm:text-[11px] font-medium rounded-md transition-colors text-center whitespace-nowrap shadow-xs"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={goToBack}
+                className="px-2 py-1 bg-brand-bg hover:bg-zinc-800 border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[10px] sm:text-[11px] font-medium rounded-md transition-colors text-center whitespace-nowrap shadow-xs"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={goToNext}
+                className="px-2 py-1 bg-brand-bg hover:bg-zinc-800 border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[10px] sm:text-[11px] font-medium rounded-md transition-colors text-center whitespace-nowrap shadow-xs"
+              >
+                Next
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(true)}
+                className="px-1.5 py-1 bg-brand-bg hover:bg-zinc-800 border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[10px] sm:text-[11px] font-medium rounded-md transition-colors text-center flex items-center justify-center gap-1 whitespace-nowrap shadow-xs"
+                title="Print Roster"
+              >
+                <Printer className="w-3 h-3 shrink-0" />
+                <span className="truncate">Print Roster</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Date Span Title (Start date - End date): brought up close, condensed */}
+          <div className="text-center font-bold text-xs sm:text-sm md:text-base text-zinc-100 tracking-tight my-0.5 md:my-0 flex-1 order-2">
+            {toolbar.label}
+          </div>
+
+          {/* Views switcher on desktop */}
+          {Array.isArray(viewNames) && viewNames.length > 1 && (
+            <div className="hidden md:flex items-center gap-1 order-3">
+              {viewNames.map((name: string) => {
+                const isActive = toolbar.view === name;
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => toolbar.onView(name)}
+                    className={`px-3 py-1 text-[11px] font-medium rounded-md capitalize transition-colors border ${
+                      isActive
+                        ? 'bg-brand-teal/20 text-brand-teal border-brand-teal/40'
+                        : 'bg-brand-bg text-[#8B949E] hover:text-[#E6EDF3] border-border-subtle'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    };
+
     return {
       event: CustomEvent,
+      toolbar: CustomToolbar,
       month: {
         dateHeader: MonthDateHeader,
       },
@@ -1489,7 +1572,7 @@ export default function RosterCalendar() {
         date: AgendaDate,
       }
     };
-  }, [multiSelectMode, holidays, servicesList]);
+  }, [multiSelectMode, holidays, servicesList, isMobileOrTablet]);
 
   const customDayPropGetter = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -1522,9 +1605,9 @@ export default function RosterCalendar() {
   }));
 
   return (
-    <div className={`flex flex-col space-y-1 p-1 md:p-2 text-zinc-100 ${isFullScreen ? 'fixed inset-0 z-[100] bg-brand-bg pb-20 md:pb-4' : 'h-full bg-brand-navy border-0 md:border md:border-border-subtle rounded-xl'}`}>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-1 md:space-y-0 px-1 md:px-0 mt-0">
-        <h2 className="text-lg font-sans font-semibold text-[#E6EDF3] tracking-tight mb-1 md:mb-0">Roster Management</h2>
+    <div className={`flex flex-col space-y-0.5 md:space-y-1 p-1 md:p-2 text-zinc-100 ${isFullScreen ? 'fixed inset-0 z-[100] bg-brand-bg pb-20 md:pb-4' : 'h-full bg-brand-navy border-0 md:border md:border-border-subtle rounded-xl'}`}>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-0.5 md:space-y-0 px-1 md:px-0 mt-0">
+        <h2 className="text-base sm:text-lg font-sans font-semibold text-[#E6EDF3] tracking-tight mb-0.5 md:mb-0 text-center md:text-left w-full md:w-auto">Roster Management</h2>
         
         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
           {user?.role === 'ADMIN' && (
@@ -1644,7 +1727,7 @@ export default function RosterCalendar() {
           {user?.role !== 'ADMIN' && (
             <button 
               onClick={() => setIsPrintModalOpen(true)}
-              className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto gap-1.5"
+              className="hidden md:flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto gap-1.5"
               title="Print Weekly Roster"
             >
               <Printer className="w-3.5 h-3.5" />

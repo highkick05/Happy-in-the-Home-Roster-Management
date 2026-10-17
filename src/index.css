@@ -293,26 +293,27 @@ input:-webkit-autofill:active {
   .rbc-toolbar {
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 8px;
+    gap: 4px;
+    margin-bottom: 2px !important;
   }
   .rbc-toolbar .rbc-toolbar-label {
-  font-size: 14px !important;
-    margin: 4px 0;
-    font-size: 16px;
+    font-size: 13px !important;
+    margin: 2px 0 !important;
     font-weight: bold;
   }
   .rbc-btn-group {
     display: flex;
     justify-content: stretch;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 3px;
   }
   .rbc-btn-group button {
     flex: 1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: 8px !important;
+    padding: 4px 6px !important;
+    font-size: 11px !important;
   }
 }
 
