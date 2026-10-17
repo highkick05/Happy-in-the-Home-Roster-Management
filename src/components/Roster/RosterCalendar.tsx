@@ -1091,11 +1091,11 @@ export default function RosterCalendar() {
            onTouchStart={handleMouseDown}
            onTouchEnd={handleMouseUp}
         >
-          {/* Mobile & Tablet Compact Layout (Maximum 3 lines) */}
-          <div className="flex flex-col gap-0.5 w-full lg:hidden">
-            {/* Line 1: Time on left, Status badge on right */}
-            <div className="flex items-center justify-between gap-2 w-full min-w-0">
-              <div className="text-zinc-300 font-mono text-[11px] font-medium whitespace-nowrap truncate flex items-center gap-1">
+          {/* Mobile & Tablet Compact Layout (Two lines only) */}
+          <div className="flex flex-col gap-1 w-full lg:hidden">
+            {/* Line 1: Time on left, Client Name in middle, Status badge on right */}
+            <div className="flex items-center gap-2 w-full min-w-0 justify-between">
+              <div className="text-zinc-300 font-mono text-[11px] font-medium whitespace-nowrap shrink-0 flex items-center gap-1">
                 {event.isRespiteWrapper ? (
                   <span className="text-brand-teal/90 font-medium text-[9px] bg-indigo-500/10 px-1.5 py-0.5 rounded border border-brand-teal/20">Multi-day</span>
                 ) : (
@@ -1106,6 +1106,12 @@ export default function RosterCalendar() {
                   </>
                 )}
               </div>
+
+              {/* Client's name in middle */}
+              <div className="font-semibold text-zinc-100 text-[11px] sm:text-xs leading-tight tracking-wide truncate flex-1 min-w-0 px-1" title={event.title}>
+                {event.title}
+              </div>
+
               <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 inline-flex items-center gap-1 rounded-full border shrink-0 ${badgeClass}`}>
                 {isInProgress && (
                   <span className="relative flex h-1.5 w-1.5">
@@ -1117,26 +1123,21 @@ export default function RosterCalendar() {
               </span>
             </div>
 
-            {/* Line 2: Shift / Client Title (Single line with truncate) */}
-            <div className="font-semibold text-zinc-100 text-[11px] sm:text-xs leading-tight tracking-wide truncate w-full">
-              {event.title}
-            </div>
-
-            {/* Line 3: Staff Name & Service Provided (Single inline line) */}
-            <div className="flex items-center gap-1.5 w-full min-w-0 text-[10px] text-zinc-400">
+            {/* Line 2: Staff Name followed by Service Provided text */}
+            <div className="flex items-center gap-2 w-full min-w-0 text-[10px] text-zinc-400">
               {event.isRespiteWrapper ? (
                 <span className="text-violet-400 font-medium text-[9px] bg-violet-500/10 px-1.5 py-0.5 rounded border border-violet-500/20 truncate">
                   STA / Respite
                 </span>
               ) : (
                 <>
-                  <span className="truncate shrink-0 max-w-[45%] font-medium text-zinc-300" title={event.staffName || 'Unassigned'}>
+                  <span className="truncate shrink-0 font-medium text-zinc-300" title={event.staffName || 'Unassigned'}>
                     👨‍💼 {event.staffName || 'Unassigned'}
                   </span>
                   
                   {event.servicesData && event.servicesData.length > 0 ? (
-                    <div className="flex items-center gap-1 min-w-0 overflow-hidden">
-                      {event.servicesData.slice(0, 2).map((sd: any, idx: number) => {
+                    <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+                      {event.servicesData.map((sd: any, idx: number) => {
                         const srv = servicesList.find((s: any) => String(s.id) === String(sd.serviceId));
                         let srvName = srv ? srv.name : (sd.serviceName || (idx === 0 ? event.serviceName : 'Unknown Service'));
                         if (!srvName || srvName === 'Unknown Service') {
@@ -1147,19 +1148,14 @@ export default function RosterCalendar() {
                           }
                         }
                         return (
-                          <span key={idx} className="bg-black/40 text-brand-teal px-1.5 py-0.5 rounded text-[9px] truncate max-w-[120px] sm:max-w-[160px]" title={srvName}>
+                          <span key={idx} className="bg-black/40 text-brand-teal px-1.5 py-0.5 rounded text-[9px] truncate min-w-0 max-w-full" title={srvName}>
                             {srvName}
                           </span>
                         );
                       })}
-                      {event.servicesData.length > 2 && (
-                        <span className="text-zinc-500 text-[9px] shrink-0">
-                          +{event.servicesData.length - 2}
-                        </span>
-                      )}
                     </div>
                   ) : event.serviceName ? (
-                    <span className="bg-black/40 text-brand-teal px-1.5 py-0.5 rounded text-[9px] truncate max-w-[50%]" title={event.serviceName}>
+                    <span className="bg-black/40 text-brand-teal px-1.5 py-0.5 rounded text-[9px] truncate min-w-0 max-w-full flex-1" title={event.serviceName}>
                       {event.serviceName}
                     </span>
                   ) : null}
