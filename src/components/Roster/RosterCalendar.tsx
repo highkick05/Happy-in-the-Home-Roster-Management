@@ -10,7 +10,7 @@ import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
-import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer, Clock, User, Briefcase, Pill, HeartHandshake, Compass, Car, Users, Utensils, Sparkles, ShoppingBag, ShoppingCart, Flower2, Activity, GraduationCap, Users2 } from 'lucide-react';
+import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer, Clock, User, Briefcase, Pill, HeartHandshake, Compass, Car, Users, Utensils, Sparkles, ShoppingBag, ShoppingCart, Flower2, Activity, GraduationCap, Users2, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
 import AddHistoricalShiftModal from './AddHistoricalShiftModal';
@@ -274,6 +274,7 @@ export default function RosterCalendar() {
           notes: d.notes,
           servicesData: d.servicesData,
           providerTravelKm: d.provider_travel_km,
+          providerTravelMinutes: d.provider_travel_minutes,
           providerTravelCost: d.provider_travel_cost,
           homeCareTravelKm: d.home_care_travel_km,
           homeCareTravelTotal: d.home_care_travel_total,
@@ -332,6 +333,7 @@ export default function RosterCalendar() {
                 notes: s.notes,
                 servicesData: s.services_json ? JSON.parse(s.services_json) : [],
                 providerTravelKm: s.provider_travel_km,
+                providerTravelMinutes: s.provider_travel_minutes,
                 providerTravelCost: s.provider_travel_cost,
                 homeCareTravelKm: s.home_care_travel_km,
                 homeCareTravelTotal: s.home_care_travel_total,
@@ -1251,6 +1253,86 @@ export default function RosterCalendar() {
       const startText = event.start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
       const endText = event.end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
 
+      // Client name cleaned of redundant staff name in parentheses
+      const clientDisplayName = event.clientName || (event.title ? event.title.replace(/\s*\([^)]*\)$/, '') : 'Client');
+
+      // Shift duration in hours
+      const durationMs = Math.max(0, event.end.getTime() - event.start.getTime());
+      const durationHours = durationMs / (1000 * 60 * 60);
+      const durationFormatted = (() => {
+        if (durationHours <= 0) return '0 hrs';
+        const val = Number.isInteger(durationHours) ? durationHours.toString() : parseFloat(durationHours.toFixed(2)).toString();
+        return `${val} ${val === '1' ? 'hr' : 'hrs'}`;
+      })();
+
+      // Funding stream badge (NDIS or HCP)
+      const clientObj = clientList.find((c: any) => c.id === event.clientId || String(c.id) === String(event.clientId));
+      const rawFunding = event.fundingType || clientObj?.funding_type || clientObj?.fundingType || 'NDIS';
+      const isHCP = rawFunding === 'HCP' || rawFunding === 'HOME_CARE' || rawFunding === 'Home Care';
+      const fundingBadgeLabel = isHCP ? 'HCP' : (rawFunding === 'NDIS' ? 'NDIS' : rawFunding);
+
+      // Assigned staff & position
+      const staffObj = staffList.find((s: any) => s.id === event.staffId || String(s.id) === String(event.staffId));
+      const staffPosition = staffObj?.primary_position || (staffObj?.role === 'ADMIN' ? 'Administrator' : (event.staffId ? 'Support Worker' : ''));
+
+      // Distance and travel time calculation between staff house and client house
+      let distKm = Number(event.providerTravelKm || event.homeCareTravelKm || 0);
+      let travelMins = Number(event.providerTravelMinutes || 0);
+
+      if (event.transportRouteLog) {
+        try {
+          const parsed = typeof event.transportRouteLog === 'string'
+            ? JSON.parse(event.transportRouteLog)
+            : event.transportRouteLog;
+          if (parsed) {
+            if (distKm <= 0 && parsed.providerTravel?.distance) distKm = Number(parsed.providerTravel.distance);
+            if (travelMins <= 0 && parsed.providerTravel?.minutes) travelMins = Number(parsed.providerTravel.minutes);
+            if (distKm <= 0 && parsed.homeCareTravel?.distance) distKm = Number(parsed.homeCareTravel.distance);
+            if (travelMins <= 0 && parsed.homeCareTravel?.minutes) travelMins = Number(parsed.homeCareTravel.minutes);
+            if (Array.isArray(parsed.providerTravel?.legs)) {
+              for (const leg of parsed.providerTravel.legs) {
+                if (distKm <= 0 && leg.distance) distKm = Number(leg.distance);
+                if (travelMins <= 0 && (leg.durationMins || leg.minutes)) travelMins = Number(leg.durationMins || leg.minutes);
+              }
+            }
+            if (Array.isArray(parsed.homeCareTravel?.legs)) {
+              for (const leg of parsed.homeCareTravel.legs) {
+                if (distKm <= 0 && leg.distance) distKm = Number(leg.distance);
+                if (travelMins <= 0 && (leg.durationMins || leg.minutes)) travelMins = Number(leg.durationMins || leg.minutes);
+              }
+            }
+            if (Array.isArray(parsed)) {
+              for (const leg of parsed) {
+                if (distKm <= 0 && leg.distance) distKm = Number(leg.distance);
+                if (travelMins <= 0 && (leg.durationMins || leg.minutes)) travelMins = Number(leg.durationMins || leg.minutes);
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (distKm > 0 && travelMins <= 0) {
+        travelMins = Math.max(1, Math.round((distKm / 45) * 60));
+      } else if (travelMins > 0 && distKm <= 0) {
+        distKm = Number(((travelMins / 60) * 45).toFixed(1));
+      }
+
+      if (distKm <= 0 && staffObj?.latitude && clientObj?.latitude) {
+        const R = 6371;
+        const dLat = (Number(clientObj.latitude) - Number(staffObj.latitude)) * Math.PI / 180;
+        const dLon = (Number(clientObj.longitude) - Number(staffObj.longitude)) * Math.PI / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(Number(staffObj.latitude) * Math.PI / 180) * Math.cos(Number(clientObj.latitude) * Math.PI / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        distKm = Number((R * c * 1.25).toFixed(1));
+        travelMins = Math.max(1, Math.round((distKm / 45) * 60));
+      }
+
+      const formattedDistance = distKm > 0 ? `${distKm.toFixed(1)} km` : (event.staffId ? '0.0 km' : '–');
+      const formattedTravelTime = travelMins > 0 ? (travelMins >= 60 ? `${Math.floor(travelMins / 60)}h ${Math.round(travelMins % 60)}m` : `${Math.round(travelMins)} mins`) : (event.staffId ? '0 mins' : '–');
+
       return (
         <div 
            className={`${containerClass} cursor-pointer w-full group relative`}
@@ -1260,57 +1342,80 @@ export default function RosterCalendar() {
            onTouchStart={handleMouseDown}
            onTouchEnd={handleMouseUp}
         >
-          {/* Mobile & Tablet Compact Layout (Two lines only, professionally structured) */}
+          {/* Mobile & Tablet Layout */}
           <div className="flex flex-col gap-2 w-full lg:hidden">
-            {/* Line 1: Time on left with icon, Client Name in middle, Status badge on right */}
-            <div className="flex items-center gap-2.5 w-full min-w-0 justify-between">
-              {/* Time Pill */}
-              <div className="shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-800/90 border border-zinc-700/60 text-zinc-200 font-mono text-[11px] font-semibold tracking-tight shadow-xs min-w-[115px] sm:min-w-[125px]">
-                {event.isRespiteWrapper ? (
-                  <span className="text-brand-teal/90 font-medium text-[9px] bg-indigo-500/10 px-1 py-0.5 rounded border border-brand-teal/20">Multi-day</span>
-                ) : (
-                  <>
-                    <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
+            {/* Row 1: Time, Client Name, Funding badge & Status */}
+            <div className="flex items-center gap-2 w-full min-w-0 justify-between">
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <div className="shrink-0 flex flex-col justify-center px-2 py-0.5 rounded-md bg-zinc-800/90 border border-zinc-700/60 text-zinc-200 font-mono text-[10px] font-semibold tracking-tight shadow-xs">
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
                     <span>{startText}</span>
                     <span className="text-zinc-500 font-bold">–</span>
                     <span>{endText}</span>
-                  </>
-                )}
-              </div>
+                  </div>
+                  {!event.isRespiteWrapper && (
+                    <span className="text-[9px] font-sans font-semibold text-brand-teal/90 pl-3.5 tracking-tight">
+                      {durationFormatted}
+                    </span>
+                  )}
+                </div>
 
-              {/* Client's name in middle */}
-              <div className="font-semibold text-zinc-100 text-[12px] sm:text-xs leading-tight tracking-tight truncate flex-1 min-w-0 px-0.5" title={event.title}>
-                {event.title}
+                <div className="flex items-center gap-1.5 min-w-0 truncate">
+                  <span className="font-bold text-zinc-100 text-xs leading-tight tracking-tight truncate" title={clientDisplayName}>
+                    {clientDisplayName}
+                  </span>
+                  {fundingBadgeLabel && (
+                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold tracking-wider uppercase border shrink-0 ${
+                      fundingBadgeLabel === 'HCP'
+                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                        : 'bg-purple-500/15 border-purple-500/30 text-purple-300'
+                    }`}>
+                      {fundingBadgeLabel}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Status Badge */}
-              <span className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 inline-flex items-center gap-1 rounded-full border shadow-xs shrink-0 ${badgeClass}`}>
-                {isInProgress && (
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400"></span>
-                  </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {multiSelectMode && (
+                  <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${
+                    isSelected ? 'bg-brand-blue border-brand-blue text-white' : 'border-zinc-600 bg-zinc-800'
+                  }`}>
+                    {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                  </div>
                 )}
-                {badgeLabel}
-              </span>
+                <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 inline-flex items-center gap-1 rounded-full border shadow-xs shrink-0 ${badgeClass}`}>
+                  {isInProgress && (
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400"></span>
+                    </span>
+                  )}
+                  {badgeLabel}
+                </span>
+              </div>
             </div>
 
-            {/* Line 2: Staff Name chip followed by Service Provided chip */}
-            <div className="flex items-center gap-2 w-full min-w-0 text-[10px]">
+            {/* Row 2: Assigned Staff with position & Services */}
+            <div className="flex flex-wrap items-center gap-1.5 w-full min-w-0 text-[10px]">
               {event.isRespiteWrapper ? (
-                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10px] font-medium shrink-0">
+                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10px] font-medium shrink-0 shadow-xs">
                   <Bed className="w-3 h-3 text-violet-400 shrink-0 animate-service-float" />
                   <span>STA / Respite</span>
                 </div>
               ) : (
                 <>
-                  {/* Staff Pill */}
-                  <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 text-[10px] font-medium shrink-0 max-w-[45%] shadow-xs" title={event.staffName || 'Unassigned'}>
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 text-[10px] font-medium shrink-0 max-w-[50%] shadow-xs" title={event.staffName || 'Unassigned'}>
                     <User className="w-3 h-3 text-zinc-400 shrink-0" />
                     <span className="truncate">{event.staffName || 'Unassigned'}</span>
+                    {staffPosition && (
+                      <span className="text-zinc-400 text-[9px] font-normal truncate">({staffPosition})</span>
+                    )}
                   </div>
-                  
-                  {/* Service Provided Pill */}
+
+                  {/* Service Provided Pills */}
                   {event.servicesData && event.servicesData.length > 0 ? (
                     <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
                       {event.servicesData.map((sd: any, idx: number) => {
@@ -1325,7 +1430,7 @@ export default function RosterCalendar() {
                         }
                         const badgeInfo = getServiceBadge(srvName);
                         return (
-                          <div key={idx} className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md ${badgeInfo.badgeStyle} text-[10px] font-medium truncate min-w-0 flex-1 shadow-xs`} title={srvName}>
+                          <div key={idx} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md ${badgeInfo.badgeStyle} text-[10px] font-medium truncate min-w-0 shadow-xs`} title={srvName}>
                             {badgeInfo.icon}
                             <span className="truncate">{srvName}</span>
                           </div>
@@ -1336,7 +1441,7 @@ export default function RosterCalendar() {
                     (() => {
                       const badgeInfo = getServiceBadge(event.serviceName);
                       return (
-                        <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md ${badgeInfo.badgeStyle} text-[10px] font-medium truncate min-w-0 flex-1 shadow-xs`} title={event.serviceName}>
+                        <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md ${badgeInfo.badgeStyle} text-[10px] font-medium truncate min-w-0 shadow-xs`} title={event.serviceName}>
                           {badgeInfo.icon}
                           <span className="truncate">{event.serviceName}</span>
                         </div>
@@ -1346,40 +1451,87 @@ export default function RosterCalendar() {
                 </>
               )}
             </div>
+
+            {/* Row 3: Travel distance & travel time micro-badges */}
+            {!event.isRespiteWrapper && (
+              <div className="flex items-center gap-2">
+                <div 
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[9px] font-medium shadow-xs"
+                  title="Distance from staff member's house to client's house"
+                >
+                  <Car className="w-2.5 h-2.5 text-cyan-400 shrink-0 animate-service-drive" />
+                  <span>{formattedDistance}</span>
+                </div>
+                <div 
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-500/25 text-amber-300 text-[9px] font-medium shadow-xs"
+                  title="Estimated travel time from staff member's house to client's house"
+                >
+                  <Clock className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                  <span>{formattedTravelTime}</span>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Desktop Layout (Preserved original spacious layout, modernized icons) */}
+          {/* Desktop Layout (3 Clean Tiers, exact duration, redesigned right column) */}
           <div className="hidden lg:flex lg:flex-row lg:items-center lg:gap-6 w-full">
-            {/* Time Column */}
-            <div className="text-zinc-300 font-mono text-xs whitespace-nowrap shrink-0 min-w-[160px] flex items-center gap-1.5">
-              {event.isRespiteWrapper ? (
-                <span className="text-brand-teal/80 font-medium text-[10px] bg-indigo-500/5 px-2 py-0.5 rounded border border-brand-teal/10">Multi-day</span>
+            {/* Time Column with exact duration beneath */}
+            <div className="shrink-0 min-w-[140px] flex flex-col justify-center">
+              <div className="flex items-center gap-1.5 text-zinc-200 font-mono text-xs font-medium">
+                <Clock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <span>{startText}</span>
+                <span className="text-zinc-600 font-bold">–</span>
+                <span>{endText}</span>
+              </div>
+              {!event.isRespiteWrapper ? (
+                <span className="text-[11px] font-sans font-semibold text-brand-teal/90 pl-5 tracking-tight">
+                  {durationFormatted}
+                </span>
               ) : (
-                <>
-                  <Clock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                  <span>{startText}</span> <span className="text-zinc-600 font-bold">–</span> <span>{endText}</span>
-                </>
+                <span className="text-[10px] font-sans font-medium text-brand-teal/80 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-brand-teal/20 w-fit ml-5 mt-0.5">
+                  Multi-day
+                </span>
               )}
             </div>
             
-            {/* Wording in middle */}
-            <div className="flex flex-col gap-1 flex-1 min-w-0 px-4 border-l border-zinc-700/50">
-              <span className="font-semibold text-zinc-100 text-[11px] leading-tight tracking-wide truncate">
-                {event.title}
-              </span>
+            {/* Middle Section (3 Tiers) */}
+            <div className="flex flex-col gap-1.5 flex-1 min-w-0 px-4 border-l border-zinc-700/50">
+              {/* Row 1: Client Name in bold, clean font with funding stream badge (NDIS or HCP) */}
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-bold text-zinc-100 text-sm leading-tight tracking-tight truncate">
+                  {clientDisplayName}
+                </span>
+                {fundingBadgeLabel && (
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border shadow-xs shrink-0 ${
+                    fundingBadgeLabel === 'HCP'
+                      ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                      : 'bg-purple-500/15 border-purple-500/30 text-purple-300'
+                  }`}>
+                    {fundingBadgeLabel}
+                  </span>
+                )}
+              </div>
               
-              <div className="flex flex-row items-center gap-3 w-full min-w-0">
+              {/* Row 2: Assigned Staff member with a user icon and position title. Then Service pills with icons after */}
+              <div className="flex flex-wrap items-center gap-3 w-full min-w-0 text-[11px]">
                 {event.isRespiteWrapper ? (
-                  <span className="text-violet-400 font-medium text-[10px]">STA / Respite</span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10px] font-medium shadow-xs">
+                    <Bed className="w-3 h-3 text-violet-400 shrink-0 animate-service-float" />
+                    <span>STA / Respite</span>
+                  </span>
                 ) : (
                   <>
-                    <div className="flex items-center gap-1.5 shrink-0 min-w-0">
-                      <span className="text-zinc-300 font-medium text-xs truncate flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-zinc-400 shrink-0" /> {event.staffName || 'Unassigned'}
-                      </span>
+                    <div className="flex items-center gap-1.5 shrink-0 text-zinc-300 font-medium">
+                      <User className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                      <span>{event.staffName || 'Unassigned'}</span>
+                      {staffPosition && (
+                        <span className="text-zinc-400 font-normal">({staffPosition})</span>
+                      )}
                     </div>
+
+                    {/* Service Pills with animated icons */}
                     {event.servicesData && event.servicesData.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 min-w-0">
+                      <div className="flex flex-wrap gap-1.5 min-w-0 items-center">
                         {event.servicesData.map((sd: any, idx: number) => {
                           const srv = servicesList.find((s: any) => String(s.id) === String(sd.serviceId));
                           let srvName = srv ? srv.name : (sd.serviceName || (idx === 0 ? event.serviceName : 'Unknown Service'));
@@ -1392,44 +1544,70 @@ export default function RosterCalendar() {
                           }
                           const badgeInfo = getServiceBadge(srvName);
                           return (
-                            <span key={idx} className={`${badgeInfo.badgeStyle} px-2 py-0.5 rounded text-[10px] max-w-full truncate flex items-center gap-1`} title={srvName}>
+                            <span key={idx} className={`${badgeInfo.badgeStyle} px-2 py-0.5 rounded-md text-[10px] font-medium max-w-full truncate flex items-center gap-1 shadow-xs`} title={srvName}>
                               {badgeInfo.icon}
-                              {srvName}
+                              <span className="truncate">{srvName}</span>
                             </span>
                           );
                         })}
                       </div>
                     ) : (
-                      event.serviceName && (
-                        <div className="flex flex-wrap gap-1 min-w-0">
-                          {(() => {
-                            const badgeInfo = getServiceBadge(event.serviceName);
-                            return (
-                              <span className={`${badgeInfo.badgeStyle} px-2 py-0.5 rounded text-[10px] max-w-full truncate flex items-center gap-1`} title={event.serviceName}>
-                                {badgeInfo.icon}
-                                {event.serviceName}
-                              </span>
-                            );
-                          })()}
-                        </div>
-                      )
+                      event.serviceName && (() => {
+                        const badgeInfo = getServiceBadge(event.serviceName);
+                        return (
+                          <span className={`${badgeInfo.badgeStyle} px-2 py-0.5 rounded-md text-[10px] font-medium max-w-full truncate flex items-center gap-1 shadow-xs`} title={event.serviceName}>
+                            {badgeInfo.icon}
+                            <span className="truncate">{event.serviceName}</span>
+                          </span>
+                        );
+                      })()
                     )}
                   </>
                 )}
               </div>
+
+              {/* Row 3: Calculate the distance to the Clients house from the Staff members house as a badge and then time it takes to travel there as another badge */}
+              {!event.isRespiteWrapper && (
+                <div className="flex items-center gap-2 mt-0.5">
+                  <div 
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[10px] font-medium tracking-tight shadow-xs"
+                    title="Distance from staff member's house to client's house"
+                  >
+                    <Car className="w-3 h-3 text-cyan-400 shrink-0 animate-service-drive" />
+                    <span>{formattedDistance}</span>
+                  </div>
+
+                  <div 
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-950/40 border border-amber-500/25 text-amber-300 text-[10px] font-medium tracking-tight shadow-xs"
+                    title="Estimated travel time from staff member's house to client's house"
+                  >
+                    <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span>{formattedTravelTime}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Badge on right */}
-            <div className="flex items-center justify-end whitespace-nowrap shrink-0 ml-auto pl-2">
-              <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 inline-flex items-center gap-1.5 rounded-full border ${badgeClass}`}>
-                {isInProgress && (
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400"></span>
-                  </span>
+            {/* Right-hand Column (Redesigned with clean alignment, selection, and status) */}
+            <div className="flex items-center justify-end whitespace-nowrap shrink-0 ml-auto pl-4">
+              <div className="flex items-center gap-2.5">
+                {multiSelectMode && (
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                    isSelected ? 'bg-brand-blue border-brand-blue text-white' : 'border-zinc-600 bg-zinc-800'
+                  }`}>
+                    {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                  </div>
                 )}
-                {badgeLabel}
-              </span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 inline-flex items-center gap-1.5 rounded-full border shadow-xs ${badgeClass}`}>
+                  {isInProgress && (
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400"></span>
+                    </span>
+                  )}
+                  {badgeLabel}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -1572,7 +1750,7 @@ export default function RosterCalendar() {
         date: AgendaDate,
       }
     };
-  }, [multiSelectMode, holidays, servicesList, isMobileOrTablet]);
+  }, [multiSelectMode, holidays, servicesList, staffList, clientList, isMobileOrTablet]);
 
   const customDayPropGetter = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
