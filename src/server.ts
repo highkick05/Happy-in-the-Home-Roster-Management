@@ -421,6 +421,9 @@ async function startServer() {
           if (!remCols.some(c => c.name === 'transaction_reference')) {
             db.prepare("ALTER TABLE remittances ADD COLUMN transaction_reference TEXT").run();
           }
+          if (!remCols.some(c => c.name === 'activity_name')) {
+            db.prepare("ALTER TABLE remittances ADD COLUMN activity_name TEXT").run();
+          }
         }
         
         const invCols = db.prepare("PRAGMA table_info(invoices)").all();
@@ -18390,7 +18393,42 @@ app.get("/api/health", (req, res) => {
         LEFT JOIN users s ON r.staff_id = s.id
         ORDER BY r.created_at DESC
       `;
-      const remittances = db.prepare(query).all();
+      const remittances = db.prepare(query).all() as any[];
+
+      // Resolve activity / description for remittances from services_json
+      let allServices: any[] = [];
+      try {
+        allServices = db.prepare("SELECT id, name FROM services").all() as any[];
+      } catch (e) {}
+      const serviceMap = new Map<string, string>();
+      allServices.forEach((s: any) => serviceMap.set(String(s.id), s.name));
+
+      remittances.forEach((rem: any) => {
+        if ((!rem.activity_name || rem.activity_name === 'N/A' || rem.activity_name === 'Service Item' || rem.activity_name === rem.custom_payee_name) && rem.services_json) {
+          try {
+            const parsed = typeof rem.services_json === "string" ? JSON.parse(rem.services_json) : rem.services_json;
+            if (Array.isArray(parsed)) {
+              const names = parsed.map((sd: any) => {
+                if (sd.name && sd.name !== 'Service Item') return sd.name;
+                if (sd.serviceName && sd.serviceName !== 'Unknown Service') return sd.serviceName;
+                if (sd.customName) return sd.customName;
+                if (sd.serviceId === 'orientation' || String(sd.serviceId).toLowerCase() === 'orientation') return 'Orientation';
+                if (sd.serviceId && serviceMap.has(String(sd.serviceId))) {
+                  return serviceMap.get(String(sd.serviceId));
+                }
+                return sd.name || sd.customName || null;
+              }).filter(Boolean);
+              if (names.length > 0) {
+                rem.activity_name = names.join(", ");
+              }
+            }
+          } catch (e) {}
+        }
+        if (!rem.activity_name) {
+          rem.activity_name = "N/A";
+        }
+      });
+
       res.json(remittances);
     } catch (e: any) {
       console.error(e);
@@ -18400,7 +18438,7 @@ app.get("/api/health", (req, res) => {
 
   app.post("/api/remittances/historical", authenticateToken, requireAdmin, upload.array("attachments"), (req: any, res: any) => {
     try {
-      const { clientId, date } = req.body;
+      const { clientId, date, activity } = req.body;
       const amount = req.body.amount || 0;
       
       const files = (req.files as Express.Multer.File[]) || [];
@@ -18415,9 +18453,9 @@ app.get("/api/health", (req, res) => {
       const remittanceNumber = `REM-HIST-${now.getTime()}`;
       
       db.prepare(`
-        INSERT INTO remittances (remittance_number, client_id, amount, status, attachments_json)
-        VALUES (?, ?, ?, 'HISTORICAL', ?)
-      `).run(remittanceNumber, clientId || null, amount, attachmentsJson);
+        INSERT INTO remittances (remittance_number, client_id, amount, status, attachments_json, activity_name)
+        VALUES (?, ?, ?, 'HISTORICAL', ?, ?)
+      `).run(remittanceNumber, clientId || null, amount, attachmentsJson, activity || 'Historical Remittance');
       
       res.json({ success: true, message: "Historical remittance uploaded" });
     } catch (e: any) {
@@ -18603,18 +18641,74 @@ app.post(
           mimetype: f.mimetype
         })) || [];
 
+        let lineItems = services.map((sd: any) => {
+            let unit = sd.customUnit || "Hour";
+            let rate = sd.rateOverride ? Number(sd.rateOverride) : 0;
+            let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
+            let name = sd.customName || "Service Item";
+            
+            if (sd.name) {
+               name = sd.name;
+            }
+            if (!sd.isCustom) {
+               if (sd.serviceId === 'orientation' || String(sd.serviceId).toLowerCase() === 'orientation') {
+                   name = "Orientation";
+               } else {
+                   const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
+                   if (srv) {
+                       name = srv.name || name;
+                       if (!sd.rateOverride) {
+                           let finalRate = Number(srv.rate || 0);
+                           if (srv.type === "HOME_CARE" && srv.rates_json) {
+                               try {
+                                   const rates = JSON.parse(srv.rates_json);
+                                   if (dayOfWeek === 0 && rates["Sunday"]) finalRate = Number(rates["Sunday"]);
+                                   else if (dayOfWeek === 6 && rates["Saturday"]) finalRate = Number(rates["Saturday"]);
+                                   else if (rates["Weekday"]) finalRate = Number(rates["Weekday"]);
+                               } catch(e) {}
+                           } else if (srv.type === "NDIS" && srv.rates_json) {
+                               try {
+                                   const rates = JSON.parse(srv.rates_json);
+                                   const region = settingsMap.ndisRegion || "NSW";
+                                   if (rates[region] !== undefined) finalRate = Number(rates[region]);
+                               } catch(e) {}
+                           }
+                           rate = finalRate;
+                       }
+                   }
+               }
+            }
+            
+            let amount = rate * qty;
+            return {
+                name: name,
+                serviceName: name,
+                unit: unit,
+                rate: rate,
+                qty: qty,
+                amount: amount
+            };
+        });
+
+        const activityDescription = lineItems.map((li: any) => li.name).filter(Boolean).join(", ") || "Service Item";
+        const enrichedServices = services.map((sd: any, idx: number) => ({
+          ...sd,
+          name: lineItems[idx]?.name || sd.customName || "Service Item"
+        }));
+
         let remittanceId = req.body.remittanceId;
         if (remittanceId) {
           db.prepare(
-            `UPDATE remittances SET client_id=?, staff_id=?, custom_payee_name=?, amount=?, services_json=?, invoice_reference=?, transaction_reference=? WHERE id=?`
+            `UPDATE remittances SET client_id=?, staff_id=?, custom_payee_name=?, amount=?, services_json=?, invoice_reference=?, transaction_reference=?, activity_name=? WHERE id=?`
           ).run(
             clientId,
             finalStaffId,
             finalCustomStaffName,
             calculatedAmount,
-            JSON.stringify(services),
+            JSON.stringify(enrichedServices),
             invoiceReference || null,
             transactionReference || null,
+            activityDescription,
             remittanceId
           );
           // if there are new attachments, maybe append them, but for now just update what we have
@@ -18623,18 +18717,19 @@ app.post(
           }
         } else {
           const insertResult = db.prepare(
-            `INSERT INTO remittances (remittance_number, client_id, staff_id, custom_payee_name, amount, status, services_json, attachments_json, invoice_reference, transaction_reference)
-             VALUES (?, ?, ?, ?, ?, 'GENERATED', ?, ?, ?, ?)`
+            `INSERT INTO remittances (remittance_number, client_id, staff_id, custom_payee_name, amount, status, services_json, attachments_json, invoice_reference, transaction_reference, activity_name)
+             VALUES (?, ?, ?, ?, ?, 'GENERATED', ?, ?, ?, ?, ?)`
           ).run(
             remittanceNumber,
             clientId,
             finalStaffId,
             finalCustomStaffName,
             calculatedAmount,
-            JSON.stringify(services),
+            JSON.stringify(enrichedServices),
             JSON.stringify(attachments),
             invoiceReference || null,
-            transactionReference || null
+            transactionReference || null,
+            activityDescription
           );
           remittanceId = insertResult.lastInsertRowid;
         }
@@ -18666,47 +18761,6 @@ app.post(
            const dbStaff = db.prepare("SELECT * FROM users WHERE id = ?").get(finalStaffId) as any;
            if (dbStaff) staffRow = dbStaff;
         }
-        
-        let lineItems = services.map((sd: any) => {
-            let unit = sd.customUnit || "Hour";
-            let rate = sd.rateOverride ? Number(sd.rateOverride) : 0;
-            let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
-            let name = sd.customName || "Service Item";
-            
-            if (!sd.isCustom) {
-               const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
-               if (srv) {
-                   name = srv.name || name;
-                   if (!sd.rateOverride) {
-                       let finalRate = Number(srv.rate || 0);
-                       if (srv.type === "HOME_CARE" && srv.rates_json) {
-                           try {
-                               const rates = JSON.parse(srv.rates_json);
-                               if (dayOfWeek === 0 && rates["Sunday"]) finalRate = Number(rates["Sunday"]);
-                               else if (dayOfWeek === 6 && rates["Saturday"]) finalRate = Number(rates["Saturday"]);
-                               else if (rates["Weekday"]) finalRate = Number(rates["Weekday"]);
-                           } catch(e) {}
-                       } else if (srv.type === "NDIS" && srv.rates_json) {
-                           try {
-                               const rates = JSON.parse(srv.rates_json);
-                               const region = settingsMap.ndisRegion || "NSW";
-                               if (rates[region] !== undefined) finalRate = Number(rates[region]);
-                           } catch(e) {}
-                       }
-                       rate = finalRate;
-                   }
-               }
-            }
-            
-            let amount = rate * qty;
-            return {
-                name: name,
-                unit: unit,
-                rate: rate,
-                qty: qty,
-                amount: amount
-            }
-        });
         
         const pdfData = {
            shift: { funding_type: clientRow?.funding_type || "NDIS", actual_finish_time: new Date().toISOString() },

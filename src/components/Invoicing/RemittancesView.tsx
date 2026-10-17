@@ -94,6 +94,9 @@ function GenerateRemittanceForm({ token, onGenerated, onClose, editData }: { tok
   };
 
   const getServiceDetails = (serviceId: string) => {
+    if (serviceId === 'orientation') {
+      return { rate: 0, unit: 'Hour', name: 'Orientation' };
+    }
     if (serviceId && String(serviceId).startsWith('custom-')) {
       const match = selectedServices.find(s => s.serviceId === serviceId);
       if (match) {
@@ -210,7 +213,16 @@ function GenerateRemittanceForm({ token, onGenerated, onClose, editData }: { tok
       Object.entries(formData).forEach(([key, val]) => {
         submitData.append(key, val);
       });
-      submitData.append('services', JSON.stringify(validServices));
+      const enrichedValidServices = validServices.map(s => {
+        const details = getServiceDetails(s.serviceId);
+        const resolvedName = s.customName || details.name || (s.serviceId === 'orientation' ? 'Orientation' : 'Service Item');
+        return {
+          ...s,
+          name: resolvedName,
+          serviceName: resolvedName
+        };
+      });
+      submitData.append('services', JSON.stringify(enrichedValidServices));
       attachments.forEach(file => {
         submitData.append('attachments', file);
       });
@@ -830,6 +842,29 @@ export default function RemittancesView() {
     }
   };
 
+  const getRemittanceDescription = (q: any) => {
+    if (q.activity_name && q.activity_name !== 'N/A' && q.activity_name !== 'Service Item') {
+      return q.activity_name;
+    }
+    if (q.services_json) {
+      try {
+        const parsed = typeof q.services_json === 'string' ? JSON.parse(q.services_json) : q.services_json;
+        if (Array.isArray(parsed)) {
+          const names = parsed.map((s: any) => {
+            if (s.name && s.name !== 'Service Item') return s.name;
+            if (s.serviceName && s.serviceName !== 'Unknown Service') return s.serviceName;
+            if (s.customName) return s.customName;
+            if (s.serviceId === 'orientation' || String(s.serviceId).toLowerCase() === 'orientation') return 'Orientation';
+            return s.name || s.serviceName || s.customName || null;
+          }).filter(Boolean);
+          if (names.length > 0) return names.join(', ');
+        }
+      } catch (e) {}
+    }
+    if (q.activity_name && q.activity_name !== 'N/A') return q.activity_name;
+    return 'N/A';
+  };
+
   const filteredRemittances = (remittances || []).filter(q => {
     const s = searchTerm.trim().toLowerCase();
     if (!s) return true;
@@ -839,7 +874,7 @@ export default function RemittancesView() {
     const idStr = (q.remittance_number || '').toLowerCase();
     const invRefStr = (q.invoice_reference || '').toLowerCase();
     const staffStr = `${q.staff_first_name || ''} ${q.staff_last_name || ''} ${q.custom_payee_name || ''}`.trim().toLowerCase();
-    const activityStr = (q.activity_name || '').toLowerCase();
+    const activityStr = getRemittanceDescription(q).toLowerCase();
     const amountStr = String(q.amount ?? '');
     const amountFormatted = Number(q.amount || 0).toFixed(2);
 
@@ -866,8 +901,8 @@ export default function RemittancesView() {
       valA = (a.remittance_number || '').toLowerCase();
       valB = (b.remittance_number || '').toLowerCase();
     } else if (sortField === 'activity') {
-      valA = (a.activity_name || '').toLowerCase();
-      valB = (b.activity_name || '').toLowerCase();
+      valA = getRemittanceDescription(a).toLowerCase();
+      valB = getRemittanceDescription(b).toLowerCase();
     } else if (sortField === 'amount') {
       valA = Number(a.amount || 0);
       valB = Number(b.amount || 0);
@@ -995,10 +1030,10 @@ export default function RemittancesView() {
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Activity Name (Optional)</label>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1.5">Description / Activity (Optional)</label>
                 <input
                   type="text"
-                  placeholder="e.g. Historical Remittance"
+                  placeholder="e.g. Registered nurse clinical care, Assistance with Self-Care"
                   value={uploadActivity}
                   onChange={e => setUploadActivity(e.target.value)}
                   className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder:text-zinc-600"
@@ -1148,7 +1183,18 @@ export default function RemittancesView() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-1.5 text-[#E6EDF3]">{q.activity_name || 'N/A'}</td>
+                    <td className="px-3 py-1.5 text-[#E6EDF3]">
+                      <div className="flex items-center space-x-2 group/copy">
+                        <span className="truncate max-w-[280px]" title={getRemittanceDescription(q)}>
+                          {getRemittanceDescription(q)}
+                        </span>
+                        {getRemittanceDescription(q) !== 'N/A' && (
+                          <button onClick={(e) => { e.stopPropagation(); handleCopy(getRemittanceDescription(q)); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
+                            {copiedText === getRemittanceDescription(q) ? <CheckCircle className="w-3.5 h-3.5 text-brand-green" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-3 py-1.5 font-medium text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
                         <span>${Number(q.amount).toFixed(2)}</span>
