@@ -10,7 +10,7 @@ import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
-import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer, Clock, User, Briefcase, Pill, HeartHandshake, Compass, Car, Users, Utensils, Sparkles, ShoppingBag, Flower2, Activity } from 'lucide-react';
+import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer, Clock, User, Briefcase, Pill, HeartHandshake, Compass, Car, Users, Utensils, Sparkles, ShoppingBag, ShoppingCart, Flower2, Activity } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
 import AddHistoricalShiftModal from './AddHistoricalShiftModal';
@@ -1124,19 +1124,19 @@ export default function RosterCalendar() {
         };
       }
 
-      // Respite / Short Term Accommodation / Sleepover / Night
-      if (s.includes('respite') || s.includes('sta') || s.includes('accommodation') || s.includes('sleep') || s.includes('night') || s.includes('bed')) {
+      // Shopping / Groceries / Trolley / Store / Errands
+      if (s.includes('shop') || s.includes('shopping') || s.includes('groceries') || s.includes('grocery') || s.includes('store') || s.includes('errand') || s.includes('trolley')) {
         return {
-          icon: <Bed className="w-3 h-3 text-violet-400 shrink-0 animate-service-float" />,
-          badgeStyle: 'bg-violet-500/10 border border-violet-500/25 text-violet-300'
+          icon: <ShoppingCart className="w-3.5 h-3.5 text-indigo-400 shrink-0 animate-shopping-trolley" />,
+          badgeStyle: 'bg-indigo-500/10 border border-indigo-500/25 text-indigo-300'
         };
       }
 
-      // Shopping / Groceries / Store / Errands
-      if (s.includes('shop') || s.includes('shopping') || s.includes('groceries') || s.includes('store') || s.includes('errand')) {
+      // Respite / Short Term Accommodation / Sleepover / Night
+      if (s.includes('respite') || s.includes('short term accommodation') || s.includes('sleepover') || s.includes('night') || s.includes('bed') || /\bsta\b/i.test(s)) {
         return {
-          icon: <ShoppingBag className="w-3 h-3 text-indigo-400 shrink-0 animate-service-float" />,
-          badgeStyle: 'bg-indigo-500/10 border border-indigo-500/25 text-indigo-300'
+          icon: <Bed className="w-3 h-3 text-violet-400 shrink-0 animate-service-float" />,
+          badgeStyle: 'bg-violet-500/10 border border-violet-500/25 text-violet-300'
         };
       }
 

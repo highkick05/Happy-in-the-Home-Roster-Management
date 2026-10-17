@@ -414,6 +414,21 @@ input:-webkit-autofill:active {
   transform-origin: center;
 }
 
+/* Animated Shopping Trolley */
+@keyframes trolley-roll {
+  0% { transform: translateX(-1.5px) rotate(0deg); }
+  25% { transform: translateX(0px) rotate(-1.5deg); }
+  50% { transform: translateX(2px) rotate(1deg); }
+  75% { transform: translateX(0.5px) rotate(-0.5deg); }
+  100% { transform: translateX(-1.5px) rotate(0deg); }
+}
+
+.animate-shopping-trolley {
+  animation: trolley-roll 1.5s ease-in-out infinite;
+  transform-origin: bottom center;
+  display: inline-block;
+}
+
 /* Custom override for tailwind-datepicker-react hardcoded internal w-64 class */
 .custom-datepicker-popup .w-64 {
   width: 100% !important;
