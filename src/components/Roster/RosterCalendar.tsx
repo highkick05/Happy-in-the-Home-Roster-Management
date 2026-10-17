@@ -56,6 +56,25 @@ const AnimatedShowerHead = ({ className = "w-3.5 h-3.5 text-cyan-400" }: { class
   </svg>
 );
 
+const AnimatedNurseIcon = ({ className = "w-3.5 h-3.5 text-rose-400" }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={`shrink-0 animate-service-heartbeat ${className}`}
+  >
+    {/* Classic Nurse Cap Outline */}
+    <path d="M4 16.5c1.5 1 5.5 2 8 2s6.5 -1 8 -2l-2.5 -9a2 2 0 0 0 -1.9 -1.5h-7.2a2 2 0 0 0 -1.9 1.5z" />
+    {/* Medical Cross */}
+    <path d="M10 11.5h4" strokeWidth="2.5" />
+    <path d="M12 9.5v4" strokeWidth="2.5" />
+  </svg>
+);
+
 export default function RosterCalendar() {
   const { token, user, settings } = useAuth();
 
@@ -1035,8 +1054,22 @@ export default function RosterCalendar() {
     const getServiceBadge = (name?: string) => {
       const s = (name || '').toLowerCase();
 
-      // Medication / Medicine / Clinical / Nursing
-      if (s.includes('medication') || s.includes('medicine') || s.includes('pill') || s.includes('nurse') || s.includes('nursing') || s.includes('clinical') || s.includes('admin')) {
+      // Registered Nurse / Clinical Care (Direct Rate, Indirect Rate, etc.)
+      if (
+        s.includes('registered nurse') ||
+        s.includes('clinical care') ||
+        s.includes('nurse') ||
+        s.includes('nursing') ||
+        s.includes('clinical')
+      ) {
+        return {
+          icon: <AnimatedNurseIcon className="w-3.5 h-3.5 text-rose-400" />,
+          badgeStyle: 'bg-rose-500/10 border border-rose-500/25 text-rose-300'
+        };
+      }
+
+      // Medication / Medicine / Pills
+      if (s.includes('medication') || s.includes('medicine') || s.includes('pill') || s.includes('admin')) {
         return {
           icon: <Pill className="w-3 h-3 text-rose-400 shrink-0 animate-service-heartbeat" />,
           badgeStyle: 'bg-rose-500/10 border border-rose-500/25 text-rose-300'
