@@ -10,7 +10,7 @@ import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
-import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer, Clock, User, Briefcase, Pill, HeartHandshake, Compass, Car, Users, Utensils, Sparkles, ShoppingBag, ShoppingCart, Flower2, Activity } from 'lucide-react';
+import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer, Clock, User, Briefcase, Pill, HeartHandshake, Compass, Car, Users, Utensils, Sparkles, ShoppingBag, ShoppingCart, Flower2, Activity, GraduationCap, Users2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
 import AddHistoricalShiftModal from './AddHistoricalShiftModal';
@@ -1084,10 +1084,26 @@ export default function RosterCalendar() {
         };
       }
 
-      // Orientation / Training / Induction / Learning
-      if (s.includes('orientation') || s.includes('training') || s.includes('induction') || s.includes('learning')) {
+      // Buddy Shift / Shadow Shift
+      if (s.includes('buddy') || s.includes('shadow')) {
         return {
-          icon: <Compass className="w-3 h-3 text-amber-400 shrink-0 animate-service-sway" />,
+          icon: <Users2 className="w-3.5 h-3.5 text-blue-400 shrink-0 animate-service-float" />,
+          badgeStyle: 'bg-blue-500/10 border border-blue-500/25 text-blue-300'
+        };
+      }
+
+      // Orientation / Staff Orientation / Induction / Onboarding
+      if (s.includes('orientation') || s.includes('induction') || s.includes('onboard')) {
+        return {
+          icon: <Compass className="w-3.5 h-3.5 text-blue-400 shrink-0 animate-service-sway" />,
+          badgeStyle: 'bg-blue-500/10 border border-blue-500/25 text-blue-300'
+        };
+      }
+
+      // Skill Development and Training / Capacity Building / Learning
+      if (s.includes('skill') || s.includes('training') || s.includes('learning') || s.includes('development') || s.includes('capacity')) {
+        return {
+          icon: <GraduationCap className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-service-sway" />,
           badgeStyle: 'bg-amber-500/10 border border-amber-500/25 text-amber-300'
         };
       }
@@ -1190,7 +1206,7 @@ export default function RosterCalendar() {
         }
       };
 
-      let containerClass = 'transition-all shadow-md rounded-xl border border-white/[0.08] p-2.5 sm:p-3 lg:p-3.5 backdrop-blur-sm ';
+      let containerClass = 'transition-all duration-150 rounded-xl border border-zinc-700/80 p-2.5 sm:p-3 lg:p-3.5 backdrop-blur-md relative overflow-hidden shadow-lg shadow-black/40 hover:shadow-xl hover:border-zinc-500 hover:-translate-y-px ';
       let badgeLabel = event.status;
       let badgeClass = 'text-zinc-400 bg-zinc-900 border-zinc-700/50';
       
@@ -1198,35 +1214,33 @@ export default function RosterCalendar() {
       const isCompleted = event.status === 'COMPLETED' && !isCancelled;
       const isInProgress = event.status === 'IN_PROGRESS' && !isCancelled;
 
-      if (isCancelled) {
-         containerClass += 'opacity-80 border-l-[6px] border-red-500 bg-red-500/10 hover:bg-red-500/20';
-         badgeClass = 'text-red-400 bg-red-500/20 border-red-500/30';
+      if (event.isRespiteWrapper) {
+         containerClass += 'border-l-[6px] border-l-violet-500 bg-zinc-900/95 bg-gradient-to-r from-violet-500/20 via-zinc-900/90 to-zinc-900 hover:from-violet-500/30';
+         badgeClass = 'text-violet-300 bg-violet-500/20 border-violet-500/40';
+      } else if (isCancelled) {
+         containerClass += 'border-l-[6px] border-l-red-500 bg-zinc-900/95 bg-gradient-to-r from-red-500/15 via-zinc-900/90 to-zinc-900 hover:from-red-500/25';
+         badgeClass = 'text-red-400 bg-red-500/20 border-red-500/40';
          badgeLabel = 'Cancelled';
       } else if (event.status === 'DRAFT') {
-         containerClass += 'opacity-90 border-l-[6px] border-zinc-600 bg-zinc-800/30 hover:bg-zinc-800/50';
-         badgeClass = 'text-zinc-400 bg-zinc-800 border-zinc-700/50';
+         containerClass += 'border-l-[6px] border-l-zinc-500 bg-zinc-900/95 bg-gradient-to-r from-zinc-700/25 via-zinc-900/90 to-zinc-900 hover:from-zinc-700/35';
+         badgeClass = 'text-zinc-300 bg-zinc-800 border-zinc-600';
+         badgeLabel = 'Draft';
       } else if (event.status === 'PENDING_SYNC') {
-         containerClass += 'opacity-90 border-l-[6px] border-amber-500 bg-amber-500/10 hover:bg-amber-500/20';
-         badgeClass = 'text-amber-500 bg-amber-500/20 border-amber-500/30';
+         containerClass += 'border-l-[6px] border-l-amber-500 bg-zinc-900/95 bg-gradient-to-r from-amber-500/15 via-zinc-900/90 to-zinc-900 hover:from-amber-500/25';
+         badgeClass = 'text-amber-400 bg-amber-500/20 border-amber-500/40';
          badgeLabel = 'Pending Sync';
       } else if (event.status === 'PUBLISHED') {
-         containerClass += 'opacity-95 border-l-[6px] border-brand-teal bg-brand-teal/5 hover:bg-brand-teal/10';
-         badgeClass = 'text-brand-teal bg-brand-teal/20 border-brand-teal/30';
+         containerClass += 'border-l-[6px] border-l-brand-teal bg-zinc-900/95 bg-gradient-to-r from-brand-teal/15 via-zinc-900/90 to-zinc-900 hover:from-brand-teal/25';
+         badgeClass = 'text-brand-teal bg-brand-teal/20 border-brand-teal/40';
       } else if (isCompleted) {
-         containerClass += 'opacity-80 border-l-[6px] border-brand-green bg-brand-green/10 hover:bg-brand-green/20';
-         badgeClass = 'text-brand-green bg-brand-green/20 border-brand-green/30';
+         containerClass += 'border-l-[6px] border-l-brand-green bg-zinc-900/95 bg-gradient-to-r from-brand-green/15 via-zinc-900/90 to-zinc-900 hover:from-brand-green/25';
+         badgeClass = 'text-brand-green bg-brand-green/20 border-brand-green/40';
       } else if (isInProgress) {
-         containerClass += 'border-l-[6px] border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 ring-1 ring-amber-500/30 in-progress-agenda-item ';
+         containerClass += 'border-l-[6px] border-l-amber-400 bg-zinc-900/95 bg-gradient-to-r from-amber-500/20 via-zinc-900/90 to-zinc-900 hover:from-amber-500/30 ring-1 ring-amber-500/40 in-progress-agenda-item ';
          badgeClass = 'in-progress-agenda-badge border text-amber-300';
          badgeLabel = 'In Progress';
       } else {
-         containerClass += 'border-l-[6px] border-zinc-700 bg-zinc-800/20 hover:bg-zinc-800/40';
-      }
-
-      if (event.isRespiteWrapper) {
-         containerClass = containerClass.replace(/border-l-\[6px\] border-[a-z-]+-[0-9]+/, 'border-l-[6px] border-violet-500');
-         containerClass = containerClass.replace(/bg-[a-z-]+-[0-9]+\/10/, 'bg-violet-500/10');
-         badgeClass = 'text-violet-400 bg-violet-500/20 border-violet-500/30';
+         containerClass += 'border-l-[6px] border-l-zinc-600 bg-zinc-900/95 bg-gradient-to-r from-zinc-800/40 via-zinc-900/90 to-zinc-900 hover:bg-zinc-850';
       }
 
       const isSelected = multiSelectMode && selectedEventIds.has(event.id);
