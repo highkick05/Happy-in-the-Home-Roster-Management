@@ -10,7 +10,7 @@ import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { enUS } from 'date-fns/locale/en-US';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
-import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer, Clock, User, Briefcase } from 'lucide-react';
+import { Plus, Maximize, Minimize, Bed, Star, Copy, Printer, Clock, User, Briefcase, Pill, HeartHandshake, Compass, Car, Users, Utensils, Sparkles, ShoppingBag, Flower2, Activity } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AddShiftModal from './AddShiftModal';
 import AddHistoricalShiftModal from './AddHistoricalShiftModal';
@@ -31,6 +31,30 @@ const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
 
 const DnDCalendar = withDragAndDrop(Calendar);
 
+const AnimatedShowerHead = ({ className = "w-3.5 h-3.5 text-cyan-400" }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={`shrink-0 ${className}`}
+  >
+    <path d="m4 4 2.5 2.5" />
+    <path d="M13.5 6.5a4.95 4.95 0 0 0-7 7" />
+    <path d="M15 5 5 15" />
+    {/* Animated droplets spraying out */}
+    <path d="M14 17v.01" className="animate-shower-drop-1" strokeWidth="2.5" />
+    <path d="M10 16v.01" className="animate-shower-drop-2" strokeWidth="2.5" />
+    <path d="M13 13v.01" className="animate-shower-drop-3" strokeWidth="2.5" />
+    <path d="M16 10v.01" className="animate-shower-drop-1" strokeWidth="2.5" />
+    <path d="M11 20v.01" className="animate-shower-drop-2" strokeWidth="2.5" />
+    <path d="M17 14v.01" className="animate-shower-drop-3" strokeWidth="2.5" />
+    <path d="M20 11v.01" className="animate-shower-drop-1" strokeWidth="2.5" />
+  </svg>
+);
 
 export default function RosterCalendar() {
   const { token, user, settings } = useAuth();
@@ -1008,6 +1032,104 @@ export default function RosterCalendar() {
       );
     };
 
+    const getServiceBadge = (name?: string) => {
+      const s = (name || '').toLowerCase();
+
+      // Medication / Medicine / Clinical / Nursing
+      if (s.includes('medication') || s.includes('medicine') || s.includes('pill') || s.includes('nurse') || s.includes('nursing') || s.includes('clinical') || s.includes('admin')) {
+        return {
+          icon: <Pill className="w-3 h-3 text-rose-400 shrink-0 animate-service-heartbeat" />,
+          badgeStyle: 'bg-rose-500/10 border border-rose-500/25 text-rose-300'
+        };
+      }
+
+      // Self-care / Personal Care / Activities of daily living / Hygiene / Shower / Dressing
+      if (s.includes('self-care') || s.includes('self care') || s.includes('personal care') || s.includes('daily living') || s.includes('hygiene') || s.includes('shower') || s.includes('dressing')) {
+        return {
+          icon: <AnimatedShowerHead className="w-3.5 h-3.5 text-cyan-400" />,
+          badgeStyle: 'bg-cyan-500/10 border border-cyan-500/25 text-cyan-300'
+        };
+      }
+
+      // Orientation / Training / Induction / Learning
+      if (s.includes('orientation') || s.includes('training') || s.includes('induction') || s.includes('learning')) {
+        return {
+          icon: <Compass className="w-3 h-3 text-amber-400 shrink-0 animate-service-sway" />,
+          badgeStyle: 'bg-amber-500/10 border border-amber-500/25 text-amber-300'
+        };
+      }
+
+      // Individual Social Supports / Transport / Travel / Driving / Vehicle
+      if (s.includes('individual social') || s.includes('social support') || s.includes('transport') || s.includes('travel') || s.includes('drive') || s.includes('driving') || s.includes('vehicle') || s.includes('car')) {
+        return {
+          icon: <Car className="w-3.5 h-3.5 text-cyan-400 shrink-0 animate-service-drive" />,
+          badgeStyle: 'bg-cyan-500/10 border border-cyan-500/25 text-cyan-300'
+        };
+      }
+
+      // Community / Social / Outing / Recreation / Access
+      if (s.includes('community') || s.includes('social') || s.includes('outing') || s.includes('recreation') || s.includes('access')) {
+        return {
+          icon: <Users className="w-3 h-3 text-sky-400 shrink-0 animate-service-float" />,
+          badgeStyle: 'bg-sky-500/10 border border-sky-500/25 text-sky-300'
+        };
+      }
+
+      // Meal Prep / Cooking / Food / Diet / Kitchen / Nutrition
+      if (s.includes('meal') || s.includes('food') || s.includes('cook') || s.includes('cooking') || s.includes('kitchen') || s.includes('nutrition')) {
+        return {
+          icon: <Utensils className="w-3 h-3 text-orange-400 shrink-0 animate-service-sway" />,
+          badgeStyle: 'bg-orange-500/10 border border-orange-500/25 text-orange-300'
+        };
+      }
+
+      // Domestic Assistance / Cleaning / Household / Laundry / Chores
+      if (s.includes('domestic') || s.includes('clean') || s.includes('cleaning') || s.includes('household') || s.includes('laundry') || s.includes('chore')) {
+        return {
+          icon: <Sparkles className="w-3 h-3 text-yellow-300 shrink-0 animate-service-twinkle" />,
+          badgeStyle: 'bg-yellow-500/10 border border-yellow-500/25 text-yellow-300'
+        };
+      }
+
+      // Respite / Short Term Accommodation / Sleepover / Night
+      if (s.includes('respite') || s.includes('sta') || s.includes('accommodation') || s.includes('sleep') || s.includes('night') || s.includes('bed')) {
+        return {
+          icon: <Bed className="w-3 h-3 text-violet-400 shrink-0 animate-service-float" />,
+          badgeStyle: 'bg-violet-500/10 border border-violet-500/25 text-violet-300'
+        };
+      }
+
+      // Shopping / Groceries / Store / Errands
+      if (s.includes('shop') || s.includes('shopping') || s.includes('groceries') || s.includes('store') || s.includes('errand')) {
+        return {
+          icon: <ShoppingBag className="w-3 h-3 text-indigo-400 shrink-0 animate-service-float" />,
+          badgeStyle: 'bg-indigo-500/10 border border-indigo-500/25 text-indigo-300'
+        };
+      }
+
+      // Gardening / Yard / Lawn / Outdoor
+      if (s.includes('garden') || s.includes('gardening') || s.includes('yard') || s.includes('lawn') || s.includes('outdoor')) {
+        return {
+          icon: <Flower2 className="w-3 h-3 text-lime-400 shrink-0 animate-service-sway" />,
+          badgeStyle: 'bg-lime-500/10 border border-lime-500/25 text-lime-300'
+        };
+      }
+
+      // Therapy / Allied Health / Physio / Psychology
+      if (s.includes('therapy') || s.includes('allied') || s.includes('physio') || s.includes('psych') || s.includes('rehab')) {
+        return {
+          icon: <Activity className="w-3 h-3 text-teal-400 shrink-0 animate-service-heartbeat" />,
+          badgeStyle: 'bg-teal-500/10 border border-teal-500/25 text-teal-300'
+        };
+      }
+
+      // Default
+      return {
+        icon: <Briefcase className="w-3 h-3 text-brand-teal/80 shrink-0 animate-service-float" />,
+        badgeStyle: 'bg-brand-teal/15 border border-brand-teal/30 text-brand-teal'
+      };
+    };
+
     const AgendaEvent = ({ event }: any) => {
       const timerRef = React.useRef<any>(null);
 
@@ -1130,7 +1252,7 @@ export default function RosterCalendar() {
             <div className="flex items-center gap-2 w-full min-w-0 text-[10px]">
               {event.isRespiteWrapper ? (
                 <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10px] font-medium shrink-0">
-                  <Bed className="w-3 h-3 text-violet-400 shrink-0" />
+                  <Bed className="w-3 h-3 text-violet-400 shrink-0 animate-service-float" />
                   <span>STA / Respite</span>
                 </div>
               ) : (
@@ -1154,19 +1276,25 @@ export default function RosterCalendar() {
                             srvName = sd.serviceName || 'Custom Service';
                           }
                         }
+                        const badgeInfo = getServiceBadge(srvName);
                         return (
-                          <div key={idx} className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-brand-teal/15 border border-brand-teal/30 text-brand-teal text-[10px] font-medium truncate min-w-0 flex-1 shadow-xs" title={srvName}>
-                            <Briefcase className="w-3 h-3 text-brand-teal/70 shrink-0" />
+                          <div key={idx} className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md ${badgeInfo.badgeStyle} text-[10px] font-medium truncate min-w-0 flex-1 shadow-xs`} title={srvName}>
+                            {badgeInfo.icon}
                             <span className="truncate">{srvName}</span>
                           </div>
                         );
                       })}
                     </div>
                   ) : event.serviceName ? (
-                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-brand-teal/15 border border-brand-teal/30 text-brand-teal text-[10px] font-medium truncate min-w-0 flex-1 shadow-xs" title={event.serviceName}>
-                      <Briefcase className="w-3 h-3 text-brand-teal/70 shrink-0" />
-                      <span className="truncate">{event.serviceName}</span>
-                    </div>
+                    (() => {
+                      const badgeInfo = getServiceBadge(event.serviceName);
+                      return (
+                        <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md ${badgeInfo.badgeStyle} text-[10px] font-medium truncate min-w-0 flex-1 shadow-xs`} title={event.serviceName}>
+                          {badgeInfo.icon}
+                          <span className="truncate">{event.serviceName}</span>
+                        </div>
+                      );
+                    })()
                   ) : null}
                 </>
               )}
@@ -1215,9 +1343,10 @@ export default function RosterCalendar() {
                               srvName = sd.serviceName || 'Custom Service';
                             }
                           }
+                          const badgeInfo = getServiceBadge(srvName);
                           return (
-                            <span key={idx} className="bg-brand-teal/15 border border-brand-teal/30 text-brand-teal px-2 py-0.5 rounded text-[10px] max-w-full truncate flex items-center gap-1" title={srvName}>
-                              <Briefcase className="w-3 h-3 text-brand-teal/70 shrink-0" />
+                            <span key={idx} className={`${badgeInfo.badgeStyle} px-2 py-0.5 rounded text-[10px] max-w-full truncate flex items-center gap-1`} title={srvName}>
+                              {badgeInfo.icon}
                               {srvName}
                             </span>
                           );
@@ -1226,10 +1355,15 @@ export default function RosterCalendar() {
                     ) : (
                       event.serviceName && (
                         <div className="flex flex-wrap gap-1 min-w-0">
-                          <span className="bg-brand-teal/15 border border-brand-teal/30 text-brand-teal px-2 py-0.5 rounded text-[10px] max-w-full truncate flex items-center gap-1" title={event.serviceName}>
-                            <Briefcase className="w-3 h-3 text-brand-teal/70 shrink-0" />
-                            {event.serviceName}
-                          </span>
+                          {(() => {
+                            const badgeInfo = getServiceBadge(event.serviceName);
+                            return (
+                              <span className={`${badgeInfo.badgeStyle} px-2 py-0.5 rounded text-[10px] max-w-full truncate flex items-center gap-1`} title={event.serviceName}>
+                                {badgeInfo.icon}
+                                {event.serviceName}
+                              </span>
+                            );
+                          })()}
                         </div>
                       )
                     )}
