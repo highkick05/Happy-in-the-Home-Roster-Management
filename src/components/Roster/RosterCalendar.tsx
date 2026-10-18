@@ -1449,22 +1449,22 @@ export default function RosterCalendar() {
               )}
             </div>
 
-            {/* Row 3: Travel time label followed by distance & time micro-badges */}
+            {/* Row 3: Provider Travel label followed by distance & time micro-badges */}
             {!event.isRespiteWrapper && (
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider shrink-0">
-                  Travel time:
+                  Provider Travel:
                 </span>
                 <div 
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[9px] font-medium shadow-xs"
-                  title="Distance from staff member's house to client's house"
+                  title="Provider travel distance for this shift"
                 >
                   <Car className="w-2.5 h-2.5 text-cyan-400 shrink-0 animate-service-drive" />
                   <span>{formattedDistance}</span>
                 </div>
                 <div 
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-500/25 text-amber-300 text-[9px] font-medium shadow-xs"
-                  title="Estimated travel time from staff member's house to client's house"
+                  title="Provider travel time for this shift"
                 >
                   <Clock className="w-2.5 h-2.5 text-amber-400 shrink-0" />
                   <span>{formattedTravelTime}</span>
@@ -1563,15 +1563,15 @@ export default function RosterCalendar() {
                 )}
               </div>
 
-              {/* Row 3: Travel time label followed by distance & time micro-badges */}
+              {/* Row 3: Provider Travel label followed by distance & time micro-badges */}
               {!event.isRespiteWrapper && (
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider shrink-0">
-                    Travel time:
+                    Provider Travel:
                   </span>
                   <div 
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[10px] font-medium tracking-tight shadow-xs"
-                    title="Distance from staff member's house to client's house"
+                    title="Provider travel distance for this shift"
                   >
                     <Car className="w-3 h-3 text-cyan-400 shrink-0 animate-service-drive" />
                     <span>{formattedDistance}</span>
@@ -1579,7 +1579,7 @@ export default function RosterCalendar() {
 
                   <div 
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-950/40 border border-amber-500/25 text-amber-300 text-[10px] font-medium tracking-tight shadow-xs"
-                    title="Estimated travel time from staff member's house to client's house"
+                    title="Provider travel time for this shift"
                   >
                     <Clock className="w-3 h-3 text-amber-400 shrink-0" />
                     <span>{formattedTravelTime}</span>
