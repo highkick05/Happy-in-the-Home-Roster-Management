@@ -1469,22 +1469,20 @@ export default function RosterCalendar() {
 
             {/* Shift status ribbon on the end of the card, spanning the entire height like a vertical ribbon */}
             <div 
-              className={`self-stretch -my-2.5 -mr-2.5 sm:-my-3 sm:-mr-3 lg:-my-3.5 lg:-mr-3.5 flex flex-col items-center justify-center shrink-0 px-2 sm:px-2.5 lg:px-3 min-w-[34px] sm:min-w-[40px] lg:min-w-[44px] transition-colors select-none ${badgeClass}`}
+              className={`self-stretch -my-2.5 -mr-2.5 sm:-my-3 sm:-mr-3 lg:-my-3.5 lg:-mr-3.5 flex flex-col items-center justify-center shrink-0 px-1.5 sm:px-2 lg:px-2.5 min-w-[30px] sm:min-w-[34px] lg:min-w-[38px] transition-colors select-none ${badgeClass}`}
             >
               {isInProgress && (
-                <span className="relative flex h-2 w-2 mb-2 shrink-0">
+                <span className="relative flex h-2 w-2 mb-1.5 shrink-0">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
                 </span>
               )}
               <span 
-                className="uppercase tracking-widest text-center select-none text-[14px] sm:text-[15px] lg:text-[16.5px]"
+                className="uppercase text-center select-none text-[13.5px] sm:text-[14px] lg:text-[15px] leading-none"
                 style={{ 
                   writingMode: 'vertical-rl',
-                  fontFamily: '"Helvetica Neue Condensed Bold", "Helvetica Neue Condensed", "Arial Narrow Bold", "Arial Narrow", "Helvetica Condensed", sans-serif-condensed, "Helvetica Neue", Helvetica, sans-serif',
-                  fontStretch: 'condensed',
-                  fontWeight: 700,
-                  letterSpacing: '0.2em',
+                  fontFamily: '"Bebas Neue", "Oswald", "Cinzel", "Helvetica Neue", sans-serif',
+                  letterSpacing: '0.14em',
                 }}
               >
                 {badgeLabel}
