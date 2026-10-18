@@ -1210,7 +1210,7 @@ export default function RosterCalendar() {
 
       let containerClass = 'transition-all duration-150 rounded-xl border border-zinc-700/80 p-2.5 sm:p-3 lg:p-3.5 backdrop-blur-md relative overflow-hidden shadow-lg shadow-black/40 hover:shadow-xl hover:border-zinc-500 hover:-translate-y-px ';
       let badgeLabel = event.status;
-      let badgeClass = 'text-zinc-400 bg-zinc-900 border-zinc-700/50';
+      let badgeClass = 'text-zinc-400 bg-zinc-800/80';
       
       const isCancelled = event.status === 'CANCELLED';
       const isCompleted = event.status === 'COMPLETED' && !isCancelled;
@@ -1218,31 +1218,33 @@ export default function RosterCalendar() {
 
       if (event.isRespiteWrapper) {
          containerClass += 'border-l-[6px] border-l-violet-500 bg-zinc-900/95 bg-gradient-to-r from-violet-500/20 via-zinc-900/90 to-zinc-900 hover:from-violet-500/30';
-         badgeClass = 'text-violet-300 bg-violet-500/20 border-violet-500/40';
+         badgeClass = 'text-violet-300 bg-violet-500/20 group-hover:bg-violet-500/30';
       } else if (isCancelled) {
          containerClass += 'border-l-[6px] border-l-red-500 bg-zinc-900/95 bg-gradient-to-r from-red-500/15 via-zinc-900/90 to-zinc-900 hover:from-red-500/25';
-         badgeClass = 'text-red-400 bg-red-500/20 border-red-500/40';
+         badgeClass = 'text-red-400 bg-red-500/20 group-hover:bg-red-500/30';
          badgeLabel = 'Cancelled';
       } else if (event.status === 'DRAFT') {
          containerClass += 'border-l-[6px] border-l-zinc-500 bg-zinc-900/95 bg-gradient-to-r from-zinc-700/25 via-zinc-900/90 to-zinc-900 hover:from-zinc-700/35';
-         badgeClass = 'text-zinc-300 bg-zinc-800 border-zinc-600';
+         badgeClass = 'text-zinc-400 bg-zinc-800/80 group-hover:bg-zinc-800';
          badgeLabel = 'Draft';
       } else if (event.status === 'PENDING_SYNC') {
          containerClass += 'border-l-[6px] border-l-amber-500 bg-zinc-900/95 bg-gradient-to-r from-amber-500/15 via-zinc-900/90 to-zinc-900 hover:from-amber-500/25';
-         badgeClass = 'text-amber-400 bg-amber-500/20 border-amber-500/40';
+         badgeClass = 'text-amber-400 bg-amber-500/20 group-hover:bg-amber-500/30';
          badgeLabel = 'Pending Sync';
       } else if (event.status === 'PUBLISHED') {
          containerClass += 'border-l-[6px] border-l-brand-teal bg-zinc-900/95 bg-gradient-to-r from-brand-teal/15 via-zinc-900/90 to-zinc-900 hover:from-brand-teal/25';
-         badgeClass = 'text-brand-teal bg-brand-teal/20 border-brand-teal/40';
+         badgeClass = 'text-brand-teal bg-brand-teal/20 group-hover:bg-brand-teal/30';
       } else if (isCompleted) {
          containerClass += 'border-l-[6px] border-l-brand-green bg-zinc-900/95 bg-gradient-to-r from-brand-green/15 via-zinc-900/90 to-zinc-900 hover:from-brand-green/25';
-         badgeClass = 'text-brand-green bg-brand-green/20 border-brand-green/40';
+         badgeClass = 'text-brand-green bg-brand-green/20 group-hover:bg-brand-green/30';
+         badgeLabel = 'Completed';
       } else if (isInProgress) {
          containerClass += 'border-l-[6px] border-l-amber-400 bg-zinc-900/95 bg-gradient-to-r from-amber-500/20 via-zinc-900/90 to-zinc-900 hover:from-amber-500/30 ring-1 ring-amber-500/40 in-progress-agenda-item ';
-         badgeClass = 'in-progress-agenda-badge border text-amber-300';
+         badgeClass = 'text-amber-300 bg-amber-500/25 group-hover:bg-amber-500/35';
          badgeLabel = 'In Progress';
       } else {
          containerClass += 'border-l-[6px] border-l-zinc-600 bg-zinc-900/95 bg-gradient-to-r from-zinc-800/40 via-zinc-900/90 to-zinc-900 hover:bg-zinc-850';
+         badgeClass = 'text-zinc-400 bg-zinc-800/60 group-hover:bg-zinc-800';
       }
 
       const isSelected = multiSelectMode && selectedEventIds.has(event.id);
@@ -1342,10 +1344,10 @@ export default function RosterCalendar() {
            onTouchStart={handleMouseDown}
            onTouchEnd={handleMouseUp}
         >
-          {/* Shift Card Layout (3 Clean Rows + Vertical Status Badge at the End) */}
-          <div className="flex items-stretch justify-between w-full min-w-0 gap-2 sm:gap-3">
+          {/* Shift Card Layout (3 Clean Rows + Vertical Status Ribbon at the End) */}
+          <div className="flex items-stretch justify-between w-full min-w-0">
             {/* 3 Rows of Shift Info */}
-            <div className="flex flex-col gap-1.5 sm:gap-2 flex-1 min-w-0 justify-center">
+            <div className="flex flex-col gap-1.5 sm:gap-2 flex-1 min-w-0 justify-center pr-2.5 sm:pr-3.5">
               {/* Row 1: Time on the first row with client name and funding type */}
               <div className="flex items-center gap-2 sm:gap-3 w-full min-w-0 flex-nowrap overflow-hidden">
                 {/* Time & Duration Pill */}
@@ -1465,20 +1467,28 @@ export default function RosterCalendar() {
               )}
             </div>
 
-            {/* Shift status badge on the end of the card with text running vertically up and down */}
-            <div className="flex flex-col items-center justify-center shrink-0 pl-1.5 sm:pl-2.5 border-l border-zinc-700/50">
-              <div 
-                className={`px-1.5 py-2.5 rounded-md border text-[8.5px] sm:text-[9.5px] font-extrabold uppercase tracking-widest inline-flex items-center justify-center gap-1 shadow-xs transition-colors select-none ${badgeClass}`}
-                style={{ writingMode: 'vertical-rl' }}
+            {/* Shift status ribbon on the end of the card, spanning the entire height like a vertical ribbon */}
+            <div 
+              className={`self-stretch -my-2.5 -mr-2.5 sm:-my-3 sm:-mr-3 lg:-my-3.5 lg:-mr-3.5 flex flex-col items-center justify-center shrink-0 px-2 sm:px-2.5 lg:px-3 min-w-[32px] sm:min-w-[38px] lg:min-w-[42px] transition-colors select-none ${badgeClass}`}
+            >
+              {isInProgress && (
+                <span className="relative flex h-2 w-2 mb-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
+                </span>
+              )}
+              <span 
+                className="uppercase tracking-widest text-center select-none text-[13px] sm:text-[14px] lg:text-[15px]"
+                style={{ 
+                  writingMode: 'vertical-rl',
+                  fontFamily: '"Helvetica Neue Condensed", "Arial Narrow", "Helvetica Condensed", sans-serif-condensed, "Helvetica Neue", Helvetica, sans-serif',
+                  fontStretch: 'condensed',
+                  fontWeight: 300,
+                  letterSpacing: '0.18em',
+                }}
               >
-                {isInProgress && (
-                  <span className="relative flex h-1.5 w-1.5 mb-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400"></span>
-                  </span>
-                )}
-                <span>{badgeLabel}</span>
-              </div>
+                {badgeLabel}
+              </span>
             </div>
           </div>
         </div>
