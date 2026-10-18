@@ -1342,15 +1342,16 @@ export default function RosterCalendar() {
            onTouchStart={handleMouseDown}
            onTouchEnd={handleMouseUp}
         >
-          {/* Mobile & Tablet Layout */}
-          <div className="flex flex-col gap-2 sm:gap-2.5 w-full lg:hidden">
-            {/* Row 1: Time with Duration on the Right, Client Name, Funding badge & Status */}
-            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 w-full min-w-0 justify-between">
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-                {/* Time & Duration Pill (Horizontal, duration placed on the right side) */}
-                <div className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800/90 border border-zinc-700/60 text-zinc-200 font-mono text-[10px] sm:text-[11px] font-medium tracking-tight shadow-xs">
+          {/* Shift Card Layout (3 Clean Rows + Vertical Status Badge at the End) */}
+          <div className="flex items-stretch justify-between w-full min-w-0 gap-2 sm:gap-3">
+            {/* 3 Rows of Shift Info */}
+            <div className="flex flex-col gap-1.5 sm:gap-2 flex-1 min-w-0 justify-center">
+              {/* Row 1: Time on the first row with client name and funding type */}
+              <div className="flex items-center gap-2 sm:gap-3 w-full min-w-0 flex-nowrap overflow-hidden">
+                {/* Time & Duration Pill */}
+                <div className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-zinc-800/90 border border-zinc-700/60 text-zinc-200 font-mono text-[10px] sm:text-[11px] font-medium tracking-tight shadow-xs">
                   {event.isRespiteWrapper ? (
-                    <span className="text-brand-teal/90 font-medium text-[9.5px] sm:text-[10px] bg-indigo-500/10 px-1.5 py-0.5 rounded border border-brand-teal/20">
+                    <span className="text-brand-teal/90 font-medium text-[9px] sm:text-[10px] bg-indigo-500/10 px-1.5 py-0.5 rounded border border-brand-teal/20">
                       Multi-day
                     </span>
                   ) : (
@@ -1361,16 +1362,16 @@ export default function RosterCalendar() {
                         <span className="text-zinc-500 font-bold">–</span>
                         <span>{endText}</span>
                       </div>
-                      <span className="text-[9px] sm:text-[10px] font-sans font-bold text-brand-teal bg-brand-teal/15 px-1.5 py-0.5 rounded border border-brand-teal/30 tracking-tight shrink-0 ml-0.5">
+                      <span className="text-[9px] sm:text-[9.5px] font-sans font-bold text-brand-teal bg-brand-teal/15 px-1.5 py-0.2 rounded border border-brand-teal/30 tracking-tight shrink-0 ml-0.5">
                         {durationFormatted}
                       </span>
                     </>
                   )}
                 </div>
 
-                {/* Client Name & Funding Stream Badge */}
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                  <span className="font-extrabold text-zinc-100 text-[13px] sm:text-sm leading-tight tracking-tight uppercase truncate" title={clientDisplayName}>
+                {/* Client Name & Funding Type */}
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 truncate">
+                  <span className="font-extrabold text-zinc-100 text-sm sm:text-base leading-tight tracking-tight uppercase truncate" title={clientDisplayName}>
                     {clientDisplayName}
                   </span>
                   {fundingBadgeLabel && (
@@ -1385,230 +1386,98 @@ export default function RosterCalendar() {
                 </div>
               </div>
 
-              {/* Status Badge */}
-              <div className="flex items-center gap-1.5 shrink-0 ml-auto sm:ml-0">
-                {multiSelectMode && (
-                  <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded border flex items-center justify-center transition-colors ${
-                    isSelected ? 'bg-brand-blue border-brand-blue text-white' : 'border-zinc-600 bg-zinc-800'
-                  }`}>
-                    {isSelected && <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 stroke-[3]" />}
+              {/* Row 2: Assigned staff name and service pill with animated icons */}
+              <div className="flex items-center gap-2 sm:gap-2.5 w-full min-w-0">
+                {/* Assigned Staff */}
+                {event.isRespiteWrapper ? (
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10px] sm:text-[10.5px] font-medium shrink-0 shadow-xs">
+                    <Bed className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-violet-400 shrink-0 animate-service-float" />
+                    <span>STA / Respite</span>
                   </div>
-                )}
-                <span className={`text-[9.5px] sm:text-[10.5px] font-bold uppercase tracking-wider px-2.5 py-0.5 inline-flex items-center gap-1.5 rounded-full border shadow-xs shrink-0 ${badgeClass}`}>
-                  {isInProgress && (
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400"></span>
-                    </span>
-                  )}
-                  {badgeLabel}
-                </span>
-              </div>
-            </div>
-
-            {/* Row 2: Assigned Staff (without position in brackets) & Services */}
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full min-w-0 text-[10.5px] sm:text-[11px]">
-              {event.isRespiteWrapper ? (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10.5px] sm:text-[11px] font-medium shrink-0 shadow-xs">
-                  <Bed className="w-3.5 h-3.5 text-violet-400 shrink-0 animate-service-float" />
-                  <span>STA / Respite</span>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 text-[10.5px] sm:text-[11px] font-medium shrink-0 shadow-xs" title={event.staffName || 'Unassigned'}>
-                    <User className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 text-[10px] sm:text-[10.5px] font-medium min-w-0 truncate shadow-xs max-w-[45%]" title={event.staffName || 'Unassigned'}>
+                    <User className="w-3 h-3 text-zinc-400 shrink-0" />
                     <span className="truncate">{event.staffName || 'Unassigned'}</span>
                   </div>
+                )}
 
-                  {/* Service Provided Pills */}
+                {/* Service Pill(s) with animated icons */}
+                <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
                   {event.servicesData && event.servicesData.length > 0 ? (
-                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                      {event.servicesData.map((sd: any, idx: number) => {
-                        const srv = servicesList.find((s: any) => String(s.id) === String(sd.serviceId));
-                        let srvName = srv ? srv.name : (sd.serviceName || (idx === 0 ? event.serviceName : 'Unknown Service'));
+                    <>
+                      {(() => {
+                        const firstSd = event.servicesData[0];
+                        const srv = servicesList.find((s: any) => String(s.id) === String(firstSd.serviceId));
+                        let srvName = srv ? srv.name : (firstSd.serviceName || event.serviceName || 'Service');
                         if (!srvName || srvName === 'Unknown Service') {
-                          if (String(sd.serviceId).toLowerCase().includes('orientation')) {
+                          if (String(firstSd.serviceId).toLowerCase().includes('orientation')) {
                             srvName = 'Orientation';
-                          } else if (String(sd.serviceId).toLowerCase().includes('custom')) {
-                            srvName = sd.serviceName || 'Custom Service';
+                          } else if (String(firstSd.serviceId).toLowerCase().includes('custom')) {
+                            srvName = firstSd.serviceName || 'Custom Service';
                           }
                         }
                         const badgeInfo = getServiceBadge(srvName);
                         return (
-                          <div key={idx} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md ${badgeInfo.badgeStyle} text-[10.5px] sm:text-[11px] font-medium truncate min-w-0 shadow-xs`} title={srvName}>
+                          <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md ${badgeInfo.badgeStyle} text-[9.5px] sm:text-[10px] font-medium truncate min-w-0 shadow-xs`} title={srvName}>
                             {badgeInfo.icon}
                             <span className="truncate">{srvName}</span>
                           </div>
                         );
-                      })}
-                    </div>
+                      })()}
+                      {event.servicesData.length > 1 && (
+                        <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[9px] font-semibold border border-zinc-700/60 shrink-0" title={event.servicesData.slice(1).map((s: any) => s.serviceName).join(', ')}>
+                          +{event.servicesData.length - 1}
+                        </span>
+                      )}
+                    </>
                   ) : event.serviceName ? (
                     (() => {
                       const badgeInfo = getServiceBadge(event.serviceName);
                       return (
-                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md ${badgeInfo.badgeStyle} text-[10.5px] sm:text-[11px] font-medium truncate min-w-0 shadow-xs`} title={event.serviceName}>
+                        <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md ${badgeInfo.badgeStyle} text-[9.5px] sm:text-[10px] font-medium truncate min-w-0 shadow-xs`} title={event.serviceName}>
                           {badgeInfo.icon}
                           <span className="truncate">{event.serviceName}</span>
                         </div>
                       );
                     })()
                   ) : null}
-                </>
-              )}
-            </div>
-
-            {/* Row 3: Travel distance & time micro-badges */}
-            {!event.isRespiteWrapper && (
-              <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5">
-                <div 
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[9.5px] sm:text-[10px] font-medium shadow-xs"
-                  title="Provider travel distance for this shift"
-                >
-                  <Car className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-cyan-400 shrink-0 animate-service-drive" />
-                  <span>{formattedDistance}</span>
-                </div>
-                <div 
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-950/40 border border-amber-500/25 text-amber-300 text-[9.5px] sm:text-[10px] font-medium shadow-xs"
-                  title="Provider travel time for this shift"
-                >
-                  <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 shrink-0" />
-                  <span>{formattedTravelTime}</span>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Desktop Layout (3 Clean Tiers, exact duration, redesigned right column) */}
-          <div className="hidden lg:flex lg:flex-row lg:items-center lg:gap-6 w-full">
-            {/* Time Column with exact duration beneath */}
-            <div className="shrink-0 min-w-[140px] flex flex-col justify-center">
-              <div className="flex items-center gap-1.5 text-zinc-200 font-mono text-xs font-medium">
-                <Clock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                <span>{startText}</span>
-                <span className="text-zinc-600 font-bold">–</span>
-                <span>{endText}</span>
-              </div>
-              {!event.isRespiteWrapper ? (
-                <span className="text-[11px] font-sans font-semibold text-brand-teal/90 pl-5 tracking-tight">
-                  {durationFormatted}
-                </span>
-              ) : (
-                <span className="text-[10px] font-sans font-medium text-brand-teal/80 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-brand-teal/20 w-fit ml-5 mt-0.5">
-                  Multi-day
-                </span>
-              )}
-            </div>
-            
-            {/* Middle Section (3 Tiers) */}
-            <div className="flex flex-col gap-1.5 flex-1 min-w-0 px-4 border-l border-zinc-700/50">
-              {/* Row 1: Client Name in bold, clean font with funding stream badge (NDIS or HCP) */}
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="font-extrabold text-zinc-100 text-base leading-tight tracking-tight uppercase truncate">
-                  {clientDisplayName}
-                </span>
-                {fundingBadgeLabel && (
-                  <span className={`px-2.5 py-0.5 rounded text-xs font-extrabold tracking-wider uppercase border shadow-xs shrink-0 ${
-                    fundingBadgeLabel === 'HCP'
-                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                      : 'bg-purple-500/20 border-purple-500/40 text-purple-300'
-                  }`}>
-                    {fundingBadgeLabel}
-                  </span>
-                )}
-              </div>
-              
-              {/* Row 2: Assigned Staff member (without position in brackets) & Service pills */}
-              <div className="flex flex-wrap items-center gap-3 w-full min-w-0 text-[11px]">
-                {event.isRespiteWrapper ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-violet-500/15 border border-violet-500/30 text-violet-300 text-[10px] font-medium shadow-xs">
-                    <Bed className="w-3 h-3 text-violet-400 shrink-0 animate-service-float" />
-                    <span>STA / Respite</span>
-                  </span>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-1.5 shrink-0 text-zinc-300 font-medium">
-                      <User className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                      <span>{event.staffName || 'Unassigned'}</span>
-                    </div>
-
-                    {/* Service Pills with animated icons */}
-                    {event.servicesData && event.servicesData.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5 min-w-0 items-center">
-                        {event.servicesData.map((sd: any, idx: number) => {
-                          const srv = servicesList.find((s: any) => String(s.id) === String(sd.serviceId));
-                          let srvName = srv ? srv.name : (sd.serviceName || (idx === 0 ? event.serviceName : 'Unknown Service'));
-                          if (!srvName || srvName === 'Unknown Service') {
-                            if (String(sd.serviceId).toLowerCase().includes('orientation')) {
-                              srvName = 'Orientation';
-                            } else if (String(sd.serviceId).toLowerCase().includes('custom')) {
-                              srvName = sd.serviceName || 'Custom Service';
-                            }
-                          }
-                          const badgeInfo = getServiceBadge(srvName);
-                          return (
-                            <span key={idx} className={`${badgeInfo.badgeStyle} px-2 py-0.5 rounded-md text-[10px] font-medium max-w-full truncate flex items-center gap-1 shadow-xs`} title={srvName}>
-                              {badgeInfo.icon}
-                              <span className="truncate">{srvName}</span>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      event.serviceName && (() => {
-                        const badgeInfo = getServiceBadge(event.serviceName);
-                        return (
-                          <span className={`${badgeInfo.badgeStyle} px-2 py-0.5 rounded-md text-[10px] font-medium max-w-full truncate flex items-center gap-1 shadow-xs`} title={event.serviceName}>
-                            {badgeInfo.icon}
-                            <span className="truncate">{event.serviceName}</span>
-                          </span>
-                        );
-                      })()
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* Row 3: Travel distance & time micro-badges */}
+              {/* Row 3: Travel in 3rd row */}
               {!event.isRespiteWrapper && (
-                <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <div 
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[10px] font-medium tracking-tight shadow-xs"
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[9px] sm:text-[9.5px] font-medium shadow-xs"
                     title="Provider travel distance for this shift"
                   >
-                    <Car className="w-3 h-3 text-cyan-400 shrink-0 animate-service-drive" />
+                    <Car className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-cyan-400 shrink-0 animate-service-drive" />
                     <span>{formattedDistance}</span>
                   </div>
-
                   <div 
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-950/40 border border-amber-500/25 text-amber-300 text-[10px] font-medium tracking-tight shadow-xs"
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-950/40 border border-amber-500/25 text-amber-300 text-[9px] sm:text-[9.5px] font-medium shadow-xs"
                     title="Provider travel time for this shift"
                   >
-                    <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                    <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 shrink-0" />
                     <span>{formattedTravelTime}</span>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Right-hand Column (Redesigned with clean alignment, selection, and status) */}
-            <div className="flex items-center justify-end whitespace-nowrap shrink-0 ml-auto pl-4">
-              <div className="flex items-center gap-2.5">
-                {multiSelectMode && (
-                  <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                    isSelected ? 'bg-brand-blue border-brand-blue text-white' : 'border-zinc-600 bg-zinc-800'
-                  }`}>
-                    {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                  </div>
+            {/* Shift status badge on the end of the card with text running vertically up and down */}
+            <div className="flex flex-col items-center justify-center shrink-0 pl-1.5 sm:pl-2.5 border-l border-zinc-700/50">
+              <div 
+                className={`px-1.5 py-2.5 rounded-md border text-[8.5px] sm:text-[9.5px] font-extrabold uppercase tracking-widest inline-flex items-center justify-center gap-1 shadow-xs transition-colors select-none ${badgeClass}`}
+                style={{ writingMode: 'vertical-rl' }}
+              >
+                {isInProgress && (
+                  <span className="relative flex h-1.5 w-1.5 mb-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400"></span>
+                  </span>
                 )}
-                <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 inline-flex items-center gap-1.5 rounded-full border shadow-xs ${badgeClass}`}>
-                  {isInProgress && (
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-400"></span>
-                    </span>
-                  )}
-                  {badgeLabel}
-                </span>
+                <span>{badgeLabel}</span>
               </div>
             </div>
           </div>
