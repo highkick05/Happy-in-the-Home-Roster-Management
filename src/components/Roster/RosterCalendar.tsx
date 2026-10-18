@@ -1449,12 +1449,9 @@ export default function RosterCalendar() {
               )}
             </div>
 
-            {/* Row 3: Provider Travel label followed by distance & time micro-badges */}
+            {/* Row 3: Travel distance & time micro-badges */}
             {!event.isRespiteWrapper && (
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider shrink-0">
-                  Provider Travel:
-                </span>
                 <div 
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[9px] font-medium shadow-xs"
                   title="Provider travel distance for this shift"
@@ -1563,12 +1560,9 @@ export default function RosterCalendar() {
                 )}
               </div>
 
-              {/* Row 3: Provider Travel label followed by distance & time micro-badges */}
+              {/* Row 3: Travel distance & time micro-badges */}
               {!event.isRespiteWrapper && (
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider shrink-0">
-                    Provider Travel:
-                  </span>
                   <div 
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[10px] font-medium tracking-tight shadow-xs"
                     title="Provider travel distance for this shift"
