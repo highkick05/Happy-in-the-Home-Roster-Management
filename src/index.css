@@ -280,15 +280,16 @@ input:-webkit-autofill:active {
     border-bottom: auto !important;
   }
   .rbc-agenda-view table.rbc-agenda-table tbody > tr > td.rbc-agenda-time-cell {
-    border-left-width: 0 !important;
+    display: none !important;
   }
   .rbc-agenda-date-cell {
-    font-size: 13px;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: #14b8a6 !important;
+    padding: 6px 2px 2px 2px !important;
   }
   .rbc-agenda-time-cell {
-    font-size: 12px;
-    color: #a1a1aa;
-    margin-bottom: 4px;
+    display: none !important;
   }
   .rbc-toolbar {
     flex-direction: column !important;
