@@ -13120,7 +13120,10 @@ app.get("/api/health", (req, res) => {
         const deleteStartIso = new Date(Math.min(start.getTime(), rangeStartUtc.getTime())).toISOString();
         const deleteEndIso = new Date(Math.max(end.getTime() + 86400000, rangeEndUtc.getTime() + 60000)).toISOString();
 
-        if (dryRun && !clearExisting) {
+        const clashingClientShiftsMap = new Map<number, any>();
+
+        // If clearExisting is explicitly true, the user instructed to wipe the entire period clean
+        if (dryRun && clearExisting) {
           const existingRows = db
             .prepare(
               `SELECT * FROM shifts WHERE client_id = ? AND start_time >= ? AND start_time < ? AND status NOT IN ('COMPLETED', 'IN_PROGRESS', 'CANCELLED') ORDER BY start_time ASC`,
@@ -13130,20 +13133,7 @@ app.get("/api/health", (req, res) => {
               deleteStartIso,
               deleteEndIso,
             ) as any[];
-          existingShiftsCount = existingRows.length;
-          existingClientShifts = existingRows.map((r: any) => {
-             const startDate = new Date(r.start_time);
-             const endDate = new Date(r.end_time);
-             const dateParts = r.start_time.split("T")[0].split("-");
-             const formattedDate = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : r.start_time.split("T")[0];
-             return {
-               id: r.id,
-               date: formattedDate,
-               startTime: startDate.toLocaleTimeString(['en-AU', 'en-US'], { hour: '2-digit', minute: '2-digit', timeZone: timezone }),
-               endTime: endDate.toLocaleTimeString(['en-AU', 'en-US'], { hour: '2-digit', minute: '2-digit', timeZone: timezone }),
-               status: r.status
-             };
-          });
+          existingRows.forEach((r: any) => clashingClientShiftsMap.set(r.id, r));
         }
 
         const dateFormatterAPI = getSafeDateTimeFormat("en-CA", {
@@ -13224,75 +13214,77 @@ app.get("/api/health", (req, res) => {
                 timezone,
               );
 
-              // No need to check client conflicts since they are wiped if overwriteConflicts === 'all' or clearExisting is set
-              if (dryRun && !clearExisting && existingShiftsCount > 0) {
-                clientConflicts.push({ existing: [] }); // Dummy to trigger UI confirmation
-              }
-              if (!dryRun && overwriteConflicts !== "all" && !clearExisting) {
-                // If they didn't approve wipe and clearExisting is false, we shouldn't continue, but just for safety.
-              }
-
-              const overlapCheckSql = clearExisting
-                ? `SELECT id FROM shifts WHERE client_id = ? AND staff_id IS ? AND status IN ('COMPLETED', 'IN_PROGRESS') AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))`
-                : `SELECT id FROM shifts WHERE client_id = ? AND staff_id IS ? AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))`;
-
-              const clientPreservedConflict = db
-                .prepare(overlapCheckSql)
-                .get(
+              // 1. Detect legitimate time-overlapping shifts for this client on this exact date/time
+              const overlapQuery = `
+                SELECT id, start_time, end_time, status, staff_id
+                FROM shifts
+                WHERE client_id = ?
+                AND status NOT IN ('CANCELLED')
+                AND start_time < ? AND end_time > ?
+              `;
+              const clientOverlaps = db
+                .prepare(overlapQuery)
+                .all(
                   clientId,
-                  tmpl.staff_id,
                   endDateTime.toISOString(),
                   startDateTime.toISOString(),
-                  endDateTime.toISOString(),
-                  startDateTime.toISOString(),
-                  startDateTime.toISOString(),
-                  endDateTime.toISOString(),
-                );
+                ) as any[];
 
-              if (clientPreservedConflict) {
-                continue; // Skip creating this template shift because it's already fulfilled by a preserved shift
+              // If a COMPLETED or IN_PROGRESS shift already occupies this slot, keep it intact and skip
+              const hasLockedShift = clientOverlaps.some((s: any) => s.status === 'COMPLETED' || s.status === 'IN_PROGRESS');
+              if (hasLockedShift) {
+                continue;
               }
 
-              // Check conflicts for preferred staff (ignoring shifts of this client that are being cleared)
+              // Overlapping DRAFT or PUBLISHED shifts are genuine clashes
+              const replaceableOverlaps = clientOverlaps.filter((s: any) => s.status !== 'COMPLETED' && s.status !== 'IN_PROGRESS');
+              const clashingShiftIds: number[] = [];
+
+              for (const clashing of replaceableOverlaps) {
+                clashingShiftIds.push(clashing.id);
+                if (!clashingClientShiftsMap.has(clashing.id)) {
+                  clashingClientShiftsMap.set(clashing.id, clashing);
+                }
+              }
+
+              // In live run: if overwrite conflicts is approved, delete ONLY the clashing shifts so they are replaced
+              if (!dryRun) {
+                if (overwriteConflicts === "all" && clashingShiftIds.length > 0) {
+                  for (const cId of clashingShiftIds) {
+                    const cShift = clashingClientShiftsMap.get(cId);
+                    db.prepare("DELETE FROM shifts WHERE id = ?").run(cId);
+                    clearedCount++;
+                    if (cShift?.staff_id) {
+                      affectedStaffDates.add(`${cShift.staff_id}|${shiftDateStr}`);
+                    }
+                  }
+                } else if (clashingShiftIds.length > 0) {
+                  // User chose not to overwrite; skip creating duplicate
+                  continue;
+                }
+              }
+
+              // 2. Check conflicts for preferred staff (ignoring any shift of this client that is being replaced)
               let assignedStaffId = tmpl.staff_id;
               if (assignedStaffId) {
-                const staffConflictSql = clearExisting
-                  ? `SELECT id, start_time, end_time, client_id FROM shifts 
-                     WHERE staff_id = ? 
-                     AND status != 'CANCELLED'
-                     AND (client_id != ? OR status IN ('COMPLETED', 'IN_PROGRESS'))
-                     AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))
-                     LIMIT 1`
-                  : `SELECT id, start_time, end_time, client_id FROM shifts 
-                     WHERE staff_id = ? 
-                     AND status != 'CANCELLED'
-                     AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?))
-                     LIMIT 1`;
+                const staffConflictSql = `
+                  SELECT id, start_time, end_time, client_id FROM shifts 
+                  WHERE staff_id = ? 
+                  AND status != 'CANCELLED'
+                  AND id NOT IN (${clashingShiftIds.length > 0 ? clashingShiftIds.join(',') : '-1'})
+                  AND (client_id != ? OR status IN ('COMPLETED', 'IN_PROGRESS'))
+                  AND start_time < ? AND end_time > ?
+                  LIMIT 1
+                `;
 
-                const conflict = clearExisting
-                  ? (db
-                      .prepare(staffConflictSql)
-                      .get(
-                        assignedStaffId,
-                        clientId,
-                        endDateTime.toISOString(),
-                        startDateTime.toISOString(),
-                        endDateTime.toISOString(),
-                        startDateTime.toISOString(),
-                        startDateTime.toISOString(),
-                        endDateTime.toISOString(),
-                      ) as any)
-                  : (db
-                      .prepare(staffConflictSql)
-                      .get(
-                        assignedStaffId,
-                        endDateTime.toISOString(),
-                        startDateTime.toISOString(),
-                        endDateTime.toISOString(),
-                        startDateTime.toISOString(),
-                        startDateTime.toISOString(),
-                        endDateTime.toISOString(),
-                      ) as any);
+                const conflict = db
+                  .prepare(staffConflictSql)
+                  .get(
+                    assignedStaffId,
+                    clientId,
+                    endDateTime.toISOString(),
+                    startDateTime.toISOString(),
+                  ) as any;
 
                 if (conflict) {
                   const userRow = db
@@ -13478,6 +13470,26 @@ app.get("/api/health", (req, res) => {
             // Throw error to rollback anything, but we already didn't modify
           }
         })();
+
+        if (dryRun) {
+          existingShiftsCount = clashingClientShiftsMap.size;
+          existingClientShifts = Array.from(clashingClientShiftsMap.values()).map((r: any) => {
+            const startDate = new Date(r.start_time);
+            const endDate = new Date(r.end_time);
+            const dateParts = r.start_time.split("T")[0].split("-");
+            const formattedDate = dateParts.length === 3 ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}` : r.start_time.split("T")[0];
+            return {
+              id: r.id,
+              date: formattedDate,
+              startTime: startDate.toLocaleTimeString(['en-AU', 'en-US'], { hour: '2-digit', minute: '2-digit', timeZone: timezone }),
+              endTime: endDate.toLocaleTimeString(['en-AU', 'en-US'], { hour: '2-digit', minute: '2-digit', timeZone: timezone }),
+              status: r.status
+            };
+          });
+          if (existingShiftsCount > 0) {
+            clientConflicts.push({ existing: existingClientShifts });
+          }
+        }
 
         if (!dryRun && affectedStaffDates.size > 0) {
           console.log(

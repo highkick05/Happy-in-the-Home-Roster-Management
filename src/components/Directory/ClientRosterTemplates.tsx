@@ -1359,18 +1359,18 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-rose-400 uppercase tracking-wider flex items-center">
                     <Trash2 className="w-4 h-4 mr-1.5" />
-                    Existing Client Shifts to Overwrite ({existingShiftsCount})
+                    Direct Client Shift Clashes ({existingShiftsCount})
                   </h4>
                   <div className="bg-[#121214] border border-white/[0.05] rounded-lg p-3">
                      <p className="text-xs text-zinc-400 mb-3 leading-snug">
-                       Building the roster will <strong>permanently replace</strong> these scheduled shifts. Completed or In-Progress shifts will not be affected.
+                       The following scheduled shifts clash (overlap in time) with the shifts being built. Overwriting will replace <strong>only these conflicting shifts</strong>. Shifts from your other templates remain completely safe and untouched.
                      </p>
                      {clientConflictsList.length > 0 && (
                        <ul className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
                          {clientConflictsList.map((s: any) => (
                            <li key={s.id} className="flex justify-between items-center bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-md">
                              <span className="text-sm font-medium text-rose-100">{s.date} ({s.startTime} - {s.endTime})</span>
-                             <span className="text-[10px] uppercase font-bold text-rose-300 tracking-wider">To Be Replaced</span>
+                             <span className="text-[10px] uppercase font-bold text-rose-300 tracking-wider">Overlaps Slot</span>
                            </li>
                          ))}
                        </ul>
@@ -1395,7 +1395,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
                 className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-md text-sm font-medium transition-all flex items-center shadow-md active:scale-95"
                 type="button"
               >
-                {resolvingConflicts ? 'Overwriting...' : 'Overwrite & Build Shifts'}
+                {resolvingConflicts ? 'Overwriting...' : 'Overwrite Clashing Shifts & Build'}
               </button>
             </div>
           </div>
@@ -1409,10 +1409,7 @@ export default function ClientRosterTemplates({ client }: ClientRosterTemplatesP
         isOpen={showHistoryModal} 
         onClose={() => setShowHistoryModal(false)}
         onRevertSuccess={() => {
-          // You may want to fetch shifts or inform the parent to refresh global roster if necessary.
-          // Since this is in templates, if they go to global roster, it will fetch fresh anyway.
-          // But maybe we should fetch the client's current shifts if we show them here?
-          // We don't show shifts here, so a simple alert or notification is fine.
+          fetchData();
         }}
       />
     </div>

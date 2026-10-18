@@ -126,17 +126,18 @@ export default function ClientRosterBuildHistory({ clientId, isOpen, onClose, on
     }
   };
 
-  const handleRevert = async (buildId: string) => {
-    if (!window.confirm('Are you sure? This permanently deletes the PUBLISHED and DRAFT shifts generated during this run (COMPLETED and CANCELLED shifts will remain intact).')) return;
+  const handleRevert = async (build: any) => {
+    const tName = build.template_name || 'Default Template';
+    if (!window.confirm(`Are you sure you want to revert the build for "${tName}"? This will permanently delete only the ${build.shift_count} shifts generated during this specific run. Shifts from your other templates remain completely safe.`)) return;
     
-    setRevertingId(buildId);
+    setRevertingId(build.id);
     try {
-      const res = await fetch(`/api/roster/builds/${buildId}`, {
+      const res = await fetch(`/api/roster/builds/${build.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        setBuilds(builds.filter(b => b.id !== buildId));
+        setBuilds(builds.filter(b => b.id !== build.id));
         setExpandedBuildId(null);
         window.dispatchEvent(new CustomEvent('offline-sync-completed'));
         onRevertSuccess();
@@ -184,10 +185,13 @@ export default function ClientRosterBuildHistory({ clientId, isOpen, onClose, on
                       <div className="text-sm font-medium text-white mb-1">
                         Build Date: {formatDateTimeLocal(build.created_at)}
                       </div>
-                      <div className="text-xs text-zinc-400">
-                        Template: <span className="text-zinc-200">{build.template_name || 'Default Template'}</span>
+                      <div className="text-xs text-zinc-400 flex items-center gap-2 mt-1">
+                        <span>Template:</span>
+                        <span className="px-2 py-0.5 rounded text-xs font-semibold bg-brand-teal/20 text-brand-teal border border-brand-teal/30">
+                          {build.template_name || 'Default Template'}
+                        </span>
                       </div>
-                      <div className="text-xs text-zinc-400">
+                      <div className="text-xs text-zinc-400 mt-1">
                         Target Date Range: {formatDateString(build.date_range_start)} to {formatDateString(build.date_range_end)}
                       </div>
                       <div className="text-xs text-brand-teal font-medium mt-1">
@@ -203,7 +207,7 @@ export default function ClientRosterBuildHistory({ clientId, isOpen, onClose, on
                         {expandedBuildId === build.id ? <ChevronUp className="w-3.5 h-3.5 ml-1.5" /> : <ChevronDown className="w-3.5 h-3.5 ml-1.5" />}
                       </button>
                       <button
-                        onClick={() => handleRevert(build.id)}
+                        onClick={() => handleRevert(build)}
                         disabled={revertingId === build.id}
                         className="px-3 py-1.5 flex items-center text-xs font-medium bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded transition-colors disabled:opacity-50"
                       >
