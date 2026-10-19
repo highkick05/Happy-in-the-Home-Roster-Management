@@ -15,3 +15,5 @@ database.sqlite
 *.db
 *.bak
 dev-dist/
+.aistudio/
+public/assets/

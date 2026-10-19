@@ -5036,31 +5036,6 @@ function getUnreadChatCount(db: any, userId: number): number {
       if (io) {
         io.emit('chat_read_by_user', { user_id: req.user.id, conversation_id: convId, remainingUnread });
       }
-      
-      if (remainingUnread === 0) {
-        try {
-          const subscriptions = db.prepare("SELECT * FROM push_subscriptions WHERE user_id = ?").all(req.user.id) as any[];
-          const payload = JSON.stringify({ type: 'CLEAR_NOTIFICATIONS' });
-          
-          subscriptions.forEach(sub => {
-            const pushSubscription = {
-              endpoint: sub.endpoint,
-              keys: {
-                p256dh: sub.p256dh,
-                auth: sub.auth
-              }
-            };
-            
-            webpush.sendNotification(pushSubscription, payload).catch((err: any) => {
-              if (err.statusCode === 410 || err.statusCode === 404) {
-                db.prepare("DELETE FROM push_subscriptions WHERE id = ?").run(sub.id);
-              }
-            });
-          });
-        } catch (pushErr) {
-          console.error("Failed to send clear push notification", pushErr);
-        }
-      }
 
       res.json({ success: true, remainingUnread });
     } catch (e: any) {
