@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Plus, Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera, Edit2, Quote, Trash2, Check, ArrowLeft, Search, Users, MessageSquare, Hash, Shield } from 'lucide-react';
+import { Plus, Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera, Edit2, Quote, Trash2, Check, ArrowLeft, Search, Users, MessageSquare, Hash, Shield, Lock } from 'lucide-react';
 // @ts-ignore
 import data from '@emoji-mart/data';
 // @ts-ignore
@@ -85,6 +85,15 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   useEffect(() => {
     activeConversationRef.current = activeConversation;
   }, [activeConversation]);
+
+  const isDirect = Boolean(
+    activeConversation && (
+      activeConversation.type === 'DIRECT' ||
+      Boolean(activeConversation.targetUserId) ||
+      Boolean(activeConversation.user) ||
+      (activeConversation.id !== null && activeConversation.id !== 1)
+    )
+  );
 
   const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
@@ -222,12 +231,19 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
           setConversations(data);
           // Sync activeConversation details if present
           if (activeConversationRef.current) {
-            if (activeConversationRef.current.type === 'TEAM') {
+            const curr = activeConversationRef.current;
+            if (curr.type === 'TEAM' || curr.id === 1) {
               setActiveConversation(prev => prev ? { ...prev, unreadCount: data.team.unreadCount } : prev);
-            } else if (activeConversationRef.current.targetUserId) {
-              const matched = data.direct.find((d: any) => d.targetUserId === activeConversationRef.current?.targetUserId);
+            } else if (curr.targetUserId) {
+              const matched = data.direct.find((d: any) => d.targetUserId === curr.targetUserId);
               if (matched) {
-                setActiveConversation(prev => prev ? { ...prev, id: matched.id || prev.id, unreadCount: matched.unreadCount } : prev);
+                setActiveConversation(prev => prev ? {
+                  ...prev,
+                  id: matched.id || prev.id,
+                  type: 'DIRECT',
+                  unreadCount: matched.unreadCount,
+                  user: matched.user || prev.user
+                } : prev);
               }
             }
           }
@@ -240,20 +256,17 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
   const fetchMessages = useCallback((convId?: number) => {
     if (!token) return;
-    const targetConvId = convId !== undefined ? convId : (activeConversationRef.current?.id || 1);
+    const targetConvId = convId !== undefined ? convId : activeConversationRef.current?.id;
+    if (!targetConvId) return;
+
     fetch(`/api/chat/messages?conversation_id=${targetConvId}&_t=${Date.now()}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
-          setMessages(prev => {
-            if (prev.length === 0 || JSON.stringify(prev) !== JSON.stringify(data)) {
-              setTimeout(() => scrollToBottom(prev.length === 0), 10);
-              return data;
-            }
-            return prev;
-          });
+          setMessages(data);
+          setTimeout(() => scrollToBottom(false), 50);
         }
       })
       .catch(err => console.error("Failed to load messages", err));
@@ -261,7 +274,9 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
   const markRead = useCallback((convId?: number) => {
     if (!token || document.hidden) return;
-    const targetConvId = convId !== undefined ? convId : (activeConversationRef.current?.id || 1);
+    const targetConvId = convId !== undefined ? convId : activeConversationRef.current?.id;
+    if (!targetConvId) return;
+
     fetch('/api/chat/read', {
       method: 'POST',
       headers: {
@@ -292,7 +307,9 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
   const fetchTyping = useCallback((convId?: number) => {
     if (!token) return;
-    const targetConvId = convId !== undefined ? convId : (activeConversationRef.current?.id || 1);
+    const targetConvId = convId !== undefined ? convId : activeConversationRef.current?.id;
+    if (!targetConvId) return;
+
     fetch(`/api/chat/typing?conversation_id=${targetConvId}&_t=${Date.now()}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -314,18 +331,18 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       .then(data => setPinnedMessage(data.message || ''))
       .catch(console.error);
 
-    if (activeConversationRef.current) {
-      fetchMessages(activeConversationRef.current.id || 1);
-      markRead(activeConversationRef.current.id || 1);
-      fetchTyping(activeConversationRef.current.id || 1);
+    if (activeConversationRef.current?.id) {
+      fetchMessages(activeConversationRef.current.id);
+      markRead(activeConversationRef.current.id);
+      fetchTyping(activeConversationRef.current.id);
     }
 
     const interval = setInterval(() => {
       fetchConversations();
-      if (activeConversationRef.current) {
-        fetchMessages(activeConversationRef.current.id || 1);
-        markRead(activeConversationRef.current.id || 1);
-        fetchTyping(activeConversationRef.current.id || 1);
+      if (activeConversationRef.current?.id) {
+        fetchMessages(activeConversationRef.current.id);
+        markRead(activeConversationRef.current.id);
+        fetchTyping(activeConversationRef.current.id);
       }
     }, 2500);
 
@@ -382,13 +399,14 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       fetchConversations();
     });
 
-    newSocket.on('new_message', (msg: ChatMessage) => {
+    newSocket.on('new_message', (msg: any) => {
       fetchConversations();
-      const activeConvId = activeConversationRef.current?.id || 1;
+      const currentActive = activeConversationRef.current;
+      const currentActiveId = currentActive?.id;
       const msgConvId = msg.conversation_id || 1;
 
-      if (activeConversationRef.current && msgConvId === activeConvId) {
-        markRead(activeConvId);
+      if (currentActive && (msgConvId === currentActiveId || (!currentActiveId && currentActive.type === 'DIRECT' && msg.participant_ids?.includes(currentActive.targetUserId)))) {
+        markRead(msgConvId);
         setMessages((prev) => {
           if (prev.some(m => m.id === msg.id)) return prev;
           const hasOptimistic = prev.some(m => m.user_id === msg.user_id && m.content === msg.content && m.id > 1000000000000);
@@ -414,23 +432,30 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       setMessages([]);
       return;
     }
-    const convId = activeConversation.id || 1;
-    fetchMessages(convId);
-    markRead(convId);
-    fetchTyping(convId);
-  }, [activeConversation?.id, activeConversation?.type, token]);
+    if (activeConversation.id) {
+      fetchMessages(activeConversation.id);
+      markRead(activeConversation.id);
+      fetchTyping(activeConversation.id);
+    } else {
+      setMessages([]);
+    }
+  }, [activeConversation?.id, activeConversation?.type, activeConversation?.targetUserId, token]);
 
   const handleSelectConversation = async (conv: ConversationItem) => {
-    if (conv.type === 'TEAM') {
+    if (conv.type === 'TEAM' || conv.id === 1) {
       const teamItem: ConversationItem = { id: 1, type: 'TEAM', title: 'Team Chat', unreadCount: 0 };
       setActiveConversation(teamItem);
       return;
     }
 
+    // Direct chat
     if (conv.id) {
-      setActiveConversation({ ...conv, unreadCount: 0 });
+      setActiveConversation({ ...conv, type: 'DIRECT', unreadCount: 0 });
     } else {
-      // Direct chat row without pre-existing messages; create conversation
+      // Optimistically switch to direct conversation view with staff info immediately
+      const initialItem: ConversationItem = { ...conv, type: 'DIRECT', unreadCount: 0 };
+      setActiveConversation(initialItem);
+
       try {
         const res = await fetch('/api/chat/conversations/direct', {
           method: 'POST',
@@ -442,7 +467,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         });
         const data = await res.json();
         if (data.conversationId) {
-          const updated: ConversationItem = { ...conv, id: data.conversationId, unreadCount: 0 };
+          const updated: ConversationItem = { ...initialItem, id: data.conversationId };
           setConversations(prev => ({
             ...prev,
             direct: prev.direct.map(d => d.targetUserId === conv.targetUserId ? updated : d)
@@ -463,8 +488,8 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       scrollToBottom();
     }
     
-    const convId = activeConversation?.id || 1;
-    if (!typingThrottleRef.current) {
+    const convId = activeConversation?.id || (isDirect ? null : 1);
+    if (convId && !typingThrottleRef.current) {
       typingThrottleRef.current = true;
       fetch('/api/chat/typing', {
         method: 'POST',
@@ -475,13 +500,15 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     }
     
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      fetch('/api/chat/typing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ isTyping: false, conversation_id: convId })
-      }).catch(() => {});
-    }, 2000);
+    if (convId) {
+      typingTimeoutRef.current = setTimeout(() => {
+        fetch('/api/chat/typing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ isTyping: false, conversation_id: convId })
+        }).catch(() => {});
+      }, 2000);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -633,7 +660,34 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     e.preventDefault();
     if ((!newMessage.trim() && attachments.length === 0 && !selectedGif && quotedMessages.length === 0) || !user || isUploading) return;
 
-    const convId = activeConversation?.id || 1;
+    let convId = activeConversation?.id;
+
+    // If direct conversation without an id yet, ensure it is created before sending
+    if (isDirect && !convId && activeConversation?.targetUserId) {
+      try {
+        const res = await fetch('/api/chat/conversations/direct', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ targetUserId: activeConversation.targetUserId })
+        });
+        const d = await res.json();
+        if (d.conversationId) {
+          convId = d.conversationId;
+          setActiveConversation(prev => prev ? { ...prev, id: convId, type: 'DIRECT' } : prev);
+        }
+      } catch (err) {
+        console.error("Failed to ensure direct conversation exists", err);
+      }
+    }
+
+    if (!convId) {
+      convId = isDirect ? null : 1;
+    }
+
+    if (!convId) {
+      console.error("No valid conversation ID for sending message");
+      return;
+    }
 
     let content = newMessage.trim();
     if (quotedMessages.length > 0) {
@@ -832,7 +886,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
           type="button"
           onClick={() => handleSelectConversation(conversations.team)}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
-            activeConversation?.type === 'TEAM'
+            !isDirect && activeConversation?.id === 1
               ? 'bg-brand-teal/20 border border-brand-teal/40 text-white shadow-sm'
               : 'hover:bg-white/5 text-zinc-200 border border-transparent'
           }`}
@@ -872,7 +926,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         {/* Direct Conversations with Staff */}
         {filteredDirect.map(c => {
           const isTargetOnline = c.targetUserId ? onlineUsers.has(c.targetUserId) : false;
-          const isSelected = activeConversation?.type === 'DIRECT' && activeConversation.targetUserId === c.targetUserId;
+          const isSelected = isDirect && activeConversation?.targetUserId === c.targetUserId;
           return (
             <button
               key={c.targetUserId}
@@ -953,7 +1007,6 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
   // Render Conversation View (header, pinned, messages, input)
   const renderConversationView = () => {
-    const isDirect = activeConversation?.type === 'DIRECT';
     const targetUser = activeConversation?.user;
     const isTargetOnline = activeConversation?.targetUserId ? onlineUsers.has(activeConversation.targetUserId) : false;
 
@@ -989,18 +1042,18 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         )}
 
         {/* Conversation Header */}
-        <div className="relative z-20 px-3 py-2.5 md:px-4 bg-[#161b22]/90 border-b border-border-subtle flex items-center justify-between shadow-sm backdrop-blur-md">
+        <div className="relative z-20 px-3 py-2.5 md:px-4 bg-[#161b22]/95 border-b border-border-subtle flex items-center justify-between shadow-sm backdrop-blur-md">
           <div className="flex items-center space-x-2.5 min-w-0">
             {/* Back button for mobile widget or mobile screen */}
             {(isMini || isMobileScreen) && (
               <button
                 type="button"
                 onClick={() => setActiveConversation(null)}
-                className="p-1.5 -ml-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded-md transition-colors flex items-center gap-1 shrink-0"
+                className="p-1.5 -ml-1 text-zinc-300 hover:text-white hover:bg-white/10 rounded-md transition-colors flex items-center gap-1 shrink-0"
                 title="Back to conversations"
               >
-                <ArrowLeft className="w-4 h-4" />
-                <span className="text-xs font-medium">Chats</span>
+                <ArrowLeft className="w-4 h-4 text-brand-teal" />
+                <span className="text-xs font-semibold">Chats</span>
               </button>
             )}
 
@@ -1009,9 +1062,9 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                 <div className="relative shrink-0">
                   {targetUser?.avatarUrl ? (
                     <img 
-                      src={targetUser.avatarUrl.startsWith('http') ? targetUser.avatarUrl : `${window.location.origin}${targetUser.avatarUrl}`}
-                      alt={targetUser.firstName}
-                      className="w-8 h-8 rounded-full object-cover bg-brand-navy border border-border-subtle"
+                      src={targetUser.avatarUrl.startsWith('http') ? targetUser.avatarUrl : `${window.location.origin}${targetUser.avatarUrl}`} 
+                      alt={targetUser.firstName} 
+                      className="w-8 h-8 rounded-full object-cover bg-brand-navy border border-border-subtle" 
                       onError={(e) => {
                         e.currentTarget.onerror = null;
                         e.currentTarget.src = `https://ui-avatars.com/api/?name=${targetUser?.firstName}+${targetUser?.lastName}&background=0D8B93&color=fff`;
@@ -1029,14 +1082,19 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                   />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-xs md:text-sm font-bold text-white truncate flex items-center gap-1.5">
-                    {targetUser?.firstName} {targetUser?.lastName}
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-xs md:text-sm font-bold text-white truncate">
+                      {targetUser?.firstName} {targetUser?.lastName}
+                    </h3>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold bg-brand-teal/20 text-brand-teal rounded border border-brand-teal/30 shrink-0">
+                      <Lock className="w-2.5 h-2.5" /> Direct
+                    </span>
                     {targetUser?.role === 'ADMIN' && (
-                      <span className="px-1.5 py-0.2 text-[9px] bg-brand-teal/20 text-brand-teal rounded font-medium">Admin</span>
+                      <span className="px-1.5 py-0.5 text-[9px] bg-amber-500/20 text-amber-300 rounded font-semibold shrink-0">Admin</span>
                     )}
-                  </h3>
-                  <p className="text-[10px] text-zinc-400 truncate flex items-center gap-1.5">
-                    <span>{targetUser?.primaryPosition || targetUser?.role || 'Staff'}</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-400 truncate flex items-center gap-1.5 mt-0.5">
+                    <span>{targetUser?.primaryPosition || targetUser?.role || 'Staff Member'}</span>
                     <span>•</span>
                     <span className={isTargetOnline ? 'text-emerald-400 font-medium' : 'text-zinc-500'}>
                       {isTargetOnline ? 'Active now' : 'Offline'}
@@ -1067,7 +1125,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
               <button
                 type="button"
                 onClick={() => {
-                  if (window.confirm(isDirect ? "Clear this private conversation history?" : "Clear company-wide Team Chat?")) {
+                  if (window.confirm(isDirect ? `Clear chat history with ${targetUser?.firstName || 'this staff member'}?` : "Clear company-wide Team Chat?")) {
                     handleSendMessage({ preventDefault: () => {} } as any);
                     fetch('/api/chat/messages', {
                       method: 'POST',
@@ -1137,9 +1195,27 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
         {/* Messages Area */}
         <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4 space-y-4 relative z-10">
+          {/* Direct Chat Welcome Notice */}
+          {isDirect && (
+            <div className="my-2 p-3 rounded-lg bg-brand-teal/10 border border-brand-teal/25 text-center flex flex-col items-center">
+              <div className="w-10 h-10 rounded-full bg-brand-teal/20 text-brand-teal flex items-center justify-center font-bold text-sm border border-brand-teal/30 mb-1.5">
+                {targetUser?.firstName?.charAt(0) || <UserIcon className="w-4 h-4" />}
+              </div>
+              <p className="text-xs font-bold text-white">
+                {targetUser?.firstName} {targetUser?.lastName}
+              </p>
+              <p className="text-[11px] text-zinc-400">
+                {targetUser?.primaryPosition || targetUser?.role || 'Staff Member'}
+              </p>
+              <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/10 text-[10px] text-brand-teal font-medium">
+                <Lock className="w-3 h-3" /> Confidential 1-on-1 direct message history
+              </div>
+            </div>
+          )}
+
           {messages.length === 0 ? (
-            <div className="text-center text-zinc-500 mt-10 text-xs md:text-sm">
-              {isDirect ? `Start a private chat with ${targetUser?.firstName || 'this staff member'}!` : 'No messages yet. Start the conversation!'}
+            <div className="text-center text-zinc-500 py-6 text-xs md:text-sm">
+              {isDirect ? `No previous messages. Say hello to ${targetUser?.firstName || 'staff'}!` : 'No messages yet. Start the conversation!'}
             </div>
           ) : (
             messages.map((msg) => {
@@ -1424,7 +1500,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                   value={newMessage}
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
-                  placeholder={isDirect ? `Message ${targetUser?.firstName}...` : "Message #Team-Chat..."}
+                  placeholder={isDirect ? `Message ${targetUser?.firstName || 'staff'}...` : "Message #Team-Chat..."}
                   rows={1}
                   className="w-full bg-transparent px-3 py-2 text-xs md:text-sm text-white placeholder-zinc-500 focus:outline-none resize-none max-h-48 overflow-y-auto"
                 />

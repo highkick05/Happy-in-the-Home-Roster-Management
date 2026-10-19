@@ -4935,6 +4935,8 @@ function getUnreadChatCount(db: any, userId: number): number {
 
         return {
           id: convId,
+          type: 'DIRECT',
+          title: `${u.first_name || ''} ${u.last_name || ''}`.trim(),
           targetUserId: u.id,
           user: {
             id: u.id,
