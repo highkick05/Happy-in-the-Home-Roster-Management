@@ -33,6 +33,7 @@ interface ConversationUser {
   lastName: string;
   email: string;
   role: string;
+  canSwitchAdmin?: boolean;
   avatarUrl: string | null;
   primaryPosition: string;
 }
@@ -104,9 +105,16 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const [pinnedEditValue, setPinnedEditValue] = useState('');
 
   const filteredDirect = React.useMemo(() => {
-    if (!searchQuery.trim()) return conversations.direct;
+    // Omit Admin-only accounts from the private chat list; keep staff accounts including those with canSwitchAdmin
+    const eligibleDirect = (conversations.direct || []).filter(c => {
+      const isRoleAdmin = c.user?.role === 'ADMIN';
+      const canSwitch = Boolean(c.user?.canSwitchAdmin || (c.user as any)?.can_switch_admin);
+      return !isRoleAdmin || canSwitch;
+    });
+
+    if (!searchQuery.trim()) return eligibleDirect;
     const q = searchQuery.toLowerCase();
-    return conversations.direct.filter(c => {
+    return eligibleDirect.filter(c => {
       const name = `${c.user?.firstName || ''} ${c.user?.lastName || ''}`.toLowerCase();
       const pos = (c.user?.primaryPosition || c.user?.role || '').toLowerCase();
       return name.includes(q) || pos.includes(q);
@@ -967,7 +975,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-xs text-white truncate flex items-center gap-1.5">
                     {c.user?.firstName} {c.user?.lastName}
-                    {c.user?.role === 'ADMIN' && (
+                    {(c.user?.role === 'ADMIN' || c.user?.canSwitchAdmin) && (
                       <span className="px-1 py-0.2 text-[9px] bg-brand-teal/20 text-brand-teal rounded font-medium">Admin</span>
                     )}
                   </span>
@@ -1089,7 +1097,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold bg-brand-teal/20 text-brand-teal rounded border border-brand-teal/30 shrink-0">
                       <Lock className="w-2.5 h-2.5" /> Direct
                     </span>
-                    {targetUser?.role === 'ADMIN' && (
+                    {(targetUser?.role === 'ADMIN' || targetUser?.canSwitchAdmin) && (
                       <span className="px-1.5 py-0.5 text-[9px] bg-amber-500/20 text-amber-300 rounded font-semibold shrink-0">Admin</span>
                     )}
                   </div>

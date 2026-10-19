@@ -4792,12 +4792,15 @@ function getUnreadChatCount(db: any, userId: number): number {
       `).get(teamReadTime, userId) as any)?.count || 0;
     }
 
-    // 2. Direct chats where userId is participant
+    // 2. Direct chats where userId is participant (excluding Admin-only accounts)
     const directRows = db.prepare(`
       SELECT p.conversation_id, p.last_read_at
       FROM chat_conversation_participants p
       JOIN chat_conversations c ON c.id = p.conversation_id
+      JOIN chat_conversation_participants other_p ON other_p.conversation_id = c.id AND other_p.user_id != p.user_id
+      JOIN users other_u ON other_u.id = other_p.user_id
       WHERE p.user_id = ? AND c.type = 'DIRECT'
+        AND (other_u.role != 'ADMIN' OR other_u.can_switch_admin = 1)
     `).all(userId) as any[];
 
     let directUnread = 0;
@@ -4887,11 +4890,13 @@ function getUnreadChatCount(db: any, userId: number): number {
         lastMessage: teamLastMsg || null
       };
 
-      // Fetch other active staff and admin users
+      // Fetch other active staff users (omitting Admin-only users, keeping staff users including those with can_switch_admin)
       const usersList = db.prepare(`
-        SELECT id, first_name, last_name, email, role, avatar_url, primary_position, status
+        SELECT id, first_name, last_name, email, role, avatar_url, primary_position, status, can_switch_admin
         FROM users 
-        WHERE id != ? AND (status IS NULL OR status != 'INACTIVE')
+        WHERE id != ? 
+          AND (status IS NULL OR status != 'INACTIVE')
+          AND (role IS NULL OR UPPER(role) != 'ADMIN' OR can_switch_admin = 1)
         ORDER BY first_name ASC, last_name ASC
       `).all(currentUserId) as any[];
 
@@ -4944,6 +4949,7 @@ function getUnreadChatCount(db: any, userId: number): number {
             lastName: u.last_name,
             email: u.email,
             role: u.role,
+            canSwitchAdmin: Boolean(u.can_switch_admin),
             avatarUrl: u.avatar_url,
             primaryPosition: u.primary_position || (u.role === 'ADMIN' ? 'Administrator' : 'Support Worker')
           },
@@ -4968,6 +4974,12 @@ function getUnreadChatCount(db: any, userId: number): number {
       const targetUserId = parseInt(req.body.targetUserId, 10);
       if (!targetUserId || targetUserId === currentUserId) {
         return res.status(400).json({ error: "Invalid target user" });
+      }
+
+      // Guard against initiating direct chat with Admin-only account
+      const targetUser = db.prepare("SELECT id, role, can_switch_admin FROM users WHERE id = ?").get(targetUserId) as any;
+      if (!targetUser || (targetUser.role === 'ADMIN' && !targetUser.can_switch_admin)) {
+        return res.status(400).json({ error: "Cannot start private chat with Admin-only account" });
       }
 
       const existing = db.prepare(`
