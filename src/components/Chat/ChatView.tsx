@@ -1195,23 +1195,6 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
 
         {/* Messages Area */}
         <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4 space-y-4 relative z-10">
-          {/* Direct Chat Welcome Notice */}
-          {isDirect && (
-            <div className="my-2 p-3 rounded-lg bg-brand-teal/10 border border-brand-teal/25 text-center flex flex-col items-center">
-              <div className="w-10 h-10 rounded-full bg-brand-teal/20 text-brand-teal flex items-center justify-center font-bold text-sm border border-brand-teal/30 mb-1.5">
-                {targetUser?.firstName?.charAt(0) || <UserIcon className="w-4 h-4" />}
-              </div>
-              <p className="text-xs font-bold text-white">
-                {targetUser?.firstName} {targetUser?.lastName}
-              </p>
-              <p className="text-[11px] text-zinc-400">
-                {targetUser?.primaryPosition || targetUser?.role || 'Staff Member'}
-              </p>
-              <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 border border-white/10 text-[10px] text-brand-teal font-medium">
-                <Lock className="w-3 h-3" /> Confidential 1-on-1 direct message history
-              </div>
-            </div>
-          )}
 
           {messages.length === 0 ? (
             <div className="text-center text-zinc-500 py-6 text-xs md:text-sm">
