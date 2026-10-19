@@ -83,7 +83,7 @@ export function ChatNotificationProvider({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     if (location.pathname.includes('/chat')) {
-      setUnreadCount(0);
+      fetchUnread();
     }
   }, [location.pathname]);
 
@@ -108,38 +108,43 @@ export function ChatNotificationProvider({ children }: { children: ReactNode }) 
     });
     
     socket.on('new_message', (msg: any) => {
-      // Only increment if we aren't on the chat page and the message isn't ours
-      if (!window.location.pathname.includes('/chat')) {
-        if (!user || msg.user_id !== user.id) {
-          setUnreadCount(prev => prev + 1);
-        }
+      // If direct message, check participant list
+      if (msg.participant_ids && user && !msg.participant_ids.includes(user.id)) {
+        return;
+      }
+      if (!user || msg.user_id !== user.id) {
+        fetchUnread();
       }
     });
     
     socket.on('chat_read_by_user', (data: any) => {
       if (user && data.user_id === user.id) {
-        setUnreadCount(0);
+        if (typeof data.remainingUnread === 'number') {
+          setUnreadCount(data.remainingUnread);
+        } else {
+          fetchUnread();
+        }
       }
     });
     
     socket.on('message_reaction', () => {
-      if (!window.location.pathname.includes('/chat')) {
-        fetchUnread();
-      }
+      fetchUnread();
     });
 
     socket.on('chat_message_edited', () => {
-      if (!window.location.pathname.includes('/chat')) {
-        fetchUnread();
-      }
+      fetchUnread();
     });
     
     socket.on('chat_cleared', () => {
-      setUnreadCount(0);
+      fetchUnread();
     });
 
-    const handleChatRead = () => {
-      setUnreadCount(0);
+    const handleChatRead = (e?: any) => {
+      if (e?.detail && typeof e.detail.remainingUnread === 'number') {
+        setUnreadCount(e.detail.remainingUnread);
+      } else {
+        fetchUnread();
+      }
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_NOTIFICATIONS' });
       }

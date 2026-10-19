@@ -1,18 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Plus, Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera, Edit2, Quote, Trash2, Check } from 'lucide-react';
+import { Plus, Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera, Edit2, Quote, Trash2, Check, ArrowLeft, Search, Users, MessageSquare, Hash, Shield } from 'lucide-react';
 // @ts-ignore
 import data from '@emoji-mart/data';
 // @ts-ignore
 import Picker from '@emoji-mart/react';
 import { Grid } from '@giphy/react-components';
 import { GiphyFetch } from '@giphy/js-fetch-api';
-
-
-
 
 interface ChatMessage {
   id: number;
@@ -24,9 +21,30 @@ interface ChatMessage {
   avatar_url: string | null;
   file_url: string | null;
   file_name: string | null;
-    file_type: string | null;
+  file_type: string | null;
   reactions?: string;
   is_edited?: number;
+  conversation_id?: number;
+}
+
+interface ConversationUser {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
+  avatarUrl: string | null;
+  primaryPosition: string;
+}
+
+interface ConversationItem {
+  id: number | null;
+  type: 'TEAM' | 'DIRECT';
+  title?: string;
+  targetUserId?: number;
+  user?: ConversationUser;
+  unreadCount: number;
+  lastMessage?: ChatMessage | null;
 }
 
 export default function ChatView({ isMini = false }: { isMini?: boolean }) {
@@ -36,19 +54,56 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     const apiKey = settings?.giphyApiKey || '1DZoHBs8dDry795Nu0JqbYMYXuhcmrRo';
     return new GiphyFetch(apiKey);
   }, [settings?.giphyApiKey]);
+
+  const [isMobileScreen, setIsMobileScreen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileScreen(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const [conversations, setConversations] = useState<{ team: ConversationItem; direct: ConversationItem[] }>({
+    team: { id: 1, type: 'TEAM', title: 'Team Chat', unreadCount: 0 },
+    direct: []
+  });
+
+  const [activeConversation, setActiveConversation] = useState<ConversationItem | null>(() => {
+    if (isMini) return null;
+    if (typeof window !== 'undefined' && window.innerWidth < 768) return null;
+    return { id: 1, type: 'TEAM', title: 'Team Chat', unreadCount: 0 };
+  });
+
+  const activeConversationRef = useRef<ConversationItem | null>(activeConversation);
+  useEffect(() => {
+    activeConversationRef.current = activeConversation;
+  }, [activeConversation]);
+
+  const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pinnedMessage, setPinnedMessage] = useState<string>('');
   const [isEditingPinned, setIsEditingPinned] = useState(false);
   const [pinnedEditValue, setPinnedEditValue] = useState('');
 
-  const userIdToNameMap = React.useMemo(() => {
-    const map: Record<number, string> = {};
-    messages.forEach(m => {
-      if (m.user_id && m.first_name) map[m.user_id] = m.first_name;
+  const filteredDirect = React.useMemo(() => {
+    if (!searchQuery.trim()) return conversations.direct;
+    const q = searchQuery.toLowerCase();
+    return conversations.direct.filter(c => {
+      const name = `${c.user?.firstName || ''} ${c.user?.lastName || ''}`.toLowerCase();
+      const pos = (c.user?.primaryPosition || c.user?.role || '').toLowerCase();
+      return name.includes(q) || pos.includes(q);
     });
-    if (user) map[user.id] = user.firstName;
-    return map;
-  }, [messages, user]);
+  }, [conversations.direct, searchQuery]);
+
   const [newMessage, setNewMessage] = useState('');
   const [selectedGif, setSelectedGif] = useState<any>(null);
   const [quotedMessages, setQuotedMessages] = useState<ChatMessage[]>([]);
@@ -60,6 +115,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     const timer = setTimeout(() => setDebouncedGifSearch(gifSearch), 500);
     return () => clearTimeout(timer);
   }, [gifSearch]);
+
   const [attachments, setAttachments] = useState<globalThis.File[]>([]);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -74,14 +130,21 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const giphyButtonRef = useRef<HTMLButtonElement>(null);
   const giphyPickerRef = useRef<HTMLDivElement>(null);
   const [hoveredMessageId, setHoveredMessageId] = useState<number | null>(null);
-  const [reactionDetails, setReactionDetails] = useState<{msgId: number, emoji: string, userIds: number[]} | null>(null);
+
   const [inlineEditMessageId, setInlineEditMessageId] = useState<number | null>(null);
   const [inlineEditContent, setInlineEditContent] = useState('');
 
-  
-
   const [reactionPicker, setReactionPicker] = useState<{msgId: number, position: 'up' | 'down'} | null>(null);
   const reactionPickerRef = useRef<HTMLDivElement>(null);
+
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [userNamesMap, setUserNamesMap] = useState<Record<number, string>>({});
+  const [isDragging, setIsDragging] = useState(false);
+  const typingThrottleRef = useRef<boolean>(false);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -95,6 +158,344 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    fetch('/api/users/names', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(users => {
+        if (Array.isArray(users)) {
+          const map: Record<number, string> = {};
+          users.forEach(u => map[u.id] = `${u.first_name || ''} ${u.last_name || ''}`.trim());
+          setUserNamesMap(map);
+        }
+      })
+      .catch(console.error);
+
+    fetch('/api/chat/online-users', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
+        if (data && Array.isArray(data.onlineUserIds)) {
+          setOnlineUsers(new Set(data.onlineUserIds));
+        }
+      })
+      .catch(() => {});
+  }, [token]);
+
+  useEffect(() => {
+    if (selectedGif || attachments.length > 0) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [selectedGif, attachments]);
+
+  const scrollToBottom = (instant = false, force = false) => {
+    const shouldScroll = () => {
+      if (instant || force) return true;
+      const container = scrollContainerRef.current;
+      if (container) {
+        return container.scrollHeight - container.scrollTop - container.clientHeight < 250;
+      }
+      return true;
+    };
+
+    if (!shouldScroll()) return;
+
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
+    }, 100);
+    setTimeout(() => {
+      if (!shouldScroll()) return;
+      messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
+    }, 500);
+  };
+
+  const fetchConversations = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/chat/conversations?_t=${Date.now()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.team && Array.isArray(data.direct)) {
+          setConversations(data);
+          // Sync activeConversation details if present
+          if (activeConversationRef.current) {
+            if (activeConversationRef.current.type === 'TEAM') {
+              setActiveConversation(prev => prev ? { ...prev, unreadCount: data.team.unreadCount } : prev);
+            } else if (activeConversationRef.current.targetUserId) {
+              const matched = data.direct.find((d: any) => d.targetUserId === activeConversationRef.current?.targetUserId);
+              if (matched) {
+                setActiveConversation(prev => prev ? { ...prev, id: matched.id || prev.id, unreadCount: matched.unreadCount } : prev);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load conversations", e);
+    }
+  }, [token]);
+
+  const fetchMessages = useCallback((convId?: number) => {
+    if (!token) return;
+    const targetConvId = convId !== undefined ? convId : (activeConversationRef.current?.id || 1);
+    fetch(`/api/chat/messages?conversation_id=${targetConvId}&_t=${Date.now()}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setMessages(prev => {
+            if (prev.length === 0 || JSON.stringify(prev) !== JSON.stringify(data)) {
+              setTimeout(() => scrollToBottom(prev.length === 0), 10);
+              return data;
+            }
+            return prev;
+          });
+        }
+      })
+      .catch(err => console.error("Failed to load messages", err));
+  }, [token]);
+
+  const markRead = useCallback((convId?: number) => {
+    if (!token || document.hidden) return;
+    const targetConvId = convId !== undefined ? convId : (activeConversationRef.current?.id || 1);
+    fetch('/api/chat/read', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ conversation_id: targetConvId })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (typeof data.remainingUnread === 'number') {
+          window.dispatchEvent(new CustomEvent('chat_read', { detail: { remainingUnread: data.remainingUnread } }));
+        } else {
+          window.dispatchEvent(new CustomEvent('chat_read'));
+        }
+        setConversations(prev => {
+          if (targetConvId === 1) {
+            return { ...prev, team: { ...prev.team, unreadCount: 0 } };
+          }
+          return {
+            ...prev,
+            direct: prev.direct.map(d => d.id === targetConvId ? { ...d, unreadCount: 0 } : d)
+          };
+        });
+      })
+      .catch(console.error);
+  }, [token]);
+
+  const fetchTyping = useCallback((convId?: number) => {
+    if (!token) return;
+    const targetConvId = convId !== undefined ? convId : (activeConversationRef.current?.id || 1);
+    fetch(`/api/chat/typing?conversation_id=${targetConvId}&_t=${Date.now()}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.typingUsers) {
+          setTypingUsers(data.typingUsers);
+        }
+      })
+      .catch(() => {});
+  }, [token]);
+
+  // Initial and socket connections
+  useEffect(() => {
+    fetchConversations();
+
+    fetch('/api/chat/pinned-message', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => setPinnedMessage(data.message || ''))
+      .catch(console.error);
+
+    if (activeConversationRef.current) {
+      fetchMessages(activeConversationRef.current.id || 1);
+      markRead(activeConversationRef.current.id || 1);
+      fetchTyping(activeConversationRef.current.id || 1);
+    }
+
+    const interval = setInterval(() => {
+      fetchConversations();
+      if (activeConversationRef.current) {
+        fetchMessages(activeConversationRef.current.id || 1);
+        markRead(activeConversationRef.current.id || 1);
+        fetchTyping(activeConversationRef.current.id || 1);
+      }
+    }, 2500);
+
+    const newSocket = io(window.location.origin, {
+      path: '/socket.io'
+    });
+    setSocket(newSocket);
+
+    if (user?.id) {
+      newSocket.emit('user_online', user.id);
+    }
+
+    newSocket.on('online_users', (ids: number[]) => {
+      setOnlineUsers(new Set(ids));
+    });
+
+    newSocket.on('chat_message_edited', (msg: ChatMessage) => {
+      const activeConvId = activeConversationRef.current?.id || 1;
+      if ((msg.conversation_id || 1) === activeConvId) {
+        setMessages((prev) => prev.map(m => m.id === msg.id ? msg : m));
+      }
+    });
+
+    newSocket.on('message_reaction', ({ messageId, reactions, conversation_id }: { messageId: number, reactions: any, conversation_id?: number }) => {
+      const activeConvId = activeConversationRef.current?.id || 1;
+      if (!conversation_id || conversation_id === activeConvId) {
+        setMessages((prev) => prev.map(m => m.id === messageId ? { ...m, reactions: JSON.stringify(reactions) } : m));
+      }
+    });
+
+    newSocket.on('chat_pinned_message_updated', ({ message }: { message: string }) => {
+      setPinnedMessage(message);
+    });
+
+    newSocket.on('chat_cleared', (data: any) => {
+      const activeConvId = activeConversationRef.current?.id || 1;
+      const clearedConvId = data?.conversation_id || 1;
+      if (clearedConvId === activeConvId) {
+        setMessages([]);
+        markRead(activeConvId);
+      }
+      fetchConversations();
+    });
+
+    newSocket.on('chat_typing_update', (active: {userId: number, userName: string, conversationId?: number}[]) => {
+      const activeConvId = activeConversationRef.current?.id || 1;
+      const others = active
+        .filter(u => u.userId !== user?.id && (u.conversationId || 1) === activeConvId)
+        .map(u => u.userName);
+      setTypingUsers(others);
+    });
+
+    newSocket.on('chat_read_by_user', () => {
+      fetchConversations();
+    });
+
+    newSocket.on('new_message', (msg: ChatMessage) => {
+      fetchConversations();
+      const activeConvId = activeConversationRef.current?.id || 1;
+      const msgConvId = msg.conversation_id || 1;
+
+      if (activeConversationRef.current && msgConvId === activeConvId) {
+        markRead(activeConvId);
+        setMessages((prev) => {
+          if (prev.some(m => m.id === msg.id)) return prev;
+          const hasOptimistic = prev.some(m => m.user_id === msg.user_id && m.content === msg.content && m.id > 1000000000000);
+          if (hasOptimistic) {
+            return prev.map(m => (m.user_id === msg.user_id && m.content === msg.content && m.id > 1000000000000) ? msg : m);
+          }
+          return [...prev, msg];
+        });
+        setTimeout(() => scrollToBottom(false, true), 100);
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      newSocket.disconnect();
+    };
+  }, [token, user?.id]);
+
+  // When active conversation changes, reset messages and load
+  useEffect(() => {
+    if (!token) return;
+    if (!activeConversation) {
+      setMessages([]);
+      return;
+    }
+    const convId = activeConversation.id || 1;
+    fetchMessages(convId);
+    markRead(convId);
+    fetchTyping(convId);
+  }, [activeConversation?.id, activeConversation?.type, token]);
+
+  const handleSelectConversation = async (conv: ConversationItem) => {
+    if (conv.type === 'TEAM') {
+      const teamItem: ConversationItem = { id: 1, type: 'TEAM', title: 'Team Chat', unreadCount: 0 };
+      setActiveConversation(teamItem);
+      return;
+    }
+
+    if (conv.id) {
+      setActiveConversation({ ...conv, unreadCount: 0 });
+    } else {
+      // Direct chat row without pre-existing messages; create conversation
+      try {
+        const res = await fetch('/api/chat/conversations/direct', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ targetUserId: conv.targetUserId })
+        });
+        const data = await res.json();
+        if (data.conversationId) {
+          const updated: ConversationItem = { ...conv, id: data.conversationId, unreadCount: 0 };
+          setConversations(prev => ({
+            ...prev,
+            direct: prev.direct.map(d => d.targetUserId === conv.targetUserId ? updated : d)
+          }));
+          setActiveConversation(updated);
+        }
+      } catch (e) {
+        console.error("Failed to start direct conversation", e);
+      }
+    }
+  };
+
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewMessage(e.target.value);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 240)}px`;
+      scrollToBottom();
+    }
+    
+    const convId = activeConversation?.id || 1;
+    if (!typingThrottleRef.current) {
+      typingThrottleRef.current = true;
+      fetch('/api/chat/typing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ isTyping: true, userName: `${user?.firstName} ${user?.lastName}`.trim() || 'User', conversation_id: convId })
+      }).catch(() => {});
+      setTimeout(() => { typingThrottleRef.current = false; }, 1500);
+    }
+    
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      fetch('/api/chat/typing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ isTyping: false, conversation_id: convId })
+      }).catch(() => {});
+    }, 2000);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage(e as any);
+    }
+  };
+  
+  const isOnlyEmojis = (text: string) => {
+    if (!text || text.trim().length === 0) return false;
+    const stripped = text.replace(/[\p{Emoji}\p{Emoji_Component}\p{Emoji_Modifier}\p{Emoji_Modifier_Base}\p{Emoji_Presentation}\uFE0F\u200D\s\u200B-\u200D\uFEFF]/gu, '');
+    return stripped.length === 0;
+  };
 
   const onEmojiClick = (emojiObject: any) => {
     setNewMessage(prev => prev + emojiObject.native);
@@ -157,10 +558,6 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const handleAddReaction = async (messageId: number, emoji: string) => {
     setHoveredMessageId(null);
     setReactionPicker(null);
-    setTimeout(() => {
-      setHoveredMessageId(null);
-      setReactionPicker(null);
-    }, 100);
     try {
       const res = await fetch(`/api/chat/messages/${messageId}/react`, {
         method: 'POST',
@@ -183,194 +580,6 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       console.error(err);
     }
   };
-
-  const [isDragging, setIsDragging] = useState(false);
-
-  const typingThrottleRef = useRef<boolean>(false);
-  
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setNewMessage(e.target.value);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 240)}px`;
-      scrollToBottom();
-    }
-    
-    if (!typingThrottleRef.current) {
-      typingThrottleRef.current = true;
-      fetch('/api/chat/typing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ isTyping: true, userName: `${user?.firstName} ${user?.lastName}`.trim() || 'User' })
-      }).catch(() => {});
-      setTimeout(() => { typingThrottleRef.current = false; }, 1500);
-    }
-    
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      fetch('/api/chat/typing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ isTyping: false })
-      }).catch(() => {});
-    }, 2000);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage(e as any);
-    }
-  };
-  
-  const isOnlyEmojis = (text: string) => {
-    if (!text || text.trim().length === 0) return false;
-    // Strip everything that is a known emoji, variation selector, skin tone, ZWJ, or whitespace
-    const stripped = text.replace(/[\p{Emoji}\p{Emoji_Component}\p{Emoji_Modifier}\p{Emoji_Modifier_Base}\p{Emoji_Presentation}\uFE0F\u200D\s\u200B-\u200D\uFEFF]/gu, '');
-    // If nothing is left, it's only emojis
-    return stripped.length === 0;
-  };
-
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [userNamesMap, setUserNamesMap] = useState<Record<number, string>>({});
-
-  useEffect(() => {
-    fetch('/api/users/names', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(users => {
-        if (Array.isArray(users)) {
-          const map: Record<number, string> = {};
-          users.forEach(u => map[u.id] = `${u.first_name || ''} ${u.last_name || ''}`.trim());
-          setUserNamesMap(map);
-        }
-      })
-      .catch(console.error);
-  }, [token]);
-
-  useEffect(() => {
-    if (selectedGif || attachments.length > 0) {
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    }
-  }, [selectedGif, attachments]);
-
-  useEffect(() => {
-    fetch('/api/chat/pinned-message', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => setPinnedMessage(data.message || ''))
-      .catch(console.error);
-
-    const fetchMessages = () => {
-      fetch('/api/chat/messages', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (Array.isArray(data)) {
-            setMessages(prev => {
-              // Only update and scroll if the messages have actually changed
-              if (prev.length === 0 || JSON.stringify(prev) !== JSON.stringify(data)) {
-                setTimeout(() => scrollToBottom(prev.length === 0), 10);
-                return data;
-              }
-              return prev;
-            });
-          }
-        })
-        .catch(err => console.error("Failed to load messages", err));
-    };
-
-    // Fetch initial messages instantly
-    fetchMessages();
-
-    // Mark as read immediately
-    const markRead = () => {
-      if (document.hidden) return;
-      fetch('/api/chat/read', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } })
-        .then(() => window.dispatchEvent(new CustomEvent('chat_read')))
-        .catch(console.error);
-    };
-    markRead();
-
-    const fetchTyping = () => {
-      fetch(`/api/chat/typing?_t=${Date.now()}`, { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(res => res.json())
-        .then(data => {
-          if (data.typingUsers) {
-            setTypingUsers(data.typingUsers);
-          }
-        })
-        .catch(() => {});
-    };
-
-    // Poll every 3 seconds as a bulletproof fallback in case websockets are blocked by proxy
-    const interval = setInterval(() => {
-      fetchMessages();
-      markRead();
-      fetchTyping();
-    }, 2000);
-
-    // Keep socket connection as a fast path
-    const newSocket = io(window.location.origin, {
-      path: '/socket.io'
-    });
-    
-    setSocket(newSocket);
-
-
-
-
-
-    
-    newSocket.on('chat_message_edited', (msg: ChatMessage) => {
-      setMessages((prev) => prev.map(m => m.id === msg.id ? msg : m));
-    });
-
-    newSocket.on('message_reaction', ({ messageId, reactions }: { messageId: number, reactions: any }) => {
-      setMessages((prev) => prev.map(m => m.id === messageId ? { ...m, reactions: JSON.stringify(reactions) } : m));
-    });
-
-    newSocket.on('chat_pinned_message_updated', ({ message }: { message: string }) => {
-      setPinnedMessage(message);
-    });
-
-    newSocket.on('chat_cleared', () => {
-      setMessages([]);
-      markRead();
-    });
-
-    newSocket.on('chat_typing_update', (active: {userId: number, userName: string}[]) => {
-      const others = active.filter(u => u.userId !== user?.id).map(u => u.userName);
-      setTypingUsers(others);
-    });
-
-    newSocket.on('new_message', (msg: ChatMessage) => {
-      markRead();
-      setMessages((prev) => {
-        if (prev.some(m => m.id === msg.id)) return prev;
-
-        const hasOptimistic = prev.some(m => m.user_id === msg.user_id && m.content === msg.content && m.id > 1000000000000);
-        if (hasOptimistic) {
-            return prev.map(m => (m.user_id === msg.user_id && m.content === msg.content && m.id > 1000000000000) ? msg : m);
-        }
-        
-        return [...prev, msg];
-      });
-      setTimeout(() => scrollToBottom(false, true), 100);
-    });
-
-    return () => {
-      clearInterval(interval);
-      newSocket.disconnect();
-    };
-  }, [token]);
 
   const savePinnedMessage = async () => {
     try {
@@ -409,7 +618,6 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       setAttachments(prev => [...prev, ...Array.from(e.dataTransfer.files!)]);
     }
@@ -421,31 +629,11 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     }
   }, [typingUsers]);
 
-  const scrollToBottom = (instant = false, force = false) => {
-    const shouldScroll = () => {
-      if (instant || force) return true;
-      const container = scrollContainerRef.current;
-      if (container) {
-        return container.scrollHeight - container.scrollTop - container.clientHeight < 250;
-      }
-      return true;
-    };
-
-    if (!shouldScroll()) return;
-
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
-    }, 100);
-    // Double check after images might have loaded
-    setTimeout(() => {
-      if (!shouldScroll()) return;
-      messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
-    }, 500);
-  };
-
-    const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!newMessage.trim() && attachments.length === 0 && !selectedGif && quotedMessages.length === 0) || !socket || !user || isUploading) return;
+    if ((!newMessage.trim() && attachments.length === 0 && !selectedGif && quotedMessages.length === 0) || !user || isUploading) return;
+
+    const convId = activeConversation?.id || 1;
 
     let content = newMessage.trim();
     if (quotedMessages.length > 0) {
@@ -464,7 +652,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     }
     
     if (selectedGif) {
-        content += (content ? '\n\n' : '') + selectedGif.images.fixed_height.url;
+      content += (content ? '\n\n' : '') + selectedGif.images.fixed_height.url;
     }
 
     if (attachments.length > 0) {
@@ -474,6 +662,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
           const file = attachments[i];
           const formData = new FormData();
           formData.append('file', file);
+
           const res = await fetch('/api/files?folderPath=/Chat', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
@@ -485,13 +674,12 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
             const fileName = file.name;
             const fileType = file.type;
 
-            // Optimistic UI update
             const tempId = Date.now() + i;
             if (content !== '/clear') {
               const tempMessage = {
                 id: tempId,
                 user_id: user.id,
-                content: i === 0 ? content : '', // Only include text in first message
+                content: i === 0 ? content : '',
                 created_at: new Date().toISOString(),
                 first_name: user.firstName,
                 last_name: user.lastName,
@@ -499,6 +687,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                 file_url: fileUrl,
                 file_name: fileName,
                 file_type: fileType,
+                conversation_id: convId
               };
 
               setMessages(prev => [...prev, tempMessage as any]);
@@ -516,7 +705,8 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                   content: i === 0 ? content : '',
                   file_url: fileUrl,
                   file_name: fileName,
-                  file_type: fileType
+                  file_type: fileType,
+                  conversation_id: convId
                 })
               });
               if (res2.ok) {
@@ -524,6 +714,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                 if (content !== '/clear') {
                   setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
                 }
+                fetchConversations();
               }
             } catch (e) {
               console.error("Failed to send message via API", e);
@@ -537,7 +728,6 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         setAttachments([]);
       }
     } else if (content || selectedGif) {
-      // Optimistic UI update
       const tempId = Date.now();
       if (content !== '/clear') {
         const tempMessage = {
@@ -551,6 +741,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
           file_url: null,
           file_name: null,
           file_type: null,
+          conversation_id: convId
         };
 
         setMessages(prev => [...prev, tempMessage as any]);
@@ -568,7 +759,8 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
             content,
             file_url: null,
             file_name: null,
-            file_type: null
+            file_type: null,
+            conversation_id: convId
           })
         });
         if (res.ok) {
@@ -576,6 +768,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
           if (content !== '/clear') {
             setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
           }
+          fetchConversations();
         }
       } catch (e) {
         console.error("Failed to send message via API", e);
@@ -592,12 +785,11 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     fetch('/api/chat/typing', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ isTyping: false })
+      body: JSON.stringify({ isTyping: false, conversation_id: convId })
     }).catch(() => {});
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
   };
 
-  // Helper to safely parse SQLite datetime strings to UTC
   const parseChatDate = (dateStr: string) => {
     if (!dateStr) return new Date();
     let safeStr = dateStr;
@@ -608,29 +800,169 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     return new Date(safeStr);
   };
 
-  return (
-    <div 
-      className={`flex flex-col flex-1 h-full min-h-0 relative ${isMini ? 'p-0 pb-0' : 'p-2 md:p-6 pb-2 md:pb-6'}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      {isDragging && (
-        <div className="absolute inset-0 z-50 bg-brand-teal/10 backdrop-blur-sm border-2 border-dashed border-brand-teal rounded-lg m-2 md:m-6 flex items-center justify-center pointer-events-none transition-all duration-200">
-          <div className="bg-brand-navy/90 text-brand-teal px-6 py-4 rounded-xl shadow-2xl flex flex-col items-center">
-            <File className="w-12 h-12 mb-3" />
-            <h3 className="text-lg font-bold tracking-wide">Drop file to attach</h3>
-            <p className="text-sm text-brand-teal/70 mt-1">Images or documents</p>
-          </div>
+  // Render Conversations Sidebar / List
+  const renderConversationsList = () => (
+    <div className="flex flex-col h-full min-h-0 bg-brand-navy/60 border-r border-border-subtle">
+      {/* Search Header */}
+      <div className="p-3 border-b border-border-subtle shrink-0">
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search staff..."
+            className="w-full pl-8 pr-7 py-1.5 bg-black/30 border border-border-subtle rounded-md text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-brand-teal transition-colors"
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')} 
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
-      )}
-      
+      </div>
 
+      {/* Conversations List Scroll Area */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
+        {/* Team Chat Channel */}
+        <button
+          type="button"
+          onClick={() => handleSelectConversation(conversations.team)}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
+            activeConversation?.type === 'TEAM'
+              ? 'bg-brand-teal/20 border border-brand-teal/40 text-white shadow-sm'
+              : 'hover:bg-white/5 text-zinc-200 border border-transparent'
+          }`}
+        >
+          <div className="relative shrink-0">
+            <div className="w-8 h-8 rounded-full bg-brand-teal/20 text-brand-teal border border-brand-teal/30 flex items-center justify-center font-bold">
+              <Hash className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-xs text-white truncate flex items-center gap-1.5">
+                Team Chat
+              </span>
+              {conversations.team.unreadCount > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-black text-white bg-emerald-500 rounded-full shadow animate-pulse">
+                  {conversations.team.unreadCount > 99 ? '99+' : conversations.team.unreadCount}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+              {conversations.team.lastMessage ? (
+                `${conversations.team.lastMessage.first_name}: ${conversations.team.lastMessage.content || 'Attachment'}`
+              ) : (
+                'Company-wide discussion'
+              )}
+            </p>
+          </div>
+        </button>
+
+        {/* Section Divider */}
+        <div className="px-3 pt-3 pb-1 text-[10px] font-bold tracking-wider text-zinc-500 uppercase flex items-center justify-between">
+          <span>Direct Messages</span>
+          <span className="text-zinc-600 font-mono text-[9px]">{filteredDirect.length}</span>
+        </div>
+
+        {/* Direct Conversations with Staff */}
+        {filteredDirect.map(c => {
+          const isTargetOnline = c.targetUserId ? onlineUsers.has(c.targetUserId) : false;
+          const isSelected = activeConversation?.type === 'DIRECT' && activeConversation.targetUserId === c.targetUserId;
+          return (
+            <button
+              key={c.targetUserId}
+              type="button"
+              onClick={() => handleSelectConversation(c)}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-all ${
+                isSelected
+                  ? 'bg-brand-teal/20 border border-brand-teal/40 text-white shadow-sm'
+                  : 'hover:bg-white/5 text-zinc-200 border border-transparent'
+              }`}
+            >
+              <div className="relative shrink-0">
+                {c.user?.avatarUrl ? (
+                  <img
+                    src={c.user.avatarUrl.startsWith('http') ? c.user.avatarUrl : `${window.location.origin}${c.user.avatarUrl}`}
+                    alt={c.user.firstName}
+                    className="w-8 h-8 rounded-full object-cover bg-brand-navy border border-border-subtle"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = `https://ui-avatars.com/api/?name=${c.user?.firstName}+${c.user?.lastName}&background=0D8B93&color=fff`;
+                    }}
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-brand-teal/20 text-brand-teal flex items-center justify-center font-bold text-xs border border-brand-teal/30">
+                    {c.user?.firstName?.charAt(0) || <UserIcon className="w-3.5 h-3.5" />}
+                  </div>
+                )}
+                {/* Online indicator dot */}
+                <span
+                  className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#11161d] ${
+                    isTargetOnline ? 'bg-emerald-400 ring-1 ring-emerald-500' : 'bg-zinc-600'
+                  }`}
+                  title={isTargetOnline ? 'Online' : 'Offline'}
+                />
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-xs text-white truncate flex items-center gap-1.5">
+                    {c.user?.firstName} {c.user?.lastName}
+                    {c.user?.role === 'ADMIN' && (
+                      <span className="px-1 py-0.2 text-[9px] bg-brand-teal/20 text-brand-teal rounded font-medium">Admin</span>
+                    )}
+                  </span>
+                  {c.unreadCount > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-black text-white bg-emerald-500 rounded-full shadow animate-pulse">
+                      {c.unreadCount > 99 ? '99+' : c.unreadCount}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between mt-0.5">
+                  <p className="text-[11px] text-zinc-400 truncate">
+                    {c.lastMessage ? (
+                      c.lastMessage.content || 'Attachment'
+                    ) : (
+                      c.user?.primaryPosition || (c.user?.role === 'ADMIN' ? 'Administrator' : 'Support Worker')
+                    )}
+                  </p>
+                  {isTargetOnline && (
+                    <span className="text-[9px] text-emerald-400 font-medium shrink-0 ml-1">
+                      Online
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+
+        {filteredDirect.length === 0 && (
+          <div className="text-center py-6 text-xs text-zinc-500">
+            No staff found
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // Render Conversation View (header, pinned, messages, input)
+  const renderConversationView = () => {
+    const isDirect = activeConversation?.type === 'DIRECT';
+    const targetUser = activeConversation?.user;
+    const isTargetOnline = activeConversation?.targetUserId ? onlineUsers.has(activeConversation.targetUserId) : false;
+
+    return (
       <div 
-        className="flex-1 rounded-lg border border-border-subtle flex flex-col overflow-hidden min-h-0 relative"
+        className="flex-1 flex flex-col overflow-hidden min-h-0 relative"
         style={{ backgroundColor: settings?.chatBackgroundTint || '#11161d' }}
       >
-        {/* Chat Background Media */}
+        {/* Background Media */}
         {settings?.chatBackgroundImage && (
           <div className="absolute inset-0 z-0 pointer-events-none">
             {(() => {
@@ -656,8 +988,105 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
           </div>
         )}
 
-        {/* Pinned Message */}
-        {(pinnedMessage || user?.role === 'ADMIN') && (
+        {/* Conversation Header */}
+        <div className="relative z-20 px-3 py-2.5 md:px-4 bg-[#161b22]/90 border-b border-border-subtle flex items-center justify-between shadow-sm backdrop-blur-md">
+          <div className="flex items-center space-x-2.5 min-w-0">
+            {/* Back button for mobile widget or mobile screen */}
+            {(isMini || isMobileScreen) && (
+              <button
+                type="button"
+                onClick={() => setActiveConversation(null)}
+                className="p-1.5 -ml-1 text-zinc-400 hover:text-white hover:bg-white/10 rounded-md transition-colors flex items-center gap-1 shrink-0"
+                title="Back to conversations"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-xs font-medium">Chats</span>
+              </button>
+            )}
+
+            {isDirect ? (
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div className="relative shrink-0">
+                  {targetUser?.avatarUrl ? (
+                    <img 
+                      src={targetUser.avatarUrl.startsWith('http') ? targetUser.avatarUrl : `${window.location.origin}${targetUser.avatarUrl}`}
+                      alt={targetUser.firstName}
+                      className="w-8 h-8 rounded-full object-cover bg-brand-navy border border-border-subtle"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${targetUser?.firstName}+${targetUser?.lastName}&background=0D8B93&color=fff`;
+                      }}
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-brand-teal/20 text-brand-teal flex items-center justify-center font-bold text-xs border border-brand-teal/30">
+                      {targetUser?.firstName?.charAt(0) || <UserIcon className="w-3.5 h-3.5" />}
+                    </div>
+                  )}
+                  <span 
+                    className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#161b22] ${
+                      isTargetOnline ? 'bg-emerald-400 ring-1 ring-emerald-500' : 'bg-zinc-600'
+                    }`}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs md:text-sm font-bold text-white truncate flex items-center gap-1.5">
+                    {targetUser?.firstName} {targetUser?.lastName}
+                    {targetUser?.role === 'ADMIN' && (
+                      <span className="px-1.5 py-0.2 text-[9px] bg-brand-teal/20 text-brand-teal rounded font-medium">Admin</span>
+                    )}
+                  </h3>
+                  <p className="text-[10px] text-zinc-400 truncate flex items-center gap-1.5">
+                    <span>{targetUser?.primaryPosition || targetUser?.role || 'Staff'}</span>
+                    <span>•</span>
+                    <span className={isTargetOnline ? 'text-emerald-400 font-medium' : 'text-zinc-500'}>
+                      {isTargetOnline ? 'Active now' : 'Offline'}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-brand-teal/20 text-brand-teal border border-brand-teal/30 flex items-center justify-center font-bold shrink-0">
+                  <Hash className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs md:text-sm font-bold text-white truncate flex items-center gap-1">
+                    Team Chat
+                  </h3>
+                  <p className="text-[10px] text-zinc-400 truncate">
+                    Company-wide Channel • {onlineUsers.size} online
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center space-x-2 shrink-0">
+            {/* Clear conversation action */}
+            {(!isDirect || user?.role === 'ADMIN') && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(isDirect ? "Clear this private conversation history?" : "Clear company-wide Team Chat?")) {
+                    handleSendMessage({ preventDefault: () => {} } as any);
+                    fetch('/api/chat/messages', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                      body: JSON.stringify({ content: '/clear', conversation_id: activeConversation?.id || 1 })
+                    }).then(() => fetchMessages(activeConversation?.id || 1)).catch(console.error);
+                  }
+                }}
+                className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-white/5 rounded-md transition-colors"
+                title="Clear Chat"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Pinned Message (Team Chat Only) */}
+        {!isDirect && (pinnedMessage || user?.role === 'ADMIN') && (
           <div className="relative z-20 bg-brand-teal/10 border-b border-brand-teal/20 px-3 py-2 md:px-4 flex items-start justify-between text-sm shadow-md backdrop-blur-sm">
             <div className="flex items-start space-x-2 flex-1 min-w-0">
               {user?.role === 'ADMIN' && <span className="text-brand-teal font-semibold shrink-0 mt-1 md:mt-0"><span className="hidden sm:inline">📌</span> Pinned:</span>}
@@ -707,9 +1136,11 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         )}
 
         {/* Messages Area */}
-        <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 relative z-10">
+        <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4 space-y-4 relative z-10">
           {messages.length === 0 ? (
-            <div className="text-center text-zinc-500 mt-10">No messages yet. Start the conversation!</div>
+            <div className="text-center text-zinc-500 mt-10 text-xs md:text-sm">
+              {isDirect ? `Start a private chat with ${targetUser?.firstName || 'this staff member'}!` : 'No messages yet. Start the conversation!'}
+            </div>
           ) : (
             messages.map((msg) => {
               const isOwnMessage = Number(user?.id) === Number(msg.user_id);
@@ -750,7 +1181,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                   <div className={`flex ${!msg.file_url ? 'w-full max-w-full' : 'max-w-[85%] md:max-w-[70%]'} min-w-0 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}>
                     
                     {/* Avatar */}
-                    <div className={`flex-shrink-0 ${isOwnMessage ? 'ml-3' : 'mr-3'}`}>
+                    <div className={`flex-shrink-0 ${isOwnMessage ? 'ml-2.5' : 'mr-2.5'}`}>
                       {msg.avatar_url ? (
                         <img 
                           src={msg.avatar_url.startsWith('http') ? msg.avatar_url : `${window.location.origin}${msg.avatar_url}`} 
@@ -763,7 +1194,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                         />
                       ) : (
                         <div className="w-6 h-6 rounded-full bg-brand-teal/20 text-brand-teal flex items-center justify-center font-bold text-xs border border-brand-teal/30">
-                          {msg.first_name?.charAt(0) || <UserIcon className="w-4 h-4" />}
+                          {msg.first_name?.charAt(0) || <UserIcon className="w-3.5 h-3.5" />}
                         </div>
                       )}
                     </div>
@@ -791,130 +1222,130 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                           className={`rounded-lg font-normal tracking-wide break-words max-w-full cursor-default ${
                             isEmojiOnly
                               ? 'text-5xl md:text-7xl py-1 leading-normal overflow-visible'
-                              : `px-4 py-2 text-xs overflow-hidden ${isOwnMessage 
-                                ? 'bg-brand-teal/10 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-none' 
+                              : `px-3.5 py-2 text-xs overflow-hidden ${isOwnMessage 
+                                ? 'bg-brand-teal/15 text-[#E6EDF3] border border-brand-teal/30 rounded-tr-none' 
                                 : 'bg-brand-navy text-[#8B949E] border border-border-subtle rounded-tl-none'}`
                           }`}
                         >
                           {msg.file_url && (
-                          <div className="mb-2">
-                            {msg.file_type?.startsWith('image/') ? (
-                              <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="text-left w-full">
-                                <img src={`${msg.file_url}&token=${token}`} alt="attachment" className="max-w-full max-h-[200px] rounded object-cover cursor-pointer hover:opacity-90 border border-black/20" onLoad={() => scrollToBottom()} />
-                              </button>
-                            ) : (
-                              <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="flex items-center space-x-2 p-2 bg-black/20 rounded cursor-pointer hover:bg-black/30 w-full text-left">
-                                <File className="w-4 h-4 flex-shrink-0" />
-                                <span className="underline truncate max-w-[150px]">{msg.file_name || 'Document'}</span>
-                              </button>
-                            )}
-                          </div>
-                        )}
-                        {inlineEditMessageId === msg.id ? (
-                          <div className="flex flex-col space-y-2 mt-1 min-w-[200px]" onClick={e => e.stopPropagation()}>
-                            <textarea 
-                              className="w-full bg-black/20 border border-white/10 rounded p-2 text-sm text-white placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-brand-teal resize-none"
-                              value={inlineEditContent}
-                              onChange={e => setInlineEditContent(e.target.value)}
-                              rows={3}
-                              autoFocus
-                            />
-                            <div className="flex justify-end space-x-2">
-                              <button onClick={() => { setInlineEditMessageId(null); setInlineEditContent(''); }} className="px-3 py-1 bg-black/30 hover:bg-black/50 text-zinc-300 text-xs rounded transition-colors">Cancel</button>
-                              <button onClick={() => handleSaveEdit(msg.id)} className="px-3 py-1 bg-brand-teal hover:bg-brand-teal/80 text-black font-medium text-xs rounded transition-colors">Save</button>
+                            <div className="mb-2">
+                              {msg.file_type?.startsWith('image/') ? (
+                                <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="text-left w-full">
+                                  <img src={`${msg.file_url}&token=${token}`} alt="attachment" className="max-w-full max-h-[200px] rounded object-cover cursor-pointer hover:opacity-90 border border-black/20" onLoad={() => scrollToBottom()} />
+                                </button>
+                              ) : (
+                                <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="flex items-center space-x-2 p-2 bg-black/20 rounded cursor-pointer hover:bg-black/30 w-full text-left">
+                                  <File className="w-4 h-4 flex-shrink-0" />
+                                  <span className="underline truncate max-w-[150px]">{msg.file_name || 'Document'}</span>
+                                </button>
+                              )}
                             </div>
-                          </div>
-                        ) : (
-                          <span>{contentToRender}</span>
-                        )}
-                        {msg.is_edited ? <span className="text-[9px] opacity-50 ml-2 italic">(edited)</span> : null}
+                          )}
+                          {inlineEditMessageId === msg.id ? (
+                            <div className="flex flex-col space-y-2 mt-1 min-w-[200px]" onClick={e => e.stopPropagation()}>
+                              <textarea 
+                                className="w-full bg-black/20 border border-white/10 rounded p-2 text-sm text-white placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-brand-teal resize-none"
+                                value={inlineEditContent}
+                                onChange={e => setInlineEditContent(e.target.value)}
+                                rows={3}
+                                autoFocus
+                              />
+                              <div className="flex justify-end space-x-2">
+                                <button onClick={() => { setInlineEditMessageId(null); setInlineEditContent(''); }} className="px-3 py-1 bg-black/30 hover:bg-black/50 text-zinc-300 text-xs rounded transition-colors">Cancel</button>
+                                <button onClick={() => handleSaveEdit(msg.id)} className="px-3 py-1 bg-brand-teal hover:bg-brand-teal/80 text-black font-medium text-xs rounded transition-colors">Save</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <span>{contentToRender}</span>
+                          )}
+                          {msg.is_edited ? <span className="text-[9px] opacity-50 ml-2 italic">(edited)</span> : null}
                         </div>
                       
-                      {(hoveredMessageId === msg.id || reactionPicker?.msgId === msg.id) && (
-                        <div className={`absolute -top-10 ${isOwnMessage ? 'right-0' : 'left-0'} bg-[#1c2128] border border-border-subtle rounded-lg px-2 py-1.5 flex items-center space-x-2 shadow-xl z-[60] after:content-[''] after:absolute after:-bottom-4 after:left-0 after:right-0 after:h-4`}>
-                          <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '👍'); }} className="hover:scale-125 transition-transform text-base">👍</button>
-                          <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '❤️'); }} className="hover:scale-125 transition-transform text-base">❤️</button>
-                          <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '😂'); }} className="hover:scale-125 transition-transform text-base">😂</button>
-                          <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '😮'); }} className="hover:scale-125 transition-transform text-base">😮</button>
-                          
-                          <div className="relative" ref={reactionPickerRef}>
-                            <button onClick={(e) => { 
-                              e.stopPropagation(); 
-                              if (reactionPicker?.msgId === msg.id) {
-                                setReactionPicker(null);
-                              } else {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const position = rect.top > window.innerHeight / 2 ? 'up' : 'down';
-                                setReactionPicker({ msgId: msg.id, position });
-                              }
-                            }} className="hover:scale-125 transition-transform text-zinc-400 hover:text-white bg-white/5 rounded-full w-5 h-5 flex items-center justify-center">
-                              <MoreHorizontal className="w-3 h-3" />
-                            </button>
-                            {reactionPicker?.msgId === msg.id && (
-                              <>
-                                <div className="fixed inset-0 z-[90]" onClick={(e) => { e.stopPropagation(); setReactionPicker(null); }} />
-                                <div className={`absolute z-[100] shadow-2xl ${reactionPicker.position === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'} ${isOwnMessage ? 'right-0' : 'left-0'}`} onClick={e => e.stopPropagation()}>
-                                  <Picker data={data} onEmojiSelect={(emoji: any) => { handleAddReaction(msg.id, emoji.native); setReactionPicker(null); }} theme="dark" />
-                                </div>
-                              </>
+                        {(hoveredMessageId === msg.id || reactionPicker?.msgId === msg.id) && (
+                          <div className={`absolute -top-10 ${isOwnMessage ? 'right-0' : 'left-0'} bg-[#1c2128] border border-border-subtle rounded-lg px-2 py-1.5 flex items-center space-x-2 shadow-xl z-[60] after:content-[''] after:absolute after:-bottom-4 after:left-0 after:right-0 after:h-4`}>
+                            <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '👍'); }} className="hover:scale-125 transition-transform text-base">👍</button>
+                            <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '❤️'); }} className="hover:scale-125 transition-transform text-base">❤️</button>
+                            <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '😂'); }} className="hover:scale-125 transition-transform text-base">😂</button>
+                            <button onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, '😮'); }} className="hover:scale-125 transition-transform text-base">😮</button>
+                            
+                            <div className="relative" ref={reactionPickerRef}>
+                              <button onClick={(e) => { 
+                                e.stopPropagation(); 
+                                if (reactionPicker?.msgId === msg.id) {
+                                  setReactionPicker(null);
+                                } else {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const position = rect.top > window.innerHeight / 2 ? 'up' : 'down';
+                                  setReactionPicker({ msgId: msg.id, position });
+                                }
+                              }} className="hover:scale-125 transition-transform text-zinc-400 hover:text-white bg-white/5 rounded-full w-5 h-5 flex items-center justify-center">
+                                <MoreHorizontal className="w-3 h-3" />
+                              </button>
+                              {reactionPicker?.msgId === msg.id && (
+                                <>
+                                  <div className="fixed inset-0 z-[90]" onClick={(e) => { e.stopPropagation(); setReactionPicker(null); }} />
+                                  <div className={`absolute z-[100] shadow-2xl ${reactionPicker.position === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'} ${isOwnMessage ? 'right-0' : 'left-0'}`} onClick={e => e.stopPropagation()}>
+                                    <Picker data={data} onEmojiSelect={(emoji: any) => { handleAddReaction(msg.id, emoji.native); setReactionPicker(null); }} theme="dark" />
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                            
+                            <div className="w-[1px] h-4 bg-border-subtle mx-1" />
+                            
+                            {(isOwnMessage || user?.role === 'ADMIN') && (
+                              <button onClick={(e) => { e.stopPropagation(); setInlineEditContent(msg.content); setInlineEditMessageId(msg.id); }} className="hover:scale-125 transition-transform text-zinc-400 hover:text-white bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Edit">
+                                <Edit2 className="w-3 h-3" />
+                              </button>
                             )}
-                          </div>
-                          
-                          <div className="w-[1px] h-4 bg-border-subtle mx-1" />
-                          
-                          {(isOwnMessage || user?.role === 'ADMIN') && (
-                            <button onClick={(e) => { e.stopPropagation(); setInlineEditContent(msg.content); setInlineEditMessageId(msg.id); }} className="hover:scale-125 transition-transform text-zinc-400 hover:text-white bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Edit">
-                              <Edit2 className="w-3 h-3" />
-                            </button>
-                          )}
 
-                          <button onClick={(e) => { e.stopPropagation(); handleQuote(msg); }} className="hover:scale-125 transition-transform text-zinc-400 hover:text-white bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Quote">
-                            <Quote className="w-3 h-3" />
-                          </button>
-                          
-                          {(isOwnMessage || user?.role === 'ADMIN') && (
-                            <button onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.id); }} className="hover:scale-125 transition-transform text-red-400 hover:text-red-300 bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Delete">
-                              <Trash2 className="w-3 h-3" />
+                            <button onClick={(e) => { e.stopPropagation(); handleQuote(msg); }} className="hover:scale-125 transition-transform text-zinc-400 hover:text-white bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Quote">
+                              <Quote className="w-3 h-3" />
                             </button>
-                          )}
-                        </div>
-                      )}
-                      
-                      {(() => {
-                        try {
-                          let reactions = {};
+                            
+                            {(isOwnMessage || user?.role === 'ADMIN') && (
+                              <button onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.id); }} className="hover:scale-125 transition-transform text-red-400 hover:text-red-300 bg-white/5 rounded-full w-5 h-5 flex items-center justify-center" title="Delete">
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        
+                        {(() => {
                           try {
-                            const parsed = msg.reactions ? JSON.parse(msg.reactions) : {};
-                            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                              reactions = parsed;
-                            }
-                          } catch (e) {}
-                          const reactionEntries = Object.entries(reactions) as [string, number[]][];
-                          if (reactionEntries.length === 0) return null;
-                          
-                          return (
-                            <div className={`flex flex-wrap gap-1 mt-1 ${isOwnMessage ? "justify-end" : "justify-start"}`}>
-                              {reactionEntries.map(([emoji, users]) => {
-                                const hasReacted = users.includes(user?.id);
-                                const reactorNames = users.map(uid => userNamesMap[uid] || 'Unknown').join(', ');
-                                return (
-                                  <button
-                                    key={emoji}
-                                    title={reactorNames}
-                                    onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, emoji); }}
-                                    className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs border ${hasReacted ? 'bg-brand-teal/20 border-brand-teal text-brand-teal' : 'bg-black/20 border-border-subtle text-zinc-400 hover:bg-black/40'}`}
-                                  >
-                                    <span className="text-[13px]">{emoji}</span>
-                                    <span className="text-[10px] font-semibold">{users.length}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          );
-                        } catch(e) {
-                          return null;
-                        }
-                      })()}
+                            let reactions = {};
+                            try {
+                              const parsed = msg.reactions ? JSON.parse(msg.reactions) : {};
+                              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                                reactions = parsed;
+                              }
+                            } catch (e) {}
+                            const reactionEntries = Object.entries(reactions) as [string, number[]][];
+                            if (reactionEntries.length === 0) return null;
+                            
+                            return (
+                              <div className={`flex flex-wrap gap-1 mt-1 ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+                                {reactionEntries.map(([emoji, users]) => {
+                                  const hasReacted = users.includes(user?.id);
+                                  const reactorNames = users.map(uid => userNamesMap[uid] || 'Unknown').join(', ');
+                                  return (
+                                    <button
+                                      key={emoji}
+                                      title={reactorNames}
+                                      onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, emoji); }}
+                                      className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs border ${hasReacted ? 'bg-brand-teal/20 border-brand-teal text-brand-teal' : 'bg-black/20 border-border-subtle text-zinc-400 hover:bg-black/40'}`}
+                                    >
+                                      <span className="text-[13px]">{emoji}</span>
+                                      <span className="text-[10px] font-semibold">{users.length}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            );
+                          } catch(e) {
+                            return null;
+                          }
+                        })()}
 
                       </div>
                     </div>
@@ -924,12 +1355,12 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
               );
             })
           )}
-          <div ref={messagesEndRef} className="h-6" />
+          <div ref={messagesEndRef} className="h-4" />
         </div>
 
         {/* Typing Indicator */}
         {typingUsers.length > 0 && (
-          <div className="px-4 py-2 bg-[#11161d]/95 backdrop-blur-md shrink-0 flex items-center space-x-2 text-xs text-brand-teal italic z-20 border-t border-white/[0.05] shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.5)]">
+          <div className="px-4 py-1.5 bg-[#11161d]/95 backdrop-blur-md shrink-0 flex items-center space-x-2 text-xs text-brand-teal italic z-20 border-t border-white/[0.05] shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.5)]">
             <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
             <span className="animate-pulse truncate max-w-full">
               {typingUsers.length === 1 ? `${typingUsers[0]} is typing...` : `${typingUsers.join(', ')} are typing...`}
@@ -938,14 +1369,14 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
         )}
 
         {/* Input Area */}
-        <div className="p-4 bg-[#11161d]/90 backdrop-blur-md border-t border-border-subtle shrink-0 relative z-10">
+        <div className="p-3 md:p-4 bg-[#11161d]/90 backdrop-blur-md border-t border-border-subtle shrink-0 relative z-10">
           <div className="flex flex-col space-y-2">
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2 p-2 max-h-32 overflow-y-auto">
                 {attachments.map((file, idx) => (
                   <div key={idx} className="flex items-center space-x-2 bg-brand-navy p-2 rounded-lg border border-border-subtle max-w-[200px]">
                     <div className="bg-brand-bg p-1.5 rounded shrink-0">
-                       {file.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 text-brand-teal" /> : <File className="w-4 h-4 text-zinc-400" />}
+                      {file.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 text-brand-teal" /> : <File className="w-4 h-4 text-zinc-400" />}
                     </div>
                     <div className="flex-1 truncate text-xs text-zinc-300">
                       {file.name}
@@ -957,193 +1388,202 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                 ))}
               </div>
             )}
-            <form onSubmit={handleSendMessage} className="flex space-x-2 items-end w-full max-w-full overflow-visible">
-            <input 
-              type="file" 
-              className="hidden" 
-              ref={fileInputRef} 
-              multiple
-              onChange={e => {
-                if (e.target.files) {
-                  setAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
-                }
-              }} 
-            />
-            <input 
-              type="file" 
-              className="hidden" 
-              accept="image/*"
-              capture="environment"
-              ref={cameraInputRef} 
-              onChange={e => {
-                if (e.target.files) {
-                  setAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
-                }
-              }} 
-            />
-            
-            <div className="relative flex-1 min-w-0 flex flex-col bg-brand-navy border border-border-subtle rounded-lg focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal">
-              
-              {selectedGif && (
-                <div className="relative inline-block m-2 w-max">
-                  <img src={selectedGif.images.fixed_height.url} alt="Selected GIF" className="max-h-32 rounded" />
-                  <button type="button" onClick={() => setSelectedGif(null)} className="absolute top-1 right-1 bg-black/70 p-1 rounded-full text-zinc-300 hover:text-white transition-colors">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-              
-              {quotedMessages.length > 0 && (
-                <div className="flex flex-col space-y-1 mx-2 mt-2">
-                  {quotedMessages.map((qMsg, idx) => {
-                    const isImageQuote = qMsg.content?.match(/http.*(giphy\.com|\.(gif|jpe?g|png))/i);
-                    let quoteContent = qMsg.content ? qMsg.content.split('\n').filter(line => !line.startsWith('> ')).join(' ').trim() : '';
-                    if (!quoteContent && qMsg.file_url) quoteContent = `[${qMsg.file_name || 'Attachment'}]`;
 
-                    return (
-                      <div key={idx} className="relative flex items-center justify-between bg-black/20 border-l-[3px] border-brand-teal/50 rounded-r-md px-3 py-1.5 text-xs text-zinc-300">
-                        <div className="flex items-center space-x-2 truncate">
-                          <span className="font-semibold text-brand-teal">{qMsg.first_name}:</span>
-                          {isImageQuote ? (
-                            <img src={isImageQuote[0]} alt="quoted gif" className="h-8 rounded object-cover" />
-                          ) : (
-                            <span className="truncate">{quoteContent}</span>
-                          )}
-                        </div>
-                        <button type="button" onClick={() => setQuotedMessages(prev => prev.filter((_, i) => i !== idx))} className="ml-2 bg-black/50 hover:bg-black p-1 rounded-full text-zinc-400 hover:text-white transition-colors flex-shrink-0">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              
-              <div className="flex items-end">
+            {quotedMessages.length > 0 && (
+              <div className="flex flex-col space-y-1 mb-2 max-h-32 overflow-y-auto">
+                {quotedMessages.map((qMsg) => (
+                  <div key={qMsg.id} className="flex items-center justify-between bg-black/30 border-l-[3px] border-brand-teal/60 rounded-r p-2 text-xs text-zinc-300">
+                    <div className="truncate flex-1 pr-2">
+                      <span className="font-semibold text-brand-teal mr-1">{qMsg.first_name}:</span>
+                      <span className="italic">{qMsg.content ? qMsg.content.split('\n').filter(l => !l.startsWith('> ')).join(' ') : (qMsg.file_name ? `[${qMsg.file_name}]` : '[Attachment]')}</span>
+                    </div>
+                    <button type="button" onClick={() => setQuotedMessages(quotedMessages.filter(m => m.id !== qMsg.id))} className="text-zinc-500 hover:text-white shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {selectedGif && (
+              <div className="relative inline-block mb-2 max-w-[200px]">
+                <img src={selectedGif.images.fixed_height.url} alt="selected gif" className="rounded border border-border-subtle" />
+                <button type="button" onClick={() => setSelectedGif(null)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
+              <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files?.length) setAttachments(prev => [...prev, ...Array.from(e.target.files!)]); }} className="hidden" multiple />
+              <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" onChange={(e) => { if (e.target.files?.length) setAttachments(prev => [...prev, ...Array.from(e.target.files!)]); }} className="hidden" />
+
+              <div className="flex-1 bg-black/20 border border-border-subtle rounded-lg flex flex-col focus-within:border-brand-teal transition-colors">
                 <textarea
                   ref={textareaRef}
                   value={newMessage}
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
-                  onPaste={(e) => {
-                    if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
-                      e.preventDefault();
-                      setAttachments(prev => [...prev, ...Array.from(e.clipboardData.files)]);
-                    }
-                  }}
-                  placeholder="Type a message..."
-                  className="flex-1 bg-transparent px-3 py-2.5 text-xs font-semibold text-[#E6EDF3] focus:outline-none border-none resize-none whitespace-pre-wrap"
+                  placeholder={isDirect ? `Message ${targetUser?.firstName}...` : "Message #Team-Chat..."}
                   rows={1}
-                  style={{ minHeight: '36px', maxHeight: '240px' }}
+                  className="w-full bg-transparent px-3 py-2 text-xs md:text-sm text-white placeholder-zinc-500 focus:outline-none resize-none max-h-48 overflow-y-auto"
                 />
-                
-                <div className="flex items-center space-x-1 pb-0.5 pr-1 flex-shrink-0 relative">
-                  
-                  {/* Mobile/Tablet: Collapsed Plus Button */}
-                  <div className="lg:hidden flex relative">
-                    <button
-                      type="button"
-                      onClick={() => { setShowAttachmentMenu(!showAttachmentMenu); setShowEmojiPicker(false); setShowGiphyPicker(false); }}
-                      className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                      title="Attach"
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
 
-                    {showAttachmentMenu && (
-                      <>
-                        <div className="fixed inset-0 z-[80]" onClick={() => setShowAttachmentMenu(false)} />
-                        <div className="absolute bottom-full right-0 mb-2 w-48 bg-[#1c2128] border border-border-subtle rounded-lg shadow-xl z-[90] flex flex-col py-1 animate-in fade-in zoom-in-95">
-                          <button
-                            type="button"
-                            onClick={() => { setShowAttachmentMenu(false); setShowGiphyPicker(true); }}
-                            className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
-                          >
-                            <Sticker className="w-4 h-4" /> <span>GIFs</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setShowAttachmentMenu(false); setShowEmojiPicker(true); }}
-                            className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
-                          >
-                            <Smile className="w-4 h-4" /> <span>Emojis</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setShowAttachmentMenu(false); cameraInputRef.current?.click(); }}
-                            className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
-                          >
-                            <Camera className="w-4 h-4" /> <span>Camera</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setShowAttachmentMenu(false); fileInputRef.current?.click(); }}
-                            className="flex items-center space-x-3 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
-                          >
-                            <Paperclip className="w-4 h-4" /> <span>Document</span>
-                          </button>
-                        </div>
-                      </>
-                    )}
+                <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5 border-t border-white/[0.05]">
+                  <div className="flex items-center space-x-1">
+                    {/* Mobile: Plus Button for Attachment Menu */}
+                    <div className="relative lg:hidden">
+                      <button
+                        type="button"
+                        onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+                        className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                        title="Add..."
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+
+                      {showAttachmentMenu && (
+                        <>
+                          <div className="fixed inset-0 z-[80]" onClick={() => setShowAttachmentMenu(false)} />
+                          <div className="absolute bottom-full left-0 mb-2 w-44 bg-[#1c2128] border border-border-subtle rounded-lg shadow-xl z-[90] flex flex-col py-1 animate-in fade-in zoom-in-95">
+                            <button
+                              type="button"
+                              onClick={() => { setShowAttachmentMenu(false); setShowGiphyPicker(true); }}
+                              className="flex items-center space-x-3 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
+                            >
+                              <Sticker className="w-4 h-4 text-brand-teal" /> <span>GIFs</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setShowAttachmentMenu(false); setShowEmojiPicker(true); }}
+                              className="flex items-center space-x-3 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
+                            >
+                              <Smile className="w-4 h-4 text-brand-teal" /> <span>Emojis</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setShowAttachmentMenu(false); cameraInputRef.current?.click(); }}
+                              className="flex items-center space-x-3 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
+                            >
+                              <Camera className="w-4 h-4 text-brand-teal" /> <span>Camera</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setShowAttachmentMenu(false); fileInputRef.current?.click(); }}
+                              className="flex items-center space-x-3 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 hover:text-white w-full text-left"
+                            >
+                              <Paperclip className="w-4 h-4 text-brand-teal" /> <span>Document</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Desktop: Full Icons */}
+                    <div className="hidden lg:flex items-center space-x-1">
+                      <button 
+                        ref={giphyButtonRef}
+                        type="button" 
+                        onClick={() => { setShowGiphyPicker(!showGiphyPicker); setShowEmojiPicker(false); setShowAttachmentMenu(false); }}
+                        className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                        title="GIFs"
+                      >
+                        <Sticker className="w-4 h-4" />
+                      </button>
+                      
+                      <button 
+                        ref={emojiButtonRef}
+                        type="button" 
+                        onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGiphyPicker(false); setShowAttachmentMenu(false); }}
+                        className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                        title="Emojis"
+                      >
+                        <Smile className="w-4 h-4" />
+                      </button>
+                      
+                      <button 
+                        type="button" 
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                        title="Camera"
+                      >
+                        <Camera className="w-4 h-4" />
+                      </button>
+                      
+                      <button 
+                        type="button" 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
+                        title="Attach File"
+                      >
+                        <Paperclip className="w-4 h-4" />
+                      </button>
+                    </div>
+
                   </div>
-
-                  {/* Desktop: Full Icons */}
-                  <div className="hidden lg:flex items-center space-x-1">
-                    <button 
-                      ref={giphyButtonRef}
-                      type="button" 
-                      onClick={() => { setShowGiphyPicker(!showGiphyPicker); setShowEmojiPicker(false); setShowAttachmentMenu(false); }}
-                      className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                      title="GIFs"
-                    >
-                      <Sticker className="w-4 h-4" />
-                    </button>
-                    
-                    <button 
-                      ref={emojiButtonRef}
-                      type="button" 
-                      onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGiphyPicker(false); setShowAttachmentMenu(false); }}
-                      className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                      title="Emojis"
-                    >
-                      <Smile className="w-4 h-4" />
-                    </button>
-                    
-                    <button 
-                      type="button" 
-                      onClick={() => cameraInputRef.current?.click()}
-                      className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                      title="Camera"
-                    >
-                      <Camera className="w-4 h-4" />
-                    </button>
-                    
-                    <button 
-                      type="button" 
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center justify-center p-1.5 text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-md transition-colors"
-                      title="Attach File"
-                    >
-                      <Paperclip className="w-4 h-4" />
-                    </button>
-                  </div>
-
                 </div>
               </div>
-            </div>
-            <button
-              type="submit"
-              disabled={(!newMessage.trim() && attachments.length === 0 && !selectedGif) || isUploading}
-              className="flex items-center justify-center w-[36px] h-[36px] text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg text-white bg-brand-teal/20 border border-brand-teal/40 hover:bg-brand-teal hover:text-[#0d1117] disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-              title="Send"
-            >
-              {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 ml-0.5" />}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={(!newMessage.trim() && attachments.length === 0 && !selectedGif) || isUploading}
+                className="flex items-center justify-center w-[36px] h-[36px] text-xs font-semibold tracking-wide transition-all duration-200 rounded-lg text-white bg-brand-teal/20 border border-brand-teal/40 hover:bg-brand-teal hover:text-[#0d1117] disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                title="Send"
+              >
+                {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 ml-0.5" />}
+              </button>
+            </form>
           </div>
         </div>
       </div>
-    
+    );
+  };
+
+  return (
+    <div 
+      className={`flex flex-col flex-1 h-full min-h-0 relative ${isMini ? 'p-0 pb-0' : 'p-2 md:p-6 pb-2 md:pb-6'}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 z-50 bg-brand-teal/10 backdrop-blur-sm border-2 border-dashed border-brand-teal rounded-lg m-2 md:m-6 flex items-center justify-center pointer-events-none transition-all duration-200">
+          <div className="bg-brand-navy/90 text-brand-teal px-6 py-4 rounded-xl shadow-2xl flex flex-col items-center">
+            <File className="w-12 h-12 mb-3" />
+            <h3 className="text-lg font-bold tracking-wide">Drop file to attach</h3>
+            <p className="text-sm text-brand-teal/70 mt-1">Images or documents</p>
+          </div>
+        </div>
+      )}
+
+      {/* Main Container */}
+      <div 
+        className="flex-1 rounded-lg border border-border-subtle flex overflow-hidden min-h-0 relative"
+        style={{ backgroundColor: settings?.chatBackgroundTint || '#11161d' }}
+      >
+        {isMini || isMobileScreen ? (
+          // Single-pane mobile widget or small screen flow
+          activeConversation ? renderConversationView() : renderConversationsList()
+        ) : (
+          // Two-pane desktop layout
+          <>
+            <div className="w-72 lg:w-80 shrink-0 h-full flex flex-col">
+              {renderConversationsList()}
+            </div>
+            <div className="flex-1 h-full flex flex-col min-w-0">
+              {activeConversation ? (
+                renderConversationView()
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-zinc-500">
+                  <MessageSquare className="w-12 h-12 text-brand-teal/40 mb-3" />
+                  <h3 className="text-sm font-semibold text-zinc-300">Select a conversation</h3>
+                  <p className="text-xs text-zinc-500 mt-1">Choose Team Chat or a staff member on the left to start messaging</p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
       {previewFile && (
         <div className="fixed inset-0 z-[200] flex flex-col bg-black/95 backdrop-blur-md">
           <div className="flex items-center justify-between p-4 border-b border-border-subtle shrink-0 bg-[#1c2128]">
@@ -1200,4 +1640,3 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     </div>
   );
 }
-

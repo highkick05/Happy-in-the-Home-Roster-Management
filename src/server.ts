@@ -451,6 +451,35 @@ async function startServer() {
           db.prepare("ALTER TABLE chat_messages ADD COLUMN reactions TEXT DEFAULT '{}'").run();
           console.log("Migrated chat_messages table to include reactions");
         }
+
+        db.prepare(`
+          CREATE TABLE IF NOT EXISTS chat_conversations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL DEFAULT 'DIRECT',
+            title TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `).run();
+
+        db.prepare(`
+          CREATE TABLE IF NOT EXISTS chat_conversation_participants (
+            conversation_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            last_read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (conversation_id, user_id),
+            FOREIGN KEY (conversation_id) REFERENCES chat_conversations(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+          )
+        `).run();
+
+        const hasConvId = columns.some(c => c.name === 'conversation_id');
+        if (!hasConvId) {
+          db.prepare("ALTER TABLE chat_messages ADD COLUMN conversation_id INTEGER DEFAULT 1").run();
+          console.log("Migrated chat_messages table to include conversation_id");
+        }
+        db.prepare("INSERT OR IGNORE INTO chat_conversations (id, type, title) VALUES (1, 'TEAM', 'Team Chat')").run();
+        db.prepare("UPDATE chat_messages SET conversation_id = 1 WHERE conversation_id IS NULL").run();
       } catch (e) {
         console.error("Failed to migrate chat_messages table", e);
       }
@@ -1580,7 +1609,25 @@ try {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_updated_by INTEGER,
+        conversation_id INTEGER DEFAULT 1,
         FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS chat_conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL DEFAULT 'DIRECT',
+        title TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS chat_conversation_participants (
+        conversation_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        last_read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (conversation_id, user_id),
+        FOREIGN KEY (conversation_id) REFERENCES chat_conversations(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
 
 
@@ -4719,23 +4766,63 @@ try {
     }
   });
 
-function getUnreadChatCount(db: any, userId: number) {
+function getUnreadChatCount(db: any, userId: number): number {
   try {
     const userRow = db.prepare("SELECT last_chat_read FROM users WHERE id = ?").get(userId) as any;
-    const columns = db.prepare("PRAGMA table_info(chat_messages)").all() as any[];
-    const hasUpdatedAt = columns.some((c: any) => c.name === 'updated_at');
-    const hasLastUpdatedBy = columns.some((c: any) => c.name === 'last_updated_by');
-    const updatedCol = hasUpdatedAt ? 'COALESCE(updated_at, created_at)' : 'created_at';
-    const updatedByCol = hasLastUpdatedBy ? 'COALESCE(last_updated_by, user_id)' : 'user_id';
     
-    let count = 0;
-    if (!userRow?.last_chat_read) {
-      count = (db.prepare(`SELECT COUNT(*) as count FROM chat_messages WHERE content != 'SYSTEM_CHAT_CLEARED' AND ${updatedByCol} != ?`).get(userId) as any).count;
+    // 1. Team chat (conversation_id = 1 or conversation_id IS NULL)
+    const teamPart = db.prepare("SELECT last_read_at FROM chat_conversation_participants WHERE conversation_id = 1 AND user_id = ?").get(userId) as any;
+    const teamReadTime = teamPart?.last_read_at || userRow?.last_chat_read;
+
+    let teamUnread = 0;
+    if (!teamReadTime) {
+      teamUnread = (db.prepare(`
+        SELECT COUNT(*) as count FROM chat_messages 
+        WHERE (conversation_id = 1 OR conversation_id IS NULL) 
+          AND content != 'SYSTEM_CHAT_CLEARED' 
+          AND user_id != ?
+      `).get(userId) as any)?.count || 0;
     } else {
-      const unreadMsgs = db.prepare(`SELECT id FROM chat_messages WHERE ${updatedCol} > ? AND content != 'SYSTEM_CHAT_CLEARED' AND ${updatedByCol} != ?`).all(userRow.last_chat_read, userId) as any[];
-      count = unreadMsgs.length;
+      teamUnread = (db.prepare(`
+        SELECT COUNT(*) as count FROM chat_messages 
+        WHERE (conversation_id = 1 OR conversation_id IS NULL) 
+          AND created_at > ? 
+          AND content != 'SYSTEM_CHAT_CLEARED' 
+          AND user_id != ?
+      `).get(teamReadTime, userId) as any)?.count || 0;
     }
-    return count;
+
+    // 2. Direct chats where userId is participant
+    const directRows = db.prepare(`
+      SELECT p.conversation_id, p.last_read_at
+      FROM chat_conversation_participants p
+      JOIN chat_conversations c ON c.id = p.conversation_id
+      WHERE p.user_id = ? AND c.type = 'DIRECT'
+    `).all(userId) as any[];
+
+    let directUnread = 0;
+    for (const d of directRows) {
+      if (!d.last_read_at || d.last_read_at === '1970-01-01 00:00:00') {
+        const c = (db.prepare(`
+          SELECT COUNT(*) as count FROM chat_messages 
+          WHERE conversation_id = ? 
+            AND content != 'SYSTEM_CHAT_CLEARED' 
+            AND user_id != ?
+        `).get(d.conversation_id, userId) as any)?.count || 0;
+        directUnread += c;
+      } else {
+        const c = (db.prepare(`
+          SELECT COUNT(*) as count FROM chat_messages 
+          WHERE conversation_id = ? 
+            AND created_at > ? 
+            AND content != 'SYSTEM_CHAT_CLEARED' 
+            AND user_id != ?
+        `).get(d.conversation_id, d.last_read_at, userId) as any)?.count || 0;
+        directUnread += c;
+      }
+    }
+
+    return teamUnread + directUnread;
   } catch (e) {
     console.error("Error calculating unread count:", e);
     return 0;
@@ -4752,6 +4839,160 @@ function getUnreadChatCount(db: any, userId: number) {
     }
   });
 
+  app.get("/api/chat/conversations", authenticateToken, (req: any, res: any) => {
+    try {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+
+      const currentUserId = req.user.id;
+      
+      // Team conversation info
+      const teamPart = db.prepare("SELECT last_read_at FROM chat_conversation_participants WHERE conversation_id = 1 AND user_id = ?").get(currentUserId) as any;
+      const userRow = db.prepare("SELECT last_chat_read FROM users WHERE id = ?").get(currentUserId) as any;
+      const teamReadTime = teamPart?.last_read_at || userRow?.last_chat_read;
+
+      let teamUnread = 0;
+      if (!teamReadTime) {
+        teamUnread = (db.prepare(`
+          SELECT COUNT(*) as count FROM chat_messages 
+          WHERE (conversation_id = 1 OR conversation_id IS NULL) 
+            AND content != 'SYSTEM_CHAT_CLEARED' 
+            AND user_id != ?
+        `).get(currentUserId) as any)?.count || 0;
+      } else {
+        teamUnread = (db.prepare(`
+          SELECT COUNT(*) as count FROM chat_messages 
+          WHERE (conversation_id = 1 OR conversation_id IS NULL) 
+            AND created_at > ? 
+            AND content != 'SYSTEM_CHAT_CLEARED' 
+            AND user_id != ?
+        `).get(teamReadTime, currentUserId) as any)?.count || 0;
+      }
+
+      const teamLastMsg = db.prepare(`
+        SELECT c.*, u.first_name, u.last_name 
+        FROM chat_messages c
+        JOIN users u ON c.user_id = u.id
+        WHERE (c.conversation_id = 1 OR c.conversation_id IS NULL)
+          AND c.content != 'SYSTEM_CHAT_CLEARED'
+        ORDER BY c.created_at DESC LIMIT 1
+      `).get() as any;
+
+      const teamConversation = {
+        id: 1,
+        type: 'TEAM',
+        title: 'Team Chat',
+        unreadCount: teamUnread,
+        lastMessage: teamLastMsg || null
+      };
+
+      // Fetch other active staff and admin users
+      const usersList = db.prepare(`
+        SELECT id, first_name, last_name, email, role, avatar_url, primary_position, status
+        FROM users 
+        WHERE id != ? AND (status IS NULL OR status != 'INACTIVE')
+        ORDER BY first_name ASC, last_name ASC
+      `).all(currentUserId) as any[];
+
+      const directConversations = usersList.map((u: any) => {
+        const convRow = db.prepare(`
+          SELECT c.id 
+          FROM chat_conversations c
+          JOIN chat_conversation_participants p1 ON c.id = p1.conversation_id AND p1.user_id = ?
+          JOIN chat_conversation_participants p2 ON c.id = p2.conversation_id AND p2.user_id = ?
+          WHERE c.type = 'DIRECT'
+        `).get(currentUserId, u.id) as any;
+
+        const convId = convRow ? convRow.id : null;
+        let unread = 0;
+        let lastMsg = null;
+
+        if (convId) {
+          const participant = db.prepare("SELECT last_read_at FROM chat_conversation_participants WHERE conversation_id = ? AND user_id = ?").get(convId, currentUserId) as any;
+          const readAt = participant?.last_read_at;
+          
+          if (!readAt || readAt === '1970-01-01 00:00:00') {
+            unread = (db.prepare(`
+              SELECT COUNT(*) as count FROM chat_messages 
+              WHERE conversation_id = ? AND content != 'SYSTEM_CHAT_CLEARED' AND user_id != ?
+            `).get(convId, currentUserId) as any)?.count || 0;
+          } else {
+            unread = (db.prepare(`
+              SELECT COUNT(*) as count FROM chat_messages 
+              WHERE conversation_id = ? AND created_at > ? AND content != 'SYSTEM_CHAT_CLEARED' AND user_id != ?
+            `).get(convId, readAt, currentUserId) as any)?.count || 0;
+          }
+
+          lastMsg = db.prepare(`
+            SELECT c.*, sender.first_name, sender.last_name 
+            FROM chat_messages c
+            JOIN users sender ON c.user_id = sender.id
+            WHERE c.conversation_id = ? AND c.content != 'SYSTEM_CHAT_CLEARED'
+            ORDER BY c.created_at DESC LIMIT 1
+          `).get(convId) as any;
+        }
+
+        return {
+          id: convId,
+          targetUserId: u.id,
+          user: {
+            id: u.id,
+            firstName: u.first_name,
+            lastName: u.last_name,
+            email: u.email,
+            role: u.role,
+            avatarUrl: u.avatar_url,
+            primaryPosition: u.primary_position || (u.role === 'ADMIN' ? 'Administrator' : 'Support Worker')
+          },
+          unreadCount: unread,
+          lastMessage: lastMsg || null
+        };
+      });
+
+      res.json({
+        team: teamConversation,
+        direct: directConversations
+      });
+    } catch (e: any) {
+      console.error("Error fetching conversations:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/chat/conversations/direct", authenticateToken, (req: any, res: any) => {
+    try {
+      const currentUserId = req.user.id;
+      const targetUserId = parseInt(req.body.targetUserId, 10);
+      if (!targetUserId || targetUserId === currentUserId) {
+        return res.status(400).json({ error: "Invalid target user" });
+      }
+
+      const existing = db.prepare(`
+        SELECT c.id 
+        FROM chat_conversations c
+        JOIN chat_conversation_participants p1 ON c.id = p1.conversation_id AND p1.user_id = ?
+        JOIN chat_conversation_participants p2 ON c.id = p2.conversation_id AND p2.user_id = ?
+        WHERE c.type = 'DIRECT'
+      `).get(currentUserId, targetUserId) as any;
+
+      if (existing) {
+        return res.json({ conversationId: existing.id });
+      }
+
+      const info = db.prepare("INSERT INTO chat_conversations (type, title) VALUES ('DIRECT', NULL)").run();
+      const newConvId = info.lastInsertRowid;
+
+      db.prepare("INSERT INTO chat_conversation_participants (conversation_id, user_id, last_read_at) VALUES (?, ?, datetime('now'))").run(newConvId, currentUserId);
+      db.prepare("INSERT INTO chat_conversation_participants (conversation_id, user_id, last_read_at) VALUES (?, ?, '1970-01-01 00:00:00')").run(newConvId, targetUserId);
+
+      res.json({ conversationId: newConvId });
+    } catch (e: any) {
+      console.error("Error starting direct conversation:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.get("/api/debug/chat_schema", (req, res) => {
     try {
       const cols = db.prepare("PRAGMA table_info(chat_messages)").all();
@@ -4761,19 +5002,28 @@ function getUnreadChatCount(db: any, userId: number) {
     }
   });
 
-  app.post("/api/chat/read", authenticateToken, (req, res) => {
+  app.post("/api/chat/read", authenticateToken, (req: any, res: any) => {
     try {
-      // Only send push if there are actually unread messages to clear, to save push budget
-      const unreadCount = getUnreadChatCount(db, req.user.id);
+      const convId = req.body?.conversation_id ? parseInt(req.body.conversation_id, 10) : 1;
       
-      db.prepare("UPDATE users SET last_chat_read = datetime('now') WHERE id = ?").run(req.user.id);
+      db.prepare(`
+        INSERT INTO chat_conversation_participants (conversation_id, user_id, last_read_at)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(conversation_id, user_id) DO UPDATE SET last_read_at = datetime('now')
+      `).run(convId, req.user.id);
+
+      if (convId === 1) {
+        db.prepare("UPDATE users SET last_chat_read = datetime('now') WHERE id = ?").run(req.user.id);
+      }
+
+      const remainingUnread = getUnreadChatCount(db, req.user.id);
+
       const io = req.app.get('io');
       if (io) {
-        io.emit('chat_read_by_user', { user_id: req.user.id });
+        io.emit('chat_read_by_user', { user_id: req.user.id, conversation_id: convId, remainingUnread });
       }
       
-      if (unreadCount > 0) {
-        // Send silent push to clear notifications on other devices
+      if (remainingUnread === 0) {
         try {
           const subscriptions = db.prepare("SELECT * FROM push_subscriptions WHERE user_id = ?").all(req.user.id) as any[];
           const payload = JSON.stringify({ type: 'CLEAR_NOTIFICATIONS' });
@@ -4798,14 +5048,22 @@ function getUnreadChatCount(db: any, userId: number) {
         }
       }
 
-      res.json({ success: true });
+      res.json({ success: true, remainingUnread });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  const typingUsers = new Map<number, { userName: string, lastTyped: number }>();
+  const onlineUserIds = new Set<number>();
 
+  app.get("/api/chat/online-users", authenticateToken, (req: any, res: any) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.json({ onlineUserIds: Array.from(onlineUserIds) });
+  });
+
+  const typingUsers = new Map<number, { userName: string, lastTyped: number, conversationId: number }>();
 
   app.get("/api/push/public-key", (req, res) => {
     res.send(VAPID_PUBLIC_KEY);
@@ -4837,11 +5095,12 @@ function getUnreadChatCount(db: any, userId: number) {
 
   app.post("/api/chat/typing", authenticateToken, (req: any, res: any) => {
     try {
-      const { isTyping, userName } = req.body;
+      const { isTyping, userName, conversation_id } = req.body;
+      const convId = conversation_id ? parseInt(conversation_id, 10) : 1;
       let finalUserName = userName || 'User';
       
       if (isTyping) {
-        typingUsers.set(req.user.id, { userName: finalUserName, lastTyped: Date.now() });
+        typingUsers.set(req.user.id, { userName: finalUserName, lastTyped: Date.now(), conversationId: convId });
       } else {
         typingUsers.delete(req.user.id);
       }
@@ -4852,7 +5111,7 @@ function getUnreadChatCount(db: any, userId: number) {
         const now = Date.now();
         for (const [userId, data] of typingUsers.entries()) {
           if (now - data.lastTyped <= 4000) {
-            activeTyping.push({ userId, userName: data.userName });
+            activeTyping.push({ userId, userName: data.userName, conversationId: data.conversationId });
           }
         }
         io.emit('chat_typing_update', activeTyping);
@@ -4866,12 +5125,13 @@ function getUnreadChatCount(db: any, userId: number) {
 
   app.get("/api/chat/typing", authenticateToken, (req: any, res: any) => {
     try {
+      const convId = req.query.conversation_id ? parseInt(req.query.conversation_id as string, 10) : 1;
       const now = Date.now();
       const activeTyping = [];
       for (const [userId, data] of typingUsers.entries()) {
         if (now - data.lastTyped > 4000) {
           typingUsers.delete(userId);
-        } else if (userId !== req.user.id) {
+        } else if (userId !== req.user.id && (data.conversationId || 1) === convId) {
           activeTyping.push(data.userName);
         }
       }
@@ -4915,22 +5175,39 @@ function getUnreadChatCount(db: any, userId: number) {
     }
   });
 
-  app.get("/api/chat/messages", authenticateToken, (req, res) => {
+  app.get("/api/chat/messages", authenticateToken, (req: any, res: any) => {
     try {
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
+
+      const convIdParam = req.query.conversation_id;
+      const conversationId = convIdParam ? parseInt(convIdParam as string, 10) : 1;
+
+      // Access control: if direct conversation, verify participant
+      if (conversationId !== 1) {
+        const isParticipant = db.prepare(`
+          SELECT 1 FROM chat_conversation_participants 
+          WHERE conversation_id = ? AND user_id = ?
+        `).get(conversationId, req.user.id);
+        
+        if (!isParticipant) {
+          return res.status(403).json({ error: "Access denied to this conversation" });
+        }
+      }
+
       const messages = db.prepare(`
         SELECT * FROM (
           SELECT c.*, u.first_name, u.last_name, u.avatar_url 
           FROM chat_messages c 
           JOIN users u ON c.user_id = u.id 
-          WHERE c.content != 'SYSTEM_CHAT_CLEARED'
+          WHERE (c.conversation_id = ? ${conversationId === 1 ? 'OR c.conversation_id IS NULL' : ''})
+            AND c.content != 'SYSTEM_CHAT_CLEARED'
           ORDER BY c.created_at DESC 
           LIMIT 100
         ) sub
         ORDER BY created_at ASC
-      `).all();
+      `).all(conversationId);
       res.json(messages);
     } catch (e) {
       console.error(e);
@@ -4944,8 +5221,19 @@ function getUnreadChatCount(db: any, userId: number) {
       const { emoji } = req.body;
       const userId = req.user.id;
 
-      const msg = db.prepare("SELECT reactions FROM chat_messages WHERE id = ?").get(messageId) as any;
+      const msg = db.prepare("SELECT * FROM chat_messages WHERE id = ?").get(messageId) as any;
       if (!msg) return res.status(404).json({ error: "Message not found" });
+
+      const convId = msg.conversation_id || 1;
+      if (convId !== 1) {
+        const isParticipant = db.prepare(`
+          SELECT 1 FROM chat_conversation_participants 
+          WHERE conversation_id = ? AND user_id = ?
+        `).get(convId, userId);
+        if (!isParticipant) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+      }
 
       let reactions: any = {};
       try {
@@ -4982,26 +5270,38 @@ function getUnreadChatCount(db: any, userId: number) {
 
       const io = req.app.get('io');
       if (io) {
-         io.emit('message_reaction', { messageId: Number(messageId), reactions });
+        io.emit('message_reaction', { messageId: Number(messageId), reactions, conversation_id: convId });
       }
 
       // --- Send Web Push Notifications for reaction to update badge ---
       try {
         const reactorName = req.user.first_name || 'Someone';
-        const subscriptions = db.prepare("SELECT * FROM push_subscriptions WHERE user_id != ?").all(userId) as any[];
-        
-        subscriptions.forEach(sub => {
-          let badgeCount = 1;
-          try {
-            badgeCount = getUnreadChatCount(db, sub.user_id);
-          } catch(e) { console.error(e); }
+        let recipientUserIds: number[] = [];
+        if (convId === 1) {
+          const allUsers = db.prepare("SELECT id FROM users WHERE id != ?").all(userId) as any[];
+          recipientUserIds = allUsers.map(u => u.id);
+        } else {
+          const parts = db.prepare("SELECT user_id FROM chat_conversation_participants WHERE conversation_id = ? AND user_id != ?").all(convId, userId) as any[];
+          recipientUserIds = parts.map(p => p.user_id);
+        }
+
+        if (recipientUserIds.length > 0) {
+          const placeholders = recipientUserIds.map(() => '?').join(',');
+          const subscriptions = db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${placeholders})`).all(...recipientUserIds) as any[];
           
-          const userPayload = JSON.stringify({
-            title: "New reaction from " + reactorName,
-            body: reactorName + " reacted with " + emoji,
-            url: '/chat',
-            badgeCount: badgeCount
-          });
+          subscriptions.forEach(sub => {
+            let badgeCount = 1;
+            try {
+              badgeCount = getUnreadChatCount(db, sub.user_id);
+            } catch(e) { console.error(e); }
+            
+            const userPayload = JSON.stringify({
+              title: "New reaction from " + reactorName,
+              body: reactorName + " reacted with " + emoji,
+              url: '/chat',
+              badgeCount: badgeCount,
+              conversationId: convId
+            });
           
           const pushSubscription = {
             endpoint: sub.endpoint,
@@ -5017,7 +5317,8 @@ function getUnreadChatCount(db: any, userId: number) {
             }
           });
         });
-      } catch(pushErr) {
+      }
+    } catch(pushErr) {
         console.error("Failed to send push notifications for reaction", pushErr);
       }
 
@@ -5070,46 +5371,65 @@ function getUnreadChatCount(db: any, userId: number) {
     res.json({ success: true, message: updatedMsg });
   });
 
-  app.delete("/api/chat/messages/:id", authenticateToken, (req, res) => {
+  app.delete("/api/chat/messages/:id", authenticateToken, (req: any, res: any) => {
     try {
       const messageId = req.params.id;
-      const userId = (req).user.id;
-      const msg = db.prepare("SELECT * FROM chat_messages WHERE id = ?").get(messageId);
+      const userId = req.user.id;
+      const msg = db.prepare("SELECT * FROM chat_messages WHERE id = ?").get(messageId) as any;
       if (!msg) return res.status(404).json({error: "Not found"});
-      if (Number(msg.user_id) !== Number(userId) && (req).user.role !== 'ADMIN') {
+      if (Number(msg.user_id) !== Number(userId) && req.user.role !== 'ADMIN') {
         return res.status(403).json({error: "Forbidden"});
       }
       db.prepare("DELETE FROM chat_messages WHERE id = ?").run(messageId);
       const io = req.app.get('io');
       if (io) {
-        io.emit('chat_message_deleted', { id: Number(messageId) });
+        io.emit('chat_message_deleted', { id: Number(messageId), conversation_id: msg.conversation_id || 1 });
       }
       res.json({success: true});
-    } catch (e) {
+    } catch (e: any) {
       res.status(500).json({error: e.message});
     }
   });
 
-  app.post("/api/chat/messages", authenticateToken, (req, res) => {
+  app.post("/api/chat/messages", authenticateToken, (req: any, res: any) => {
     try {
-      const { content, file_url, file_name, file_type } = req.body;
-      const user_id = (req as any).user.id;
+      const { content, file_url, file_name, file_type, conversation_id } = req.body;
+      const user_id = req.user.id;
+      const convId = conversation_id ? parseInt(conversation_id, 10) : 1;
+
       if (!user_id || (!content && !file_url)) {
         return res.status(400).json({ error: "Validation failed" });
       }
-      if (content === '/clear') {
-        if ((req as any).user.role !== 'ADMIN') {
-          return res.status(403).json({ error: "Only admins can clear the chat" });
+
+      // Access control
+      if (convId !== 1) {
+        const isParticipant = db.prepare(`
+          SELECT 1 FROM chat_conversation_participants 
+          WHERE conversation_id = ? AND user_id = ?
+        `).get(convId, user_id);
+        
+        if (!isParticipant) {
+          return res.status(403).json({ error: "Access denied to this conversation" });
         }
-        db.prepare("DELETE FROM chat_messages").run();
+      }
+
+      if (content === '/clear') {
+        if (convId === 1) {
+          if (req.user.role !== 'ADMIN') {
+            return res.status(403).json({ error: "Only admins can clear the team chat" });
+          }
+          db.prepare("DELETE FROM chat_messages WHERE conversation_id = 1 OR conversation_id IS NULL").run();
+        } else {
+          db.prepare("DELETE FROM chat_messages WHERE conversation_id = ?").run(convId);
+        }
         
         // Reset sqlite autoincrement for clean ids (optional but good)
         try {
           db.prepare("DELETE FROM sqlite_sequence WHERE name='chat_messages'").run();
         } catch(e) {}
         
-        const stmt = db.prepare("INSERT INTO chat_messages (user_id, content) VALUES (?, ?)");
-        const info = stmt.run(user_id, 'SYSTEM_CHAT_CLEARED');
+        const stmt = db.prepare("INSERT INTO chat_messages (user_id, content, conversation_id) VALUES (?, ?, ?)");
+        const info = stmt.run(user_id, 'SYSTEM_CHAT_CLEARED', convId);
         
         const newMsg = db.prepare(`
           SELECT c.*, u.first_name, u.last_name, u.avatar_url 
@@ -5120,75 +5440,103 @@ function getUnreadChatCount(db: any, userId: number) {
         
         const io = req.app.get('io');
         if (io) {
-          io.emit('chat_cleared', newMsg);
+          io.emit('chat_cleared', { ...newMsg, conversation_id: convId });
         }
         
         return res.json(newMsg);
       }
 
-      const stmt = db.prepare("INSERT INTO chat_messages (user_id, content, file_url, file_name, file_type) VALUES (?, ?, ?, ?, ?)");
-      const info = stmt.run(user_id, content || '', file_url || null, file_name || null, file_type || null);
+      const stmt = db.prepare("INSERT INTO chat_messages (user_id, content, file_url, file_name, file_type, conversation_id) VALUES (?, ?, ?, ?, ?, ?)");
+      const info = stmt.run(user_id, content || '', file_url || null, file_name || null, file_type || null, convId);
       
+      // Update conversation timestamp & sender's last read time
+      db.prepare("UPDATE chat_conversations SET updated_at = datetime('now') WHERE id = ?").run(convId);
+      db.prepare(`
+        INSERT INTO chat_conversation_participants (conversation_id, user_id, last_read_at)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(conversation_id, user_id) DO UPDATE SET last_read_at = datetime('now')
+      `).run(convId, user_id);
+
+      if (convId === 1) {
+        db.prepare("UPDATE users SET last_chat_read = datetime('now') WHERE id = ?").run(user_id);
+      }
+
       const newMsg = db.prepare(`
         SELECT c.*, u.first_name, u.last_name, u.avatar_url 
         FROM chat_messages c 
         JOIN users u ON c.user_id = u.id 
         WHERE c.id = ?
-      `).get(info.lastInsertRowid);
-      
-      const io = req.app.get('io');
-      
-      // --- Send Web Push Notifications to all other users ---
+      `).get(info.lastInsertRowid) as any;
+
+      // Recipient user IDs for push & sockets
+      let recipientUserIds: number[] = [];
+      if (convId === 1) {
+        const allUsers = db.prepare("SELECT id FROM users WHERE id != ?").all(user_id) as any[];
+        recipientUserIds = allUsers.map(u => u.id);
+      } else {
+        const parts = db.prepare("SELECT user_id FROM chat_conversation_participants WHERE conversation_id = ? AND user_id != ?").all(convId, user_id) as any[];
+        recipientUserIds = parts.map(p => p.user_id);
+      }
+
+      // --- Send Web Push Notifications to recipients ---
       try {
-        const subscriptions = db.prepare("SELECT * FROM push_subscriptions WHERE user_id != ?").all(user_id);
-        const payload = JSON.stringify({
-          title: "New message from " + (newMsg.first_name || 'Someone'),
-          body: newMsg.content || (newMsg.file_name ? 'Sent a file: ' + newMsg.file_name : 'Sent an attachment'),
-          url: '/chat',
-          badgeCount: 1
-        });
-        
-        subscriptions.forEach((sub: any) => {
-          let badgeCount = 1;
-          try {
-            badgeCount = getUnreadChatCount(db, sub.user_id);
-          } catch(e) { console.error(e); }
+        if (recipientUserIds.length > 0) {
+          const placeholders = recipientUserIds.map(() => '?').join(',');
+          const subscriptions = db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${placeholders})`).all(...recipientUserIds) as any[];
           
-          const userPayload = JSON.stringify({
-            title: "New message from " + (newMsg.first_name || 'Someone'),
-            body: newMsg.content || (newMsg.file_name ? 'Sent a file: ' + newMsg.file_name : 'Sent an attachment'),
-            url: '/chat',
-            badgeCount: badgeCount
+          const isDirect = convId !== 1;
+          const senderName = newMsg.first_name || 'Someone';
+          const pushTitle = isDirect ? `Private message from ${senderName}` : `New message from ${senderName}`;
+
+          subscriptions.forEach((sub: any) => {
+            let badgeCount = 1;
+            try {
+              badgeCount = getUnreadChatCount(db, sub.user_id);
+            } catch(e) { console.error(e); }
+            
+            const userPayload = JSON.stringify({
+              title: pushTitle,
+              body: newMsg.content || (newMsg.file_name ? 'Sent a file: ' + newMsg.file_name : 'Sent an attachment'),
+              url: '/chat',
+              badgeCount: badgeCount,
+              conversationId: convId
+            });
+            
+            const pushSubscription = {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: sub.p256dh,
+                auth: sub.auth
+              }
+            };
+            
+            webpush.sendNotification(pushSubscription, userPayload).catch(err => {
+              if (err.statusCode === 410 || err.statusCode === 404) {
+                db.prepare("DELETE FROM push_subscriptions WHERE id = ?").run(sub.id);
+              } else {
+                console.error('Error sending push notification:', err);
+              }
+            });
           });
-          
-          const pushSubscription = {
-            endpoint: sub.endpoint,
-            keys: {
-              p256dh: sub.p256dh,
-              auth: sub.auth
-            }
-          };
-          
-          webpush.sendNotification(pushSubscription, userPayload).catch(err => {
-            if (err.statusCode === 410 || err.statusCode === 404) {
-              db.prepare("DELETE FROM push_subscriptions WHERE id = ?").run(sub.id);
-            } else {
-              console.error('Error sending push notification:', err);
-            }
-          });
-        });
+        }
       } catch(pushErr) {
         console.error("Failed to send push notifications", pushErr);
       }
       
+      const io = req.app.get('io');
       if (io) {
         locallyEmittedMessageIds.add(newMsg.id);
         if (locallyEmittedMessageIds.size > 1000) {
           const firstItem = locallyEmittedMessageIds.values().next().value;
           locallyEmittedMessageIds.delete(firstItem);
         }
-        console.log("Emitting new_message to sockets:", newMsg);
-        io.emit('new_message', newMsg);
+        const fullMsg = {
+          ...newMsg,
+          conversation_id: convId,
+          participant_ids: [user_id, ...recipientUserIds]
+        };
+        console.log("Emitting new_message to sockets:", fullMsg);
+        io.emit('new_message', fullMsg);
       } else {
         console.error("No io instance found on app!");
       }
@@ -22158,6 +22506,30 @@ function resolveFilePath(systemName) {
       }
   });
 
+  const httpServer = http.createServer(app);
+  const io = new SocketIOServer(httpServer, {
+    cors: { origin: "*" },
+    path: "/socket.io"
+  });
+  app.set("io", io);
+
+  io.on("connection", (socket) => {
+    let currentSocketUserId: number | null = null;
+    socket.on("user_online", (userId: number) => {
+      if (userId) {
+        currentSocketUserId = Number(userId);
+        onlineUserIds.add(currentSocketUserId);
+        io.emit("online_users", Array.from(onlineUserIds));
+      }
+    });
+    socket.on("disconnect", () => {
+      if (currentSocketUserId) {
+        onlineUserIds.delete(currentSocketUserId);
+        io.emit("online_users", Array.from(onlineUserIds));
+      }
+    });
+  });
+
   if (process.env.NODE_ENV !== "production") {
     import("vite").then(({ createServer: createViteServer }) => {
       createViteServer({
@@ -22167,7 +22539,7 @@ function resolveFilePath(systemName) {
         app.use(vite.middlewares);
         
         const PORT = process.env.PORT || 3000;
-        app.listen(PORT, "0.0.0.0", () => {
+        httpServer.listen(PORT, "0.0.0.0", () => {
           logger.info(`Server running on port ${PORT}`);
         });
       });
@@ -22199,7 +22571,7 @@ function resolveFilePath(systemName) {
     });
     
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, "0.0.0.0", () => {
+    httpServer.listen(PORT, "0.0.0.0", () => {
       logger.info(`Server running on port ${PORT}`);
     });
   }

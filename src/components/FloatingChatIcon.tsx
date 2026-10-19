@@ -61,7 +61,6 @@ export default function FloatingChatIcon() {
                 }).catch(() => {});
               }
               setIsOpen(true);
-              setUnreadCount(0);
             }}
             className="p-4 bg-brand-teal text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.4)] hover:scale-105 active:scale-95 transition-all"
           >
