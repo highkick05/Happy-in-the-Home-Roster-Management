@@ -696,7 +696,7 @@ export default function ComplianceDashboard() {
                              travelCategoryCell = (
                                <div className="flex flex-col gap-1 w-max">
                                  <span className="text-[#E6EDF3] text-xs font-medium">Inter-Shift Travel ({Math.round(actualDriveMins)} mins)</span>
-                                 {hasABT && <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border bg-brand-teal/10 border-brand-teal/20 text-brand-teal w-fit">Client Transport</span>}
+                                 {hasABT && <span className="text-[#E6EDF3] text-xs font-medium">Client Transport: ({abt_km} km)</span>}
                                </div>
                              );
                          } else if (isBoth) {
@@ -1024,7 +1024,7 @@ export default function ComplianceDashboard() {
                              travelCategoryCell = (
                                <div className="flex flex-col gap-1 w-max">
                                  <span className="text-[#E6EDF3] text-xs font-medium">Inter-Shift Travel ({Math.round(actualDriveMins)} mins)</span>
-                                 {hasABT && <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border bg-brand-teal/10 border-brand-teal/20 text-brand-teal w-fit">Client Transport</span>}
+                                 {hasABT && <span className="text-[#E6EDF3] text-xs font-medium">Client Transport: ({abt_km} km)</span>}
                                </div>
                              );
                          } else if (isBoth) {
