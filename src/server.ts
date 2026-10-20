@@ -1986,6 +1986,25 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
   }
 
   try {
+    // Automatically archive older duplicate NDIS services so ONLY the latest current NDIS Pricing schedule is active
+    db.exec(`
+      UPDATE services
+      SET status = 'ARCHIVED'
+      WHERE type = 'NDIS'
+        AND status != 'ARCHIVED'
+        AND id NOT IN (
+          SELECT MAX(id)
+          FROM services
+          WHERE type = 'NDIS' AND (status IS NULL OR status != 'ARCHIVED')
+          GROUP BY UPPER(TRIM(code))
+        );
+    `);
+    console.log("[DEBUG] Completed NDIS services pricing schedule archive deduplication check");
+  } catch (e: any) {
+    console.warn("Migration warning deduplicating NDIS services:", e.message);
+  }
+
+  try {
     const tableInfo = db.prepare("PRAGMA table_info(vehicles)").all() as any[];
     const hasIsPrimary = tableInfo.some(col => col.name === 'is_primary');
     if (!hasIsPrimary) {
@@ -16816,6 +16835,54 @@ app.get("/api/health", (req, res) => {
     },
   );
 
+  // Deduplicates services by item code to ensure ONLY the latest current pricing schedule is returned
+  function deduplicateToLatestServices(rawServices: any[]): any[] {
+    const serviceMap = new Map<string, any>();
+    for (const s of rawServices) {
+      if (!s) continue;
+      const typeUpper = String(s.type || "").toUpperCase();
+      const isHomeCare =
+        typeUpper.includes("HOME") ||
+        typeUpper.includes("HCP") ||
+        typeUpper === "CARE";
+      const isNdis =
+        typeUpper === "NDIS" ||
+        (!isHomeCare && s.code && /^\d{2}_\d{3}/.test(String(s.code)));
+
+      if (isNdis && s.code) {
+        const codeKey = `NDIS_${String(s.code).trim().toUpperCase()}`;
+        const existing = serviceMap.get(codeKey);
+        if (!existing) {
+          serviceMap.set(codeKey, s);
+        } else {
+          // Prioritize ACTIVE status over NULL/other, then higher ID (latest imported pricing schedule)
+          const existingActive = existing.status === "ACTIVE";
+          const currentActive = s.status === "ACTIVE";
+          if (currentActive && !existingActive) {
+            serviceMap.set(codeKey, s);
+          } else if (
+            currentActive === existingActive &&
+            (Number(s.id) || 0) > (Number(existing.id) || 0)
+          ) {
+            serviceMap.set(codeKey, s);
+          }
+        }
+      } else if (s.code) {
+        const key = `${s.type || "HC"}_${String(s.code).trim().toUpperCase()}`;
+        const existing = serviceMap.get(key);
+        if (!existing || (Number(s.id) || 0) > (Number(existing.id) || 0)) {
+          serviceMap.set(key, s);
+        }
+      } else {
+        serviceMap.set(`ID_${s.id}`, s);
+      }
+    }
+
+    return Array.from(serviceMap.values()).sort((a, b) =>
+      String(a.name || "").localeCompare(String(b.name || "")),
+    );
+  }
+
   // --- Services APIs ---
   app.get("/api/services", authenticateToken, (req: any, res: any) => {
     const { type } = req.query;
@@ -16832,27 +16899,27 @@ app.get("/api/health", (req, res) => {
     }
     const selectCols = canSeeRates
       ? "*"
-      : "id, code, name, description, type, unit, service_category, reg_group_number, reg_group_name";
+      : "id, code, name, description, type, unit, service_category, reg_group_number, reg_group_name, status";
 
     let query = `SELECT ${selectCols} FROM services WHERE (status IS NULL OR status != 'ARCHIVED')`;
 
     if (type) {
       if (type === "NDIS") {
-        query += ` AND (type = 'NDIS' OR type IS NULL) ORDER BY code ASC`;
-        const services = db.prepare(query).all();
-        return res.json(services);
+        query += ` AND (type = 'NDIS' OR type IS NULL) ORDER BY id ASC`;
+        const rawServices = db.prepare(query).all();
+        return res.json(deduplicateToLatestServices(rawServices));
       } else if (type === "HOME_CARE") {
-        query += ` AND (type = 'HOME_CARE' OR type = 'Home Care' OR type = 'HCP') ORDER BY name ASC`;
-        const services = db.prepare(query).all();
-        return res.json(services);
+        query += ` AND (type = 'HOME_CARE' OR type = 'Home Care' OR type = 'HCP') ORDER BY id ASC`;
+        const rawServices = db.prepare(query).all();
+        return res.json(deduplicateToLatestServices(rawServices));
       } else {
-        query += ` AND type = ? ORDER BY name ASC`;
-        const services = db.prepare(query).all(type);
-        return res.json(services);
+        query += ` AND type = ? ORDER BY id ASC`;
+        const rawServices = db.prepare(query).all(type);
+        return res.json(deduplicateToLatestServices(rawServices));
       }
     }
-    const services = db.prepare(query + " ORDER BY name ASC").all();
-    res.json(services);
+    const rawServices = db.prepare(query + " ORDER BY id ASC").all();
+    res.json(deduplicateToLatestServices(rawServices));
   });
 
   app.post("/api/services", authenticateToken, requireAdmin, (req, res) => {
@@ -18354,11 +18421,12 @@ app.get("/api/health", (req, res) => {
             "SELECT id, first_name, last_name FROM users WHERE role = 'STAFF' AND status = 'ACTIVE' ORDER BY first_name ASC",
           )
           .all();
-        const services = db
+        const rawServices = db
           .prepare(
-            "SELECT id, name, rate, unit, code, type, rates_json FROM services ORDER BY name ASC",
+            "SELECT id, name, rate, unit, code, type, rates_json, status, service_category FROM services WHERE (status IS NULL OR status != 'ARCHIVED') ORDER BY id ASC",
           )
           .all();
+        const services = deduplicateToLatestServices(rawServices);
 
         const clientServices = db
           .prepare("SELECT * FROM client_services")

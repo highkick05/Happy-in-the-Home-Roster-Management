@@ -74,11 +74,47 @@ export default function ServiceSearchDropdown({
     }
   }, [isOpen]);
 
+  // Deduplicate services to ensure ONLY the latest current NDIS Pricing schedule item per code is available in search
+  const currentServices = useMemo(() => {
+    const dedupedMap = new Map<string, any>();
+    // Exclude archived services
+    const activeList = (services || []).filter((s: any) => s && s.status !== 'ARCHIVED');
+
+    for (const s of activeList) {
+      if (isNdisService(s) && s.code) {
+        const codeKey = `NDIS_${String(s.code).trim().toUpperCase()}`;
+        const existing = dedupedMap.get(codeKey);
+        if (!existing) {
+          dedupedMap.set(codeKey, s);
+        } else {
+          // Prioritize ACTIVE status over others, then higher ID (latest imported pricing schedule)
+          const existingActive = existing.status === 'ACTIVE';
+          const currentActive = s.status === 'ACTIVE';
+          if (currentActive && !existingActive) {
+            dedupedMap.set(codeKey, s);
+          } else if (currentActive === existingActive && (Number(s.id) || 0) > (Number(existing.id) || 0)) {
+            dedupedMap.set(codeKey, s);
+          }
+        }
+      } else if (s.code) {
+        const key = `${s.type || 'HC'}_${String(s.code).trim().toUpperCase()}`;
+        const existing = dedupedMap.get(key);
+        if (!existing || (Number(s.id) || 0) > (Number(existing.id) || 0)) {
+          dedupedMap.set(key, s);
+        }
+      } else {
+        dedupedMap.set(`ID_${s.id}`, s);
+      }
+    }
+
+    return Array.from(dedupedMap.values());
+  }, [services]);
+
   // Filtered and sorted services list
   const filteredServices = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     
-    return services.filter((s: any) => {
+    return currentServices.filter((s: any) => {
       // 1. Funding Type Filter
       if (fundingFilter === 'NDIS' && !isNdisService(s)) return false;
       if (fundingFilter === 'HOME_CARE' && !isHomeCareService(s)) return false;
@@ -110,7 +146,7 @@ export default function ServiceSearchDropdown({
       if (aAssigned !== bAssigned) return bAssigned - aAssigned;
       return String(a.name || '').localeCompare(String(b.name || ''));
     });
-  }, [services, fundingFilter, searchQuery, selectedClient]);
+  }, [currentServices, fundingFilter, searchQuery, selectedClient]);
 
   // Resolves the display rate for a service option
   const resolveServiceRate = (s: any) => {

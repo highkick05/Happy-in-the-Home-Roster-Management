@@ -105,14 +105,48 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
     return (options.clients || []).find((c: any) => String(c.id) === String(formData.clientId));
   }, [formData.clientId, options.clients]);
 
-  // Counts of NDIS and Home Care services
-  const ndisCount = React.useMemo(() => {
-    return (options.services || []).filter(isNdisService).length;
+  // Only current active services (deduplicated to latest current pricing schedule per item code)
+  const currentServices = React.useMemo(() => {
+    const dedupedMap = new Map<string, any>();
+    const list = (options.services || []).filter((s: any) => s && s.status !== 'ARCHIVED');
+
+    for (const s of list) {
+      if (isNdisService(s) && s.code) {
+        const codeKey = `NDIS_${String(s.code).trim().toUpperCase()}`;
+        const existing = dedupedMap.get(codeKey);
+        if (!existing) {
+          dedupedMap.set(codeKey, s);
+        } else {
+          const existingActive = existing.status === 'ACTIVE';
+          const currentActive = s.status === 'ACTIVE';
+          if (currentActive && !existingActive) {
+            dedupedMap.set(codeKey, s);
+          } else if (currentActive === existingActive && (Number(s.id) || 0) > (Number(existing.id) || 0)) {
+            dedupedMap.set(codeKey, s);
+          }
+        }
+      } else if (s.code) {
+        const key = `${s.type || 'HC'}_${String(s.code).trim().toUpperCase()}`;
+        const existing = dedupedMap.get(key);
+        if (!existing || (Number(s.id) || 0) > (Number(existing.id) || 0)) {
+          dedupedMap.set(key, s);
+        }
+      } else {
+        dedupedMap.set(`ID_${s.id}`, s);
+      }
+    }
+
+    return Array.from(dedupedMap.values());
   }, [options.services]);
 
+  // Counts of NDIS and Home Care services for the current active pricing schedule
+  const ndisCount = React.useMemo(() => {
+    return currentServices.filter(isNdisService).length;
+  }, [currentServices]);
+
   const homeCareCount = React.useMemo(() => {
-    return (options.services || []).filter(isHomeCareService).length;
-  }, [options.services]);
+    return currentServices.filter(isHomeCareService).length;
+  }, [currentServices]);
 
   // Auto-sync funding type filter when a client with set funding_type is selected
   useEffect(() => {
@@ -127,17 +161,17 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
   }, [selectedClient]);
 
   const clientPersonalisedServices = React.useMemo(() => {
-    if (!selectedClient) return options.services || [];
+    if (!selectedClient) return currentServices;
     if (!selectedClient.service_ids || selectedClient.service_ids.length === 0) {
-      return options.services || [];
+      return currentServices;
     }
     const selectedServiceIds = selectedServices.map(s => Number(s.serviceId)).filter(id => !isNaN(id));
-    return (options.services || []).filter((s: any) => selectedClient.service_ids.includes(s.id) || selectedServiceIds.includes(s.id));
-  }, [selectedClient, options.services, selectedServices]);
+    return currentServices.filter((s: any) => selectedClient.service_ids.includes(s.id) || selectedServiceIds.includes(s.id));
+  }, [selectedClient, currentServices, selectedServices]);
 
   const getServiceDetails = (serviceId: string) => {
     if (!serviceId) return { rate: 0, unit: '', name: '', code: '', type: '' };
-    const s = options.services.find((x: any) => x.id === Number(serviceId));
+    const s = currentServices.find((x: any) => x.id === Number(serviceId)) || options.services?.find((x: any) => x.id === Number(serviceId));
     if (!s) return { rate: 0, unit: '', name: '', code: '', type: '' };
 
     // 1. Check custom rate for this client first
@@ -465,7 +499,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
-                All ({options.services?.length || 0})
+                All ({currentServices.length})
               </button>
               <button
                 type="button"
@@ -517,7 +551,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                 <div className="flex items-center space-x-2 mb-1.5 pr-8">
                   <div className="flex-1 min-w-0">
                     <ServiceSearchDropdown
-                      services={options.services || []}
+                      services={currentServices}
                       selectedServiceId={row.serviceId}
                       onSelect={(serviceId) => updateService(idx, 'serviceId', serviceId)}
                       fundingFilter={fundingTypeFilter}
