@@ -11,6 +11,7 @@ export interface CustomDatePickerProps {
   minDate?: Date | null;
   placeholderText?: string;
   className?: string;
+  containerClassName?: string;
   name?: string;
   id?: string;
   required?: boolean;
@@ -27,6 +28,7 @@ export function CustomDatePicker({
   minDate,
   placeholderText, 
   className = "w-full bg-[#1A1A1A] border border-white/[0.1] rounded-lg px-3 py-2 text-white text-sm focus:ring-1 focus:ring-brand-teal outline-none",
+  containerClassName,
   name,
   id,
   required,
@@ -211,7 +213,7 @@ export function CustomDatePicker({
 
   // If we pass children to tailwind-datepicker-react, it renders the children instead of its own input.
   return (
-    <div className="w-full relative" ref={datepickerRef}>
+    <div className={`relative ${containerClassName || 'w-full'}`} ref={datepickerRef}>
       <Datepicker options={options} onChange={handleChange} show={show} setShow={handleClose}>
         <div className="relative w-full">
           <input 

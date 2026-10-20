@@ -436,7 +436,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                 nextCustom = '';
               }
               setFormData({ ...formData, clientId: val, customClientName: nextCustom });
-              setSelectedServices([{ serviceId: '', qtyOverride: '', rateOverride: '' }]);
+              setSelectedServices([{ serviceId: '', serviceName: '', unit: '', qtyOverride: '', rateOverride: '', date: '', endDate: '', startTime: '', endTime: '', duration: '' }]);
             }}
           >
             <option value="">Select Client</option>
@@ -651,24 +651,30 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                 </button>
                 {row.serviceId && (
                   <div className="flex md:items-center justify-between text-[11px] bg-[#09090b]/50 p-1.5 rounded border border-white/[0.08]/50 mt-1">
-                    <div className="flex items-center justify-between w-full flex-wrap xl:flex-nowrap gap-2">
+                    <div className="flex items-center justify-between w-full flex-wrap 2xl:flex-nowrap gap-2">
                       <div className="flex items-center gap-3 flex-wrap">
                         {/* Start and End Date selection per line item */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-zinc-500 font-medium mr-0.5">Date</span>
-                          <CustomDatePicker 
-                            position="top"
-                            value={row.date || ''}
-                            onChange={(e: any) => updateService(idx, 'date', e.target.value)}
-                            className="w-28 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none font-mono"
-                          />
-                          <span className="text-zinc-500 font-medium text-[11px]">to</span>
-                          <CustomDatePicker 
-                            position="top"
-                            value={row.endDate || ''}
-                            onChange={(e: any) => updateService(idx, 'endDate', e.target.value)}
-                            className="w-28 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none font-mono"
-                          />
+                        <div className="flex items-center gap-1.5 shrink-0 flex-nowrap">
+                          <span className="text-zinc-500 font-medium mr-0.5 shrink-0">Date</span>
+                          <div className="w-28 shrink-0">
+                            <CustomDatePicker 
+                              position="top"
+                              containerClassName="w-28"
+                              value={row.date || ''}
+                              onChange={(e: any) => updateService(idx, 'date', e.target.value)}
+                              className="w-full bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none font-mono"
+                            />
+                          </div>
+                          <span className="text-zinc-500 font-medium text-[11px] shrink-0">to</span>
+                          <div className="w-28 shrink-0">
+                            <CustomDatePicker 
+                              position="top"
+                              containerClassName="w-28"
+                              value={row.endDate || ''}
+                              onChange={(e: any) => updateService(idx, 'endDate', e.target.value)}
+                              className="w-full bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none font-mono"
+                            />
+                          </div>
                           {formData.date && formData.endDate && (row.date !== formData.date || row.endDate !== formData.endDate) && (
                             <button
                               type="button"
@@ -677,7 +683,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                                 fresh[idx] = { ...fresh[idx], date: formData.date, endDate: formData.endDate };
                                 setSelectedServices(fresh);
                               }}
-                              className="px-1.5 py-0.5 text-[10px] text-brand-teal hover:text-white bg-brand-teal/10 hover:bg-brand-teal/25 border border-brand-teal/30 rounded transition-colors cursor-pointer"
+                              className="px-1.5 py-0.5 text-[10px] text-brand-teal hover:text-white bg-brand-teal/10 hover:bg-brand-teal/25 border border-brand-teal/30 rounded transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                               title="Copy quote Start & End dates to this line item"
                             >
                               Quote Period
@@ -687,14 +693,14 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                             <button
                               type="button"
                               onClick={() => updateService(idx, 'endDate', '')}
-                              className="text-zinc-500 hover:text-red-400 p-0.5 text-xs transition-colors cursor-pointer"
+                              className="text-zinc-500 hover:text-red-400 p-0.5 text-xs transition-colors cursor-pointer shrink-0"
                               title="Clear end date (single date only)"
                             >
                               &times;
                             </button>
                           )}
                         </div>
-                        <div className="flex items-center">
+                        <div className="flex items-center shrink-0">
                           <span className="text-zinc-500 font-medium mr-1.5">Time</span>
                           <CustomTimePicker 
                             value={row.startTime || ''}
@@ -1219,8 +1225,8 @@ export default function QuotesView() {
       )}
 
       {showGenerateModal && (
-        <div className="fixed inset-0 z-[60] flex justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto custom-scrollbar">
-          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-[1400px] flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] flex justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto custom-scrollbar">
+          <div className="bg-brand-navy border border-border-subtle rounded-xl shadow-2xl w-full max-w-[1700px] 2xl:max-w-[1850px] flex flex-col h-fit my-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-brand-bg shrink-0">
               <div>
                 <h3 className="text-sm font-medium text-[#E6EDF3] mb-2">{editingQuote ? 'Edit Service Quote' : 'Generate Service Quote'}</h3>
