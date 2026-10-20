@@ -746,6 +746,10 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
   try {
     db.exec("ALTER TABLE quotes ADD COLUMN custom_client_name TEXT");
   } catch (e) {}
+
+  try {
+    db.exec("ALTER TABLE quotes ADD COLUMN staff_id INTEGER");
+  } catch (e) {}
   try {
     db.exec("ALTER TABLE shifts ADD COLUMN custom_staff_name TEXT");
   } catch (e: any) {
@@ -21471,8 +21475,8 @@ function resolveFilePath(systemName) {
         }
 
         const stmt = db.prepare(`
-        INSERT INTO quotes (quote_number, client_id, custom_client_name, activity_name, activity_date, services_json, amount, status, important_notes, quote_date)
-        VALUES (?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?)
+        INSERT INTO quotes (quote_number, client_id, custom_client_name, activity_name, activity_date, services_json, amount, status, important_notes, quote_date, staff_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?)
       `);
         stmt.run(
           quoteNumber,
@@ -21484,6 +21488,7 @@ function resolveFilePath(systemName) {
           calculatedAmount,
           importantNotes || null,
           quoteDate || null,
+          req.user?.id || null,
         );
 
         res.json({ success: true });
