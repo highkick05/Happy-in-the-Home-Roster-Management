@@ -459,15 +459,14 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       renderFormattedNotesPdf(doc, notesText, 50, 96, 530);
 
       // Document Page Numbering & Footer
-      // Temporarily set bottom margin to 0 so footer text never triggers accidental auto-page-breaks
-      const oldBottom = doc.page.margins.bottom;
-      doc.page.margins.bottom = 0;
-
+      // Set bottom margin to 0 on every switched page so footer text never triggers accidental auto-page-breaks
       const range = doc.bufferedPageRange();
       const totalPages = range.count;
 
       for (let i = range.start; i < range.start + totalPages; i++) {
         doc.switchToPage(i);
+        const oldBottom = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0;
         const pageNum = i + 1;
 
         // Render page count in header on page 1:
@@ -511,9 +510,9 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
           footerY + 6,
           { width: 180, align: "right", lineBreak: false }
         );
-      }
 
-      doc.page.margins.bottom = oldBottom;
+        doc.page.margins.bottom = oldBottom;
+      }
 
       writeStream.on('finish', () => {
         res.download(pdfPath, safeFilename, (err: any) => {

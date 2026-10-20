@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { X, FileText, Download, Printer, Clock, Tag, Building2, User, ShieldCheck, Eye } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -272,7 +274,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 flex flex-col items-center gap-8 bg-[#0d0e12] custom-scrollbar">
             
             {/* The Clean White Paper Quote Sheet - Page 1 */}
-            <div className="bg-white w-full max-w-4xl shadow-xl rounded-xl p-8 sm:p-12 text-zinc-900 font-sans flex flex-col relative border border-zinc-200/90 print:shadow-none print:border-none print:m-0 print:p-0 print:break-after-page">
+            <div className="bg-white w-full max-w-4xl shrink-0 shadow-xl rounded-xl p-8 sm:p-12 text-zinc-900 font-sans flex flex-col relative border border-zinc-200/90 print:shadow-none print:border-none print:m-0 print:p-0 print:break-after-page">
               
               {/* Header */}
               <div className="flex flex-col sm:flex-row justify-between items-start gap-6 pb-6 border-b border-zinc-200">
@@ -497,7 +499,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
             </div>
 
             {/* Page 2: Important Notes & Terms of Service */}
-            <div className="bg-white w-full max-w-4xl shadow-xl rounded-xl p-8 sm:p-12 text-zinc-900 font-sans flex flex-col relative border border-zinc-200/90 print:shadow-none print:border-none print:m-0 print:p-0 print:break-before-page min-h-[500px]">
+            <div className="bg-white w-full max-w-4xl shrink-0 shadow-xl rounded-xl p-8 sm:p-12 text-zinc-900 font-sans flex flex-col relative border border-zinc-200/90 print:shadow-none print:border-none print:m-0 print:p-0 print:break-before-page">
               
               {/* Page 2 Header */}
               <div className="flex flex-col sm:flex-row justify-between items-start gap-6 pb-6 border-b border-zinc-200">
@@ -530,7 +532,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
               </div>
 
               {/* Page 2 Body: Important Notes & Terms */}
-              <div className="mt-8 flex-1">
+              <div className="mt-8">
                 <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-xs text-zinc-800 mb-4 pb-2 border-b border-zinc-200">
                   <ShieldCheck className="w-4 h-4 text-teal-700" />
                   <span>Important Notes & Terms of Service</span>
@@ -540,20 +542,27 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                   {quote.important_notes && quote.important_notes.trim() ? (
                     <div className="prose prose-zinc max-w-none text-zinc-700 text-sm">
                       <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeRaw]}
                         components={{
-                          h1: ({ node, ...props }) => <h1 className="text-base font-bold text-zinc-900 mt-3 mb-2 border-b border-zinc-200 pb-1" {...props} />,
-                          h2: ({ node, ...props }) => <h2 className="text-sm font-bold text-zinc-900 mt-2.5 mb-1.5" {...props} />,
-                          h3: ({ node, ...props }) => <h3 className="text-xs font-bold text-zinc-800 mt-2 mb-1 uppercase tracking-wide" {...props} />,
-                          p: ({ node, ...props }) => <p className="mb-2 leading-relaxed whitespace-pre-line text-zinc-700 text-sm" {...props} />,
+                          h1: ({ node, ...props }) => <h1 className="text-base font-bold text-zinc-900 mt-3 mb-2 border-b border-zinc-200 pb-1 first:mt-0" {...props} />,
+                          h2: ({ node, ...props }) => <h2 className="text-sm font-bold text-zinc-900 mt-2.5 mb-1.5 first:mt-0" {...props} />,
+                          h3: ({ node, ...props }) => <h3 className="text-xs font-bold text-zinc-800 mt-2 mb-1 uppercase tracking-wide first:mt-0" {...props} />,
+                          p: ({ node, ...props }) => <p className="mb-2.5 last:mb-0 leading-relaxed whitespace-pre-line text-zinc-700 text-sm" {...props} />,
                           ul: ({ node, ...props }) => <ul className="list-disc list-inside space-y-1.5 mb-2.5 text-zinc-700" {...props} />,
                           ol: ({ node, ...props }) => <ol className="list-decimal list-inside space-y-1.5 mb-2.5 text-zinc-700" {...props} />,
                           li: ({ node, ...props }) => <li className="leading-relaxed" {...props} />,
                           blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-teal-600 pl-3 my-2 text-zinc-600 italic bg-teal-50/50 py-1.5 rounded-r" {...props} />,
                           hr: ({ node, ...props }) => <hr className="my-4 border-zinc-300" {...props} />,
-                          strong: ({ node, ...props }) => <strong className="font-bold text-zinc-900" {...props} />
+                          strong: ({ node, ...props }) => <strong className="font-bold text-zinc-900" {...props} />,
+                          u: ({ node, ...props }) => <u className="underline decoration-zinc-500 underline-offset-2" {...props} />,
+                          del: ({ node, ...props }) => <del className="line-through text-zinc-400" {...props} />
                         }}
                       >
-                        {quote.important_notes.trim()}
+                        {quote.important_notes
+                          .trim()
+                          .replace(/^\[ \]\s+/gm, '☐ ')
+                          .replace(/^\[[xX]\]\s+/gm, '☑ ')}
                       </ReactMarkdown>
                     </div>
                   ) : (
@@ -568,7 +577,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
               </div>
 
               {/* Page 2 Footer */}
-              <div className="mt-12 pt-4 border-t border-zinc-200 flex flex-col sm:flex-row justify-between items-center text-[10px] text-zinc-400 gap-2">
+              <div className="mt-10 pt-4 border-t border-zinc-200 flex flex-col sm:flex-row justify-between items-center text-[10px] text-zinc-400 gap-2">
                 <span>{settingsMap.businessName || 'Happy in the Home'} • Generated via Care Management System</span>
                 <span>Ref: {quoteNum}</span>
               </div>
