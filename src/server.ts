@@ -750,6 +750,55 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
   try {
     db.exec("ALTER TABLE quotes ADD COLUMN staff_id INTEGER");
   } catch (e) {}
+
+  function ensureQuotesClientIdNullable() {
+    try {
+      const quoteTableInfo = db.prepare("PRAGMA table_info(quotes)").all() as any[];
+      const clientIdCol = quoteTableInfo.find((col) => col.name === "client_id");
+      if (clientIdCol && clientIdCol.notnull === 1) {
+        console.log("[DEBUG] quotes.client_id has NOT NULL constraint, migrating table to allow NULL for prospective/custom quotes...");
+        db.pragma("foreign_keys = OFF");
+        db.transaction(() => {
+          db.exec(`
+            CREATE TABLE quotes_migration (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              quote_number TEXT UNIQUE NOT NULL,
+              client_id INTEGER,
+              custom_client_name TEXT,
+              activity_name TEXT,
+              activity_date TEXT,
+              services_json TEXT,
+              amount REAL DEFAULT 0,
+              status TEXT DEFAULT 'DRAFT',
+              important_notes TEXT,
+              quote_date TEXT,
+              staff_id INTEGER,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+              FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE SET NULL
+            );
+          `);
+          const existingColNames = quoteTableInfo.map((c) => c.name);
+          const targetCols = [
+            "id", "quote_number", "client_id", "custom_client_name", "activity_name",
+            "activity_date", "services_json", "amount", "status", "important_notes",
+            "quote_date", "staff_id", "created_at"
+          ].filter((col) => existingColNames.includes(col));
+
+          const colListStr = targetCols.join(", ");
+          db.exec(`INSERT INTO quotes_migration (${colListStr}) SELECT ${colListStr} FROM quotes;`);
+          db.exec("DROP TABLE quotes;");
+          db.exec("ALTER TABLE quotes_migration RENAME TO quotes;");
+        })();
+        db.pragma("foreign_keys = ON");
+        console.log("[DEBUG] Completed quotes table migration: quotes.client_id is now nullable.");
+      }
+    } catch (err: any) {
+      console.warn("Migration warning on quotes table:", err.message);
+    }
+  }
+
+  ensureQuotesClientIdNullable();
   try {
     db.exec("ALTER TABLE shifts ADD COLUMN custom_staff_name TEXT");
   } catch (e: any) {
@@ -21493,6 +21542,31 @@ function resolveFilePath(systemName) {
 
         res.json({ success: true });
       } catch (e: any) {
+        if (e && e.message && e.message.includes("NOT NULL constraint failed: quotes.client_id")) {
+          try {
+            ensureQuotesClientIdNullable();
+            const retryStmt = db.prepare(`
+              INSERT INTO quotes (quote_number, client_id, custom_client_name, activity_name, activity_date, services_json, amount, status, important_notes, quote_date, staff_id)
+              VALUES (?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?)
+            `);
+            retryStmt.run(
+              quoteNumber,
+              effectiveClientId,
+              effectiveCustomName,
+              activityName,
+              date,
+              JSON.stringify(services || []),
+              calculatedAmount,
+              importantNotes || null,
+              quoteDate || null,
+              req.user?.id || null,
+            );
+            return res.json({ success: true });
+          } catch (retryErr: any) {
+            logger.error(`API Error on retry: ${retryErr}`, { error: "Internal Server Error" });
+            return res.status(500).json({ error: "Internal Server Error" });
+          }
+        }
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
         res.status(500).json({ error: "Internal Server Error" });
       }
@@ -21652,6 +21726,32 @@ function resolveFilePath(systemName) {
 
         res.json({ message: "Quote updated successfully" });
       } catch (e: any) {
+        if (e && e.message && e.message.includes("NOT NULL constraint failed: quotes.client_id")) {
+          try {
+            ensureQuotesClientIdNullable();
+            const retryStmt = db.prepare(`
+              UPDATE quotes SET 
+                client_id = ?, custom_client_name = ?, activity_name = ?, activity_date = ?, 
+                services_json = ?, amount = ?, important_notes = ?, quote_date = ?
+              WHERE id = ?
+            `);
+            retryStmt.run(
+              effectiveClientId,
+              effectiveCustomName,
+              activityName,
+              date,
+              JSON.stringify(services || []),
+              calculatedAmount,
+              importantNotes || null,
+              quoteDate || date,
+              quoteId
+            );
+            return res.json({ message: "Quote updated successfully" });
+          } catch (retryErr: any) {
+            logger.error(`Quote Update Error on retry: ${retryErr}`, { error: retryErr.message });
+            return res.status(500).json({ error: "Failed to update quote" });
+          }
+        }
         logger.error(`Quote Update Error: ${e}`, { error: e.message });
         res.status(500).json({ error: "Failed to update quote" });
       }
