@@ -125,23 +125,46 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
     );
   }
 
+  // Format Australian date helper
+  const formatAuDate = (dateVal: any, opts: { monthFormat?: 'short' | '2-digit' } = {}): string => {
+    if (!dateVal) return '';
+    const str = String(dateVal).trim();
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+      if (opts.monthFormat === 'short') {
+        const [d, m, y] = str.split('/');
+        const dt = new Date(`${y}-${m}-${d}T00:00:00`);
+        if (!isNaN(dt.getTime())) {
+          return dt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+      }
+      return str;
+    }
+    const dt = new Date(str);
+    if (!isNaN(dt.getTime())) {
+      return dt.toLocaleDateString('en-AU', {
+        day: '2-digit',
+        month: opts.monthFormat === 'short' ? 'short' : '2-digit',
+        year: 'numeric'
+      });
+    }
+    return str;
+  };
+
   const { quote, settingsMap, lineItems, subtotal, totalAmount, gstAmount } = data;
 
   const quoteNum = quote.quote_number || `QUOTE-${quote.id}`;
   const qDate = quote.quote_date || quote.created_at;
-  const quoteDate = qDate ? new Date(qDate).toLocaleDateString('en-AU', {
-    day: '2-digit', month: 'short', year: 'numeric'
-  }) : '—';
+  const quoteDate = qDate ? formatAuDate(qDate, { monthFormat: 'short' }) : '—';
 
   // Overall quote service period
   let servicePeriod = '';
-  if (quote.activity_date) {
-    const sDate = new Date(quote.activity_date).toLocaleDateString('en-AU', {
-      day: '2-digit', month: 'short', year: 'numeric'
-    });
+  const rawStartDate = quote.activity_date || (lineItems && lineItems[0]?.date);
+  if (rawStartDate) {
+    const sDate = formatAuDate(rawStartDate, { monthFormat: 'short' });
     const firstWithEnd = (lineItems || []).find((l: any) => l.endDate);
     if (firstWithEnd && firstWithEnd.endDate) {
-      servicePeriod = `${sDate} – ${firstWithEnd.endDate}`;
+      const eDateStr = formatAuDate(firstWithEnd.endDate, { monthFormat: '2-digit' });
+      servicePeriod = `${sDate} – ${eDateStr}`;
     } else {
       servicePeriod = sDate;
     }
@@ -255,13 +278,13 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                 {/* Provider Details */}
                 <div className="flex flex-col max-w-sm">
                   {settingsMap.letterheadLogo ? (
-                    <img src={settingsMap.letterheadLogo} alt="Logo" className="h-14 w-auto object-contain mb-3" />
+                    <img src={settingsMap.letterheadLogo} alt="Logo" className="h-36 sm:h-44 max-w-[340px] sm:max-w-[420px] w-auto object-contain mb-3" />
                   ) : (
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-7 h-7 rounded-lg bg-teal-600 flex items-center justify-center text-white font-bold text-xs">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold text-base shadow-sm">
                         H
                       </div>
-                      <h1 className="text-lg font-bold uppercase text-zinc-900 tracking-tight">
+                      <h1 className="text-xl font-bold uppercase text-zinc-900 tracking-tight">
                         {settingsMap.businessName || 'HAPPY IN THE HOME'}
                       </h1>
                     </div>

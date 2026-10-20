@@ -2,6 +2,30 @@ import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 
+function formatAuDate(dateVal: any, opts: { monthFormat?: 'short' | '2-digit' } = {}): string {
+  if (!dateVal) return '';
+  const str = String(dateVal).trim();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+    if (opts.monthFormat === 'short') {
+      const [d, m, y] = str.split('/');
+      const dt = new Date(`${y}-${m}-${d}T00:00:00`);
+      if (!isNaN(dt.getTime())) {
+        return dt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
+      }
+    }
+    return str;
+  }
+  const dt = new Date(str);
+  if (!isNaN(dt.getTime())) {
+    return dt.toLocaleDateString('en-AU', {
+      day: '2-digit',
+      month: opts.monthFormat === 'short' ? 'short' : '2-digit',
+      year: 'numeric'
+    });
+  }
+  return str;
+}
+
 export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
   app.get("/api/quotes/:id/download", authenticateToken, (req: any, res: any) => {
     try {
@@ -37,7 +61,8 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       const writeStream = fs.createWriteStream(pdfPath);
       doc.pipe(writeStream);
 
-      // Letterhead
+      // Letterhead / Logo (Generous prominent display matching preview)
+      let logoBottomY = 40;
       if (settingsMap.letterheadLogo) {
         try {
           let buffer: Buffer | null = null;
@@ -55,111 +80,168 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
             buffer = Buffer.from(base64Data, "base64");
           }
           if (buffer) {
-            doc.image(buffer, 50, 20, { fit: [200, 80] });
-            doc.y = 35;
-          } else {
-            doc.moveDown();
+            doc.image(buffer, 50, 25, { fit: [220, 85] });
+            logoBottomY = 118;
           }
         } catch (e) {
-          doc.moveDown();
+          console.error("Error rendering logo in quote PDF:", e);
         }
       } else {
-        doc.moveDown();
-        if (settingsMap.businessName) doc.fontSize(14).text(settingsMap.businessName);
-        if (settingsMap.abn) doc.fontSize(10).text(`ABN: ${settingsMap.abn}`);
-        if (settingsMap.businessAddress) doc.text(settingsMap.businessAddress);
-        doc.moveDown();
+        doc.fillColor("#0D9488").roundedRect(50, 30, 32, 32, 6).fill();
+        doc.fillColor("#FFFFFF").font("Helvetica-Bold").fontSize(16).text("H", 50, 38, { width: 32, align: "center" });
+        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(15).text(settingsMap.businessName || "HAPPY IN THE HOME", 92, 38);
+        logoBottomY = 75;
       }
 
-      doc.fillColor("black");
-      doc.fontSize(20).font("Helvetica-Bold").text("SERVICE QUOTE", 350, 40, { width: 230, align: "right" });
-      doc.fontSize(10).font("Helvetica-Bold").text(`Quote No: ${quote.quote_number || ''}`, 350, 65, { width: 230, align: "right" });
+      // Contact details under logo (left side)
+      let provY = logoBottomY + 4;
+      doc.fillColor("#374151").font("Helvetica-Bold").fontSize(8);
+      if (settingsMap.abn) {
+        doc.text(`ABN: ${settingsMap.abn}`, 50, provY);
+        provY += 11;
+      }
+      doc.fillColor("#6B7280").font("Helvetica").fontSize(8);
+      if (settingsMap.businessAddress) {
+        doc.text(settingsMap.businessAddress, 50, provY, { width: 230 });
+        provY += doc.heightOfString(settingsMap.businessAddress, { width: 230 }) + 1;
+      }
+      if (settingsMap.contactEmail) {
+        doc.text(settingsMap.contactEmail, 50, provY);
+        provY += 11;
+      }
+      if (settingsMap.contactPhone) {
+        doc.text(`Tel: ${settingsMap.contactPhone}`, 50, provY);
+        provY += 11;
+      }
+
+      // Top Right: Quote Meta
+      // Service period calculation (identical to QuotePreviewModal)
+      let servicePeriod = '';
+      const rawStartDate = quote.activity_date || (services && services[0]?.date);
+      if (rawStartDate) {
+        const sDate = formatAuDate(rawStartDate, { monthFormat: 'short' });
+        const firstWithEnd = (services || []).find((l: any) => l.endDate);
+        if (firstWithEnd && firstWithEnd.endDate) {
+          const eDateStr = formatAuDate(firstWithEnd.endDate, { monthFormat: '2-digit' });
+          servicePeriod = `${sDate} – ${eDateStr}`;
+        } else {
+          servicePeriod = sDate;
+        }
+      }
+
+      doc.fillColor("#18181B").font("Helvetica").fontSize(22).text("SERVICE QUOTE", 340, 30, { width: 240, align: "right" });
+      doc.font("Helvetica-Bold").fontSize(10).fillColor("#111827").text(`${quote.quote_number || ''}`, 340, 58, { width: 240, align: "right" });
       
       const qDate = quote.quote_date || quote.created_at;
-      const qDateStr = qDate ? new Date(qDate).toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-      doc.font("Helvetica").fontSize(9).text(`Date Issued: ${qDateStr}`, 350, 79, { width: 230, align: "right" });
-      if (quote.activity_date) {
-        const aDateStr = new Date(quote.activity_date).toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        doc.text(`Service Period: ${aDateStr}`, 350, 92, { width: 230, align: "right" });
+      const qDateStr = formatAuDate(qDate, { monthFormat: 'short' });
+      doc.font("Helvetica").fontSize(8.5).fillColor("#6B7280").text(`Date Issued: ${qDateStr}`, 340, 74, { width: 240, align: "right" });
+      if (servicePeriod) {
+        doc.text(`Service Period: ${servicePeriod}`, 340, 87, { width: 240, align: "right" });
       }
 
-      const topY = 120;
-      doc.fontSize(10).font("Helvetica-Bold").text("FROM", 50, topY);
-      doc.fontSize(11).font("Helvetica-Bold").text(settingsMap.businessName || "Happy in the Home", 50, topY + 14);
-      doc.fontSize(9).font("Helvetica");
-      let fromY = topY + 28;
-      if (settingsMap.abn) { doc.text(`ABN: ${settingsMap.abn}`, 50, fromY); fromY += 13; }
-      if (settingsMap.businessAddress) { doc.text(settingsMap.businessAddress, 50, fromY, { width: 240 }); fromY += 13; }
-      if (settingsMap.contactEmail) { doc.text(settingsMap.contactEmail, 50, fromY); fromY += 13; }
-      if (settingsMap.contactPhone) { doc.text(`Tel: ${settingsMap.contactPhone}`, 50, fromY); fromY += 13; }
+      // Divider below header
+      let afterHeaderY = Math.max(provY, 115) + 8;
+      doc.strokeColor("#E5E7EB").lineWidth(1).moveTo(50, afterHeaderY).lineTo(580, afterHeaderY).stroke();
+      afterHeaderY += 10;
 
-      doc.fontSize(10).font("Helvetica-Bold").text("PREPARED FOR", 320, topY);
-      const clientName = (quote.custom_client_name && quote.custom_client_name.trim())
-        ? quote.custom_client_name.trim()
-        : `${quote.client_first_name || ''} ${quote.client_last_name || ''}`.trim() || 'Prospective Client';
-      doc.fontSize(11).font("Helvetica-Bold").text(clientName, 320, topY + 14);
-      doc.fontSize(9).font("Helvetica");
-      let prepY = topY + 28;
-      if (quote.ndis_number) {
-        doc.text(`NDIS No: ${quote.ndis_number}`, 320, prepY);
-        prepY += 13;
-      } else if (quote.my_aged_care_id) {
-        doc.text(`Home Care ID: ${quote.my_aged_care_id}`, 320, prepY);
-        prepY += 13;
-      }
-      if (quote.client_email) {
-        doc.text(`Email: ${quote.client_email}`, 320, prepY);
-        prepY += 13;
-      }
-
-      let afterCardsY = Math.max(fromY, prepY) + 10;
-
-      // Prominently render Activity Name / Scope
+      // Activity / Scope Banner
       if (quote.activity_name && quote.activity_name.trim()) {
         const activityText = quote.activity_name.trim();
-        doc.roundedRect(50, afterCardsY, 530, 24, 3)
-           .fillAndStroke("#F4FBF9", "#B2DFDB");
+        doc.roundedRect(50, afterHeaderY, 530, 26, 4)
+           .fillAndStroke("#F0FDFA", "#99F6E4");
         
-        doc.fillColor("#004D40")
+        doc.fillColor("#0F766E")
            .font("Helvetica-Bold")
-           .fontSize(9)
-           .text("ACTIVITY / SCOPE:", 60, afterCardsY + 7);
+           .fontSize(8)
+           .text("ACTIVITY / SCOPE:", 60, afterHeaderY + 8.5);
 
-        const activityLabelWidth = doc.widthOfString("ACTIVITY / SCOPE:") + 10;
+        const activityLabelWidth = doc.widthOfString("ACTIVITY / SCOPE:") + 6;
         doc.fillColor("#111827")
            .font("Helvetica-Bold")
-           .fontSize(9.5)
-           .text(activityText, 60 + activityLabelWidth, afterCardsY + 6.5, { width: 500 - activityLabelWidth });
+           .fontSize(8.5)
+           .text(activityText, 60 + activityLabelWidth, afterHeaderY + 8, { width: 330 - activityLabelWidth });
 
-        if (quote.activity_date) {
-          const actDateStr = new Date(quote.activity_date).toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        if (servicePeriod) {
           doc.fillColor("#4B5563")
              .font("Helvetica")
-             .fontSize(8.5)
-             .text(`Date: ${actDateStr}`, 460, afterCardsY + 7, { width: 110, align: "right" });
+             .fontSize(8)
+             .text(`Period: ${servicePeriod}`, 360, afterHeaderY + 8.5, { width: 210, align: "right" });
         }
 
         doc.fillColor("black");
-        afterCardsY += 34;
+        afterHeaderY += 34;
       }
 
-      let currentY = afterCardsY;
+      // Two-Column Service Provider & Client details
+      const twoColY = afterHeaderY + 6;
+      // Teal top accent lines
+      doc.strokeColor("#0D9488").lineWidth(2);
+      doc.moveTo(50, twoColY).lineTo(285, twoColY).stroke();
+      doc.moveTo(330, twoColY).lineTo(580, twoColY).stroke();
 
-      // Table Header
-      doc.font("Helvetica-Bold").fontSize(10);
-      doc.text("DATE", 50, currentY, { width: 60, align: "left" });
-      doc.text("DESCRIPTION", 115, currentY, { width: 135, align: "left" });
-      doc.text("TIME", 255, currentY, { width: 70, align: "left" }); 
-      doc.text("QTY", 330, currentY, { width: 25, align: "right" });
-      doc.text("UNIT", 360, currentY, { width: 35, align: "left" });
-      doc.text("RATE", 400, currentY, { width: 45, align: "right" });
-      doc.text("GST", 450, currentY, { width: 45, align: "right" });
-      doc.text("AMOUNT", 500, currentY, { width: 65, align: "right" });
+      // Left Column: SERVICE PROVIDER
+      let colLeftY = twoColY + 6;
+      doc.fillColor("#0F766E").font("Helvetica-Bold").fontSize(7.5).text("SERVICE PROVIDER", 50, colLeftY);
+      colLeftY += 11;
+      doc.fillColor("#111827").font("Helvetica-Bold").fontSize(10.5).text(settingsMap.businessName || "Happy in the Home", 50, colLeftY);
+      colLeftY += 14;
+      doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text("NDIS & Home Care Registered Provider", 50, colLeftY);
+      colLeftY += 11;
+      if (settingsMap.abn) {
+        doc.fillColor("#374151").font("Helvetica-Bold").fontSize(8).text(`ABN: ${settingsMap.abn}`, 50, colLeftY);
+        colLeftY += 11;
+      }
+      if (settingsMap.businessAddress) {
+        doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(settingsMap.businessAddress, 50, colLeftY, { width: 235 });
+        colLeftY += doc.heightOfString(settingsMap.businessAddress, { width: 235 }) + 2;
+      }
+      if (settingsMap.contactEmail) {
+        doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(settingsMap.contactEmail, 50, colLeftY);
+        colLeftY += 11;
+      }
 
-      doc.moveTo(50, currentY + 15).lineTo(580, currentY + 15).stroke();
-      currentY += 22;
+      // Right Column: PREPARED FOR
+      let colRightY = twoColY + 6;
+      doc.fillColor("#0F766E").font("Helvetica-Bold").fontSize(7.5).text("PREPARED FOR", 330, colRightY);
+      colRightY += 11;
+      const clientName = (quote.custom_client_name && quote.custom_client_name.trim())
+        ? quote.custom_client_name.trim()
+        : `${quote.client_first_name || ''} ${quote.client_last_name || ''}`.trim() || 'Prospective Client';
+      doc.fillColor("#111827").font("Helvetica-Bold").fontSize(10.5).text(clientName, 330, colRightY);
+      colRightY += 14;
+      doc.fillColor("#6B7280").font("Helvetica-Oblique").fontSize(8).text("Recipient / Plan Nominee", 330, colRightY);
+      colRightY += 11;
+      if (quote.ndis_number) {
+        doc.fillColor("#374151").font("Helvetica").fontSize(8).text(`NDIS No: ${quote.ndis_number}`, 330, colRightY);
+        colRightY += 11;
+      } else if (quote.my_aged_care_id) {
+        doc.fillColor("#374151").font("Helvetica").fontSize(8).text(`Home Care ID: ${quote.my_aged_care_id}`, 330, colRightY);
+        colRightY += 11;
+      }
+      if (quote.client_email) {
+        doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(`Email: ${quote.client_email}`, 330, colRightY);
+        colRightY += 11;
+      }
 
-      doc.font("Helvetica").fontSize(10);
+      let currentY = Math.max(colLeftY, colRightY) + 14;
+
+      // Table Header Helper
+      const renderTableHeader = (y: number) => {
+        doc.font("Helvetica-Bold").fontSize(8).fillColor("#18181B");
+        doc.text("DATE", 50, y, { width: 75, align: "left" });
+        doc.text("DESCRIPTION", 130, y, { width: 195, align: "left" });
+        doc.text("TIME / HOURS", 330, y, { width: 45, align: "center" }); 
+        doc.text("QTY", 380, y, { width: 40, align: "right" });
+        doc.text("UNIT", 425, y, { width: 35, align: "left" });
+        doc.text("RATE", 465, y, { width: 50, align: "right" });
+        doc.text("AMOUNT", 520, y, { width: 60, align: "right" });
+
+        doc.strokeColor("#18181B").lineWidth(1.5).moveTo(50, y + 13).lineTo(580, y + 13).stroke();
+        return y + 19;
+      };
+
+      currentY = renderTableHeader(currentY);
+
       let subtotal = 0;
       let calcGst = 0;
       const hasGst = services.length > 0 && services[0].gstType === "10%";
@@ -169,50 +251,11 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         if (!srv) continue;
 
         let safeServiceName = item.serviceName || srv.name || "Unknown Service";
-        let textHeight = doc.heightOfString(safeServiceName, { width: 135 }) || 15;
+        doc.font("Helvetica-Bold").fontSize(8.5);
+        let textHeight = doc.heightOfString(safeServiceName, { width: 195 }) || 12;
 
-        let dateStr = "";
-        if (item.date) {
-           const d = new Date(item.date);
-           if (!isNaN(d.getTime())) {
-              dateStr = d.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-           } else {
-              dateStr = item.date;
-           }
-        }
-        let endDateStr = "";
-        if (item.endDate) {
-           const ed = new Date(item.endDate);
-           if (!isNaN(ed.getTime())) {
-              endDateStr = ed.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-           } else {
-              endDateStr = item.endDate;
-           }
-        }
-        let displayDate = dateStr;
-        if (dateStr && endDateStr) {
-           displayDate = `${dateStr} -\n${endDateStr}`;
-        } else if (!dateStr && endDateStr) {
-           displayDate = endDateStr;
-        }
-
-        let dateHeight = doc.heightOfString(displayDate, { width: 60 }) || 15;
-        let blockHeight = Math.max(textHeight, dateHeight) + 20;
-
-        if (currentY + blockHeight > 700) {
-          doc.addPage();
-          doc.font("Helvetica-Bold").fontSize(10);
-          doc.text("DATE", 50, 50, { width: 60, align: "left" });
-          doc.text("DESCRIPTION", 115, 50, { width: 135, align: "left" });
-          doc.text("TIME", 255, 50, { width: 70, align: "left" });
-          doc.text("QTY", 330, 50, { width: 25, align: "right" });
-          doc.text("UNIT", 360, 50, { width: 35, align: "left" });
-          doc.text("RATE", 400, 50, { width: 45, align: "right" });
-          doc.text("GST", 450, 50, { width: 45, align: "right" });
-          doc.text("AMOUNT", 500, 50, { width: 65, align: "right" });
-          doc.moveTo(50, 65).lineTo(580, 65).stroke();
-          currentY = 75;
-        }
+        let dateStr = formatAuDate(item.date, { monthFormat: '2-digit' });
+        let endDateStr = formatAuDate(item.endDate, { monthFormat: '2-digit' });
 
         let qty = item.qtyOverride ? Number(item.qtyOverride) : 1;
         let finalRate = Number(srv.rate || 0);
@@ -231,66 +274,118 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         let timeStr = "";
         if (item.startTime && item.endTime) {
           timeStr = `${item.startTime} - ${item.endTime}`;
-          if (item.duration) {
-             timeStr += `\n(${item.duration}h)`;
-          }
+          if (item.duration) timeStr += `\n(${item.duration}h)`;
         } else if (item.startTime) {
           timeStr = item.startTime;
         }
 
-        doc.font("Helvetica").fontSize(10);
-        doc.text(displayDate, 50, currentY, { width: 60, align: "left" });
-        doc.fontSize(9).text(timeStr, 255, currentY, { width: 70, align: "left" });
-        doc.fontSize(10);
-        
-        doc.text(safeServiceName, 115, currentY, { width: 135, align: "left" });
-        let descY = currentY + textHeight + 2;
-        
-        doc.fontSize(9).text(`Code: ${srv.code || "N/A"}`, 115, descY, { width: 135, align: "left" });
-        doc.fontSize(10);
-        
-        doc.text(qty.toString(), 330, currentY, { width: 25, align: "right" });
-        doc.text(item.unit || srv.unit || "N/A", 360, currentY, { width: 35, align: "left" });
-        doc.text(`$${finalRate.toFixed(2)}`, 400, currentY, { width: 45, align: "right" });
-        doc.text(`$${lineGst.toFixed(2)}`, 450, currentY, { width: 45, align: "right" });
-        doc.text(`$${lineAmount.toFixed(2)}`, 500, currentY, { width: 65, align: "right" });
+        const badgeRowHeight = (srv.code || srv.type) ? 14 : 0;
+        let rowContentHeight = Math.max(textHeight + badgeRowHeight, (endDateStr && endDateStr !== dateStr) ? 22 : 14, 16);
+        let blockHeight = rowContentHeight + 10;
 
-        let rowBottomY = Math.max(descY + 14, currentY + dateHeight);
-        doc.moveTo(50, rowBottomY + 15).lineTo(580, rowBottomY + 15).stroke();
-        currentY = rowBottomY + 22;
+        if (currentY + blockHeight > 660) {
+          doc.addPage();
+          currentY = renderTableHeader(50);
+        }
+
+        // Render Date (Line 1: Start Date, Line 2: to End Date)
+        doc.fillColor("#111827").font("Helvetica").fontSize(8.5).text(dateStr || "—", 50, currentY, { width: 75, align: "left" });
+        if (endDateStr && endDateStr !== dateStr) {
+          doc.fillColor("#6B7280").font("Helvetica").fontSize(7.5).text(`to ${endDateStr}`, 50, currentY + 11, { width: 75, align: "left" });
+        }
+
+        // Render Description
+        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(safeServiceName, 130, currentY, { width: 195, align: "left" });
+        
+        let badgeY = currentY + textHeight + 2;
+        let badgeX = 130;
+        if (srv.code) {
+          const codeText = srv.code;
+          doc.font("Helvetica-Bold").fontSize(7);
+          const codeW = doc.widthOfString(codeText) + 10;
+          doc.roundedRect(badgeX, badgeY, codeW, 11, 2).fillAndStroke("#F0FDFA", "#99F6E4");
+          doc.fillColor("#0F766E").font("Helvetica-Bold").fontSize(7).text(codeText, badgeX + 5, badgeY + 2);
+          badgeX += codeW + 4;
+        }
+        if (srv.type) {
+          const typeText = srv.type === 'HOME_CARE' ? 'Home Care' : 'NDIS';
+          doc.font("Helvetica-Bold").fontSize(7);
+          const typeW = doc.widthOfString(typeText) + 8;
+          doc.roundedRect(badgeX, badgeY, typeW, 11, 2).fillAndStroke("#F3F4F6", "#E5E7EB");
+          doc.fillColor("#4B5563").font("Helvetica-Bold").fontSize(7).text(typeText, badgeX + 4, badgeY + 2);
+        }
+
+        // Render Time / Hours
+        if (timeStr) {
+          doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(timeStr, 330, currentY, { width: 45, align: "center" });
+        } else {
+          doc.fillColor("#9CA3AF").font("Helvetica").fontSize(8).text("—", 330, currentY, { width: 45, align: "center" });
+        }
+
+        // Render Qty
+        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(qty.toString(), 380, currentY, { width: 40, align: "right" });
+
+        // Render Unit
+        const unitDisplay = item.unit || srv.unit || "Hr";
+        doc.fillColor("#6B7280").font("Helvetica").fontSize(8).text(unitDisplay, 425, currentY, { width: 35, align: "left" });
+
+        // Render Rate
+        doc.fillColor("#374151").font("Helvetica").fontSize(8.5).text(`$${finalRate.toFixed(2)}`, 465, currentY, { width: 50, align: "right" });
+
+        // Render Amount
+        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(`$${lineAmount.toFixed(2)}`, 520, currentY, { width: 60, align: "right" });
+
+        let rowBottomY = currentY + rowContentHeight + 5;
+        doc.strokeColor("#E5E7EB").lineWidth(0.5).moveTo(50, rowBottomY).lineTo(580, rowBottomY).stroke();
+        currentY = rowBottomY + 6;
       }
 
       let totalAmount = subtotal + calcGst;
 
-      let totalsY = currentY + 30;
-      if (totalsY + 100 > 700) {
+      let totalsY = currentY + 16;
+      if (totalsY + 125 > 740) {
         doc.addPage();
         totalsY = 50;
       }
+
+      // Divider line above notes & totals section (matching preview border-t-2 border-zinc-900)
+      doc.strokeColor("#18181B").lineWidth(1.5).moveTo(50, totalsY - 6).lineTo(580, totalsY - 6).stroke();
+
+      // Left Card: Important Notes
+      doc.roundedRect(50, totalsY, 290, 105, 6).fillAndStroke("#F9FAFB", "#E5E7EB");
+      doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8).text("IMPORTANT NOTES & TERMS OF SERVICE", 64, totalsY + 10);
+      doc.fillColor("#4B5563").font("Helvetica").fontSize(7.5);
       
-      doc.font("Helvetica");
-      doc.text("Subtotal:", 350, totalsY, { width: 100, align: "right" });
-      doc.text(`$${subtotal.toFixed(2)}`, 480, totalsY, { width: 70, align: "right" });
-      
-      if (calcGst > 0) {
-        doc.text("GST (10%):", 350, totalsY + 15, { width: 100, align: "right" });
-        doc.text(`$${calcGst.toFixed(2)}`, 480, totalsY + 15, { width: 70, align: "right" });
+      if (quote.important_notes && quote.important_notes.trim()) {
+        doc.text(quote.important_notes.trim(), 64, totalsY + 24, { width: 262, height: 72 });
       } else {
-        doc.text("GST (GST-Free):", 350, totalsY + 15, { width: 100, align: "right" });
-        doc.text("$0.00", 480, totalsY + 15, { width: 70, align: "right" });
+        doc.text("• This quote is valid for 30 calendar days from the date of issue.", 64, totalsY + 24, { width: 262 });
+        doc.text("• Pricing adheres strictly to current NDIA Price Limits and Home Care guidelines.", 64, totalsY + 38, { width: 262 });
+        doc.text("• Payment terms: 14 days from date of tax invoice upon service delivery.", 64, totalsY + 52, { width: 262 });
+        doc.text("• Cancellations require 24 hours advance notice per standard service agreements.", 64, totalsY + 66, { width: 262 });
       }
+
+      // Right Card: Financial Summary
+      doc.roundedRect(355, totalsY, 225, 105, 6).fillAndStroke("#F9FAFB", "#E5E7EB");
       
-      doc.moveTo(380, totalsY + 30).lineTo(550, totalsY + 30).stroke();
-      doc.font("Helvetica-Bold").fontSize(12);
-      doc.text("TOTAL AMOUNT:", 350, totalsY + 40, { width: 130, align: "right" });
-      doc.text(`$${totalAmount.toFixed(2)}`, 480, totalsY + 40, { width: 70, align: "right" });
-      
-      if (quote.important_notes) {
-        doc.moveDown(4);
-        doc.font("Helvetica").fontSize(10);
-        doc.text("Notes:", 50, doc.y);
-        doc.text(quote.important_notes, 50, doc.y + 15, { width: 500, align: "left" });
-      }
+      doc.fillColor("#4B5563").font("Helvetica").fontSize(8.5).text("Subtotal:", 370, totalsY + 14);
+      doc.fillColor("#111827").font("Helvetica-Bold").text(`$${subtotal.toFixed(2)}`, 460, totalsY + 14, { width: 105, align: "right" });
+
+      const gstLabel = hasGst ? "GST (10%):" : "GST (GST Free):";
+      doc.fillColor("#4B5563").font("Helvetica").text(gstLabel, 370, totalsY + 30);
+      doc.fillColor("#111827").font("Helvetica-Bold").text(`$${calcGst.toFixed(2)}`, 460, totalsY + 30, { width: 105, align: "right" });
+
+      doc.strokeColor("#D1D5DB").lineWidth(0.75).moveTo(370, totalsY + 48).lineTo(565, totalsY + 48).stroke();
+
+      doc.fillColor("#111827").font("Helvetica-Bold").fontSize(9.5).text("TOTAL AMOUNT:", 370, totalsY + 58);
+      doc.fillColor("#0F766E").font("Helvetica-Bold").fontSize(14).text(`$${totalAmount.toFixed(2)}`, 450, totalsY + 56, { width: 115, align: "right" });
+      doc.fillColor("#6B7280").font("Helvetica").fontSize(7).text("AUD • Inclusive of applicable GST", 370, totalsY + 76, { width: 195, align: "right" });
+
+      // Footer
+      doc.strokeColor("#E5E7EB").lineWidth(0.5).moveTo(50, 770).lineTo(580, 770).stroke();
+      doc.font("Helvetica").fontSize(7.5).fillColor("#9CA3AF");
+      doc.text(`${settingsMap.businessName || 'Happy in the Home'} • Generated via Care Management System`, 50, 776);
+      doc.text(`Ref: ${quote.quote_number || ''} • Page 1 of 1`, 380, 776, { width: 200, align: "right" });
 
       writeStream.on('finish', () => {
         res.download(pdfPath, safeFilename, (err: any) => {
@@ -369,24 +464,8 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
           timeStr = item.startTime;
         }
 
-        let dateStr = "";
-        if (item.date) {
-           const d = new Date(item.date);
-           if (!isNaN(d.getTime())) {
-              dateStr = d.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-           } else {
-              dateStr = item.date;
-           }
-        }
-        let endDateStr = "";
-        if (item.endDate) {
-           const ed = new Date(item.endDate);
-           if (!isNaN(ed.getTime())) {
-              endDateStr = ed.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-           } else {
-              endDateStr = item.endDate;
-           }
-        }
+        let dateStr = formatAuDate(item.date, { monthFormat: '2-digit' });
+        let endDateStr = formatAuDate(item.endDate, { monthFormat: '2-digit' });
 
         return {
           date: dateStr,
