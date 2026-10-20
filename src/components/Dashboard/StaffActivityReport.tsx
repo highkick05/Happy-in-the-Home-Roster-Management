@@ -37,8 +37,7 @@ export default function StaffActivityReport() {
     'workHrs',
     'shiftDuration',
     'travelKm',
-    'travelHrs',
-    'travelReimbursement'
+    'travelHrs'
   ]);
 
   const columnsList = [
@@ -53,7 +52,6 @@ export default function StaffActivityReport() {
     { id: 'shiftDuration', label: 'Shift Duration (Hrs)' },
     { id: 'travelKm', label: 'Travel (Km)' },
     { id: 'travelHrs', label: 'Travel (Hrs)' },
-    { id: 'travelReimbursement', label: 'REIMB ($)' },
   ];
 
   const toggleColumn = (id: string) => {
@@ -252,7 +250,6 @@ export default function StaffActivityReport() {
                 {visibleColumns.includes('shiftDuration') && <th className="px-3 py-2 text-right">Shift Duration</th>}
                 {visibleColumns.includes('travelKm') && <th className="px-3 py-2 text-right">Travel (Km)</th>}
                 {visibleColumns.includes('travelHrs') && <th className="px-3 py-2 text-right">Travel (Hrs)</th>}
-                {visibleColumns.includes('travelReimbursement') && <th className="px-3 py-2 text-right">REIMB ($)</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -327,9 +324,6 @@ export default function StaffActivityReport() {
                     {visibleColumns.includes('travelHrs') && (
                       <td className="px-3 py-2 text-right tabular-nums">{row.travelHours !== undefined ? row.travelHours.toFixed(2) : '-'}</td>
                     )}
-                    {visibleColumns.includes('travelReimbursement') && (
-                      <td className="px-3 py-2 text-right tabular-nums">{row.travelReimbursement !== undefined ? `$${row.travelReimbursement.toFixed(2)}` : '-'}</td>
-                    )}
                   </tr>
                 ))
               )}
@@ -342,7 +336,7 @@ export default function StaffActivityReport() {
             <h3 className="text-xs font-semibold text-[#E6EDF3] uppercase tracking-wider mb-4 flex items-center">
               <Activity className="w-4 h-4 mr-2 text-brand-teal" /> Unit Totals
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
               <div className="bg-brand-navy rounded-lg p-3 border border-border-subtle">
                 <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Weekday Hrs</div>
                 <div className="text-lg font-bold text-[#E6EDF3] tabular-nums">{reportData.totals.weekdayHours} <span className="text-xs font-normal text-[#8B949E]">hrs</span></div>
@@ -359,10 +353,6 @@ export default function StaffActivityReport() {
                 <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Pub Hol Hrs</div>
                 <div className="text-lg font-bold text-[#E6EDF3] tabular-nums">{reportData.totals.publicHolidayHours} <span className="text-xs font-normal text-[#8B949E]">hrs</span></div>
               </div>
-              <div className="bg-gradient-to-br from-purple-500/10 to-indigo-500/10 rounded-lg p-3 border border-purple-500/20">
-                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Training Hrs</div>
-                <div className="text-lg font-bold text-purple-400 tabular-nums">{reportData.totals.trainingHours !== undefined ? reportData.totals.trainingHours : 0} <span className="text-xs font-normal text-purple-400/70">hrs</span></div>
-              </div>
               <div className="bg-gradient-to-br from-brand-teal/10 to-brand-green/10 rounded-lg p-3 border border-brand-teal/20">
                 <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Travel Km</div>
                 <div className="text-lg font-bold text-brand-teal tabular-nums">{reportData.totals.travelKm} <span className="text-xs font-normal text-brand-teal/70">km</span></div>
@@ -374,12 +364,9 @@ export default function StaffActivityReport() {
                 </div>
                 <div className="text-lg font-bold text-brand-teal tabular-nums">{reportData.totals.travelHrs !== undefined ? reportData.totals.travelHrs : 0} <span className="text-xs font-normal text-brand-teal/70">hrs</span></div>
               </div>
-              <div className="bg-gradient-to-br from-indigo-500/10 to-blue-500/10 rounded-lg p-3 border border-indigo-500/20">
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <span className="text-[#8B949E] text-xs font-semibold uppercase tracking-wide">Total Travel Pay</span>
-                  <span className="bg-indigo-500/20 text-indigo-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-indigo-500/30 shrink-0">NDIS</span>
-                </div>
-                <div className="text-xl font-bold text-indigo-400 tabular-nums">${reportData.totals.travelPayTotal?.toFixed(2) || '0.00'}</div>
+              <div className="bg-gradient-to-br from-purple-500/10 to-indigo-500/10 rounded-lg p-3 border border-purple-500/20">
+                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Training Hrs</div>
+                <div className="text-lg font-bold text-purple-400 tabular-nums">{reportData.totals.trainingHours !== undefined ? reportData.totals.trainingHours : 0} <span className="text-xs font-normal text-purple-400/70">hrs</span></div>
               </div>
             </div>
           </div>

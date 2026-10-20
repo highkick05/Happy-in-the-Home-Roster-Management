@@ -107,9 +107,9 @@ export const PAY_RULE_CATEGORIES = [
   },
   { 
     key: 'ndis_travel', 
-    label: 'NDIS Travel Allowance', 
+    label: 'Travel Allowance KM', 
     multiplierBadge: 'Per Km', 
-    description: 'Per kilometre staff travel reimbursement for NDIS client shifts',
+    description: 'Per kilometre staff travel reimbursement for NDIS & Home Care shifts',
     colorTheme: 'teal'
   },
   { 

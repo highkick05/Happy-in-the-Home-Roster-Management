@@ -1492,7 +1492,7 @@ export function previewXeroPayRun(db: any, params: {
       }
     }
 
-    const hcIntershiftKm = shift.respite_booking_id ? 0 : (shift.provider_travel_km || shift.home_care_travel_km || 0);
+    const hcIntershiftKm = (shift.respite_booking_id || isCompanyVehicle) ? 0 : (shift.provider_travel_km || shift.home_care_travel_km || 0);
     const hcTransportKm = (shift.respite_booking_id || isCompanyVehicle) ? 0 : (shift.abt_km || 0);
     const hcKm = hcIntershiftKm + hcTransportKm;
     const hcHrs = shift.respite_booking_id ? 0 : (calculatedMins / 60);
@@ -1710,10 +1710,10 @@ export function previewXeroPayRun(db: any, params: {
     if (s.publicHolidayHours > 0 && !s.payRatePublicHolidayId) {
       warnings.push('Missing Public Holiday Pay Item');
     }
-    if (s.ndisTravelKm > 0 && !s.payRateNdisTravelId) {
-      warnings.push('Missing NDIS Travel Pay Item');
+    if ((s.ndisTravelKm + s.homeCareTravelKm) > 0 && !s.payRateNdisTravelId) {
+      warnings.push('Missing Travel Allowance KM Pay Item');
     }
-    if ((s.homeCareTravelHours > 0 || s.homeCareTravelKm > 0) && !s.payRateHomeCareTravelId) {
+    if (s.homeCareTravelHours > 0 && !s.payRateHomeCareTravelId) {
       warnings.push('Missing Home Care Travel Pay Item');
     }
 
@@ -1987,7 +1987,7 @@ export async function createXeroDraftPayRun(db: any, params: {
         { id: staff.payRateSaturdayId, units: staff.saturdayHours, desc: 'Saturday', defaultRate: undefined, isHomeCareTravel: false },
         { id: staff.payRateSundayId, units: staff.sundayHours, desc: 'Sunday', defaultRate: undefined, isHomeCareTravel: false },
         { id: staff.payRatePublicHolidayId, units: staff.publicHolidayHours, desc: 'Public Holiday', defaultRate: undefined, isHomeCareTravel: false },
-        { id: staff.payRateNdisTravelId, units: staff.ndisTravelKm, desc: 'NDIS Travel', defaultRate: 0.99, isHomeCareTravel: false },
+        { id: staff.payRateNdisTravelId, units: parseFloat((staff.ndisTravelKm + staff.homeCareTravelKm).toFixed(2)), desc: 'NDIS Travel', defaultRate: 0.99, isHomeCareTravel: false },
         { id: staff.payRateHomeCareTravelId, units: staff.homeCareTravelHours, desc: 'Home Care Travel', defaultRate: undefined, isHomeCareTravel: true },
       ].filter(e => !!e.id && e.units > 0);
 

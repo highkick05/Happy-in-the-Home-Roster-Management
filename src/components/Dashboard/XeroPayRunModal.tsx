@@ -441,7 +441,7 @@ export default function XeroPayRunModal({
                     Travel &amp; Allowances
                   </label>
                   <div className="text-xs font-semibold text-white px-2.5 py-1.5 bg-brand-navy border border-border-subtle rounded-md flex items-center justify-between">
-                    <span>{previewData?.totals?.ndisTravelKm || 0} km NDIS</span>
+                    <span>{parseFloat(((previewData?.totals?.ndisTravelKm || 0) + (previewData?.totals?.homeCareTravelKm || 0)).toFixed(2))} km Travel</span>
                     <span className="text-[10px] text-zinc-400 font-normal">
                       HCP: {previewData?.totals?.homeCareTravelHours !== undefined ? previewData.totals.homeCareTravelHours : 0} hrs
                     </span>
@@ -491,7 +491,7 @@ export default function XeroPayRunModal({
                         <th className="px-3 py-2 text-right">Saturday</th>
                         <th className="px-3 py-2 text-right">Sunday</th>
                         <th className="px-3 py-2 text-right">Pub Hol</th>
-                        <th className="px-3 py-2 text-right">NDIS (km)</th>
+                        <th className="px-3 py-2 text-right">Travel (km)</th>
                         <th className="px-3 py-2 text-right">HCP Travel</th>
                         <th className="px-3 py-2 text-right font-bold text-zinc-300">Total Hrs</th>
                       </tr>
@@ -565,9 +565,14 @@ export default function XeroPayRunModal({
                                 </span>
                               </td>
                               <td className="px-3 py-2 text-right">
-                                <span className={staff.ndisTravelKm > 0 ? 'text-emerald-400 font-medium' : 'text-zinc-600'}>
-                                  {staff.ndisTravelKm > 0 ? `${staff.ndisTravelKm}km` : '-'}
-                                </span>
+                                {(() => {
+                                  const totalStaffKm = parseFloat(((staff.ndisTravelKm || 0) + (staff.homeCareTravelKm || 0)).toFixed(2));
+                                  return (
+                                    <span className={totalStaffKm > 0 ? 'text-emerald-400 font-medium' : 'text-zinc-600'}>
+                                      {totalStaffKm > 0 ? `${totalStaffKm}km` : '-'}
+                                    </span>
+                                  );
+                                })()}
                               </td>
                               <td className="px-3 py-2 text-right">
                                 <span className={staff.homeCareTravelHours > 0 ? 'text-sky-400 font-medium' : 'text-zinc-600'}>
