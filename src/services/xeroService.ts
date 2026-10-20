@@ -1484,10 +1484,6 @@ export function previewXeroPayRun(db: any, params: {
       if (sName.includes('activity based transport')) hasABTService = true;
     }
 
-    const hcKm = shift.respite_booking_id ? 0 : (shift.provider_travel_km || shift.home_care_travel_km || 0);
-    const hcHrs = shift.respite_booking_id ? 0 : (calculatedMins / 60);
-    const hcReimb = shift.respite_booking_id ? 0 : (shift.home_care_travel_total || 0);
-
     let isCompanyVehicle = false;
     if (shift.vehicle_id) {
       const v = db.prepare('SELECT ownership FROM vehicles WHERE id = ?').get(shift.vehicle_id) as any;
@@ -1495,6 +1491,12 @@ export function previewXeroPayRun(db: any, params: {
         isCompanyVehicle = true;
       }
     }
+
+    const hcIntershiftKm = shift.respite_booking_id ? 0 : (shift.provider_travel_km || shift.home_care_travel_km || 0);
+    const hcTransportKm = (shift.respite_booking_id || isCompanyVehicle) ? 0 : (shift.abt_km || 0);
+    const hcKm = hcIntershiftKm + hcTransportKm;
+    const hcHrs = shift.respite_booking_id ? 0 : (calculatedMins / 60);
+    const hcReimb = shift.respite_booking_id ? 0 : (shift.home_care_travel_total || 0);
 
     const provKm = isCompanyVehicle ? 0 : ((shift.respite_booking_id ? 0 : shift.provider_travel_km || 0) * (hasProviderTravelService ? 1 : 0));
     const abtKm = isCompanyVehicle ? 0 : ((shift.respite_booking_id ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0));

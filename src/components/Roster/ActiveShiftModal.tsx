@@ -247,7 +247,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
           actual_start_time: new Date().toISOString(),
           odometer_start_reading: odometerReading ? Math.round(Number(odometerReading)).toString() : '',
           odometer_start_photo: odometerPhoto,
-          vehicle_id: (shift.fundingType === 'NDIS' || !shift.fundingType) && selectedVehicleId ? Number(selectedVehicleId) : null
+          vehicle_id: selectedVehicleId ? Number(selectedVehicleId) : null
         })
       });
       if (res.ok) {
@@ -417,7 +417,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
     setSearchResults([]);
   };
 
-  const isNDIS = shift.fundingType === 'NDIS' || !shift.fundingType;
+  const isNDIS = shift.fundingType === 'NDIS' || shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP' || !shift.fundingType;
   const clientData = clientList.find((c: any) => String(c.id) === String(shift.clientId));
   const clientAddress = clientData?.address;
 

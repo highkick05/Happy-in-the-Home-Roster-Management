@@ -693,7 +693,12 @@ export default function ComplianceDashboard() {
                                 actualDriveMins = row.provider_travel_minutes;
                              }
                              if (actualDriveMins < 0) actualDriveMins = 0;
-                             travelCategoryCell = <span className="text-[#E6EDF3] text-xs font-medium">Inter-Shift Travel ({Math.round(actualDriveMins)} mins)</span>;
+                             travelCategoryCell = (
+                               <div className="flex flex-col gap-1 w-max">
+                                 <span className="text-[#E6EDF3] text-xs font-medium">Inter-Shift Travel ({Math.round(actualDriveMins)} mins)</span>
+                                 {hasABT && <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border bg-brand-teal/10 border-brand-teal/20 text-brand-teal w-fit">Client Transport</span>}
+                               </div>
+                             );
                          } else if (isBoth) {
                              travelCategoryCell = (
                                  <div className="flex flex-col gap-1 w-max">
@@ -746,7 +751,12 @@ export default function ComplianceDashboard() {
                              }
                              if (actualDriveMins < 0) actualDriveMins = 0;
                              const decHrs = actualDriveMins / 60;
-                             claimableTravelCell = <span className="font-mono text-xs text-emerald-400 tracking-tight">{decHrs.toFixed(2)} hrs</span>;
+                             claimableTravelCell = (
+                               <div className="flex flex-col gap-0.5 font-mono text-xs tracking-tight">
+                                 <span className="text-emerald-400">{decHrs.toFixed(2)} hrs</span>
+                                 {hasABT && <span className="text-[#E6EDF3]">Transport: {abt_km} km</span>}
+                               </div>
+                             );
                          } else if (isBoth) {
                              claimableTravelCell = (
                                  <div className="flex flex-col gap-1 font-mono text-xs tracking-tight">
@@ -1011,7 +1021,12 @@ export default function ComplianceDashboard() {
                                 actualDriveMins = row.provider_travel_minutes;
                              }
                              if (actualDriveMins < 0) actualDriveMins = 0;
-                             travelCategoryCell = <span className="text-[#E6EDF3] text-xs font-medium">Inter-Shift Travel ({Math.round(actualDriveMins)} mins)</span>;
+                             travelCategoryCell = (
+                               <div className="flex flex-col gap-1 w-max">
+                                 <span className="text-[#E6EDF3] text-xs font-medium">Inter-Shift Travel ({Math.round(actualDriveMins)} mins)</span>
+                                 {hasABT && <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border bg-brand-teal/10 border-brand-teal/20 text-brand-teal w-fit">Client Transport</span>}
+                               </div>
+                             );
                          } else if (isBoth) {
                              travelCategoryCell = (
                                  <div className="flex flex-col gap-1 w-max">
@@ -1064,7 +1079,12 @@ export default function ComplianceDashboard() {
                              }
                              if (actualDriveMins < 0) actualDriveMins = 0;
                              const decHrs = actualDriveMins / 60;
-                             claimableTravelCell = <span className="font-mono text-xs text-emerald-400 tracking-tight">{decHrs.toFixed(2)} hrs</span>;
+                             claimableTravelCell = (
+                               <div className="flex flex-col gap-0.5 font-mono text-xs tracking-tight">
+                                 <span className="text-emerald-400">{decHrs.toFixed(2)} hrs</span>
+                                 {hasABT && <span className="text-[#E6EDF3]">Transport: {abt_km} km</span>}
+                               </div>
+                             );
                          } else if (isBoth) {
                              claimableTravelCell = (
                                  <div className="flex flex-col gap-1 font-mono text-xs tracking-tight">

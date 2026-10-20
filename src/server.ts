@@ -3287,7 +3287,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
           gst: travelGst,
         });
       }
-      if (shift.abt_km > 0) {
+      if (shift.abt_km > 0 && !isHomeCare) {
         const abtCost = shift.abt_cost || (shift.abt_km * 1.00);
         const abtRate = shift.abt_km > 0 ? abtCost / shift.abt_km : 1.0;
         subtotal += abtCost;
@@ -18128,15 +18128,6 @@ app.get("/api/health", (req, res) => {
               }
           }
 
-          const hc_travel_km = shift.respite_booking_id
-            ? 0
-            : shift.provider_travel_km || shift.home_care_travel_km || 0;
-          const hc_travel_hrs = shift.respite_booking_id
-            ? 0
-            : calculatedMins / 60;
-          const hc_travel_total = shift.respite_booking_id
-            ? 0
-            : shift.home_care_travel_total || 0;
           let isCompanyVehicle = false;
           if (shift.vehicle_id) {
             const v = db.prepare('SELECT ownership FROM vehicles WHERE id = ?').get(shift.vehicle_id) as any;
@@ -18144,6 +18135,20 @@ app.get("/api/health", (req, res) => {
               isCompanyVehicle = true;
             }
           }
+
+          const hc_intershift_km = shift.respite_booking_id
+            ? 0
+            : shift.provider_travel_km || shift.home_care_travel_km || 0;
+          const hc_transport_km = (shift.respite_booking_id || isCompanyVehicle)
+            ? 0
+            : shift.abt_km || 0;
+          const hc_travel_km = hc_intershift_km + hc_transport_km;
+          const hc_travel_hrs = shift.respite_booking_id
+            ? 0
+            : calculatedMins / 60;
+          const hc_travel_total = shift.respite_booking_id
+            ? 0
+            : shift.home_care_travel_total || 0;
 
           const raw_prov_km = (shift.respite_booking_id ? 0 : shift.provider_travel_km || 0) * (hasProviderTravelService ? 1 : 0);
           const raw_abt_km = (shift.respite_booking_id ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0);

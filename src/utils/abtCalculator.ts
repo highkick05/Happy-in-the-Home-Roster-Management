@@ -3,7 +3,8 @@ import db from '../../db.js';
 import { getGoogleRoutesDistance, getRecordCoordinates, formatCoords } from './mapUtils.js';
 
 export const calculateAbtTravel = async (shift: any, abtCoordinates: any[]) => {
-  if (shift.respite_booking_id || shift.funding_type !== 'NDIS') {
+  const isHomeCare = shift.funding_type === 'HCP' || shift.funding_type === 'Home Care' || shift.funding_type === 'HOME_CARE';
+  if (shift.respite_booking_id || (shift.funding_type !== 'NDIS' && !isHomeCare)) {
     return { distance: 0, cost: 0, routeLogs: [] };
   }
 

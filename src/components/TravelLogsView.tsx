@@ -275,7 +275,7 @@ const expandedLogs = logs.map(log => {
 
     let hc_drive_mins = 0;
     if (isHC) {
-       category = 'Home Care Travel';
+       category = hasABT ? 'Home Care Travel & Client Transport' : 'Home Care Travel';
        if (parsed && parsed.homeCareTravel && parsed.homeCareTravel.minutes !== undefined) {
            hc_drive_mins = parsed.homeCareTravel.minutes;
        } else if (parsed && parsed.homeCareTravel && parsed.homeCareTravel.legs) {
@@ -506,6 +506,15 @@ const expandedLogs = logs.map(log => {
                                 Activity Based Transport
                               </span>
                             </div>
+                          ) : log._category === 'Home Care Travel & Client Transport' ? (
+                            <div className="flex flex-col items-start gap-1 w-fit">
+                              <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border bg-purple-900/10 border-purple-900/20 text-purple-400">
+                                Home Care Travel
+                              </span>
+                              <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border bg-brand-teal/10 border-brand-teal/20 text-brand-teal">
+                                Client Transport
+                              </span>
+                            </div>
                           ) : (
                             <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase border ${
                               log._category === 'Provider Travel' ? 'bg-blue-900/10 border-blue-900/20 text-blue-400' :
@@ -524,14 +533,28 @@ const expandedLogs = logs.map(log => {
                           <div className="flex flex-col text-[11px] leading-tight gap-0.5">
                             {log._isHC ? (
                               <>
-                                {Number(log.provider_travel_km) > 0 ? (
+                                {(Number(log.provider_travel_km) > 0 || Number(log.abt_km) > 0) ? (
                                   <>
-                                    <span className="text-[#8B949E]">
-                                      Inter-Shift Travel: {Number(log.provider_travel_km).toFixed(3)} km
-                                    </span>
-                                    <span className="text-[#8B949E]">
-                                      {Math.round(log._hc_drive_mins)} mins ({(log._hc_drive_mins / 60).toFixed(2)} hrs)
-                                    </span>
+                                    {Number(log.provider_travel_km) > 0 && (
+                                      <>
+                                        <span className="text-[#8B949E]">
+                                          Inter-Shift Travel: {Number(log.provider_travel_km).toFixed(3)} km
+                                        </span>
+                                        <span className="text-[#8B949E]">
+                                          {Math.round(log._hc_drive_mins)} mins ({(log._hc_drive_mins / 60).toFixed(2)} hrs)
+                                        </span>
+                                      </>
+                                    )}
+                                    {Number(log.abt_km) > 0 && (
+                                      <span className="text-[#8B949E]">
+                                        Client Transport: {Number(log.abt_km).toFixed(3)} km
+                                      </span>
+                                    )}
+                                    {(Number(log.provider_travel_km) > 0 || Number(log.abt_km) > 0) && (
+                                      <span className="text-[#E6EDF3] font-semibold mt-1 border-t border-border-subtle/50 pt-1">
+                                        Total: {((Number(log.provider_travel_km) || 0) + (Number(log.abt_km) || 0)).toFixed(3)} km
+                                      </span>
+                                    )}
                                   </>
                                 ) : (
                                   <span className="text-[#8B949E] italic text-[11px]">0 km</span>
