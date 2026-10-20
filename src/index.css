@@ -857,23 +857,24 @@ it might be cut off if padding is not sufficient */
 
 /* Magazine Header Typography & Slow Rotating Animations */
 .magazine-day-header {
-  font-family: "Cinzel", "Playfair Display", Georgia, serif;
-  font-weight: 700;
-  letter-spacing: 0.22em;
+  font-family: "Anton", "Bebas Neue", "Oswald", Impact, sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.07em;
   display: inline-block;
   position: relative;
   text-transform: uppercase;
   line-height: 1;
   user-select: none;
+  transform: translateY(1px);
   transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .magazine-day-default {
-  background: linear-gradient(180deg, #FFFFFF 0%, #E2E8F0 45%, #94A3B8 100%);
+  background: linear-gradient(110deg, #FFFFFF 0%, #F8FAFC 35%, #38BDF8 50%, #F8FAFC 65%, #FFFFFF 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 2px 6px rgba(255, 255, 255, 0.12));
+  filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.14));
 }
 
 .magazine-day-invoice {
@@ -892,30 +893,30 @@ it might be cut off if padding is not sufficient */
 
 @keyframes magShimmerSweep {
   0% { background-position: 0% 50%; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.15)); }
-  50% { background-position: 100% 50%; filter: drop-shadow(0 0 14px rgba(245, 158, 11, 0.45)); }
+  50% { background-position: 100% 50%; filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.45)); }
   100% { background-position: 0% 50%; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.15)); }
 }
 
 @keyframes magFloatGlow {
-  0%, 100% { transform: translateY(0px) scale(1); filter: drop-shadow(0 2px 6px rgba(33, 139, 159, 0.25)); }
-  50% { transform: translateY(-2.5px) scale(1.03); filter: drop-shadow(0 6px 16px rgba(137, 197, 64, 0.55)); }
+  0%, 100% { transform: translateY(1px) scale(1); filter: drop-shadow(0 2px 6px rgba(33, 139, 159, 0.25)); }
+  50% { transform: translateY(-1.5px) scale(1.03); filter: drop-shadow(0 6px 16px rgba(137, 197, 64, 0.55)); }
 }
 
 @keyframes magTrackingBreathe {
-  0%, 100% { letter-spacing: 0.20em; opacity: 0.92; filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.1)); }
-  50% { letter-spacing: 0.29em; opacity: 1; filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.4)); }
+  0%, 100% { letter-spacing: 0.06em; transform: translateY(1px) scaleX(1); filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.12)); }
+  50% { letter-spacing: 0.10em; transform: translateY(1px) scaleX(1.03); filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.4)); }
 }
 
 @keyframes magPerspectiveTilt {
-  0%, 100% { transform: perspective(400px) rotateX(0deg) rotateY(-4deg); filter: drop-shadow(-3px 2px 8px rgba(33, 139, 159, 0.35)); }
-  50% { transform: perspective(400px) rotateX(4deg) rotateY(4deg); filter: drop-shadow(3px 4px 14px rgba(245, 158, 11, 0.45)); }
+  0%, 100% { transform: translateY(1px) perspective(400px) rotateX(0deg) rotateY(-4deg); filter: drop-shadow(-3px 2px 8px rgba(33, 139, 159, 0.35)); }
+  50% { transform: translateY(1px) perspective(400px) rotateX(4deg) rotateY(4deg); filter: drop-shadow(3px 4px 14px rgba(245, 158, 11, 0.45)); }
 }
 
 @keyframes magEditorialPulse {
-  0%, 100% { transform: scale(1) skewX(0deg); background-position: 0% 50%; filter: brightness(1) drop-shadow(0 0 5px rgba(137, 197, 64, 0.2)); }
-  25% { transform: scale(1.04) skewX(-2deg); }
-  50% { transform: scale(1.02) skewX(0deg); background-position: 100% 50%; filter: brightness(1.25) drop-shadow(0 0 16px rgba(137, 197, 64, 0.6)); }
-  75% { transform: scale(1.04) skewX(2deg); }
+  0%, 100% { transform: translateY(1px) scale(1) skewX(0deg); background-position: 0% 50%; filter: brightness(1) drop-shadow(0 0 5px rgba(137, 197, 64, 0.2)); }
+  25% { transform: translateY(1px) scale(1.03) skewX(-2deg); }
+  50% { transform: translateY(1px) scale(1.02) skewX(0deg); background-position: 100% 50%; filter: brightness(1.2) drop-shadow(0 0 16px rgba(137, 197, 64, 0.55)); }
+  75% { transform: translateY(1px) scale(1.03) skewX(2deg); }
 }
 
 .mag-anim-0 {

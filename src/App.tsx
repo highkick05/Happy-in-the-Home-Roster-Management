@@ -134,7 +134,7 @@ function DateTimer() {
             setLabelCycleIndex(prev => prev + 1);
           }}
           title={currentSpecial ? `${dayName} • ${currentSpecial.text}` : dayName}
-          className={`text-[24px] md:text-[26px] magazine-day-header ${themeClass} ${animClass} cursor-pointer`}
+          className={`text-[26px] md:text-[28px] magazine-day-header ${themeClass} ${animClass} cursor-pointer`}
         >
           {displayTitle}
         </div>
