@@ -170,7 +170,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
              {/* PREPARED FOR section */}
              <div className="flex flex-col text-sm border-t-2 border-brand-teal pt-4 relative">
                 <div className="font-bold text-xs uppercase tracking-widest text-brand-teal mb-2">Prepared For</div>
-                <div className="font-semibold text-lg leading-tight mb-1">{quote.client_first_name} {quote.client_last_name}</div>
+                <div className="font-semibold text-lg leading-tight mb-1">{quote.custom_client_name || `${quote.client_first_name || ''} ${quote.client_last_name || ''}`.trim() || 'Prospective Client'}</div>
                 {quote.ndis_number && <div className="text-zinc-600 mt-1">NDIS No: {quote.ndis_number}</div>}
                 {quote.my_aged_care_id && <div className="text-zinc-600 mt-1">Home Care ID: {quote.my_aged_care_id}</div>}
              </div>

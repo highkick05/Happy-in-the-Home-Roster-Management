@@ -137,8 +137,22 @@ export default function TrainingView() {
   };
 
   const calculateExpiry = (compDate: string, months: number) => {
-    if (!months || months === 0) return '';
+    if (!compDate || !months || months === 0) return '';
+    const cleanStr = String(compDate).split('T')[0];
+    const parts = cleanStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      d.setMonth(d.getMonth() + Number(months));
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dayStr = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dayStr}`;
+    }
     const date = new Date(compDate);
+    if (isNaN(date.getTime())) return '';
     date.setMonth(date.getMonth() + months);
     return date.toISOString().split('T')[0];
   };
@@ -259,16 +273,18 @@ export default function TrainingView() {
 
                           {!isAdmin && (
                             <div className="flex items-center space-x-2 border-l border-white/[0.08] pl-3 ml-1">
-                              {record && record.status === 'COMPLETED' ? (
+                              {record && record.status === 'COMPLETED' ? (() => {
+                                const effectiveExpiry = record.expiry_date || (mod.expiry_months > 0 && record.completion_date ? calculateExpiry(record.completion_date, mod.expiry_months) : null);
+                                return (
                                 <div className="flex items-center space-x-2">
                                   <div className="flex flex-col items-end mr-1">
                                     <div className="flex items-center text-brand-green text-[11px] font-medium">
                                       <CheckCircle className="w-3 h-3 mr-1" />
                                       Done
                                     </div>
-                                    {record.expiry_date && (
-                                      <div className={`text-[10px] ${new Date(record.expiry_date) < new Date() ? 'text-red-400 font-medium' : 'text-zinc-500'}`}>
-                                        Exp: {new Date(record.expiry_date).toLocaleDateString()}
+                                    {effectiveExpiry && (
+                                      <div className={`text-[10px] ${new Date(effectiveExpiry) < new Date() ? 'text-red-400 font-medium' : 'text-zinc-500'}`}>
+                                        Exp: {new Date(effectiveExpiry).toLocaleDateString()}
                                       </div>
                                     )}
                                   </div>
@@ -281,7 +297,7 @@ export default function TrainingView() {
                                     onClick={() => {
                                       setUploadModuleId(mod.id);
                                       setCompletionDate(record.completion_date);
-                                      setExpiryDate(record.expiry_date || '');
+                                      setExpiryDate(record.expiry_date || (mod.expiry_months > 0 ? calculateExpiry(record.completion_date, mod.expiry_months) : ''));
                                       setUploadFile(null);
                                       setShowUploadModal(true);
                                     }}
@@ -291,7 +307,8 @@ export default function TrainingView() {
                                     <Upload className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
-                              ) : (
+                              );
+                              })() : (
                                 <button
                                   onClick={() => {
                                     setUploadModuleId(mod.id);
@@ -359,8 +376,10 @@ export default function TrainingView() {
                       const staffName = `${r.first_name || ''} ${r.last_name || ''}`;
                       return (modTitle + ' ' + staffName).toLowerCase().includes(searchQuery.toLowerCase());
                     }).map(r => {
-                      const modTitle = r.module_title || r.title || modules.find(m => m.id === r.training_module_id)?.title || 'Unknown Module';
-                      const creditHours = r.hours_credited > 0 ? r.hours_credited : (r.module_hours || modules.find(m => m.id === r.training_module_id)?.hours || 0);
+                      const mod = modules.find(m => m.id === r.training_module_id);
+                      const modTitle = r.module_title || r.title || mod?.title || 'Unknown Module';
+                      const creditHours = r.hours_credited > 0 ? r.hours_credited : (r.module_hours || mod?.hours || 0);
+                      const effectiveExpiry = r.expiry_date || (mod && mod.expiry_months > 0 && r.completion_date ? calculateExpiry(r.completion_date, mod.expiry_months) : null);
                       return (
                         <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
                           <td className="px-4 py-2.5 text-[13px] text-white font-medium">{r.first_name} {r.last_name}</td>
@@ -376,9 +395,9 @@ export default function TrainingView() {
                           </td>
                           <td className="px-4 py-2.5 text-[13px] text-zinc-400">{new Date(r.completion_date).toLocaleDateString()}</td>
                           <td className="px-4 py-2.5 text-[13px]">
-                            {r.expiry_date ? (
-                              <span className={new Date(r.expiry_date) < new Date() ? 'text-red-400 font-medium' : 'text-zinc-400'}>
-                                {new Date(r.expiry_date).toLocaleDateString()}
+                            {effectiveExpiry ? (
+                              <span className={new Date(effectiveExpiry) < new Date() ? 'text-red-400 font-medium' : 'text-zinc-400'}>
+                                {new Date(effectiveExpiry).toLocaleDateString()}
                               </span>
                             ) : <span className="text-zinc-600">-</span>}
                           </td>

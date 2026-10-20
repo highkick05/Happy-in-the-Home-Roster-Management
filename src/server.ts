@@ -717,11 +717,35 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
     }
   }
 
-try {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS quotes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quote_number TEXT UNIQUE NOT NULL,
+        client_id INTEGER,
+        custom_client_name TEXT,
+        activity_name TEXT,
+        activity_date TEXT,
+        services_json TEXT,
+        amount REAL DEFAULT 0,
+        status TEXT DEFAULT 'DRAFT',
+        important_notes TEXT,
+        quote_date TEXT,
+        staff_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+        FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE SET NULL
+      );
+    `);
+  } catch (e) {}
+
+  try {
     db.exec("ALTER TABLE quotes ADD COLUMN quote_date TEXT");
-  } catch (e) {
-    // Column might exist
-  }
+  } catch (e) {}
+
+  try {
+    db.exec("ALTER TABLE quotes ADD COLUMN custom_client_name TEXT");
+  } catch (e) {}
   try {
     db.exec("ALTER TABLE shifts ADD COLUMN custom_staff_name TEXT");
   } catch (e: any) {
@@ -2037,6 +2061,53 @@ try {
     }
   } catch (err) {
     console.error("Migration error staff_training columns:", err);
+  }
+
+  // Helper to calculate expiry date from completion date and months
+  function calculateTrainingExpiryDate(compDateStr: string | null | undefined, months: number): string | null {
+    if (!compDateStr || !months || months <= 0) return null;
+    const cleanStr = String(compDateStr).split('T')[0];
+    const parts = cleanStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      d.setMonth(d.getMonth() + Number(months));
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dayStr = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dayStr}`;
+    }
+    const d = new Date(compDateStr);
+    if (isNaN(d.getTime())) return null;
+    d.setMonth(d.getMonth() + Number(months));
+    return d.toISOString().split('T')[0];
+  }
+
+  // Backfill/sync expiry_date on staff_training where missing and module has expiry_months > 0
+  try {
+    const pendingStaffExpiries = db.prepare(`
+      SELECT st.id, st.completion_date, tm.expiry_months
+      FROM staff_training st
+      JOIN training_modules tm ON st.training_module_id = tm.id
+      WHERE (st.expiry_date IS NULL OR st.expiry_date = '' OR trim(st.expiry_date) = '-')
+        AND st.completion_date IS NOT NULL
+        AND tm.expiry_months > 0
+    `).all() as any[];
+
+    if (pendingStaffExpiries.length > 0) {
+      const updateStmt = db.prepare("UPDATE staff_training SET expiry_date = ? WHERE id = ?");
+      for (const row of pendingStaffExpiries) {
+        const calculated = calculateTrainingExpiryDate(row.completion_date, row.expiry_months);
+        if (calculated) {
+          updateStmt.run(calculated, row.id);
+        }
+      }
+      logger.info(`[TRAINING] Backfilled ${pendingStaffExpiries.length} staff training expiry dates based on module expiry_months.`);
+    }
+  } catch (err) {
+    console.error("Migration error backfilling training expiries:", err);
   }
 
   
@@ -10043,11 +10114,12 @@ app.get("/api/health", (req, res) => {
 
   app.get('/api/training/staff', authenticateToken, (req: any, res: any) => {
     try {
-      let staffTraining;
+      let staffTraining: any[];
       if (req.user.role === 'ADMIN') {
          staffTraining = db.prepare(`
             SELECT st.*, u.first_name, u.last_name, u.avatar_url, 
-                   m.title as module_title, m.title as title, m.hours as module_hours 
+                   m.title as module_title, m.title as title, m.hours as module_hours,
+                   m.expiry_months 
             FROM staff_training st
             JOIN users u ON st.staff_id = u.id
             LEFT JOIN training_modules m ON st.training_module_id = m.id
@@ -10056,7 +10128,8 @@ app.get("/api/health", (req, res) => {
       } else {
          staffTraining = db.prepare(`
             SELECT st.*, u.first_name, u.last_name, u.avatar_url, 
-                   m.title as module_title, m.title as title, m.hours as module_hours 
+                   m.title as module_title, m.title as title, m.hours as module_hours,
+                   m.expiry_months 
             FROM staff_training st
             JOIN users u ON st.staff_id = u.id
             LEFT JOIN training_modules m ON st.training_module_id = m.id
@@ -10064,7 +10137,19 @@ app.get("/api/health", (req, res) => {
             ORDER BY st.created_at DESC
          `).all(req.user.id);
       }
-      res.json(staffTraining);
+
+      const formatted = staffTraining.map((row: any) => {
+        let exp = row.expiry_date;
+        if ((!exp || exp === '-' || String(exp).trim() === '') && row.expiry_months > 0 && row.completion_date) {
+          exp = calculateTrainingExpiryDate(row.completion_date, row.expiry_months);
+        }
+        return {
+          ...row,
+          expiry_date: exp || null
+        };
+      });
+
+      res.json(formatted);
     } catch (e) {
       logger.error('Failed to get staff training', e);
       res.status(500).json({ error: 'Server error' });
@@ -10087,9 +10172,24 @@ app.get("/api/health", (req, res) => {
   app.put('/api/training/modules/:id', authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
       const { title, url, description, expiry_months, tags, hours } = req.body;
+      const parsedExpiryMonths = Number(expiry_months) || 0;
       db.prepare('UPDATE training_modules SET title = ?, url = ?, description = ?, expiry_months = ?, tags = ?, hours = ? WHERE id = ?').run(
-        title, url, description, expiry_months || 0, tags, Number(hours) || 0, req.params.id
+        title, url, description, parsedExpiryMonths, tags, Number(hours) || 0, req.params.id
       );
+
+      // Automatically recalculate expiry dates for all existing staff completions for this module
+      const staffRecords = db.prepare(`
+        SELECT id, completion_date FROM staff_training WHERE training_module_id = ?
+      `).all(req.params.id) as any[];
+
+      const updateExpiryStmt = db.prepare(`UPDATE staff_training SET expiry_date = ? WHERE id = ?`);
+      for (const rec of staffRecords) {
+        if (rec.completion_date) {
+          const newExpiry = parsedExpiryMonths > 0 ? calculateTrainingExpiryDate(rec.completion_date, parsedExpiryMonths) : null;
+          updateExpiryStmt.run(newExpiry, rec.id);
+        }
+      }
+
       res.json({ success: true });
     } catch (e) {
       logger.error('Failed to update training module', e);
@@ -10144,9 +10244,14 @@ app.get("/api/health", (req, res) => {
           }
       }
 
-      // Look up module assigned hours
-      const mod = db.prepare('SELECT id, hours FROM training_modules WHERE id = ?').get(training_module_id) as any;
+      // Look up module assigned hours and expiry_months
+      const mod = db.prepare('SELECT id, hours, expiry_months FROM training_modules WHERE id = ?').get(training_module_id) as any;
       const assignedHours = mod && mod.hours ? Number(mod.hours) : 0;
+      let finalExpiryDate = expiry_date;
+      if ((!finalExpiryDate || String(finalExpiryDate).trim() === '') && mod && mod.expiry_months > 0 && completion_date) {
+        finalExpiryDate = calculateTrainingExpiryDate(completion_date, mod.expiry_months);
+      }
+
       const uploadNow = new Date();
       const startTimeIso = uploadNow.toISOString();
       const endTimeIso = new Date(uploadNow.getTime() + assignedHours * 3600000).toISOString();
@@ -10166,14 +10271,14 @@ app.get("/api/health", (req, res) => {
                hours_credited = ?
            WHERE id = ?
          `).run(
-           completion_date, expiry_date || null, certificatePath, startTimeIso, endTimeIso, assignedHours, existingRecord.id
+           completion_date, finalExpiryDate || null, certificatePath, startTimeIso, endTimeIso, assignedHours, existingRecord.id
          );
       } else {
          db.prepare(`
            INSERT INTO staff_training (staff_id, training_module_id, status, completion_date, expiry_date, certificate_file_path, start_time, end_time, hours_credited) 
            VALUES (?, ?, 'COMPLETED', ?, ?, ?, ?, ?, ?)
          `).run(
-           targetUserId, training_module_id, completion_date, expiry_date || null, certificatePath, startTimeIso, endTimeIso, assignedHours
+           targetUserId, training_module_id, completion_date, finalExpiryDate || null, certificatePath, startTimeIso, endTimeIso, assignedHours
          );
       }
 
@@ -21151,15 +21256,36 @@ function resolveFilePath(systemName) {
     authenticateToken,
     requireAdmin,
     (req: any, res: any) => {
-      const { clientId, activityName, date, endDate, services, importantNotes, quoteDate } =
+      const { clientId, customClientName, activityName, date, endDate, services, importantNotes, quoteDate } =
         req.body;
       try {
+        let effectiveClientId: number | null = null;
+        let effectiveCustomName: string | null = null;
+
+        if (clientId && clientId !== "prospective" && clientId !== "custom" && !isNaN(Number(clientId))) {
+          effectiveClientId = Number(clientId);
+        }
+
+        if (customClientName && typeof customClientName === "string" && customClientName.trim()) {
+          effectiveCustomName = customClientName.trim();
+        } else if (!effectiveClientId) {
+          effectiveCustomName = "Prospective Client";
+        }
+
         const prefix = "QUO";
-        const c = db
-          .prepare("SELECT first_name FROM clients WHERE id = ?")
-          .get(clientId) as any;
-        const cInitial = c ? c.first_name.substring(0, 3).toUpperCase() : "XXX";
-        const dateStr = date.replace(/-/g, "").substring(4, 8);
+        let cInitial = "PRO";
+        if (effectiveClientId) {
+          const c = db
+            .prepare("SELECT first_name FROM clients WHERE id = ?")
+            .get(effectiveClientId) as any;
+          if (c && c.first_name) {
+            cInitial = c.first_name.substring(0, 3).toUpperCase();
+          }
+        } else if (effectiveCustomName && effectiveCustomName !== "Prospective Client") {
+          const cleaned = effectiveCustomName.replace(/[^a-zA-Z]/g, "");
+          cInitial = cleaned.substring(0, 3).toUpperCase() || "PRO";
+        }
+        const dateStr = date ? date.replace(/-/g, "").substring(4, 8) : new Date().toISOString().slice(5, 10).replace("-", "");
         const timestampPart = Date.now().toString().slice(-3);
         const quoteNumber = `${prefix}-${cInitial}-${dateStr}-${timestampPart}`;
 
@@ -21277,12 +21403,13 @@ function resolveFilePath(systemName) {
         }
 
         const stmt = db.prepare(`
-        INSERT INTO quotes (quote_number, client_id, activity_name, activity_date, services_json, amount, status, important_notes, quote_date)
+        INSERT INTO quotes (quote_number, client_id, custom_client_name, activity_name, activity_date, services_json, amount, status, important_notes, quote_date)
         VALUES (?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?)
       `);
         stmt.run(
           quoteNumber,
-          clientId,
+          effectiveClientId,
+          effectiveCustomName,
           activityName,
           date,
           JSON.stringify(services || []),
@@ -21306,13 +21433,26 @@ function resolveFilePath(systemName) {
     requireAdmin,
     (req: any, res: any) => {
       const quoteId = req.params.id;
-      const { clientId, activityName, date, endDate, services, importantNotes, quoteDate } =
+      const { clientId, customClientName, activityName, date, endDate, services, importantNotes, quoteDate } =
         req.body;
 
       try {
         const existingQuote = db.prepare("SELECT * FROM quotes WHERE id = ?").get(quoteId) as any;
         if (!existingQuote) {
           return res.status(404).json({ error: "Quote not found" });
+        }
+
+        let effectiveClientId: number | null = null;
+        let effectiveCustomName: string | null = null;
+
+        if (clientId && clientId !== "prospective" && clientId !== "custom" && !isNaN(Number(clientId))) {
+          effectiveClientId = Number(clientId);
+        }
+
+        if (customClientName && typeof customClientName === "string" && customClientName.trim()) {
+          effectiveCustomName = customClientName.trim();
+        } else if (!effectiveClientId) {
+          effectiveCustomName = "Prospective Client";
         }
 
         // Calculate amount based on services map
@@ -21421,12 +21561,15 @@ function resolveFilePath(systemName) {
 
         const stmt = db.prepare(`
           UPDATE quotes SET 
-            client_id = ?, activity_name = ?, activity_date = ?, 
+            client_id = ?, custom_client_name = ?, activity_name = ?, activity_date = ?, 
             services_json = ?, amount = ?, important_notes = ?, quote_date = ?
           WHERE id = ?
         `);
         stmt.run(
-          clientId, activityName, date,
+          effectiveClientId,
+          effectiveCustomName,
+          activityName,
+          date,
           JSON.stringify(services || []),
           calculatedAmount,
           importantNotes || null,

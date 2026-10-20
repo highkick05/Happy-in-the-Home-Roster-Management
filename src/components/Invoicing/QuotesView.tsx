@@ -22,8 +22,21 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
         }
       } catch (e) {}
 
+      let initialClientId = editData.client_id ? String(editData.client_id) : '';
+      let initialCustomName = editData.custom_client_name || '';
+
+      if (!initialClientId) {
+        if (!initialCustomName || initialCustomName === 'Prospective Client') {
+          initialClientId = 'prospective';
+          initialCustomName = 'Prospective Client';
+        } else {
+          initialClientId = 'custom';
+        }
+      }
+
       return {
-        clientId: String(editData.client_id || ''),
+        clientId: initialClientId,
+        customClientName: initialCustomName,
         activityName: editData.activity_name || '',
         date: editData.activity_date || new Date().toISOString().split('T')[0],
         endDate: endDate,
@@ -34,6 +47,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
     }
     return {
       clientId: '',
+      customClientName: '',
       activityName: '',
       date: new Date().toISOString().split('T')[0],
       endDate: '',
@@ -229,6 +243,14 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.clientId) {
+      alert("Please select a client or choose Prospective / Custom Client.");
+      return;
+    }
+    if (formData.clientId === 'custom' && !formData.customClientName.trim()) {
+      alert("Please enter a custom client name.");
+      return;
+    }
     const validServices = selectedServices.filter(s => s.serviceId);
     if (validServices.length === 0) {
       alert("Please select at least one service.");
@@ -236,6 +258,12 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
     }
     setSubmitting(true);
     try {
+      const isCustomOrProspective = formData.clientId === 'prospective' || formData.clientId === 'custom';
+      const resolvedClientId = isCustomOrProspective ? null : formData.clientId;
+      const resolvedCustomName = formData.clientId === 'custom' 
+        ? formData.customClientName.trim() 
+        : (formData.clientId === 'prospective' ? 'Prospective Client' : null);
+
       const url = editData ? `/api/quotes/${editData.id}` : '/api/quotes';
       const method = editData ? 'PUT' : 'POST';
       const res = await fetch(url, {
@@ -243,6 +271,8 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           ...formData,
+          clientId: resolvedClientId,
+          customClientName: resolvedCustomName,
           services: validServices
         })
       });
@@ -269,17 +299,32 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
           <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Client</label>
           <select
             required
-            className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none"
+            className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none text-xs"
             value={formData.clientId}
             onChange={e => {
-              setFormData({ ...formData, clientId: e.target.value });
+              const val = e.target.value;
+              let nextCustom = formData.customClientName;
+              if (val === 'prospective') {
+                nextCustom = 'Prospective Client';
+              } else if (val === 'custom') {
+                if (nextCustom === 'Prospective Client') nextCustom = '';
+              } else {
+                nextCustom = '';
+              }
+              setFormData({ ...formData, clientId: val, customClientName: nextCustom });
               setSelectedServices([{ serviceId: '', qtyOverride: '', rateOverride: '' }]);
             }}
           >
             <option value="">Select Client</option>
-            {options.clients.map((c: any) => (
-              <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
-            ))}
+            <optgroup label="── Prospective / Enquiries ──">
+              <option value="prospective">Prospective Client (Name Unknown / Enquiry)</option>
+              <option value="custom">Custom Client Name...</option>
+            </optgroup>
+            <optgroup label="── Registered Clients ──">
+              {options.clients.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
+              ))}
+            </optgroup>
           </select>
         </div>
         <div className="space-y-1.5">
@@ -323,6 +368,43 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
           </select>
         </div>
       </div>
+
+      {formData.clientId === 'custom' && (
+        <div className="p-3 bg-brand-navy border border-brand-teal/40 rounded-lg space-y-1.5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-brand-teal uppercase tracking-wider flex items-center gap-1.5">
+              <span>Custom Client Name</span>
+              <span className="text-[10px] text-zinc-400 normal-case font-normal">(Prospective / Unenrolled Client)</span>
+            </label>
+            <span className="text-[11px] text-zinc-400">Will be printed on quote & PDF</span>
+          </div>
+          <input
+            type="text"
+            required
+            placeholder="e.g. John Doe, Sarah Connor (Enquiry), or Smith Family"
+            className="w-full bg-[#09090b] border border-white/[0.12] focus:border-brand-teal rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none text-sm placeholder-zinc-500"
+            value={formData.customClientName}
+            onChange={e => setFormData({ ...formData, customClientName: e.target.value })}
+            autoFocus
+          />
+        </div>
+      )}
+
+      {formData.clientId === 'prospective' && (
+        <div className="px-3 py-2 bg-brand-teal/10 border border-brand-teal/30 rounded-lg flex items-center justify-between text-xs text-brand-teal">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-brand-teal animate-pulse"></span>
+            <span>Quote will be addressed to: <strong className="text-white font-medium">Prospective Client</strong> (General Cost Enquiry)</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFormData({ ...formData, clientId: 'custom', customClientName: '' })}
+            className="text-[11px] text-brand-teal hover:text-white underline font-medium transition-colors cursor-pointer"
+          >
+            Enter specific name instead
+          </button>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Service Activity Title</label>
@@ -677,7 +759,8 @@ export default function QuotesView() {
     if (!s) return true;
     const cleanAmount = s.replace(/[\$,]/g, '');
 
-    const nameStr = `${q.client_first_name || ''} ${q.client_last_name || ''}`.trim().toLowerCase();
+    const clientDisplayName = q.custom_client_name || `${q.client_first_name || ''} ${q.client_last_name || ''}`.trim() || 'Prospective Client';
+    const nameStr = clientDisplayName.toLowerCase();
     const idStr = (q.quote_number || '').toLowerCase();
     const staffStr = `${q.staff_first_name || ''} ${q.staff_last_name || ''}`.trim().toLowerCase();
     const activityStr = (q.activity_name || '').toLowerCase();
@@ -700,8 +783,8 @@ export default function QuotesView() {
       valA = new Date(a.activity_date || a.created_at).getTime();
       valB = new Date(b.activity_date || b.created_at).getTime();
     } else if (sortField === 'client') {
-      valA = `${a.client_first_name} ${a.client_last_name}`.toLowerCase();
-      valB = `${b.client_first_name} ${b.client_last_name}`.toLowerCase();
+      valA = (a.custom_client_name || `${a.client_first_name || ''} ${a.client_last_name || ''}`.trim() || 'Prospective Client').toLowerCase();
+      valB = (b.custom_client_name || `${b.client_first_name || ''} ${b.client_last_name || ''}`.trim() || 'Prospective Client').toLowerCase();
     } else if (sortField === 'id') {
       valA = (a.quote_number || '').toLowerCase();
       valB = (b.quote_number || '').toLowerCase();
@@ -984,9 +1067,32 @@ export default function QuotesView() {
                     </td>
                     <td className="px-3 py-1.5 text-[#E6EDF3]">
                       <div className="flex items-center space-x-2 group/copy">
-                        <span>{q.client_first_name} {q.client_last_name}</span>
-                        <button onClick={(e) => { e.stopPropagation(); handleCopy(`${q.client_first_name || ''} ${q.client_last_name || ''}`.trim()); }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
-                          {copiedText === `${q.client_first_name || ''} ${q.client_last_name || ''}`.trim() ? <CheckCircle className="w-3.5 h-3.5 text-brand-green" /> : <Copy className="w-3.5 h-3.5" />}
+                        {(() => {
+                          const clientDisplay = q.custom_client_name 
+                            ? q.custom_client_name 
+                            : `${q.client_first_name || ''} ${q.client_last_name || ''}`.trim() || 'Prospective Client';
+                          const isCustomOrProspective = !q.client_id || !!q.custom_client_name;
+                          return (
+                            <div className="flex items-center space-x-1.5">
+                              <span>{clientDisplay}</span>
+                              {isCustomOrProspective && (
+                                <span className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-medium border ${
+                                  q.custom_client_name && q.custom_client_name !== 'Prospective Client'
+                                    ? 'bg-purple-500/10 text-purple-300 border-purple-500/20'
+                                    : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                }`}>
+                                  {q.custom_client_name && q.custom_client_name !== 'Prospective Client' ? 'Custom' : 'Prospective'}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        <button onClick={(e) => { 
+                          e.stopPropagation(); 
+                          const toCopy = q.custom_client_name || `${q.client_first_name || ''} ${q.client_last_name || ''}`.trim() || 'Prospective Client';
+                          handleCopy(toCopy); 
+                        }} className="opacity-0 group-hover/copy:opacity-100 text-[#8B949E] hover:text-[#E6EDF3] transition-all">
+                          {copiedText === (q.custom_client_name || `${q.client_first_name || ''} ${q.client_last_name || ''}`.trim() || 'Prospective Client') ? <CheckCircle className="w-3.5 h-3.5 text-brand-green" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                       </div>
                     </td>

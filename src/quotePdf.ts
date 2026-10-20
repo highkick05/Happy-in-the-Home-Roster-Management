@@ -89,7 +89,9 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       if (settingsMap.contactEmail) { doc.text(settingsMap.contactEmail, 50, cy); }
 
       doc.fontSize(10).font("Helvetica-Bold").text("PREPARED FOR", 300, topY);
-      const clientName = `${quote.client_first_name || ''} ${quote.client_last_name || ''}`.trim();
+      const clientName = (quote.custom_client_name && quote.custom_client_name.trim())
+        ? quote.custom_client_name.trim()
+        : `${quote.client_first_name || ''} ${quote.client_last_name || ''}`.trim() || 'Prospective Client';
       doc.fontSize(12).text(clientName, 300, topY + 15);
       
       const idLabel = quote.ndis_number 
