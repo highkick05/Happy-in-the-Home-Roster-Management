@@ -21379,10 +21379,11 @@ function resolveFilePath(systemName) {
     (req: any, res: any) => {
       const { clientId, customClientName, activityName, date, endDate, services, importantNotes, quoteDate } =
         req.body;
+      let effectiveClientId: number | null = null;
+      let effectiveCustomName: string | null = null;
+      let quoteNumber = "";
+      let calculatedAmount = 0;
       try {
-        let effectiveClientId: number | null = null;
-        let effectiveCustomName: string | null = null;
-
         if (clientId && clientId !== "prospective" && clientId !== "custom" && !isNaN(Number(clientId))) {
           effectiveClientId = Number(clientId);
         }
@@ -21408,7 +21409,7 @@ function resolveFilePath(systemName) {
         }
         const dateStr = date ? date.replace(/-/g, "").substring(4, 8) : new Date().toISOString().slice(5, 10).replace("-", "");
         const timestampPart = Date.now().toString().slice(-3);
-        const quoteNumber = `${prefix}-${cInitial}-${dateStr}-${timestampPart}`;
+        quoteNumber = `${prefix}-${cInitial}-${dateStr}-${timestampPart}`;
 
         // Calculate amount based on services map
         const settingsRows = db
@@ -21429,7 +21430,7 @@ function resolveFilePath(systemName) {
             ? rawTzQuote.replace(/['"]+/g, "")
             : rawTzQuote;
 
-        let calculatedAmount = 0;
+        calculatedAmount = 0;
         const parsedDate = new Date(date);
         const dayOfWeek = getTzDayOfWeek(parsedDate, timezone);
 
@@ -21583,14 +21584,15 @@ function resolveFilePath(systemName) {
       const { clientId, customClientName, activityName, date, endDate, services, importantNotes, quoteDate } =
         req.body;
 
+      let effectiveClientId: number | null = null;
+      let effectiveCustomName: string | null = null;
+      let calculatedAmount = 0;
+
       try {
         const existingQuote = db.prepare("SELECT * FROM quotes WHERE id = ?").get(quoteId) as any;
         if (!existingQuote) {
           return res.status(404).json({ error: "Quote not found" });
         }
-
-        let effectiveClientId: number | null = null;
-        let effectiveCustomName: string | null = null;
 
         if (clientId && clientId !== "prospective" && clientId !== "custom" && !isNaN(Number(clientId))) {
           effectiveClientId = Number(clientId);
@@ -21621,7 +21623,7 @@ function resolveFilePath(systemName) {
             ? rawTzQuote.replace(/['"]+/g, "")
             : rawTzQuote;
 
-        let calculatedAmount = 0;
+        calculatedAmount = 0;
         const parsedDate = new Date(date);
         const dayOfWeek = getTzDayOfWeek(parsedDate, timezone);
 

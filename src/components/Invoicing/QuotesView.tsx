@@ -65,13 +65,19 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
         if (Array.isArray(svcs) && svcs.length > 0) {
           return svcs.map((s: any) => ({
             serviceId: String(s.serviceId || ''),
+            serviceName: String(s.serviceName || ''),
             qtyOverride: String(s.qtyOverride || ''),
-            rateOverride: String(s.rateOverride || '')
+            rateOverride: String(s.rateOverride || ''),
+            date: s.date || '',
+            endDate: s.endDate || '',
+            startTime: s.startTime || '',
+            endTime: s.endTime || '',
+            duration: s.duration || ''
           }));
         }
       } catch(e) {}
     }
-    return [{ serviceId: '', qtyOverride: '', rateOverride: '' }];
+    return [{ serviceId: '', serviceName: '', qtyOverride: '', rateOverride: '', date: '', endDate: '', startTime: '', endTime: '', duration: '' }];
   });
   
   const [options, setOptions] = useState<any>({ clients: [], services: [] });
@@ -235,6 +241,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
 
   const addService = () => {
     let nextDate = '';
+    let nextEndDate = '';
     let nextStartTime = '';
     
     if (selectedServices.length > 0) {
@@ -253,9 +260,18 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
           nextDate = last.date;
         }
       }
+      if (last.endDate) {
+        nextEndDate = last.endDate;
+      }
+    } else {
+      nextDate = formData.date;
+      nextEndDate = formData.endDate;
     }
     
-    setSelectedServices([...selectedServices, { serviceId: '', qtyOverride: '', rateOverride: '', date: nextDate, startTime: nextStartTime }]);
+    setSelectedServices([
+      ...selectedServices,
+      { serviceId: '', serviceName: '', qtyOverride: '', rateOverride: '', date: nextDate, endDate: nextEndDate, startTime: nextStartTime, endTime: '', duration: '' }
+    ]);
   };
   const removeService = (index: number) => {
     if (selectedServices.length === 1) return;
@@ -553,7 +569,16 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                     <ServiceSearchDropdown
                       services={currentServices}
                       selectedServiceId={row.serviceId}
-                      onSelect={(serviceId) => updateService(idx, 'serviceId', serviceId)}
+                      serviceName={row.serviceName}
+                      onSelect={(serviceId, s) => {
+                        const fresh = [...selectedServices];
+                        fresh[idx].serviceId = serviceId;
+                        if (s) {
+                          fresh[idx].serviceName = s.name;
+                        }
+                        setSelectedServices(fresh);
+                      }}
+                      onServiceNameChange={(name) => updateService(idx, 'serviceName', name)}
                       fundingFilter={fundingTypeFilter}
                       onFilterChange={setFundingTypeFilter}
                       selectedClient={selectedClient}
@@ -573,20 +598,47 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                 {row.serviceId && (
                   <div className="flex md:items-center justify-between text-[11px] bg-[#09090b]/50 p-1.5 rounded border border-white/[0.08]/50 mt-1">
                     <div className="flex items-center justify-between w-full flex-wrap xl:flex-nowrap gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center">
-                          <span className="text-zinc-500 font-medium mr-1.5">Date</span>
-                          {row.date && (
-                            <span className="text-zinc-400 font-medium mr-1.5 w-20 truncate">
-                              {new Date(row.date).toLocaleDateString('en-US', { weekday: 'long' })}
-                            </span>
-                          )}
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {/* Start and End Date selection per line item */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-zinc-500 font-medium mr-0.5">Date</span>
                           <CustomDatePicker 
                             position="top"
                             value={row.date || ''}
                             onChange={(e: any) => updateService(idx, 'date', e.target.value)}
-                            className="w-28 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
+                            className="w-28 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none font-mono"
                           />
+                          <span className="text-zinc-500 font-medium text-[11px]">to</span>
+                          <CustomDatePicker 
+                            position="top"
+                            value={row.endDate || ''}
+                            onChange={(e: any) => updateService(idx, 'endDate', e.target.value)}
+                            className="w-28 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none font-mono"
+                          />
+                          {formData.date && formData.endDate && (row.date !== formData.date || row.endDate !== formData.endDate) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const fresh = [...selectedServices];
+                                fresh[idx] = { ...fresh[idx], date: formData.date, endDate: formData.endDate };
+                                setSelectedServices(fresh);
+                              }}
+                              className="px-1.5 py-0.5 text-[10px] text-brand-teal hover:text-white bg-brand-teal/10 hover:bg-brand-teal/25 border border-brand-teal/30 rounded transition-colors cursor-pointer"
+                              title="Copy quote Start & End dates to this line item"
+                            >
+                              Quote Period
+                            </button>
+                          )}
+                          {row.endDate && (
+                            <button
+                              type="button"
+                              onClick={() => updateService(idx, 'endDate', '')}
+                              className="text-zinc-500 hover:text-red-400 p-0.5 text-xs transition-colors cursor-pointer"
+                              title="Clear end date (single date only)"
+                            >
+                              &times;
+                            </button>
+                          )}
                         </div>
                         <div className="flex items-center">
                           <span className="text-zinc-500 font-medium mr-1.5">Time</span>

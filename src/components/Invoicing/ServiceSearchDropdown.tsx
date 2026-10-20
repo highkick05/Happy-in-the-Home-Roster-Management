@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, X, Check, Tag, ChevronDown, Star } from 'lucide-react';
+import { Search, X, Check, Tag, ChevronDown, Star, Pencil } from 'lucide-react';
 
 export const isHomeCareService = (s: any): boolean => {
   if (!s) return false;
@@ -23,7 +23,9 @@ export const getServiceFundingType = (s: any): 'NDIS' | 'HOME_CARE' => {
 interface ServiceSearchDropdownProps {
   services: any[];
   selectedServiceId: string;
-  onSelect: (serviceId: string) => void;
+  serviceName?: string;
+  onSelect: (serviceId: string, service?: any) => void;
+  onServiceNameChange?: (name: string) => void;
   fundingFilter: 'ALL' | 'NDIS' | 'HOME_CARE';
   onFilterChange?: (type: 'ALL' | 'NDIS' | 'HOME_CARE') => void;
   selectedClient?: any;
@@ -34,7 +36,9 @@ interface ServiceSearchDropdownProps {
 export default function ServiceSearchDropdown({
   services = [],
   selectedServiceId,
+  serviceName,
   onSelect,
+  onServiceNameChange,
   fundingFilter,
   onFilterChange,
   selectedClient,
@@ -188,7 +192,11 @@ export default function ServiceSearchDropdown({
   };
 
   const handleSelectService = (serviceId: string) => {
-    onSelect(serviceId);
+    const s = services.find((x: any) => String(x.id) === String(serviceId));
+    onSelect(serviceId, s);
+    if (s && onServiceNameChange) {
+      onServiceNameChange(s.name);
+    }
     setIsOpen(false);
     setSearchQuery('');
   };
@@ -196,6 +204,9 @@ export default function ServiceSearchDropdown({
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
     onSelect('');
+    if (onServiceNameChange) {
+      onServiceNameChange('');
+    }
     setSearchQuery('');
   };
 
@@ -204,21 +215,49 @@ export default function ServiceSearchDropdown({
     const isHC = isHomeCareService(selectedService);
     const { rate, unit, isCustom } = resolveServiceRate(selectedService);
     const isAssigned = selectedClient?.service_ids?.includes(selectedService.id);
+    const displayName = (serviceName !== undefined && serviceName !== null && serviceName !== '')
+      ? serviceName
+      : selectedService.name;
+    const isNameCustomized = Boolean(serviceName && serviceName.trim() !== selectedService.name.trim());
 
     return (
       <div 
         ref={containerRef} 
-        onClick={() => setIsOpen(true)}
-        className="w-full bg-[#0d0e12] border border-white/[0.12] hover:border-brand-teal/60 rounded-md p-2 text-white transition-all cursor-pointer group shadow-inner"
+        className="w-full bg-[#0d0e12] border border-white/[0.12] hover:border-brand-teal/40 rounded-md p-2 text-white transition-all shadow-inner"
       >
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
           <div className="flex-1 min-w-0 flex items-center flex-wrap gap-1.5">
-            <span className="font-semibold text-xs text-white truncate max-w-md" title={selectedService.name}>
-              {selectedService.name}
-            </span>
+            {/* Editable Service Name Input */}
+            <div className="flex items-center gap-1.5 flex-1 min-w-[200px] max-w-full group/edit">
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => onServiceNameChange?.(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                title="Click to edit service name on quote"
+                placeholder="Service name / description..."
+                className="w-full bg-[#161820]/90 hover:bg-[#1a1d26] focus:bg-[#0c0d12] border border-white/[0.16] hover:border-brand-teal/60 focus:border-brand-teal text-xs font-medium text-white px-2.5 py-1 rounded outline-none transition-all focus:ring-1 focus:ring-brand-teal placeholder-zinc-500 shadow-sm"
+              />
+              <span className="text-zinc-500 group-hover/edit:text-brand-teal transition-colors shrink-0" title="Editable service name">
+                <Pencil className="w-3 h-3" />
+              </span>
+              {isNameCustomized && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onServiceNameChange?.(selectedService.name);
+                  }}
+                  className="text-[10px] text-amber-400 hover:text-amber-300 underline shrink-0 cursor-pointer px-1 py-0.5"
+                  title={`Reset to catalogue name: ${selectedService.name}`}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
 
             {/* Funding badge */}
-            <span className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold tracking-wide uppercase border ${
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase border shrink-0 ${
               isHC
                 ? 'bg-purple-900/20 text-purple-300 border-purple-500/30'
                 : 'bg-sky-900/20 text-sky-300 border-sky-500/30'
@@ -228,7 +267,7 @@ export default function ServiceSearchDropdown({
 
             {/* NDIS Code / Item Code */}
             {selectedService.code && (
-              <span className="inline-flex items-center gap-1 font-mono text-[10px] bg-teal-500/10 text-brand-teal border border-teal-500/25 px-1.5 py-0.2 rounded">
+              <span className="inline-flex items-center gap-1 font-mono text-[10px] bg-teal-500/10 text-brand-teal border border-teal-500/25 px-1.5 py-0.5 rounded shrink-0">
                 <Tag className="w-2.5 h-2.5" />
                 {selectedService.code}
               </span>
@@ -236,14 +275,14 @@ export default function ServiceSearchDropdown({
 
             {/* Assigned badge */}
             {isAssigned && (
-              <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded">
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded shrink-0">
                 <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" />
                 Assigned
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
             <span className="text-[11px] text-zinc-400">
               {isCustom ? (
                 <span className="text-amber-400 font-medium">Custom: ${rate.toFixed(2)}/{unit}</span>
@@ -255,7 +294,7 @@ export default function ServiceSearchDropdown({
             <button
               type="button"
               onClick={() => setIsOpen(true)}
-              className="text-[11px] text-brand-teal hover:text-white px-2 py-0.5 rounded bg-brand-teal/10 hover:bg-brand-teal/25 border border-brand-teal/30 transition-colors font-medium flex items-center gap-1"
+              className="text-[11px] text-brand-teal hover:text-white px-2 py-0.5 rounded bg-brand-teal/10 hover:bg-brand-teal/25 border border-brand-teal/30 transition-colors font-medium flex items-center gap-1 cursor-pointer"
             >
               <Search className="w-3 h-3" />
               Change
@@ -264,7 +303,7 @@ export default function ServiceSearchDropdown({
             <button
               type="button"
               onClick={handleClear}
-              className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
+              className="p-1 text-zinc-500 hover:text-red-400 transition-colors cursor-pointer"
               title="Clear service"
             >
               <X className="w-3.5 h-3.5" />

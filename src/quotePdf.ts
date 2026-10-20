@@ -72,44 +72,84 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       }
 
       doc.fillColor("black");
-      doc.fontSize(20).font("Helvetica-Bold").text("SERVICE QUOTE", { align: "right" });
-      doc.fontSize(10).font("Helvetica").text(`Quote No: ${quote.quote_number || ''}`, { align: "right" });
+      doc.fontSize(20).font("Helvetica-Bold").text("SERVICE QUOTE", 350, 40, { width: 230, align: "right" });
+      doc.fontSize(10).font("Helvetica-Bold").text(`Quote No: ${quote.quote_number || ''}`, 350, 65, { width: 230, align: "right" });
       
       const qDate = quote.quote_date || quote.created_at;
-      doc.text(`Date: ${qDate ? new Date(qDate).toLocaleDateString() : ''}`, { align: "right" });
-      doc.moveDown();
+      const qDateStr = qDate ? new Date(qDate).toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+      doc.font("Helvetica").fontSize(9).text(`Date Issued: ${qDateStr}`, 350, 79, { width: 230, align: "right" });
+      if (quote.activity_date) {
+        const aDateStr = new Date(quote.activity_date).toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        doc.text(`Service Period: ${aDateStr}`, 350, 92, { width: 230, align: "right" });
+      }
 
-      const topY = 115;
+      const topY = 120;
       doc.fontSize(10).font("Helvetica-Bold").text("FROM", 50, topY);
-      doc.fontSize(12).font("Helvetica-Bold").text(settingsMap.businessName || "", 50, topY + 15);
-      doc.fontSize(10).font("Helvetica");
-      let cy = topY + 30;
-      if (settingsMap.abn) { doc.text(`ABN: ${settingsMap.abn}`, 50, cy); cy += 15; }
-      if (settingsMap.businessAddress) { doc.text(settingsMap.businessAddress, 50, cy); cy += 15; }
-      if (settingsMap.contactEmail) { doc.text(settingsMap.contactEmail, 50, cy); }
+      doc.fontSize(11).font("Helvetica-Bold").text(settingsMap.businessName || "Happy in the Home", 50, topY + 14);
+      doc.fontSize(9).font("Helvetica");
+      let fromY = topY + 28;
+      if (settingsMap.abn) { doc.text(`ABN: ${settingsMap.abn}`, 50, fromY); fromY += 13; }
+      if (settingsMap.businessAddress) { doc.text(settingsMap.businessAddress, 50, fromY, { width: 240 }); fromY += 13; }
+      if (settingsMap.contactEmail) { doc.text(settingsMap.contactEmail, 50, fromY); fromY += 13; }
+      if (settingsMap.contactPhone) { doc.text(`Tel: ${settingsMap.contactPhone}`, 50, fromY); fromY += 13; }
 
-      doc.fontSize(10).font("Helvetica-Bold").text("PREPARED FOR", 300, topY);
+      doc.fontSize(10).font("Helvetica-Bold").text("PREPARED FOR", 320, topY);
       const clientName = (quote.custom_client_name && quote.custom_client_name.trim())
         ? quote.custom_client_name.trim()
         : `${quote.client_first_name || ''} ${quote.client_last_name || ''}`.trim() || 'Prospective Client';
-      doc.fontSize(12).text(clientName, 300, topY + 15);
-      
-      const idLabel = quote.ndis_number 
-        ? `NDIS No: ${quote.ndis_number}`
-        : quote.my_aged_care_id 
-          ? `Home Care ID: ${quote.my_aged_care_id}`
-          : "";
-      if (idLabel) {
-        doc.fontSize(10).font("Helvetica").text(idLabel, 300, topY + 30);
+      doc.fontSize(11).font("Helvetica-Bold").text(clientName, 320, topY + 14);
+      doc.fontSize(9).font("Helvetica");
+      let prepY = topY + 28;
+      if (quote.ndis_number) {
+        doc.text(`NDIS No: ${quote.ndis_number}`, 320, prepY);
+        prepY += 13;
+      } else if (quote.my_aged_care_id) {
+        doc.text(`Home Care ID: ${quote.my_aged_care_id}`, 320, prepY);
+        prepY += 13;
+      }
+      if (quote.client_email) {
+        doc.text(`Email: ${quote.client_email}`, 320, prepY);
+        prepY += 13;
       }
 
-      let currentY = doc.y + 70;
+      let afterCardsY = Math.max(fromY, prepY) + 10;
+
+      // Prominently render Activity Name / Scope
+      if (quote.activity_name && quote.activity_name.trim()) {
+        const activityText = quote.activity_name.trim();
+        doc.roundedRect(50, afterCardsY, 530, 24, 3)
+           .fillAndStroke("#F4FBF9", "#B2DFDB");
+        
+        doc.fillColor("#004D40")
+           .font("Helvetica-Bold")
+           .fontSize(9)
+           .text("ACTIVITY / SCOPE:", 60, afterCardsY + 7);
+
+        const activityLabelWidth = doc.widthOfString("ACTIVITY / SCOPE:") + 10;
+        doc.fillColor("#111827")
+           .font("Helvetica-Bold")
+           .fontSize(9.5)
+           .text(activityText, 60 + activityLabelWidth, afterCardsY + 6.5, { width: 500 - activityLabelWidth });
+
+        if (quote.activity_date) {
+          const actDateStr = new Date(quote.activity_date).toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          doc.fillColor("#4B5563")
+             .font("Helvetica")
+             .fontSize(8.5)
+             .text(`Date: ${actDateStr}`, 460, afterCardsY + 7, { width: 110, align: "right" });
+        }
+
+        doc.fillColor("black");
+        afterCardsY += 34;
+      }
+
+      let currentY = afterCardsY;
 
       // Table Header
       doc.font("Helvetica-Bold").fontSize(10);
-      doc.text("DATE", 50, currentY, { width: 55, align: "left" });
-      doc.text("DESCRIPTION", 105, currentY, { width: 140, align: "left" });
-      doc.text("TIME", 250, currentY, { width: 75, align: "left" }); 
+      doc.text("DATE", 50, currentY, { width: 60, align: "left" });
+      doc.text("DESCRIPTION", 115, currentY, { width: 135, align: "left" });
+      doc.text("TIME", 255, currentY, { width: 70, align: "left" }); 
       doc.text("QTY", 330, currentY, { width: 25, align: "right" });
       doc.text("UNIT", 360, currentY, { width: 35, align: "left" });
       doc.text("RATE", 400, currentY, { width: 45, align: "right" });
@@ -117,7 +157,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       doc.text("AMOUNT", 500, currentY, { width: 65, align: "right" });
 
       doc.moveTo(50, currentY + 15).lineTo(580, currentY + 15).stroke();
-      currentY += 20;
+      currentY += 22;
 
       doc.font("Helvetica").fontSize(10);
       let subtotal = 0;
@@ -128,16 +168,43 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(item.serviceId) as any;
         if (!srv) continue;
 
-        let safeServiceName = srv.name || "Unknown Service";
-        let textHeight = doc.heightOfString(safeServiceName, { width: 140 }) || 15;
-        let blockHeight = textHeight + 20;
+        let safeServiceName = item.serviceName || srv.name || "Unknown Service";
+        let textHeight = doc.heightOfString(safeServiceName, { width: 135 }) || 15;
+
+        let dateStr = "";
+        if (item.date) {
+           const d = new Date(item.date);
+           if (!isNaN(d.getTime())) {
+              dateStr = d.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+           } else {
+              dateStr = item.date;
+           }
+        }
+        let endDateStr = "";
+        if (item.endDate) {
+           const ed = new Date(item.endDate);
+           if (!isNaN(ed.getTime())) {
+              endDateStr = ed.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+           } else {
+              endDateStr = item.endDate;
+           }
+        }
+        let displayDate = dateStr;
+        if (dateStr && endDateStr) {
+           displayDate = `${dateStr} -\n${endDateStr}`;
+        } else if (!dateStr && endDateStr) {
+           displayDate = endDateStr;
+        }
+
+        let dateHeight = doc.heightOfString(displayDate, { width: 60 }) || 15;
+        let blockHeight = Math.max(textHeight, dateHeight) + 20;
 
         if (currentY + blockHeight > 700) {
           doc.addPage();
           doc.font("Helvetica-Bold").fontSize(10);
-          doc.text("DATE", 50, 50, { width: 55, align: "left" });
-          doc.text("DESCRIPTION", 105, 50, { width: 140, align: "left" });
-          doc.text("TIME", 250, 50, { width: 75, align: "left" });
+          doc.text("DATE", 50, 50, { width: 60, align: "left" });
+          doc.text("DESCRIPTION", 115, 50, { width: 135, align: "left" });
+          doc.text("TIME", 255, 50, { width: 70, align: "left" });
           doc.text("QTY", 330, 50, { width: 25, align: "right" });
           doc.text("UNIT", 360, 50, { width: 35, align: "left" });
           doc.text("RATE", 400, 50, { width: 45, align: "right" });
@@ -171,25 +238,15 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
           timeStr = item.startTime;
         }
 
-        let dateStr = "";
-        if (item.date) {
-           const d = new Date(item.date);
-           if (!isNaN(d.getTime())) {
-              dateStr = d.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-           } else {
-              dateStr = item.date;
-           }
-        }
-
         doc.font("Helvetica").fontSize(10);
-        doc.text(dateStr, 50, currentY, { width: 55, align: "left" });
-        doc.fontSize(9).text(timeStr, 250, currentY, { width: 75, align: "left" });
+        doc.text(displayDate, 50, currentY, { width: 60, align: "left" });
+        doc.fontSize(9).text(timeStr, 255, currentY, { width: 70, align: "left" });
         doc.fontSize(10);
         
-        doc.text(safeServiceName, 105, currentY, { width: 140, align: "left" });
+        doc.text(safeServiceName, 115, currentY, { width: 135, align: "left" });
         let descY = currentY + textHeight + 2;
         
-        doc.fontSize(9).text(`Code: ${srv.code || "N/A"}`, 105, descY, { width: 140, align: "left" });
+        doc.fontSize(9).text(`Code: ${srv.code || "N/A"}`, 115, descY, { width: 135, align: "left" });
         doc.fontSize(10);
         
         doc.text(qty.toString(), 330, currentY, { width: 25, align: "right" });
@@ -198,8 +255,9 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         doc.text(`$${lineGst.toFixed(2)}`, 450, currentY, { width: 45, align: "right" });
         doc.text(`$${lineAmount.toFixed(2)}`, 500, currentY, { width: 65, align: "right" });
 
-        doc.moveTo(50, descY + 15).lineTo(580, descY + 15).stroke();
-        currentY = descY + 20;
+        let rowBottomY = Math.max(descY + 14, currentY + dateHeight);
+        doc.moveTo(50, rowBottomY + 15).lineTo(580, rowBottomY + 15).stroke();
+        currentY = rowBottomY + 22;
       }
 
       let totalAmount = subtotal + calcGst;
@@ -315,16 +373,27 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         if (item.date) {
            const d = new Date(item.date);
            if (!isNaN(d.getTime())) {
-              dateStr = d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
+              dateStr = d.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
            } else {
               dateStr = item.date;
+           }
+        }
+        let endDateStr = "";
+        if (item.endDate) {
+           const ed = new Date(item.endDate);
+           if (!isNaN(ed.getTime())) {
+              endDateStr = ed.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+           } else {
+              endDateStr = item.endDate;
            }
         }
 
         return {
           date: dateStr,
-          serviceName: srv.name || "Unknown Service",
+          endDate: endDateStr,
+          serviceName: item.serviceName || srv.name || "Unknown Service",
           code: srv.code || "N/A",
+          type: srv.type || "",
           time: timeStr,
           qty,
           unit: srv.unit || "Hr",
