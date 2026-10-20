@@ -26,6 +26,74 @@ function formatAuDate(dateVal: any, opts: { monthFormat?: 'short' | '2-digit' } 
   return str;
 }
 
+function renderFormattedNotesPdf(doc: any, rawText: string, cardX: number, cardY: number, cardWidth: number) {
+  const rawLines = rawText.split('\n');
+  
+  let calculatedHeight = 24;
+  for (const line of rawLines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      calculatedHeight += 8;
+      continue;
+    }
+    if (/^#{1,3}\s+/.test(trimmed)) {
+      doc.font("Helvetica-Bold").fontSize(9.5);
+      const clean = trimmed.replace(/^#{1,3}\s+/, '');
+      calculatedHeight += doc.heightOfString(clean, { width: cardWidth - 36 }) + 6;
+    } else if (/^[-*_]{3,}$/.test(trimmed)) {
+      calculatedHeight += 12;
+    } else {
+      doc.font("Helvetica").fontSize(8.5);
+      const clean = trimmed.replace(/(\*\*|__)(.*?)\1/g, '$2').replace(/<u>(.*?)<\/u>/gi, '$1').replace(/^>\s*/, '');
+      calculatedHeight += doc.heightOfString(clean, { width: cardWidth - 36, lineGap: 3 }) + 4;
+    }
+  }
+
+  const boxHeight = Math.min(Math.max(calculatedHeight + 20, 140), 620);
+  doc.roundedRect(cardX, cardY, cardWidth, boxHeight, 6).fillAndStroke("#F9FAFB", "#E5E7EB");
+
+  let textY = cardY + 16;
+  for (const line of rawLines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      textY += 6;
+      continue;
+    }
+    if (textY + 14 > cardY + boxHeight - 8) break;
+
+    if (/^#{1,3}\s+/.test(trimmed)) {
+      const clean = trimmed.replace(/^#{1,3}\s+/, '');
+      doc.font("Helvetica-Bold").fontSize(9.5).fillColor("#111827");
+      doc.text(clean, cardX + 18, textY, { width: cardWidth - 36 });
+      textY += doc.heightOfString(clean, { width: cardWidth - 36 }) + 5;
+    } else if (/^[-*_]{3,}$/.test(trimmed)) {
+      textY += 4;
+      doc.strokeColor("#E5E7EB").lineWidth(0.75).moveTo(cardX + 18, textY).lineTo(cardX + cardWidth - 18, textY).stroke();
+      textY += 8;
+    } else if (/^>\s*/.test(trimmed)) {
+      const clean = trimmed.replace(/^>\s*/, '').replace(/(\*\*|__)(.*?)\1/g, '$2');
+      doc.font("Helvetica-Oblique").fontSize(8);
+      const quoteH = doc.heightOfString(clean, { width: cardWidth - 46 });
+      doc.strokeColor("#0F766E").lineWidth(2).moveTo(cardX + 18, textY).lineTo(cardX + 18, textY + quoteH).stroke();
+      doc.font("Helvetica-Oblique").fontSize(8).fillColor("#4B5563");
+      doc.text(clean, cardX + 26, textY, { width: cardWidth - 46 });
+      textY += quoteH + 4;
+    } else {
+      let isBullet = /^([•\-\*]|\[[\sx]\]|\d+\.)\s*/.test(trimmed);
+      let clean = trimmed.replace(/(\*\*|__)(.*?)\1/g, '$2').replace(/<u>(.*?)<\/u>/gi, '$1');
+      if (clean.startsWith('[ ] ')) {
+        clean = '☐ ' + clean.slice(4);
+      } else if (clean.startsWith('[x] ') || clean.startsWith('[X] ')) {
+        clean = '☑ ' + clean.slice(4);
+      }
+      doc.font("Helvetica").fontSize(8.5).fillColor("#374151");
+      const h = doc.heightOfString(clean, { width: cardWidth - 36, lineGap: 3 });
+      doc.text(clean, cardX + 18, textY, { width: cardWidth - 36, lineGap: 3 });
+      textY += h + (isBullet ? 3 : 4);
+    }
+  }
+}
+
 export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
   app.get("/api/quotes/:id/download", authenticateToken, (req: any, res: any) => {
     try {
@@ -388,12 +456,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         ? quote.important_notes.trim()
         : defaultNotes;
 
-      doc.font("Helvetica").fontSize(8.5);
-      const notesTextHeight = doc.heightOfString(notesText, { width: 494, lineGap: 3.5 });
-      const notesBoxHeight = Math.min(Math.max(notesTextHeight + 28, 120), 620);
-
-      doc.roundedRect(50, 96, 530, notesBoxHeight, 6).fillAndStroke("#F9FAFB", "#E5E7EB");
-      doc.fillColor("#374151").font("Helvetica").fontSize(8.5).text(notesText, 68, 110, { width: 494, lineGap: 3.5 });
+      renderFormattedNotesPdf(doc, notesText, 50, 96, 530);
 
       // Document Page Numbering & Footer
       // Temporarily set bottom margin to 0 so footer text never triggers accidental auto-page-breaks

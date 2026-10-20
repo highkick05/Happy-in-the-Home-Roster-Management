@@ -7,6 +7,7 @@ import CustomTimePicker from '../ui/CustomTimePicker';
 import QuotePreviewModal from './QuotePreviewModal';
 import ServiceSearchDropdown, { isHomeCareService, isNdisService } from './ServiceSearchDropdown';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { NotesFormattingEditor } from './NotesFormattingEditor';
 
 const STANDARD_QUOTE_UNITS = [
   'Hour',
@@ -819,16 +820,11 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Important Notes & Terms of Service</label>
-        <textarea
-          rows={10}
-          placeholder="Enter notes and terms of service..."
-          className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none text-sm resize-none custom-scrollbar"
-          value={formData.importantNotes}
-          onChange={e => setFormData({ ...formData, importantNotes: e.target.value })}
-        />
-      </div>
+      <NotesFormattingEditor
+        value={formData.importantNotes}
+        onChange={val => setFormData({ ...formData, importantNotes: val })}
+        rows={10}
+      />
 
       <div className="pt-2 border-t border-white/[0.08] flex justify-between items-center space-x-3 mt-4">
         {(() => {
