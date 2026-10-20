@@ -8,6 +8,39 @@ import QuotePreviewModal from './QuotePreviewModal';
 import ServiceSearchDropdown, { isHomeCareService, isNdisService } from './ServiceSearchDropdown';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
+const STANDARD_QUOTE_UNITS = [
+  'Hour',
+  'Each',
+  'Km',
+  'Day',
+  'Week',
+  'Month',
+  'Session',
+  'Trip',
+  'Item',
+  'Flat Rate',
+  'Night',
+  'Visit'
+];
+
+const normalizeUnit = (u?: string) => {
+  if (!u) return '';
+  const lower = u.trim().toLowerCase();
+  if (lower === 'hr' || lower === 'hour' || lower === 'hours' || lower === 'h') return 'Hour';
+  if (lower === 'ea' || lower === 'each') return 'Each';
+  if (lower === 'km' || lower === 'kilometre' || lower === 'kilometer') return 'Km';
+  if (lower === 'day' || lower === 'days' || lower === 'd') return 'Day';
+  if (lower === 'wk' || lower === 'week' || lower === 'weeks') return 'Week';
+  if (lower === 'mth' || lower === 'month' || lower === 'months') return 'Month';
+  if (lower === 'session' || lower === 'sessions') return 'Session';
+  if (lower === 'trip' || lower === 'trips') return 'Trip';
+  if (lower === 'item' || lower === 'items') return 'Item';
+  if (lower === 'flat' || lower === 'flat rate') return 'Flat Rate';
+  if (lower === 'night' || lower === 'nights') return 'Night';
+  if (lower === 'visit' || lower === 'visits') return 'Visit';
+  return u.trim();
+};
+
 function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: string | null, onGenerated: () => void, onClose: () => void, editData?: any }) {
   const { settings } = useAuth();
   
@@ -66,6 +99,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
           return svcs.map((s: any) => ({
             serviceId: String(s.serviceId || ''),
             serviceName: String(s.serviceName || ''),
+            unit: s.unit || s.unitOverride || '',
             qtyOverride: String(s.qtyOverride || ''),
             rateOverride: String(s.rateOverride || ''),
             date: s.date || '',
@@ -77,7 +111,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
         }
       } catch(e) {}
     }
-    return [{ serviceId: '', serviceName: '', qtyOverride: '', rateOverride: '', date: '', endDate: '', startTime: '', endTime: '', duration: '' }];
+    return [{ serviceId: '', serviceName: '', unit: '', qtyOverride: '', rateOverride: '', date: '', endDate: '', startTime: '', endTime: '', duration: '' }];
   });
   
   const [options, setOptions] = useState<any>({ clients: [], services: [] });
@@ -176,15 +210,18 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
   }, [selectedClient, currentServices, selectedServices]);
 
   const getServiceDetails = (serviceId: string) => {
-    if (!serviceId) return { rate: 0, unit: '', name: '', code: '', type: '' };
+    if (!serviceId) return { rate: 0, unit: 'Hour', name: '', code: '', type: '' };
     const s = currentServices.find((x: any) => x.id === Number(serviceId)) || options.services?.find((x: any) => x.id === Number(serviceId));
-    if (!s) return { rate: 0, unit: '', name: '', code: '', type: '' };
+    if (!s) return { rate: 0, unit: 'Hour', name: '', code: '', type: '' };
+
+    const rawUnit = s.unit || 'Hour';
+    const normUnit = normalizeUnit(rawUnit) || 'Hour';
 
     // 1. Check custom rate for this client first
     if (selectedClient && selectedClient.custom_rates && selectedClient.custom_rates[s.id] !== undefined) {
       return {
         rate: Number(selectedClient.custom_rates[s.id]),
-        unit: s.unit || 'hr',
+        unit: normUnit,
         name: s.name,
         code: s.code || '',
         type: s.type || ''
@@ -232,7 +269,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
     
     return {
       rate: baseRate,
-      unit: s.unit || 'hr',
+      unit: normUnit,
       name: s.name,
       code: s.code || '',
       type: s.type || ''
@@ -270,14 +307,14 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
     
     setSelectedServices([
       ...selectedServices,
-      { serviceId: '', serviceName: '', qtyOverride: '', rateOverride: '', date: nextDate, endDate: nextEndDate, startTime: nextStartTime, endTime: '', duration: '' }
+      { serviceId: '', serviceName: '', unit: '', qtyOverride: '', rateOverride: '', date: nextDate, endDate: nextEndDate, startTime: nextStartTime, endTime: '', duration: '' }
     ]);
   };
   const removeService = (index: number) => {
     if (selectedServices.length === 1) return;
     setSelectedServices(selectedServices.filter((_, i) => i !== index));
   };
-  const updateService = (index: number, field: any, value: string) => {
+  const updateService = (index: number, field: any, value: any) => {
     const fresh = [...selectedServices];
     const row = fresh[index];
     row[field] = value;
@@ -328,7 +365,17 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
       alert("Please enter a custom client name.");
       return;
     }
-    const validServices = selectedServices.filter(s => s.serviceId);
+    const validServices = selectedServices
+      .filter(s => s.serviceId)
+      .map(s => {
+        const { unit: defaultUnit } = getServiceDetails(s.serviceId);
+        return {
+          ...s,
+          unit: s.unit !== undefined && s.unit !== null && s.unit !== '' 
+            ? s.unit 
+            : (defaultUnit || 'Hour')
+        };
+      });
     if (validServices.length === 0) {
       alert("Please select at least one service.");
       return;
@@ -555,12 +602,17 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
         
         <div className="space-y-2 pb-2">
           {selectedServices.map((row, idx) => {
-            let { rate, unit } = getServiceDetails(row.serviceId);
+            let { rate, unit: defaultUnit } = getServiceDetails(row.serviceId);
             if (row.rateOverride !== undefined && row.rateOverride !== null && row.rateOverride !== '') {
                rate = Number(row.rateOverride);
             }
             const qty = Number(row.qtyOverride) || 0;
             const subtotal = qty * rate;
+            const effectiveUnit = row.unit !== undefined && row.unit !== null && row.unit !== '' 
+              ? row.unit 
+              : (defaultUnit || 'Hour');
+            const isStandard = STANDARD_QUOTE_UNITS.includes(effectiveUnit);
+            const isCustomMode = Boolean(row.isCustomUnit || (!isStandard && effectiveUnit));
 
             return (
               <div key={idx} className="w-full relative bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
@@ -575,6 +627,8 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                         fresh[idx].serviceId = serviceId;
                         if (s) {
                           fresh[idx].serviceName = s.name;
+                          fresh[idx].unit = normalizeUnit(s.unit) || 'Hour';
+                          fresh[idx].isCustomUnit = false;
                         }
                         setSelectedServices(fresh);
                       }}
@@ -671,7 +725,50 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
                       <div className="flex items-center gap-3 ml-auto">
                         <div className="flex items-center">
                           <span className="text-zinc-500 font-medium mr-1.5">Unit</span>
-                          <span className="text-zinc-300 w-8 truncate" title={unit}>{unit}</span>
+                          {isCustomMode ? (
+                            <div className="flex items-center gap-1">
+                              <input 
+                                type="text"
+                                value={row.unit !== undefined && row.unit !== null ? row.unit : ''}
+                                onChange={(e) => updateService(idx, 'unit', e.target.value)}
+                                placeholder="Unit..."
+                                title="Custom unit"
+                                autoFocus
+                                className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateService(idx, 'isCustomUnit', false);
+                                  updateService(idx, 'unit', defaultUnit || 'Hour');
+                                }}
+                                className="text-zinc-500 hover:text-white p-0.5 rounded transition-colors cursor-pointer"
+                                title="Switch back to standard unit list"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <select
+                              value={effectiveUnit}
+                              onChange={(e) => {
+                                if (e.target.value === 'CUSTOM_OPTION') {
+                                  updateService(idx, 'isCustomUnit', true);
+                                  updateService(idx, 'unit', '');
+                                } else {
+                                  updateService(idx, 'isCustomUnit', false);
+                                  updateService(idx, 'unit', e.target.value);
+                                }
+                              }}
+                              title="Change unit for this line item"
+                              className="w-22 bg-[#09090b] border border-white/[0.12] rounded px-1.5 py-1 text-xs text-zinc-300 focus:border-brand-teal outline-none cursor-pointer"
+                            >
+                              {STANDARD_QUOTE_UNITS.map(u => (
+                                <option key={u} value={u}>{u}</option>
+                              ))}
+                              <option value="CUSTOM_OPTION">Other...</option>
+                            </select>
+                          )}
                         </div>
                         <div className="flex items-center">
                           <span className="text-zinc-500 font-medium mr-1.5">Rate $</span>

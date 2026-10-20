@@ -250,7 +250,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         doc.fontSize(10);
         
         doc.text(qty.toString(), 330, currentY, { width: 25, align: "right" });
-        doc.text(srv.unit || "N/A", 360, currentY, { width: 35, align: "left" });
+        doc.text(item.unit || srv.unit || "N/A", 360, currentY, { width: 35, align: "left" });
         doc.text(`$${finalRate.toFixed(2)}`, 400, currentY, { width: 45, align: "right" });
         doc.text(`$${lineGst.toFixed(2)}`, 450, currentY, { width: 45, align: "right" });
         doc.text(`$${lineAmount.toFixed(2)}`, 500, currentY, { width: 65, align: "right" });
@@ -396,7 +396,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
           type: srv.type || "",
           time: timeStr,
           qty,
-          unit: srv.unit || "Hr",
+          unit: item.unit || srv.unit || "Hr",
           rate: finalRate,
           gst: lineGst,
           amount: lineAmount
