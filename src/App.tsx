@@ -45,17 +45,39 @@ import EmailFloatingWidget from './components/Email/EmailFloatingWidget';
 import AiChatWidget from './components/AiChat/AiChatWidget';
 import ClaimShiftView from './components/Roster/ClaimShiftView';
 import { getAvatarUrl } from './utils/avatar';
+import { generateCycles } from './utils/cycles';
 
 
 // @ts-ignore
 declare const __APP_VERSION__: string | undefined;
 
 function DateTimer() {
+  const { settings } = useAuth();
   const [now, setNow] = React.useState(new Date());
+  const [animIndex, setAnimIndex] = React.useState(() => Math.floor(Math.random() * 5));
+  const [labelCycleIndex, setLabelCycleIndex] = React.useState(0);
   
   React.useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  React.useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const scheduleNextRotation = () => {
+      // Rotate randomly every 3 to 5 minutes (180,000ms to 300,000ms)
+      const randomDelayMs = Math.floor((180 + Math.random() * 120) * 1000);
+      timeoutId = setTimeout(() => {
+        setAnimIndex(prev => {
+          const next = Math.floor(Math.random() * 4);
+          return next >= prev ? next + 1 : next;
+        });
+        setLabelCycleIndex(prev => prev + 1);
+        scheduleNextRotation();
+      }, randomDelayMs);
+    };
+    scheduleNextRotation();
+    return () => clearTimeout(timeoutId);
   }, []);
   
   const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
@@ -64,10 +86,59 @@ function DateTimer() {
   const dayName = days[now.getDay()];
   const dateStr = now.getDate() + ' ' + months[now.getMonth()];
   const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+  const invoicingStartDay = (settings?.invoicingStartDay || 'Monday').toUpperCase();
+  const isInvoiceDay = dayName === invoicingStartDay;
+
+  const isPayDay = React.useMemo(() => {
+    const payrunFreq = settings?.payrunFrequency || 'Fortnightly';
+    const payrunStart = settings?.payrunStartDay || 'Monday';
+    const toLocalYmd = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const todayYmd = toLocalYmd(now);
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const tomorrowYmd = toLocalYmd(tomorrow);
+    const cycles = generateCycles(payrunFreq, payrunStart, now.toISOString(), 6);
+    return cycles.some(c => c.end === todayYmd || c.start === tomorrowYmd);
+  }, [
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    settings?.payrunFrequency,
+    settings?.payrunStartDay,
+  ]);
+
+  const activeSpecialModes: Array<{ text: string; themeClass: string }> = [];
+  if (isInvoiceDay) {
+    activeSpecialModes.push({ text: 'INVOICE DAY', themeClass: 'magazine-day-invoice' });
+  }
+  if (isPayDay) {
+    activeSpecialModes.push({ text: 'PAY DAY', themeClass: 'magazine-day-pay' });
+  }
+
+  const currentSpecial =
+    activeSpecialModes.length > 0
+      ? activeSpecialModes[labelCycleIndex % activeSpecialModes.length]
+      : null;
+
+  const displayTitle = currentSpecial ? currentSpecial.text : dayName;
+  const themeClass = currentSpecial ? currentSpecial.themeClass : 'magazine-day-default';
+  const animClass = `mag-anim-${animIndex}`;
   
   return (
     <div className="flex items-center space-x-6">
-      <div className="text-[26px] font-sans font-bold uppercase tracking-wider text-white leading-none">{dayName}</div>
+      <div className="flex items-center">
+        <div
+          onClick={() => {
+            setAnimIndex(prev => (prev + 1) % 5);
+            setLabelCycleIndex(prev => prev + 1);
+          }}
+          title={currentSpecial ? `${dayName} • ${currentSpecial.text}` : dayName}
+          className={`text-[24px] md:text-[26px] magazine-day-header ${themeClass} ${animClass} cursor-pointer`}
+        >
+          {displayTitle}
+        </div>
+      </div>
       <div className="flex items-center space-x-1">
         <EmailFloatingWidget />
         <LiveChatIcon />
