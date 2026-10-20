@@ -69,6 +69,7 @@ function DateTimer() {
     <div className="flex items-center space-x-6">
       <div className="text-[26px] font-sans font-bold uppercase tracking-wider text-white leading-none">{dayName}</div>
       <div className="flex items-center space-x-1">
+        <EmailFloatingWidget />
         <LiveChatIcon />
         <NotificationsDropdown />
       </div>
@@ -220,6 +221,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           )}
         </div>
         <div className="flex items-center space-x-1">
+          <EmailFloatingWidget />
           <LiveChatIcon />
           <NotificationsDropdown />
           <button 
@@ -448,7 +450,6 @@ function Layout({ children }: { children: React.ReactNode }) {
       {/* Quick Links Floating Hover Tab */}
       {user?.role === 'ADMIN' && <QuickLinksDrawer />}
       <FloatingChatIcon />
-      {(user?.role === 'ADMIN' || user?.role === 'admin') && !location.pathname.includes('/chat') && <EmailFloatingWidget />}
       {(user?.role === 'ADMIN' || user?.canSwitchAdmin) && <AiChatWidget />}
     </div>
   );
