@@ -57,7 +57,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       const safeFilename = quote.quote_number ? `${quote.quote_number}.pdf` : `QUOTE-${quoteId}.pdf`;
       const pdfPath = path.join(tempFolder, safeFilename);
 
-      const doc = new PDFDocument({ margin: 50 });
+      const doc = new PDFDocument({ margin: 50, bufferPages: true });
       const writeStream = fs.createWriteStream(pdfPath);
       doc.pipe(writeStream);
 
@@ -139,8 +139,10 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         doc.text(`Service Period: ${servicePeriod}`, 340, 87, { width: 240, align: "right" });
       }
 
+      const pageCountY = servicePeriod ? 100 : 87;
+
       // Divider below header
-      let afterHeaderY = Math.max(provY, 115) + 8;
+      let afterHeaderY = Math.max(provY, pageCountY + 14) + 8;
       doc.strokeColor("#E5E7EB").lineWidth(1).moveTo(50, afterHeaderY).lineTo(580, afterHeaderY).stroke();
       afterHeaderY += 10;
 
@@ -229,10 +231,10 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       const renderTableHeader = (y: number) => {
         doc.font("Helvetica-Bold").fontSize(8).fillColor("#18181B");
         doc.text("DATE", 50, y, { width: 75, align: "left" });
-        doc.text("DESCRIPTION", 130, y, { width: 195, align: "left" });
-        doc.text("TIME / HOURS", 330, y, { width: 45, align: "center" }); 
-        doc.text("QTY", 380, y, { width: 40, align: "right" });
-        doc.text("UNIT", 425, y, { width: 35, align: "left" });
+        doc.text("DESCRIPTION", 130, y, { width: 180, align: "left" });
+        doc.text("TIME / HOURS", 315, y, { width: 65, align: "center" }); 
+        doc.text("QTY", 385, y, { width: 35, align: "right" });
+        doc.text("UNIT", 428, y, { width: 32, align: "left" });
         doc.text("RATE", 465, y, { width: 50, align: "right" });
         doc.text("AMOUNT", 520, y, { width: 60, align: "right" });
 
@@ -252,7 +254,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
 
         let safeServiceName = item.serviceName || srv.name || "Unknown Service";
         doc.font("Helvetica-Bold").fontSize(8.5);
-        let textHeight = doc.heightOfString(safeServiceName, { width: 195 }) || 12;
+        let textHeight = doc.heightOfString(safeServiceName, { width: 180 }) || 12;
 
         let dateStr = formatAuDate(item.date, { monthFormat: '2-digit' });
         let endDateStr = formatAuDate(item.endDate, { monthFormat: '2-digit' });
@@ -295,7 +297,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         }
 
         // Render Description
-        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(safeServiceName, 130, currentY, { width: 195, align: "left" });
+        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(safeServiceName, 130, currentY, { width: 180, align: "left" });
         
         let badgeY = currentY + textHeight + 2;
         let badgeX = 130;
@@ -315,19 +317,19 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
           doc.fillColor("#4B5563").font("Helvetica-Bold").fontSize(7).text(typeText, badgeX + 4, badgeY + 2);
         }
 
-        // Render Time / Hours
+        // Render Time / Hours (Single line centered)
         if (timeStr) {
-          doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(timeStr, 330, currentY, { width: 45, align: "center" });
+          doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(timeStr, 315, currentY, { width: 65, align: "center" });
         } else {
-          doc.fillColor("#9CA3AF").font("Helvetica").fontSize(8).text("—", 330, currentY, { width: 45, align: "center" });
+          doc.fillColor("#9CA3AF").font("Helvetica").fontSize(8).text("—", 315, currentY, { width: 65, align: "center" });
         }
 
         // Render Qty
-        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(qty.toString(), 380, currentY, { width: 40, align: "right" });
+        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(qty.toString(), 385, currentY, { width: 35, align: "right" });
 
         // Render Unit
         const unitDisplay = item.unit || srv.unit || "Hr";
-        doc.fillColor("#6B7280").font("Helvetica").fontSize(8).text(unitDisplay, 425, currentY, { width: 35, align: "left" });
+        doc.fillColor("#6B7280").font("Helvetica").fontSize(8).text(unitDisplay, 428, currentY, { width: 32, align: "left" });
 
         // Render Rate
         doc.fillColor("#374151").font("Helvetica").fontSize(8.5).text(`$${finalRate.toFixed(2)}`, 465, currentY, { width: 50, align: "right" });
@@ -351,18 +353,26 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       // Divider line above notes & totals section (matching preview border-t-2 border-zinc-900)
       doc.strokeColor("#18181B").lineWidth(1.5).moveTo(50, totalsY - 6).lineTo(580, totalsY - 6).stroke();
 
-      // Left Card: Important Notes
+      // Left Card: Important Notes (Dynamic positioning to prevent overlapping lines)
       doc.roundedRect(50, totalsY, 290, 105, 6).fillAndStroke("#F9FAFB", "#E5E7EB");
       doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8).text("IMPORTANT NOTES & TERMS OF SERVICE", 64, totalsY + 10);
       doc.fillColor("#4B5563").font("Helvetica").fontSize(7.5);
       
+      let noteY = totalsY + 23;
       if (quote.important_notes && quote.important_notes.trim()) {
-        doc.text(quote.important_notes.trim(), 64, totalsY + 24, { width: 262, height: 72 });
+        doc.text(quote.important_notes.trim(), 64, noteY, { width: 262, height: 75 });
       } else {
-        doc.text("• This quote is valid for 30 calendar days from the date of issue.", 64, totalsY + 24, { width: 262 });
-        doc.text("• Pricing adheres strictly to current NDIA Price Limits and Home Care guidelines.", 64, totalsY + 38, { width: 262 });
-        doc.text("• Payment terms: 14 days from date of tax invoice upon service delivery.", 64, totalsY + 52, { width: 262 });
-        doc.text("• Cancellations require 24 hours advance notice per standard service agreements.", 64, totalsY + 66, { width: 262 });
+        const defaultNotes = [
+          "• This quote is valid for 30 calendar days from the date of issue.",
+          "• Pricing adheres strictly to current NDIA Price Limits and Home Care guidelines.",
+          "• Payment terms: 14 days from date of tax invoice upon service delivery.",
+          "• Cancellations require 24 hours advance notice per standard service agreements."
+        ];
+        for (const note of defaultNotes) {
+          doc.text(note, 64, noteY, { width: 262 });
+          const textH = doc.heightOfString(note, { width: 262 });
+          noteY += textH + 3;
+        }
       }
 
       // Right Card: Financial Summary
@@ -381,11 +391,62 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       doc.fillColor("#0F766E").font("Helvetica-Bold").fontSize(14).text(`$${totalAmount.toFixed(2)}`, 450, totalsY + 56, { width: 115, align: "right" });
       doc.fillColor("#6B7280").font("Helvetica").fontSize(7).text("AUD • Inclusive of applicable GST", 370, totalsY + 76, { width: 195, align: "right" });
 
-      // Footer
-      doc.strokeColor("#E5E7EB").lineWidth(0.5).moveTo(50, 770).lineTo(580, 770).stroke();
-      doc.font("Helvetica").fontSize(7.5).fillColor("#9CA3AF");
-      doc.text(`${settingsMap.businessName || 'Happy in the Home'} • Generated via Care Management System`, 50, 776);
-      doc.text(`Ref: ${quote.quote_number || ''} • Page 1 of 1`, 380, 776, { width: 200, align: "right" });
+      // Document Page Numbering & Footer
+      // Temporarily set bottom margin to 0 so footer text never triggers accidental auto-page-breaks
+      const oldBottom = doc.page.margins.bottom;
+      doc.page.margins.bottom = 0;
+
+      const range = doc.bufferedPageRange();
+      const totalPages = range.count;
+
+      for (let i = range.start; i < range.start + totalPages; i++) {
+        doc.switchToPage(i);
+        const pageNum = i + 1;
+
+        // Render page count in header on page 1:
+        if (i === 0) {
+          doc.font("Helvetica").fontSize(8.5).fillColor("#6B7280").text(
+            `Page: Page ${pageNum} of ${totalPages}`,
+            340,
+            pageCountY,
+            { width: 240, align: "right", lineBreak: false }
+          );
+        } else {
+          // Page 2+ running header
+          doc.font("Helvetica-Bold").fontSize(9).fillColor("#111827").text(
+            `SERVICE QUOTE — ${quote.quote_number || ''}`,
+            50,
+            28,
+            { width: 300, align: "left", lineBreak: false }
+          );
+          doc.font("Helvetica").fontSize(8.5).fillColor("#6B7280").text(
+            `Page ${pageNum} of ${totalPages}`,
+            340,
+            28,
+            { width: 240, align: "right", lineBreak: false }
+          );
+          doc.strokeColor("#E5E7EB").lineWidth(0.5).moveTo(50, 42).lineTo(580, 42).stroke();
+        }
+
+        // Clean footer at the bottom of every page (inside 792 page height)
+        const footerY = 746;
+        doc.strokeColor("#E5E7EB").lineWidth(0.5).moveTo(50, footerY).lineTo(580, footerY).stroke();
+        doc.font("Helvetica").fontSize(7.5).fillColor("#9CA3AF");
+        doc.text(
+          `${settingsMap.businessName || 'Happy in the Home'} • Generated via Care Management System`,
+          50,
+          footerY + 6,
+          { width: 350, align: "left", lineBreak: false }
+        );
+        doc.text(
+          `Ref: ${quote.quote_number || ''}`,
+          400,
+          footerY + 6,
+          { width: 180, align: "right", lineBreak: false }
+        );
+      }
+
+      doc.page.margins.bottom = oldBottom;
 
       writeStream.on('finish', () => {
         res.download(pdfPath, safeFilename, (err: any) => {

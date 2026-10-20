@@ -310,6 +310,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                     {servicePeriod && (
                       <div><span className="font-medium text-zinc-500">Service Period:</span> {servicePeriod}</div>
                     )}
+                    <div><span className="font-medium text-zinc-500">Page:</span> Page 1 of 1</div>
                   </div>
                 </div>
               </div>
@@ -375,7 +376,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                     <tr className="border-b-2 border-zinc-900 text-[11px] uppercase tracking-wider font-semibold text-zinc-900">
                       <th className="py-2.5 px-2 w-[16%]">Date</th>
                       <th className="py-2.5 px-2 w-[34%]">Description</th>
-                      <th className="py-2.5 px-2 w-[16%]">Time / Hours</th>
+                      <th className="py-2.5 px-2 w-[16%] text-center">Time / Hours</th>
                       <th className="py-2.5 px-2 text-right w-[7%]">Qty</th>
                       <th className="py-2.5 px-2 text-left w-[7%]">Unit</th>
                       <th className="py-2.5 px-2 text-right w-[10%]">Rate</th>
@@ -422,9 +423,9 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                           </td>
 
                           {/* Time */}
-                          <td className="py-3 px-2 text-zinc-600 text-[11px] align-top whitespace-pre-line">
+                          <td className="py-3 px-2 text-zinc-600 text-[11px] align-top whitespace-pre-line text-center">
                             {item.time ? (
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center justify-center gap-1">
                                 <Clock className="w-3 h-3 text-zinc-400 shrink-0" />
                                 <span>{item.time}</span>
                               </div>
@@ -510,7 +511,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
               {/* Footer */}
               <div className="mt-8 pt-4 border-t border-zinc-200 flex flex-col sm:flex-row justify-between items-center text-[10px] text-zinc-400 gap-2">
                 <span>{settingsMap.businessName || 'Happy in the Home'} • Generated via Care Management System</span>
-                <span>Ref: {quoteNum} • Page 1 of 1</span>
+                <span>Ref: {quoteNum}</span>
               </div>
 
             </div>
