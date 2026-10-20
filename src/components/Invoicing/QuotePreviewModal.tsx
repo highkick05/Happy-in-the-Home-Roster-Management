@@ -268,10 +268,10 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
             />
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 flex justify-center bg-[#0d0e12] custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 flex flex-col items-center gap-8 bg-[#0d0e12] custom-scrollbar">
             
-            {/* The Clean White Paper Quote Sheet */}
-            <div className="bg-white w-full max-w-4xl shadow-xl rounded-xl p-8 sm:p-12 text-zinc-900 font-sans flex flex-col relative my-auto border border-zinc-200/90 print:shadow-none print:border-none print:m-0 print:p-0">
+            {/* The Clean White Paper Quote Sheet - Page 1 */}
+            <div className="bg-white w-full max-w-4xl shadow-xl rounded-xl p-8 sm:p-12 text-zinc-900 font-sans flex flex-col relative border border-zinc-200/90 print:shadow-none print:border-none print:m-0 print:p-0 print:break-after-page">
               
               {/* Header */}
               <div className="flex flex-col sm:flex-row justify-between items-start gap-6 pb-6 border-b border-zinc-200">
@@ -310,7 +310,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                     {servicePeriod && (
                       <div><span className="font-medium text-zinc-500">Service Period:</span> {servicePeriod}</div>
                     )}
-                    <div><span className="font-medium text-zinc-500">Page:</span> Page 1 of 1</div>
+                    <div><span className="font-medium text-zinc-500">Page:</span> Page 1 of 2</div>
                   </div>
                 </div>
               </div>
@@ -460,30 +460,9 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                 </table>
               </div>
 
-              {/* Bottom Section: Notes & Totals */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mt-6 pt-5 border-t-2 border-zinc-900 items-start">
-                {/* Notes */}
-                <div className="md:col-span-7 bg-zinc-50 p-4 rounded-lg border border-zinc-200 text-xs text-zinc-600">
-                  <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px] text-zinc-700 mb-2">
-                    <ShieldCheck className="w-3.5 h-3.5 text-teal-700" />
-                    <span>Important Notes & Terms of Service</span>
-                  </div>
-                  {quote.important_notes ? (
-                    <div className="whitespace-pre-line text-zinc-700 text-xs leading-relaxed max-h-40 overflow-y-auto">
-                      {quote.important_notes}
-                    </div>
-                  ) : (
-                    <ul className="list-disc list-inside space-y-1 text-zinc-600 text-[11px] leading-relaxed">
-                      <li>This quote is valid for 30 calendar days from the date of issue.</li>
-                      <li>Pricing adheres strictly to current NDIA Price Limits and Home Care guidelines.</li>
-                      <li>Payment terms: 14 days from date of tax invoice upon service delivery.</li>
-                      <li>Cancellations require 24 hours advance notice per standard service agreements.</li>
-                    </ul>
-                  )}
-                </div>
-
-                {/* Financial Totals */}
-                <div className="md:col-span-5 bg-zinc-50 p-4 rounded-lg border border-zinc-200 space-y-2 text-xs">
+              {/* Bottom Section: TOTAL AMOUNT Calculation Box */}
+              <div className="flex justify-end mt-6 pt-5 border-t-2 border-zinc-900">
+                <div className="w-full max-w-xs sm:max-w-sm bg-zinc-50 p-4 rounded-lg border border-zinc-200 space-y-2 text-xs">
                   <div className="flex justify-between text-zinc-600 font-medium">
                     <span>Subtotal:</span>
                     <span className="font-mono text-zinc-900 font-semibold">${Number(subtotal).toFixed(2)}</span>
@@ -508,8 +487,72 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                 </div>
               </div>
 
-              {/* Footer */}
+              {/* Page 1 Footer */}
               <div className="mt-8 pt-4 border-t border-zinc-200 flex flex-col sm:flex-row justify-between items-center text-[10px] text-zinc-400 gap-2">
+                <span>{settingsMap.businessName || 'Happy in the Home'} • Generated via Care Management System</span>
+                <span>Ref: {quoteNum}</span>
+              </div>
+
+            </div>
+
+            {/* Page 2: Important Notes & Terms of Service */}
+            <div className="bg-white w-full max-w-4xl shadow-xl rounded-xl p-8 sm:p-12 text-zinc-900 font-sans flex flex-col relative border border-zinc-200/90 print:shadow-none print:border-none print:m-0 print:p-0 print:break-before-page min-h-[500px]">
+              
+              {/* Page 2 Header */}
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-6 pb-6 border-b border-zinc-200">
+                <div className="flex items-center gap-3">
+                  {settingsMap.letterheadLogo ? (
+                    <img src={settingsMap.letterheadLogo} alt="Logo" className="h-16 w-auto object-contain" />
+                  ) : (
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                        H
+                      </div>
+                      <span className="text-base font-bold uppercase text-zinc-900 tracking-tight">
+                        {settingsMap.businessName || 'HAPPY IN THE HOME'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="sm:text-right flex flex-col sm:items-end">
+                  <div className="text-lg font-light text-zinc-800 tracking-wide">
+                    SERVICE QUOTE
+                  </div>
+                  <div className="text-xs font-semibold font-mono text-zinc-900">
+                    {quoteNum}
+                  </div>
+                  <div className="text-[11px] text-zinc-500 mt-1">
+                    Page 2 of 2
+                  </div>
+                </div>
+              </div>
+
+              {/* Page 2 Body: Important Notes & Terms */}
+              <div className="mt-8 flex-1">
+                <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-xs text-zinc-800 mb-4 pb-2 border-b border-zinc-200">
+                  <ShieldCheck className="w-4 h-4 text-teal-700" />
+                  <span>Important Notes & Terms of Service</span>
+                </div>
+
+                <div className="bg-zinc-50 p-6 rounded-xl border border-zinc-200 text-zinc-700 leading-relaxed text-sm">
+                  {quote.important_notes && quote.important_notes.trim() ? (
+                    <div className="whitespace-pre-line text-zinc-700 leading-relaxed">
+                      {quote.important_notes.trim()}
+                    </div>
+                  ) : (
+                    <ul className="list-disc list-inside space-y-2 text-zinc-700">
+                      <li>This quote is valid for 30 calendar days from the date of issue.</li>
+                      <li>Pricing adheres strictly to current NDIA Price Limits and Home Care guidelines.</li>
+                      <li>Payment terms: 14 days from date of tax invoice upon service delivery.</li>
+                      <li>Cancellations require 24 hours advance notice per standard service agreements.</li>
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              {/* Page 2 Footer */}
+              <div className="mt-12 pt-4 border-t border-zinc-200 flex flex-col sm:flex-row justify-between items-center text-[10px] text-zinc-400 gap-2">
                 <span>{settingsMap.businessName || 'Happy in the Home'} • Generated via Care Management System</span>
                 <span>Ref: {quoteNum}</span>
               </div>

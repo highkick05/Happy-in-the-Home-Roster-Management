@@ -345,51 +345,55 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       let totalAmount = subtotal + calcGst;
 
       let totalsY = currentY + 16;
-      if (totalsY + 125 > 740) {
+      if (totalsY + 105 > 730) {
         doc.addPage();
-        totalsY = 50;
+        totalsY = 55;
       }
 
-      // Divider line above notes & totals section (matching preview border-t-2 border-zinc-900)
+      // Divider line above totals section (matching preview border-t-2 border-zinc-900)
       doc.strokeColor("#18181B").lineWidth(1.5).moveTo(50, totalsY - 6).lineTo(580, totalsY - 6).stroke();
 
-      // Left Card: Important Notes (Dynamic positioning to prevent overlapping lines)
-      doc.roundedRect(50, totalsY, 290, 105, 6).fillAndStroke("#F9FAFB", "#E5E7EB");
-      doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8).text("IMPORTANT NOTES & TERMS OF SERVICE", 64, totalsY + 10);
-      doc.fillColor("#4B5563").font("Helvetica").fontSize(7.5);
+      // Right Card: Financial Summary (Subtotal, GST, TOTAL AMOUNT)
+      doc.roundedRect(340, totalsY, 240, 95, 6).fillAndStroke("#F9FAFB", "#E5E7EB");
       
-      let noteY = totalsY + 23;
-      if (quote.important_notes && quote.important_notes.trim()) {
-        doc.text(quote.important_notes.trim(), 64, noteY, { width: 262, height: 75 });
-      } else {
-        const defaultNotes = [
-          "• This quote is valid for 30 calendar days from the date of issue.",
-          "• Pricing adheres strictly to current NDIA Price Limits and Home Care guidelines.",
-          "• Payment terms: 14 days from date of tax invoice upon service delivery.",
-          "• Cancellations require 24 hours advance notice per standard service agreements."
-        ];
-        for (const note of defaultNotes) {
-          doc.text(note, 64, noteY, { width: 262 });
-          const textH = doc.heightOfString(note, { width: 262 });
-          noteY += textH + 3;
-        }
-      }
-
-      // Right Card: Financial Summary
-      doc.roundedRect(355, totalsY, 225, 105, 6).fillAndStroke("#F9FAFB", "#E5E7EB");
-      
-      doc.fillColor("#4B5563").font("Helvetica").fontSize(8.5).text("Subtotal:", 370, totalsY + 14);
-      doc.fillColor("#111827").font("Helvetica-Bold").text(`$${subtotal.toFixed(2)}`, 460, totalsY + 14, { width: 105, align: "right" });
+      doc.fillColor("#4B5563").font("Helvetica").fontSize(8.5).text("Subtotal:", 355, totalsY + 14);
+      doc.fillColor("#111827").font("Helvetica-Bold").text(`$${subtotal.toFixed(2)}`, 455, totalsY + 14, { width: 110, align: "right" });
 
       const gstLabel = hasGst ? "GST (10%):" : "GST (GST Free):";
-      doc.fillColor("#4B5563").font("Helvetica").text(gstLabel, 370, totalsY + 30);
-      doc.fillColor("#111827").font("Helvetica-Bold").text(`$${calcGst.toFixed(2)}`, 460, totalsY + 30, { width: 105, align: "right" });
+      doc.fillColor("#4B5563").font("Helvetica").text(gstLabel, 355, totalsY + 30);
+      doc.fillColor("#111827").font("Helvetica-Bold").text(`$${calcGst.toFixed(2)}`, 455, totalsY + 30, { width: 110, align: "right" });
 
-      doc.strokeColor("#D1D5DB").lineWidth(0.75).moveTo(370, totalsY + 48).lineTo(565, totalsY + 48).stroke();
+      doc.strokeColor("#D1D5DB").lineWidth(0.75).moveTo(355, totalsY + 48).lineTo(565, totalsY + 48).stroke();
 
-      doc.fillColor("#111827").font("Helvetica-Bold").fontSize(9.5).text("TOTAL AMOUNT:", 370, totalsY + 58);
-      doc.fillColor("#0F766E").font("Helvetica-Bold").fontSize(14).text(`$${totalAmount.toFixed(2)}`, 450, totalsY + 56, { width: 115, align: "right" });
-      doc.fillColor("#6B7280").font("Helvetica").fontSize(7).text("AUD • Inclusive of applicable GST", 370, totalsY + 76, { width: 195, align: "right" });
+      doc.fillColor("#111827").font("Helvetica-Bold").fontSize(9.5).text("TOTAL AMOUNT:", 355, totalsY + 58);
+      doc.fillColor("#0F766E").font("Helvetica-Bold").fontSize(13.5).text(`$${totalAmount.toFixed(2)}`, 445, totalsY + 56, { width: 120, align: "right" });
+      doc.fillColor("#6B7280").font("Helvetica").fontSize(7).text("AUD • Inclusive of applicable GST", 355, totalsY + 76, { width: 210, align: "right" });
+
+      // Move "Important Notes & Terms of Service" to its own completely separate page at the very end
+      doc.addPage();
+
+      // Important Notes & Terms of Service Page
+      // Top section title banner
+      doc.roundedRect(50, 60, 530, 26, 4).fillAndStroke("#F0FDFA", "#CCFBF1");
+      doc.fillColor("#0F766E").font("Helvetica-Bold").fontSize(9.5).text("IMPORTANT NOTES & TERMS OF SERVICE", 64, 69);
+
+      const defaultNotes = [
+        "• This quote is valid for 30 calendar days from the date of issue.",
+        "• Pricing adheres strictly to current NDIA Price Limits and Home Care guidelines.",
+        "• Payment terms: 14 days from date of tax invoice upon service delivery.",
+        "• Cancellations require 24 hours advance notice per standard service agreements."
+      ].join("\n\n");
+
+      const notesText = (quote.important_notes && quote.important_notes.trim())
+        ? quote.important_notes.trim()
+        : defaultNotes;
+
+      doc.font("Helvetica").fontSize(8.5);
+      const notesTextHeight = doc.heightOfString(notesText, { width: 494, lineGap: 3.5 });
+      const notesBoxHeight = Math.min(Math.max(notesTextHeight + 28, 120), 620);
+
+      doc.roundedRect(50, 96, 530, notesBoxHeight, 6).fillAndStroke("#F9FAFB", "#E5E7EB");
+      doc.fillColor("#374151").font("Helvetica").fontSize(8.5).text(notesText, 68, 110, { width: 494, lineGap: 3.5 });
 
       // Document Page Numbering & Footer
       // Temporarily set bottom margin to 0 so footer text never triggers accidental auto-page-breaks

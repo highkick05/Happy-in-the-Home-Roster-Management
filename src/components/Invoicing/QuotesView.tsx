@@ -41,6 +41,11 @@ const normalizeUnit = (u?: string) => {
   return u.trim();
 };
 
+export const DEFAULT_IMPORTANT_NOTES = `• This quote is valid for 30 calendar days from the date of issue.
+• Pricing adheres strictly to current NDIA Price Limits and Home Care guidelines.
+• Payment terms: 14 days from date of tax invoice upon service delivery.
+• Cancellations require 24 hours advance notice per standard service agreements.`;
+
 function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: string | null, onGenerated: () => void, onClose: () => void, editData?: any }) {
   const { settings } = useAuth();
   
@@ -75,7 +80,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
         date: editData.activity_date || new Date().toISOString().split('T')[0],
         endDate: endDate,
         quoteDate: editData.quote_date || new Date().toISOString().split('T')[0],
-        importantNotes: editData.important_notes || '',
+        importantNotes: (editData.important_notes && editData.important_notes.trim()) ? editData.important_notes : DEFAULT_IMPORTANT_NOTES,
         gstType
       };
     }
@@ -86,7 +91,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
       date: new Date().toISOString().split('T')[0],
       endDate: '',
       quoteDate: new Date().toISOString().split('T')[0],
-      importantNotes: '',
+      importantNotes: DEFAULT_IMPORTANT_NOTES,
       gstType: 'GST Free'
     };
   });
@@ -815,10 +820,10 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Important Notes Override (Optional)</label>
+        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Important Notes & Terms of Service</label>
         <textarea
           rows={10}
-          placeholder="Leave blank to use default notes..."
+          placeholder="Enter notes and terms of service..."
           className="w-full bg-[#121214] border border-white/[0.08] rounded-md py-2 px-3 text-white focus:ring-1 focus:ring-brand-teal outline-none text-sm resize-none custom-scrollbar"
           value={formData.importantNotes}
           onChange={e => setFormData({ ...formData, importantNotes: e.target.value })}
