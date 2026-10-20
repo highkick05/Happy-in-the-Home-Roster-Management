@@ -5,6 +5,7 @@ import { Download, X, Upload, Copy, ChevronUp, ChevronDown, CheckCircle, Search,
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
 import QuotePreviewModal from './QuotePreviewModal';
+import ServiceSearchDropdown, { isHomeCareService, isNdisService } from './ServiceSearchDropdown';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: string | null, onGenerated: () => void, onClose: () => void, editData?: any }) {
@@ -76,6 +77,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
   const [options, setOptions] = useState<any>({ clients: [], services: [] });
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [fundingTypeFilter, setFundingTypeFilter] = useState<'ALL' | 'NDIS' | 'HOME_CARE'>('ALL');
 
   useEffect(() => {
     fetchOptions();
@@ -103,6 +105,27 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
     return (options.clients || []).find((c: any) => String(c.id) === String(formData.clientId));
   }, [formData.clientId, options.clients]);
 
+  // Counts of NDIS and Home Care services
+  const ndisCount = React.useMemo(() => {
+    return (options.services || []).filter(isNdisService).length;
+  }, [options.services]);
+
+  const homeCareCount = React.useMemo(() => {
+    return (options.services || []).filter(isHomeCareService).length;
+  }, [options.services]);
+
+  // Auto-sync funding type filter when a client with set funding_type is selected
+  useEffect(() => {
+    if (selectedClient && selectedClient.funding_type) {
+      const ft = String(selectedClient.funding_type).toUpperCase();
+      if (ft === 'NDIS') {
+        setFundingTypeFilter('NDIS');
+      } else if (ft.includes('HOME') || ft.includes('HCP')) {
+        setFundingTypeFilter('HOME_CARE');
+      }
+    }
+  }, [selectedClient]);
+
   const clientPersonalisedServices = React.useMemo(() => {
     if (!selectedClient) return options.services || [];
     if (!selectedClient.service_ids || selectedClient.service_ids.length === 0) {
@@ -113,16 +136,18 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
   }, [selectedClient, options.services, selectedServices]);
 
   const getServiceDetails = (serviceId: string) => {
-    if (!serviceId) return { rate: 0, unit: '', name: '' };
+    if (!serviceId) return { rate: 0, unit: '', name: '', code: '', type: '' };
     const s = options.services.find((x: any) => x.id === Number(serviceId));
-    if (!s) return { rate: 0, unit: '', name: '' };
+    if (!s) return { rate: 0, unit: '', name: '', code: '', type: '' };
 
     // 1. Check custom rate for this client first
     if (selectedClient && selectedClient.custom_rates && selectedClient.custom_rates[s.id] !== undefined) {
       return {
         rate: Number(selectedClient.custom_rates[s.id]),
-        unit: s.unit,
-        name: s.name
+        unit: s.unit || 'hr',
+        name: s.name,
+        code: s.code || '',
+        type: s.type || ''
       };
     }
 
@@ -136,7 +161,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
     if (s.rates_json) {
       try {
         const rates = JSON.parse(s.rates_json || '{}');
-        if (s.type === 'HOME_CARE') {
+        if (isHomeCareService(s)) {
           if (dayOfWeek === 0 && rates['Sunday']) {
             baseRate = Number(rates['Sunday']);
           } else if (dayOfWeek === 6 && rates['Saturday']) {
@@ -148,7 +173,7 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
           } else if (rates['Standard']) {
             baseRate = Number(rates['Standard']);
           }
-        } else if (s.type === 'NDIS') {
+        } else if (isNdisService(s)) {
           const region = settings?.ndisRegion || 'NSW';
           if (rates[region] !== undefined) {
             baseRate = Number(rates[region]);
@@ -167,8 +192,10 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
     
     return {
       rate: baseRate,
-      unit: s.unit,
-      name: s.name
+      unit: s.unit || 'hr',
+      name: s.name,
+      code: s.code || '',
+      type: s.type || ''
     };
   };
 
@@ -419,14 +446,60 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
       </div>
 
       <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Line Items</label>
+        <div className="flex flex-wrap items-center justify-between gap-2.5 bg-[#09090b]/80 border border-white/[0.08] p-2.5 rounded-lg">
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+              <span>Line Items</span>
+              <span className="text-[11px] text-zinc-500 font-normal">({selectedServices.length})</span>
+            </label>
+
+            {/* Funding Filter Switcher: All | NDIS | Home Care */}
+            <div className="flex items-center gap-1 bg-[#121214] border border-white/[0.1] rounded-lg p-0.5">
+              <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold pl-2 pr-1">Funding:</span>
+              <button
+                type="button"
+                onClick={() => setFundingTypeFilter('ALL')}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                  fundingTypeFilter === 'ALL'
+                    ? 'bg-zinc-700 text-white shadow-sm'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                All ({options.services?.length || 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFundingTypeFilter('NDIS')}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
+                  fundingTypeFilter === 'NDIS'
+                    ? 'bg-sky-600/30 text-sky-200 border border-sky-500/50 shadow-sm'
+                    : 'text-zinc-400 hover:text-sky-300'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                NDIS ({ndisCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFundingTypeFilter('HOME_CARE')}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
+                  fundingTypeFilter === 'HOME_CARE'
+                    ? 'bg-purple-600/30 text-purple-200 border border-purple-500/50 shadow-sm'
+                    : 'text-zinc-400 hover:text-purple-300'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                Home Care ({homeCareCount})
+              </button>
+            </div>
+          </div>
+
           <button 
             type="button" 
             onClick={addService}
-            className="text-[10px] text-brand-teal hover:text-brand-teal font-bold uppercase tracking-widest flex items-center"
+            className="text-[11px] text-brand-teal hover:text-white font-semibold uppercase tracking-wider flex items-center gap-1 bg-brand-teal/10 hover:bg-brand-teal/25 border border-brand-teal/30 px-3 py-1.5 rounded-md transition-colors cursor-pointer"
           >
-            <span className="text-base mr-1">+</span> Add Item
+            <span className="text-sm font-bold leading-none">+</span> Add Item
           </button>
         </div>
         
@@ -440,26 +513,25 @@ function GenerateQuoteForm({ token, onGenerated, onClose, editData }: { token: s
             const subtotal = qty * rate;
 
             return (
-              <div key={idx} className="w-full relative bg-black/40 border border-white/[0.08] rounded-md px-3 py-1.5 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+              <div key={idx} className="w-full relative bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-xs text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
                 <div className="flex items-center space-x-2 mb-1.5 pr-8">
                   <div className="flex-1 min-w-0">
-                    <select
-                      required
-                      className="w-full bg-[#09090b] border border-white/[0.08] rounded py-1 px-2 text-white text-xs focus:ring-1 focus:ring-brand-teal outline-none truncate"
-                      value={row.serviceId}
-                      onChange={e => updateService(idx, 'serviceId', e.target.value)}
-                    >
-                      <option value="">Select Service</option>
-                      {clientPersonalisedServices.map((s: any) => (
-                        <option key={s.id} value={s.id}>{s.name} ({s.code || 'No Code'})</option>
-                      ))}
-                    </select>
+                    <ServiceSearchDropdown
+                      services={options.services || []}
+                      selectedServiceId={row.serviceId}
+                      onSelect={(serviceId) => updateService(idx, 'serviceId', serviceId)}
+                      fundingFilter={fundingTypeFilter}
+                      onFilterChange={setFundingTypeFilter}
+                      selectedClient={selectedClient}
+                      date={row.date || formData.date}
+                      settings={settings}
+                    />
                   </div>
                 </div>
                 <button 
                   type="button"
                   onClick={() => removeService(idx)}
-                  className="absolute right-1 top-1 p-1 text-zinc-600 hover:text-red-400 transition-colors"
+                  className="absolute right-1.5 top-2 p-1 text-zinc-500 hover:text-red-400 transition-colors cursor-pointer"
                   title="Remove Item"
                 >
                   <div className="w-5 h-5 flex items-center justify-center text-lg leading-none">&times;</div>
