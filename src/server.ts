@@ -7963,9 +7963,14 @@ app.get("/api/health", (req, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
+
+    if (process.env.NODE_ENV !== "production") {
+      return res.json({ version: "dev", timestamp: Date.now() });
+    }
+
     let version = "unknown";
 
-    // 1. Check dist/version.json generated at build time
+    // 1. Check dist/version.json generated at build time (matches client __APP_VERSION__)
     try {
       const versionFile = path.join(process.cwd(), "dist", "version.json");
       if (fs.existsSync(versionFile)) {
@@ -7976,24 +7981,13 @@ app.get("/api/health", (req, res) => {
       }
     } catch (err) {}
 
-    // 2. Check git rev-parse if running directly from source
+    // 2. Fallback to git rev-parse only if dist/version.json was not populated
     if (version === "unknown") {
       try {
         version = execSync("git rev-parse --short HEAD").toString().trim();
       } catch (e) {}
     }
 
-    // 3. Fallback: check index.html in dist for asset bundle hash
-    if (version === "unknown") {
-      try {
-        const indexPath = path.join(process.cwd(), "dist", "index.html");
-        if (fs.existsSync(indexPath)) {
-          const content = fs.readFileSync(indexPath, "utf-8");
-          const m = content.match(/assets\/index-([A-Za-z0-9_-]+)\.js/);
-          if (m && m[1]) version = m[1];
-        }
-      } catch (err) {}
-    }
     res.json({ version, timestamp: Date.now() });
   });
 
