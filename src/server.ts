@@ -5036,7 +5036,7 @@ function getUnreadChatCount(db: any, userId: number): number {
 
       // Fetch other active staff users (omitting Admin-only users, keeping staff users including those with can_switch_admin)
       const usersList = db.prepare(`
-        SELECT id, first_name, last_name, email, role, avatar_url, primary_position, status, can_switch_admin
+        SELECT id, first_name, last_name, email, role, avatar_url, primary_position, additional_positions, status, can_switch_admin
         FROM users 
         WHERE id != ? 
           AND (status IS NULL OR (status != 'INACTIVE' AND status != 'SUSPENDED'))
@@ -5082,6 +5082,14 @@ function getUnreadChatCount(db: any, userId: number): number {
           `).get(convId) as any;
         }
 
+        let additionalPositions: string[] = [];
+        if (u.additional_positions) {
+          try {
+            const parsed = typeof u.additional_positions === 'string' ? JSON.parse(u.additional_positions) : u.additional_positions;
+            if (Array.isArray(parsed)) additionalPositions = parsed;
+          } catch (e) {}
+        }
+
         return {
           id: convId,
           type: 'DIRECT',
@@ -5096,7 +5104,8 @@ function getUnreadChatCount(db: any, userId: number): number {
             status: u.status,
             canSwitchAdmin: Boolean(u.can_switch_admin),
             avatarUrl: u.avatar_url,
-            primaryPosition: u.primary_position || (u.role === 'ADMIN' ? 'Administrator' : 'Support Worker')
+            primaryPosition: u.primary_position || (u.role === 'ADMIN' ? 'Administrator' : 'Support Worker'),
+            additionalPositions: additionalPositions
           },
           unreadCount: unread,
           lastMessage: lastMsg || null

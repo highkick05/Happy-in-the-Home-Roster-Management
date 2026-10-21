@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { io, Socket } from 'socket.io-client';
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Plus, Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera, Edit2, Quote, Trash2, Check, ArrowLeft, Search, Users, MessageSquare, Hash, Shield, Lock } from 'lucide-react';
+import { Plus, Send, User as UserIcon, Paperclip, File, X, Loader2, Image as ImageIcon, Smile, Sticker, MoreHorizontal, Camera, Edit2, Quote, Trash2, Check, ArrowLeft, Search, Users, MessageSquare, Hash, Shield, Lock, Play, Pause, Video, Maximize2, Download } from 'lucide-react';
 // @ts-ignore
 import data from '@emoji-mart/data';
 // @ts-ignore
@@ -37,7 +37,184 @@ interface ConversationUser {
   canSwitchAdmin?: boolean;
   avatarUrl: string | null;
   primaryPosition: string;
+  additionalPositions?: string[] | string;
 }
+
+export const formatStaffPositions = (
+  primary?: string | null,
+  additionals?: string[] | string | null,
+  role?: string | null
+): string => {
+  const primaryPos = (primary && primary.trim()) || (role === 'ADMIN' ? 'Administrator' : 'Support Worker');
+  
+  let addList: string[] = [];
+  if (Array.isArray(additionals)) {
+    addList = additionals;
+  } else if (typeof additionals === 'string' && additionals.trim()) {
+    try {
+      const parsed = JSON.parse(additionals);
+      if (Array.isArray(parsed)) addList = parsed;
+    } catch {
+      addList = additionals.split(',').map(s => s.trim()).filter(Boolean);
+    }
+  }
+
+  const result: string[] = [primaryPos];
+  for (const pos of addList) {
+    if (pos && typeof pos === 'string') {
+      const trimmed = pos.trim();
+      if (trimmed && !result.some(p => p.toLowerCase() === trimmed.toLowerCase())) {
+        result.push(trimmed);
+      }
+    }
+  }
+
+  return result.join(' / ');
+};
+
+export const isVideoAttachment = (
+  fileType?: string | null,
+  fileName?: string | null,
+  fileUrl?: string | null
+): boolean => {
+  if (fileType && fileType.toLowerCase().startsWith('video/')) return true;
+  const name = (fileName || fileUrl || '').toLowerCase().split('?')[0];
+  const videoExts = ['.mp4', '.webm', '.mov', '.ogg', '.m4v', '.ogv', '.mkv', '.avi'];
+  return videoExts.some(ext => name.endsWith(ext));
+};
+
+interface ChatVideoPlayerProps {
+  url: string;
+  fileName: string;
+  onExpand?: () => void;
+  onLoaded?: () => void;
+}
+
+function ChatVideoPlayer({ url, fileName, onExpand, onLoaded }: ChatVideoPlayerProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [error, setError] = useState(false);
+  const [duration, setDuration] = useState<number | null>(null);
+
+  const togglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch(err => {
+        console.warn("Video play interrupted:", err);
+      });
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  const formatDuration = (secs: number) => {
+    if (isNaN(secs) || secs < 0) return '';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  return (
+    <div className="relative group/player rounded-lg overflow-hidden bg-black/70 border border-white/10 my-1.5 max-w-full sm:max-w-[380px] md:max-w-[440px] shadow-lg">
+      {/* Top Bar with filename and action buttons */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-gradient-to-b from-black/80 to-transparent absolute top-0 left-0 right-0 z-20 pointer-events-auto">
+        <div className="flex items-center space-x-1.5 min-w-0 pr-2">
+          <Video className="w-3.5 h-3.5 text-brand-teal shrink-0" />
+          <span className="text-[11px] font-medium text-white/90 truncate" title={fileName}>
+            {fileName}
+          </span>
+          {duration !== null && duration > 0 && (
+            <span className="text-[10px] text-zinc-400 shrink-0 font-mono">
+              ({formatDuration(duration)})
+            </span>
+          )}
+        </div>
+        <div className="flex items-center space-x-1 shrink-0">
+          {onExpand && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onExpand();
+              }}
+              className="p-1 rounded text-zinc-300 hover:text-white hover:bg-white/20 transition-colors"
+              title="Expand player"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <a
+            href={url}
+            download={fileName}
+            onClick={(e) => e.stopPropagation()}
+            target="_blank"
+            rel="noreferrer"
+            className="p-1 rounded text-zinc-300 hover:text-white hover:bg-white/20 transition-colors"
+            title="Download video"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      </div>
+
+      {/* Video Element */}
+      <div className="relative aspect-video flex items-center justify-center bg-black/90">
+        {error ? (
+          <div className="p-4 text-center text-xs text-zinc-400 flex flex-col items-center space-y-2">
+            <Video className="w-8 h-8 text-zinc-500" />
+            <span>Unable to preview video in browser</span>
+            <a
+              href={url}
+              download={fileName}
+              onClick={(e) => e.stopPropagation()}
+              className="px-3 py-1 bg-brand-teal/20 hover:bg-brand-teal text-white hover:text-black rounded text-[11px] font-medium transition-colors"
+            >
+              Download Video
+            </a>
+          </div>
+        ) : (
+          <>
+            <video
+              ref={videoRef}
+              src={url}
+              controls
+              playsInline
+              preload="metadata"
+              className="w-full h-full object-contain"
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onEnded={() => setIsPlaying(false)}
+              onLoadedMetadata={(e) => {
+                setDuration(e.currentTarget.duration);
+                if (onLoaded) onLoaded();
+              }}
+              onError={() => setError(true)}
+            />
+
+            {/* Big Center Play Button Overlay (when paused / not started) */}
+            {!isPlaying && (
+              <button
+                type="button"
+                onClick={togglePlay}
+                className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors z-10 cursor-pointer group/btn"
+                title="Play Video"
+              >
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-brand-teal/90 group-hover/btn:bg-brand-teal text-[#0d1117] flex items-center justify-center shadow-2xl shadow-brand-teal/30 transform transition-all duration-200 group-hover/btn:scale-110 active:scale-95">
+                  <Play className="w-6 h-6 md:w-7 md:h-7 ml-1 fill-current" />
+                </div>
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 interface ConversationItem {
   id: number | null;
@@ -115,10 +292,10 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
     });
 
     if (!searchQuery.trim()) return eligibleDirect;
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
     return eligibleDirect.filter(c => {
       const name = `${c.user?.firstName || ''} ${c.user?.lastName || ''}`.toLowerCase();
-      const pos = (c.user?.primaryPosition || c.user?.role || '').toLowerCase();
+      const pos = formatStaffPositions(c.user?.primaryPosition, c.user?.additionalPositions, c.user?.role).toLowerCase();
       return name.includes(q) || pos.includes(q);
     });
   }, [conversations.direct, searchQuery]);
@@ -527,6 +704,27 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
       handleSendMessage(e as any);
     }
   };
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items || items.length === 0) return;
+
+    const filesToAdd: globalThis.File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          filesToAdd.push(file);
+        }
+      }
+    }
+
+    if (filesToAdd.length > 0) {
+      e.preventDefault();
+      setAttachments(prev => [...prev, ...filesToAdd]);
+    }
+  }, []);
   
   const isOnlyEmojis = (text: string) => {
     if (!text || text.trim().length === 0) return false;
@@ -988,12 +1186,8 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                   )}
                 </div>
                 <div className="flex items-center justify-between mt-0.5">
-                  <p className="text-[11px] text-zinc-400 truncate">
-                    {c.lastMessage ? (
-                      c.lastMessage.content || 'Attachment'
-                    ) : (
-                      c.user?.primaryPosition || (c.user?.role === 'ADMIN' ? 'Administrator' : 'Support Worker')
-                    )}
+                  <p className="text-[11px] text-zinc-400 truncate" title={formatStaffPositions(c.user?.primaryPosition, c.user?.additionalPositions, c.user?.role)}>
+                    {formatStaffPositions(c.user?.primaryPosition, c.user?.additionalPositions, c.user?.role)}
                   </p>
                   {isTargetOnline && (
                     <span className="text-[9px] text-emerald-400 font-medium shrink-0 ml-1">
@@ -1001,6 +1195,11 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                     </span>
                   )}
                 </div>
+                {c.lastMessage && (
+                  <p className="text-[10px] text-zinc-500 truncate mt-0.5">
+                    {c.lastMessage.content || 'Attachment'}
+                  </p>
+                )}
               </div>
             </button>
           );
@@ -1104,7 +1303,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                     )}
                   </div>
                   <p className="text-[10px] text-zinc-400 truncate flex items-center gap-1.5 mt-0.5">
-                    <span>{targetUser?.primaryPosition || targetUser?.role || 'Staff Member'}</span>
+                    <span>{formatStaffPositions(targetUser?.primaryPosition, targetUser?.additionalPositions, targetUser?.role)}</span>
                     <span>•</span>
                     <span className={isTargetOnline ? 'text-emerald-400 font-medium' : 'text-zinc-500'}>
                       {isTargetOnline ? 'Active now' : 'Offline'}
@@ -1302,6 +1501,13 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                                 <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="text-left w-full">
                                   <img src={`${msg.file_url}&token=${token}`} alt="attachment" className="max-w-full max-h-[200px] rounded object-cover cursor-pointer hover:opacity-90 border border-black/20" onLoad={() => scrollToBottom()} />
                                 </button>
+                              ) : isVideoAttachment(msg.file_type, msg.file_name, msg.file_url) ? (
+                                <ChatVideoPlayer
+                                  url={`${msg.file_url}&token=${token}`}
+                                  fileName={msg.file_name || 'Video'}
+                                  onExpand={() => setPreviewFile({ url: msg.file_url!, type: msg.file_type || 'video/mp4', name: msg.file_name || 'Video' })}
+                                  onLoaded={() => scrollToBottom()}
+                                />
                               ) : (
                                 <button type="button" onClick={() => setPreviewFile({url: msg.file_url!, type: msg.file_type!, name: msg.file_name!})} className="flex items-center space-x-2 p-2 bg-black/20 rounded cursor-pointer hover:bg-black/30 w-full text-left">
                                   <File className="w-4 h-4 flex-shrink-0" />
@@ -1445,7 +1651,13 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                 {attachments.map((file, idx) => (
                   <div key={idx} className="flex items-center space-x-2 bg-brand-navy p-2 rounded-lg border border-border-subtle max-w-[200px]">
                     <div className="bg-brand-bg p-1.5 rounded shrink-0">
-                      {file.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 text-brand-teal" /> : <File className="w-4 h-4 text-zinc-400" />}
+                      {file.type.startsWith('image/') ? (
+                        <ImageIcon className="w-4 h-4 text-brand-teal" />
+                      ) : isVideoAttachment(file.type, file.name) ? (
+                        <Video className="w-4 h-4 text-purple-400" />
+                      ) : (
+                        <File className="w-4 h-4 text-zinc-400" />
+                      )}
                     </div>
                     <div className="flex-1 truncate text-xs text-zinc-300">
                       {file.name}
@@ -1483,9 +1695,9 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
               </div>
             )}
 
-            <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
+            <form onSubmit={handleSendMessage} onPaste={handlePaste} className="flex items-end space-x-2">
               <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files?.length) setAttachments(prev => [...prev, ...Array.from(e.target.files!)]); }} className="hidden" multiple />
-              <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" onChange={(e) => { if (e.target.files?.length) setAttachments(prev => [...prev, ...Array.from(e.target.files!)]); }} className="hidden" />
+              <input type="file" ref={cameraInputRef} accept="image/*,video/*" capture="environment" onChange={(e) => { if (e.target.files?.length) setAttachments(prev => [...prev, ...Array.from(e.target.files!)]); }} className="hidden" />
 
               <div className="flex-1 bg-black/20 border border-border-subtle rounded-lg flex flex-col focus-within:border-brand-teal transition-colors">
                 <textarea
@@ -1493,6 +1705,7 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
                   value={newMessage}
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
                   placeholder={isDirect ? `Message ${targetUser?.firstName || 'staff'}...` : "Message #Team-Chat..."}
                   rows={1}
                   className="w-full bg-transparent px-3 py-2 text-xs md:text-sm text-white placeholder-zinc-500 focus:outline-none resize-none max-h-48 overflow-y-auto"
@@ -1665,7 +1878,19 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
             </button>
           </div>
           <div className="flex-1 overflow-auto bg-[#0d1117] p-2 md:p-8 flex items-center justify-center min-h-0">
-            {previewFile.type?.startsWith('image/') ? (
+            {isVideoAttachment(previewFile.type, previewFile.name, previewFile.url) ? (
+              <div className="w-full max-w-4xl max-h-[80vh] flex items-center justify-center">
+                <video
+                  src={`${previewFile.url}&token=${token}`}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="max-w-full max-h-[75vh] rounded-lg shadow-2xl bg-black"
+                >
+                  Your browser does not support HTML5 video playback.
+                </video>
+              </div>
+            ) : previewFile.type?.startsWith('image/') ? (
               <img src={`${previewFile.url}&token=${token}`} alt={previewFile.name} className="max-w-full max-h-full object-contain drop-shadow-2xl rounded" />
             ) : (
               <iframe src={`${previewFile.url}&token=${token}`} title={previewFile.name} className="w-full h-full bg-white rounded-lg shadow-2xl" />
