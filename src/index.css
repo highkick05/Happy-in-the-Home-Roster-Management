@@ -855,7 +855,7 @@ it might be cut off if padding is not sufficient */
   color: #ffffff !important;
 }
 
-/* Magazine Header Typography & Slow Rotating Animations */
+/* Magazine Header Typography & Continuous Colour Flow (Stationary Text) */
 .magazine-day-header {
   font-family: "Anton", "Bebas Neue", "Oswald", Impact, sans-serif;
   font-weight: 400;
@@ -866,76 +866,77 @@ it might be cut off if padding is not sufficient */
   line-height: 1;
   user-select: none;
   transform: translateY(1px);
-  transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .magazine-day-default {
-  background: linear-gradient(110deg, #FFFFFF 0%, #F8FAFC 35%, #38BDF8 50%, #F8FAFC 65%, #FFFFFF 100%);
+  background: linear-gradient(
+    90deg,
+    #218b9f 0%,
+    #38bdf8 18%,
+    #ecfeff 34%,
+    #a3e635 50%,
+    #89c540 66%,
+    #0ea5e9 84%,
+    #218b9f 100%
+  );
   background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.14));
+  filter: drop-shadow(0 2px 8px rgba(33, 139, 159, 0.28));
 }
 
 .magazine-day-invoice {
-  background: linear-gradient(90deg, #FDE68A 0%, #F59E0B 35%, #FFFBEB 50%, #D97706 70%, #FDE68A 100%);
+  background: linear-gradient(90deg, #FDE68A 0%, #F59E0B 25%, #FFFBEB 50%, #D97706 75%, #FDE68A 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .magazine-day-pay {
-  background: linear-gradient(90deg, #A7F3D0 0%, #89c540 35%, #ECFEFF 50%, #218b9f 70%, #A7F3D0 100%);
+  background: linear-gradient(90deg, #A7F3D0 0%, #89c540 25%, #ECFEFF 50%, #218b9f 75%, #A7F3D0 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-@keyframes magShimmerSweep {
-  0% { background-position: 0% 50%; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.15)); }
-  50% { background-position: 100% 50%; filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.45)); }
-  100% { background-position: 0% 50%; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.15)); }
+@keyframes magColorFlowContinuous {
+  0% {
+    background-position: 0% 50%;
+    filter: drop-shadow(0 0 8px rgba(33, 139, 159, 0.35));
+  }
+  50% {
+    background-position: 100% 50%;
+    filter: drop-shadow(0 0 12px rgba(137, 197, 64, 0.45));
+  }
+  100% {
+    background-position: 200% 50%;
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.35));
+  }
 }
 
-@keyframes magFloatGlow {
-  0%, 100% { transform: translateY(1px) scale(1); filter: drop-shadow(0 2px 6px rgba(33, 139, 159, 0.25)); }
-  50% { transform: translateY(-1.5px) scale(1.03); filter: drop-shadow(0 6px 16px rgba(137, 197, 64, 0.55)); }
+@keyframes magColorFlowReverse {
+  0% {
+    background-position: 200% 50%;
+    filter: drop-shadow(0 0 8px rgba(137, 197, 64, 0.35));
+  }
+  50% {
+    background-position: 100% 50%;
+    filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.45));
+  }
+  100% {
+    background-position: 0% 50%;
+    filter: drop-shadow(0 0 8px rgba(33, 139, 159, 0.35));
+  }
 }
 
-@keyframes magTrackingBreathe {
-  0%, 100% { letter-spacing: 0.06em; transform: translateY(1px) scaleX(1); filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.12)); }
-  50% { letter-spacing: 0.10em; transform: translateY(1px) scaleX(1.03); filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.4)); }
-}
-
-@keyframes magPerspectiveTilt {
-  0%, 100% { transform: translateY(1px) perspective(400px) rotateX(0deg) rotateY(-4deg); filter: drop-shadow(-3px 2px 8px rgba(33, 139, 159, 0.35)); }
-  50% { transform: translateY(1px) perspective(400px) rotateX(4deg) rotateY(4deg); filter: drop-shadow(3px 4px 14px rgba(245, 158, 11, 0.45)); }
-}
-
-@keyframes magEditorialPulse {
-  0%, 100% { transform: translateY(1px) scale(1) skewX(0deg); background-position: 0% 50%; filter: brightness(1) drop-shadow(0 0 5px rgba(137, 197, 64, 0.2)); }
-  25% { transform: translateY(1px) scale(1.03) skewX(-2deg); }
-  50% { transform: translateY(1px) scale(1.02) skewX(0deg); background-position: 100% 50%; filter: brightness(1.2) drop-shadow(0 0 16px rgba(137, 197, 64, 0.55)); }
-  75% { transform: translateY(1px) scale(1.03) skewX(2deg); }
-}
-
-.mag-anim-0 {
-  animation: magShimmerSweep 7s ease-in-out infinite;
-}
-
-.mag-anim-1 {
-  animation: magFloatGlow 6s ease-in-out infinite;
-}
-
+.mag-anim-0,
+.mag-anim-1,
 .mag-anim-2 {
-  animation: magTrackingBreathe 8s ease-in-out infinite;
+  animation: magColorFlowContinuous 6s linear infinite;
 }
 
-.mag-anim-3 {
-  animation: magPerspectiveTilt 7.5s ease-in-out infinite;
-}
-
+.mag-anim-3,
 .mag-anim-4 {
-  animation: magEditorialPulse 6.5s ease-in-out infinite;
+  animation: magColorFlowReverse 6s linear infinite;
 }
 
