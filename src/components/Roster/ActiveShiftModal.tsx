@@ -820,9 +820,12 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                 {isNDIS && (
                   <>
                     <div className="bg-indigo-900/20 rounded-xl p-3 shadow-sm">
+                      <h4 className="text-xs md:text-sm font-bold text-indigo-100 uppercase tracking-wide flex items-center mb-1.5">
+                        <Car className="w-4 h-4 mr-1.5 text-brand-teal shrink-0" /> TRAVEL ALLOWANCE
+                      </h4>
                       <div className="flex justify-between items-center">
                         <div className="flex flex-col pr-4">
-                          <label className="text-sm md:text-base text-indigo-200 font-semibold leading-snug">Did you transport the client?</label>
+                          <label className="text-sm md:text-base text-indigo-200 font-semibold leading-snug">Did you perform any travel for the client?</label>
                           <span className="text-xs text-indigo-300/70 mt-1">(Will update or replace any previous transport entered)</span>
                         </div>
                         <button 
@@ -885,7 +888,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                           </div>
                           
                           <div className="flex justify-between items-center bg-[#09090b]/80 p-3 rounded-xl mt-2 shadow-sm">
-                            <label className="text-sm md:text-base text-zinc-300 font-medium pr-4 leading-snug">Did you return the client home?</label>
+                            <label className="text-sm md:text-base text-zinc-300 font-medium pr-4 leading-snug">Did you return to clients home?</label>
                             <button 
                               onClick={() => setReturnedHome(!returnedHome)}
                               className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${returnedHome ? 'bg-indigo-500' : 'bg-zinc-700'}`}
