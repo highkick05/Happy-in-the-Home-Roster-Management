@@ -637,10 +637,10 @@ export default function AiChatWidget() {
         <div
           role="dialog"
           aria-label="Happy in the Home Portal Assistant"
-          className={`fixed bottom-[76px] sm:bottom-[80px] right-3 sm:right-[20px] left-3 sm:left-auto z-50 bg-brand-navy border border-border-subtle rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-bottom-3 ${
+          className={`fixed bottom-[152px] sm:bottom-[156px] right-3 sm:right-[20px] left-3 sm:left-auto z-50 bg-brand-navy border border-border-subtle rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-bottom-3 ${
             isExpanded
-              ? 'w-auto sm:w-[740px] md:w-[860px] lg:w-[940px] h-[78vh] sm:h-[620px] md:h-[680px] lg:h-[720px] max-w-[calc(100vw-24px)] sm:max-w-[calc(100vw-32px)] max-h-[calc(100vh-100px)] sm:max-h-[calc(100vh-110px)]'
-              : 'w-auto sm:w-[460px] md:w-[520px] lg:w-[540px] max-w-[calc(100vw-24px)] sm:max-w-[calc(100vw-32px)] h-[68vh] sm:h-[540px] md:h-[580px] lg:h-[600px] max-h-[calc(100vh-100px)] sm:max-h-[calc(100vh-110px)]'
+              ? 'w-auto sm:w-[740px] md:w-[860px] lg:w-[940px] h-[78vh] sm:h-[620px] md:h-[680px] lg:h-[720px] max-w-[calc(100vw-24px)] sm:max-w-[calc(100vw-32px)] max-h-[calc(100vh-170px)] sm:max-h-[calc(100vh-180px)]'
+              : 'w-auto sm:w-[460px] md:w-[520px] lg:w-[540px] max-w-[calc(100vw-24px)] sm:max-w-[calc(100vw-32px)] h-[68vh] sm:h-[540px] md:h-[580px] lg:h-[600px] max-h-[calc(100vh-170px)] sm:max-h-[calc(100vh-180px)]'
           }`}
         >
           {/* Header */}
@@ -1148,7 +1148,7 @@ export default function AiChatWidget() {
       {/* Floating Speech Bubble from Happy Mascot (When Chat is Closed) */}
       {showQuestionBubble && activeQuestion && !isOpen && (
         <div 
-          className="fixed bottom-[84px] right-[20px] z-50 max-w-[285px] sm:max-w-[320px] bg-brand-navy/95 backdrop-blur-md border border-brand-teal/50 rounded-2xl p-3.5 shadow-2xl shadow-black/80 text-white animate-in fade-in slide-in-from-bottom-3 duration-300 print:hidden select-none"
+          className="fixed bottom-[160px] right-[20px] z-50 max-w-[285px] sm:max-w-[320px] bg-brand-navy/95 backdrop-blur-md border border-brand-teal/50 rounded-2xl p-3.5 shadow-2xl shadow-black/80 text-white animate-in fade-in slide-in-from-bottom-3 duration-300 print:hidden select-none"
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/[0.08]">
@@ -1205,7 +1205,7 @@ export default function AiChatWidget() {
         </div>
       )}
 
-      {/* 2. Floating Action Button (FAB): Absolute bottom-right corner (bottom: 20px, right: 20px) */}
+      {/* 2. Floating Action Button (FAB): Positioned above bottom input bars (bottom: 96px, right: 20px) */}
       <button
         type="button"
         onClick={() => {
@@ -1221,7 +1221,7 @@ export default function AiChatWidget() {
         }}
         aria-label="Open Happy in the Home Portal Assistant"
         title="Chat with Happy - Portal Assistant"
-        className={`fixed bottom-[20px] right-[20px] z-50 w-14 h-14 rounded-full bg-brand-navy hover:bg-brand-navy/90 border border-brand-teal/50 hover:border-brand-teal shadow-2xl text-white flex items-center justify-center transition-all group focus:outline-none focus:ring-2 focus:ring-brand-teal/50 print:hidden cursor-pointer ${
+        className={`fixed bottom-[96px] right-[20px] z-50 w-14 h-14 rounded-full bg-brand-navy hover:bg-brand-navy/90 border border-brand-teal/50 hover:border-brand-teal shadow-2xl text-white flex items-center justify-center transition-all group focus:outline-none focus:ring-2 focus:ring-brand-teal/50 print:hidden cursor-pointer ${
           mascotMood !== 'idle'
             ? 'shadow-brand-teal/70 ring-2 ring-brand-teal/60 scale-105'
             : 'hover:scale-105 active:scale-95'
