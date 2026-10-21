@@ -4944,6 +4944,7 @@ function getUnreadChatCount(db: any, userId: number): number {
       JOIN users other_u ON other_u.id = other_p.user_id
       WHERE p.user_id = ? AND c.type = 'DIRECT'
         AND (other_u.role != 'ADMIN' OR other_u.can_switch_admin = 1)
+        AND (other_u.status IS NULL OR (other_u.status != 'INACTIVE' AND other_u.status != 'SUSPENDED'))
     `).all(userId) as any[];
 
     let directUnread = 0;
@@ -5038,7 +5039,7 @@ function getUnreadChatCount(db: any, userId: number): number {
         SELECT id, first_name, last_name, email, role, avatar_url, primary_position, status, can_switch_admin
         FROM users 
         WHERE id != ? 
-          AND (status IS NULL OR status != 'INACTIVE')
+          AND (status IS NULL OR (status != 'INACTIVE' AND status != 'SUSPENDED'))
           AND (role IS NULL OR UPPER(role) != 'ADMIN' OR can_switch_admin = 1)
         ORDER BY first_name ASC, last_name ASC
       `).all(currentUserId) as any[];
@@ -5092,6 +5093,7 @@ function getUnreadChatCount(db: any, userId: number): number {
             lastName: u.last_name,
             email: u.email,
             role: u.role,
+            status: u.status,
             canSwitchAdmin: Boolean(u.can_switch_admin),
             avatarUrl: u.avatar_url,
             primaryPosition: u.primary_position || (u.role === 'ADMIN' ? 'Administrator' : 'Support Worker')
@@ -5119,10 +5121,10 @@ function getUnreadChatCount(db: any, userId: number): number {
         return res.status(400).json({ error: "Invalid target user" });
       }
 
-      // Guard against initiating direct chat with Admin-only account
-      const targetUser = db.prepare("SELECT id, role, can_switch_admin FROM users WHERE id = ?").get(targetUserId) as any;
-      if (!targetUser || (targetUser.role === 'ADMIN' && !targetUser.can_switch_admin)) {
-        return res.status(400).json({ error: "Cannot start private chat with Admin-only account" });
+      // Guard against initiating direct chat with Admin-only or Suspended account
+      const targetUser = db.prepare("SELECT id, role, can_switch_admin, status FROM users WHERE id = ?").get(targetUserId) as any;
+      if (!targetUser || (targetUser.role === 'ADMIN' && !targetUser.can_switch_admin) || targetUser.status === 'SUSPENDED' || targetUser.status === 'INACTIVE') {
+        return res.status(400).json({ error: "Cannot start private chat with suspended or inactive account" });
       }
 
       const existing = db.prepare(`

@@ -33,6 +33,7 @@ interface ConversationUser {
   lastName: string;
   email: string;
   role: string;
+  status?: string;
   canSwitchAdmin?: boolean;
   avatarUrl: string | null;
   primaryPosition: string;
@@ -105,11 +106,12 @@ export default function ChatView({ isMini = false }: { isMini?: boolean }) {
   const [pinnedEditValue, setPinnedEditValue] = useState('');
 
   const filteredDirect = React.useMemo(() => {
-    // Omit Admin-only accounts from the private chat list; keep staff accounts including those with canSwitchAdmin
+    // Omit Admin-only accounts and suspended staff from the private chat list; keep staff accounts including those with canSwitchAdmin
     const eligibleDirect = (conversations.direct || []).filter(c => {
       const isRoleAdmin = c.user?.role === 'ADMIN';
       const canSwitch = Boolean(c.user?.canSwitchAdmin || (c.user as any)?.can_switch_admin);
-      return !isRoleAdmin || canSwitch;
+      const isSuspended = c.user?.status === 'SUSPENDED' || (c.user as any)?.status?.toUpperCase() === 'SUSPENDED';
+      return (!isRoleAdmin || canSwitch) && !isSuspended;
     });
 
     if (!searchQuery.trim()) return eligibleDirect;
