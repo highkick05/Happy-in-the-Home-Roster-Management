@@ -1479,7 +1479,15 @@ export function previewXeroPayRun(db: any, params: {
     let hasProviderTravelService = false;
     let hasABTService = false;
     for (const sData of servicesArray) {
-      const sName = (sData.name || sData.customName || '').toLowerCase();
+      let sName = (sData.name || sData.customName || sData.serviceName || '').toLowerCase();
+      if (!sName && sData.serviceId && !sData.isCustom && sData.serviceId !== 'custom' && !String(sData.serviceId).startsWith('custom')) {
+        try {
+          const srv = db.prepare("SELECT name FROM services WHERE id = ?").get(sData.serviceId) as any;
+          if (srv && srv.name) {
+            sName = srv.name.toLowerCase();
+          }
+        } catch (e) {}
+      }
       if (sName.includes('provider travel')) hasProviderTravelService = true;
       if (sName.includes('activity based transport')) hasABTService = true;
     }
@@ -1602,17 +1610,20 @@ export function previewXeroPayRun(db: any, params: {
         } catch(e) {}
       }
 
-      // Always resolve NDIS Travel and Home Care Travel from active pay items
+      // Always resolve NDIS Travel (Vehicle Allowance (SCHADS) / Per Km) and Home Care Travel from active pay items
       if (!ndisTravelPayId) {
         try {
-          const ndisPi = db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND (LOWER(name) LIKE '%ndis%travel%' OR LOWER(name) LIKE '%ndis%km%' OR (LOWER(name) LIKE '%travel%' AND LOWER(name) NOT LIKE '%home care%')) AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any;
+          const ndisPi = db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND LOWER(name) LIKE '%vehicle allowance (schads)%' AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any
+            || db.prepare("SELECT xero_earnings_rate_id FROM pay_category_rules WHERE rule_key = 'ndis_travel' AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any
+            || db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND (LOWER(rate_type) = 'km' OR LOWER(name) LIKE '%ndis%travel%' OR LOWER(name) LIKE '%ndis%km%' OR ((LOWER(name) LIKE '%vehicle%allowance%' OR LOWER(name) LIKE '%travel%') AND LOWER(name) NOT LIKE '%time%' AND LOWER(name) NOT LIKE '%home care%')) AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any;
           if (ndisPi) ndisTravelPayId = ndisPi.xero_earnings_rate_id;
         } catch(e) {}
       }
       if (!homeCareTravelPayId) {
         try {
-          const hcPi = db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND (LOWER(name) LIKE '%home care%travel%' OR LOWER(name) LIKE '%hcp%travel%' OR LOWER(name) LIKE '%home care%km%' OR LOWER(name) LIKE '%hcp%km%' OR (LOWER(name) LIKE '%travel%' AND LOWER(name) NOT LIKE '%ndis%')) AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any
-            || db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND LOWER(name) LIKE '%travel%' AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any;
+          const hcPi = db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND (LOWER(name) LIKE '%time travelled%' OR LOWER(name) LIKE '%base rate x time%' OR LOWER(name) LIKE '%home care%travel%' OR LOWER(name) LIKE '%hcp%travel%') AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any
+            || db.prepare("SELECT xero_earnings_rate_id FROM pay_category_rules WHERE rule_key = 'home_care_travel' AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any
+            || db.prepare("SELECT xero_earnings_rate_id FROM pay_items WHERE is_active = 1 AND (LOWER(name) LIKE '%home care%km%' OR LOWER(name) LIKE '%hcp%km%' OR (LOWER(name) LIKE '%travel%' AND LOWER(name) NOT LIKE '%ndis%' AND LOWER(name) NOT LIKE '%(schads)%')) AND TRIM(xero_earnings_rate_id) != '' LIMIT 1").get() as any;
           if (hcPi) homeCareTravelPayId = hcPi.xero_earnings_rate_id;
         } catch(e) {}
       }
@@ -1930,6 +1941,7 @@ export async function createXeroDraftPayRun(db: any, params: {
 
     // Pre-fetch all earnings rates from Xero/DB so we have exact RatePerUnit, multipliers and rate types
     const payItemRatesMap = new Map<string, { ratePerUnit: number; multiplier: number; earningsType: string; isMultiple: boolean; rateType: string }>();
+    let liveVehicleAllowanceId = '';
     try {
       const payItemsRes = await getXeroPayItems(db);
       if (payItemsRes.success && Array.isArray(payItemsRes.earningsRates)) {
@@ -1943,6 +1955,11 @@ export async function createXeroDraftPayRun(db: any, params: {
             rateType: er.rateType || '',
             isMultiple
           });
+          const erNameLower = (er.name || '').toLowerCase();
+          const erUnitsLower = (er.typeOfUnits || '').toLowerCase();
+          if (erNameLower.includes('vehicle allowance (schads)') || (!liveVehicleAllowanceId && (erUnitsLower === 'km' || erUnitsLower === 'kilometres' || erUnitsLower === 'kilometers'))) {
+            liveVehicleAllowanceId = er.id;
+          }
         }
       }
       if (payItemsRes.success && Array.isArray(payItemsRes.allowances)) {
@@ -1981,13 +1998,14 @@ export async function createXeroDraftPayRun(db: any, params: {
     const executionWarnings: string[] = [];
 
     for (const staff of eligibleStaff) {
+      const effectiveNdisTravelId = staff.payRateNdisTravelId || liveVehicleAllowanceId;
       // Home Care Travel is calculated as a decimal fraction of an hour (time) * employee's hourly rate
       const targetEntries = [
         { id: staff.payRateWeekdayId, units: staff.weekdayHours, desc: 'Weekday', defaultRate: undefined, isHomeCareTravel: false },
         { id: staff.payRateSaturdayId, units: staff.saturdayHours, desc: 'Saturday', defaultRate: undefined, isHomeCareTravel: false },
         { id: staff.payRateSundayId, units: staff.sundayHours, desc: 'Sunday', defaultRate: undefined, isHomeCareTravel: false },
         { id: staff.payRatePublicHolidayId, units: staff.publicHolidayHours, desc: 'Public Holiday', defaultRate: undefined, isHomeCareTravel: false },
-        { id: staff.payRateNdisTravelId, units: parseFloat((staff.ndisTravelKm + staff.homeCareTravelKm).toFixed(2)), desc: 'NDIS Travel', defaultRate: 0.99, isHomeCareTravel: false },
+        { id: effectiveNdisTravelId, units: parseFloat((staff.ndisTravelKm + staff.homeCareTravelKm).toFixed(2)), desc: 'NDIS Travel', defaultRate: 1.05, isHomeCareTravel: false },
         { id: staff.payRateHomeCareTravelId, units: staff.homeCareTravelHours, desc: 'Home Care Travel', defaultRate: undefined, isHomeCareTravel: true },
       ].filter(e => !!e.id && e.units > 0);
 
@@ -2026,8 +2044,10 @@ export async function createXeroDraftPayRun(db: any, params: {
             console.warn('[XERO_PAYRUN] Could not fetch detailed payslip:', getErr);
           }
 
-          // Determine employee's base ordinary rate from existing template lines
-          const baseLine = existingLines.find((el: any) => Number(el.RatePerUnit || 0) > 0);
+          // Determine employee's base ordinary rate from existing template lines (excluding per-km vehicle allowance)
+          const baseLine = existingLines.find((el: any) => el.EarningsRateID === staff.payRateWeekdayId && Number(el.RatePerUnit || 0) > 0)
+            || existingLines.find((el: any) => Number(el.RatePerUnit || 0) > 5 && el.EarningsRateID !== effectiveNdisTravelId)
+            || existingLines.find((el: any) => Number(el.RatePerUnit || 0) > 0 && el.EarningsRateID !== effectiveNdisTravelId);
           if (baseLine) baseOrdinaryRate = Number(baseLine.RatePerUnit);
 
           // If base rate not found on draft payslip, fetch employee PayTemplate from Xero
@@ -2038,7 +2058,8 @@ export async function createXeroDraftPayRun(db: any, params: {
                 const empData = await empRes.json();
                 const empObj = empData.Employees?.[0] || empData.Employee;
                 const tmplLines = empObj?.PayTemplate?.EarningsLines || [];
-                const tmplBase = tmplLines.find((l: any) => Number(l.RatePerUnit || 0) > 0);
+                const tmplBase = tmplLines.find((l: any) => l.EarningsRateID === staff.payRateWeekdayId && Number(l.RatePerUnit || 0) > 0)
+                  || tmplLines.find((l: any) => Number(l.RatePerUnit || 0) > 5 && l.EarningsRateID !== effectiveNdisTravelId);
                 if (tmplBase) {
                   baseOrdinaryRate = Number(tmplBase.RatePerUnit);
                 }
@@ -2093,7 +2114,7 @@ export async function createXeroDraftPayRun(db: any, params: {
             } else if (entry.isHomeCareTravel) {
               rate = baseOrdinaryRate > 0 ? baseOrdinaryRate : (rateInfo?.ratePerUnit || 0);
             } else if (entry.desc === 'NDIS Travel') {
-              rate = (rateInfo && rateInfo.ratePerUnit > 0) ? rateInfo.ratePerUnit : 0.99;
+              rate = (rateInfo && rateInfo.ratePerUnit > 0) ? rateInfo.ratePerUnit : 1.05;
             } else if (rateInfo && rateInfo.multiplier > 1 && baseOrdinaryRate > 0) {
               rate = parseFloat((baseOrdinaryRate * rateInfo.multiplier).toFixed(4));
             } else if (baseOrdinaryRate > 0) {
@@ -2125,7 +2146,11 @@ export async function createXeroDraftPayRun(db: any, params: {
             const existingIdx = finalLines.findIndex(l => l.EarningsRateID === entry.id);
             if (existingIdx >= 0) {
               finalLines[existingIdx].NumberOfUnits = Number(entry.units.toFixed(2));
-              finalLines[existingIdx].RatePerUnit = lineRate;
+              if (entry.desc === 'NDIS Travel' && finalLines[existingIdx].RatePerUnit > 0 && (!payItemRatesMap.get(entry.id)?.ratePerUnit)) {
+                // Keep existing Xero template RatePerUnit (e.g. 1.05) on Vehicle Allowance (SCHADS)
+              } else {
+                finalLines[existingIdx].RatePerUnit = lineRate;
+              }
             } else {
               // Not in template - dynamically append new EarningsLine to the payslip
               finalLines.push({

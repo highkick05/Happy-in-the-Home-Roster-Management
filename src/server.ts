@@ -7367,10 +7367,12 @@ function getUnreadChatCount(db: any, userId: number): number {
     } else if (ruleKey === 'sleepover') {
       if (/\b(sleepover|sleep\s*over|sleep)\b/i.test(n) && !/\b(travel|km|vehicle)\b/i.test(n)) isRuleMatch = true;
     } else if (ruleKey === 'ndis_travel') {
-      if (/\b(ndis\s*travel|ndis\s*km|ndis\s*kilometre|travel|kilometre|km|mileage)\b/i.test(n) && !/\b(home\s*care|hcp)\b/i.test(n)) isRuleMatch = true;
+      if (n.includes('vehicle allowance (schads)') || String(item.rate_type || '').toLowerCase() === 'km') isRuleMatch = true;
+      else if (/\b(ndis\s*travel|ndis\s*km|ndis\s*kilometre|travel|kilometre|km|mileage|vehicle\s*allowance)\b/i.test(n) && !/\b(home\s*care|hcp|time\s*travelled)\b/i.test(n)) isRuleMatch = true;
     } else if (ruleKey === 'home_care_travel') {
-      if (/\b(home\s*care|hcp)\b/i.test(n) && /\b(travel|km|kilometre|transport)\b/i.test(n)) isRuleMatch = true;
-      else if (/\b(travel|km|kilometre)\b/i.test(n)) isRuleMatch = true;
+      if (n.includes('time travelled') || n.includes('base rate x time')) isRuleMatch = true;
+      else if (/\b(home\s*care|hcp)\b/i.test(n) && /\b(travel|km|kilometre|transport)\b/i.test(n)) isRuleMatch = true;
+      else if (/\b(travel|km|kilometre)\b/i.test(n) && !n.includes('vehicle allowance (schads)')) isRuleMatch = true;
     }
 
     if (!isRuleMatch) return -9999;
@@ -7378,8 +7380,8 @@ function getUnreadChatCount(db: any, userId: number): number {
     // General allowances don't require role/level identity matching
     if (ruleKey === 'sleepover' || ruleKey === 'ndis_travel' || ruleKey === 'home_care_travel') {
       let allowanceScore = 500;
-      if (ruleKey === 'ndis_travel' && /\bndis\b/i.test(n)) allowanceScore += 300;
-      if (ruleKey === 'home_care_travel' && /\b(home\s*care|hcp)\b/i.test(n)) allowanceScore += 300;
+      if (ruleKey === 'ndis_travel' && (n.includes('vehicle allowance (schads)') || String(item.rate_type || '').toLowerCase() === 'km' || /\bndis\b/i.test(n))) allowanceScore += 300;
+      if (ruleKey === 'home_care_travel' && (n.includes('time travelled') || n.includes('base rate x time') || /\b(home\s*care|hcp)\b/i.test(n))) allowanceScore += 300;
       return allowanceScore;
     }
 
