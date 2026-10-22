@@ -108,21 +108,19 @@ function DateTimer() {
     settings?.payrunStartDay,
   ]);
 
-  const activeSpecialModes: Array<{ text: string; themeClass: string }> = [];
+  const rotationModes: Array<{ text: string; themeClass: string }> = [
+    { text: dayName, themeClass: 'magazine-day-default' },
+  ];
   if (isInvoiceDay) {
-    activeSpecialModes.push({ text: 'INVOICE DAY', themeClass: 'magazine-day-invoice' });
+    rotationModes.unshift({ text: 'INVOICE DAY', themeClass: 'magazine-day-invoice' });
   }
   if (isPayDay) {
-    activeSpecialModes.push({ text: 'PAY DAY', themeClass: 'magazine-day-pay' });
+    rotationModes.unshift({ text: 'PAYDAY', themeClass: 'magazine-day-pay' });
   }
 
-  const currentSpecial =
-    activeSpecialModes.length > 0
-      ? activeSpecialModes[labelCycleIndex % activeSpecialModes.length]
-      : null;
-
-  const displayTitle = currentSpecial ? currentSpecial.text : dayName;
-  const themeClass = currentSpecial ? currentSpecial.themeClass : 'magazine-day-default';
+  const currentMode = rotationModes[labelCycleIndex % rotationModes.length];
+  const displayTitle = currentMode.text;
+  const themeClass = currentMode.themeClass;
   const animClass = `mag-anim-${animIndex}`;
   
   return (
@@ -133,7 +131,7 @@ function DateTimer() {
             setAnimIndex(prev => (prev + 1) % 5);
             setLabelCycleIndex(prev => prev + 1);
           }}
-          title={currentSpecial ? `${dayName} • ${currentSpecial.text}` : dayName}
+          title={rotationModes.length > 1 ? rotationModes.map(m => m.text).join(' • ') : dayName}
           className={`text-[26px] md:text-[28px] magazine-day-header ${themeClass} ${animClass} cursor-pointer`}
         >
           {displayTitle}

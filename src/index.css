@@ -872,11 +872,13 @@ it might be cut off if padding is not sufficient */
   background: linear-gradient(
     90deg,
     #218b9f 0%,
-    #38bdf8 18%,
-    #ecfeff 34%,
-    #a3e635 50%,
-    #89c540 66%,
-    #0ea5e9 84%,
+    #ffffff 14%,
+    #38bdf8 28%,
+    #ffffff 42%,
+    #a3e635 56%,
+    #89c540 70%,
+    #ffffff 84%,
+    #0ea5e9 92%,
     #218b9f 100%
   );
   background-size: 200% auto;
@@ -886,14 +888,33 @@ it might be cut off if padding is not sufficient */
 }
 
 .magazine-day-invoice {
-  background: linear-gradient(90deg, #FDE68A 0%, #F59E0B 25%, #FFFBEB 50%, #D97706 75%, #FDE68A 100%);
+  background: linear-gradient(
+    90deg,
+    #FDE68A 0%,
+    #ffffff 16%,
+    #F59E0B 34%,
+    #ffffff 52%,
+    #D97706 70%,
+    #ffffff 86%,
+    #FDE68A 100%
+  );
   background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .magazine-day-pay {
-  background: linear-gradient(90deg, #A7F3D0 0%, #89c540 25%, #ECFEFF 50%, #218b9f 75%, #A7F3D0 100%);
+  background: linear-gradient(
+    90deg,
+    #A7F3D0 0%,
+    #ffffff 16%,
+    #89c540 32%,
+    #ffffff 50%,
+    #38bdf8 68%,
+    #218b9f 82%,
+    #ffffff 92%,
+    #A7F3D0 100%
+  );
   background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
