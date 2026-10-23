@@ -1233,30 +1233,71 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
         ? 'Checking & syncing Sent invoices to Xero as Awaiting Payment...'
         : 'Checking & syncing Paid invoices to Xero as Paid...'
     );
+
+    let totalUploaded = 0;
+    let totalLinked = 0;
+    let totalMarkedPaid = 0;
+    const allErrors: string[] = [];
+
     try {
-      const res = await fetch('/api/invoices/xero-failsafe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token || localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ tab: targetTab }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to sync invoices with Xero');
+      let keepGoing = true;
+      let batchNumber = 0;
+
+      while (keepGoing) {
+        batchNumber++;
+        const res = await fetch('/api/invoices/xero-failsafe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token || localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({ tab: targetTab }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        totalUploaded += Number(data.uploadedCount || 0);
+        totalLinked += Number(data.linkedCount || 0);
+        totalMarkedPaid += Number(data.markedPaidCount || 0);
+        if (Array.isArray(data.errors) && data.errors.length > 0) {
+          allErrors.push(...data.errors);
+        }
+
+        if ((data.uploadedCount || 0) + (data.linkedCount || 0) + (data.markedPaidCount || 0) > 0) {
+          fetchInvoices(true);
+        }
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || data.errors?.[0] || 'Failed to sync invoices with Xero');
+        }
+
+        const remaining = Number(data.remainingCount || 0);
+        const madeProgress = (data.uploadedCount || 0) + (data.linkedCount || 0) + (data.markedPaidCount || 0) > 0;
+
+        if (remaining > 0 && (madeProgress || data.rateLimited) && batchNumber < 25) {
+          // Wait 62s between batches so Xero's 60 calls/minute rate limit resets cleanly
+          for (let sec = 62; sec > 0; sec--) {
+            setToastMessage(
+              `Xero Sync Progress: ${totalUploaded} uploaded, ${totalMarkedPaid} marked Paid (${remaining} older invoices remaining — pausing ${sec}s for Xero 60/min rate limit)...`
+            );
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+          setToastMessage(`Syncing next batch of ${targetTab === 'paid' ? 'Paid' : 'Sent'} invoices to Xero (${remaining} remaining)...`);
+        } else {
+          keepGoing = false;
+        }
       }
 
-      if (data.updatedCount > 0) {
+      const totalUpdated = totalUploaded + totalLinked + totalMarkedPaid;
+      if (totalUpdated > 0) {
         const parts: string[] = [];
-        if (data.uploadedCount > 0) parts.push(`${data.uploadedCount} uploaded`);
-        if (data.linkedCount > 0) parts.push(`${data.linkedCount} linked`);
-        if (data.markedPaidCount > 0) parts.push(`${data.markedPaidCount} marked Paid`);
-        const warnSuffix = data.errors?.length > 0 ? ` (${data.errors.length} warning(s))` : '';
+        if (totalUploaded > 0) parts.push(`${totalUploaded} uploaded`);
+        if (totalLinked > 0) parts.push(`${totalLinked} linked`);
+        if (totalMarkedPaid > 0) parts.push(`${totalMarkedPaid} marked Paid`);
+        const warnSuffix = allErrors.length > 0 ? ` (${allErrors[0]})` : '';
         setToastMessage(`Xero Sync Complete: ${parts.join(', ')} in Xero!${warnSuffix}`);
         fetchInvoices(true);
-      } else if (data.errors?.length > 0) {
-        setToastMessage(`Error: ${data.errors[0]}`);
+      } else if (allErrors.length > 0) {
+        setToastMessage(`Error: ${allErrors[0]}`);
       } else {
         setToastMessage(
           targetTab === 'sent'
@@ -1264,10 +1305,10 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
             : 'All Paid invoices are already uploaded & marked Paid in Xero.'
         );
       }
-      setTimeout(() => setToastMessage(null), 6000);
+      setTimeout(() => setToastMessage(null), 8000);
     } catch (error: any) {
       setToastMessage(`Error: ${error.message || 'Failed to sync invoices with Xero'}`);
-      setTimeout(() => setToastMessage(null), 7000);
+      setTimeout(() => setToastMessage(null), 10000);
       console.error(error);
     } finally {
       setIsSyncingXeroTab(false);

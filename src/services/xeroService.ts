@@ -432,6 +432,9 @@ export async function syncInvoiceToXero(
   reason?: string;
   xeroInvoiceId?: string;
   invoiceNumber?: string;
+  xeroAmountDue?: number;
+  xeroDateString?: string;
+  rateLimited?: boolean;
   tenantName?: string;
   attachmentUploaded?: boolean;
   error?: string;
@@ -665,14 +668,24 @@ export async function syncInvoiceToXero(
     body: JSON.stringify(xeroInvoicePayload),
   });
 
-  const createData = await createRes.json().catch(() => ({}));
+  const rawCreateText = await createRes.text().catch(() => '');
+  let createData: any = {};
+  try {
+    createData = rawCreateText ? JSON.parse(rawCreateText) : {};
+  } catch {}
 
   if (!createRes.ok) {
+    if (createRes.status === 429) {
+      const retryAfter = createRes.headers.get('Retry-After') || '60';
+      console.warn(`[XERO] Rate limit (HTTP 429) reached creating invoice ${invoiceNumber} (Retry-After: ${retryAfter}s)`);
+      throw new Error(`XERO_RATE_LIMIT: Xero API rate limit (60 calls/min) reached. Wait ${retryAfter}s and retry.`);
+    }
     const errorMsg = createData?.Elements?.[0]?.ValidationErrors?.[0]?.Message ||
                      createData?.Message ||
+                     createData?.Detail ||
                      createData?.error ||
                      `HTTP ${createRes.status}`;
-    console.error('[XERO] Error creating invoice in Xero:', createData);
+    console.error(`[XERO] Error creating invoice ${invoiceNumber} in Xero (HTTP ${createRes.status}):`, rawCreateText || createData);
     throw new Error(`Xero Invoicing Error: ${errorMsg}`);
   }
 
@@ -713,6 +726,8 @@ export async function syncInvoiceToXero(
     success: true,
     xeroInvoiceId,
     invoiceNumber,
+    xeroAmountDue: Number(createdInvoice?.AmountDue ?? createdInvoice?.Total ?? 0),
+    xeroDateString: createdInvoice?.DateString ? String(createdInvoice.DateString).split('T')[0] : dateStr,
     tenantName,
     attachmentUploaded,
   };
@@ -3149,6 +3164,9 @@ export async function runXeroTabFailsafe(
   uploadedCount: number;
   linkedCount: number;
   markedPaidCount: number;
+  remainingCount?: number;
+  rateLimited?: boolean;
+  needsReconnect?: boolean;
   syncedInvoiceNumbers: string[];
   errors: string[];
   error?: string;
@@ -3162,6 +3180,7 @@ export async function runXeroTabFailsafe(
       uploadedCount: 0,
       linkedCount: 0,
       markedPaidCount: 0,
+      remainingCount: 0,
       syncedInvoiceNumbers: [],
       errors: [],
     };
@@ -3179,6 +3198,7 @@ export async function runXeroTabFailsafe(
         uploadedCount: 0,
         linkedCount: 0,
         markedPaidCount: 0,
+        remainingCount: 0,
         syncedInvoiceNumbers: [],
         errors: [],
       };
@@ -3208,11 +3228,15 @@ export async function runXeroTabFailsafe(
       return `INV-${yyyymmdd}-${String(inv.shift_id || inv.id).padStart(4, '0')}`;
     };
 
+    const MAX_UPLOADS_PER_BATCH = 12; // ~24 API calls (Invoice + PDF Attachment), keeping well within Xero's 60 calls/min limit & avoiding HTTP timeouts
     const syncedInvoiceNumbers: string[] = [];
     const errors: string[] = [];
     let uploadedCount = 0;
     let linkedCount = 0;
     let markedPaidCount = 0;
+    let remainingCount = 0;
+    let rateLimited = false;
+    let needsReconnect = false;
 
     if (tab === 'sent') {
       const unsyncedSent = db.prepare(`
@@ -3232,6 +3256,7 @@ export async function runXeroTabFailsafe(
           uploadedCount: 0,
           linkedCount: 0,
           markedPaidCount: 0,
+          remainingCount: 0,
           syncedInvoiceNumbers: [],
           errors: [],
         };
@@ -3239,7 +3264,7 @@ export async function runXeroTabFailsafe(
 
       const { accessToken, tenantId } = await getValidAccessToken(db, settings);
 
-      // Fetch existing ACCREC invoices from Xero in one request so we can link any already-uploaded ones first
+      // Fetch existing ACCREC invoices from Xero so we can link any already-uploaded ones first
       const xeroByNum = new Map<string, any>();
       const xeroById = new Map<string, any>();
       try {
@@ -3262,6 +3287,8 @@ export async function runXeroTabFailsafe(
           }
         }
       } catch {}
+
+      const needUploadSent: Array<{ inv: any; invNum: string }> = [];
 
       for (const inv of unsyncedSent) {
         const invNum = computePortalInvoiceNum(inv);
@@ -3298,24 +3325,36 @@ export async function runXeroTabFailsafe(
           linkedCount++;
           syncedInvoiceNumbers.push(invNum);
         } else {
-          try {
-            const syncRes = await syncInvoiceToXero(db, inv.id, {
-              force: true,
-              source: 'manual',
-              getInvoiceDataHelpers,
-            });
-            if (syncRes.success && syncRes.xeroInvoiceId) {
-              if (!inv.invoice_number && invNum) {
-                try {
-                  db.prepare('UPDATE invoices SET invoice_number = COALESCE(invoice_number, ?) WHERE id = ?').run(invNum, inv.id);
-                } catch {}
-              }
-              uploadedCount++;
-              syncedInvoiceNumbers.push(syncRes.invoiceNumber || invNum);
+          needUploadSent.push({ inv, invNum });
+        }
+      }
+
+      const batchSent = needUploadSent.slice(0, MAX_UPLOADS_PER_BATCH);
+      remainingCount = Math.max(0, needUploadSent.length - batchSent.length);
+
+      for (const { inv, invNum } of batchSent) {
+        try {
+          const syncRes = await syncInvoiceToXero(db, inv.id, {
+            force: true,
+            source: 'manual',
+            getInvoiceDataHelpers,
+          });
+          if (syncRes.success && syncRes.xeroInvoiceId) {
+            if (!inv.invoice_number && invNum) {
+              try {
+                db.prepare('UPDATE invoices SET invoice_number = COALESCE(invoice_number, ?) WHERE id = ?').run(invNum, inv.id);
+              } catch {}
             }
-          } catch (upErr: any) {
-            errors.push(`${invNum}: ${upErr.message}`);
+            uploadedCount++;
+            syncedInvoiceNumbers.push(syncRes.invoiceNumber || invNum);
           }
+        } catch (upErr: any) {
+          if (String(upErr.message).includes('XERO_RATE_LIMIT')) {
+            rateLimited = true;
+            remainingCount = needUploadSent.length - uploadedCount;
+            break;
+          }
+          errors.push(`${invNum}: ${upErr.message}`);
         }
       }
 
@@ -3326,6 +3365,8 @@ export async function runXeroTabFailsafe(
         uploadedCount,
         linkedCount,
         markedPaidCount: 0,
+        remainingCount,
+        rateLimited,
         syncedInvoiceNumbers,
         errors,
       };
@@ -3348,16 +3389,44 @@ export async function runXeroTabFailsafe(
         uploadedCount: 0,
         linkedCount: 0,
         markedPaidCount: 0,
+        remainingCount: 0,
         syncedInvoiceNumbers: [],
         errors: [],
       };
     }
 
-    const { accessToken, tenantId } = await getValidAccessToken(db, settings);
+    let { accessToken, tenantId } = await getValidAccessToken(db, settings);
 
-    // Fetch all ACCREC invoices from Xero so we know which ones exist & which are still AUTHORISED/SUBMITTED ("Awaiting Payment")
+    // Fetch ACCREC invoices from Xero:
+    // 1) Specifically fetch all AUTHORISED, SUBMITTED, and DRAFT invoices so we never miss any unpaid invoice even if Xero has >100 total invoices
+    // 2) Also fetch general ACCREC summary list to link any already-PAID Xero invoices
     const xeroByNum = new Map<string, any>();
     const xeroById = new Map<string, any>();
+    const ingestXeroList = (invoicesArr: any[]) => {
+      for (const xInv of Array.isArray(invoicesArr) ? invoicesArr : []) {
+        if (xInv.Status === 'VOIDED' || xInv.Status === 'DELETED') continue;
+        if (xInv.InvoiceID) xeroById.set(String(xInv.InvoiceID).toLowerCase(), xInv);
+        if (xInv.InvoiceNumber) xeroByNum.set(String(xInv.InvoiceNumber).trim().toLowerCase(), xInv);
+      }
+    };
+
+    try {
+      const unpaidRes = await fetch(
+        `https://api.xero.com/api.xro/2.0/Invoices?Statuses=AUTHORISED,SUBMITTED,DRAFT&where=${encodeURIComponent('Type=="ACCREC"')}&summaryOnly=true`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Xero-Tenant-Id': tenantId,
+            'Accept': 'application/json',
+          },
+        }
+      );
+      if (unpaidRes.ok) {
+        const unpaidData = await unpaidRes.json().catch(() => ({}));
+        ingestXeroList(unpaidData?.Invoices);
+      }
+    } catch {}
+
     try {
       const listRes = await fetch(
         `https://api.xero.com/api.xro/2.0/Invoices?where=${encodeURIComponent('Type=="ACCREC"')}&summaryOnly=true`,
@@ -3371,21 +3440,20 @@ export async function runXeroTabFailsafe(
       );
       if (listRes.ok) {
         const listData = await listRes.json().catch(() => ({}));
-        for (const xInv of Array.isArray(listData?.Invoices) ? listData.Invoices : []) {
-          if (xInv.Status === 'VOIDED' || xInv.Status === 'DELETED') continue;
-          if (xInv.InvoiceID) xeroById.set(String(xInv.InvoiceID).toLowerCase(), xInv);
-          if (xInv.InvoiceNumber) xeroByNum.set(String(xInv.InvoiceNumber).trim().toLowerCase(), xInv);
-        }
+        ingestXeroList(listData?.Invoices);
       }
     } catch {}
 
-    const awaitingPaymentQueue: Array<{
+    type PaymentQueueItem = {
       xeroInvoiceId: string;
       invoiceNumber: string;
       amount: number;
       invoiceDateYmd: string;
       statusInXero: string;
-    }> = [];
+    };
+
+    const existingAwaitingPaymentQueue: PaymentQueueItem[] = [];
+    const needUploadPaid: Array<{ inv: any; invNum: string; portalHistYmd: string }> = [];
 
     let timezone = 'Australia/Perth';
     try {
@@ -3424,7 +3492,7 @@ export async function runXeroTabFailsafe(
         }
 
         // Check if this Xero invoice is still "Awaiting Payment" (not PAID yet)
-        const amtDue = Number(existingXero.AmountDue ?? 0);
+        const amtDue = Number(existingXero.AmountDue ?? existingXero.Total ?? inv.amount ?? 0);
         if (existingXero.Status !== 'PAID' && amtDue > 0) {
           let xDateYmd = portalHistYmd;
           if (existingXero.DateString) {
@@ -3432,7 +3500,7 @@ export async function runXeroTabFailsafe(
           } else if (existingXero.Date) {
             xDateYmd = formatXeroDate(existingXero.Date) || portalHistYmd;
           }
-          awaitingPaymentQueue.push({
+          existingAwaitingPaymentQueue.push({
             xeroInvoiceId: existingXero.InvoiceID,
             invoiceNumber: existingXero.InvoiceNumber || invNum,
             amount: amtDue,
@@ -3441,80 +3509,39 @@ export async function runXeroTabFailsafe(
           });
         }
       } else if (!isLocallySynced) {
-        // Older PAID invoice that was never uploaded to Xero -> upload now as AUTHORISED, then queue for payment
-        try {
-          const syncRes = await syncInvoiceToXero(db, inv.id, {
-            force: true,
-            source: 'manual',
-            getInvoiceDataHelpers,
-          });
-          if (syncRes.success && syncRes.xeroInvoiceId) {
-            if (!inv.invoice_number && invNum) {
-              try {
-                db.prepare('UPDATE invoices SET invoice_number = COALESCE(invoice_number, ?) WHERE id = ?').run(invNum, inv.id);
-              } catch {}
-            }
-            uploadedCount++;
-            syncedInvoiceNumbers.push(syncRes.invoiceNumber || invNum);
-            const amt = Number(inv.amount || 0);
-            if (amt > 0) {
-              awaitingPaymentQueue.push({
-                xeroInvoiceId: syncRes.xeroInvoiceId,
-                invoiceNumber: syncRes.invoiceNumber || invNum,
-                amount: amt,
-                invoiceDateYmd: portalHistYmd,
-                statusInXero: 'AUTHORISED',
-              });
-            }
-          }
-        } catch (upErr: any) {
-          errors.push(`${invNum}: ${upErr.message}`);
-        }
+        needUploadPaid.push({ inv, invNum, portalHistYmd });
       }
     }
 
-    // Apply payments in Xero for all queued PAID invoices that are still Awaiting Payment in Xero
-    if (awaitingPaymentQueue.length > 0) {
-      const paymentAccount = await resolveXeroPaymentAccount(db, accessToken, tenantId);
-      if (paymentAccount) {
-        for (const qItem of awaitingPaymentQueue) {
-          if (qItem.statusInXero === 'DRAFT' || qItem.statusInXero === 'SUBMITTED') {
-            try {
-              await fetch('https://api.xero.com/api.xro/2.0/Invoices', {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Xero-Tenant-Id': tenantId,
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                  Invoices: [{ InvoiceID: qItem.xeroInvoiceId, Status: 'AUTHORISED' }],
-                }),
-              });
-            } catch {}
-          }
+    // Helper to apply payments in Xero for a queue of invoices
+    let cachedPaymentAccount: { AccountID: string; Code?: string; Name: string } | null | undefined = undefined;
+    let paymentScopeForbidden = false;
+
+    const applyBatchPayments = async (queue: PaymentQueueItem[]) => {
+      if (queue.length === 0 || paymentScopeForbidden || rateLimited) return;
+
+      if (cachedPaymentAccount === undefined) {
+        try {
+          cachedPaymentAccount = await resolveXeroPaymentAccount(db, accessToken, tenantId);
+        } catch (accErr: any) {
+          console.error('[XERO] Error resolving Xero payment account:', accErr.message);
+          errors.push(`Payment Account Error: ${accErr.message}`);
+          cachedPaymentAccount = null;
         }
+      }
 
-        const paymentItems = awaitingPaymentQueue.map((qItem) => {
-          const payDate = qItem.invoiceDateYmd && qItem.invoiceDateYmd > todayYmd ? qItem.invoiceDateYmd : todayYmd;
-          return {
-            invoiceNumber: qItem.invoiceNumber,
-            payload: {
-              Invoice: { InvoiceID: qItem.xeroInvoiceId },
-              Account: { AccountID: paymentAccount.AccountID },
-              Date: payDate,
-              Amount: parseFloat(qItem.amount.toFixed(2)),
-              Reference: `Paid - ${qItem.invoiceNumber}`,
-            },
-          };
-        });
+      if (!cachedPaymentAccount) {
+        if (!errors.some((e) => e.includes('Bank Account'))) {
+          errors.push('No active Bank Account (or payment-enabled account) found in Xero Chart of Accounts to record payments.');
+        }
+        return;
+      }
 
-        // Submit in batches of 25 to stay well within Xero payload & rate limits
-        const BATCH_SIZE = 25;
-        for (let i = 0; i < paymentItems.length; i += BATCH_SIZE) {
-          const chunk = paymentItems.slice(i, i + BATCH_SIZE);
-          const batchRes = await fetch('https://api.xero.com/api.xro/2.0/Payments', {
+      // Promote any DRAFT/SUBMITTED invoices to AUTHORISED in a single batch call first
+      const toAuthorise = queue.filter((q) => q.statusInXero === 'DRAFT' || q.statusInXero === 'SUBMITTED');
+      if (toAuthorise.length > 0) {
+        try {
+          await fetch('https://api.xero.com/api.xro/2.0/Invoices?SummarizeErrors=false', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${accessToken}`,
@@ -3522,25 +3549,117 @@ export async function runXeroTabFailsafe(
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            body: JSON.stringify({ Payments: chunk.map((c) => c.payload) }),
+            body: JSON.stringify({
+              Invoices: toAuthorise.map((q) => ({ InvoiceID: q.xeroInvoiceId, Status: 'AUTHORISED' })),
+            }),
           });
+        } catch {}
+      }
 
-          if (batchRes.ok) {
-            markedPaidCount += chunk.length;
-          } else {
-            // Fallback to individual payment posts if one item in the chunk had a validation warning
-            for (const c of chunk) {
+      const paymentItems = queue.map((qItem) => {
+        const payDate = qItem.invoiceDateYmd && qItem.invoiceDateYmd > todayYmd ? qItem.invoiceDateYmd : todayYmd;
+        return {
+          invoiceNumber: qItem.invoiceNumber,
+          xeroInvoiceId: qItem.xeroInvoiceId,
+          payload: {
+            Invoice: { InvoiceID: qItem.xeroInvoiceId },
+            Account: { AccountID: cachedPaymentAccount!.AccountID },
+            Date: payDate,
+            Amount: parseFloat(qItem.amount.toFixed(2)),
+            Reference: `Paid - ${qItem.invoiceNumber}`,
+          },
+        };
+      });
+
+      const BATCH_SIZE = 25;
+      for (let i = 0; i < paymentItems.length; i += BATCH_SIZE) {
+        const chunk = paymentItems.slice(i, i + BATCH_SIZE);
+        let batchRes = await fetch('https://api.xero.com/api.xro/2.0/Payments?SummarizeErrors=false', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Xero-Tenant-Id': tenantId,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({ Payments: chunk.map((c) => c.payload) }),
+        });
+
+        // If 401/403 in client_credentials mode, force a fresh token once in case Custom Connection scopes were recently updated
+        if ((batchRes.status === 401 || batchRes.status === 403) && settings.xero_auth_type === 'client_credentials') {
+          try {
+            saveXeroSetting(db, 'xero_token_expires_at', 0);
+            const refreshed = await getValidAccessToken(db);
+            accessToken = refreshed.accessToken;
+            tenantId = refreshed.tenantId;
+            batchRes = await fetch('https://api.xero.com/api.xro/2.0/Payments?SummarizeErrors=false', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Xero-Tenant-Id': tenantId,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify({ Payments: chunk.map((c) => c.payload) }),
+            });
+          } catch {}
+        }
+
+        if (batchRes.status === 401 || batchRes.status === 403) {
+          const rawAuthErr = await batchRes.text().catch(() => '');
+          console.error(`[XERO] HTTP ${batchRes.status} on POST /Payments (missing accounting.payments scope):`, rawAuthErr);
+          paymentScopeForbidden = true;
+          needsReconnect = true;
+          errors.push(
+            "Xero permission 'accounting.payments' is required to mark invoices as Paid in Xero. Please enable 'accounting.payments' in developer.xero.com and click 'Re-authorize with Xero' in Settings > Xero Integration."
+          );
+          return;
+        }
+
+        if (batchRes.status === 429) {
+          console.warn('[XERO] Rate limit (HTTP 429) hit during POST /Payments');
+          rateLimited = true;
+          return;
+        }
+
+        const rawPayText = await batchRes.text().catch(() => '');
+        let batchData: any = {};
+        try {
+          batchData = rawPayText ? JSON.parse(rawPayText) : {};
+        } catch {}
+
+        const returnedPayments: any[] = Array.isArray(batchData?.Payments) ? batchData.Payments : [];
+
+        if (returnedPayments.length > 0) {
+          for (let idx = 0; idx < returnedPayments.length; idx++) {
+            const pElem = returnedPayments[idx];
+            const sourceItem = chunk[idx] || chunk.find((c) => c.xeroInvoiceId === pElem?.Invoice?.InvoiceID);
+            const hasErr =
+              pElem?.HasErrors === true ||
+              (Array.isArray(pElem?.ValidationErrors) && pElem.ValidationErrors.length > 0);
+
+            if (!hasErr) {
+              markedPaidCount++;
+              if (sourceItem?.invoiceNumber) syncedInvoiceNumbers.push(sourceItem.invoiceNumber);
+            } else if (sourceItem) {
+              // Retry single item with fresh AmountDue from Xero in case GST rounding differed by 1 cent
               try {
-                // Fetch fresh AmountDue from Xero in case GST rounding differed slightly from inv.amount
-                const freshInv = await findXeroInvoice(accessToken, tenantId, c.payload.Invoice.InvoiceID, c.invoiceNumber);
+                const freshInv = await findXeroInvoice(accessToken, tenantId, sourceItem.xeroInvoiceId, sourceItem.invoiceNumber);
                 if (freshInv) {
                   if (freshInv.Status === 'PAID' || Number(freshInv.AmountDue ?? 0) <= 0) {
                     markedPaidCount++;
+                    syncedInvoiceNumbers.push(sourceItem.invoiceNumber);
                     continue;
                   }
-                  c.payload.Amount = parseFloat(Number(freshInv.AmountDue).toFixed(2));
+                  sourceItem.payload.Amount = parseFloat(Number(freshInv.AmountDue).toFixed(2));
+                  if (freshInv.DateString) {
+                    const fDate = String(freshInv.DateString).split('T')[0];
+                    if (fDate > sourceItem.payload.Date) {
+                      sourceItem.payload.Date = fDate;
+                    }
+                  }
                 }
-                const singleRes = await fetch('https://api.xero.com/api.xro/2.0/Payments', {
+                const singleRes = await fetch('https://api.xro/2.0/Payments'.replace('api.xro', 'api.xero.com/api.xro'), {
                   method: 'POST',
                   headers: {
                     'Authorization': `Bearer ${accessToken}`,
@@ -3548,38 +3667,121 @@ export async function runXeroTabFailsafe(
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
                   },
-                  body: JSON.stringify({ Payments: [c.payload] }),
+                  body: JSON.stringify({ Payments: [sourceItem.payload] }),
                 });
                 if (singleRes.ok) {
                   markedPaidCount++;
+                  syncedInvoiceNumbers.push(sourceItem.invoiceNumber);
                 } else {
-                  const errData = await singleRes.json().catch(() => ({}));
-                  const msg =
-                    errData?.Elements?.[0]?.ValidationErrors?.[0]?.Message ||
-                    errData?.Message ||
+                  const errMsg =
+                    pElem?.ValidationErrors?.[0]?.Message ||
                     `HTTP ${singleRes.status}`;
-                  errors.push(`${c.invoiceNumber}: ${msg}`);
+                  console.warn(`[XERO] Payment validation warning for ${sourceItem.invoiceNumber}: ${errMsg}`);
+                  errors.push(`${sourceItem.invoiceNumber}: ${errMsg}`);
                 }
               } catch (sErr: any) {
-                errors.push(`${c.invoiceNumber}: ${sErr.message}`);
+                errors.push(`${sourceItem.invoiceNumber}: ${sErr.message}`);
               }
             }
           }
+        } else if (batchRes.ok) {
+          markedPaidCount += chunk.length;
+          for (const c of chunk) syncedInvoiceNumbers.push(c.invoiceNumber);
+        } else {
+          const msg =
+            batchData?.Elements?.[0]?.ValidationErrors?.[0]?.Message ||
+            batchData?.Message ||
+            batchData?.Detail ||
+            `HTTP ${batchRes.status}`;
+          console.error(`[XERO] Batch payment error (HTTP ${batchRes.status}):`, rawPayText || batchData);
+          errors.push(`Xero Payment Error: ${msg}`);
         }
-      } else {
-        errors.push('No active Bank Account found in Xero to record payments.');
+      }
+    };
+
+    // STEP 1: Immediately mark all Paid portal invoices that ALREADY exist in Xero as Paid FIRST!
+    // This ensures invoices already in Xero (e.g. top rows in Paid tab) are marked Paid in <2s before any heavy uploads run.
+    if (existingAwaitingPaymentQueue.length > 0) {
+      await applyBatchPayments(existingAwaitingPaymentQueue);
+    }
+
+    // If Xero rejected /Payments with 401/403 (missing accounting.payments scope), stop immediately and report clearly
+    if (paymentScopeForbidden) {
+      return {
+        success: false,
+        needsReconnect: true,
+        tab,
+        updatedCount: linkedCount + markedPaidCount,
+        uploadedCount: 0,
+        linkedCount,
+        markedPaidCount,
+        remainingCount: needUploadPaid.length,
+        syncedInvoiceNumbers: Array.from(new Set(syncedInvoiceNumbers)),
+        errors,
+        error: errors[0] || "Xero permission 'accounting.payments' is required to mark invoices as Paid in Xero.",
+      };
+    }
+
+    // STEP 2: Upload a safe rate-limited batch (up to 12) of older historical Paid invoices not yet in Xero, then immediately mark them Paid
+    const batchPaidToUpload = needUploadPaid.slice(0, MAX_UPLOADS_PER_BATCH);
+    remainingCount = Math.max(0, needUploadPaid.length - batchPaidToUpload.length);
+    const newlyUploadedPaymentQueue: PaymentQueueItem[] = [];
+
+    for (const { inv, invNum, portalHistYmd } of batchPaidToUpload) {
+      if (rateLimited) break;
+      try {
+        const syncRes = await syncInvoiceToXero(db, inv.id, {
+          force: true,
+          source: 'manual',
+          getInvoiceDataHelpers,
+        });
+        if (syncRes.success && syncRes.xeroInvoiceId) {
+          if (!inv.invoice_number && invNum) {
+            try {
+              db.prepare('UPDATE invoices SET invoice_number = COALESCE(invoice_number, ?) WHERE id = ?').run(invNum, inv.id);
+            } catch {}
+          }
+          uploadedCount++;
+          syncedInvoiceNumbers.push(syncRes.invoiceNumber || invNum);
+          const amt = Number(syncRes.xeroAmountDue || inv.amount || 0);
+          if (amt > 0) {
+            newlyUploadedPaymentQueue.push({
+              xeroInvoiceId: syncRes.xeroInvoiceId,
+              invoiceNumber: syncRes.invoiceNumber || invNum,
+              amount: amt,
+              invoiceDateYmd: syncRes.xeroDateString || portalHistYmd,
+              statusInXero: 'AUTHORISED',
+            });
+          }
+        }
+      } catch (upErr: any) {
+        if (String(upErr.message).includes('XERO_RATE_LIMIT')) {
+          rateLimited = true;
+          remainingCount = needUploadPaid.length - uploadedCount;
+          break;
+        }
+        errors.push(`${invNum}: ${upErr.message}`);
       }
     }
 
+    // Immediately mark the newly uploaded batch of Paid invoices as PAID in Xero
+    if (newlyUploadedPaymentQueue.length > 0 && !paymentScopeForbidden) {
+      await applyBatchPayments(newlyUploadedPaymentQueue);
+    }
+
     return {
-      success: true,
+      success: !paymentScopeForbidden,
+      needsReconnect,
       tab,
       updatedCount: uploadedCount + linkedCount + markedPaidCount,
       uploadedCount,
       linkedCount,
       markedPaidCount,
+      remainingCount,
+      rateLimited,
       syncedInvoiceNumbers: Array.from(new Set(syncedInvoiceNumbers)),
       errors,
+      error: paymentScopeForbidden ? errors[0] : undefined,
     };
   } catch (e: any) {
     console.error(`[XERO] Tab failsafe (${tab}) error:`, e);
@@ -3590,6 +3792,7 @@ export async function runXeroTabFailsafe(
       uploadedCount: 0,
       linkedCount: 0,
       markedPaidCount: 0,
+      remainingCount: 0,
       syncedInvoiceNumbers: [],
       errors: [],
       error: e.message || 'Xero failsafe check failed.',
