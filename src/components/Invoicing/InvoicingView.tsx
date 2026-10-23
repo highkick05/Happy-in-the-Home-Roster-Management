@@ -785,14 +785,6 @@ export default function InvoicingView() {
 
   const { token, user, settings } = useAuth();
   const [tab, setTab] = useLocalStorage<'invoices' | 'quotes' | 'remittances'>('invoicing_tab', 'invoices');
-
-  const getXeroInvoiceUrl = (xeroInvoiceId: string) => {
-    const shortCode = settings?.xero_shortcode;
-    if (shortCode) {
-      return `https://go.xero.com/organisationlogin/default.aspx?shortcode=${encodeURIComponent(shortCode)}&redirecturl=/AccountsReceivable/View.aspx?InvoiceID=${encodeURIComponent(xeroInvoiceId)}`;
-    }
-    return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${encodeURIComponent(xeroInvoiceId)}`;
-  };
   const [subTab, setSubTab] = useLocalStorage<'active' | 'sent' | 'paid'>('invoicing_sub_tab', 'active');
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -820,8 +812,6 @@ export default function InvoicingView() {
   const [isMerging, setIsMerging] = useState(false);
   const [isEmailing, setIsEmailing] = useState<number | null>(null);
   const [isTesting, setIsTesting] = useState<number | null>(null);
-  const [isUploadingXero, setIsUploadingXero] = useState<number | null>(null);
-  const [isSyncingXeroTab, setIsSyncingXeroTab] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [allDbClients, setAllDbClients] = useState<any[]>([]);
@@ -1202,119 +1192,6 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
     }
   };
 
-  const handleUploadToXero = async (invoiceId: number) => {
-    setIsUploadingXero(invoiceId);
-    try {
-      const response = await fetch(`/api/invoices/${invoiceId}/upload-xero`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to upload invoice to Xero');
-      }
-      alert(data.message || 'Invoice uploaded to Xero successfully!');
-      fetchInvoices();
-    } catch (error: any) {
-      alert(error.message || 'Failed to upload invoice to Xero');
-      console.error(error);
-    } finally {
-      setIsUploadingXero(null);
-    }
-  };
-
-  const handleRunXeroFailsafe = async (targetTab: 'sent' | 'paid') => {
-    if (isSyncingXeroTab) return;
-    setIsSyncingXeroTab(true);
-    setToastMessage(
-      targetTab === 'sent'
-        ? 'Checking & syncing Sent invoices to Xero as Awaiting Payment...'
-        : 'Checking & syncing Paid invoices to Xero as Paid...'
-    );
-
-    let totalUploaded = 0;
-    let totalLinked = 0;
-    let totalMarkedPaid = 0;
-    const allErrors: string[] = [];
-
-    try {
-      let keepGoing = true;
-      let batchNumber = 0;
-
-      while (keepGoing) {
-        batchNumber++;
-        const res = await fetch('/api/invoices/xero-failsafe', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token || localStorage.getItem('token')}`,
-          },
-          body: JSON.stringify({ tab: targetTab }),
-        });
-        const data = await res.json().catch(() => ({}));
-
-        totalUploaded += Number(data.uploadedCount || 0);
-        totalLinked += Number(data.linkedCount || 0);
-        totalMarkedPaid += Number(data.markedPaidCount || 0);
-        if (Array.isArray(data.errors) && data.errors.length > 0) {
-          allErrors.push(...data.errors);
-        }
-
-        if ((data.uploadedCount || 0) + (data.linkedCount || 0) + (data.markedPaidCount || 0) > 0) {
-          fetchInvoices(true);
-        }
-
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || data.errors?.[0] || 'Failed to sync invoices with Xero');
-        }
-
-        const remaining = Number(data.remainingCount || 0);
-        const madeProgress = (data.uploadedCount || 0) + (data.linkedCount || 0) + (data.markedPaidCount || 0) > 0;
-
-        if (remaining > 0 && (madeProgress || data.rateLimited) && batchNumber < 25) {
-          // Wait 62s between batches so Xero's 60 calls/minute rate limit resets cleanly
-          for (let sec = 62; sec > 0; sec--) {
-            setToastMessage(
-              `Xero Sync Progress: ${totalUploaded} uploaded, ${totalMarkedPaid} marked Paid (${remaining} older invoices remaining — pausing ${sec}s for Xero 60/min rate limit)...`
-            );
-            await new Promise((r) => setTimeout(r, 1000));
-          }
-          setToastMessage(`Syncing next batch of ${targetTab === 'paid' ? 'Paid' : 'Sent'} invoices to Xero (${remaining} remaining)...`);
-        } else {
-          keepGoing = false;
-        }
-      }
-
-      const totalUpdated = totalUploaded + totalLinked + totalMarkedPaid;
-      if (totalUpdated > 0) {
-        const parts: string[] = [];
-        if (totalUploaded > 0) parts.push(`${totalUploaded} uploaded`);
-        if (totalLinked > 0) parts.push(`${totalLinked} linked`);
-        if (totalMarkedPaid > 0) parts.push(`${totalMarkedPaid} marked Paid`);
-        const warnSuffix = allErrors.length > 0 ? ` (${allErrors[0]})` : '';
-        setToastMessage(`Xero Sync Complete: ${parts.join(', ')} in Xero!${warnSuffix}`);
-        fetchInvoices(true);
-      } else if (allErrors.length > 0) {
-        setToastMessage(`Error: ${allErrors[0]}`);
-      } else {
-        setToastMessage(
-          targetTab === 'sent'
-            ? 'All Sent invoices are already in Xero as Awaiting Payment.'
-            : 'All Paid invoices are already uploaded & marked Paid in Xero.'
-        );
-      }
-      setTimeout(() => setToastMessage(null), 8000);
-    } catch (error: any) {
-      setToastMessage(`Error: ${error.message || 'Failed to sync invoices with Xero'}`);
-      setTimeout(() => setToastMessage(null), 10000);
-      console.error(error);
-    } finally {
-      setIsSyncingXeroTab(false);
-    }
-  };
-
   const handleTestTrilogyInvoice = async (invoiceId: number) => {
     setIsTesting(invoiceId);
     setToastMessage('Executing Test Run in Browser...');
@@ -1366,24 +1243,6 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
         body: JSON.stringify({ status })
       });
       if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const xp = data?.xeroPayment;
-        if (status === 'PAID' && xp) {
-          if (xp.success && !xp.skipped) {
-            setToastMessage(
-              xp.alreadyPaid
-                ? `Invoice ${xp.invoiceNumber || ''} marked as PAID (already Paid in Xero).`
-                : `Invoice ${xp.invoiceNumber || ''} marked as PAID & reconciled in Xero!`
-            );
-            setTimeout(() => setToastMessage(null), 5000);
-          } else if (xp.error) {
-            setToastMessage(`Error: Marked as PAID locally, but Xero failed: ${xp.error}`);
-            setTimeout(() => setToastMessage(null), 7000);
-          }
-        } else if (status !== 'PAID' && xp?.paymentsDeleted > 0) {
-          setToastMessage('Invoice unmarked as PAID (PDF deleted & Xero payment reversed).');
-          setTimeout(() => setToastMessage(null), 5000);
-        }
         fetchInvoices();
       } else {
         alert('Failed to update status');
@@ -1730,46 +1589,15 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
               Generate Invoice
             </button>
           )}
-
-          {subTab === 'sent' && (
-            <button
-              onClick={() => handleRunXeroFailsafe('sent')}
-              disabled={isSyncingXeroTab}
-              title="Ensure all Sent invoices are uploaded to Xero as Awaiting Payment"
-              className="flex items-center px-2.5 py-1 bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 shadow-sm text-xs font-medium rounded-md transition-colors h-7 whitespace-nowrap disabled:opacity-50"
-            >
-              {isSyncingXeroTab ? (
-                <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-              ) : (
-                <Building2 className="w-3.5 h-3.5 mr-1.5" />
-              )}
-              {isSyncingXeroTab ? 'Syncing Xero...' : 'Sync Sent to Xero'}
-            </button>
-          )}
           
           {subTab === 'paid' && (
-            <>
-              <button
-                onClick={() => handleRunXeroFailsafe('paid')}
-                disabled={isSyncingXeroTab}
-                title="Ensure all Paid invoices are uploaded and marked as Paid in Xero"
-                className="flex items-center px-2.5 py-1 bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 shadow-sm text-xs font-medium rounded-md transition-colors h-7 whitespace-nowrap disabled:opacity-50"
-              >
-                {isSyncingXeroTab ? (
-                  <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                ) : (
-                  <Building2 className="w-3.5 h-3.5 mr-1.5" />
-                )}
-                {isSyncingXeroTab ? 'Syncing Xero...' : 'Sync Paid to Xero'}
-              </button>
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="flex items-center px-2 py-1 bg-gradient-to-r from-brand-teal to-brand-green text-white shadow-sm text-xs font-medium rounded-md transition-colors h-7 whitespace-nowrap"
-              >
-                <Upload className="w-3.5 h-3.5 mr-1.5" />
-                Upload Historical
-              </button>
-            </>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="flex items-center px-2 py-1 bg-gradient-to-r from-brand-teal to-brand-green text-white shadow-sm text-xs font-medium rounded-md transition-colors h-7 whitespace-nowrap"
+            >
+              <Upload className="w-3.5 h-3.5 mr-1.5" />
+              Upload Historical
+            </button>
           )}
         </div>
       </div>
@@ -1856,55 +1684,17 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                       </div>
                     </td>
                     <td className="px-3 py-1.5 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
-                          i.status === 'PAID' ? 'bg-brand-green/20 text-brand-green border border-brand-green/30' : 
-                          i.status === 'SENT' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' :
-                          'bg-brand-bg text-[#8B949E] border border-border-subtle'
-                        }`}>
-                          {i.status}
-                        </span>
-                        {i.xero_status === 'SYNCED' && (
-                          i.xero_invoice_id ? (
-                            <a
-                              href={getXeroInvoiceUrl(i.xero_invoice_id)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              title={`Open invoice in Xero (${i.xero_synced_at ? `Synced: ${i.xero_synced_at}` : 'Synced'}) — Click to open in Xero`}
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-500/15 hover:bg-sky-500/30 text-sky-400 hover:text-sky-200 border border-sky-500/30 hover:border-sky-400 transition-colors cursor-pointer group shadow-sm"
-                            >
-                              <span>XERO</span>
-                              <ExternalLink className="w-2.5 h-2.5 opacity-70 group-hover:opacity-100 transition-opacity" />
-                            </a>
-                          ) : (
-                            <span 
-                              title={`Uploaded to Xero (${i.xero_synced_at || ''})`}
-                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/30"
-                            >
-                              XERO
-                            </span>
-                          )
-                        )}
-                      </div>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
+                        i.status === 'PAID' ? 'bg-brand-green/20 text-brand-green border border-brand-green/30' : 
+                        i.status === 'SENT' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' :
+                        'bg-brand-bg text-[#8B949E] border border-border-subtle'
+                      }`}>
+                        {i.status}
+                      </span>
                     </td>
                     <td className="px-3 py-1.5 text-right flex items-center justify-end space-x-1">
                        {subTab === 'active' && (
                          <>
-                           <button
-                             title={i.xero_status === 'SYNCED' ? "Re-upload to Xero" : "Upload to Xero"}
-                             onClick={() => handleUploadToXero(i.id)}
-                             disabled={isUploadingXero === i.id}
-                             className={`p-1.5 rounded-md transition-colors ${
-                               isUploadingXero === i.id 
-                                 ? 'text-sky-400 opacity-50 cursor-not-allowed' 
-                                 : i.xero_status === 'SYNCED'
-                                   ? 'text-sky-400 hover:text-sky-300 hover:bg-sky-500/10'
-                                   : 'text-zinc-400 hover:text-sky-400 hover:bg-sky-500/10'
-                             }`}
-                           >
-                             {isUploadingXero === i.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Building2 className="w-4 h-4" />}
-                           </button>
                            {i.submission_method && i.submission_method !== 'manual' && (
                              <>
                                {i.submission_method === 'trilogy_form' && i.is_test_mode_enabled === 1 && (

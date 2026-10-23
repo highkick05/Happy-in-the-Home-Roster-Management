@@ -3801,3 +3801,148 @@ export async function runXeroTabFailsafe(
     isXeroTabFailsafeRunning = false;
   }
 }
+
+export async function bulkVoidAwaitingPaymentInvoicesInXero(db: any): Promise<{
+  success: boolean;
+  totalFound: number;
+  voidedCount: number;
+  failedCount: number;
+  voidedInvoiceNumbers: string[];
+  errors: string[];
+  error?: string;
+}> {
+  try {
+    const auth = await getValidAccessToken(db);
+    const { accessToken, tenantId } = auth;
+
+    let totalFound = 0;
+    let voidedCount = 0;
+    let failedCount = 0;
+    const voidedInvoiceNumbers: string[] = [];
+    const errors: string[] = [];
+    const attemptedIds = new Set<string>();
+
+    // Loop up to 10 passes in case Xero paginates >100 AUTHORISED invoices
+    for (let pass = 0; pass < 10; pass++) {
+      const listUrl = `https://api.xero.com/api.xro/2.0/Invoices?Statuses=AUTHORISED&where=${encodeURIComponent('Type=="ACCREC"')}&summaryOnly=true`;
+      const listRes = await fetch(listUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Xero-Tenant-Id': tenantId,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!listRes.ok) {
+        const errText = await listRes.text().catch(() => '');
+        throw new Error(`Failed to fetch Awaiting Payment invoices from Xero (HTTP ${listRes.status}): ${errText.slice(0, 200)}`);
+      }
+
+      const listData = await listRes.json().catch(() => ({}));
+      const allAuthorised = (Array.isArray(listData?.Invoices) ? listData.Invoices : []).filter(
+        (inv: any) => inv.InvoiceID && inv.Status === 'AUTHORISED' && (!inv.Type || inv.Type === 'ACCREC') && !attemptedIds.has(inv.InvoiceID)
+      );
+
+      if (allAuthorised.length === 0) {
+        break;
+      }
+
+      totalFound += allAuthorised.length;
+      for (const inv of allAuthorised) {
+        attemptedIds.add(inv.InvoiceID);
+      }
+
+      // Void in batches of 50 per POST request
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < allAuthorised.length; i += BATCH_SIZE) {
+        const chunk = allAuthorised.slice(i, i + BATCH_SIZE);
+        const payload = {
+          Invoices: chunk.map((inv: any) => ({
+            InvoiceID: inv.InvoiceID,
+            Status: 'VOIDED',
+          })),
+        };
+
+        const voidRes = await fetch('https://api.xero.com/api.xro/2.0/Invoices?summarizeErrors=false', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Xero-Tenant-Id': tenantId,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (voidRes.status === 429) {
+          errors.push('Xero API rate limit reached (60 calls/min). Please wait 60 seconds and click the button again to void remaining invoices.');
+          break;
+        }
+
+        const voidData = await voidRes.json().catch(() => ({}));
+        const returnedInvoices = Array.isArray(voidData?.Invoices) ? voidData.Invoices : [];
+
+        if (returnedInvoices.length > 0) {
+          for (let idx = 0; idx < returnedInvoices.length; idx++) {
+            const rInv = returnedInvoices[idx];
+            const srcInv = chunk[idx] || {};
+            const invNum = rInv.InvoiceNumber || srcInv.InvoiceNumber || rInv.InvoiceID;
+            if (rInv.HasErrors || (Array.isArray(rInv.ValidationErrors) && rInv.ValidationErrors.length > 0)) {
+              failedCount++;
+              const errMsg = rInv.ValidationErrors?.map((v: any) => v.Message).join('; ') || 'Could not void invoice';
+              errors.push(`${invNum}: ${errMsg}`);
+            } else if (rInv.Status === 'VOIDED') {
+              voidedCount++;
+              if (invNum) voidedInvoiceNumbers.push(invNum);
+            }
+          }
+        } else if (voidRes.ok) {
+          voidedCount += chunk.length;
+          for (const c of chunk) {
+            if (c.InvoiceNumber) voidedInvoiceNumbers.push(c.InvoiceNumber);
+          }
+        } else {
+          failedCount += chunk.length;
+          const msg = voidData?.Message || voidData?.Detail || `HTTP ${voidRes.status}`;
+          errors.push(`Batch void error: ${msg}`);
+        }
+      }
+
+      if (allAuthorised.length < 100) {
+        break;
+      }
+    }
+
+    // Clear Xero sync flags on local invoices table
+    try {
+      db.prepare(`
+        UPDATE invoices
+        SET xero_status = NULL,
+            xero_invoice_id = NULL,
+            xero_synced_at = NULL
+        WHERE xero_status IS NOT NULL OR xero_invoice_id IS NOT NULL
+      `).run();
+    } catch {}
+
+    return {
+      success: true,
+      totalFound,
+      voidedCount,
+      failedCount,
+      voidedInvoiceNumbers,
+      errors,
+    };
+  } catch (e: any) {
+    console.error('[XERO] Error bulk voiding Awaiting Payment invoices:', e);
+    return {
+      success: false,
+      totalFound: 0,
+      voidedCount: 0,
+      failedCount: 0,
+      voidedInvoiceNumbers: [],
+      errors: [e.message || 'Failed to bulk void Awaiting Payment invoices in Xero.'],
+      error: e.message || 'Failed to bulk void Awaiting Payment invoices in Xero.',
+    };
+  }
+}
+

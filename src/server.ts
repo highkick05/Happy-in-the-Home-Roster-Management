@@ -57,6 +57,7 @@ import {
   unmarkInvoicePaidInXero,
   reconcilePaidInvoicesWithXero,
   runXeroTabFailsafe,
+  bulkVoidAwaitingPaymentInvoicesInXero,
 } from "./services/xeroService";
 import {
   initAwardRatesTable,
@@ -6731,6 +6732,19 @@ function getUnreadChatCount(db: any, userId: number): number {
     } catch (e: any) {
       console.error("[XERO] Tab failsafe failed:", e);
       res.status(500).json({ success: false, error: e.message || "Xero failsafe scan failed." });
+    }
+  });
+
+  app.post("/api/xero/void-awaiting-payment", authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const result = await bulkVoidAwaitingPaymentInvoicesInXero(db);
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      res.json(result);
+    } catch (e: any) {
+      console.error("[XERO] Bulk void Awaiting Payment invoices failed:", e);
+      res.status(500).json({ success: false, error: e.message || "Failed to bulk void Awaiting Payment invoices in Xero." });
     }
   });
 
@@ -19839,16 +19853,6 @@ app.post(
               }
             }
           }
-
-          try {
-            xeroPayment = await unmarkInvoicePaidInXero(
-              db,
-              Number(id),
-              resolvedData?.invoiceNum || oldInvoice.invoice_number,
-            );
-          } catch (xErr: any) {
-            console.warn("[XERO] Error reversing payment in Xero:", xErr);
-          }
         }
 
         if (status === "PAID" && oldInvoice.status !== "PAID") {
@@ -19920,20 +19924,9 @@ app.post(
               });
             }
           }
-
-          try {
-            xeroPayment = await markInvoicePaidInXero(
-              db,
-              Number(id),
-              fallbackInvoiceNum,
-            );
-          } catch (xErr: any) {
-            console.error("[XERO] Error marking invoice paid in Xero:", xErr);
-            xeroPayment = { success: false, error: xErr.message };
-          }
         }
 
-        res.json({ success: true, xeroPayment });
+        res.json({ success: true });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
         res.status(500).json({ error: "Internal Server Error" });
@@ -20955,31 +20948,7 @@ app.post(
 
       db.prepare("UPDATE invoices SET status = 'SENT' WHERE id = ?").run(invoiceId);
 
-      // Upload to Xero simultaneously if enabled
-      let xeroMessage = "";
-      try {
-        const xeroRes = await syncInvoiceToXero(db, invoiceId, {
-          source: 'email',
-          pdfBuffer: pdfBuffer || undefined,
-          filename: filename || undefined,
-          getInvoiceDataHelpers: {
-            getShiftData: getInvoiceDataForShift,
-            getMergedData: getInvoiceDataForMergedInvoice,
-            getRespiteData: getInvoiceDataForRespiteBooking,
-            buildPdf: buildInvoicePdf,
-          }
-        });
-        if (xeroRes.success && !xeroRes.skipped) {
-          xeroMessage = ` and uploaded to Xero (${xeroRes.invoiceNumber})`;
-        } else if (xeroRes.error) {
-          xeroMessage = ` (Notice: Xero upload failed: ${xeroRes.error})`;
-        }
-      } catch (xErr: any) {
-        console.error("[XERO] Error during Email submit sync:", xErr);
-        xeroMessage = ` (Notice: Xero upload notice: ${xErr.message})`;
-      }
-
-      res.json({ success: true, message: `Invoice emailed successfully${xeroMessage} and marked as SENT.` });
+      res.json({ success: true, message: "Invoice emailed successfully and marked as SENT." });
     } catch (e: any) {
       console.error("Failed to email invoice:", e);
       const smtpInfo = `Host: ${s.host}, Port: ${s.port}, User: ${s.user}`;
@@ -21379,32 +21348,8 @@ app.post(
       if (!isTestMode) {
         db.prepare("UPDATE invoices SET status = 'SENT' WHERE id = ?").run(invoiceId);
 
-        // Upload to Xero simultaneously if enabled
-        let xeroMessage = "";
-        try {
-          const xeroRes = await syncInvoiceToXero(db, invoiceId, {
-            source: 'trilogy',
-            pdfBuffer: trilogyPdfBuffer || undefined,
-            filename: trilogyPdfFilename || undefined,
-            getInvoiceDataHelpers: {
-              getShiftData: getInvoiceDataForShift,
-              getMergedData: getInvoiceDataForMergedInvoice,
-              getRespiteData: getInvoiceDataForRespiteBooking,
-              buildPdf: buildInvoicePdf,
-            }
-          });
-          if (xeroRes.success && !xeroRes.skipped) {
-            xeroMessage = ` and uploaded to Xero (${xeroRes.invoiceNumber})`;
-          } else if (xeroRes.error) {
-            xeroMessage = ` (Notice: Xero upload failed: ${xeroRes.error})`;
-          }
-        } catch (xErr: any) {
-          console.error("[XERO] Error during Trilogy submit sync:", xErr);
-          xeroMessage = ` (Notice: Xero upload notice: ${xErr.message})`;
-        }
-
         // 9. Return success
-        res.json({ success: true, message: `Invoice submitted to Trilogy Care successfully${xeroMessage} and marked as SENT.` });
+        res.json({ success: true, message: "Invoice submitted to Trilogy Care successfully and marked as SENT." });
       } else {
         res.json({ success: true, message: "Test run completed successfully (Dry Run)." });
       }

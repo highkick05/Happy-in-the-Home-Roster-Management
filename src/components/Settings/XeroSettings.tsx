@@ -8,14 +8,10 @@ import {
   ExternalLink, 
   Eye, 
   EyeOff, 
-  Send, 
-  FileText, 
   ShieldCheck, 
   Unplug, 
   Check, 
-  HelpCircle,
-  Play,
-  ArrowRight
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -40,20 +36,12 @@ interface XeroStatusResponse {
 export default function XeroSettings() {
   const { token } = useAuth();
 
-  // Settings State
-  const [enabled, setEnabled] = useState<boolean>(false);
+  // Connection Settings State
   const [authType, setAuthType] = useState<'client_credentials' | 'oauth2' | 'manual'>('oauth2');
   const [clientId, setClientId] = useState<string>('');
   const [clientSecret, setClientSecret] = useState<string>('');
   const [tenantId, setTenantId] = useState<string>('');
   const [tenantName, setTenantName] = useState<string>('');
-  const [accountCode, setAccountCode] = useState<string>('200');
-  const [invoiceStatus, setInvoiceStatus] = useState<'AUTHORISED' | 'DRAFT'>('AUTHORISED');
-  const [taxTypeGst, setTaxTypeGst] = useState<string>('OUTPUT');
-  const [taxTypeFree, setTaxTypeFree] = useState<string>('BASEXCLUDED');
-  const [syncOnTrilogy, setSyncOnTrilogy] = useState<boolean>(true);
-  const [syncOnEmail, setSyncOnEmail] = useState<boolean>(true);
-  const [attachPdf, setAttachPdf] = useState<boolean>(true);
 
   // UI / Password visibility
   const [showSecret, setShowSecret] = useState<boolean>(false);
@@ -77,18 +65,15 @@ export default function XeroSettings() {
   const [availableTenants, setAvailableTenants] = useState<Array<{ id: string; tenantId: string; tenantName: string }>>([]);
   const [loadingTenants, setLoadingTenants] = useState<boolean>(false);
 
-  // Test Invoice State
-  const [testAmount, setTestAmount] = useState<number>(10.00);
-  const [testStatus, setTestStatus] = useState<'AUTHORISED' | 'DRAFT'>('AUTHORISED');
-  const [isTestingInvoice, setIsTestingInvoice] = useState<boolean>(false);
-  const [testInvoiceResult, setTestInvoiceResult] = useState<{
+  // Bulk Void Awaiting Payment Invoices State
+  const [isVoidingInvoices, setIsVoidingInvoices] = useState<boolean>(false);
+  const [voidResult, setVoidResult] = useState<{
     success: boolean;
-    steps?: Array<{ step: string; status: 'ok' | 'failed' | 'info'; detail?: string }>;
-    xeroInvoiceId?: string;
-    invoiceNumber?: string;
-    xeroUrl?: string;
-    tenantName?: string;
-    totalAmount?: number;
+    totalFound: number;
+    voidedCount: number;
+    failedCount: number;
+    voidedInvoiceNumbers?: string[];
+    errors?: string[];
     error?: string;
   } | null>(null);
 
@@ -102,19 +87,11 @@ export default function XeroSettings() {
         const data: XeroStatusResponse = await res.json();
         setStatusData(data);
         if (data.settings) {
-          setEnabled(data.settings.xero_enabled === true || data.settings.xero_enabled === 'true' || data.settings.xero_enabled === 1);
           if (data.settings.xero_auth_type) setAuthType(data.settings.xero_auth_type);
           if (data.settings.xero_client_id) setClientId(data.settings.xero_client_id);
           if (data.settings.xero_client_secret) setClientSecret(data.settings.xero_client_secret);
           if (data.settings.xero_tenant_id) setTenantId(data.settings.xero_tenant_id);
           if (data.settings.xero_tenant_name) setTenantName(data.settings.xero_tenant_name);
-          if (data.settings.xero_account_code) setAccountCode(data.settings.xero_account_code);
-          if (data.settings.xero_invoice_status) setInvoiceStatus(data.settings.xero_invoice_status);
-          if (data.settings.xero_tax_type_gst) setTaxTypeGst(data.settings.xero_tax_type_gst);
-          if (data.settings.xero_tax_type_free) setTaxTypeFree(data.settings.xero_tax_type_free);
-          if (data.settings.xero_sync_on_trilogy !== undefined) setSyncOnTrilogy(data.settings.xero_sync_on_trilogy !== false && data.settings.xero_sync_on_trilogy !== 'false');
-          if (data.settings.xero_sync_on_email !== undefined) setSyncOnEmail(data.settings.xero_sync_on_email !== false && data.settings.xero_sync_on_email !== 'false');
-          if (data.settings.xero_attach_pdf !== undefined) setAttachPdf(data.settings.xero_attach_pdf !== false && data.settings.xero_attach_pdf !== 'false');
         }
       }
     } catch (e) {
@@ -149,19 +126,14 @@ export default function XeroSettings() {
 
     try {
       const payload = {
-        xero_enabled: enabled,
+        xero_enabled: false,
         xero_auth_type: authType,
         xero_client_id: clientId.trim(),
         xero_client_secret: clientSecret.trim(),
         xero_tenant_id: tenantId.trim(),
         xero_tenant_name: tenantName.trim(),
-        xero_account_code: accountCode.trim(),
-        xero_invoice_status: invoiceStatus,
-        xero_tax_type_gst: taxTypeGst.trim(),
-        xero_tax_type_free: taxTypeFree.trim(),
-        xero_sync_on_trilogy: syncOnTrilogy,
-        xero_sync_on_email: syncOnEmail,
-        xero_attach_pdf: attachPdf,
+        xero_sync_on_trilogy: false,
+        xero_sync_on_email: false,
       };
 
       const res = await fetch('/api/settings', {
@@ -177,7 +149,7 @@ export default function XeroSettings() {
         throw new Error('Failed to save settings.');
       }
 
-      setSaveSuccess('Xero configuration saved successfully!');
+      setSaveSuccess('Xero connection settings saved successfully!');
       setTimeout(() => setSaveSuccess(''), 4000);
       fetchStatus();
     } catch (err: any) {
@@ -316,32 +288,41 @@ export default function XeroSettings() {
     }
   };
 
-  const handleRunTestInvoice = async () => {
-    setIsTestingInvoice(true);
-    setTestInvoiceResult(null);
+  const handleBulkVoidAwaitingPayment = async () => {
+    if (!confirm('Are you sure you want to VOID all "Awaiting Payment" (AUTHORISED) invoices currently sitting in Xero? This action will mark all unpaid sales invoices in Xero as VOIDED.')) {
+      return;
+    }
+
+    setIsVoidingInvoices(true);
+    setVoidResult(null);
     try {
-      const res = await fetch('/api/xero/test-invoice', {
+      const res = await fetch('/api/xero/void-awaiting-payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          customAmount: testAmount,
-          invoiceStatus: testStatus,
-          accountCode: accountCode.trim()
-        })
+        }
       });
-
-      const data = await res.json();
-      setTestInvoiceResult(data);
+      const data = await res.json().catch(() => ({}));
+      setVoidResult({
+        success: Boolean(res.ok && data.success),
+        totalFound: Number(data.totalFound || 0),
+        voidedCount: Number(data.voidedCount || 0),
+        failedCount: Number(data.failedCount || 0),
+        voidedInvoiceNumbers: data.voidedInvoiceNumbers || [],
+        errors: data.errors || [],
+        error: data.error
+      });
     } catch (err: any) {
-      setTestInvoiceResult({
+      setVoidResult({
         success: false,
-        error: err.message || 'Failed to run test invoice dispatch.'
+        totalFound: 0,
+        voidedCount: 0,
+        failedCount: 0,
+        error: err.message || 'Network error while voiding Awaiting Payment invoices in Xero.'
       });
     } finally {
-      setIsTestingInvoice(false);
+      setIsVoidingInvoices(false);
     }
   };
 
@@ -358,7 +339,7 @@ export default function XeroSettings() {
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h3 className="text-base font-semibold text-white tracking-tight">Xero Accounting Integration</h3>
+                <h3 className="text-base font-semibold text-white tracking-tight">Xero Payroll &amp; Connection Integration</h3>
                 {loadingStatus ? (
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-400">
                     <RefreshCw className="w-3 h-3 animate-spin mr-1" /> Checking...
@@ -372,14 +353,9 @@ export default function XeroSettings() {
                     Disconnected
                   </span>
                 )}
-                {enabled && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/30 uppercase">
-                    Auto-Sync Active
-                  </span>
-                )}
               </div>
               <p className="text-xs text-[#8B949E] mt-1">
-                Simultaneously upload invoices and PDF attachments to your Xero account when sending to Trilogy Care or Emailing to Plan Managers.
+                Connect your Xero organisation to sync employees, award pay rates, and push draft pay runs from Staff Activity.
               </p>
             </div>
           </div>
@@ -434,75 +410,6 @@ export default function XeroSettings() {
 
       {/* Main Settings Form */}
       <form onSubmit={handleSaveSettings} className="space-y-6">
-        {/* Sync Automation Toggles */}
-        <div className="bg-brand-bg border border-border-subtle rounded-xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
-            <div>
-              <h4 className="text-sm font-semibold text-white">Automated Upload Triggers</h4>
-              <p className="text-xs text-[#8B949E] mt-0.5">Control when invoices should automatically be uploaded to Xero.</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={enabled}
-                onChange={(e) => setEnabled(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-500"></div>
-            </label>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
-            <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-              syncOnTrilogy ? 'bg-sky-500/5 border-sky-500/30 text-white' : 'bg-brand-navy/40 border-border-subtle text-[#8B949E]'
-            }`}>
-              <input
-                type="checkbox"
-                checked={syncOnTrilogy}
-                onChange={(e) => setSyncOnTrilogy(e.target.checked)}
-                disabled={!enabled}
-                className="mt-1 rounded border-border-subtle bg-brand-bg text-sky-500 focus:ring-0"
-              />
-              <div>
-                <span className="text-xs font-semibold block">Submit to Trilogy Care</span>
-                <span className="text-[11px] text-[#8B949E] block mt-0.5">Upload Home Care invoices when submitting via Trilogy portal.</span>
-              </div>
-            </label>
-
-            <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-              syncOnEmail ? 'bg-sky-500/5 border-sky-500/30 text-white' : 'bg-brand-navy/40 border-border-subtle text-[#8B949E]'
-            }`}>
-              <input
-                type="checkbox"
-                checked={syncOnEmail}
-                onChange={(e) => setSyncOnEmail(e.target.checked)}
-                disabled={!enabled}
-                className="mt-1 rounded border-border-subtle bg-brand-bg text-sky-500 focus:ring-0"
-              />
-              <div>
-                <span className="text-xs font-semibold block">Email Invoice (NDIS)</span>
-                <span className="text-[11px] text-[#8B949E] block mt-0.5">Upload NDIS invoices when emailing Plan Managers or clients.</span>
-              </div>
-            </label>
-
-            <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-              attachPdf ? 'bg-sky-500/5 border-sky-500/30 text-white' : 'bg-brand-navy/40 border-border-subtle text-[#8B949E]'
-            }`}>
-              <input
-                type="checkbox"
-                checked={attachPdf}
-                onChange={(e) => setAttachPdf(e.target.checked)}
-                disabled={!enabled}
-                className="mt-1 rounded border-border-subtle bg-brand-bg text-sky-500 focus:ring-0"
-              />
-              <div>
-                <span className="text-xs font-semibold block">Attach PDF Invoice</span>
-                <span className="text-[11px] text-[#8B949E] block mt-0.5">Attach the generated invoice PDF directly into Xero.</span>
-              </div>
-            </label>
-          </div>
-        </div>
-
         {/* Credentials & Connection Setup */}
         <div className="bg-brand-bg border border-border-subtle rounded-xl p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
@@ -689,72 +596,6 @@ export default function XeroSettings() {
           </div>
         </div>
 
-        {/* Accounting Defaults */}
-        <div className="bg-brand-bg border border-border-subtle rounded-xl p-5 shadow-sm space-y-4">
-          <div className="pb-3 border-b border-border-subtle">
-            <h4 className="text-sm font-semibold text-white">Accounting & Chart of Accounts Mapping</h4>
-            <p className="text-xs text-[#8B949E] mt-0.5">Specify default sales codes and tax configurations for Xero invoices.</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <label className="text-xs font-semibold text-zinc-300 block mb-1">
-                Sales Account Code
-              </label>
-              <input
-                type="text"
-                value={accountCode}
-                onChange={(e) => setAccountCode(e.target.value)}
-                placeholder="200"
-                className="w-full bg-brand-navy border border-border-subtle rounded-lg px-3 py-2 text-xs text-[#E6EDF3] focus:border-sky-500 focus:outline-none font-mono"
-              />
-              <span className="text-[10px] text-zinc-500 block mt-1">Default: 200 (Sales Revenue)</span>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-zinc-300 block mb-1">
-                Invoice Status in Xero
-              </label>
-              <select
-                value={invoiceStatus}
-                onChange={(e) => setInvoiceStatus(e.target.value as any)}
-                className="w-full bg-brand-navy border border-border-subtle rounded-lg px-3 py-2 text-xs text-[#E6EDF3] focus:border-sky-500 focus:outline-none"
-              >
-                <option value="AUTHORISED">AUTHORISED (Approved / Awaiting Payment)</option>
-                <option value="DRAFT">DRAFT (Requires Approval in Xero)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-zinc-300 block mb-1">
-                GST Free Tax Type (NDIS)
-              </label>
-              <input
-                type="text"
-                value={taxTypeFree}
-                onChange={(e) => setTaxTypeFree(e.target.value)}
-                placeholder="BASEXCLUDED"
-                className="w-full bg-brand-navy border border-border-subtle rounded-lg px-3 py-2 text-xs text-[#E6EDF3] focus:border-sky-500 focus:outline-none font-mono"
-              />
-              <span className="text-[10px] text-zinc-500 block mt-1">BASEXCLUDED or EXEMPTOUTPUT</span>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-zinc-300 block mb-1">
-                10% GST Tax Type
-              </label>
-              <input
-                type="text"
-                value={taxTypeGst}
-                onChange={(e) => setTaxTypeGst(e.target.value)}
-                placeholder="OUTPUT"
-                className="w-full bg-brand-navy border border-border-subtle rounded-lg px-3 py-2 text-xs text-[#E6EDF3] focus:border-sky-500 focus:outline-none font-mono"
-              />
-              <span className="text-[10px] text-zinc-500 block mt-1">Default: OUTPUT (10% GST on Income)</span>
-            </div>
-          </div>
-        </div>
-
         {/* Action Buttons & Feedback */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           <div className="flex items-center gap-2">
@@ -812,118 +653,69 @@ export default function XeroSettings() {
         )}
       </form>
 
-      {/* DIAGNOSTIC TEST INVOICE SECTION (Explicitly requested by user) */}
-      <div className="bg-brand-bg border border-sky-500/30 rounded-xl p-5 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border-subtle">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-sky-500/10 rounded-lg text-sky-400">
-              <Play className="w-4 h-4" />
+      {/* Bulk Void "Awaiting Payment" Invoices in Xero */}
+      <div className="bg-brand-bg border border-rose-500/30 rounded-xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 shrink-0">
+              <Trash2 className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-white">Live Diagnostic: Test Sending Invoice to Xero</h4>
+              <h4 className="text-sm font-semibold text-white">Bulk Void &quot;Awaiting Payment&quot; Invoices in Xero</h4>
               <p className="text-xs text-[#8B949E] mt-0.5">
-                Dispatch a real test invoice to Xero with an attached PDF to verify and debug your end-to-end integration.
+                Fetches all sales invoices currently sitting in Xero&apos;s <strong>Awaiting Payment</strong> tab (Status: <code className="text-rose-300">AUTHORISED</code>) and bulk-updates their status to <code className="text-rose-300">VOIDED</code> in Xero.
               </p>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={handleRunTestInvoice}
-            disabled={isTestingInvoice || !clientId}
-            className="px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-sm transition-colors self-start sm:self-auto"
+            onClick={handleBulkVoidAwaitingPayment}
+            disabled={isVoidingInvoices || !clientId}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-sm transition-colors shrink-0 self-start sm:self-center"
           >
-            {isTestingInvoice ? (
+            {isVoidingInvoices ? (
               <>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Dispatching Test...</span>
+                <span>Voiding Invoices in Xero...</span>
               </>
             ) : (
               <>
-                <Send className="w-3.5 h-3.5" />
-                <span>Send Test Invoice to Xero</span>
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Bulk Void All &quot;Awaiting Payment&quot; Invoices</span>
               </>
             )}
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-semibold text-zinc-300 block mb-1">Test Invoice Amount ($ AUD)</label>
-            <input
-              type="number"
-              step="0.01"
-              value={testAmount}
-              onChange={(e) => setTestAmount(parseFloat(e.target.value) || 0)}
-              className="w-full bg-brand-navy border border-border-subtle rounded-lg px-3 py-2 text-xs text-[#E6EDF3] focus:border-sky-500 focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-zinc-300 block mb-1">Invoice Status in Xero</label>
-            <select
-              value={testStatus}
-              onChange={(e) => setTestStatus(e.target.value as any)}
-              className="w-full bg-brand-navy border border-border-subtle rounded-lg px-3 py-2 text-xs text-[#E6EDF3] focus:border-sky-500 focus:outline-none"
-            >
-              <option value="DRAFT">DRAFT (Safe test - does not lock invoice in Xero)</option>
-              <option value="AUTHORISED">AUTHORISED (Live approved sales invoice)</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Test Execution Output */}
-        {testInvoiceResult && (
-          <div className={`p-4 rounded-xl border space-y-3 ${
-            testInvoiceResult.success ? 'bg-brand-navy/90 border-emerald-500/40' : 'bg-brand-navy/90 border-rose-500/40'
+        {voidResult && (
+          <div className={`p-4 rounded-xl border text-xs space-y-2 ${
+            voidResult.success && voidResult.failedCount === 0
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+              : voidResult.voidedCount > 0
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-200'
           }`}>
-            <div className="flex items-center justify-between">
-              <span className={`text-xs font-semibold flex items-center gap-1.5 ${
-                testInvoiceResult.success ? 'text-emerald-400' : 'text-rose-400'
-              }`}>
-                {testInvoiceResult.success ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                {testInvoiceResult.success ? 'Test Invoice Created & Uploaded to Xero!' : 'Test Invoice Failed'}
-              </span>
-
-              {testInvoiceResult.xeroUrl && (
-                <a
-                  href={testInvoiceResult.xeroUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded text-xs font-medium flex items-center gap-1.5 transition-colors"
-                >
-                  <span>View in Xero</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+            <div className="flex items-center gap-2 font-semibold">
+              {voidResult.success ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
               )}
+              <span>
+                {voidResult.success
+                  ? voidResult.totalFound === 0
+                    ? 'No "Awaiting Payment" (AUTHORISED) invoices were found in Xero — all clear!'
+                    : `Successfully voided ${voidResult.voidedCount} of ${voidResult.totalFound} "Awaiting Payment" invoices in Xero!`
+                  : voidResult.error || 'Failed to bulk void Awaiting Payment invoices in Xero.'}
+              </span>
             </div>
 
-            {/* Step Diagnostics */}
-            {testInvoiceResult.steps && (
-              <div className="space-y-1.5 pt-1 text-xs">
-                {testInvoiceResult.steps.map((st, idx) => (
-                  <div key={idx} className="flex items-start gap-2">
-                    <span className="mt-0.5">
-                      {st.status === 'ok' ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                      ) : st.status === 'failed' ? (
-                        <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                      ) : (
-                        <RefreshCw className="w-3.5 h-3.5 text-sky-400" />
-                      )}
-                    </span>
-                    <div>
-                      <span className="font-medium text-white">{st.step}</span>
-                      {st.detail && <span className="text-[#8B949E] block text-[11px] font-mono">{st.detail}</span>}
-                    </div>
-                  </div>
+            {Array.isArray(voidResult.errors) && voidResult.errors.length > 0 && (
+              <div className="mt-2 p-2.5 bg-black/40 border border-rose-500/20 rounded text-[11px] font-mono text-rose-300 space-y-1 max-h-40 overflow-y-auto">
+                {voidResult.errors.map((err, i) => (
+                  <div key={i}>• {err}</div>
                 ))}
-              </div>
-            )}
-
-            {testInvoiceResult.error && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded text-xs text-rose-300 font-mono">
-                {testInvoiceResult.error}
               </div>
             )}
           </div>
