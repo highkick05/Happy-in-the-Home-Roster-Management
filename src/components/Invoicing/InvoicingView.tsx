@@ -821,9 +821,8 @@ export default function InvoicingView() {
   const [isEmailing, setIsEmailing] = useState<number | null>(null);
   const [isTesting, setIsTesting] = useState<number | null>(null);
   const [isUploadingXero, setIsUploadingXero] = useState<number | null>(null);
+  const [isSyncingXeroTab, setIsSyncingXeroTab] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const failsafeRunningRef = React.useRef(false);
-  const paidReconcileCheckedRef = React.useRef(false);
 
   const [allDbClients, setAllDbClients] = useState<any[]>([]);
   const [allDbStaff, setAllDbStaff] = useState<any[]>([]);
@@ -1226,57 +1225,54 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
     }
   };
 
-  // Non-blocking background Xero failsafe scanner for Sent & Paid tabs
-  useEffect(() => {
-    if (loading || (subTab !== 'sent' && subTab !== 'paid') || invoices.length === 0) return;
-    if (failsafeRunningRef.current) return;
-
-    if (subTab === 'sent') {
-      const hasUnsyncedSent = invoices.some(
-        (i) => i.status === 'SENT' && (i.xero_status !== 'SYNCED' || !i.xero_invoice_id)
-      );
-      if (!hasUnsyncedSent) return;
-    } else if (subTab === 'paid') {
-      const hasUnsyncedPaid = invoices.some(
-        (i) => i.status === 'PAID' && (i.xero_status !== 'SYNCED' || !i.xero_invoice_id)
-      );
-      if (!hasUnsyncedPaid && paidReconcileCheckedRef.current) return;
-    }
-
-    const timer = setTimeout(async () => {
-      if (failsafeRunningRef.current) return;
-      failsafeRunningRef.current = true;
-      try {
-        const res = await fetch('/api/invoices/xero-failsafe', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token || localStorage.getItem('token')}`,
-          },
-          body: JSON.stringify({ tab: subTab }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (subTab === 'paid' && res.ok && data.success && !data.alreadyRunning) {
-          paidReconcileCheckedRef.current = true;
-        }
-        if (res.ok && data.success && data.updatedCount > 0) {
-          const parts: string[] = [];
-          if (data.uploadedCount > 0) parts.push(`${data.uploadedCount} uploaded`);
-          if (data.linkedCount > 0) parts.push(`${data.linkedCount} linked`);
-          if (data.markedPaidCount > 0) parts.push(`${data.markedPaidCount} marked Paid`);
-          setToastMessage(`Xero Failsafe: ${parts.join(', ')} in Xero!`);
-          setTimeout(() => setToastMessage(null), 5000);
-          fetchInvoices(true);
-        }
-      } catch (e) {
-        console.warn('[XERO] Background failsafe check warning:', e);
-      } finally {
-        failsafeRunningRef.current = false;
+  const handleRunXeroFailsafe = async (targetTab: 'sent' | 'paid') => {
+    if (isSyncingXeroTab) return;
+    setIsSyncingXeroTab(true);
+    setToastMessage(
+      targetTab === 'sent'
+        ? 'Checking & syncing Sent invoices to Xero as Awaiting Payment...'
+        : 'Checking & syncing Paid invoices to Xero as Paid...'
+    );
+    try {
+      const res = await fetch('/api/invoices/xero-failsafe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ tab: targetTab }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to sync invoices with Xero');
       }
-    }, 150);
 
-    return () => clearTimeout(timer);
-  }, [subTab, loading, invoices, token]);
+      if (data.updatedCount > 0) {
+        const parts: string[] = [];
+        if (data.uploadedCount > 0) parts.push(`${data.uploadedCount} uploaded`);
+        if (data.linkedCount > 0) parts.push(`${data.linkedCount} linked`);
+        if (data.markedPaidCount > 0) parts.push(`${data.markedPaidCount} marked Paid`);
+        const warnSuffix = data.errors?.length > 0 ? ` (${data.errors.length} warning(s))` : '';
+        setToastMessage(`Xero Sync Complete: ${parts.join(', ')} in Xero!${warnSuffix}`);
+        fetchInvoices(true);
+      } else if (data.errors?.length > 0) {
+        setToastMessage(`Error: ${data.errors[0]}`);
+      } else {
+        setToastMessage(
+          targetTab === 'sent'
+            ? 'All Sent invoices are already in Xero as Awaiting Payment.'
+            : 'All Paid invoices are already uploaded & marked Paid in Xero.'
+        );
+      }
+      setTimeout(() => setToastMessage(null), 6000);
+    } catch (error: any) {
+      setToastMessage(`Error: ${error.message || 'Failed to sync invoices with Xero'}`);
+      setTimeout(() => setToastMessage(null), 7000);
+      console.error(error);
+    } finally {
+      setIsSyncingXeroTab(false);
+    }
+  };
 
   const handleTestTrilogyInvoice = async (invoiceId: number) => {
     setIsTesting(invoiceId);
@@ -1693,15 +1689,46 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
               Generate Invoice
             </button>
           )}
+
+          {subTab === 'sent' && (
+            <button
+              onClick={() => handleRunXeroFailsafe('sent')}
+              disabled={isSyncingXeroTab}
+              title="Ensure all Sent invoices are uploaded to Xero as Awaiting Payment"
+              className="flex items-center px-2.5 py-1 bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 shadow-sm text-xs font-medium rounded-md transition-colors h-7 whitespace-nowrap disabled:opacity-50"
+            >
+              {isSyncingXeroTab ? (
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Building2 className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              {isSyncingXeroTab ? 'Syncing Xero...' : 'Sync Sent to Xero'}
+            </button>
+          )}
           
           {subTab === 'paid' && (
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="flex items-center px-2 py-1 bg-gradient-to-r from-brand-teal to-brand-green text-white shadow-sm text-xs font-medium rounded-md transition-colors h-7 whitespace-nowrap"
-            >
-              <Upload className="w-3.5 h-3.5 mr-1.5" />
-              Upload Historical
-            </button>
+            <>
+              <button
+                onClick={() => handleRunXeroFailsafe('paid')}
+                disabled={isSyncingXeroTab}
+                title="Ensure all Paid invoices are uploaded and marked as Paid in Xero"
+                className="flex items-center px-2.5 py-1 bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 shadow-sm text-xs font-medium rounded-md transition-colors h-7 whitespace-nowrap disabled:opacity-50"
+              >
+                {isSyncingXeroTab ? (
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Building2 className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                {isSyncingXeroTab ? 'Syncing Xero...' : 'Sync Paid to Xero'}
+              </button>
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="flex items-center px-2 py-1 bg-gradient-to-r from-brand-teal to-brand-green text-white shadow-sm text-xs font-medium rounded-md transition-colors h-7 whitespace-nowrap"
+              >
+                <Upload className="w-3.5 h-3.5 mr-1.5" />
+                Upload Historical
+              </button>
+            </>
           )}
         </div>
       </div>
