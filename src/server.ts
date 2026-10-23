@@ -53,6 +53,10 @@ import {
   getXeroPayrollCalendars,
   previewXeroPayRun,
   createXeroDraftPayRun,
+  markInvoicePaidInXero,
+  unmarkInvoicePaidInXero,
+  reconcilePaidInvoicesWithXero,
+  runXeroTabFailsafe,
 } from "./services/xeroService";
 import {
   initAwardRatesTable,
@@ -6559,7 +6563,7 @@ function getUnreadChatCount(db: any, userId: number): number {
       // - 'payroll.payslip' and 'payroll.payslip.read' for populating award earnings and travel into employee payslips
       // - 'offline_access' for receiving refresh tokens
       const requestedScope = (req.query.scope as string) ||
-        'openid profile email accounting.invoices accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read offline_access';
+        'openid profile email accounting.invoices accounting.payments accounting.contacts accounting.settings.read accounting.attachments payroll.settings payroll.settings.read payroll.employees payroll.employees.read payroll.timesheets payroll.payruns payroll.payruns.read payroll.payslip payroll.payslip.read offline_access';
 
       const params = new URLSearchParams({
         response_type: 'code',
@@ -6698,6 +6702,35 @@ function getUnreadChatCount(db: any, userId: number): number {
     } catch (e: any) {
       console.error("[XERO] Manual upload failed:", e);
       res.status(500).json({ error: e.message || "Failed to upload invoice to Xero." });
+    }
+  });
+
+  app.post("/api/invoices/xero-reconcile-paid", authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const result = await reconcilePaidInvoicesWithXero(db);
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      res.json(result);
+    } catch (e: any) {
+      console.error("[XERO] Reconcile paid invoices failed:", e);
+      res.status(500).json({ success: false, error: e.message || "Failed to reconcile Paid invoices with Xero." });
+    }
+  });
+
+  app.post("/api/invoices/xero-failsafe", authenticateToken, requireAdmin, async (req: any, res) => {
+    try {
+      const tab = req.body?.tab === 'paid' ? 'paid' : 'sent';
+      const result = await runXeroTabFailsafe(db, tab, {
+        getShiftData: getInvoiceDataForShift,
+        getMergedData: getInvoiceDataForMergedInvoice,
+        getRespiteData: getInvoiceDataForRespiteBooking,
+        buildPdf: buildInvoicePdf,
+      });
+      res.json(result);
+    } catch (e: any) {
+      console.error("[XERO] Tab failsafe failed:", e);
+      res.status(500).json({ success: false, error: e.message || "Xero failsafe scan failed." });
     }
   });
 
@@ -19690,7 +19723,7 @@ app.post(
     "/api/invoices/:id/status",
     authenticateToken,
     requireAdmin,
-    (req: any, res: any) => {
+    async (req: any, res: any) => {
       const { status } = req.body;
       const { id } = req.params;
 
@@ -19700,7 +19733,7 @@ app.post(
 
       try {
         const oldInvoice = db
-          .prepare("SELECT status, invoice_number FROM invoices WHERE id = ?")
+          .prepare("SELECT * FROM invoices WHERE id = ?")
           .get(id) as any;
         if (!oldInvoice) {
           return res.status(404).json({ error: "Invoice not found" });
@@ -19711,27 +19744,110 @@ app.post(
           id,
         );
 
-        if (oldInvoice.status === "PAID" && status !== "PAID") {
-          const oldOriginalName = `${oldInvoice.invoice_number}.pdf`;
-          const fileRecords = db
-            .prepare(
-              "SELECT id, system_name, folder_path FROM files WHERE original_name = ?",
-            )
-            .all(oldOriginalName) as any[];
-          for (const fileRecord of fileRecords) {
-            const sysFilePath = path.join(
-              process.cwd(),
-              "uploads",
-              (fileRecord.folder_path || '/').replace(/^\/+/, ''),
-              fileRecord.system_name,
-            );
-            if (fs.existsSync(sysFilePath)) {
-              fs.unlinkSync(sysFilePath);
-            }
-            db.prepare("DELETE FROM files WHERE id = ?").run(fileRecord.id);
+        let xeroPayment: any = null;
 
-            // Check if folder is now empty and delete if possible to clean up
-            /* if needed, but not strictly required */
+        if (oldInvoice.status === "PAID" && status !== "PAID") {
+          let resolvedData: any = null;
+          try {
+            if (oldInvoice.services_json) {
+              resolvedData = getInvoiceDataForMergedInvoice(oldInvoice);
+            } else if (oldInvoice.respite_booking_id) {
+              resolvedData = getInvoiceDataForRespiteBooking(oldInvoice.respite_booking_id);
+            } else if (oldInvoice.shift_id) {
+              resolvedData = getInvoiceDataForShift(oldInvoice.shift_id);
+            }
+          } catch (e) {}
+
+          const candidateNames = new Set<string>();
+          if (oldInvoice.invoice_number) {
+            candidateNames.add(`${oldInvoice.invoice_number}.pdf`);
+          }
+          if (oldInvoice.file_path) {
+            candidateNames.add(path.basename(oldInvoice.file_path));
+          }
+          if (resolvedData?.invoiceNum) {
+            candidateNames.add(`${resolvedData.invoiceNum}.pdf`);
+          }
+
+          let clientNameSafe = "";
+          if (resolvedData?.shift?.c_fn || resolvedData?.shift?.c_ln) {
+            clientNameSafe = `${resolvedData.shift.c_fn || ""} ${resolvedData.shift.c_ln || ""}`
+              .trim()
+              .replace(/[\/\\]/g, "");
+          } else if (oldInvoice.client_id) {
+            const clientRow = db
+              .prepare("SELECT first_name, last_name FROM clients WHERE id = ?")
+              .get(oldInvoice.client_id) as any;
+            if (clientRow) {
+              clientNameSafe = `${clientRow.first_name || ""} ${clientRow.last_name || ""}`
+                .trim()
+                .replace(/[\/\\]/g, "");
+            }
+          }
+
+          for (const pdfFileName of candidateNames) {
+            const fileRecords = db
+              .prepare(
+                "SELECT id, system_name, folder_path FROM files WHERE original_name = ? OR system_name = ? OR system_name LIKE ?",
+              )
+              .all(pdfFileName, pdfFileName, `%/${pdfFileName}`) as any[];
+            for (const fileRecord of fileRecords) {
+              const cleanFolder = (fileRecord.folder_path || "/").replace(/^\/+/, "");
+              const baseSysName = path.basename(fileRecord.system_name || pdfFileName);
+              const candidatePaths = [
+                path.join(process.cwd(), "uploads", cleanFolder, fileRecord.system_name),
+                path.join(process.cwd(), "uploads", cleanFolder, baseSysName),
+                path.join(process.cwd(), "data", "uploads", cleanFolder, baseSysName),
+              ];
+              for (const sysFilePath of candidatePaths) {
+                if (fs.existsSync(sysFilePath)) {
+                  try {
+                    fs.unlinkSync(sysFilePath);
+                  } catch (unlinkErr) {}
+                }
+              }
+              db.prepare("DELETE FROM files WHERE id = ?").run(fileRecord.id);
+            }
+
+            if (clientNameSafe) {
+              const directUploadPath = path.join(
+                process.cwd(),
+                "uploads",
+                "Clients",
+                clientNameSafe,
+                "Invoices",
+                pdfFileName,
+              );
+              if (fs.existsSync(directUploadPath)) {
+                try {
+                  fs.unlinkSync(directUploadPath);
+                } catch (unlinkErr) {}
+              }
+              const directDataUploadPath = path.join(
+                process.cwd(),
+                "data",
+                "uploads",
+                "Clients",
+                clientNameSafe,
+                "Invoices",
+                pdfFileName,
+              );
+              if (fs.existsSync(directDataUploadPath)) {
+                try {
+                  fs.unlinkSync(directDataUploadPath);
+                } catch (unlinkErr) {}
+              }
+            }
+          }
+
+          try {
+            xeroPayment = await unmarkInvoicePaidInXero(
+              db,
+              Number(id),
+              resolvedData?.invoiceNum || oldInvoice.invoice_number,
+            );
+          } catch (xErr: any) {
+            console.warn("[XERO] Error reversing payment in Xero:", xErr);
           }
         }
 
@@ -19739,6 +19855,7 @@ app.post(
           const invoiceRow = db
             .prepare("SELECT * FROM invoices WHERE id = ?")
             .get(id) as any;
+          let fallbackInvoiceNum = oldInvoice.invoice_number;
           if (invoiceRow) {
             let data: any = null;
             if (invoiceRow.services_json) {
@@ -19749,6 +19866,10 @@ app.post(
               );
             } else if (invoiceRow.shift_id) {
               data = getInvoiceDataForShift(invoiceRow.shift_id);
+            }
+
+            if (data?.invoiceNum) {
+              fallbackInvoiceNum = data.invoiceNum;
             }
 
             if (data && data.lineItems && data.lineItems.length > 0) {
@@ -19799,9 +19920,20 @@ app.post(
               });
             }
           }
+
+          try {
+            xeroPayment = await markInvoicePaidInXero(
+              db,
+              Number(id),
+              fallbackInvoiceNum,
+            );
+          } catch (xErr: any) {
+            console.error("[XERO] Error marking invoice paid in Xero:", xErr);
+            xeroPayment = { success: false, error: xErr.message };
+          }
         }
 
-        res.json({ success: true });
+        res.json({ success: true, xeroPayment });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
         res.status(500).json({ error: "Internal Server Error" });

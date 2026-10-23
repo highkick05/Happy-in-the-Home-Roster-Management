@@ -822,6 +822,8 @@ export default function InvoicingView() {
   const [isTesting, setIsTesting] = useState<number | null>(null);
   const [isUploadingXero, setIsUploadingXero] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const failsafeRunningRef = React.useRef(false);
+  const paidReconcileCheckedRef = React.useRef(false);
 
   const [allDbClients, setAllDbClients] = useState<any[]>([]);
   const [allDbStaff, setAllDbStaff] = useState<any[]>([]);
@@ -1024,9 +1026,11 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
     }
   }
 
-  const fetchInvoices = async () => {
-    setLoading(true);
-    setSelectedInvoiceIds([]);
+  const fetchInvoices = async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setSelectedInvoiceIds([]);
+    }
     try {
       const res = await fetch('/api/invoices', {
         headers: { Authorization: `Bearer ${token}` }
@@ -1037,7 +1041,9 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -1220,6 +1226,58 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
     }
   };
 
+  // Non-blocking background Xero failsafe scanner for Sent & Paid tabs
+  useEffect(() => {
+    if (loading || (subTab !== 'sent' && subTab !== 'paid') || invoices.length === 0) return;
+    if (failsafeRunningRef.current) return;
+
+    if (subTab === 'sent') {
+      const hasUnsyncedSent = invoices.some(
+        (i) => i.status === 'SENT' && (i.xero_status !== 'SYNCED' || !i.xero_invoice_id)
+      );
+      if (!hasUnsyncedSent) return;
+    } else if (subTab === 'paid') {
+      const hasUnsyncedPaid = invoices.some(
+        (i) => i.status === 'PAID' && (i.xero_status !== 'SYNCED' || !i.xero_invoice_id)
+      );
+      if (!hasUnsyncedPaid && paidReconcileCheckedRef.current) return;
+    }
+
+    const timer = setTimeout(async () => {
+      if (failsafeRunningRef.current) return;
+      failsafeRunningRef.current = true;
+      try {
+        const res = await fetch('/api/invoices/xero-failsafe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token || localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({ tab: subTab }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (subTab === 'paid' && res.ok && data.success && !data.alreadyRunning) {
+          paidReconcileCheckedRef.current = true;
+        }
+        if (res.ok && data.success && data.updatedCount > 0) {
+          const parts: string[] = [];
+          if (data.uploadedCount > 0) parts.push(`${data.uploadedCount} uploaded`);
+          if (data.linkedCount > 0) parts.push(`${data.linkedCount} linked`);
+          if (data.markedPaidCount > 0) parts.push(`${data.markedPaidCount} marked Paid`);
+          setToastMessage(`Xero Failsafe: ${parts.join(', ')} in Xero!`);
+          setTimeout(() => setToastMessage(null), 5000);
+          fetchInvoices(true);
+        }
+      } catch (e) {
+        console.warn('[XERO] Background failsafe check warning:', e);
+      } finally {
+        failsafeRunningRef.current = false;
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [subTab, loading, invoices, token]);
+
   const handleTestTrilogyInvoice = async (invoiceId: number) => {
     setIsTesting(invoiceId);
     setToastMessage('Executing Test Run in Browser...');
@@ -1271,6 +1329,24 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
         body: JSON.stringify({ status })
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const xp = data?.xeroPayment;
+        if (status === 'PAID' && xp) {
+          if (xp.success && !xp.skipped) {
+            setToastMessage(
+              xp.alreadyPaid
+                ? `Invoice ${xp.invoiceNumber || ''} marked as PAID (already Paid in Xero).`
+                : `Invoice ${xp.invoiceNumber || ''} marked as PAID & reconciled in Xero!`
+            );
+            setTimeout(() => setToastMessage(null), 5000);
+          } else if (xp.error) {
+            setToastMessage(`Error: Marked as PAID locally, but Xero failed: ${xp.error}`);
+            setTimeout(() => setToastMessage(null), 7000);
+          }
+        } else if (status !== 'PAID' && xp?.paymentsDeleted > 0) {
+          setToastMessage('Invoice unmarked as PAID (PDF deleted & Xero payment reversed).');
+          setTimeout(() => setToastMessage(null), 5000);
+        }
         fetchInvoices();
       } else {
         alert('Failed to update status');
@@ -1609,12 +1685,14 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
             ))}
           </select>
 
-          <button
-            onClick={() => setShowManualModal(true)}
-            className="flex items-center px-2 py-1 bg-gradient-to-r from-brand-teal to-brand-green text-white shadow-sm text-xs font-medium rounded-md transition-colors h-7 whitespace-nowrap"
-          >
-            Generate Invoice
-          </button>
+          {subTab === 'active' && (
+            <button
+              onClick={() => setShowManualModal(true)}
+              className="flex items-center px-2 py-1 bg-gradient-to-r from-brand-teal to-brand-green text-white shadow-sm text-xs font-medium rounded-md transition-colors h-7 whitespace-nowrap"
+            >
+              Generate Invoice
+            </button>
+          )}
           
           {subTab === 'paid' && (
             <button
@@ -1655,7 +1733,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                   const isDisabled = firstSelected && firstSelected.client_id !== i.client_id && !isChecked;
                   
                   return (
-                  <tr key={i.id} className={`transition-colors group ${i.status === 'SENT' ? 'bg-brand-green/10 hover:bg-brand-green/20' : 'hover:bg-brand-bg/50'} ${isDisabled ? 'opacity-50' : ''}`}>
+                  <tr key={i.id} className={`transition-colors group ${i.status === 'SENT' ? 'bg-sky-500/10 hover:bg-sky-500/20' : i.status === 'PAID' ? 'bg-brand-green/10 hover:bg-brand-green/20' : 'hover:bg-brand-bg/50'} ${isDisabled ? 'opacity-50' : ''}`}>
                     <td className="px-3 py-1.5 whitespace-nowrap">
                       <input
                         type="checkbox"
@@ -1713,6 +1791,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                       <div className="flex items-center gap-1.5">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
                           i.status === 'PAID' ? 'bg-brand-green/20 text-brand-green border border-brand-green/30' : 
+                          i.status === 'SENT' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' :
                           'bg-brand-bg text-[#8B949E] border border-border-subtle'
                         }`}>
                           {i.status}
