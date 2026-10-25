@@ -5897,6 +5897,51 @@ function getUnreadChatCount(db: any, userId: number): number {
     }
   });
 
+  app.post("/api/public/account-previews", (req, res) => {
+    try {
+      const emails = Array.isArray(req.body?.emails)
+        ? req.body.emails
+            .filter((e: any) => typeof e === "string" && e.trim())
+            .map((e: string) => e.trim().toLowerCase())
+            .slice(0, 12)
+        : [];
+      if (emails.length === 0) {
+        return res.json({ accounts: [] });
+      }
+      const placeholders = emails.map(() => "?").join(",");
+      const rows = db
+        .prepare(
+          `SELECT id, email, role, last_active_role, can_switch_admin, first_name, last_name, avatar_url
+           FROM users
+           WHERE LOWER(email) IN (${placeholders})
+             AND (status IS NULL OR status != 'SUSPENDED')`
+        )
+        .all(...emails) as any[];
+
+      const accounts = rows.map((u) => {
+        let displayRole = u.role;
+        if (
+          u.last_active_role &&
+          (u.last_active_role === "ADMIN" || u.last_active_role === "STAFF") &&
+          (u.role === "ADMIN" || u.can_switch_admin)
+        ) {
+          displayRole = u.last_active_role;
+        }
+        return {
+          id: u.id,
+          email: u.email,
+          role: displayRole,
+          firstName: u.first_name,
+          lastName: u.last_name,
+          avatarUrl: u.avatar_url || null,
+        };
+      });
+      res.json({ accounts });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to load account previews" });
+    }
+  });
+
   const persistentAssetsDir = path.join(process.cwd(), "uploads", "assets");
   if (!fs.existsSync(persistentAssetsDir)) {
     fs.mkdirSync(persistentAssetsDir, { recursive: true });

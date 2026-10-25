@@ -22,6 +22,51 @@ interface AuthContextType {
   isLoading: boolean;
 }
 
+export interface RememberedAccount {
+  id: number;
+  email: string;
+  role: 'ADMIN' | 'STAFF';
+  firstName: string;
+  lastName: string;
+  avatarUrl?: string;
+  token?: string;
+  lastUsed: number;
+}
+
+export const REMEMBERED_ACCOUNTS_KEY = 'happy_remembered_accounts';
+
+export function saveRememberedAccount(userData: User, authToken?: string | null) {
+  if (!userData || !userData.email) return;
+  try {
+    const raw = localStorage.getItem(REMEMBERED_ACCOUNTS_KEY);
+    const list: RememberedAccount[] = raw ? JSON.parse(raw) : [];
+    const emailLower = userData.email.trim().toLowerCase();
+    const existingIdx = list.findIndex(
+      (a) => a.email?.toLowerCase() === emailLower || (userData.id && a.id === userData.id)
+    );
+    const existing = existingIdx >= 0 ? list[existingIdx] : undefined;
+
+    const updated: RememberedAccount = {
+      id: userData.id,
+      email: userData.email,
+      role: userData.role,
+      firstName: userData.firstName || existing?.firstName || '',
+      lastName: userData.lastName || existing?.lastName || '',
+      avatarUrl: userData.avatarUrl !== undefined ? userData.avatarUrl : existing?.avatarUrl,
+      token: authToken || existing?.token,
+      lastUsed: Date.now(),
+    };
+
+    if (existingIdx >= 0) {
+      list.splice(existingIdx, 1);
+    }
+    list.unshift(updated);
+    localStorage.setItem(REMEMBERED_ACCOUNTS_KEY, JSON.stringify(list.slice(0, 8)));
+  } catch (e) {
+    console.warn('Could not save remembered account:', e);
+  }
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -91,6 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const data = await res.json();
             setUser(data.user);
             localStorage.setItem('user', JSON.stringify(data.user));
+            saveRememberedAccount(data.user, token);
             if (data.settings) {
               setSettings(data.settings);
               localStorage.setItem('settings', JSON.stringify(data.settings));
@@ -115,6 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('user', JSON.stringify(userData));
     setToken(newToken);
     setUser(userData);
+    saveRememberedAccount(userData, newToken);
     if (newSettings) {
       setSettings(newSettings);
       localStorage.setItem('settings', JSON.stringify(newSettings));
@@ -154,6 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateUser = (newUser: User) => {
     setUser(newUser);
     localStorage.setItem('user', JSON.stringify(newUser));
+    saveRememberedAccount(newUser, token);
   };
 
   const updateSettings = (newSettings: any) => {

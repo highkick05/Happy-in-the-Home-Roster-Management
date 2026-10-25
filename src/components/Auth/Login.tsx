@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useRef } from 'react';
+import { useAuth, RememberedAccount, REMEMBERED_ACCOUNTS_KEY } from '../../context/AuthContext';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
+import { X, Shield, User as UserIcon, Loader2 } from 'lucide-react';
 
 export default function Login() {
   const [searchParams] = useSearchParams();
@@ -12,7 +13,18 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [quickSigningInEmail, setQuickSigningInEmail] = useState<string | null>(null);
   const [publicSettings, setPublicSettings] = useState<any>({});
+  const [rememberedAccounts, setRememberedAccounts] = useState<RememberedAccount[]>(() => {
+    try {
+      const raw = localStorage.getItem(REMEMBERED_ACCOUNTS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const passwordInputRef = useRef<HTMLInputElement>(null);
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
@@ -35,6 +47,112 @@ export default function Login() {
       .catch(err => console.error('Error fetching public settings:', err));
   }, []);
 
+  // Refresh avatars/names for remembered accounts from the server
+  React.useEffect(() => {
+    if (rememberedAccounts.length === 0) return;
+    const emails = rememberedAccounts.map(a => a.email).filter(Boolean);
+    if (emails.length === 0) return;
+
+    fetch('/api/public/account-previews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emails })
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data || !Array.isArray(data.accounts)) return;
+        const previewMap = new Map<string, any>();
+        data.accounts.forEach((acc: any) => {
+          if (acc.email) previewMap.set(acc.email.toLowerCase(), acc);
+        });
+
+        setRememberedAccounts(prev => {
+          const updated = prev.map(item => {
+            const fresh = previewMap.get(item.email.toLowerCase());
+            if (!fresh) return item;
+            return {
+              ...item,
+              id: fresh.id ?? item.id,
+              firstName: fresh.firstName || item.firstName,
+              lastName: fresh.lastName || item.lastName,
+              role: fresh.role || item.role,
+              avatarUrl: fresh.avatarUrl || item.avatarUrl,
+            };
+          });
+          try {
+            localStorage.setItem(REMEMBERED_ACCOUNTS_KEY, JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleQuickAccountClick = async (acc: RememberedAccount) => {
+    setError('');
+    setEmail(acc.email);
+
+    // If this remembered account has a valid token, sign in immediately with 1 click
+    if (acc.token) {
+      setQuickSigningInEmail(acc.email);
+      try {
+        const res = await fetch('/api/me', {
+          headers: { Authorization: `Bearer ${acc.token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          login(acc.token, data.user, data.settings);
+          setRememberedStateAfterLogin();
+          if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission().catch(() => {});
+          }
+          navigate(redirectPath, { replace: true });
+          return;
+        } else {
+          // Token expired or invalid — clear token on this remembered entry and focus password
+          setRememberedAccounts(prev => {
+            const updated = prev.map(item =>
+              item.email.toLowerCase() === acc.email.toLowerCase()
+                ? { ...item, token: undefined }
+                : item
+            );
+            try {
+              localStorage.setItem(REMEMBERED_ACCOUNTS_KEY, JSON.stringify(updated));
+            } catch {}
+            return updated;
+          });
+        }
+      } catch {
+        // Network error — fall back to focusing password
+      } finally {
+        setQuickSigningInEmail(null);
+      }
+    }
+
+    // Focus password field if token wasn't available or expired
+    setTimeout(() => {
+      passwordInputRef.current?.focus();
+    }, 50);
+  };
+
+  const setRememberedStateAfterLogin = () => {
+    try {
+      const raw = localStorage.getItem(REMEMBERED_ACCOUNTS_KEY);
+      if (raw) setRememberedAccounts(JSON.parse(raw));
+    } catch {}
+  };
+
+  const handleRemoveRememberedAccount = (e: React.MouseEvent, targetEmail: string) => {
+    e.stopPropagation();
+    setRememberedAccounts(prev => {
+      const filtered = prev.filter(a => a.email.toLowerCase() !== targetEmail.toLowerCase());
+      try {
+        localStorage.setItem(REMEMBERED_ACCOUNTS_KEY, JSON.stringify(filtered));
+      } catch {}
+      return filtered;
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -54,6 +172,7 @@ export default function Login() {
       }
 
       login(data.token, data.user, data.settings);
+      setRememberedStateAfterLogin();
       
       if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission().catch(() => {});
@@ -134,6 +253,7 @@ export default function Login() {
             <div>
               <label htmlFor="password" className="sr-only">Password</label>
               <input
+                ref={passwordInputRef}
                 id="password"
                 name="password"
                 type="password"
@@ -160,6 +280,79 @@ export default function Login() {
               Forgot Password?
             </Link>
           </div>
+
+          {rememberedAccounts.length > 0 && (
+            <div className="pt-4 border-t border-white/[0.08]">
+              <p className="text-[11px] uppercase tracking-wider font-semibold text-zinc-500 text-center mb-3">
+                Quick Sign In
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                {rememberedAccounts.map((acc) => {
+                  const initials = `${acc.firstName?.[0] || ''}${acc.lastName?.[0] || ''}`.toUpperCase() || acc.email?.[0]?.toUpperCase() || '?';
+                  const isSelected = email.trim().toLowerCase() === acc.email.toLowerCase();
+                  const isSigningInThis = quickSigningInEmail === acc.email;
+                  const isAdmin = acc.role === 'ADMIN';
+
+                  return (
+                    <div
+                      key={acc.email}
+                      onClick={() => !isSigningInThis && handleQuickAccountClick(acc)}
+                      title={`${acc.firstName || ''} ${acc.lastName || ''} (${acc.email})${acc.token ? ' — Click for 1-click sign in' : ''}`.trim()}
+                      className={`group relative flex flex-col items-center p-2.5 w-24 rounded-xl border cursor-pointer select-none transition-all ${
+                        isSelected
+                          ? 'bg-[#1C2331] border-brand-teal/60 shadow-md shadow-brand-teal/10'
+                          : 'bg-[#121214]/90 hover:bg-[#1C2331]/80 border-white/[0.08] hover:border-white/[0.2]'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={(e) => handleRemoveRememberedAccount(e, acc.email)}
+                        title="Remove shortcut"
+                        className="opacity-0 group-hover:opacity-100 absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-zinc-800 hover:bg-red-500 text-zinc-400 hover:text-white border border-white/10 flex items-center justify-center transition-all z-10 shadow"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+
+                      <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-gradient-to-br from-brand-blue/30 to-brand-teal/30 border border-white/10 flex items-center justify-center shadow-inner mb-1.5">
+                        {acc.avatarUrl ? (
+                          <img
+                            src={acc.avatarUrl}
+                            alt={acc.firstName || acc.email}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-base font-bold text-white tracking-tight">
+                            {initials}
+                          </span>
+                        )}
+
+                        {isSigningInThis && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                            <Loader2 className="w-5 h-5 text-brand-teal animate-spin" />
+                          </div>
+                        )}
+                      </div>
+
+                      <span className="text-xs font-semibold text-zinc-100 truncate w-full text-center leading-tight">
+                        {acc.firstName || acc.email.split('@')[0]}
+                      </span>
+
+                      <span
+                        className={`mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                          isAdmin
+                            ? 'bg-brand-blue/20 text-sky-400 border border-sky-500/30'
+                            : 'bg-brand-teal/15 text-brand-teal border border-brand-teal/30'
+                        }`}
+                      >
+                        {isAdmin ? <Shield className="w-2.5 h-2.5" /> : <UserIcon className="w-2.5 h-2.5" />}
+                        {acc.role}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </form>
       </div>
     </div>
