@@ -87,8 +87,23 @@ function DateTimer() {
   const dateStr = now.getDate() + ' ' + months[now.getMonth()];
   const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
-  const invoicingStartDay = (settings?.invoicingStartDay || 'Monday').toUpperCase();
-  const isInvoiceDay = dayName === invoicingStartDay;
+  const isInvoiceDay = React.useMemo(() => {
+    const invoicingFreq = settings?.invoicingFrequency || 'Weekly';
+    const invoicingStart = settings?.invoicingStartDay || 'Monday';
+    const toLocalYmd = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const todayYmd = toLocalYmd(now);
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const tomorrowYmd = toLocalYmd(tomorrow);
+    const cycles = generateCycles(invoicingFreq, invoicingStart, now.toISOString(), 6);
+    return cycles.some(c => c.end === todayYmd || c.start === tomorrowYmd);
+  }, [
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    settings?.invoicingFrequency,
+    settings?.invoicingStartDay,
+  ]);
 
   const isPayDay = React.useMemo(() => {
     const payrunFreq = settings?.payrunFrequency || 'Fortnightly';
