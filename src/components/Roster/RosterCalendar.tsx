@@ -372,9 +372,28 @@ export default function RosterCalendar() {
       
       if (staffRes.ok) {
         const staffData = await staffRes.json();
-        setStaffList(staffData.filter((user: any) => user.role !== 'ADMIN'));
+        const sortedStaff = staffData
+          .filter((user: any) => user.role !== 'ADMIN')
+          .sort((a: any, b: any) =>
+            `${a.first_name || ''} ${a.last_name || ''}`.trim().localeCompare(
+              `${b.first_name || ''} ${b.last_name || ''}`.trim(),
+              undefined,
+              { sensitivity: 'base' }
+            )
+          );
+        setStaffList(sortedStaff);
       }
-      if (clientsRes.ok) setClientList(await clientsRes.json());
+      if (clientsRes.ok) {
+        const clientsData = await clientsRes.json();
+        const sortedClients = [...clientsData].sort((a: any, b: any) =>
+          `${a.first_name || ''} ${a.last_name || ''}`.trim().localeCompare(
+            `${b.first_name || ''} ${b.last_name || ''}`.trim(),
+            undefined,
+            { sensitivity: 'base' }
+          )
+        );
+        setClientList(sortedClients);
+      }
       if (servicesRes.ok) setServicesList(await servicesRes.json());
     } catch (e) {
       console.error(e);
