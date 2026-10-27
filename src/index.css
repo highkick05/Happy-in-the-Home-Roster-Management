@@ -487,10 +487,10 @@ input:-webkit-autofill:active {
 .unassigned-shift-animated {
   background-image: repeating-linear-gradient(
     -45deg,
-    rgba(255, 255, 255, 0.15),
-    rgba(255, 255, 255, 0.15) 10px,
-    transparent 10px,
-    transparent 20px
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.28) 10px,
+    rgba(0, 0, 0, 0.16) 10px,
+    rgba(0, 0, 0, 0.16) 20px
   ) !important;
   background-size: 28px 28px !important;
   animation: subtle-stripe-slide 2s linear infinite !important;

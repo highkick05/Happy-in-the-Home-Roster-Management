@@ -936,6 +936,13 @@ export default function RosterCalendar() {
       border = isSelected ? '2px solid white' : '1px inset #7c3aed';
     }
 
+    if (isUnassigned && event.status !== 'CANCELLED' && event.status !== 'COMPLETED') {
+      backgroundColor = event.status === 'DRAFT' ? '#9d174d' : '#db2777'; // vibrant magenta-pink for unassigned shifts
+      border = isSelected
+        ? '2px solid white'
+        : (event.status === 'DRAFT' ? '1.5px dashed #f472b6' : '1.5px solid #f9a8d4');
+    }
+
     const classList: string[] = [];
     if (isUnassigned) classList.push('unassigned-shift-animated');
     if (isInProgress) classList.push('in-progress-shift-animated');
@@ -961,7 +968,9 @@ export default function RosterCalendar() {
         fontWeight: 600,
         boxShadow: isSelected
           ? '0 0 0 2px rgba(14, 165, 233, 0.5)'
-          : (isInProgress ? '0 0 10px rgba(245, 158, 11, 0.45)' : undefined),
+          : (isInProgress
+              ? '0 0 10px rgba(245, 158, 11, 0.45)'
+              : (isUnassigned ? '0 0 10px rgba(236, 72, 153, 0.45)' : undefined)),
       },
     };
   };
