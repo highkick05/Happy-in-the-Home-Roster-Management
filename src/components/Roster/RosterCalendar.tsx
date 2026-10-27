@@ -374,24 +374,20 @@ export default function RosterCalendar() {
         const staffData = await staffRes.json();
         const sortedStaff = staffData
           .filter((user: any) => user.role !== 'ADMIN')
-          .sort((a: any, b: any) =>
-            `${a.first_name || ''} ${a.last_name || ''}`.trim().localeCompare(
-              `${b.first_name || ''} ${b.last_name || ''}`.trim(),
-              undefined,
-              { sensitivity: 'base' }
-            )
-          );
+          .sort((a: any, b: any) => {
+            const lastCmp = (a.last_name || '').trim().localeCompare((b.last_name || '').trim(), undefined, { sensitivity: 'base' });
+            if (lastCmp !== 0) return lastCmp;
+            return (a.first_name || '').trim().localeCompare((b.first_name || '').trim(), undefined, { sensitivity: 'base' });
+          });
         setStaffList(sortedStaff);
       }
       if (clientsRes.ok) {
         const clientsData = await clientsRes.json();
-        const sortedClients = [...clientsData].sort((a: any, b: any) =>
-          `${a.first_name || ''} ${a.last_name || ''}`.trim().localeCompare(
-            `${b.first_name || ''} ${b.last_name || ''}`.trim(),
-            undefined,
-            { sensitivity: 'base' }
-          )
-        );
+        const sortedClients = [...clientsData].sort((a: any, b: any) => {
+          const lastCmp = (a.last_name || '').trim().localeCompare((b.last_name || '').trim(), undefined, { sensitivity: 'base' });
+          if (lastCmp !== 0) return lastCmp;
+          return (a.first_name || '').trim().localeCompare((b.first_name || '').trim(), undefined, { sensitivity: 'base' });
+        });
         setClientList(sortedClients);
       }
       if (servicesRes.ok) setServicesList(await servicesRes.json());
