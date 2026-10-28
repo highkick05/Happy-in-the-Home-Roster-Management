@@ -274,7 +274,39 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 flex flex-col items-center gap-8 bg-[#0d0e12] custom-scrollbar">
             
             {/* The Clean White Paper Quote Sheet - Page 1 */}
-            <div className="bg-white w-full max-w-4xl shrink-0 shadow-xl rounded-xl p-8 sm:p-12 text-zinc-900 font-sans flex flex-col relative border border-zinc-200/90 print:shadow-none print:border-none print:m-0 print:p-0 print:break-after-page">
+            <div className="bg-white w-full max-w-4xl shrink-0 shadow-xl rounded-xl p-8 sm:p-12 text-zinc-900 font-sans flex flex-col relative overflow-hidden isolate border border-zinc-200/90 print:shadow-none print:border-none print:m-0 print:p-0 print:break-after-page">
+              {/* Subtle Faded Houses & Colour-Accent Swooshes Background */}
+              <div className="pointer-events-none select-none absolute inset-0 overflow-hidden -z-10" aria-hidden="true">
+                <img
+                  src="/assets/aistudio/hith_houses_for_folder_3df6b648.png"
+                  alt=""
+                  className="absolute -top-8 -right-10 w-[440px] h-[310px] object-cover opacity-[0.11] [mask-image:radial-gradient(closest-side,black_20%,transparent_100%)]"
+                />
+                <img
+                  src="/assets/aistudio/hith_houses_for_folder_3df6b648.png"
+                  alt=""
+                  className="absolute top-[34%] -left-16 w-[400px] h-[300px] object-cover opacity-[0.09] -rotate-6 [mask-image:radial-gradient(closest-side,black_15%,transparent_100%)]"
+                />
+                <img
+                  src="/assets/aistudio/hith_houses_for_folder_3df6b648.png"
+                  alt=""
+                  className="absolute -bottom-10 -right-8 w-[460px] h-[320px] object-cover opacity-[0.11] [mask-image:radial-gradient(closest-side,black_20%,transparent_100%)]"
+                />
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 612 792" preserveAspectRatio="none" fill="none">
+                  {/* Top-Right Swooshes */}
+                  <path d="M250 0 C360 75, 495 25, 612 155 L612 95 C505 5, 395 45, 310 0 Z" fill="#0D8A99" fillOpacity="0.055" />
+                  <path d="M330 0 C430 55, 530 35, 612 120 L612 75 C540 15, 450 25, 385 0 Z" fill="#52B788" fillOpacity="0.05" />
+                  <path d="M220 0 C355 92, 495 40, 612 175" stroke="#38BDF8" strokeOpacity="0.14" strokeWidth="1.5" />
+                  {/* Mid-Left Swooshes */}
+                  <path d="M0 220 C95 290, 125 420, 0 520 L0 470 C85 395, 65 300, 0 255 Z" fill="#52B788" fillOpacity="0.045" />
+                  <path d="M0 265 C120 335, 90 455, 0 545 L0 505 C65 435, 85 345, 0 295 Z" fill="#0D8A99" fillOpacity="0.04" />
+                  <path d="M0 240 C115 315, 110 435, 0 535" stroke="#0D9488" strokeOpacity="0.12" strokeWidth="1.2" />
+                  {/* Bottom-Right Swooshes */}
+                  <path d="M190 792 C335 685, 485 735, 612 575 L612 635 C495 760, 355 720, 250 792 Z" fill="#0D8A99" fillOpacity="0.055" />
+                  <path d="M275 792 C400 710, 515 745, 612 620 L612 665 C525 765, 420 735, 330 792 Z" fill="#38BDF8" fillOpacity="0.045" />
+                  <path d="M165 792 C325 670, 480 725, 612 555" stroke="#52B788" strokeOpacity="0.14" strokeWidth="1.5" />
+                </svg>
+              </div>
               
               {/* Header */}
               <div className="flex flex-col sm:flex-row justify-between items-start gap-6 pb-6 border-b border-zinc-200">
@@ -494,7 +526,36 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
             </div>
 
             {/* Page 2: Important Notes & Terms of Service */}
-            <div className="bg-white w-full max-w-4xl shrink-0 shadow-xl rounded-xl p-8 sm:p-12 text-zinc-900 font-sans flex flex-col relative border border-zinc-200/90 print:shadow-none print:border-none print:m-0 print:p-0 print:break-before-page">
+            <div className="bg-white w-full max-w-4xl shrink-0 shadow-xl rounded-xl p-8 sm:p-12 text-zinc-900 font-sans flex flex-col relative overflow-hidden isolate border border-zinc-200/90 print:shadow-none print:border-none print:m-0 print:p-0 print:break-before-page">
+              {/* Subtle Faded Houses & Colour-Accent Swooshes Background */}
+              <div className="pointer-events-none select-none absolute inset-0 overflow-hidden -z-10" aria-hidden="true">
+                <img
+                  src="/assets/aistudio/hith_houses_for_folder_3df6b648.png"
+                  alt=""
+                  className="absolute -top-8 -right-10 w-[440px] h-[310px] object-cover opacity-[0.11] [mask-image:radial-gradient(closest-side,black_20%,transparent_100%)]"
+                />
+                <img
+                  src="/assets/aistudio/hith_houses_for_folder_3df6b648.png"
+                  alt=""
+                  className="absolute top-[34%] -left-16 w-[400px] h-[300px] object-cover opacity-[0.09] -rotate-6 [mask-image:radial-gradient(closest-side,black_15%,transparent_100%)]"
+                />
+                <img
+                  src="/assets/aistudio/hith_houses_for_folder_3df6b648.png"
+                  alt=""
+                  className="absolute -bottom-10 -right-8 w-[460px] h-[320px] object-cover opacity-[0.11] [mask-image:radial-gradient(closest-side,black_20%,transparent_100%)]"
+                />
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 612 792" preserveAspectRatio="none" fill="none">
+                  <path d="M250 0 C360 75, 495 25, 612 155 L612 95 C505 5, 395 45, 310 0 Z" fill="#0D8A99" fillOpacity="0.055" />
+                  <path d="M330 0 C430 55, 530 35, 612 120 L612 75 C540 15, 450 25, 385 0 Z" fill="#52B788" fillOpacity="0.05" />
+                  <path d="M220 0 C355 92, 495 40, 612 175" stroke="#38BDF8" strokeOpacity="0.14" strokeWidth="1.5" />
+                  <path d="M0 220 C95 290, 125 420, 0 520 L0 470 C85 395, 65 300, 0 255 Z" fill="#52B788" fillOpacity="0.045" />
+                  <path d="M0 265 C120 335, 90 455, 0 545 L0 505 C65 435, 85 345, 0 295 Z" fill="#0D8A99" fillOpacity="0.04" />
+                  <path d="M0 240 C115 315, 110 435, 0 535" stroke="#0D9488" strokeOpacity="0.12" strokeWidth="1.2" />
+                  <path d="M190 792 C335 685, 485 735, 612 575 L612 635 C495 760, 355 720, 250 792 Z" fill="#0D8A99" fillOpacity="0.055" />
+                  <path d="M275 792 C400 710, 515 745, 612 620 L612 665 C525 765, 420 735, 330 792 Z" fill="#38BDF8" fillOpacity="0.045" />
+                  <path d="M165 792 C325 670, 480 725, 612 555" stroke="#52B788" strokeOpacity="0.14" strokeWidth="1.5" />
+                </svg>
+              </div>
               
               {/* Page 2 Header */}
               <div className="flex flex-col sm:flex-row justify-between items-start gap-6 pb-6 border-b border-zinc-200">

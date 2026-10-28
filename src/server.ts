@@ -6,7 +6,7 @@ import { getUnreadCount } from "./getUnreadEmails";
 const VAPID_PUBLIC_KEY = 'BJJipdW8yPjurHatAx-yKuxglYM9TVFau8jQUsbPK5ybbYUotCGx6Y3zd6sOCQkeWBsfrHYHgwZYKzwp8BBv2_0';
 const VAPID_PRIVATE_KEY = 'XFEVMuT0GKOCFwEoxi7PZt6MGALJih-1LUR7OWy_Nwk';
 webpush.setVapidDetails('mailto:admin@happyinthehome.org', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-import { setupQuotePdfRoutes } from "./quotePdf";
+import { setupQuotePdfRoutes, renderDocumentBackgroundPdf } from "./quotePdf";
 import express from "express";
 import { execSync } from "child_process";
 import { Server as SocketIOServer } from "socket.io";
@@ -20756,6 +20756,8 @@ app.post(
       doc.page.margins.bottom = oldBottom;
     };
 
+    renderDocumentBackgroundPdf(doc);
+
     // Letterhead / Logo (Generous prominent display matching Quote PDF)
     let logoBottomY = 40;
     if (settingsMap.letterheadLogo) {
@@ -20925,6 +20927,7 @@ app.post(
       if (currentY + blockHeight > 660) {
         renderPageFooter();
         doc.addPage();
+        renderDocumentBackgroundPdf(doc);
         currentY = renderTableHeader(50);
       }
 
@@ -20997,6 +21000,7 @@ app.post(
     if (totalsY + 125 > 730) {
       renderPageFooter();
       doc.addPage();
+      renderDocumentBackgroundPdf(doc);
       totalsY = 55;
     }
 
@@ -21128,6 +21132,8 @@ app.post(
       });
       doc.page.margins.bottom = oldBottom;
     };
+
+    renderDocumentBackgroundPdf(doc);
 
     // Letterhead / Logo (Generous prominent display matching Quote & Invoice PDFs)
     let logoBottomY = 40;
@@ -21434,6 +21440,7 @@ app.post(
       if (currentY + blockHeight > 660) {
         renderPageFooter();
         doc.addPage();
+        renderDocumentBackgroundPdf(doc);
         currentY = renderTableHeader(50);
       }
 
@@ -21565,6 +21572,7 @@ app.post(
     if (totalsY + 165 > 730) {
       renderPageFooter();
       doc.addPage();
+      renderDocumentBackgroundPdf(doc);
       totalsY = 55;
     }
 

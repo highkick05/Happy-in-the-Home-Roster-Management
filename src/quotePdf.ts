@@ -2,6 +2,131 @@ import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 
+let cachedBgHousesBuffer: Buffer | null | undefined = undefined;
+function getBgHousesBuffer(): Buffer | null {
+  if (cachedBgHousesBuffer !== undefined) return cachedBgHousesBuffer;
+  try {
+    const bgPath = path.join(process.cwd(), 'public', 'assets', 'aistudio', 'hith_houses_for_folder_3df6b648.png');
+    if (fs.existsSync(bgPath)) {
+      cachedBgHousesBuffer = fs.readFileSync(bgPath);
+      return cachedBgHousesBuffer;
+    }
+  } catch (e) {}
+  cachedBgHousesBuffer = null;
+  return null;
+}
+
+export function renderDocumentBackgroundPdf(doc: any) {
+  const prevX = doc.x;
+  const prevY = doc.y;
+  doc.save();
+  try {
+    const bgBuffer = getBgHousesBuffer();
+    if (bgBuffer) {
+      const drawFeatheredPatch = (cx: number, cy: number, maxR: number, imgX: number, imgY: number, imgW: number) => {
+        const rings = [
+          { r: maxR, alpha: 0.026 },
+          { r: maxR * 0.76, alpha: 0.032 },
+          { r: maxR * 0.52, alpha: 0.038 },
+        ];
+        for (const ring of rings) {
+          doc.save();
+          doc.circle(cx, cy, ring.r).clip();
+          doc.opacity(ring.alpha);
+          doc.image(bgBuffer, imgX, imgY, { width: imgW });
+          doc.restore();
+        }
+      };
+
+      // 1. Top-Right faded houses patch
+      drawFeatheredPatch(515, 82, 145, 330, -25, 320);
+      // 2. Mid-Left faded houses patch
+      drawFeatheredPatch(75, 390, 135, -70, 275, 310);
+      // 3. Bottom-Right faded houses patch
+      drawFeatheredPatch(490, 665, 155, 300, 535, 330);
+    }
+
+    // Colour-accent swooshes matching the teal, sage green, and sky blue palette
+    // Top-Right Teal & Sage Swooshes
+    doc.save();
+    doc.fillOpacity(0.055).fillColor('#0D8A99');
+    doc.moveTo(250, 0)
+       .bezierCurveTo(360, 75, 495, 25, 612, 155)
+       .lineTo(612, 95)
+       .bezierCurveTo(505, 5, 395, 45, 310, 0)
+       .closePath()
+       .fill();
+
+    doc.fillOpacity(0.05).fillColor('#52B788');
+    doc.moveTo(330, 0)
+       .bezierCurveTo(430, 55, 530, 35, 612, 120)
+       .lineTo(612, 75)
+       .bezierCurveTo(540, 15, 450, 25, 385, 0)
+       .closePath()
+       .fill();
+
+    doc.strokeOpacity(0.12).strokeColor('#38BDF8').lineWidth(1.4);
+    doc.moveTo(220, 0)
+       .bezierCurveTo(355, 92, 495, 40, 612, 175)
+       .stroke();
+    doc.restore();
+
+    // Mid-Left Flowing S-Curve Swooshes
+    doc.save();
+    doc.fillOpacity(0.045).fillColor('#52B788');
+    doc.moveTo(0, 220)
+       .bezierCurveTo(95, 290, 125, 420, 0, 520)
+       .lineTo(0, 470)
+       .bezierCurveTo(85, 395, 65, 300, 0, 255)
+       .closePath()
+       .fill();
+
+    doc.fillOpacity(0.04).fillColor('#0D8A99');
+    doc.moveTo(0, 265)
+       .bezierCurveTo(120, 335, 90, 455, 0, 545)
+       .lineTo(0, 505)
+       .bezierCurveTo(65, 435, 85, 345, 0, 295)
+       .closePath()
+       .fill();
+
+    doc.strokeOpacity(0.11).strokeColor('#0D9488').lineWidth(1.2);
+    doc.moveTo(0, 240)
+       .bezierCurveTo(115, 315, 110, 435, 0, 535)
+       .stroke();
+    doc.restore();
+
+    // Bottom-Right Wave Swooshes
+    doc.save();
+    doc.fillOpacity(0.055).fillColor('#0D8A99');
+    doc.moveTo(190, 792)
+       .bezierCurveTo(335, 685, 485, 735, 612, 575)
+       .lineTo(612, 635)
+       .bezierCurveTo(495, 760, 355, 720, 250, 792)
+       .closePath()
+       .fill();
+
+    doc.fillOpacity(0.045).fillColor('#38BDF8');
+    doc.moveTo(275, 792)
+       .bezierCurveTo(400, 710, 515, 745, 612, 620)
+       .lineTo(612, 665)
+       .bezierCurveTo(525, 765, 420, 735, 330, 792)
+       .closePath()
+       .fill();
+
+    doc.strokeOpacity(0.12).strokeColor('#52B788').lineWidth(1.4);
+    doc.moveTo(165, 792)
+       .bezierCurveTo(325, 670, 480, 725, 612, 555)
+       .stroke();
+    doc.restore();
+  } catch (e) {
+    // Ignore background rendering errors so document generation never fails
+  }
+  doc.restore();
+  doc.fillOpacity(1).strokeOpacity(1).opacity(1);
+  doc.x = prevX;
+  doc.y = prevY;
+}
+
 function formatAuDate(dateVal: any, opts: { monthFormat?: 'short' | '2-digit' } = {}): string {
   if (!dateVal) return '';
   const str = String(dateVal).trim();
@@ -128,6 +253,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       const doc = new PDFDocument({ margin: 50, bufferPages: true });
       const writeStream = fs.createWriteStream(pdfPath);
       doc.pipe(writeStream);
+      renderDocumentBackgroundPdf(doc);
 
       // Letterhead / Logo (Generous prominent display matching preview)
       let logoBottomY = 40;
@@ -340,6 +466,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
 
         if (currentY + blockHeight > 660) {
           doc.addPage();
+          renderDocumentBackgroundPdf(doc);
           currentY = renderTableHeader(50);
         }
 
@@ -400,6 +527,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       let totalsY = currentY + 16;
       if (totalsY + 105 > 730) {
         doc.addPage();
+        renderDocumentBackgroundPdf(doc);
         totalsY = 55;
       }
 
@@ -424,6 +552,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
 
       // Move "Important Notes & Terms of Service" to its own completely separate page at the very end
       doc.addPage();
+      renderDocumentBackgroundPdf(doc);
 
       // Important Notes & Terms of Service Page
       // Top section title banner
