@@ -1369,7 +1369,7 @@ export default function RosterCalendar() {
 
       const formattedDistance = distKm > 0 ? `${distKm.toFixed(1)} km` : (event.staffId ? '0.0 km' : '–');
       const formattedTravelTime = travelMins > 0 ? (travelMins >= 60 ? `${Math.floor(travelMins / 60)}h ${Math.round(travelMins % 60)}m` : `${Math.round(travelMins)} mins`) : (event.staffId ? '0 mins' : '–');
-      const formattedAbtDistance = abtKm > 0 ? `ABT: ${parseFloat(abtKm.toFixed(2))} km` : (event.staffId ? 'ABT: 0.0 km' : 'ABT: –');
+      const formattedAbtDistance = abtKm > 0 ? `${parseFloat(abtKm.toFixed(2))} km` : (event.staffId ? '0.0 km' : '–');
 
       return (
         <div 
@@ -1484,27 +1484,37 @@ export default function RosterCalendar() {
 
               {/* Row 3: Travel in 3rd row */}
               {!event.isRespiteWrapper && (
-                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                  <div 
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[9px] sm:text-[9.5px] font-medium shadow-xs"
-                    title={isHCP ? "Between-shift travel distance (Home Care)" : "Provider travel distance for this shift"}
-                  >
-                    <Car className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-cyan-400 shrink-0 animate-service-drive" />
-                    <span>{formattedDistance}</span>
+                <div className="flex items-center gap-2.5 sm:gap-3.5 flex-wrap">
+                  <div className="inline-flex items-center gap-1.5 pr-2.5 sm:pr-3.5 border-r border-zinc-700/70">
+                    <span className="text-[9px] sm:text-[9.5px] font-semibold text-zinc-400 tracking-wide">
+                      Between Shifts:
+                    </span>
+                    <div 
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[9px] sm:text-[9.5px] font-medium shadow-xs"
+                      title="Between Shifts travel distance"
+                    >
+                      <Car className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-cyan-400 shrink-0 animate-service-drive" />
+                      <span>{formattedDistance}</span>
+                    </div>
+                    <div 
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-950/40 border border-amber-500/25 text-amber-300 text-[9px] sm:text-[9.5px] font-medium shadow-xs"
+                      title="Between Shifts travel time"
+                    >
+                      <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 shrink-0" />
+                      <span>{formattedTravelTime}</span>
+                    </div>
                   </div>
-                  <div 
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-950/40 border border-amber-500/25 text-amber-300 text-[9px] sm:text-[9.5px] font-medium shadow-xs"
-                    title={isHCP ? "Between-shift travel time (Home Care)" : "Provider travel time for this shift"}
-                  >
-                    <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 shrink-0" />
-                    <span>{formattedTravelTime}</span>
-                  </div>
-                  <div 
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-500/25 text-emerald-300 text-[9px] sm:text-[9.5px] font-medium shadow-xs"
-                    title="Activity Based Transport (Client Travel)"
-                  >
-                    <Car className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-400 shrink-0 animate-service-drive" />
-                    <span>{formattedAbtDistance}</span>
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="text-[9px] sm:text-[9.5px] font-semibold text-zinc-400 tracking-wide">
+                      During Shift:
+                    </span>
+                    <div 
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-500/25 text-emerald-300 text-[9px] sm:text-[9.5px] font-medium shadow-xs"
+                      title="During Shift travel distance"
+                    >
+                      <Car className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-400 shrink-0 animate-service-drive" />
+                      <span>{formattedAbtDistance}</span>
+                    </div>
                   </div>
                 </div>
               )}
