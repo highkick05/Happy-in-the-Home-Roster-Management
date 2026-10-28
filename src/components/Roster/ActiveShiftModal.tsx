@@ -60,6 +60,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
   const [returnedHome, setReturnedHome] = useState(false);
   const [isEditingTransport, setIsEditingTransport] = useState(false);
   const [hasModifiedTransport, setHasModifiedTransport] = useState(false);
+  const routeLogDetailsRef = useRef<HTMLDetailsElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1070,7 +1071,13 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                         {shift.status === 'COMPLETED' && (
                           <button
                             type="button"
-                            onClick={() => setIsEditingTransport(!isEditingTransport)}
+                            onClick={() => {
+                              const nextEditing = !isEditingTransport;
+                              setIsEditingTransport(nextEditing);
+                              if (routeLogDetailsRef.current) {
+                                routeLogDetailsRef.current.open = false;
+                              }
+                            }}
                             className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 border transition-all shadow-sm ${
                               isEditingTransport
                                 ? 'bg-brand-teal text-zinc-950 border-brand-teal ring-2 ring-brand-teal/30'
@@ -1145,7 +1152,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
 
                             {/* Full-Width Dropdown Log */}
                             <div className="w-full bg-[#09090b]/90 px-3.5 py-2.5 rounded-xl border border-white/[0.1] shadow-inner">
-                              <details className="group">
+                              <details ref={routeLogDetailsRef} className="group">
                                 <summary className="text-xs sm:text-sm font-semibold text-zinc-200 cursor-pointer flex items-center hover:text-white transition-colors outline-none list-none py-0.5">
                                   <span className="flex-1">View Transport Route Log</span>
                                   <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 group-open:rotate-180 transition-transform">
