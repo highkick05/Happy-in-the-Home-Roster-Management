@@ -558,9 +558,9 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                            <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">{title}</p>
                            <div className="flex items-baseline gap-3 flex-wrap">
                              <p className="text-xl text-indigo-100 font-extrabold">{km.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
-                             {mins > 0 && (
+                             {isHCP && (
                                <span className="text-sm font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-0.5 rounded-md border border-brand-teal/20">
-                                 {Math.round(mins)} mins {isHCP ? '(Between Shifts)' : ''}
+                                 {Math.round(mins)} mins
                                </span>
                              )}
                            </div>
@@ -570,7 +570,14 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                      return (
                        <div className="bg-zinc-800/50 p-4 rounded-xl border border-white/[0.08]/80 shadow-sm flex flex-col justify-center">
                          <p className="text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider">{isHCP ? 'Home Care Travel (Client Gap)' : 'Provider Travel'}</p>
-                         <p className="text-xl text-zinc-300 font-extrabold">0.00 <span className="text-sm font-medium text-zinc-500">km</span></p>
+                         <div className="flex items-baseline gap-3 flex-wrap">
+                           <p className="text-xl text-zinc-300 font-extrabold">0.00 <span className="text-sm font-medium text-zinc-500">km</span></p>
+                           {isHCP && (
+                             <span className="text-sm font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-0.5 rounded-md border border-brand-teal/20">
+                               {Math.round(mins)} mins
+                             </span>
+                           )}
+                         </div>
                        </div>
                      );
                    })()}

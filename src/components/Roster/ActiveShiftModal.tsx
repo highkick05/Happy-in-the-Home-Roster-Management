@@ -1063,9 +1063,26 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                 {isNDIS && (
                   <>
                     <div className="bg-indigo-900/20 rounded-xl p-3.5 shadow-sm border border-indigo-500/20">
-                      <h4 className="text-xs md:text-sm font-bold text-indigo-100 uppercase tracking-wide flex items-center mb-2">
-                        <Car className="w-4 h-4 mr-1.5 text-brand-teal shrink-0" /> TRAVEL ALLOWANCE
-                      </h4>
+                      <div className="flex items-center justify-between mb-2.5">
+                        <h4 className="text-xs md:text-sm font-bold text-indigo-100 uppercase tracking-wide flex items-center">
+                          <Car className="w-4 h-4 mr-1.5 text-brand-teal shrink-0" /> TRAVEL ALLOWANCE
+                        </h4>
+                        {shift.status === 'COMPLETED' && (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingTransport(!isEditingTransport)}
+                            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 border transition-all shadow-sm ${
+                              isEditingTransport
+                                ? 'bg-brand-teal text-zinc-950 border-brand-teal ring-2 ring-brand-teal/30'
+                                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border-white/[0.12]'
+                            }`}
+                            title="Edit Client Transport"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                            <span>{isEditingTransport ? 'Editing' : 'Edit'}</span>
+                          </button>
+                        )}
+                      </div>
 
                       {shift.status === 'COMPLETED' && (() => {
                         let log: any = null;
@@ -1088,7 +1105,6 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                         const providerMins = Number(shift.providerTravelMinutes) || (isHCP ? Number(log?.homeCareTravel?.minutes) : Number(log?.providerTravel?.minutes)) || providerLegMins || 0;
 
                         const abtKmVal = shift.abtKm ?? log?.abt?.distance ?? 0;
-                        const abtMinsVal = Number(log?.abt?.minutes) || (log?.abt?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0) || 0;
 
                         const hasProviderLegs = log?.providerTravel?.legs && log.providerTravel.legs.length > 0 && !isHCP;
                         const hasHomeCareLegs = log?.homeCareTravel?.legs && log.homeCareTravel.legs.length > 0;
@@ -1107,9 +1123,9 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                                   <span className="text-lg font-extrabold text-white">
                                     {Number(providerKm).toFixed(2)} <span className="text-xs font-medium text-brand-teal">km</span>
                                   </span>
-                                  {providerKm > 0 && providerMins > 0 && (
+                                  {isHCP && (
                                     <span className="text-xs font-bold text-brand-teal bg-brand-teal/15 px-2 py-0.5 rounded-md border border-brand-teal/30">
-                                      {Math.round(providerMins)} mins {isHCP ? 'between shifts' : ''}
+                                      {Math.round(providerMins)} mins
                                     </span>
                                   )}
                                 </div>
@@ -1123,166 +1139,129 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                                   <span className="text-lg font-extrabold text-white">
                                     {Number(abtKmVal).toFixed(2)} <span className="text-xs font-medium text-brand-green">km</span>
                                   </span>
-                                  {abtKmVal > 0 && abtMinsVal > 0 && (
-                                    <span className="text-xs font-bold text-brand-green bg-brand-green/15 px-2 py-0.5 rounded-md border border-brand-green/30">
-                                      {Math.round(abtMinsVal)} mins
-                                    </span>
-                                  )}
                                 </div>
                               </div>
                             </div>
 
-                            {/* Dropdown Log + Edit Button Row */}
-                            <div className="flex items-start gap-2">
-                              <div className="flex-1 min-w-0 bg-[#09090b]/90 px-3.5 py-2.5 rounded-xl border border-white/[0.1] shadow-inner">
-                                <details className="group">
-                                  <summary className="text-xs sm:text-sm font-semibold text-zinc-200 cursor-pointer flex items-center hover:text-white transition-colors outline-none list-none py-0.5">
-                                    <span className="flex-1">View Transport Route Log</span>
-                                    <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 group-open:rotate-180 transition-transform">
-                                      <ArrowDown className="w-3.5 h-3.5 text-zinc-400" />
+                            {/* Full-Width Dropdown Log */}
+                            <div className="w-full bg-[#09090b]/90 px-3.5 py-2.5 rounded-xl border border-white/[0.1] shadow-inner">
+                              <details className="group">
+                                <summary className="text-xs sm:text-sm font-semibold text-zinc-200 cursor-pointer flex items-center hover:text-white transition-colors outline-none list-none py-0.5">
+                                  <span className="flex-1">View Transport Route Log</span>
+                                  <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 group-open:rotate-180 transition-transform">
+                                    <ArrowDown className="w-3.5 h-3.5 text-zinc-400" />
+                                  </div>
+                                </summary>
+                                <div className="mt-3 space-y-3 pt-3 border-t border-white/[0.08]">
+                                  {breakdownArr.length > 0 && (
+                                    <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                      <span className="text-[11px] font-bold text-brand-teal/80 mb-2.5 uppercase tracking-wider block">Calculated Travel Journey:</span>
+                                      <div className="space-y-2">
+                                        {breakdownArr.map((item, idx) => {
+                                          const isZero = item.includes('0km') || item.includes('Ignored');
+                                          return (
+                                            <div key={idx} className={`text-xs sm:text-sm ${isZero ? 'text-zinc-500 italic' : 'text-zinc-200'}`}>
+                                              {item}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
                                     </div>
-                                  </summary>
-                                  <div className="mt-3 space-y-3 pt-3 border-t border-white/[0.08]">
-                                    {breakdownArr.length > 0 && (
-                                      <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
-                                        <span className="text-[11px] font-bold text-brand-teal/80 mb-2.5 uppercase tracking-wider block">Calculated Travel Journey:</span>
-                                        <div className="space-y-2">
-                                          {breakdownArr.map((item, idx) => {
-                                            const isZero = item.includes('0km') || item.includes('Ignored');
+                                  )}
+
+                                  {hasProviderLegs && (
+                                    <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                      <span className="text-[11px] font-bold text-brand-teal/80 mb-3 uppercase tracking-wider block">Provider Travel (To/From Shift):</span>
+                                      <div className="space-y-4">
+                                        {log.providerTravel.legs.map((leg: any, i: number) => (
+                                          <div key={i}>
+                                            {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
+                                        <span className="inline-flex items-center px-3 py-1.5 bg-brand-blue text-white text-xs font-bold rounded-md w-max">
+                                          {Number(providerKm).toFixed(2)} km
+                                        </span>
+                                        {log.providerTravel.calculatedAt && (
+                                          <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.providerTravel.calculatedAt).toLocaleString()}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {hasHomeCareLegs && (
+                                    <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                      <span className="text-[11px] font-bold text-brand-teal/80 mb-3 uppercase tracking-wider block">Home Care Travel Route:</span>
+                                      <div className="space-y-4">
+                                        {log.homeCareTravel.legs.map((leg: any, i: number) => {
+                                          if (leg.distance === 0 && leg.description && leg.description.includes('Private Commute')) {
                                             return (
-                                              <div key={idx} className={`text-xs sm:text-sm ${isZero ? 'text-zinc-500 italic' : 'text-zinc-200'}`}>
-                                                {item}
+                                              <div key={i} className="text-xs sm:text-sm text-zinc-400 italic">
+                                                {leg.description}
                                               </div>
                                             );
-                                          })}
-                                        </div>
+                                          }
+                                          if (leg.distance === 0) return null;
+                                          return (
+                                            <div key={i}>
+                                              {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins || providerMins)}
+                                            </div>
+                                          );
+                                        })}
                                       </div>
-                                    )}
+                                      <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="inline-flex items-center px-3 py-1.5 bg-brand-blue text-white text-xs font-bold rounded-md">
+                                            {Number(providerKm).toFixed(2)} km
+                                          </span>
+                                          <span className="inline-flex items-center px-3 py-1.5 bg-zinc-800 text-brand-teal border border-brand-teal/30 text-xs font-bold rounded-md">
+                                            {Math.round(providerMins)} mins
+                                          </span>
+                                        </div>
+                                        {log.homeCareTravel.calculatedAt && (
+                                          <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.homeCareTravel.calculatedAt).toLocaleString()}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
 
-                                    {hasProviderLegs && (
-                                      <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
-                                        <span className="text-[11px] font-bold text-brand-teal/80 mb-3 uppercase tracking-wider block">Provider Travel (To/From Shift):</span>
+                                  {hasAbtLog ? (
+                                    <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                      <span className="text-[11px] font-bold text-brand-green/80 mb-3 uppercase tracking-wider block">Activity Based Transport (ABT):</span>
+                                      {log.abt.legs && log.abt.legs.length > 0 ? (
                                         <div className="space-y-4">
-                                          {log.providerTravel.legs.map((leg: any, i: number) => (
+                                          {log.abt.legs.map((leg: any, i: number) => (
                                             <div key={i}>
                                               {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
                                             </div>
                                           ))}
                                         </div>
-                                        <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
-                                          <div className="flex flex-wrap items-center gap-2">
-                                            <span className="inline-flex items-center px-3 py-1.5 bg-brand-blue text-white text-xs font-bold rounded-md">
-                                              {Number(providerKm).toFixed(2)} km
-                                            </span>
-                                            {providerMins > 0 && (
-                                              <span className="inline-flex items-center px-3 py-1.5 bg-zinc-800 text-brand-teal border border-brand-teal/30 text-xs font-bold rounded-md">
-                                                {Math.round(providerMins)} mins
-                                              </span>
-                                            )}
-                                          </div>
-                                          {log.providerTravel.calculatedAt && (
-                                            <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.providerTravel.calculatedAt).toLocaleString()}</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {hasHomeCareLegs && (
-                                      <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
-                                        <span className="text-[11px] font-bold text-brand-teal/80 mb-3 uppercase tracking-wider block">Home Care Travel Route:</span>
-                                        <div className="space-y-4">
-                                          {log.homeCareTravel.legs.map((leg: any, i: number) => {
-                                            if (leg.distance === 0 && leg.description && leg.description.includes('Private Commute')) {
-                                              return (
-                                                <div key={i} className="text-xs sm:text-sm text-zinc-400 italic">
-                                                  {leg.description}
-                                                </div>
-                                              );
-                                            }
-                                            if (leg.distance === 0) return null;
-                                            return (
-                                              <div key={i}>
-                                                {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins || providerMins)}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                        <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
-                                          <div className="flex flex-wrap items-center gap-2">
-                                            <span className="inline-flex items-center px-3 py-1.5 bg-brand-blue text-white text-xs font-bold rounded-md">
-                                              {Number(providerKm).toFixed(2)} km
-                                            </span>
-                                            {providerKm > 0 && providerMins > 0 && (
-                                              <span className="inline-flex items-center px-3 py-1.5 bg-zinc-800 text-brand-teal border border-brand-teal/30 text-xs font-bold rounded-md">
-                                                Time Travelled Between Shifts: {Math.round(providerMins)} mins
-                                              </span>
-                                            )}
-                                          </div>
-                                          {log.homeCareTravel.calculatedAt && (
-                                            <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.homeCareTravel.calculatedAt).toLocaleString()}</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {hasAbtLog ? (
-                                      <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
-                                        <span className="text-[11px] font-bold text-brand-green/80 mb-3 uppercase tracking-wider block">Activity Based Transport (ABT):</span>
-                                        {log.abt.legs && log.abt.legs.length > 0 ? (
-                                          <div className="space-y-4">
-                                            {log.abt.legs.map((leg: any, i: number) => (
-                                              <div key={i}>
-                                                {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <div>{renderFormattedDescription(log.abt.description || 'Activity Based Transport', log.abt.distance, log.abt.calculatedAt, log.abt.minutes)}</div>
+                                      ) : (
+                                        <div>{renderFormattedDescription(log.abt.description || 'Activity Based Transport', log.abt.distance, log.abt.calculatedAt, log.abt.minutes)}</div>
+                                      )}
+                                      <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
+                                        <span className="inline-flex items-center px-3 py-1.5 bg-brand-green/20 text-brand-green text-xs font-black rounded-md border border-brand-green/30 w-max">
+                                          {log.abt.distance != null ? Number(log.abt.distance).toFixed(2) : Number(abtKmVal).toFixed(2)} km
+                                        </span>
+                                        {log.abt.calculatedAt && (
+                                          <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.abt.calculatedAt).toLocaleString()}</span>
                                         )}
-                                        <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
-                                          <div className="flex flex-wrap items-center gap-2">
-                                            <span className="inline-flex items-center px-3 py-1.5 bg-brand-green/20 text-brand-green text-xs font-black rounded-md border border-brand-green/30">
-                                              {log.abt.distance != null ? Number(log.abt.distance).toFixed(2) : Number(abtKmVal).toFixed(2)} km
-                                            </span>
-                                            {abtMinsVal > 0 && (
-                                              <span className="inline-flex items-center px-3 py-1.5 bg-zinc-800 text-zinc-200 border border-white/10 text-xs font-bold rounded-md">
-                                                {Math.round(abtMinsVal)} mins
-                                              </span>
-                                            )}
-                                          </div>
-                                          {log.abt.calculatedAt && (
-                                            <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.abt.calculatedAt).toLocaleString()}</span>
-                                          )}
-                                        </div>
                                       </div>
-                                    ) : (
-                                      <div className="bg-[#121214] p-3 rounded-xl border border-white/[0.08] text-xs text-zinc-400 italic">
-                                        No client transport (Activity Based Transport) recorded for this shift.
-                                      </div>
-                                    )}
+                                    </div>
+                                  ) : (
+                                    <div className="bg-[#121214] p-3 rounded-xl border border-white/[0.08] text-xs text-zinc-400 italic">
+                                      No client transport (Activity Based Transport) recorded for this shift.
+                                    </div>
+                                  )}
 
-                                    {!hasAnyLogContent && (
-                                      <div className="text-xs text-zinc-400 italic">
-                                        No billable travel route log recorded for this shift.
-                                      </div>
-                                    )}
-                                  </div>
-                                </details>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => setIsEditingTransport(!isEditingTransport)}
-                                className={`px-3.5 py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 shrink-0 border transition-all shadow-sm ${
-                                  isEditingTransport
-                                    ? 'bg-brand-teal text-zinc-950 border-brand-teal ring-2 ring-brand-teal/30'
-                                    : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border-white/[0.12]'
-                                }`}
-                                title="Edit Client Transport"
-                              >
-                                <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                <span>{isEditingTransport ? 'Editing' : 'Edit'}</span>
-                              </button>
+                                  {!hasAnyLogContent && (
+                                    <div className="text-xs text-zinc-400 italic">
+                                      No billable travel route log recorded for this shift.
+                                    </div>
+                                  )}
+                                </div>
+                              </details>
                             </div>
                           </div>
                         );
