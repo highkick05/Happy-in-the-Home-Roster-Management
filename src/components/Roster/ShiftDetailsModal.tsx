@@ -255,13 +255,21 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
         ? `/api/respite-bookings/${shift.respiteData?.id}/status` 
         : `/api/shifts/${shift.id}`;
 
+      const payload: Record<string, any> = { status };
+      if (!isRespite && shift.status === 'CANCELLED' && status === 'PUBLISHED') {
+        const currentNotes = String(shift.notes || '').trim();
+        if (currentNotes.startsWith('Cancelled:') || currentNotes === 'Cancelled by staff') {
+          payload.notes = '';
+        }
+      }
+
       const res = await fetch(endpoint, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ status })
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         onSave();
@@ -1023,6 +1031,16 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                 >
                   <Undo2 className="w-5 h-5 mr-2 shrink-0" />
                   {shift.isRespiteWrapper ? "Unpublish Booking" : "Unpublish Shift"}
+                </button>
+              )}
+
+              {isAdmin && shift.status === 'CANCELLED' && (
+                <button 
+                  onClick={() => handleUpdateStatus('PUBLISHED')}
+                  className="w-full flex items-center justify-center px-4 py-3 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-400 rounded-xl text-sm md:text-base font-bold transition-all shadow-sm active:scale-95"
+                >
+                  <Undo2 className="w-5 h-5 mr-2 shrink-0" />
+                  {shift.isRespiteWrapper ? "Uncancel Booking" : "Uncancel Shift"}
                 </button>
               )}
 
