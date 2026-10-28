@@ -45,7 +45,7 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
              c.address as client_address
       FROM shifts s
       LEFT JOIN clients c ON s.client_id = c.id
-      WHERE s.staff_id = ? AND s.start_time >= ? AND s.start_time <= ? AND s.status NOT IN ('CANCELLED', 'DELETED', 'deleted') 
+      WHERE s.staff_id = ? AND s.start_time >= ? AND s.start_time <= ? AND (s.status NOT IN ('CANCELLED', 'DELETED', 'deleted') OR (s.status = 'CANCELLED' AND COALESCE(s.cancelled_pay_hours, 0) > 0))
       ORDER BY s.start_time ASC
     `).all(staffId, startTimeRangeStart, startTimeRangeEnd) as any[];
 
@@ -200,15 +200,18 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
                      }
                  }
                  if (service && service.name && service.name.toLowerCase().includes('provider travel')) {
-                     sData.qtyOverride = parseFloat(pTravel.distance.toFixed(2));
+                     if (pTravel.distance > 0 || !(currentShift.status === 'CANCELLED' && Number(currentShift.cancelled_pay_hours) > 0 && Number(currentShift.provider_travel_km) > 0)) {
+                       sData.qtyOverride = parseFloat(pTravel.distance.toFixed(2));
+                     }
                  }
              }
          }
 
          console.log(`[DEBUG CASCADE] NDIS writing totalDistance: ${pTravel.distance} to shift ${currentShift.id}.`);
-         let update_pt_km = currentShift.is_historical === 1 ? currentShift.provider_travel_km : pTravel.distance;
-         let update_pt_mins = currentShift.is_historical === 1 ? currentShift.provider_travel_minutes : pTravel.minutes;
-         let update_pt_cost = currentShift.is_historical === 1 ? currentShift.provider_travel_cost : pTravel.cost;
+         const preserveCancelledPT = currentShift.status === 'CANCELLED' && Number(currentShift.cancelled_pay_hours) > 0 && Number(currentShift.provider_travel_km) > 0 && pTravel.distance === 0;
+         let update_pt_km = (currentShift.is_historical === 1 || preserveCancelledPT) ? currentShift.provider_travel_km : pTravel.distance;
+         let update_pt_mins = (currentShift.is_historical === 1 || preserveCancelledPT) ? currentShift.provider_travel_minutes : pTravel.minutes;
+         let update_pt_cost = (currentShift.is_historical === 1 || preserveCancelledPT) ? currentShift.provider_travel_cost : pTravel.cost;
 
          db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, provider_travel_cost = ?, travel_breakdown = ?, transport_route_log = ?, services_json = ? WHERE id = ?').run(
             update_pt_km, update_pt_mins, update_pt_cost, JSON.stringify(travelBreakdown), transportRouteLogStr, JSON.stringify(servicesData), currentShift.id

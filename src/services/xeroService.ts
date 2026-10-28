@@ -1494,6 +1494,13 @@ export function previewXeroPayRun(db: any, params: {
     }
 
     const isHomeCare = shift.funding_type === "HCP" || shift.funding_type === "Home Care" || shift.funding_type === "HOME_CARE";
+    let parsedRouteLog: any = null;
+    if (shift.transport_route_log) {
+      try {
+        parsedRouteLog = JSON.parse(shift.transport_route_log);
+      } catch (e) {}
+    }
+
     let calculatedMins = shift.provider_travel_minutes || 0;
     if (isHomeCare && calculatedMins === 0) {
       if (shift.travel_breakdown) {
@@ -1505,15 +1512,12 @@ export function previewXeroPayRun(db: any, params: {
           }
         } catch(e) {}
       }
-      if (calculatedMins === 0 && shift.transport_route_log) {
-        try {
-          const tLog = JSON.parse(shift.transport_route_log);
-          if (tLog && tLog.homeCareTravel && tLog.homeCareTravel.minutes !== undefined) {
-            calculatedMins = tLog.homeCareTravel.minutes;
-          } else if (tLog && tLog.homeCareTravel && tLog.homeCareTravel.legs) {
-            calculatedMins = tLog.homeCareTravel.legs.reduce((sum: number, l: any) => sum + (l.durationMins || 0), 0);
-          }
-        } catch(e) {}
+      if (calculatedMins === 0 && parsedRouteLog) {
+        if (parsedRouteLog.homeCareTravel && parsedRouteLog.homeCareTravel.minutes !== undefined) {
+          calculatedMins = parsedRouteLog.homeCareTravel.minutes;
+        } else if (parsedRouteLog.homeCareTravel && parsedRouteLog.homeCareTravel.legs) {
+          calculatedMins = parsedRouteLog.homeCareTravel.legs.reduce((sum: number, l: any) => sum + (l.durationMins || 0), 0);
+        }
       }
     }
 
@@ -1521,6 +1525,7 @@ export function previewXeroPayRun(db: any, params: {
     try { servicesArray = shift.services_json ? JSON.parse(shift.services_json) : []; } catch {}
     let hasProviderTravelService = false;
     let hasABTService = false;
+    let providerTravelQtyOverride: number | null = null;
     for (const sData of servicesArray) {
       let sName = (sData.name || sData.customName || sData.serviceName || '').toLowerCase();
       if (!sName && sData.serviceId && !sData.isCustom && sData.serviceId !== 'custom' && !String(sData.serviceId).startsWith('custom')) {
@@ -1531,8 +1536,14 @@ export function previewXeroPayRun(db: any, params: {
           }
         } catch (e) {}
       }
-      if (sName.includes('provider travel')) hasProviderTravelService = true;
-      if (sName.includes('activity based transport')) hasABTService = true;
+      const sCode = String(sData.serviceCode || '').toLowerCase();
+      if (sName.includes('provider travel') || sName.includes('travel - provider') || sCode.includes('provider travel')) {
+        hasProviderTravelService = true;
+        if (providerTravelQtyOverride === null && sData.qtyOverride !== undefined && sData.qtyOverride !== '' && Number(sData.qtyOverride) > 0) {
+          providerTravelQtyOverride = Number(sData.qtyOverride);
+        }
+      }
+      if (sName.includes('activity based transport') || sName.includes('activity-based transport')) hasABTService = true;
     }
 
     let isCompanyVehicle = false;
@@ -1543,14 +1554,18 @@ export function previewXeroPayRun(db: any, params: {
       }
     }
 
-    const hcIntershiftKm = (shift.respite_booking_id || isCompanyVehicle) ? 0 : (shift.provider_travel_km || shift.home_care_travel_km || 0);
-    const hcTransportKm = (shift.respite_booking_id || isCompanyVehicle) ? 0 : (shift.abt_km || 0);
+    const hcIntershiftKm = (shift.respite_booking_id || isCompanyVehicle) ? 0 : (Number(shift.provider_travel_km) || Number(shift.home_care_travel_km) || Number(parsedRouteLog?.homeCareTravel?.distance) || 0);
+    const hcTransportKm = (shift.respite_booking_id || isCompanyVehicle || isCancelledPaid) ? 0 : (shift.abt_km || 0);
     const hcKm = hcIntershiftKm + hcTransportKm;
     const hcHrs = shift.respite_booking_id ? 0 : (calculatedMins / 60);
     const hcReimb = shift.respite_booking_id ? 0 : (shift.home_care_travel_total || 0);
 
-    const provKm = isCompanyVehicle ? 0 : ((shift.respite_booking_id ? 0 : shift.provider_travel_km || 0) * (hasProviderTravelService ? 1 : 0));
-    const abtKm = isCompanyVehicle ? 0 : ((shift.respite_booking_id ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0));
+    const effectiveProvKm = Number(shift.provider_travel_km) || providerTravelQtyOverride || Number(parsedRouteLog?.providerTravel?.distance) || 0;
+    if (effectiveProvKm > 0 && (hasProviderTravelService || isCancelledPaid)) {
+      hasProviderTravelService = true;
+    }
+    const provKm = isCompanyVehicle ? 0 : ((shift.respite_booking_id ? 0 : effectiveProvKm) * (hasProviderTravelService ? 1 : 0));
+    const abtKm = isCompanyVehicle ? 0 : ((shift.respite_booking_id || isCancelledPaid ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0));
     const ndisKm = provKm + abtKm;
     const ndisReimb = parseFloat((ndisKm * 0.99).toFixed(2));
 

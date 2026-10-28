@@ -14949,7 +14949,7 @@ app.get("/api/health", (req, res) => {
          LEFT JOIN users u ON s.staff_id = u.id
          LEFT JOIN clients c ON s.client_id = c.id
          LEFT JOIN services srv ON s.service_id = srv.id
-         WHERE s.staff_id = ? AND s.status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED')
+         WHERE s.staff_id = ? AND s.status IN ('PUBLISHED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED')
            AND (s.notes != 'Manually generated invoice' OR s.notes IS NULL)${dateFilter}
        `;
       const shifts = db.prepare(staffQuery).all(req.user.id, ...queryParams) as any[];
@@ -15802,7 +15802,7 @@ app.get("/api/health", (req, res) => {
   app.post(
     "/api/shifts/:id/cancel",
     authenticateToken,
-    (req: any, res: any) => {
+    async (req: any, res: any) => {
       const { id } = req.params;
       const { reason, clientGaveNotice = true, staffAttended = false, staffPayHours = 0 } = req.body;
       try {
@@ -15824,12 +15824,32 @@ app.get("/api/health", (req, res) => {
             : 1
           : 0;
 
-        db.prepare("UPDATE shifts SET status = ?, notes = ?, cancelled_pay_hours = ? WHERE id = ?").run(
-          "CANCELLED",
-          finalReason,
-          finalCancelledPayHours,
-          id,
-        );
+        if (finalCancelledPayHours > 0) {
+          if (
+            shift.staff_id &&
+            shift.start_time &&
+            Number(shift.provider_travel_km || 0) === 0 &&
+            Number(shift.home_care_travel_km || 0) === 0
+          ) {
+            await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);
+          }
+          db.prepare("UPDATE shifts SET status = ?, notes = ?, cancelled_pay_hours = ? WHERE id = ?").run(
+            "CANCELLED",
+            finalReason,
+            finalCancelledPayHours,
+            id,
+          );
+          if (shift.staff_id && shift.start_time) {
+            await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);
+          }
+        } else {
+          db.prepare(
+            "UPDATE shifts SET status = ?, notes = ?, cancelled_pay_hours = 0, provider_travel_km = 0, provider_travel_minutes = 0, provider_travel_cost = 0, home_care_travel_km = 0, home_care_travel_total = 0, abt_km = 0, abt_cost = 0 WHERE id = ?",
+          ).run("CANCELLED", finalReason, id);
+          if (shift.staff_id && shift.start_time) {
+            await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);
+          }
+        }
 
         if (!clientGaveNotice) {
           try {
@@ -18262,6 +18282,7 @@ app.get("/api/health", (req, res) => {
           } catch (e) {}
 
           let primaryQtyOverride: number | null = null;
+          let providerTravelQtyOverride: number | null = null;
           let serviceNamesList: string[] = [];
           let hasProviderTravelService = false;
           let hasABTService = false;
@@ -18274,7 +18295,7 @@ app.get("/api/health", (req, res) => {
               if (isOrient) {
                 serviceName = 'Orientation';
               } else if (sData.isCustom || sData.serviceId === null || sData.serviceId === 'custom' || (String(sData.serviceId).startsWith('custom'))) {
-                serviceName = sData.customName || sData.name || "Custom Service";
+                serviceName = sData.customName || sData.name || sData.serviceName || "Custom Service";
                 isCustomService = true;
               } else {
                 const srv = db
@@ -18282,23 +18303,33 @@ app.get("/api/health", (req, res) => {
                   .get(sData.serviceId) as any;
                 if (srv && srv.name) {
                   serviceName = srv.name;
+                } else {
+                  serviceName = sData.serviceName || sData.customName || sData.name || '';
                 }
               }
 
-              if (serviceName) {
+              const codeLower = String(sData.serviceCode || '').toLowerCase();
+              if (serviceName || codeLower) {
                 const nameLower = serviceName.toLowerCase();
-                if (nameLower.includes("provider travel")) {
+                const isPT = nameLower.includes("provider travel") || nameLower.includes("travel - provider") || codeLower.includes("provider travel");
+                const isABT = nameLower.includes("activity based transport") || nameLower.includes("activity-based transport");
+                if (isPT) {
                   hasProviderTravelService = true;
+                  if (
+                    providerTravelQtyOverride === null &&
+                    sData.qtyOverride !== undefined &&
+                    sData.qtyOverride !== "" &&
+                    Number(sData.qtyOverride) > 0
+                  ) {
+                    providerTravelQtyOverride = Number(sData.qtyOverride);
+                  }
                 }
-                if (nameLower.includes("activity based transport")) {
+                if (isABT) {
                   hasABTService = true;
                 }
 
                 // Do not list Provider Travel or ABT here; they get their own dedicated rows
-                if (
-                  !nameLower.includes("provider travel") &&
-                  !nameLower.includes("activity based transport")
-                ) {
+                if (!isPT && !isABT && serviceName) {
                   if (!serviceNamesList.includes(serviceName)) {
                     serviceNamesList.push(serviceName);
                   }
@@ -18312,6 +18343,14 @@ app.get("/api/health", (req, res) => {
                 }
               }
             }
+          }
+
+          const shiftServiceNameLower = String(shift.service_name || '').toLowerCase();
+          if (shiftServiceNameLower.includes("provider travel") || shiftServiceNameLower.includes("travel - provider")) {
+            hasProviderTravelService = true;
+          }
+          if (isCancelledPaid && Number(shift.provider_travel_km) > 0) {
+            hasProviderTravelService = true;
           }
 
           if (!isCancelledPaid && primaryQtyOverride !== null && primaryQtyOverride > 0) {
@@ -18371,6 +18410,13 @@ app.get("/api/health", (req, res) => {
             shift.funding_type === "Home Care" ||
             shift.funding_type === "HOME_CARE";
 
+          let parsedRouteLog: any = null;
+          if (shift.transport_route_log) {
+            try {
+              parsedRouteLog = JSON.parse(shift.transport_route_log);
+            } catch (e) {}
+          }
+
           let calculatedMins = shift.provider_travel_minutes || 0;
           if (isHomeCare && calculatedMins === 0) {
               if (shift.travel_breakdown) {
@@ -18382,15 +18428,12 @@ app.get("/api/health", (req, res) => {
                       }
                   } catch(e) {}
               }
-              if (calculatedMins === 0 && shift.transport_route_log) {
-                  try {
-                      const tLog = JSON.parse(shift.transport_route_log);
-                      if (tLog && tLog.homeCareTravel && tLog.homeCareTravel.minutes !== undefined) {
-                          calculatedMins = tLog.homeCareTravel.minutes;
-                      } else if (tLog && tLog.homeCareTravel && tLog.homeCareTravel.legs) {
-                          calculatedMins = tLog.homeCareTravel.legs.reduce((sum: number, l: any) => sum + (l.durationMins || 0), 0);
-                      }
-                  } catch(e) {}
+              if (calculatedMins === 0 && parsedRouteLog) {
+                  if (parsedRouteLog.homeCareTravel && parsedRouteLog.homeCareTravel.minutes !== undefined) {
+                      calculatedMins = parsedRouteLog.homeCareTravel.minutes;
+                  } else if (parsedRouteLog.homeCareTravel && parsedRouteLog.homeCareTravel.legs) {
+                      calculatedMins = parsedRouteLog.homeCareTravel.legs.reduce((sum: number, l: any) => sum + (l.durationMins || 0), 0);
+                  }
               }
               if (calculatedMins > 0) {
                   try {
@@ -18409,8 +18452,8 @@ app.get("/api/health", (req, res) => {
 
           const hc_intershift_km = shift.respite_booking_id
             ? 0
-            : shift.provider_travel_km || shift.home_care_travel_km || 0;
-          const hc_transport_km = (shift.respite_booking_id || isCompanyVehicle)
+            : Number(shift.provider_travel_km) || Number(shift.home_care_travel_km) || Number(parsedRouteLog?.homeCareTravel?.distance) || 0;
+          const hc_transport_km = (shift.respite_booking_id || isCompanyVehicle || isCancelledPaid)
             ? 0
             : shift.abt_km || 0;
           const hc_travel_km = hc_intershift_km + hc_transport_km;
@@ -18421,8 +18464,12 @@ app.get("/api/health", (req, res) => {
             ? 0
             : shift.home_care_travel_total || 0;
 
-          const raw_prov_km = (shift.respite_booking_id ? 0 : shift.provider_travel_km || 0) * (hasProviderTravelService ? 1 : 0);
-          const raw_abt_km = (shift.respite_booking_id ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0);
+          const effective_prov_km = Number(shift.provider_travel_km) || providerTravelQtyOverride || Number(parsedRouteLog?.providerTravel?.distance) || 0;
+          if (effective_prov_km > 0 && (hasProviderTravelService || isCancelledPaid)) {
+            hasProviderTravelService = true;
+          }
+          const raw_prov_km = (shift.respite_booking_id ? 0 : effective_prov_km) * (hasProviderTravelService ? 1 : 0);
+          const raw_abt_km = (shift.respite_booking_id || isCancelledPaid ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0);
 
           const prov_km = isCompanyVehicle ? 0 : raw_prov_km;
           const abt_km = isCompanyVehicle ? 0 : raw_abt_km;

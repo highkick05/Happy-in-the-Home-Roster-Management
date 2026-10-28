@@ -949,6 +949,18 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                 </div>
               )}
 
+              {shift.status === 'CANCELLED' && (
+                <div className="flex flex-col gap-2">
+                  <div className="w-full py-5 bg-red-500/10 border-2 border-red-500/30 text-red-400 shadow-md rounded-xl font-bold md:text-xl text-center">
+                    Shift Cancelled
+                  </div>
+                  <div className="bg-zinc-800 border border-zinc-600 rounded-xl p-3.5 shadow-sm">
+                    <span className="text-zinc-300 font-bold block mb-2 text-xs uppercase tracking-wider">Cancellation Notes</span>
+                    <p className="text-sm md:text-base leading-relaxed text-zinc-100 text-center bg-black/40 rounded-lg p-3 border border-zinc-700/50">{shift.notes || "No cancellation reason provided."}</p>
+                  </div>
+                </div>
+              )}
+
               {shift.status === 'PUBLISHED' && (
                 <div className="flex flex-col gap-3">
                   {/* Vehicle Selection - NDIS shifts only */}
