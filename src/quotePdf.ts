@@ -161,26 +161,7 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         logoBottomY = 75;
       }
 
-      // Contact details under logo (left side)
-      let provY = logoBottomY + 4;
-      doc.fillColor("#374151").font("Helvetica-Bold").fontSize(8);
-      if (settingsMap.abn) {
-        doc.text(`ABN: ${settingsMap.abn}`, 50, provY);
-        provY += 11;
-      }
-      doc.fillColor("#6B7280").font("Helvetica").fontSize(8);
-      if (settingsMap.businessAddress) {
-        doc.text(settingsMap.businessAddress, 50, provY, { width: 230 });
-        provY += doc.heightOfString(settingsMap.businessAddress, { width: 230 }) + 1;
-      }
-      if (settingsMap.contactEmail) {
-        doc.text(settingsMap.contactEmail, 50, provY);
-        provY += 11;
-      }
-      if (settingsMap.contactPhone) {
-        doc.text(`Tel: ${settingsMap.contactPhone}`, 50, provY);
-        provY += 11;
-      }
+      let provY = logoBottomY;
 
       // Top Right: Quote Meta
       // Service period calculation (identical to QuotePreviewModal)
@@ -267,6 +248,10 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
       }
       if (settingsMap.contactEmail) {
         doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(settingsMap.contactEmail, 50, colLeftY);
+        colLeftY += 11;
+      }
+      if (settingsMap.contactPhone) {
+        doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(`Tel: ${settingsMap.contactPhone}`, 50, colLeftY);
         colLeftY += 11;
       }
 

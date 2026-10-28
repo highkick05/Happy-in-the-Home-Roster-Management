@@ -281,9 +281,9 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                 {/* Provider Details */}
                 <div className="flex flex-col max-w-sm">
                   {settingsMap.letterheadLogo ? (
-                    <img src={settingsMap.letterheadLogo} alt="Logo" className="h-36 sm:h-44 max-w-[340px] sm:max-w-[420px] w-auto object-contain mb-3" />
+                    <img src={settingsMap.letterheadLogo} alt="Logo" className="h-36 sm:h-44 max-w-[340px] sm:max-w-[420px] w-auto object-contain" />
                   ) : (
-                    <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold text-base shadow-sm">
                         H
                       </div>
@@ -292,12 +292,6 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                       </h1>
                     </div>
                   )}
-                  <div className="text-xs text-zinc-500 space-y-0.5 leading-relaxed">
-                    {settingsMap.abn && <p className="font-medium text-zinc-700">ABN: {settingsMap.abn}</p>}
-                    {settingsMap.businessAddress && <p>{settingsMap.businessAddress}</p>}
-                    {settingsMap.contactEmail && <p>{settingsMap.contactEmail}</p>}
-                    {settingsMap.contactPhone && <p>Tel: {settingsMap.contactPhone}</p>}
-                  </div>
                 </div>
 
                 {/* Quote Meta */}
@@ -348,6 +342,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                     {settingsMap.abn && <p>ABN: {settingsMap.abn}</p>}
                     {settingsMap.businessAddress && <p>{settingsMap.businessAddress}</p>}
                     {settingsMap.contactEmail && <p>{settingsMap.contactEmail}</p>}
+                    {settingsMap.contactPhone && <p>Tel: {settingsMap.contactPhone}</p>}
                   </div>
                 </div>
 

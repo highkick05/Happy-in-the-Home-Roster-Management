@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Download, X, Upload, Copy, ChevronUp, ChevronDown, CheckCircle, Search, Trash2, Eye, Edit2, FileText, Plus, RefreshCw } from 'lucide-react';
 import CustomDatePicker from '../ui/CustomDatePicker';
 import CustomTimePicker from '../ui/CustomTimePicker';
-import PdfPreviewModal from "./PdfPreviewModal";
+import RemittancePreviewModal from "./RemittancePreviewModal";
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 function GenerateRemittanceForm({ token, onGenerated, onClose, editData }: { token: string | null, onGenerated: () => void, onClose: () => void, editData?: any }) {
@@ -1065,10 +1065,9 @@ export default function RemittancesView() {
       )}
 
       {previewRemittance && (
-        <PdfPreviewModal
-          token={token}
-          url={`/api/remittances/${previewRemittance.id}/download`}
-          filename={`${previewRemittance.number}.pdf`}
+        <RemittancePreviewModal
+          remittanceId={previewRemittance.id}
+          remittanceNumber={previewRemittance.number}
           onClose={() => setPreviewRemittance(null)}
         />
       )}

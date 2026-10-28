@@ -19466,19 +19466,309 @@ app.get("/api/health", (req, res) => {
     }
   });
 
+  const getRemittanceData = (remittanceId: number | string) => {
+    const rem = db.prepare("SELECT * FROM remittances WHERE id = ?").get(remittanceId) as any;
+    if (!rem) return null;
+
+    const settingsRows = db.prepare("SELECT key, value FROM settings").all() as any[];
+    const settingsMap: Record<string, any> = {};
+    settingsRows.forEach((r) => {
+      try {
+        settingsMap[r.key] = JSON.parse(r.value);
+      } catch {
+        settingsMap[r.key] = r.value;
+      }
+      if (typeof settingsMap[r.key] === "string") {
+        settingsMap[r.key] = settingsMap[r.key].replace(/^["']+|["']+$/g, "");
+      }
+    });
+
+    const client = rem.client_id
+      ? (db.prepare("SELECT * FROM clients WHERE id = ?").get(rem.client_id) as any)
+      : null;
+
+    let contractor: any = {
+      first_name: rem.custom_payee_name || "Contractor",
+      last_name: "",
+      custom_payee_name: rem.custom_payee_name || "Contractor",
+    };
+    if (rem.staff_id) {
+      const dbStaff = db.prepare("SELECT * FROM users WHERE id = ?").get(rem.staff_id) as any;
+      if (dbStaff) contractor = dbStaff;
+    }
+
+    let rawServices: any[] = [];
+    if (rem.services_json) {
+      try {
+        rawServices = typeof rem.services_json === "string" ? JSON.parse(rem.services_json) : rem.services_json;
+      } catch {
+        rawServices = [];
+      }
+    }
+
+    let rawDate = rem.created_at ? String(rem.created_at).split(" ")[0].split("T")[0] : new Date().toISOString().split("T")[0];
+    if (rawServices.length > 0 && rawServices[0]?.date) {
+      rawDate = rawServices[0].date;
+    }
+
+    const formatToDisplayDate = (dStr: string) => {
+      const clean = String(dStr || "").trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
+        const parts = clean.split("T")[0].split("-");
+        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      return clean;
+    };
+
+    const displayDate = formatToDisplayDate(rawDate);
+    const parsedDate = new Date(rawDate);
+    const dayOfWeek = isNaN(parsedDate.getTime()) ? -1 : parsedDate.getDay();
+
+    let subtotal = 0;
+    let gstAmount = 0;
+
+    const lineItems = rawServices.map((sd: any) => {
+      let unit = sd.unit || sd.customUnit || "Hour";
+      let rate = sd.rate !== undefined ? Number(sd.rate) : (sd.rateOverride !== undefined && sd.rateOverride !== null && sd.rateOverride !== "" ? Number(sd.rateOverride) : (sd.customRate !== undefined ? Number(sd.customRate) : 0));
+      let qty = sd.qty !== undefined ? Number(sd.qty) : (sd.qtyOverride !== undefined && sd.qtyOverride !== "" ? Number(sd.qtyOverride) : 1);
+      let name = sd.serviceName || sd.name || sd.customName || "Service Item";
+      let code = sd.code || "N/A";
+
+      if (!sd.isCustom && sd.serviceId) {
+        if (sd.serviceId === "orientation" || String(sd.serviceId).toLowerCase() === "orientation") {
+          name = "Orientation";
+          code = "ORIENT";
+        } else {
+          const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
+          if (srv) {
+            if (!sd.name && !sd.serviceName && !sd.customName) {
+              name = srv.name || name;
+            }
+            if (!sd.unit && !sd.customUnit && srv.unit) {
+              unit = srv.unit;
+            }
+            if (srv.code) {
+              code = srv.code;
+            }
+            if (sd.rate === undefined && (sd.rateOverride === undefined || sd.rateOverride === null || sd.rateOverride === "")) {
+              let finalRate = Number(srv.rate || 0);
+              if (srv.type === "HOME_CARE" && srv.rates_json) {
+                try {
+                  const rates = JSON.parse(srv.rates_json);
+                  if (dayOfWeek === 0 && rates["Sunday"]) finalRate = Number(rates["Sunday"]);
+                  else if (dayOfWeek === 6 && rates["Saturday"]) finalRate = Number(rates["Saturday"]);
+                  else if (rates["Weekday"]) finalRate = Number(rates["Weekday"]);
+                } catch {}
+              } else if (srv.type === "NDIS" && srv.rates_json) {
+                try {
+                  const rates = JSON.parse(srv.rates_json);
+                  const region = settingsMap.ndisRegion || "NSW";
+                  if (rates[region] !== undefined) finalRate = Number(rates[region]);
+                } catch {}
+              }
+              rate = finalRate;
+            }
+          }
+        }
+      }
+
+      const amount = Math.round(rate * qty * 100) / 100;
+      const itemGst = sd.gst !== undefined
+        ? Number(sd.gst)
+        : (sd.gstType === "10%" ? Math.round(amount * 0.1 * 100) / 100 : 0);
+
+      subtotal += amount;
+      gstAmount += itemGst;
+
+      return {
+        date: formatToDisplayDate(sd.date || rawDate),
+        name,
+        serviceName: name,
+        code,
+        unit,
+        rate,
+        qty,
+        gst: itemGst,
+        hasGst: itemGst > 0,
+        amount,
+      };
+    });
+
+    if (lineItems.length === 0 && rem.amount) {
+      const fallbackAmt = Number(rem.amount || 0);
+      subtotal = fallbackAmt;
+      lineItems.push({
+        date: displayDate,
+        name: rem.activity_name || "Remittance Service",
+        serviceName: rem.activity_name || "Remittance Service",
+        code: "N/A",
+        unit: "Service",
+        rate: fallbackAmt,
+        qty: 1,
+        gst: 0,
+        hasGst: false,
+        amount: fallbackAmt,
+      });
+    }
+
+    const totalAmount = Math.round((subtotal + gstAmount) * 100) / 100;
+
+    return {
+      remittanceId: rem.id,
+      remittanceStatus: rem.status || "GENERATED",
+      shift: {
+        funding_type: client?.funding_type || "NDIS",
+        c_fn: client?.first_name || "",
+        c_ln: client?.last_name || "",
+        ndis_number: client?.ndis_number || "",
+        my_aged_care_id: client?.aged_care_id || client?.my_aged_care_id || "",
+        actual_finish_time: new Date().toISOString(),
+      },
+      settingsMap,
+      invoiceNum: rem.remittance_number || `REM-${rem.id}`,
+      invoiceDate: displayDate,
+      lineItems,
+      subtotal,
+      gstAmount,
+      totalAmount,
+      client,
+      contractor,
+      invoiceReference: rem.invoice_reference || "",
+      transactionReference: rem.transaction_reference || "",
+    };
+  };
+
+  const resolveHistoricalRemittanceFile = (rem: any): string | null => {
+    if (rem.file_path) {
+      const p = path.resolve(process.cwd(), "uploads", rem.file_path);
+      if (fs.existsSync(p)) return p;
+    }
+    if (rem.attachments_json) {
+      try {
+        const atts = typeof rem.attachments_json === "string" ? JSON.parse(rem.attachments_json) : rem.attachments_json;
+        if (Array.isArray(atts) && atts.length > 0 && atts[0].path && fs.existsSync(atts[0].path)) {
+          return atts[0].path;
+        }
+      } catch {}
+    }
+    return null;
+  };
+
+  app.get("/api/remittances/:id/preview", authenticateToken, (req: any, res: any) => {
+    try {
+      const id = req.params.id;
+      const rem = db.prepare("SELECT * FROM remittances WHERE id = ?").get(id) as any;
+      if (!rem) return res.status(404).json({ error: "Not found" });
+
+      if (!rem.services_json && rem.status === "HISTORICAL") {
+        const histPath = resolveHistoricalRemittanceFile(rem);
+        if (histPath) {
+          res.setHeader("Content-Type", "application/pdf");
+          return fs.createReadStream(histPath).pipe(res);
+        }
+      }
+
+      const data = getRemittanceData(id);
+      if (!data) return res.status(404).json({ error: "Remittance data not found" });
+
+      res.json({ success: true, data });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.get("/api/remittances/:id/download", authenticateToken, (req: any, res: any) => {
     try {
       const id = req.params.id;
       const rem = db.prepare("SELECT * FROM remittances WHERE id = ?").get(id) as any;
       if (!rem) return res.status(404).json({ error: "Not found" });
-      
-      if (rem.file_path) {
-        const p = require('path').resolve(process.cwd(), 'uploads', rem.file_path);
-        if (require('fs').existsSync(p)) {
-          return res.download(p);
+
+      if (!rem.services_json && rem.status === "HISTORICAL") {
+        const histPath = resolveHistoricalRemittanceFile(rem);
+        if (histPath) {
+          return res.download(histPath, `${rem.remittance_number || `REM-${id}`}.pdf`);
+        }
+        return res.status(404).json({ error: "Historical PDF not found for this remittance." });
+      }
+
+      const data = getRemittanceData(id);
+      if (!data) return res.status(404).json({ error: "Remittance data not found" });
+
+      if (rem.attachments_json) {
+        try {
+          const attachments = typeof rem.attachments_json === "string" ? JSON.parse(rem.attachments_json) : rem.attachments_json;
+          if (Array.isArray(attachments) && attachments.length > 0) {
+            const buffers: Buffer[] = [];
+            const doc = new PDFDocument({ margin: 50 });
+            doc.on("data", (chunk: any) => buffers.push(chunk));
+            doc.on("end", async () => {
+              try {
+                const basePdfBuffer = Buffer.concat(buffers);
+                const mergedPdf = await PDFLibDocument.load(basePdfBuffer);
+
+                for (const att of attachments) {
+                  if (!att.path || !fs.existsSync(att.path)) continue;
+                  const attBytes = fs.readFileSync(att.path);
+
+                  if (att.mimetype === "application/pdf") {
+                    try {
+                      const attPdf = await PDFLibDocument.load(attBytes);
+                      const copiedPages = await mergedPdf.copyPages(attPdf, attPdf.getPageIndices());
+                      copiedPages.forEach((page) => mergedPdf.addPage(page));
+                    } catch (err) {
+                      console.error("Failed to merge remittance PDF attachment", err);
+                    }
+                  } else if (att.mimetype && att.mimetype.startsWith("image/")) {
+                    try {
+                      let image;
+                      if (att.mimetype === "image/jpeg" || att.mimetype === "image/jpg") {
+                        image = await mergedPdf.embedJpg(attBytes);
+                      } else if (att.mimetype === "image/png") {
+                        image = await mergedPdf.embedPng(attBytes);
+                      }
+                      if (image) {
+                        const page = mergedPdf.addPage();
+                        const { width, height } = page.getSize();
+                        const imgDims = image.scaleToFit(width - 100, height - 100);
+                        page.drawImage(image, {
+                          x: page.getWidth() / 2 - imgDims.width / 2,
+                          y: page.getHeight() / 2 - imgDims.height / 2,
+                          width: imgDims.width,
+                          height: imgDims.height,
+                        });
+                      }
+                    } catch (err) {
+                      console.error("Failed to merge remittance Image attachment", err);
+                    }
+                  }
+                }
+
+                const finalBytes = await mergedPdf.save();
+                res.setHeader("Content-Type", "application/pdf");
+                res.setHeader("Content-Disposition", `attachment; filename="${data.invoiceNum}.pdf"`);
+                res.setHeader("Content-Length", finalBytes.length);
+                res.end(Buffer.from(finalBytes));
+              } catch (mergeErr) {
+                console.error("Error merging remittance PDF:", mergeErr);
+                res.status(500).end();
+              }
+            });
+            buildRemittancePdf(doc, data);
+            doc.end();
+            return;
+          }
+        } catch (attErr) {
+          console.error("Failed to parse remittance attachments", attErr);
         }
       }
-      res.status(404).json({ error: "PDF not found for this remittance." });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${data.invoiceNum}.pdf"`);
+      const doc = new PDFDocument({ margin: 50 });
+      doc.pipe(res);
+      buildRemittancePdf(doc, data);
+      doc.end();
     } catch (e: any) {
       console.error(e);
       res.status(500).json({ error: e.message });
@@ -19621,6 +19911,7 @@ app.post(
             let rate = sd.rateOverride ? Number(sd.rateOverride) : 0;
             let qty = sd.qtyOverride ? Number(sd.qtyOverride) : 1;
             let name = sd.customName || "Service Item";
+            let code = "N/A";
             
             if (sd.name) {
                name = sd.name;
@@ -19628,10 +19919,13 @@ app.post(
             if (!sd.isCustom) {
                if (sd.serviceId === 'orientation' || String(sd.serviceId).toLowerCase() === 'orientation') {
                    name = "Orientation";
+                   code = "ORIENT";
                } else {
                    const srv = db.prepare("SELECT * FROM services WHERE id = ?").get(sd.serviceId) as any;
                    if (srv) {
                        name = srv.name || name;
+                       if (srv.unit && !sd.customUnit) unit = srv.unit;
+                       if (srv.code) code = srv.code;
                        if (!sd.rateOverride) {
                            let finalRate = Number(srv.rate || 0);
                            if (srv.type === "HOME_CARE" && srv.rates_json) {
@@ -19655,12 +19949,17 @@ app.post(
             }
             
             let amount = rate * qty;
+            let itemGst = gstType === '10%' ? (Math.round(amount * 0.1 * 100) / 100) : 0;
             return {
+                date: date,
                 name: name,
                 serviceName: name,
+                code: code,
                 unit: unit,
                 rate: rate,
                 qty: qty,
+                gst: itemGst,
+                hasGst: itemGst > 0,
                 amount: amount
             };
         });
@@ -19668,7 +19967,16 @@ app.post(
         const activityDescription = lineItems.map((li: any) => li.name).filter(Boolean).join(", ") || "Service Item";
         const enrichedServices = services.map((sd: any, idx: number) => ({
           ...sd,
-          name: lineItems[idx]?.name || sd.customName || "Service Item"
+          date: date,
+          gstType: gstType || sd.gstType || "GST Free",
+          name: lineItems[idx]?.name || sd.customName || "Service Item",
+          serviceName: lineItems[idx]?.serviceName || lineItems[idx]?.name || sd.customName || "Service Item",
+          code: lineItems[idx]?.code || "N/A",
+          unit: lineItems[idx]?.unit || sd.customUnit || "Hour",
+          rate: lineItems[idx]?.rate ?? 0,
+          qty: lineItems[idx]?.qty ?? 1,
+          gst: lineItems[idx]?.gst ?? 0,
+          amount: lineItems[idx]?.amount ?? 0
         }));
 
         let remittanceId = req.body.remittanceId;
@@ -20489,26 +20797,7 @@ app.post(
       logoBottomY = 75;
     }
 
-    // Contact details under logo (left side)
-    let provY = logoBottomY + 4;
-    doc.fillColor("#374151").font("Helvetica-Bold").fontSize(8);
-    if (settingsMap.abn) {
-      doc.text(`ABN: ${settingsMap.abn}`, 50, provY);
-      provY += 11;
-    }
-    doc.fillColor("#6B7280").font("Helvetica").fontSize(8);
-    if (settingsMap.businessAddress) {
-      doc.text(settingsMap.businessAddress, 50, provY, { width: 230 });
-      provY += doc.heightOfString(settingsMap.businessAddress, { width: 230 }) + 1;
-    }
-    if (settingsMap.contactEmail) {
-      doc.text(settingsMap.contactEmail, 50, provY);
-      provY += 11;
-    }
-    if (settingsMap.contactPhone) {
-      doc.text(`Tel: ${settingsMap.contactPhone}`, 50, provY);
-      provY += 11;
-    }
+    let provY = logoBottomY;
 
     // Top Right: Invoice Meta
     let displayDate = String(invoiceDate || "").trim();
@@ -20552,6 +20841,10 @@ app.post(
     }
     if (settingsMap.contactEmail) {
       doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(settingsMap.contactEmail, 50, colLeftY);
+      colLeftY += 11;
+    }
+    if (settingsMap.contactPhone) {
+      doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(`Tel: ${settingsMap.contactPhone}`, 50, colLeftY);
       colLeftY += 11;
     }
 
@@ -20787,26 +21080,84 @@ app.post(
   };
 
   const buildRemittancePdf = (doc: any, data: any) => {
-    const { settingsMap, invoiceNum, invoiceDate, lineItems, subtotal, totalAmount, gstAmount, contractor, client, invoiceReference, transactionReference } = data;
+    const {
+      shift,
+      settingsMap = {},
+      invoiceNum,
+      invoiceDate,
+      lineItems = [],
+      subtotal = 0,
+      totalAmount = 0,
+      gstAmount = 0,
+      contractor,
+      client,
+      invoiceReference,
+      transactionReference,
+    } = data;
 
+    const cleanStr = (val: any) =>
+      typeof val === "string" ? val.replace(/^["']+|["']+$/g, "") : val;
+
+    const fundingType = shift?.funding_type || client?.funding_type || "NDIS";
+    const isHomeCare =
+      fundingType === "HCP" ||
+      fundingType === "Home Care" ||
+      fundingType === "HOME_CARE";
+
+    const renderPageFooter = () => {
+      const oldBottom = doc.page.margins.bottom;
+      doc.page.margins.bottom = 0;
+      const footerY = 746;
+      doc
+        .strokeColor("#E5E7EB")
+        .lineWidth(0.5)
+        .moveTo(50, footerY)
+        .lineTo(580, footerY)
+        .stroke();
+      doc.font("Helvetica").fontSize(7.5).fillColor("#9CA3AF");
+      doc.text(
+        `${cleanStr(settingsMap.businessName) || "Happy in the Home"} • Generated via Care Management System`,
+        50,
+        footerY + 6,
+        { width: 350, align: "left", lineBreak: false },
+      );
+      doc.text(`Ref: ${invoiceNum || ""}`, 400, footerY + 6, {
+        width: 180,
+        align: "right",
+        lineBreak: false,
+      });
+      doc.page.margins.bottom = oldBottom;
+    };
+
+    // Letterhead / Logo (Generous prominent display matching Quote & Invoice PDFs)
+    let logoBottomY = 40;
     if (settingsMap.letterheadLogo) {
       try {
         let buffer: Buffer | null = null;
         if (settingsMap.letterheadLogo.startsWith("/api/assets/")) {
-          const path = require("path");
-          const fsLib = require("fs");
           const fileWithQuery = settingsMap.letterheadLogo.split("/").pop();
           const filename = fileWithQuery.split("?")[0];
-          const persistentAssetPath = path.join(process.cwd(), "data", "uploads", "assets", filename);
-          const uploadsAssetPath = path.join(process.cwd(), "uploads", "assets", filename);
+          const persistentAssetPath = path.join(
+            process.cwd(),
+            "data",
+            "uploads",
+            "assets",
+            filename,
+          );
+          const uploadsAssetPath = path.join(
+            process.cwd(),
+            "uploads",
+            "assets",
+            filename,
+          );
           const oldAssetPath = path.join(process.cwd(), "assets", filename);
 
-          if (fsLib.existsSync(uploadsAssetPath)) {
-            buffer = fsLib.readFileSync(uploadsAssetPath);
-          } else if (fsLib.existsSync(persistentAssetPath)) {
-            buffer = fsLib.readFileSync(persistentAssetPath);
-          } else if (fsLib.existsSync(oldAssetPath)) {
-            buffer = fsLib.readFileSync(oldAssetPath);
+          if (fs.existsSync(uploadsAssetPath)) {
+            buffer = fs.readFileSync(uploadsAssetPath);
+          } else if (fs.existsSync(persistentAssetPath)) {
+            buffer = fs.readFileSync(persistentAssetPath);
+          } else if (fs.existsSync(oldAssetPath)) {
+            buffer = fs.readFileSync(oldAssetPath);
           }
         } else if (settingsMap.letterheadLogo.startsWith("data:image/")) {
           const base64Data = settingsMap.letterheadLogo.replace(
@@ -20816,251 +21167,572 @@ app.post(
           buffer = Buffer.from(base64Data, "base64");
         }
         if (buffer) {
-          doc.image(buffer, 50, 20, { fit: [200, 80] });
-          doc.y = 35;
-        } else {
-          doc.moveDown();
+          doc.image(buffer, 50, 25, { fit: [220, 85] });
+          logoBottomY = 118;
         }
       } catch (e) {
         console.error("Error drawing letterhead:", e);
-        doc.moveDown();
       }
     } else {
-      doc.moveDown();
-      if (settingsMap.businessName) doc.fontSize(14).text(settingsMap.businessName);
-      if (settingsMap.abn) doc.fontSize(10).text(`ABN: ${settingsMap.abn}`);
-      if (settingsMap.businessAddress) doc.text(settingsMap.businessAddress);
-      doc.moveDown();
+      doc.fillColor("#0D9488").roundedRect(50, 30, 32, 32, 6).fill();
+      doc
+        .fillColor("#FFFFFF")
+        .font("Helvetica-Bold")
+        .fontSize(16)
+        .text("H", 50, 38, { width: 32, align: "center" });
+      doc
+        .fillColor("#111827")
+        .font("Helvetica-Bold")
+        .fontSize(15)
+        .text(cleanStr(settingsMap.businessName) || "HAPPY IN THE HOME", 92, 38);
+      logoBottomY = 75;
     }
 
-    doc.fillColor("black");
-    doc
-      .fontSize(20)
-      .font("Helvetica-Bold")
-      .text("REMITTANCE ADVICE", { align: "right" });
-    doc
-      .fontSize(10)
-      .font("Helvetica")
-      .text(`Remittance No: ${invoiceNum}`, { align: "right" });
+    let provY = logoBottomY;
 
+    // Top Right: Remittance Meta
     let displayDate = String(invoiceDate || "").trim();
     if (displayDate.match(/^\d{4}-\d{2}-\d{2}/)) {
-        const parts = displayDate.split("T")[0].split("-");
-        if (parts.length === 3) {
-            displayDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-        }
-    }
-    doc.text(`Date: ${displayDate}`, { align: "right" });
-    doc.moveDown();
-
-    const topY = 115;
-    doc
-      .fontSize(10)
-      .font("Helvetica-Bold")
-      .fillColor("black")
-      .text("FROM:", 50, topY);
-
-    const cleanStr = (val) => (typeof val === 'string' ? val.replace(/^["']+|["']+$/g, '') : val);
-    doc
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text(cleanStr(settingsMap.businessName) || "", 50, topY + 15);
-    doc.fontSize(10).font("Helvetica");
-    
-    let cy = topY + 30;
-    if (settingsMap.abn) {
-      doc.text(`ABN: ${cleanStr(settingsMap.abn)}`, 50, cy);
-      cy += 15;
-    }
-    if (settingsMap.businessAddress) {
-      doc.text(cleanStr(settingsMap.businessAddress), 50, cy);
-      cy += 15;
-    }
-    if (settingsMap.contactEmail) {
-      doc.text(cleanStr(settingsMap.contactEmail), 50, cy);
-    }
-
-
-    let billToName = contractor?.first_name ? `${contractor.first_name} ${contractor.last_name || ''}`.trim() : (contractor?.custom_payee_name || "Contractor");
-    let billToEmail = contractor?.email || "";
-    let billToPhone = contractor?.mobile || "";
-
-    doc
-      .fontSize(10)
-      .font("Helvetica-Bold")
-      .fillColor("black")
-      .text("TO (PAYEE):", 300, topY);
-    doc.fontSize(12).text(billToName, 300, topY + 15);
-
-    doc.moveDown(1);
-    const pmY = topY + 30;
-    
-    doc.fontSize(10).font("Helvetica");
-    let py = pmY;
-    if (billToEmail) {
-        doc.text(billToEmail, 300, py);
-        py += 15;
-    }
-    if (billToPhone) {
-        doc.text(billToPhone, 300, py);
-        py += 15;
-    }
-    
-    let hasClient = false;
-    let clientName = "";
-    if (client) {
-       clientName = `${client.first_name || ''} ${client.last_name || ''}`.trim();
-       if (clientName) hasClient = true;
-    }
-
-    if (hasClient || invoiceReference) {
-        doc.moveDown(1);
-        if (hasClient) {
-            doc.font("Helvetica-Bold").fontSize(9).text("Regarding Client:", 300, py + 10);
-            doc.font("Helvetica").text(clientName, 300, py + 22);
-        }
-        if (invoiceReference) {
-            let xPos = hasClient ? 430 : 300;
-            doc.font("Helvetica-Bold").fontSize(9).text("Invoice Reference:", xPos, py + 10);
-            doc.font("Helvetica").text(invoiceReference, xPos, py + 22);
-        }
-        py += 34;
-    }
-
-    doc.font("Helvetica-Bold").fontSize(9).text("Payment Method:", 300, py + 10);
-    doc.font("Helvetica").text("Bank Transfer", 300, py + 22);
-    if (transactionReference) {
-        doc.font("Helvetica-Bold").fontSize(9).text("Transaction Ref:", 430, py + 10);
-        doc.font("Helvetica").text(transactionReference, 430, py + 22);
-    }
-    py += 34;
-
-    doc.moveDown(4);
-    let currentY = Math.max(doc.y + 10, 260);
-
-    // Table Header
-    doc.font("Helvetica-Bold").fontSize(10);
-    // doc.text("DATE", 50, currentY, { width: 60, align: "left" });
-    doc.text("DESCRIPTION", 50, currentY, { width: 210, align: "left" });
-    // doc.text("TIME", 265, currentY, { width: 100, align: "left" });
-    doc.text("QTY", 280, currentY, { width: 40, align: "right" });
-    doc.text("UNIT", 335, currentY, { width: 60, align: "left" });
-    doc.text("RATE", 410, currentY, { width: 60, align: "right" });
-    doc.text("AMOUNT", 490, currentY, { width: 80, align: "right" });
-
-    doc
-      .moveTo(50, currentY + 15)
-      .lineTo(570, currentY + 15)
-      .stroke();
-    currentY += 20;
-
-    doc.font("Helvetica").fontSize(10);
-
-    lineItems.forEach((item: any) => {
-      let safeServiceName = item.name || item.desc || "Unknown Service";
-      if (item.date) {
-         safeServiceName = `${item.date} - ${safeServiceName}`;
+      const parts = displayDate.split("T")[0].split("-");
+      if (parts.length === 3) {
+        displayDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
       }
-      let textHeight = doc.heightOfString(safeServiceName, { width: 210 }) || 15;
-      let blockHeight = textHeight + 15;
-
-      if (currentY + blockHeight > 700) {
-        doc.addPage();
-        doc.font("Helvetica-Bold").fontSize(10);
-        doc.text("DESCRIPTION", 50, 50, { width: 210, align: "left" });
-        doc.text("QTY", 280, 50, { width: 40, align: "right" });
-        doc.text("UNIT", 335, 50, { width: 60, align: "left" });
-        doc.text("RATE", 410, 50, { width: 60, align: "right" });
-        doc.text("AMOUNT", 490, 50, { width: 80, align: "right" });
-        doc.moveTo(50, 65).lineTo(570, 65).stroke();
-        currentY = 75;
-      }
-
-      doc.font("Helvetica").fontSize(10);
-      
-      doc.text(safeServiceName, 50, currentY, { width: 210, align: "left" });
-      
-      let descY = currentY + textHeight + 2;
-
-      doc.text(Number(item.qty).toString(), 280, currentY, { width: 40, align: "right" });
-      doc.text(item.unit || "N/A", 335, currentY, { width: 60, align: "left" });
-      doc.text(`$${Number(item.rate).toFixed(2)}`, 410, currentY, { width: 60, align: "right" });
-      doc.text(`$${Number(item.amount).toFixed(2)}`, 490, currentY, { width: 80, align: "right" });
-
-      doc
-        .moveTo(50, descY + 10)
-        .lineTo(570, descY + 10)
-        .strokeColor("#e4e4e7")
-        .stroke();
-      doc.strokeColor("black"); // reset
-
-      currentY = descY + 15;
-    });
-
-    let totalsY = currentY + 30;
-    if (totalsY + 100 > 700) {
-      doc.addPage();
-      totalsY = 50;
     }
-
-    doc.font("Helvetica");
-    doc.text("Subtotal:", 350, totalsY + 15, { width: 100, align: "right" });
-    doc.text(`$${subtotal.toFixed(2)}`, 470, totalsY + 15, { width: 100, align: "right" });
-
-    let gstY = totalsY + 30;
-    if (gstAmount && gstAmount > 0) {
-      doc.text("GST (10%):", 350, gstY, { width: 100, align: "right" });
-      doc.text(`$${gstAmount.toFixed(2)}`, 470, gstY, { width: 100, align: "right" });
-    } else {
-      doc.text("GST (GST-Free):", 350, gstY, { width: 100, align: "right" });
-      doc.text("$0.00", 470, gstY, { width: 100, align: "right" });
-    }
-    gstY += 15;
 
     doc
-      .moveTo(350, gstY)
-      .lineTo(570, gstY)
-      .stroke();
-
-    doc.font("Helvetica-Bold").fontSize(12);
-    doc.text("TOTAL PAID:", 350, gstY + 10, { width: 100, align: "right" });
-    doc.text(`$${totalAmount.toFixed(2)}`, 470, gstY + 10, { width: 100, align: "right" });
-
-    doc.moveDown(3);
-    
-    const stampX = 430;
-    const stampY = doc.y;
-    
-    doc.save();
-    // Add realistic stamp opacity
-    doc.fillOpacity(0.65);
-    doc.strokeOpacity(0.65);
-    
-    // Draw stamp outline (typical rubber stamp look)
-    doc.roundedRect(stampX, stampY, 140, 44, 4)
-       .lineWidth(4)
-       .strokeColor('#16a34a')
-       .stroke();
-       
-    // Draw stamp text
-    doc.font("Helvetica-Bold")
-       .fontSize(28)
-       .fillColor('#16a34a')
-       .text("PAID", stampX, stampY + 10, { width: 140, align: 'center' });
-    doc.restore();
-    
-    doc.y = stampY + 70;
-
+      .fillColor("#18181B")
+      .font("Helvetica")
+      .fontSize(22)
+      .text("REMITTANCE ADVICE", 290, 30, { width: 290, align: "right" });
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .fillColor("#0F766E")
+      .text(`${invoiceNum || ""}`, 290, 58, { width: 290, align: "right" });
     doc
       .font("Helvetica")
-      .fontSize(10)
-      .fillColor("black")
-      .text(
-        `THIS IS A REMITTANCE ADVICE TO CONFIRM PAYMENT OF THE ABOVE SERVICES.`,
-        50,
-        doc.y,
-        { align: "center" }
-      );
+      .fontSize(8.5)
+      .fillColor("#6B7280")
+      .text(`Date Issued: ${displayDate}`, 290, 74, {
+        width: 290,
+        align: "right",
+      });
+
+    // Divider below header
+    let afterHeaderY = Math.max(provY, 100) + 8;
+    doc
+      .strokeColor("#E5E7EB")
+      .lineWidth(1)
+      .moveTo(50, afterHeaderY)
+      .lineTo(580, afterHeaderY)
+      .stroke();
+    afterHeaderY += 10;
+
+    // Two-Column Service Provider & To (Payee) details
+    const twoColY = afterHeaderY + 6;
+    doc.strokeColor("#0D9488").lineWidth(2);
+    doc.moveTo(50, twoColY).lineTo(285, twoColY).stroke();
+    doc.moveTo(330, twoColY).lineTo(580, twoColY).stroke();
+
+    // Left Column: SERVICE PROVIDER
+    let colLeftY = twoColY + 6;
+    doc
+      .fillColor("#0F766E")
+      .font("Helvetica-Bold")
+      .fontSize(7.5)
+      .text("SERVICE PROVIDER", 50, colLeftY);
+    colLeftY += 11;
+    doc
+      .fillColor("#111827")
+      .font("Helvetica-Bold")
+      .fontSize(10.5)
+      .text(cleanStr(settingsMap.businessName) || "Happy in the Home", 50, colLeftY);
+    colLeftY += 14;
+    doc
+      .fillColor("#4B5563")
+      .font("Helvetica")
+      .fontSize(8)
+      .text("NDIS & Home Care Registered Provider", 50, colLeftY);
+    colLeftY += 11;
+    if (settingsMap.abn) {
+      doc
+        .fillColor("#374151")
+        .font("Helvetica-Bold")
+        .fontSize(8)
+        .text(`ABN: ${cleanStr(settingsMap.abn)}`, 50, colLeftY);
+      colLeftY += 11;
+    }
+    if (settingsMap.businessAddress) {
+      const addrStr = cleanStr(settingsMap.businessAddress);
+      doc
+        .fillColor("#4B5563")
+        .font("Helvetica")
+        .fontSize(8)
+        .text(addrStr, 50, colLeftY, { width: 235 });
+      colLeftY += doc.heightOfString(addrStr, { width: 235 }) + 2;
+    }
+    if (settingsMap.contactEmail) {
+      doc
+        .fillColor("#4B5563")
+        .font("Helvetica")
+        .fontSize(8)
+        .text(cleanStr(settingsMap.contactEmail), 50, colLeftY);
+      colLeftY += 11;
+    }
+    if (settingsMap.contactPhone) {
+      doc
+        .fillColor("#4B5563")
+        .font("Helvetica")
+        .fontSize(8)
+        .text(`Tel: ${cleanStr(settingsMap.contactPhone)}`, 50, colLeftY);
+      colLeftY += 11;
+    }
+
+    // Right Column: TO (PAYEE)
+    let colRightY = twoColY + 6;
+    doc
+      .fillColor("#0F766E")
+      .font("Helvetica-Bold")
+      .fontSize(7.5)
+      .text("TO (PAYEE)", 330, colRightY);
+    colRightY += 11;
+
+    const billToName = contractor?.first_name
+      ? `${contractor.first_name} ${contractor.last_name || ""}`.trim()
+      : contractor?.custom_payee_name || "Contractor";
+    const billToEmail = contractor?.email || "";
+    const billToPhone = contractor?.mobile || contractor?.phone || "";
+
+    doc
+      .fillColor("#111827")
+      .font("Helvetica-Bold")
+      .fontSize(10.5)
+      .text(billToName, 330, colRightY);
+    colRightY += 14;
+
+    if (billToEmail) {
+      doc
+        .fillColor("#4B5563")
+        .font("Helvetica")
+        .fontSize(8)
+        .text(billToEmail, 330, colRightY);
+      colRightY += 11;
+    }
+    if (billToPhone) {
+      doc
+        .fillColor("#4B5563")
+        .font("Helvetica")
+        .fontSize(8)
+        .text(`Tel: ${billToPhone}`, 330, colRightY);
+      colRightY += 11;
+    }
+
+    const clientName = client
+      ? `${client.first_name || ""} ${client.last_name || ""}`.trim()
+      : `${shift?.c_fn || ""} ${shift?.c_ln || ""}`.trim();
+    const ndisLabel = isHomeCare ? "Home Care ID:" : "NDIS No:";
+    const ndisVal =
+      client?.aged_care_id ||
+      client?.my_aged_care_id ||
+      client?.ndis_number ||
+      shift?.my_aged_care_id ||
+      shift?.ndis_number;
+
+    if (clientName || invoiceReference || transactionReference) {
+      colRightY += 3;
+      doc
+        .strokeColor("#E5E7EB")
+        .lineWidth(0.5)
+        .moveTo(330, colRightY)
+        .lineTo(580, colRightY)
+        .stroke();
+      colRightY += 6;
+
+      if (clientName) {
+        doc
+          .fillColor("#9CA3AF")
+          .font("Helvetica-Bold")
+          .fontSize(6.5)
+          .text("REGARDING CLIENT", 330, colRightY);
+        colRightY += 9;
+        doc
+          .fillColor("#111827")
+          .font("Helvetica-Bold")
+          .fontSize(8.5)
+          .text(clientName, 330, colRightY);
+        colRightY += 11;
+        if (ndisVal) {
+          doc
+            .fillColor(isHomeCare ? "#6B21A8" : "#115E59")
+            .font("Helvetica-Bold")
+            .fontSize(8)
+            .text(`${ndisLabel} ${ndisVal}`, 330, colRightY);
+          colRightY += 12;
+        }
+      }
+
+      if (invoiceReference) {
+        doc
+          .fillColor("#4B5563")
+          .font("Helvetica")
+          .fontSize(8)
+          .text(`Invoice Ref: ${invoiceReference}`, 330, colRightY);
+        colRightY += 11;
+      }
+      if (transactionReference) {
+        doc
+          .fillColor("#4B5563")
+          .font("Helvetica")
+          .fontSize(8)
+          .text(`Transaction Ref: ${transactionReference}`, 330, colRightY);
+        colRightY += 11;
+      }
+    }
+
+    let currentY = Math.max(colLeftY, colRightY) + 14;
+
+    // Table Header Helper
+    const renderTableHeader = (y: number) => {
+      doc.font("Helvetica-Bold").fontSize(8).fillColor("#18181B");
+      doc.text("DATE", 50, y, { width: 68, align: "left" });
+      doc.text("DESCRIPTION", 122, y, { width: 210, align: "left" });
+      doc.text("QTY", 336, y, { width: 36, align: "right" });
+      doc.text("UNIT", 378, y, { width: 42, align: "left" });
+      doc.text("RATE", 424, y, { width: 50, align: "right" });
+      doc.text("GST", 478, y, { width: 44, align: "right" });
+      doc.text("AMOUNT", 526, y, { width: 54, align: "right" });
+
+      doc
+        .strokeColor("#18181B")
+        .lineWidth(1.5)
+        .moveTo(50, y + 13)
+        .lineTo(580, y + 13)
+        .stroke();
+      return y + 19;
+    };
+
+    currentY = renderTableHeader(currentY);
+
+    lineItems.forEach((item: any) => {
+      const safeServiceName =
+        item.serviceName || item.name || item.desc || "Service Item";
+      doc.font("Helvetica-Bold").fontSize(8.5);
+      const textHeight =
+        doc.heightOfString(safeServiceName, { width: 210 }) || 12;
+
+      const lineGst =
+        item.gst !== undefined
+          ? Number(item.gst)
+          : gstAmount > 0
+            ? Math.round((Number(item.amount) || 0) * 0.1 * 100) / 100
+            : 0;
+
+      const badgeRowHeight = 14;
+      const rowContentHeight = Math.max(textHeight + badgeRowHeight, 16);
+      const blockHeight = rowContentHeight + 10;
+
+      if (currentY + blockHeight > 660) {
+        renderPageFooter();
+        doc.addPage();
+        currentY = renderTableHeader(50);
+      }
+
+      // Render Date
+      let itemDate = item.date || displayDate || "—";
+      if (String(itemDate).match(/^\d{4}-\d{2}-\d{2}/)) {
+        const parts = String(itemDate).split("T")[0].split("-");
+        if (parts.length === 3) itemDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      doc
+        .fillColor("#111827")
+        .font("Helvetica")
+        .fontSize(8.5)
+        .text(itemDate, 50, currentY, { width: 68, align: "left" });
+
+      // Render Description
+      doc
+        .fillColor("#111827")
+        .font("Helvetica-Bold")
+        .fontSize(8.5)
+        .text(safeServiceName, 122, currentY, { width: 210, align: "left" });
+
+      const badgeY = currentY + textHeight + 2;
+      let badgeX = 122;
+
+      if (item.code && item.code !== "N/A") {
+        const codeText = String(item.code);
+        doc.font("Helvetica-Bold").fontSize(7);
+        const codeW = doc.widthOfString(codeText) + 10;
+        doc
+          .roundedRect(badgeX, badgeY, codeW, 11, 2)
+          .fillAndStroke("#F0FDFA", "#99F6E4");
+        doc
+          .fillColor("#0F766E")
+          .font("Helvetica-Bold")
+          .fontSize(7)
+          .text(codeText, badgeX + 5, badgeY + 2, { lineBreak: false });
+        badgeX += codeW + 4;
+      }
+
+      const typeText = isHomeCare ? "Home Care" : "NDIS";
+      doc.font("Helvetica-Bold").fontSize(7);
+      const typeW = doc.widthOfString(typeText) + 8;
+      doc
+        .roundedRect(badgeX, badgeY, typeW, 11, 2)
+        .fillAndStroke("#F3F4F6", "#E5E7EB");
+      doc
+        .fillColor("#4B5563")
+        .font("Helvetica-Bold")
+        .fontSize(7)
+        .text(typeText, badgeX + 4, badgeY + 2, { lineBreak: false });
+      badgeX += typeW + 4;
+
+      if (lineGst > 0) {
+        const gstBadgeText = "10% GST";
+        doc.font("Helvetica-Bold").fontSize(7);
+        const gstW = doc.widthOfString(gstBadgeText) + 8;
+        doc
+          .roundedRect(badgeX, badgeY, gstW, 11, 2)
+          .fillAndStroke("#FFFBEB", "#FDE68A");
+        doc
+          .fillColor("#B45309")
+          .font("Helvetica-Bold")
+          .fontSize(7)
+          .text(gstBadgeText, badgeX + 4, badgeY + 2, { lineBreak: false });
+      }
+
+      // Render Qty
+      doc
+        .fillColor("#111827")
+        .font("Helvetica-Bold")
+        .fontSize(8.5)
+        .text(String(item.qty ?? ""), 336, currentY, {
+          width: 36,
+          align: "right",
+        });
+
+      // Render Unit
+      doc
+        .fillColor("#6B7280")
+        .font("Helvetica")
+        .fontSize(8)
+        .text(item.unit || "Hour", 378, currentY, {
+          width: 42,
+          align: "left",
+        });
+
+      // Render Rate
+      doc
+        .fillColor("#374151")
+        .font("Helvetica")
+        .fontSize(8.5)
+        .text(`$${Number(item.rate || 0).toFixed(2)}`, 424, currentY, {
+          width: 50,
+          align: "right",
+        });
+
+      // Render GST
+      doc
+        .fillColor("#374151")
+        .font("Helvetica")
+        .fontSize(8.5)
+        .text(`$${lineGst.toFixed(2)}`, 478, currentY, {
+          width: 44,
+          align: "right",
+        });
+
+      // Render Amount
+      doc
+        .fillColor("#111827")
+        .font("Helvetica-Bold")
+        .fontSize(8.5)
+        .text(`$${Number(item.amount || 0).toFixed(2)}`, 526, currentY, {
+          width: 54,
+          align: "right",
+        });
+
+      const rowBottomY = currentY + rowContentHeight + 5;
+      doc
+        .strokeColor("#E5E7EB")
+        .lineWidth(0.5)
+        .moveTo(50, rowBottomY)
+        .lineTo(580, rowBottomY)
+        .stroke();
+      currentY = rowBottomY + 6;
+    });
+
+    let totalsY = currentY + 16;
+    if (totalsY + 165 > 730) {
+      renderPageFooter();
+      doc.addPage();
+      totalsY = 55;
+    }
+
+    // Divider line above totals section
+    doc
+      .strokeColor("#18181B")
+      .lineWidth(1.5)
+      .moveTo(50, totalsY - 6)
+      .lineTo(580, totalsY - 6)
+      .stroke();
+
+    // Left Card: Payment Confirmation
+    doc
+      .roundedRect(50, totalsY, 265, 95, 6)
+      .fillAndStroke("#F9FAFB", "#E5E7EB");
+    doc
+      .fillColor("#111827")
+      .font("Helvetica-Bold")
+      .fontSize(8)
+      .text("PAYMENT CONFIRMATION", 62, totalsY + 10);
+    doc
+      .strokeColor("#E5E7EB")
+      .lineWidth(0.5)
+      .moveTo(62, totalsY + 21)
+      .lineTo(303, totalsY + 21)
+      .stroke();
+
+    doc.fontSize(8);
+    doc.fillColor("#6B7280").font("Helvetica").text("Method:", 62, totalsY + 26);
+    doc
+      .fillColor("#111827")
+      .font("Helvetica-Bold")
+      .text("Bank Transfer", 120, totalsY + 26, { width: 180 });
+
+    doc.fillColor("#6B7280").font("Helvetica").text("Payee:", 62, totalsY + 38);
+    doc
+      .fillColor("#111827")
+      .font("Helvetica-Bold")
+      .text(billToName, 120, totalsY + 38, { width: 180 });
+
+    doc
+      .fillColor("#6B7280")
+      .font("Helvetica")
+      .text("Invoice Ref:", 62, totalsY + 50);
+    doc
+      .fillColor("#111827")
+      .font("Helvetica-Bold")
+      .text(invoiceReference || "—", 120, totalsY + 50, { width: 180 });
+
+    doc
+      .fillColor("#6B7280")
+      .font("Helvetica")
+      .text("Trans. Ref:", 62, totalsY + 62);
+    doc
+      .fillColor("#111827")
+      .font("Helvetica-Bold")
+      .text(transactionReference || "—", 120, totalsY + 62, { width: 180 });
+
+    doc
+      .strokeColor("#E5E7EB")
+      .lineWidth(0.5)
+      .moveTo(62, totalsY + 74)
+      .lineTo(303, totalsY + 74)
+      .stroke();
+    doc
+      .fillColor("#111827")
+      .font("Helvetica-Bold")
+      .text("Remittance:", 62, totalsY + 79);
+    doc
+      .fillColor("#0F766E")
+      .font("Helvetica-Bold")
+      .text(`${invoiceNum || ""}`, 120, totalsY + 79, { width: 180 });
+
+    // Right Card: Financial Summary (Subtotal, GST, TOTAL PAID)
+    doc
+      .roundedRect(340, totalsY, 240, 95, 6)
+      .fillAndStroke("#F9FAFB", "#E5E7EB");
+
+    doc
+      .fillColor("#4B5563")
+      .font("Helvetica")
+      .fontSize(8.5)
+      .text("Subtotal:", 355, totalsY + 14);
+    doc
+      .fillColor("#111827")
+      .font("Helvetica-Bold")
+      .text(`$${Number(subtotal).toFixed(2)}`, 455, totalsY + 14, {
+        width: 110,
+        align: "right",
+      });
+
+    const gstLabel = gstAmount > 0 ? "GST (10%):" : "GST (GST-Free):";
+    doc
+      .fillColor("#4B5563")
+      .font("Helvetica")
+      .text(gstLabel, 355, totalsY + 30);
+    doc
+      .fillColor("#111827")
+      .font("Helvetica-Bold")
+      .text(`$${Number(gstAmount || 0).toFixed(2)}`, 455, totalsY + 30, {
+        width: 110,
+        align: "right",
+      });
+
+    doc
+      .strokeColor("#D1D5DB")
+      .lineWidth(0.75)
+      .moveTo(355, totalsY + 48)
+      .lineTo(565, totalsY + 48)
+      .stroke();
+
+    doc
+      .fillColor("#111827")
+      .font("Helvetica-Bold")
+      .fontSize(9.5)
+      .text("TOTAL PAID:", 355, totalsY + 58);
+    doc
+      .fillColor("#0F766E")
+      .font("Helvetica-Bold")
+      .fontSize(13.5)
+      .text(`$${Number(totalAmount).toFixed(2)}`, 445, totalsY + 56, {
+        width: 120,
+        align: "right",
+      });
+    doc
+      .fillColor("#6B7280")
+      .font("Helvetica")
+      .fontSize(7)
+      .text("AUD • Inclusive of applicable GST", 355, totalsY + 76, {
+        width: 210,
+        align: "right",
+      });
+
+    // Rubber PAID Stamp below the summary card
+    const stampX = 460;
+    const stampY = totalsY + 104;
+    if (stampY + 40 < 735) {
+      doc.save();
+      doc.fillOpacity(0.75);
+      doc.strokeOpacity(0.75);
+      doc
+        .roundedRect(stampX, stampY, 120, 32, 4)
+        .lineWidth(2.5)
+        .strokeColor("#059669")
+        .stroke();
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(18)
+        .fillColor("#059669")
+        .text("PAID", stampX, stampY + 8, { width: 120, align: "center" });
+      doc.restore();
+    }
+
+    const noteY = totalsY + 144;
+    if (noteY < 735) {
+      doc
+        .font("Helvetica")
+        .fontSize(8)
+        .fillColor("#6B7280")
+        .text(
+          "This remittance advice confirms payment for the services listed above.",
+          50,
+          noteY,
+          { width: 530, align: "center", lineBreak: false },
+        );
+    }
+
+    renderPageFooter();
   };
 
   app.get(
