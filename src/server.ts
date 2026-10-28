@@ -15728,7 +15728,13 @@ app.get("/api/health", (req, res) => {
 
         // If uncancelling a previously cancelled shift, remove any invoice generated for it and clear cancelled_pay_hours
         if (existing.status === "CANCELLED" && finalStatus !== "CANCELLED") {
-          db.prepare("UPDATE shifts SET cancelled_pay_hours = 0 WHERE id = ?").run(id);
+          if (finalStatus === "PUBLISHED") {
+            db.prepare(
+              "UPDATE shifts SET cancelled_pay_hours = 0, actual_start_time = NULL, actual_finish_time = NULL, odometer_start_reading = NULL, odometer_start_photo = NULL, odometer_end_reading = NULL, odometer_end_photo = NULL, abt_km = 0, abt_cost = 0 WHERE id = ?",
+            ).run(id);
+          } else {
+            db.prepare("UPDATE shifts SET cancelled_pay_hours = 0 WHERE id = ?").run(id);
+          }
           const invoices = db
             .prepare("SELECT file_path FROM invoices WHERE shift_id = ?")
             .all(id);
@@ -15907,6 +15913,67 @@ app.get("/api/health", (req, res) => {
           logger.error(
             `Failed to create notifications for cancelled shift ${id}: ${err}`,
           );
+        }
+
+        res.json({ success: true });
+      } catch (e: any) {
+        logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    },
+  );
+
+  app.post(
+    "/api/shifts/:id/uncancel",
+    authenticateToken,
+    async (req: any, res: any) => {
+      const { id } = req.params;
+      try {
+        const shift = db
+          .prepare("SELECT * FROM shifts WHERE id = ?")
+          .get(id) as any;
+        if (!shift) return res.status(404).json({ error: "Shift not found" });
+        if (req.user.role !== "ADMIN" && shift.staff_id !== req.user.id)
+          return res.status(403).json({ error: "Forbidden" });
+
+        const currentNotes = String(shift.notes || "").trim();
+        const cleanedNotes =
+          currentNotes.startsWith("Cancelled:") ||
+          currentNotes === "Cancelled by staff"
+            ? ""
+            : shift.notes;
+
+        db.prepare(
+          "UPDATE shifts SET status = 'PUBLISHED', notes = ?, cancelled_pay_hours = 0, actual_start_time = NULL, actual_finish_time = NULL, odometer_start_reading = NULL, odometer_start_photo = NULL, odometer_end_reading = NULL, odometer_end_photo = NULL, abt_km = 0, abt_cost = 0 WHERE id = ?",
+        ).run(cleanedNotes, id);
+
+        const invoices = db
+          .prepare("SELECT file_path FROM invoices WHERE shift_id = ?")
+          .all(id);
+        invoices.forEach((inv: any) => {
+          if (inv.file_path) {
+            const filePath = path.join(
+              process.cwd(),
+              "data",
+              "invoices",
+              inv.file_path,
+            );
+            if (fs.existsSync(filePath)) {
+              try {
+                fs.unlinkSync(filePath);
+              } catch (e) {
+                logger.warn("Failed to delete file", e);
+              }
+            }
+          }
+        });
+        db.prepare("DELETE FROM invoices WHERE shift_id = ?").run(id);
+        db.prepare(
+          `UPDATE invoices SET status = 'GENERATED', merged_into_shift_id = NULL WHERE merged_into_shift_id = ?`,
+        ).run(id);
+
+        if (shift.staff_id && shift.start_time) {
+          await recalculateDayTravelForStaff(shift.staff_id, shift.start_time);
         }
 
         res.json({ success: true });

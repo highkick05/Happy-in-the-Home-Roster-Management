@@ -372,6 +372,31 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
     }
   };
 
+  const handleUncancelShift = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/shifts/${shift.id}/uncancel`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        }
+      });
+      if (res.ok) {
+        localStorage.removeItem(`shift_progress_${shift.id}`);
+        onSave();
+        window.dispatchEvent(new CustomEvent('refresh-notifications'));
+      } else {
+        alert('Failed to uncancel shift');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error uncancelling shift');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCompleteShift = async (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
@@ -1618,6 +1643,18 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                     className="w-full py-3 bg-brand-green/80 hover:bg-brand-green text-white rounded-xl font-bold text-lg md:text-xl flex items-center justify-center transition-all active:scale-95 shadow-md disabled:opacity-50 disabled:active:scale-100"
                   >
                     <StopCircle className="w-6 h-6 mr-2 shrink-0" /> Complete Shift
+                  </button>
+                </div>
+              )}
+              {shift.status === 'CANCELLED' && (
+                <div className="col-span-1 sm:col-span-2">
+                  <button
+                    onClick={handleUncancelShift}
+                    disabled={loading}
+                    className="w-full py-3 bg-amber-500/15 border-2 border-amber-500/40 hover:bg-amber-500/25 text-amber-400 rounded-xl font-bold md:text-lg flex items-center justify-center transition-all active:scale-95 shadow-md disabled:opacity-50"
+                  >
+                    <RotateCcw className="w-5 h-5 md:w-6 md:h-6 mr-2 shrink-0" />
+                    {loading ? 'Uncancelling...' : 'Uncancel Shift'}
                   </button>
                 </div>
               )}

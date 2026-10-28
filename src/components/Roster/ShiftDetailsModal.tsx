@@ -262,12 +262,15 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
   const handleUpdateStatus = async (status: string) => {
     try {
       const isRespite = shift.isRespiteWrapper;
+      const isUncancellingShift = !isRespite && shift.status === 'CANCELLED' && status === 'PUBLISHED';
       const endpoint = isRespite 
         ? `/api/respite-bookings/${shift.respiteData?.id}/status` 
-        : `/api/shifts/${shift.id}`;
+        : isUncancellingShift
+          ? `/api/shifts/${shift.id}/uncancel`
+          : `/api/shifts/${shift.id}`;
 
       const payload: Record<string, any> = { status };
-      if (!isRespite && shift.status === 'CANCELLED' && status === 'PUBLISHED') {
+      if (isUncancellingShift) {
         const currentNotes = String(shift.notes || '').trim();
         if (currentNotes.startsWith('Cancelled:') || currentNotes === 'Cancelled by staff') {
           payload.notes = '';
@@ -275,7 +278,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
       }
 
       const res = await fetch(endpoint, {
-        method: 'PUT',
+        method: isUncancellingShift ? 'POST' : 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
