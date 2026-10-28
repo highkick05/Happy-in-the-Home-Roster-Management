@@ -313,17 +313,17 @@ export default function InvoicePreviewModal({ shiftId, invoiceId, onClose }: Pro
               {/* Subtle Faded Houses & Colour-Accent Swooshes Background */}
               <div className="pointer-events-none select-none absolute inset-0 overflow-hidden -z-10" aria-hidden="true">
                 <img
-                  src="/assets/aistudio/hith_houses_for_folder_3df6b648.png"
+                  src="/hith houses for folder.png"
                   alt=""
                   className="absolute -top-8 -right-10 w-[440px] h-[310px] object-cover opacity-[0.11] [mask-image:radial-gradient(closest-side,black_20%,transparent_100%)]"
                 />
                 <img
-                  src="/assets/aistudio/hith_houses_for_folder_3df6b648.png"
+                  src="/hith houses for folder.png"
                   alt=""
                   className="absolute top-[34%] -left-16 w-[400px] h-[300px] object-cover opacity-[0.09] -rotate-6 [mask-image:radial-gradient(closest-side,black_15%,transparent_100%)]"
                 />
                 <img
-                  src="/assets/aistudio/hith_houses_for_folder_3df6b648.png"
+                  src="/hith houses for folder.png"
                   alt=""
                   className="absolute -bottom-10 -right-8 w-[460px] h-[320px] object-cover opacity-[0.11] [mask-image:radial-gradient(closest-side,black_20%,transparent_100%)]"
                 />

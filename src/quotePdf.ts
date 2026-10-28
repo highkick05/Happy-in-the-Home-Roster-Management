@@ -2,17 +2,21 @@ import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 
-let cachedBgHousesBuffer: Buffer | null | undefined = undefined;
+let cachedBgHousesBuffer: Buffer | null = null;
 function getBgHousesBuffer(): Buffer | null {
-  if (cachedBgHousesBuffer !== undefined) return cachedBgHousesBuffer;
+  if (cachedBgHousesBuffer) return cachedBgHousesBuffer;
   try {
-    const bgPath = path.join(process.cwd(), 'public', 'assets', 'aistudio', 'hith_houses_for_folder_3df6b648.png');
-    if (fs.existsSync(bgPath)) {
-      cachedBgHousesBuffer = fs.readFileSync(bgPath);
-      return cachedBgHousesBuffer;
+    const candidates = [
+      path.join(process.cwd(), 'public', 'hith houses for folder.png'),
+      path.join(process.cwd(), 'public', 'assets', 'aistudio', 'hith_houses_for_folder_3df6b648.png'),
+    ];
+    for (const bgPath of candidates) {
+      if (fs.existsSync(bgPath)) {
+        cachedBgHousesBuffer = fs.readFileSync(bgPath);
+        return cachedBgHousesBuffer;
+      }
     }
   } catch (e) {}
-  cachedBgHousesBuffer = null;
   return null;
 }
 
