@@ -1442,7 +1442,7 @@ export function previewXeroPayRun(db: any, params: {
     FROM shifts s
     JOIN users u ON s.staff_id = u.id
     LEFT JOIN services srv ON s.service_id = srv.id
-    WHERE s.status = 'COMPLETED'
+    WHERE (s.status = 'COMPLETED' OR (s.status = 'CANCELLED' AND COALESCE(s.cancelled_pay_hours, 0) > 0))
       AND s.staff_id IS NOT NULL
       AND (s.custom_staff_name IS NULL OR s.custom_staff_name = '')
       AND s.start_time >= ?
@@ -1476,7 +1476,8 @@ export function previewXeroPayRun(db: any, params: {
 
   for (const shift of shifts) {
     const scheduledHrs = (new Date(shift.end_time).getTime() - new Date(shift.start_time).getTime()) / 3600000;
-    const shiftHours = Math.max(0, scheduledHrs);
+    const isCancelledPaid = shift.status === 'CANCELLED' && Number(shift.cancelled_pay_hours) > 0;
+    const shiftHours = isCancelledPaid ? Math.max(0, Number(shift.cancelled_pay_hours)) : Math.max(0, scheduledHrs);
 
     const rosterT = new Date(shift.start_time);
     const ymd = formatInTimeZone(rosterT, timezone, 'yyyy-MM-dd');

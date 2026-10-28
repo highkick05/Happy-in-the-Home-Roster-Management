@@ -22,6 +22,8 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
   const [progressNoteText, setProgressNoteText] = React.useState('');
   const [cancelReason, setCancelReason] = React.useState('');
   const [clientGaveNotice, setClientGaveNotice] = React.useState(true);
+  const [staffAttended, setStaffAttended] = React.useState(false);
+  const [staffPayHours, setStaffPayHours] = React.useState('2');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [internalHolidays, setInternalHolidays] = React.useState<any[]>([]);
   const [showBroadcastModal, setShowBroadcastModal] = React.useState(false);
@@ -33,9 +35,18 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
       setProgressNoteText('');
       setCancelReason('');
       setClientGaveNotice(true);
+      setStaffAttended(false);
+      setStaffPayHours('2');
       setIsSubmitting(false);
+    } else if (shift?.start && shift?.end) {
+      const scheduledHrs = Math.max(0, (new Date(shift.end).getTime() - new Date(shift.start).getTime()) / 3600000);
+      if (scheduledHrs > 0) {
+        setStaffPayHours(Number(scheduledHrs.toFixed(2)).toString());
+      } else {
+        setStaffPayHours('2');
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, shift]);
 
   React.useEffect(() => {
     if (holidays && holidays.length > 0) {
@@ -385,6 +396,10 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
       alert("Please provide a reason for cancellation.");
       return;
     }
+    if (staffAttended && (!staffPayHours || isNaN(Number(staffPayHours)) || Number(staffPayHours) <= 0)) {
+      alert("Please enter valid hours to pay the staff member.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       const isRespite = shift.isRespiteWrapper;
@@ -393,7 +408,14 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
         : `/api/shifts/${shift.id}/cancel`;
 
       const method = isRespite ? 'PUT' : 'POST';
-      const body = isRespite ? { status: 'CANCELLED' } : { reason: cancelReason, clientGaveNotice };
+      const body = isRespite
+        ? { status: 'CANCELLED' }
+        : {
+            reason: cancelReason,
+            clientGaveNotice,
+            staffAttended,
+            staffPayHours: staffAttended ? Number(staffPayHours) : 0,
+          };
 
       const res = await fetch(endpoint, {
         method,
@@ -455,18 +477,20 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                 
                 <div className="space-y-4 flex flex-col">
                   <div>
-                    <div className="mb-5 bg-zinc-800/40 p-3 sm:p-4 rounded-xl border border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                    <div className="mb-4 bg-zinc-800/40 p-3 sm:p-4 rounded-xl border border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                       <span className="text-sm md:text-base font-medium text-zinc-200">
                         Did the client give {settings?.cancellationNoticePeriod || '24'} hours' notice?
                       </span>
                       <div className="flex items-center gap-2 w-full sm:w-auto">
                         <button 
+                          type="button"
                           onClick={() => setClientGaveNotice(true)}
                           className={`flex-1 sm:flex-none py-2 px-6 text-sm font-bold rounded-lg transition-all ${clientGaveNotice ? 'bg-brand-teal text-zinc-950 shadow-md ring-2 ring-brand-teal/50' : 'bg-zinc-700/50 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
                         >
                           Yes
                         </button>
                         <button 
+                          type="button"
                           onClick={() => setClientGaveNotice(false)}
                           className={`flex-1 sm:flex-none py-2 px-6 text-sm font-bold rounded-lg transition-all ${!clientGaveNotice ? 'bg-red-500 text-white shadow-md ring-2 ring-red-500/50' : 'bg-zinc-700/50 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
                         >
@@ -474,6 +498,50 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                         </button>
                       </div>
                     </div>
+
+                    <div className="mb-5 bg-zinc-800/40 p-3 sm:p-4 rounded-xl border border-white/[0.08] flex flex-col gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                        <span className="text-sm md:text-base font-medium text-zinc-200">
+                          Did staff member attend the clients house?
+                        </span>
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          <button 
+                            type="button"
+                            onClick={() => setStaffAttended(true)}
+                            className={`flex-1 sm:flex-none py-2 px-6 text-sm font-bold rounded-lg transition-all ${staffAttended ? 'bg-brand-teal text-zinc-950 shadow-md ring-2 ring-brand-teal/50' : 'bg-zinc-700/50 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
+                          >
+                            Yes
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => setStaffAttended(false)}
+                            className={`flex-1 sm:flex-none py-2 px-6 text-sm font-bold rounded-lg transition-all ${!staffAttended ? 'bg-red-500 text-white shadow-md ring-2 ring-red-500/50' : 'bg-zinc-700/50 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
+                          >
+                            No
+                          </button>
+                        </div>
+                      </div>
+
+                      {staffAttended && (
+                        <div className="pt-3 border-t border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+                          <label className="text-xs sm:text-sm font-medium text-zinc-300">
+                            How many hours to pay staff member?
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="0.25"
+                              step="0.25"
+                              value={staffPayHours}
+                              onChange={e => setStaffPayHours(e.target.value)}
+                              className="w-28 bg-[#09090b] border border-white/[0.12] rounded-lg px-3 py-1.5 text-sm font-bold text-white text-right focus:outline-none focus:border-brand-teal focus:ring-1 focus:ring-brand-teal"
+                            />
+                            <span className="text-xs sm:text-sm font-semibold text-zinc-400">hrs</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     <label className="block text-sm md:text-base font-semibold text-zinc-300 mb-2">Reason for Cancellation</label>
                     <textarea 
                       rows={4} 

@@ -74,6 +74,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
   const [showCancelPrompt, setShowCancelPrompt] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [clientGaveNotice, setClientGaveNotice] = useState(true);
+  const [staffAttended, setStaffAttended] = useState(false);
   const [nowDate, setNowDate] = useState(new Date());
 
   const [showCamera, setShowCamera] = useState(false);
@@ -168,6 +169,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
       setShowCancelPrompt(false);
       setCancelReason('');
       setClientGaveNotice(true);
+      setStaffAttended(false);
       setOdometerReading('');
       setOdometerPhoto('');
 
@@ -348,7 +350,12 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}` 
         },
-        body: JSON.stringify({ reason: cancelReason, clientGaveNotice })
+        body: JSON.stringify({
+          reason: cancelReason,
+          clientGaveNotice,
+          staffAttended,
+          staffPayHours: staffAttended ? 1 : 0,
+        })
       });
       if (res.ok) {
         onSave();
@@ -794,26 +801,51 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                 
                 <div className="space-y-4 flex flex-col">
                   <div>
-                    <div className="mb-5 bg-zinc-800/40 p-3 sm:p-4 rounded-xl border border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-                    <span className="text-sm md:text-base font-medium text-zinc-200">
-                      Did the client give {settings?.cancellationNoticePeriod || '24'} hours' notice?
-                    </span>
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <button 
-                        onClick={() => setClientGaveNotice(true)}
-                        className={`flex-1 sm:flex-none py-2 px-6 text-sm font-bold rounded-lg transition-all ${clientGaveNotice ? 'bg-brand-teal text-zinc-950 shadow-md ring-2 ring-brand-teal/50' : 'bg-zinc-700/50 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
-                      >
-                        Yes
-                      </button>
-                      <button 
-                        onClick={() => setClientGaveNotice(false)}
-                        className={`flex-1 sm:flex-none py-2 px-6 text-sm font-bold rounded-lg transition-all ${!clientGaveNotice ? 'bg-red-500 text-white shadow-md ring-2 ring-red-500/50' : 'bg-zinc-700/50 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
-                      >
-                        No
-                      </button>
+                    <div className="mb-4 bg-zinc-800/40 p-3 sm:p-4 rounded-xl border border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                      <span className="text-sm md:text-base font-medium text-zinc-200">
+                        Did the client give {settings?.cancellationNoticePeriod || '24'} hours' notice?
+                      </span>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button 
+                          type="button"
+                          onClick={() => setClientGaveNotice(true)}
+                          className={`flex-1 sm:flex-none py-2 px-6 text-sm font-bold rounded-lg transition-all ${clientGaveNotice ? 'bg-brand-teal text-zinc-950 shadow-md ring-2 ring-brand-teal/50' : 'bg-zinc-700/50 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
+                        >
+                          Yes
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setClientGaveNotice(false)}
+                          className={`flex-1 sm:flex-none py-2 px-6 text-sm font-bold rounded-lg transition-all ${!clientGaveNotice ? 'bg-red-500 text-white shadow-md ring-2 ring-red-500/50' : 'bg-zinc-700/50 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
+                        >
+                          No
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <label className="block text-sm md:text-base font-semibold text-zinc-300 mb-2">Reason for Cancellation</label>
+
+                    <div className="mb-5 bg-zinc-800/40 p-3 sm:p-4 rounded-xl border border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                      <span className="text-sm md:text-base font-medium text-zinc-200">
+                        Did you attend the clients house?
+                      </span>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button 
+                          type="button"
+                          onClick={() => setStaffAttended(true)}
+                          className={`flex-1 sm:flex-none py-2 px-6 text-sm font-bold rounded-lg transition-all ${staffAttended ? 'bg-brand-teal text-zinc-950 shadow-md ring-2 ring-brand-teal/50' : 'bg-zinc-700/50 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
+                        >
+                          Yes
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setStaffAttended(false)}
+                          className={`flex-1 sm:flex-none py-2 px-6 text-sm font-bold rounded-lg transition-all ${!staffAttended ? 'bg-red-500 text-white shadow-md ring-2 ring-red-500/50' : 'bg-zinc-700/50 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+
+                    <label className="block text-sm md:text-base font-semibold text-zinc-300 mb-2">Reason for Cancellation</label>
                     <textarea 
                       rows={4} 
                       className="w-full bg-[#09090b] border border-white/[0.08] rounded-xl p-4 text-sm md:text-base text-white focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 shadow-inner"

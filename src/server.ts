@@ -847,7 +847,8 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
       ["odometer_start_reading", "REAL"],
       ["odometer_end_reading", "REAL"],
       ["vehicle_id", "INTEGER"],
-      ["merged_into_shift_id", "INTEGER"]
+      ["merged_into_shift_id", "INTEGER"],
+      ["cancelled_pay_hours", "REAL DEFAULT 0"]
     ];
     for (const [colName, colType] of colsToAdd) {
       if (!colNames.includes(colName)) {
@@ -15725,6 +15726,35 @@ app.get("/api/health", (req, res) => {
         const stmt = db.prepare(updateQuery);
         stmt.run(...params);
 
+        // If uncancelling a previously cancelled shift, remove any invoice generated for it and clear cancelled_pay_hours
+        if (existing.status === "CANCELLED" && finalStatus !== "CANCELLED") {
+          db.prepare("UPDATE shifts SET cancelled_pay_hours = 0 WHERE id = ?").run(id);
+          const invoices = db
+            .prepare("SELECT file_path FROM invoices WHERE shift_id = ?")
+            .all(id);
+          invoices.forEach((inv: any) => {
+            if (inv.file_path) {
+              const filePath = path.join(
+                process.cwd(),
+                "data",
+                "invoices",
+                inv.file_path,
+              );
+              if (fs.existsSync(filePath)) {
+                try {
+                  fs.unlinkSync(filePath);
+                } catch (e) {
+                  logger.warn("Failed to delete file", e);
+                }
+              }
+            }
+          });
+          db.prepare("DELETE FROM invoices WHERE shift_id = ?").run(id);
+          db.prepare(
+            `UPDATE invoices SET status = 'GENERATED', merged_into_shift_id = NULL WHERE merged_into_shift_id = ?`,
+          ).run(id);
+        }
+
         // Recalculate travel immediately after UPDATE database operation
         await recalculateDayTravelForStaff(
           staffId !== undefined ? staffId : existing.staff_id,
@@ -15774,7 +15804,7 @@ app.get("/api/health", (req, res) => {
     authenticateToken,
     (req: any, res: any) => {
       const { id } = req.params;
-      const { reason, clientGaveNotice = true } = req.body;
+      const { reason, clientGaveNotice = true, staffAttended = false, staffPayHours = 0 } = req.body;
       try {
         const shift = db
           .prepare("SELECT * FROM shifts WHERE id = ?")
@@ -15788,9 +15818,16 @@ app.get("/api/health", (req, res) => {
            finalReason += " (Less than required notice)";
         }
 
-        db.prepare("UPDATE shifts SET status = ?, notes = ? WHERE id = ?").run(
+        const finalCancelledPayHours = staffAttended
+          ? req.user.role === "ADMIN"
+            ? Math.max(0, Number(staffPayHours) || 0)
+            : 1
+          : 0;
+
+        db.prepare("UPDATE shifts SET status = ?, notes = ?, cancelled_pay_hours = ? WHERE id = ?").run(
           "CANCELLED",
           finalReason,
+          finalCancelledPayHours,
           id,
         );
 
@@ -18134,7 +18171,7 @@ app.get("/api/health", (req, res) => {
         LEFT JOIN users u ON s.staff_id = u.id
         LEFT JOIN clients c ON s.client_id = c.id
         LEFT JOIN services srv ON s.service_id = srv.id
-        WHERE s.status = 'COMPLETED'
+        WHERE (s.status = 'COMPLETED' OR (s.status = 'CANCELLED' AND COALESCE(s.cancelled_pay_hours, 0) > 0))
           AND s.staff_id IS NOT NULL
           AND (s.custom_staff_name IS NULL OR s.custom_staff_name = '')
       `;
@@ -18196,12 +18233,16 @@ app.get("/api/health", (req, res) => {
         };
 
         const activityLog = shifts.flatMap((shift) => {
+          const isCancelledPaid =
+            shift.status === "CANCELLED" && Number(shift.cancelled_pay_hours) > 0;
           let scheduledHrs =
             (new Date(shift.end_time).getTime() -
               new Date(shift.start_time).getTime()) /
             3600000;
-          let hours = Math.max(0, scheduledHrs);
-          if (shift.actual_start_time && shift.actual_finish_time) {
+          let hours = isCancelledPaid
+            ? Math.max(0, Number(shift.cancelled_pay_hours))
+            : Math.max(0, scheduledHrs);
+          if (!isCancelledPaid && shift.actual_start_time && shift.actual_finish_time) {
             let actualHrs =
               (new Date(shift.actual_finish_time).getTime() -
                 new Date(shift.actual_start_time).getTime()) /
@@ -18273,7 +18314,7 @@ app.get("/api/health", (req, res) => {
             }
           }
 
-          if (primaryQtyOverride !== null && primaryQtyOverride > 0) {
+          if (!isCancelledPaid && primaryQtyOverride !== null && primaryQtyOverride > 0) {
             hours = primaryQtyOverride;
           }
 
@@ -18284,18 +18325,21 @@ app.get("/api/health", (req, res) => {
           let weekdayStr =
             parts.find((p: any) => p.type === "weekday")?.value || "";
 
+          const payableCategoryHrs = isCancelledPaid
+            ? hours
+            : Math.max(0, scheduledHrs);
           let dayCategory = "Weekday";
           if (isPubHol && isPubHol.some((h: any) => h.type === "public")) {
             dayCategory = "Public Holiday";
-            totals.publicHolidayHours += Math.max(0, scheduledHrs);
+            totals.publicHolidayHours += payableCategoryHrs;
           } else if (weekdayStr === "Saturday") {
             dayCategory = "Saturday";
-            totals.saturdayHours += Math.max(0, scheduledHrs);
+            totals.saturdayHours += payableCategoryHrs;
           } else if (weekdayStr === "Sunday") {
             dayCategory = "Sunday";
-            totals.sundayHours += Math.max(0, scheduledHrs);
+            totals.sundayHours += payableCategoryHrs;
           } else {
-            totals.weekdayHours += Math.max(0, scheduledHrs);
+            totals.weekdayHours += payableCategoryHrs;
           }
 
           let serviceProvided = shift.service_name || "";
