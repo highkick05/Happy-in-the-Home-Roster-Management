@@ -374,7 +374,7 @@ export default function RosterCalendar() {
       if (staffRes.ok) {
         const staffData = await staffRes.json();
         const sortedStaff = staffData
-          .filter((user: any) => user.role !== 'ADMIN')
+          .filter((user: any) => user.role !== 'ADMIN' && user.status !== 'SUSPENDED')
           .sort((a: any, b: any) => {
             const lastCmp = (a.last_name || '').trim().localeCompare((b.last_name || '').trim(), undefined, { sensitivity: 'base' });
             if (lastCmp !== 0) return lastCmp;
@@ -384,11 +384,13 @@ export default function RosterCalendar() {
       }
       if (clientsRes.ok) {
         const clientsData = await clientsRes.json();
-        const sortedClients = [...clientsData].sort((a: any, b: any) => {
-          const lastCmp = (a.last_name || '').trim().localeCompare((b.last_name || '').trim(), undefined, { sensitivity: 'base' });
-          if (lastCmp !== 0) return lastCmp;
-          return (a.first_name || '').trim().localeCompare((b.first_name || '').trim(), undefined, { sensitivity: 'base' });
-        });
+        const sortedClients = clientsData
+          .filter((client: any) => client.status !== 'SUSPENDED')
+          .sort((a: any, b: any) => {
+            const lastCmp = (a.last_name || '').trim().localeCompare((b.last_name || '').trim(), undefined, { sensitivity: 'base' });
+            if (lastCmp !== 0) return lastCmp;
+            return (a.first_name || '').trim().localeCompare((b.first_name || '').trim(), undefined, { sensitivity: 'base' });
+          });
         setClientList(sortedClients);
       }
       if (servicesRes.ok) setServicesList(await servicesRes.json());
