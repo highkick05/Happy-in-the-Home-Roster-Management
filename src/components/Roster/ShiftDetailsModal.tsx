@@ -535,57 +535,79 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
               <p className="text-sm text-zinc-400 mt-0.5">{new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
             </div>
             
-            {shift.status === 'COMPLETED' && (shift.providerTravelKm !== undefined || shift.homeCareTravelKm !== undefined) && (
+            {shift.status === 'COMPLETED' && (shift.providerTravelKm !== undefined || shift.homeCareTravelKm !== undefined) && (() => {
+              const isHCP = shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP';
+              const shiftServiceItems = Array.isArray(shift.servicesData) ? shift.servicesData : [];
+              const resolveSrvName = (sd: any) => {
+                const srv = servicesList.find((s: any) => String(s.id) === String(sd?.serviceId));
+                return String(srv?.name || sd?.serviceName || sd?.customName || sd?.name || '').toLowerCase();
+              };
+              const hasProviderTravelService = isHCP || shiftServiceItems.some((sd: any) => {
+                const n = resolveSrvName(sd);
+                return n.includes('provider travel') || n.includes('travel - provider');
+              }) || String(shift.serviceName || '').toLowerCase().includes('provider travel');
+              const hasABTService = isHCP || shiftServiceItems.some((sd: any) => {
+                const n = resolveSrvName(sd);
+                return n.includes('activity based transport') || n.includes('activity-based transport');
+              }) || String(shift.serviceName || '').toLowerCase().includes('activity based transport');
+
+              if (!hasProviderTravelService && !hasABTService) return null;
+
+              let parsedLog: any = null;
+              if (shift.transportRouteLog) {
+                try { parsedLog = JSON.parse(shift.transportRouteLog); } catch(e) {}
+              }
+              const km = hasProviderTravelService
+                ? (isHCP ? Number(shift.homeCareTravelKm || shift.providerTravelKm || 0) : Number(shift.providerTravelKm || 0))
+                : 0;
+              const title = isHCP ? 'Home Care Travel (Client Gap)' : 'Provider Travel (Distance to Shift)';
+              const legMins = isHCP
+                ? (parsedLog?.homeCareTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0)
+                : (parsedLog?.providerTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0);
+              const mins = hasProviderTravelService
+                ? (Number(shift.providerTravelMinutes) || (isHCP ? Number(parsedLog?.homeCareTravel?.minutes) : Number(parsedLog?.providerTravel?.minutes)) || legMins || 0)
+                : 0;
+              const abtKmVal = hasABTService ? Number(shift.abtKm || parsedLog?.abt?.distance || 0) : 0;
+
+              return (
               <div className="col-span-1 sm:col-span-2 lg:col-span-4 pt-4 mt-2 border-t border-white/[0.08]/80">
                  <p className="text-sm md:text-base font-bold text-zinc-300 mb-3">Transport & Travel Details</p>
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                   {(() => {
-                     const isHCP = shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP';
-                     const km = isHCP ? (shift.homeCareTravelKm || shift.providerTravelKm || 0) : (shift.providerTravelKm || 0);
-                     const title = isHCP ? 'Home Care Travel (Client Gap)' : 'Provider Travel (Distance to Shift)';
-                     let parsedLog: any = null;
-                     if (shift.transportRouteLog) {
-                       try { parsedLog = JSON.parse(shift.transportRouteLog); } catch(e) {}
-                     }
-                     const legMins = isHCP
-                       ? (parsedLog?.homeCareTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0)
-                       : (parsedLog?.providerTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0);
-                     const mins = Number(shift.providerTravelMinutes) || (isHCP ? Number(parsedLog?.homeCareTravel?.minutes) : Number(parsedLog?.providerTravel?.minutes)) || legMins || 0;
-                     
-                     if (km > 0) {
-                       return (
-                         <div className="bg-indigo-900/10 p-4 rounded-xl border border-brand-teal/20 shadow-sm flex flex-col justify-center">
-                           <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">{title}</p>
-                           <div className="flex items-baseline gap-3 flex-wrap">
-                             <p className="text-xl text-indigo-100 font-extrabold">{km.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
-                             {isHCP && (
-                               <span className="text-sm font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-0.5 rounded-md border border-brand-teal/20">
-                                 {Math.round(mins)} mins
-                               </span>
-                             )}
-                           </div>
+                   {hasProviderTravelService && (
+                     km > 0 ? (
+                       <div className="bg-indigo-900/10 p-4 rounded-xl border border-brand-teal/20 shadow-sm flex flex-col justify-center">
+                         <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">{title}</p>
+                         <div className="flex items-baseline gap-3 flex-wrap">
+                           <p className="text-xl text-indigo-100 font-extrabold">{km.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
+                           <span className="text-sm font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-0.5 rounded-md border border-brand-teal/20">
+                             {Math.round(mins)} mins
+                           </span>
                          </div>
-                       );
-                     }
-                     return (
+                       </div>
+                     ) : (
                        <div className="bg-zinc-800/50 p-4 rounded-xl border border-white/[0.08]/80 shadow-sm flex flex-col justify-center">
                          <p className="text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider">{isHCP ? 'Home Care Travel (Client Gap)' : 'Provider Travel'}</p>
                          <div className="flex items-baseline gap-3 flex-wrap">
                            <p className="text-xl text-zinc-300 font-extrabold">0.00 <span className="text-sm font-medium text-zinc-500">km</span></p>
-                           {isHCP && (
-                             <span className="text-sm font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-0.5 rounded-md border border-brand-teal/20">
-                               {Math.round(mins)} mins
-                             </span>
-                           )}
+                           <span className="text-sm font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-0.5 rounded-md border border-brand-teal/20">
+                             {Math.round(mins)} mins
+                           </span>
                          </div>
                        </div>
-                     );
-                   })()}
-                   {(!(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') || (shift.abtKm && shift.abtKm > 0)) && (
-                     <div className="bg-brand-green/10 p-4 rounded-xl border border-brand-green/20 shadow-sm flex flex-col justify-center">
-                       <p className="text-xs font-medium text-brand-green/80 mb-1 uppercase tracking-wider">Activity Based Transport (ABT)</p>
-                       <p className="text-xl text-white font-extrabold">{shift.abtKm ? shift.abtKm.toFixed(2) : 0} <span className="text-sm font-medium text-brand-green/80">km</span></p>
-                     </div>
+                     )
+                   )}
+                   {hasABTService && (
+                     abtKmVal > 0 ? (
+                       <div className="bg-brand-green/10 p-4 rounded-xl border border-brand-green/20 shadow-sm flex flex-col justify-center">
+                         <p className="text-xs font-medium text-brand-green/80 mb-1 uppercase tracking-wider">Activity Based Transport (ABT)</p>
+                         <p className="text-xl text-white font-extrabold">{abtKmVal.toFixed(2)} <span className="text-sm font-medium text-brand-green/80">km</span></p>
+                       </div>
+                     ) : (
+                       <div className="bg-zinc-800/50 p-4 rounded-xl border border-white/[0.08]/80 shadow-sm flex flex-col justify-center">
+                         <p className="text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider">Activity Based Transport (ABT)</p>
+                         <p className="text-xl text-zinc-300 font-extrabold">0.00 <span className="text-sm font-medium text-zinc-500">km</span></p>
+                       </div>
+                     )
                    )}
                    {(shift.travelBreakdown || shift.transportRouteLog) && (() => {
                      let log: any = null;
@@ -727,7 +749,8 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                    })()}
                  </div>
               </div>
-            )}
+              );
+            })()}
           </div>
           
           {isAdmin && (shift.serviceId || (shift.servicesData && shift.servicesData.length > 0)) && !shift.isRespiteWrapper && (
