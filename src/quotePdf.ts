@@ -1,22 +1,198 @@
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import PDFDocument from 'pdfkit';
 
-let cachedBgHousesBuffer: Buffer | null = null;
-function getBgHousesBuffer(): Buffer | null {
-  if (cachedBgHousesBuffer) return cachedBgHousesBuffer;
+let cachedFeatheredPagePng: Buffer | null = null;
+
+function makeCrcTable(): Uint32Array {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) {
+      c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    }
+    table[n] = c >>> 0;
+  }
+  return table;
+}
+const CRC_TABLE = makeCrcTable();
+
+function crc32(buf: Buffer): number {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) {
+    c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function makePngChunk(type: string, data: Buffer): Buffer {
+  const len = data.length;
+  const out = Buffer.allocUnsafe(len + 12);
+  out.writeUInt32BE(len, 0);
+  out.write(type, 4, 4, 'ascii');
+  data.copy(out, 8);
+  const crc = crc32(out.subarray(4, 8 + len));
+  out.writeUInt32BE(crc, 8 + len);
+  return out;
+}
+
+function evalGradientStops(t: number, stops: [number, number][]): number {
+  if (t <= stops[0][0]) return stops[0][1];
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const [t0, v0] = stops[i - 1];
+      const [t1, v1] = stops[i];
+      return v0 + (v1 - v0) * ((t - t0) / (t1 - t0));
+    }
+  }
+  return stops[stops.length - 1][1];
+}
+
+function getFeatheredPageBgPngBuffer(): Buffer | null {
+  if (cachedFeatheredPagePng) return cachedFeatheredPagePng;
   try {
     const candidates = [
       path.join(process.cwd(), 'public', 'hith houses for folder.png'),
+      path.join(process.cwd(), 'dist', 'hith houses for folder.png'),
       path.join(process.cwd(), 'public', 'assets', 'aistudio', 'hith_houses_for_folder_3df6b648.png'),
+      path.join(process.cwd(), 'dist', 'assets', 'aistudio', 'hith_houses_for_folder_3df6b648.png'),
     ];
+    let rawFile: Buffer | null = null;
     for (const bgPath of candidates) {
       if (fs.existsSync(bgPath)) {
-        cachedBgHousesBuffer = fs.readFileSync(bgPath);
-        return cachedBgHousesBuffer;
+        rawFile = fs.readFileSync(bgPath);
+        break;
       }
     }
-  } catch (e) {}
+    if (!rawFile) return null;
+
+    let offset = 8, srcW = 0, srcH = 0;
+    const idat: Buffer[] = [];
+    while (offset < rawFile.length) {
+      const len = rawFile.readUInt32BE(offset);
+      const type = rawFile.toString('ascii', offset + 4, offset + 8);
+      const data = rawFile.subarray(offset + 8, offset + 8 + len);
+      if (type === 'IHDR') {
+        srcW = data.readUInt32BE(0);
+        srcH = data.readUInt32BE(4);
+      } else if (type === 'IDAT') {
+        idat.push(data);
+      } else if (type === 'IEND') {
+        break;
+      }
+      offset += 12 + len;
+    }
+    if (!srcW || !srcH || idat.length === 0) return null;
+
+    const inflated = zlib.inflateSync(Buffer.concat(idat));
+    const bpp = 4;
+    const stride = srcW * bpp;
+    const pixels = Buffer.allocUnsafe(srcH * stride);
+    const paeth = (a: number, b: number, c: number) => {
+      const p = a + b - c;
+      const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+      return (pa <= pb && pa <= pc) ? a : (pb <= pc ? b : c);
+    };
+    for (let y = 0; y < srcH; y++) {
+      const filter = inflated[y * (stride + 1)];
+      const srcRow = y * (stride + 1) + 1;
+      const dstRow = y * stride;
+      for (let i = 0; i < stride; i++) {
+        const x = inflated[srcRow + i];
+        const a = i >= bpp ? pixels[dstRow + i - bpp] : 0;
+        const b = y > 0 ? pixels[dstRow - stride + i] : 0;
+        const c = (y > 0 && i >= bpp) ? pixels[dstRow - stride + i - bpp] : 0;
+        let val = x;
+        if (filter === 1) val = (x + a) & 0xff;
+        else if (filter === 2) val = (x + b) & 0xff;
+        else if (filter === 3) val = (x + ((a + b) >> 1)) & 0xff;
+        else if (filter === 4) val = (x + paeth(a, b, c)) & 0xff;
+        pixels[dstRow + i] = val;
+      }
+    }
+
+    const pageW = 893;
+    const pageH = 1263;
+    const rawOut = Buffer.allocUnsafe(pageH * (1 + pageW * 3));
+    rawOut.fill(255);
+    for (let y = 0; y < pageH; y++) {
+      rawOut[y * (1 + pageW * 3)] = 0;
+    }
+
+    const bands: {
+      yStartPt: number;
+      heightPt: number;
+      cx: number;
+      cy: number;
+      rx: number;
+      ry: number;
+      opacity: number;
+      stops: [number, number][];
+    }[] = [
+      { yStartPt: -24, heightPt: 360, cx: 0.85, cy: 0.25, rx: 0.95, ry: 0.75, opacity: 0.26, stops: [[0.15, 1.0], [0.45, 0.60], [0.72, 0.20], [0.96, 0.0]] },
+      { yStartPt: 235, heightPt: 360, cx: 0.15, cy: 0.50, rx: 0.95, ry: 0.70, opacity: 0.22, stops: [[0.15, 1.0], [0.45, 0.55], [0.72, 0.18], [0.96, 0.0]] },
+      { yStartPt: 514, heightPt: 360, cx: 0.85, cy: 0.75, rx: 0.95, ry: 0.75, opacity: 0.26, stops: [[0.15, 1.0], [0.45, 0.60], [0.72, 0.20], [0.96, 0.0]] },
+    ];
+
+    for (const band of bands) {
+      const y0 = Math.max(0, Math.floor((band.yStartPt / 841.89) * pageH));
+      const y1 = Math.min(pageH, Math.ceil(((band.yStartPt + band.heightPt) / 841.89) * pageH));
+      const bandHPx = (band.heightPt / 841.89) * pageH;
+      const bandY0Px = (band.yStartPt / 841.89) * pageH;
+
+      const scaleX = srcW / pageW;
+      const scaleY = srcH / bandHPx;
+      const scale = Math.min(scaleX, scaleY);
+      const cropW = pageW * scale;
+      const cropH = bandHPx * scale;
+      const cropX0 = (srcW - cropW) / 2;
+      const cropY0 = (srcH - cropH) / 2;
+
+      for (let py = y0; py < y1; py++) {
+        const v = (py - bandY0Px) / bandHPx;
+        const dy = (v - band.cy) / band.ry;
+        const sy = Math.min(srcH - 1, Math.max(0, Math.floor(cropY0 + v * cropH)));
+        const srcRowOff = sy * stride;
+        const dstRowOff = py * (1 + pageW * 3) + 1;
+        for (let px = 0; px < pageW; px++) {
+          const u = px / pageW;
+          const dx = (u - band.cx) / band.rx;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const mask = evalGradientStops(dist, band.stops);
+          if (mask <= 0.001) continue;
+          const sx = Math.min(srcW - 1, Math.max(0, Math.floor(cropX0 + u * cropW)));
+          const sIdx = srcRowOff + sx * 4;
+          const a = (pixels[sIdx + 3] / 255) * band.opacity * mask;
+          if (a <= 0.001) continue;
+          const invA = 1 - a;
+          const dIdx = dstRowOff + px * 3;
+          rawOut[dIdx] = Math.round(pixels[sIdx] * a + rawOut[dIdx] * invA);
+          rawOut[dIdx + 1] = Math.round(pixels[sIdx + 1] * a + rawOut[dIdx + 1] * invA);
+          rawOut[dIdx + 2] = Math.round(pixels[sIdx + 2] * a + rawOut[dIdx + 2] * invA);
+        }
+      }
+    }
+
+    const ihdr = Buffer.allocUnsafe(13);
+    ihdr.writeUInt32BE(pageW, 0);
+    ihdr.writeUInt32BE(pageH, 4);
+    ihdr[8] = 8;
+    ihdr[9] = 2; // RGB
+    ihdr[10] = 0;
+    ihdr[11] = 0;
+    ihdr[12] = 0;
+    const compressed = zlib.deflateSync(rawOut, { level: 3 });
+    cachedFeatheredPagePng = Buffer.concat([
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      makePngChunk('IHDR', ihdr),
+      makePngChunk('IDAT', compressed),
+      makePngChunk('IEND', Buffer.alloc(0)),
+    ]);
+    return cachedFeatheredPagePng;
+  } catch (e) {
+    console.error('Error building feathered PDF background:', e);
+  }
   return null;
 }
 
@@ -25,32 +201,11 @@ export function renderDocumentBackgroundPdf(doc: any) {
   const prevY = doc.y;
   doc.save();
   try {
-    const bgBuffer = getBgHousesBuffer();
-    if (bgBuffer) {
-      const drawFeatheredPatch = (cx: number, cy: number, maxR: number, imgX: number, imgY: number, imgW: number) => {
-        const rings = [
-          { r: maxR, alpha: 0.025 },
-          { r: maxR * 0.88, alpha: 0.032 },
-          { r: maxR * 0.76, alpha: 0.040 },
-          { r: maxR * 0.64, alpha: 0.048 },
-          { r: maxR * 0.50, alpha: 0.055 },
-          { r: maxR * 0.36, alpha: 0.055 },
-        ];
-        for (const ring of rings) {
-          doc.save();
-          doc.circle(cx, cy, ring.r).clip();
-          doc.opacity(ring.alpha);
-          doc.image(bgBuffer, imgX, imgY, { width: imgW });
-          doc.restore();
-        }
-      };
-
-      // 1. Top-Right faded houses patch
-      drawFeatheredPatch(500, 90, 175, 290, -25, 355);
-      // 2. Mid-Left faded houses patch
-      drawFeatheredPatch(85, 390, 160, -65, 260, 340);
-      // 3. Bottom-Right faded houses patch
-      drawFeatheredPatch(480, 660, 180, 270, 515, 360);
+    const featheredBg = getFeatheredPageBgPngBuffer();
+    if (featheredBg) {
+      const pw = doc.page?.width || 595.28;
+      const ph = doc.page?.height || 841.89;
+      doc.image(featheredBg, 0, 0, { width: pw, height: ph });
     }
 
     // Colour-accent swooshes matching the teal, sage green, and sky blue palette
@@ -281,7 +436,13 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
             buffer = Buffer.from(base64Data, "base64");
           }
           if (buffer) {
+            doc.save();
+            const multGs = doc.ref({ Type: "ExtGState", BM: "Multiply" });
+            multGs.end();
+            doc.page.ext_gstates["GsLogoMult"] = multGs;
+            doc.addContent("/GsLogoMult gs");
             doc.image(buffer, 50, 25, { fit: [220, 85] });
+            doc.restore();
             logoBottomY = 118;
           }
         } catch (e) {

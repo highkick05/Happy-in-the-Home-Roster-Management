@@ -20786,7 +20786,13 @@ app.post(
         }
 
         if (buffer) {
+          doc.save();
+          const multGs = doc.ref({ Type: "ExtGState", BM: "Multiply" });
+          multGs.end();
+          doc.page.ext_gstates["GsLogoMult"] = multGs;
+          doc.addContent("/GsLogoMult gs");
           doc.image(buffer, 50, 25, { fit: [220, 85] });
+          doc.restore();
           logoBottomY = 118;
         }
       } catch (e) {
@@ -21173,7 +21179,13 @@ app.post(
           buffer = Buffer.from(base64Data, "base64");
         }
         if (buffer) {
+          doc.save();
+          const multGs = doc.ref({ Type: "ExtGState", BM: "Multiply" });
+          multGs.end();
+          doc.page.ext_gstates["GsLogoMult"] = multGs;
+          doc.addContent("/GsLogoMult gs");
           doc.image(buffer, 50, 25, { fit: [220, 85] });
+          doc.restore();
           logoBottomY = 118;
         }
       } catch (e) {

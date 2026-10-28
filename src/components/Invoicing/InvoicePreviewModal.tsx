@@ -315,17 +315,17 @@ export default function InvoicePreviewModal({ shiftId, invoiceId, onClose }: Pro
                 <img
                   src="/hith houses for folder.png"
                   alt=""
-                  className="absolute -top-6 -right-8 w-[480px] h-[340px] object-cover opacity-[0.26] [mask-image:radial-gradient(ellipse_at_center,black_25%,rgba(0,0,0,0.5)_58%,transparent_88%)] [-webkit-mask-image:radial-gradient(ellipse_at_center,black_25%,rgba(0,0,0,0.5)_58%,transparent_88%)]"
+                  className="absolute -top-6 inset-x-0 w-full h-[360px] object-cover opacity-[0.26] [mask-image:radial-gradient(ellipse_95%_75%_at_85%_25%,black_15%,rgba(0,0,0,0.6)_45%,rgba(0,0,0,0.2)_72%,transparent_96%)] [-webkit-mask-image:radial-gradient(ellipse_95%_75%_at_85%_25%,black_15%,rgba(0,0,0,0.6)_45%,rgba(0,0,0,0.2)_72%,transparent_96%)]"
                 />
                 <img
                   src="/hith houses for folder.png"
                   alt=""
-                  className="absolute top-[32%] -left-12 w-[440px] h-[320px] object-cover opacity-[0.22] -rotate-6 [mask-image:radial-gradient(ellipse_at_center,black_20%,rgba(0,0,0,0.45)_55%,transparent_86%)] [-webkit-mask-image:radial-gradient(ellipse_at_center,black_20%,rgba(0,0,0,0.45)_55%,transparent_86%)]"
+                  className="absolute top-[28%] inset-x-0 w-full h-[360px] object-cover opacity-[0.22] [mask-image:radial-gradient(ellipse_95%_70%_at_15%_50%,black_15%,rgba(0,0,0,0.55)_45%,rgba(0,0,0,0.18)_72%,transparent_96%)] [-webkit-mask-image:radial-gradient(ellipse_95%_70%_at_15%_50%,black_15%,rgba(0,0,0,0.55)_45%,rgba(0,0,0,0.18)_72%,transparent_96%)]"
                 />
                 <img
                   src="/hith houses for folder.png"
                   alt=""
-                  className="absolute -bottom-8 -right-6 w-[500px] h-[350px] object-cover opacity-[0.26] [mask-image:radial-gradient(ellipse_at_center,black_25%,rgba(0,0,0,0.5)_58%,transparent_88%)] [-webkit-mask-image:radial-gradient(ellipse_at_center,black_25%,rgba(0,0,0,0.5)_58%,transparent_88%)]"
+                  className="absolute -bottom-8 inset-x-0 w-full h-[360px] object-cover opacity-[0.26] [mask-image:radial-gradient(ellipse_95%_75%_at_85%_75%,black_15%,rgba(0,0,0,0.6)_45%,rgba(0,0,0,0.2)_72%,transparent_96%)] [-webkit-mask-image:radial-gradient(ellipse_95%_75%_at_85%_75%,black_15%,rgba(0,0,0,0.6)_45%,rgba(0,0,0,0.2)_72%,transparent_96%)]"
                 />
                 <svg className="absolute inset-0 w-full h-full" viewBox="0 0 612 792" preserveAspectRatio="none" fill="none">
                   {/* Top-Right Swooshes */}
@@ -348,7 +348,7 @@ export default function InvoicePreviewModal({ shiftId, invoiceId, onClose }: Pro
                 {/* Provider Details */}
                 <div className="flex flex-col max-w-sm">
                   {settingsMap.letterheadLogo ? (
-                    <img src={settingsMap.letterheadLogo} alt="Logo" className="h-36 sm:h-44 max-w-[340px] sm:max-w-[420px] w-auto object-contain" />
+                    <img src={settingsMap.letterheadLogo} alt="Logo" className="h-36 sm:h-44 max-w-[340px] sm:max-w-[420px] w-auto object-contain mix-blend-multiply" />
                   ) : (
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold text-base shadow-sm">
