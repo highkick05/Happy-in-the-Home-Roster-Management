@@ -1801,10 +1801,10 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                           <Edit className="w-4 h-4" />
                         </button>
                       )}
-                       {(i.shift_id || i.services_json || i.is_merged) && (
+                       {(i.shift_id || i.services_json || i.is_merged || i.respite_booking_id) && (
                          <button
                            title="Preview Invoice"
-                           onClick={() => { if (i.shift_id) { setPreviewShiftId(i.shift_id); } else { setPreviewInvoiceId(i.id); } }}
+                           onClick={() => { setPreviewShiftId(i.shift_id || null); setPreviewInvoiceId(i.id); }}
                            className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-md transition-colors"
                          >
                            <Eye className="w-4 h-4" />

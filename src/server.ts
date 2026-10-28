@@ -14880,6 +14880,8 @@ app.get("/api/health", (req, res) => {
         }
 
         if (!data) return res.status(404).json({ error: "Invoice data not found" });
+        data.invoiceId = invoiceRow.id;
+        data.invoiceStatus = invoiceRow.status || "GENERATED";
         res.json({ success: true, data });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -14893,9 +14895,17 @@ app.get("/api/health", (req, res) => {
     authenticateToken,
     (req: any, res: any) => {
       try {
-        const data = getInvoiceDataForShift(Number(req.params.id));
+        const shiftId = Number(req.params.id);
+        const data: any = getInvoiceDataForShift(shiftId);
         if (!data)
           return res.status(404).json({ error: "Invoice data not found" });
+        const invRow = db
+          .prepare("SELECT id, status FROM invoices WHERE shift_id = ? ORDER BY id DESC LIMIT 1")
+          .get(shiftId) as any;
+        if (invRow) {
+          data.invoiceId = invRow.id;
+          data.invoiceStatus = invRow.status || "GENERATED";
+        }
         res.json({ success: true, data });
       } catch (e: any) {
         logger.error(`API Error: ${e}`, { error: "Internal Server Error" });
@@ -20417,13 +20427,36 @@ app.post(
     const totalAmount =
       data.totalAmount !== undefined ? data.totalAmount : subtotal + gstAmount;
 
+    const renderPageFooter = () => {
+      const oldBottom = doc.page.margins.bottom;
+      doc.page.margins.bottom = 0;
+      const footerY = 746;
+      doc.strokeColor("#E5E7EB").lineWidth(0.5).moveTo(50, footerY).lineTo(580, footerY).stroke();
+      doc.font("Helvetica").fontSize(7.5).fillColor("#9CA3AF");
+      doc.text(
+        `${settingsMap.businessName || "Happy in the Home"} • Generated via Care Management System`,
+        50,
+        footerY + 6,
+        { width: 350, align: "left", lineBreak: false }
+      );
+      doc.text(
+        `Ref: ${invoiceNum || ""}`,
+        400,
+        footerY + 6,
+        { width: 180, align: "right", lineBreak: false }
+      );
+      doc.page.margins.bottom = oldBottom;
+    };
+
+    // Letterhead / Logo (Generous prominent display matching Quote PDF)
+    let logoBottomY = 40;
     if (settingsMap.letterheadLogo) {
       try {
         let buffer: Buffer | null = null;
 
         if (settingsMap.letterheadLogo.startsWith("/api/assets/")) {
           const fileWithQuery = settingsMap.letterheadLogo.split("/").pop();
-          const filename = fileWithQuery.split("?")[0]; // Strip the query params
+          const filename = fileWithQuery.split("?")[0];
           const persistentAssetPath = path.join(process.cwd(), "data", "uploads", "assets", filename);
           const uploadsAssetPath = path.join(process.cwd(), "uploads", "assets", filename);
           const oldAssetPath = path.join(process.cwd(), "assets", filename);
@@ -20443,182 +20476,142 @@ app.post(
         }
 
         if (buffer) {
-          doc.image(buffer, 50, 20, { fit: [200, 80] });
-          doc.y = 35;
-        } else {
-          doc.moveDown();
+          doc.image(buffer, 50, 25, { fit: [220, 85] });
+          logoBottomY = 118;
         }
       } catch (e) {
         console.error("Error drawing letterhead:", e);
-        doc.moveDown();
       }
     } else {
-      doc.moveDown();
-      if (settingsMap.businessName) doc.fontSize(14).text(settingsMap.businessName);
-      if (settingsMap.abn) doc.fontSize(10).text(`ABN: ${settingsMap.abn}`);
-      if (settingsMap.businessAddress) doc.text(settingsMap.businessAddress);
-      doc.moveDown();
+      doc.fillColor("#0D9488").roundedRect(50, 30, 32, 32, 6).fill();
+      doc.fillColor("#FFFFFF").font("Helvetica-Bold").fontSize(16).text("H", 50, 38, { width: 32, align: "center" });
+      doc.fillColor("#111827").font("Helvetica-Bold").fontSize(15).text(settingsMap.businessName || "HAPPY IN THE HOME", 92, 38);
+      logoBottomY = 75;
     }
 
-    doc.fillColor("black");
-    doc
-      .fontSize(20)
-      .font("Helvetica-Bold")
-      .text("TAX INVOICE", { align: "right" });
-    doc
-      .fontSize(10)
-      .font("Helvetica")
-      .text(`Invoice No: ${invoiceNum}`, { align: "right" });
-    let displayDate = String(invoiceDate || "").trim();
-    if (displayDate.match(/^\d{4}-\d{2}-\d{2}/)) {
-        const parts = displayDate.split("T")[0].split("-");
-        if (parts.length === 3) {
-            displayDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-        }
-    }
-    doc.text(`Date: ${displayDate}`, { align: "right" });
-    doc.moveDown();
-
-    const topY = 115;
-    doc
-      .fontSize(10)
-      .font("Helvetica-Bold")
-      .fillColor("black")
-      .text("FROM", 50, topY);
-    doc
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text(settingsMap.businessName || "", 50, topY + 15);
-    doc.fontSize(10).font("Helvetica");
-    let cy = topY + 30;
+    // Contact details under logo (left side)
+    let provY = logoBottomY + 4;
+    doc.fillColor("#374151").font("Helvetica-Bold").fontSize(8);
     if (settingsMap.abn) {
-      doc.text(`ABN: ${settingsMap.abn}`, 50, cy);
-      cy += 15;
+      doc.text(`ABN: ${settingsMap.abn}`, 50, provY);
+      provY += 11;
     }
+    doc.fillColor("#6B7280").font("Helvetica").fontSize(8);
     if (settingsMap.businessAddress) {
-      doc.text(settingsMap.businessAddress, 50, cy);
-      cy += 15;
+      doc.text(settingsMap.businessAddress, 50, provY, { width: 230 });
+      provY += doc.heightOfString(settingsMap.businessAddress, { width: 230 }) + 1;
     }
     if (settingsMap.contactEmail) {
-      doc.text(settingsMap.contactEmail, 50, cy);
+      doc.text(settingsMap.contactEmail, 50, provY);
+      provY += 11;
+    }
+    if (settingsMap.contactPhone) {
+      doc.text(`Tel: ${settingsMap.contactPhone}`, 50, provY);
+      provY += 11;
     }
 
-    const billToLabel = isHomeCare ? "PROVIDER" : "PLAN MANAGER";
-    let billToName = shift.plan_manager_name || `${shift.c_fn} ${shift.c_ln}`;
-    let billToEmail = shift.plan_manager_email || "";
-    let billToAddress = shift.plan_manager_address || "";
+    // Top Right: Invoice Meta
+    let displayDate = String(invoiceDate || "").trim();
+    if (displayDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+      const parts = displayDate.split("T")[0].split("-");
+      if (parts.length === 3) {
+        displayDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+    }
 
-    doc
-      .fontSize(10)
-      .font("Helvetica-Bold")
-      .fillColor("black")
-      .text("BILL TO", 300, topY);
-    doc.fontSize(12).text(`${shift.c_fn} ${shift.c_ln}`, 300, topY + 15);
+    doc.fillColor("#18181B").font("Helvetica").fontSize(22).text("TAX INVOICE", 340, 30, { width: 240, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(10).fillColor("#111827").text(`${invoiceNum || ""}`, 340, 58, { width: 240, align: "right" });
+    doc.font("Helvetica").fontSize(8.5).fillColor("#6B7280").text(`Date Issued: ${displayDate}`, 340, 74, { width: 240, align: "right" });
+
+    // Divider below header
+    let afterHeaderY = Math.max(provY, 100) + 8;
+    doc.strokeColor("#E5E7EB").lineWidth(1).moveTo(50, afterHeaderY).lineTo(580, afterHeaderY).stroke();
+    afterHeaderY += 10;
+
+    // Two-Column Service Provider & Bill To details
+    const twoColY = afterHeaderY + 6;
+    doc.strokeColor("#0D9488").lineWidth(2);
+    doc.moveTo(50, twoColY).lineTo(285, twoColY).stroke();
+    doc.moveTo(330, twoColY).lineTo(580, twoColY).stroke();
+
+    // Left Column: SERVICE PROVIDER
+    let colLeftY = twoColY + 6;
+    doc.fillColor("#0F766E").font("Helvetica-Bold").fontSize(7.5).text("SERVICE PROVIDER", 50, colLeftY);
+    colLeftY += 11;
+    doc.fillColor("#111827").font("Helvetica-Bold").fontSize(10.5).text(settingsMap.businessName || "Happy in the Home", 50, colLeftY);
+    colLeftY += 14;
+    doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text("NDIS & Home Care Registered Provider", 50, colLeftY);
+    colLeftY += 11;
+    if (settingsMap.abn) {
+      doc.fillColor("#374151").font("Helvetica-Bold").fontSize(8).text(`ABN: ${settingsMap.abn}`, 50, colLeftY);
+      colLeftY += 11;
+    }
+    if (settingsMap.businessAddress) {
+      doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(settingsMap.businessAddress, 50, colLeftY, { width: 235 });
+      colLeftY += doc.heightOfString(settingsMap.businessAddress, { width: 235 }) + 2;
+    }
+    if (settingsMap.contactEmail) {
+      doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(settingsMap.contactEmail, 50, colLeftY);
+      colLeftY += 11;
+    }
+
+    // Right Column: BILL TO
+    let colRightY = twoColY + 6;
+    doc.fillColor("#0F766E").font("Helvetica-Bold").fontSize(7.5).text("BILL TO", 330, colRightY);
+    colRightY += 11;
+    const clientFullName = `${shift.c_fn || ""} ${shift.c_ln || ""}`.trim() || "Client";
+    doc.fillColor("#111827").font("Helvetica-Bold").fontSize(10.5).text(clientFullName, 330, colRightY);
+    colRightY += 14;
+
     const ndisLabel = isHomeCare ? "Home Care ID:" : "NDIS No:";
     const ndisVal = shift.my_aged_care_id || shift.ndis_number;
-    doc
-      .fontSize(10)
-      .font("Helvetica")
-      .text(`${ndisLabel} ${ndisVal || "N/A"}`, 300, topY + 30);
+    doc.fillColor(isHomeCare ? "#6B21A8" : "#115E59").font("Helvetica-Bold").fontSize(8).text(`${ndisLabel} ${ndisVal || "N/A"}`, 330, colRightY);
+    colRightY += 14;
 
-    doc.moveDown(1);
-    const pmY = doc.y;
-    doc
-      .fontSize(8)
-      .fillColor("gray")
-      .text(billToLabel, 300, pmY)
-      .fillColor("black");
-    doc
-      .fontSize(10)
-      .font("Helvetica")
-      .text(billToName, 300, pmY + 10);
-    if (billToEmail) doc.text(billToEmail, 300, pmY + 22);
-    if (billToAddress) doc.text(billToAddress, 300, pmY + 34);
+    const billToLabel = isHomeCare ? "PROVIDER" : "PLAN MANAGER";
+    const billToName = shift.plan_manager_name || clientFullName;
+    const billToEmail = shift.plan_manager_email || "";
+    const billToAddress = shift.plan_manager_address || "";
 
-    doc.moveDown(4);
+    doc.strokeColor("#E5E7EB").lineWidth(0.5).moveTo(330, colRightY).lineTo(580, colRightY).stroke();
+    colRightY += 6;
+    doc.fillColor("#9CA3AF").font("Helvetica-Bold").fontSize(6.5).text(billToLabel, 330, colRightY);
+    colRightY += 9;
+    doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(billToName, 330, colRightY);
+    colRightY += 11;
+    if (billToEmail) {
+      doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(billToEmail, 330, colRightY);
+      colRightY += 11;
+    }
+    if (billToAddress) {
+      doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(billToAddress, 330, colRightY, { width: 245 });
+      colRightY += doc.heightOfString(billToAddress, { width: 245 }) + 2;
+    }
 
-    let currentY = Math.max(doc.y + 10, 295);
+    let currentY = Math.max(colLeftY, colRightY) + 14;
 
-    // Table Header
-    doc.font("Helvetica-Bold").fontSize(10);
-    doc.text("DATE", 50, currentY, { width: 55, align: "left" });
-    doc.text("DESCRIPTION", 108, currentY, { width: 142, align: "left" });
-    doc.text("TIME", 255, currentY, { width: 75, align: "left" });
-    doc.text("QTY", 335, currentY, { width: 30, align: "right" });
-    doc.text("UNIT", 370, currentY, { width: 40, align: "left" });
-    doc.text("RATE", 415, currentY, { width: 50, align: "right" });
-    doc.text("GST", 470, currentY, { width: 48, align: "right" });
-    doc.text("AMOUNT", 522, currentY, { width: 58, align: "right" });
+    // Table Header Helper
+    const renderTableHeader = (y: number) => {
+      doc.font("Helvetica-Bold").fontSize(8).fillColor("#18181B");
+      doc.text("DATE", 50, y, { width: 62, align: "left" });
+      doc.text("DESCRIPTION", 116, y, { width: 170, align: "left" });
+      doc.text("TIME", 290, y, { width: 72, align: "center" });
+      doc.text("QTY", 365, y, { width: 32, align: "right" });
+      doc.text("UNIT", 403, y, { width: 32, align: "left" });
+      doc.text("RATE", 438, y, { width: 46, align: "right" });
+      doc.text("GST", 486, y, { width: 42, align: "right" });
+      doc.text("AMOUNT", 530, y, { width: 50, align: "right" });
 
-    doc
-      .moveTo(50, currentY + 15)
-      .lineTo(580, currentY + 15)
-      .stroke();
+      doc.strokeColor("#18181B").lineWidth(1.5).moveTo(50, y + 13).lineTo(580, y + 13).stroke();
+      return y + 19;
+    };
 
-    currentY += 20;
-    doc.font("Helvetica").fontSize(10);
+    currentY = renderTableHeader(currentY);
 
     lineItems.forEach((item: any) => {
       let safeServiceName = item.serviceName || "Unknown Service";
-      let textHeight =
-        doc.heightOfString(safeServiceName, { width: 142 }) || 15;
-      let blockHeight = textHeight + 20 + (item.metadata ? 12 : 0);
-
-      // Automatically add page if the required height for this line item exceeds the margin
-      if (currentY + blockHeight > 700) {
-        doc.addPage();
-        // Print Header again for the new page
-        doc.font("Helvetica-Bold").fontSize(10);
-        doc.text("DATE", 50, 50, { width: 55, align: "left" });
-        doc.text("DESCRIPTION", 108, 50, { width: 142, align: "left" });
-        doc.text("TIME", 255, 50, { width: 75, align: "left" });
-        doc.text("QTY", 335, 50, { width: 30, align: "right" });
-        doc.text("UNIT", 370, 50, { width: 40, align: "left" });
-        doc.text("RATE", 415, 50, { width: 50, align: "right" });
-        doc.text("GST", 470, 50, { width: 48, align: "right" });
-        doc.text("AMOUNT", 522, 50, { width: 58, align: "right" });
-        doc.moveTo(50, 65).lineTo(580, 65).stroke();
-        currentY = 75;
-      }
-
-      doc.font("Helvetica").fontSize(10);
-      doc.text(item.date, 50, currentY, { width: 55, align: "left" });
-
-      doc
-        .fontSize(9)
-        .text(item.time, 255, currentY, { width: 75, align: "left" });
-      doc.fontSize(10);
-
-      // Calculate dynamic height for description block
-      doc.text(safeServiceName, 108, currentY, { width: 142, align: "left" });
-
-      let descY = currentY + textHeight + 2;
-      const codePrefix =
-        shift.funding_type === "HCP" ||
-        shift.funding_type === "Home Care" ||
-        shift.funding_type === "HOME_CARE"
-          ? "Serv. ID:"
-          : "Code:";
-      doc.fontSize(9).text(`${codePrefix} ${item.code || "N/A"}`, 108, descY, {
-        width: 142,
-        align: "left",
-      });
-
-      if (item.metadata) {
-        descY += 12;
-        doc.text(item.metadata, 108, descY, { width: 142, align: "left" });
-      }
-
-      doc.fontSize(10);
-      doc.text(item.qty.toString(), 335, currentY, {
-        width: 30,
-        align: "right",
-      });
-      doc.text(item.unit, 370, currentY, { width: 40, align: "left" });
-      doc.text(`$${Number(item.rate).toFixed(2)}`, 415, currentY, {
-        width: 50,
-        align: "right",
-      });
+      doc.font("Helvetica-Bold").fontSize(8.5);
+      let textHeight = doc.heightOfString(safeServiceName, { width: 170 }) || 12;
 
       const lineGst = item.gst !== undefined
         ? Number(item.gst)
@@ -20626,29 +20619,96 @@ app.post(
             ? Math.round((Number(item.amount) || 0) * 0.1 * 100) / 100
             : (isHomeCare ? Math.round((Number(item.amount) || 0) * 0.1 * 100) / 100 : 0));
 
-      doc.text(`$${lineGst.toFixed(2)}`, 470, currentY, {
-        width: 48,
-        align: "right",
-      });
-      doc.text(`$${Number(item.amount).toFixed(2)}`, 522, currentY, {
-        width: 58,
-        align: "right",
-      });
+      const badgeRowHeight = 14;
+      let metadataHeight = 0;
+      if (item.metadata) {
+        doc.font("Helvetica-Oblique").fontSize(7.5);
+        metadataHeight = (doc.heightOfString(item.metadata, { width: 170 }) || 10) + 3;
+      }
 
-      // Dynamic Row Height: increment currentY by that height plus a 5pt buffer
-      doc
-        .moveTo(50, descY + 15)
-        .lineTo(580, descY + 15)
-        .stroke();
-      currentY = descY + 20;
+      let rowContentHeight = Math.max(textHeight + badgeRowHeight + metadataHeight, 16);
+      let blockHeight = rowContentHeight + 10;
+
+      if (currentY + blockHeight > 660) {
+        renderPageFooter();
+        doc.addPage();
+        currentY = renderTableHeader(50);
+      }
+
+      // Render Date
+      doc.fillColor("#111827").font("Helvetica").fontSize(8.5).text(item.date || "—", 50, currentY, { width: 62, align: "left" });
+
+      // Render Description
+      doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(safeServiceName, 116, currentY, { width: 170, align: "left" });
+
+      let badgeY = currentY + textHeight + 2;
+      let badgeX = 116;
+
+      if (item.code && item.code !== "N/A") {
+        const codeText = String(item.code);
+        doc.font("Helvetica-Bold").fontSize(7);
+        const codeW = doc.widthOfString(codeText) + 10;
+        doc.roundedRect(badgeX, badgeY, codeW, 11, 2).fillAndStroke("#F0FDFA", "#99F6E4");
+        doc.fillColor("#0F766E").font("Helvetica-Bold").fontSize(7).text(codeText, badgeX + 5, badgeY + 2, { lineBreak: false });
+        badgeX += codeW + 4;
+      }
+
+      const typeText = isHomeCare ? "Home Care" : "NDIS";
+      doc.font("Helvetica-Bold").fontSize(7);
+      const typeW = doc.widthOfString(typeText) + 8;
+      doc.roundedRect(badgeX, badgeY, typeW, 11, 2).fillAndStroke("#F3F4F6", "#E5E7EB");
+      doc.fillColor("#4B5563").font("Helvetica-Bold").fontSize(7).text(typeText, badgeX + 4, badgeY + 2, { lineBreak: false });
+      badgeX += typeW + 4;
+
+      if (lineGst > 0) {
+        const gstBadgeText = "10% GST";
+        doc.font("Helvetica-Bold").fontSize(7);
+        const gstW = doc.widthOfString(gstBadgeText) + 8;
+        doc.roundedRect(badgeX, badgeY, gstW, 11, 2).fillAndStroke("#FFFBEB", "#FDE68A");
+        doc.fillColor("#B45309").font("Helvetica-Bold").fontSize(7).text(gstBadgeText, badgeX + 4, badgeY + 2, { lineBreak: false });
+      }
+
+      if (item.metadata) {
+        const metaY = badgeY + 14;
+        doc.fillColor("#6B7280").font("Helvetica-Oblique").fontSize(7.5).text(item.metadata, 116, metaY, { width: 170, align: "left" });
+      }
+
+      // Render Time
+      if (item.time) {
+        doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(item.time, 290, currentY, { width: 72, align: "center" });
+      } else {
+        doc.fillColor("#9CA3AF").font("Helvetica").fontSize(8).text("—", 290, currentY, { width: 72, align: "center" });
+      }
+
+      // Render Qty
+      doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(String(item.qty ?? ""), 365, currentY, { width: 32, align: "right" });
+
+      // Render Unit
+      doc.fillColor("#6B7280").font("Helvetica").fontSize(8).text(item.unit || "Hr", 403, currentY, { width: 32, align: "left" });
+
+      // Render Rate
+      doc.fillColor("#374151").font("Helvetica").fontSize(8.5).text(`$${Number(item.rate || 0).toFixed(2)}`, 438, currentY, { width: 46, align: "right" });
+
+      // Render GST
+      doc.fillColor("#374151").font("Helvetica").fontSize(8.5).text(`$${lineGst.toFixed(2)}`, 486, currentY, { width: 42, align: "right" });
+
+      // Render Amount
+      doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(`$${Number(item.amount || 0).toFixed(2)}`, 530, currentY, { width: 50, align: "right" });
+
+      let rowBottomY = currentY + rowContentHeight + 5;
+      doc.strokeColor("#E5E7EB").lineWidth(0.5).moveTo(50, rowBottomY).lineTo(580, rowBottomY).stroke();
+      currentY = rowBottomY + 6;
     });
 
-    let totalsY = currentY + 30;
-
-    if (totalsY + 100 > 700) {
+    let totalsY = currentY + 16;
+    if (totalsY + 125 > 730) {
+      renderPageFooter();
       doc.addPage();
-      totalsY = 50;
+      totalsY = 55;
     }
+
+    // Divider line above totals section
+    doc.strokeColor("#18181B").lineWidth(1.5).moveTo(50, totalsY - 6).lineTo(580, totalsY - 6).stroke();
 
     let bankName = "National Australia Bank";
     let bankAccName = "Happy in the Home";
@@ -20660,7 +20720,7 @@ app.post(
         bankAccName = settingsMap.bankAccountName;
       if (settingsMap.bankBsb) bankBsb = settingsMap.bankBsb;
       if (settingsMap.bankAcc) bankAcc = settingsMap.bankAcc;
-    } catch (e) {
+    } catch (e: any) {
       if (
         e.message &&
         !e.message.includes("duplicate column") &&
@@ -20669,66 +20729,62 @@ app.post(
         logger.warn("Migration/Query warning:", e.message);
     }
 
-    doc
-      .font("Helvetica-Bold")
-      .fontSize(10)
-      .text("PAYMENT DETAILS", 50, totalsY);
-    doc.font("Helvetica").text(`Bank: ${bankName}`, 50, totalsY + 15);
-    doc.text(`Account: ${bankAccName}`, 50, totalsY + 27);
-    doc.text(`BSB: ${bankBsb}`, 50, totalsY + 39);
-    doc.text(`Acc No: ${bankAcc}`, 50, totalsY + 51);
-    doc
-      .font("Helvetica-Bold")
-      .text(`Reference: ${invoiceNum}`, 50, totalsY + 67);
+    // Left Card: Payment Details
+    doc.roundedRect(50, totalsY, 265, 95, 6).fillAndStroke("#F9FAFB", "#E5E7EB");
+    doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8).text("PAYMENT DETAILS", 62, totalsY + 10);
+    doc.strokeColor("#E5E7EB").lineWidth(0.5).moveTo(62, totalsY + 21).lineTo(303, totalsY + 21).stroke();
 
-    doc.font("Helvetica");
-    doc.text("Subtotal:", 380, totalsY + 15, { width: 100, align: "right" });
-    doc.text(`$${subtotal.toFixed(2)}`, 480, totalsY + 15, {
-      width: 70,
-      align: "right",
-    });
+    doc.fontSize(8);
+    doc.fillColor("#6B7280").font("Helvetica").text("Bank:", 62, totalsY + 26);
+    doc.fillColor("#111827").font("Helvetica-Bold").text(bankName, 115, totalsY + 26, { width: 188 });
 
-    if (gstAmount > 0) {
-      doc.text("GST (10%):", 380, totalsY + 30, { width: 100, align: "right" });
-      doc.text(`$${gstAmount.toFixed(2)}`, 480, totalsY + 30, {
-        width: 70,
-        align: "right",
-      });
-    } else {
-      doc.text("GST (GST-Free):", 380, totalsY + 30, {
-        width: 100,
-        align: "right",
-      });
-      doc.text("$0.00", 480, totalsY + 30, { width: 70, align: "right" });
+    doc.fillColor("#6B7280").font("Helvetica").text("Account:", 62, totalsY + 38);
+    doc.fillColor("#111827").font("Helvetica-Bold").text(bankAccName, 115, totalsY + 38, { width: 188 });
+
+    doc.fillColor("#6B7280").font("Helvetica").text("BSB:", 62, totalsY + 50);
+    doc.fillColor("#111827").font("Helvetica-Bold").text(bankBsb, 115, totalsY + 50);
+
+    doc.fillColor("#6B7280").font("Helvetica").text("Acc No:", 62, totalsY + 62);
+    doc.fillColor("#111827").font("Helvetica-Bold").text(bankAcc, 115, totalsY + 62);
+
+    doc.strokeColor("#E5E7EB").lineWidth(0.5).moveTo(62, totalsY + 74).lineTo(303, totalsY + 74).stroke();
+    doc.fillColor("#111827").font("Helvetica-Bold").text("Reference:", 62, totalsY + 79);
+    doc.fillColor("#0F766E").font("Helvetica-Bold").text(`${invoiceNum || ""}`, 115, totalsY + 79, { width: 188 });
+
+    // Right Card: Financial Summary (Subtotal, GST, TOTAL AMOUNT)
+    doc.roundedRect(340, totalsY, 240, 95, 6).fillAndStroke("#F9FAFB", "#E5E7EB");
+
+    doc.fillColor("#4B5563").font("Helvetica").fontSize(8.5).text("Subtotal:", 355, totalsY + 14);
+    doc.fillColor("#111827").font("Helvetica-Bold").text(`$${subtotal.toFixed(2)}`, 455, totalsY + 14, { width: 110, align: "right" });
+
+    const gstLabel = gstAmount > 0 ? "GST (10%):" : "GST (GST-Free):";
+    doc.fillColor("#4B5563").font("Helvetica").text(gstLabel, 355, totalsY + 30);
+    doc.fillColor("#111827").font("Helvetica-Bold").text(`$${gstAmount.toFixed(2)}`, 455, totalsY + 30, { width: 110, align: "right" });
+
+    doc.strokeColor("#D1D5DB").lineWidth(0.75).moveTo(355, totalsY + 48).lineTo(565, totalsY + 48).stroke();
+
+    doc.fillColor("#111827").font("Helvetica-Bold").fontSize(9.5).text("TOTAL AMOUNT:", 355, totalsY + 58);
+    doc.fillColor("#0F766E").font("Helvetica-Bold").fontSize(13.5).text(`$${totalAmount.toFixed(2)}`, 445, totalsY + 56, { width: 120, align: "right" });
+    doc.fillColor("#6B7280").font("Helvetica").fontSize(7).text("AUD • Inclusive of applicable GST", 355, totalsY + 76, { width: 210, align: "right" });
+
+    // Payment terms line below cards
+    let paymentDueDays = settingsMap.paymentDueDays || 14;
+    const dueNoteY = totalsY + 108;
+    if (dueNoteY < 735) {
+      doc
+        .font("Helvetica")
+        .fontSize(8)
+        .fillColor("#6B7280")
+        .text(
+          `Thank you for your business. Payment is due within ${paymentDueDays} days.`,
+          50,
+          dueNoteY,
+          { width: 530, align: "center", lineBreak: false },
+        );
     }
 
-    doc
-      .moveTo(380, totalsY + 45)
-      .lineTo(550, totalsY + 45)
-      .stroke();
-
-    doc.font("Helvetica-Bold").fontSize(12);
-    doc.text("TOTAL AMOUNT:", 350, totalsY + 55, {
-      width: 130,
-      align: "right",
-    });
-    doc.text(`$${totalAmount.toFixed(2)}`, 480, totalsY + 55, {
-      width: 70,
-      align: "right",
-    });
-
-    doc.moveDown(4);
-    let paymentDueDays = settingsMap.paymentDueDays || 14;
-    doc
-      .font("Helvetica")
-      .fontSize(10)
-      .text(
-        `THANK YOU FOR YOUR BUSINESS. PAYMENT IS DUE WITHIN ${paymentDueDays} DAYS.`,
-        50,
-        doc.y,
-        { align: "center" },
-      );
-  }
+    renderPageFooter();
+  };
 
   const buildRemittancePdf = (doc: any, data: any) => {
     const { settingsMap, invoiceNum, invoiceDate, lineItems, subtotal, totalAmount, gstAmount, contractor, client, invoiceReference, transactionReference } = data;
