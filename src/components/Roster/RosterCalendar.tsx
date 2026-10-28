@@ -281,6 +281,7 @@ export default function RosterCalendar() {
           abtKm: d.abt_km,
           abtCost: d.abt_cost,
           transportRouteLog: d.transport_route_log,
+          travelBreakdown: d.travel_breakdown,
           actualStartTime: d.actual_start_time,
           actualFinishTime: d.actual_finish_time,
           progressNote: d.progress_note,

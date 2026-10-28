@@ -29,6 +29,7 @@ export interface ShiftEvent {
   notes?: string;
   servicesData?: any[];
   providerTravelKm?: number;
+  providerTravelMinutes?: number;
   providerTravelCost?: number;
   homeCareTravelKm?: number;
   homeCareTravelTotal?: number;

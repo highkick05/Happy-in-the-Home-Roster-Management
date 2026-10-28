@@ -16649,6 +16649,7 @@ app.get("/api/health", (req, res) => {
         actual_finish_time,
         notes,
         abtCoordinates,
+        preserveAbt,
         odometer_end_reading,
         odometer_end_photo,
         is_incident,
@@ -16666,17 +16667,24 @@ app.get("/api/health", (req, res) => {
         const pTravel = await calculateProviderTravel(shift);
         const hcTravel = await calculateHomeCareTravel(shift);
 
-        // 2. Calculate ABT if NDIS and coordinates exist
+        // 2. Calculate ABT if NDIS/HCP and coordinates exist
         let abt_km = 0;
         let abt_cost = 0;
         let transport_route_log = null;
         let combinedRouteLog: any = null;
+        let existingRouteLog: any = null;
+        if (shift.transport_route_log) {
+          try {
+            existingRouteLog = JSON.parse(shift.transport_route_log);
+          } catch (e) {}
+        }
 
         if (pTravel.routeLogs && pTravel.routeLogs.length > 0) {
           combinedRouteLog = combinedRouteLog || {};
           combinedRouteLog.providerTravel = {
             calculatedAt: new Date().toISOString(),
             distance: pTravel.distance,
+            minutes: pTravel.minutes,
             cost: pTravel.cost,
             legs: pTravel.routeLogs,
           };
@@ -16687,12 +16695,20 @@ app.get("/api/health", (req, res) => {
           combinedRouteLog.homeCareTravel = {
             calculatedAt: new Date().toISOString(),
             distance: hcTravel.distance,
+            minutes: (hcTravel as any).minutes ?? existingRouteLog?.homeCareTravel?.minutes ?? shift.provider_travel_minutes ?? 0,
             cost: hcTravel.cost,
             legs: hcTravel.routeLogs,
           };
         }
 
-        if (Array.isArray(abtCoordinates) && abtCoordinates.length > 0) {
+        if (preserveAbt && shift.status === "COMPLETED") {
+          abt_km = Number(shift.abt_km) || 0;
+          abt_cost = Number(shift.abt_cost) || 0;
+          if (existingRouteLog?.abt) {
+            combinedRouteLog = combinedRouteLog || {};
+            combinedRouteLog.abt = existingRouteLog.abt;
+          }
+        } else if (Array.isArray(abtCoordinates) && abtCoordinates.length > 0) {
           const abtTravel = await calculateAbtTravel(shift, abtCoordinates);
           abt_km = abtTravel.distance;
           abt_cost = abtTravel.cost;

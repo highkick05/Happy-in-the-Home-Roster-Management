@@ -95,13 +95,14 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
             const currentClientInfo = db.prepare('SELECT address, first_name, last_name FROM clients WHERE id = ?').get(currentShift.client_id) as any;
             const prevName = prevClientInfo ? `${prevClientInfo.first_name} ${prevClientInfo.last_name}`.trim() : 'Unknown';
             const currName = currentClientInfo ? `${currentClientInfo.first_name} ${currentClientInfo.last_name}`.trim() : 'Unknown';
-            routeLogs.push({ description: `${prevName} (${prevClientInfo?.address}) to ${currName} (${currentClientInfo?.address})`, distance: totalDistance, waypoints: [prevCoords, currentShiftCoords], addressStart: prevClientInfo?.address, addressEnd: currentClientInfo?.address, homeCareTravel: true });
+            routeLogs.push({ description: `${prevName} (${prevClientInfo?.address}) to ${currName} (${currentClientInfo?.address})`, distance: totalDistance, durationMins: totalTravelMinutes, waypoints: [prevCoords, currentShiftCoords], addressStart: prevClientInfo?.address, addressEnd: currentClientInfo?.address, homeCareTravel: true });
          } else {
-            routeLogs.push({ description: 'No billable provider travel for this shift (Private Commute)', distance: 0, waypoints: [], homeCareTravel: true });
+            routeLogs.push({ description: 'No billable provider travel for this shift (Private Commute)', distance: 0, durationMins: 0, waypoints: [], homeCareTravel: true });
          }
          currentLogObj.homeCareTravel = {
              calculatedAt: new Date().toISOString(),
              distance: totalDistance,
+             minutes: parseFloat(totalTravelMinutes.toFixed(2)),
              cost: totalDistance,
              legs: routeLogs
          };

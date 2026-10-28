@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera, RotateCcw, CheckSquare, Car } from 'lucide-react';
+import { X, Play, StopCircle, MapPin, Plus, Trash2, Info, Camera, RotateCcw, CheckSquare, Car, ArrowDown, Edit } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ShiftEvent } from './types';
 
@@ -58,6 +58,8 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
   const [didTransport, setDidTransport] = useState(false);
   const [waypoints, setWaypoints] = useState<{name: string, placeId?: string, coords?: number[] | string}[]>([]);
   const [returnedHome, setReturnedHome] = useState(false);
+  const [isEditingTransport, setIsEditingTransport] = useState(false);
+  const [hasModifiedTransport, setHasModifiedTransport] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -155,18 +157,63 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
 
       if (shift.status === 'COMPLETED') {
          setCompleteMode(true);
+         setIsEditingTransport(false);
       } else {
          setCompleteMode(false);
+         setIsEditingTransport(true);
       }
+      setHasModifiedTransport(false);
       
       setShowCancelPrompt(false);
       setCancelReason('');
       setClientGaveNotice(true);
-      setDidTransport(false);
-      setReturnedHome(false);
-      setWaypoints([]);
       setOdometerReading('');
       setOdometerPhoto('');
+
+      // Pre-populate saved ABT destinations if shift is already COMPLETED
+      let restoredWaypoints: {name: string, placeId?: string, coords?: number[] | string}[] = [];
+      let restoredReturnedHome = false;
+      let restoredDidTransport = false;
+
+      if (shift.status === 'COMPLETED' && shift.transportRouteLog) {
+        try {
+          const parsedLog = JSON.parse(shift.transportRouteLog);
+          const abt = parsedLog?.abt;
+          if (abt && (Number(shift.abtKm) > 0 || Number(abt.distance) > 0)) {
+            const legs: any[] = Array.isArray(abt.legs) ? abt.legs : [];
+            const rawWaypoints: any[] = Array.isArray(abt.waypoints) ? abt.waypoints : [];
+            if (legs.length > 0) {
+              const targetStops = legs.map((l: any) => (l.description || '').split(' → ')[1]?.trim()).filter(Boolean);
+              const lastStop = targetStops[targetStops.length - 1] || '';
+              if (lastStop.startsWith('Client Home')) {
+                restoredReturnedHome = true;
+              }
+              const communityStops = restoredReturnedHome ? targetStops.slice(0, -1) : targetStops;
+              restoredWaypoints = communityStops.map((stopStr: string, idx: number) => {
+                const withoutCoords = stopStr.replace(/\s*\[[\d.,\s-]+\]\s*$/, '').trim();
+                let cleanName = withoutCoords;
+                if (withoutCoords.startsWith('Community (') && withoutCoords.endsWith(')')) {
+                  cleanName = withoutCoords.slice('Community ('.length, -1).trim();
+                }
+                const savedWp = rawWaypoints[idx + 1];
+                if (savedWp && typeof savedWp === 'object' && !Array.isArray(savedWp) && savedWp.placeId) {
+                  return { name: cleanName, placeId: savedWp.placeId };
+                } else if (Array.isArray(savedWp)) {
+                  return { name: cleanName, coords: savedWp };
+                }
+                return { name: cleanName };
+              });
+              if (restoredWaypoints.length > 0) {
+                restoredDidTransport = true;
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      setDidTransport(restoredDidTransport);
+      setReturnedHome(restoredReturnedHome);
+      setWaypoints(restoredWaypoints);
       
       const storageKey = `shift_progress_${shift.id}`;
       const saved = localStorage.getItem(storageKey);
@@ -323,10 +370,12 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
       e.stopPropagation();
     }
     const resolvedWaypoints = didTransport 
-      ? ['CLIENT_HOME', ...waypoints.map(wp => ({ placeId: wp.placeId, address: wp.name })), ...(returnedHome ? ['CLIENT_HOME'] : [])] 
+      ? ['CLIENT_HOME', ...waypoints.map(wp => ({ placeId: wp.placeId, coords: wp.coords, address: wp.name })), ...(returnedHome ? ['CLIENT_HOME'] : [])] 
       : null;
 
-    if (didTransport && waypoints.length === 0) {
+    const shouldPreserveAbt = shift.status === 'COMPLETED' && !isEditingTransport && !hasModifiedTransport;
+
+    if (!shouldPreserveAbt && didTransport && waypoints.length === 0) {
        alert("Please add at least 1 destination if you transported the client.");
        return;
     }
@@ -342,6 +391,7 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
       actual_finish_time: actualFinish.toISOString(),
       notes: notes,
       abtCoordinates: resolvedWaypoints,
+      preserveAbt: shouldPreserveAbt,
       odometer_end_reading: odometerReading ? Math.round(Number(odometerReading)).toString() : '',
       odometer_end_photo: odometerPhoto,
       is_incident: isIncident
@@ -413,11 +463,204 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
     const text = suggestion.placePrediction.text.text;
     const placeId = suggestion.placePrediction.placeId;
     setWaypoints([...waypoints, { name: text, placeId }]);
+    setHasModifiedTransport(true);
     setSearchQuery('');
     setSearchResults([]);
   };
 
+  const formatLocationString = (str: string) => {
+    if (!str) return null;
+    const parsed = str.split(/(\[[\d.,\s-]+\])/);
+    
+    return (
+      <span className="whitespace-pre-wrap flex-1 text-sm leading-relaxed">
+        {parsed.map((part, idx) => {
+          if (part.startsWith('[') && part.endsWith(']')) {
+            return (
+              <span key={idx} className="text-[11px] text-zinc-500 ml-1 font-mono opacity-50 block sm:inline mt-1">
+                {part}
+              </span>
+            );
+          }
+          if (part.includes('(') && part.includes(')')) {
+            const openIdx = part.indexOf('(');
+            const closeIdx = part.lastIndexOf(')');
+            if (openIdx !== -1 && closeIdx !== -1 && openIdx < closeIdx) {
+              const prefix = part.slice(0, openIdx).trim();
+              const address = part.slice(openIdx + 1, closeIdx);
+              const suffix = part.slice(closeIdx + 1);
+              
+              return (
+                <span key={idx} className="flex flex-col">
+                  {prefix && <span className="font-semibold uppercase text-white text-sm md:text-base tracking-tight">{prefix}</span>}
+                  <span className="text-zinc-400 text-xs mt-0.5 opacity-80">{address}{suffix}</span>
+                </span>
+              );
+            }
+          }
+          return <span key={idx} className="text-zinc-300">{part}</span>;
+        })}
+      </span>
+    );
+  };
+
+  const renderFormattedDescription = (desc: string, distance?: number | null, calculatedAt?: string, durationMins?: number | null) => {
+    if (!desc) return null;
+
+    if (desc.includes(' → ')) {
+      const parts = desc.split('\n');
+      const title = parts[0]?.trim();
+      const locations = parts[parts.length - 1]?.split(' → ') || [];
+      
+      return (
+        <div className="flex flex-col mt-1">
+          {title && <span className="text-xs font-bold text-brand-green/80 mb-4 uppercase tracking-wider">{title}</span>}
+          <div className="flex flex-col relative before:absolute before:inset-y-[12px] before:left-[11px] before:w-[2px] before:bg-zinc-800/80">
+            {locations.map((loc, i) => {
+              const isStart = i === 0;
+              const isEnd = i === locations.length - 1;
+              const label = isStart ? 'START' : isEnd ? 'END' : 'WAYPOINT';
+
+              return (
+                <div key={i} className="flex gap-4 items-start relative z-10 mb-5 last:mb-0">
+                  <div className="flex flex-col items-center">
+                    <div className="w-[24px] h-[24px] rounded-full bg-[#121214] border-2 border-brand-green/50 flex items-center justify-center mt-0.5 shrink-0 z-10">
+                      <div className="w-2 h-2 rounded-full bg-brand-green" />
+                    </div>
+                    {!isEnd && (
+                      <div className="text-zinc-600 mt-2 bg-[#121214]/50 z-10 rounded-full flex items-center justify-center w-5 h-5">
+                        <ArrowDown className="w-3.5 h-3.5 text-zinc-500" strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col flex-1 min-w-0 pt-0.5">
+                    <span className="text-[10px] uppercase text-brand-green/70 font-bold tracking-wider leading-none mb-1">{label}</span>
+                    {formatLocationString(loc)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {distance != null && (
+            <div className="flex justify-between items-center mt-4 pt-3 border-t border-white/[0.08]/60 pl-8">
+              <div className="flex gap-2.5 flex-wrap">
+                <span className="text-xs sm:text-sm font-black text-brand-green bg-brand-green/10 px-3 py-1.5 rounded-lg border border-brand-green/30 shadow-sm">
+                  {distance.toFixed(2)} km
+                </span>
+                {durationMins != null && durationMins > 0 && (
+                   <span className="text-xs sm:text-sm font-black text-zinc-300 bg-zinc-800/50 px-3 py-1.5 rounded-lg border border-white/10 shadow-sm">
+                     {durationMins.toFixed(0)} mins
+                   </span>
+                )}
+              </div>
+              {calculatedAt && (
+                <span className="text-[10px] text-zinc-600 font-medium">Calculated: {new Date(calculatedAt).toLocaleString()}</span>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    if (desc.includes(' to ')) {
+      const [from, to] = desc.split(' to ');
+      const isConsecutive = from.includes('50% Apportionment') && to.toLowerCase().includes('next client');
+      const isReturn = to.toLowerCase().includes('staff home');
+
+      return (
+        <div className="flex flex-col gap-4 pl-1 mt-1 relative before:absolute before:inset-y-[12px] before:left-[11px] before:w-[2px] before:bg-zinc-800/80">
+          <div className="flex gap-4 items-start relative z-10">
+            <div className="flex flex-col items-center shrink-0">
+              <div className="w-[24px] h-[24px] rounded-full bg-[#121214] border-2 border-brand-teal/50 flex items-center justify-center mt-0.5 shrink-0 z-10">
+                <div className="w-2 h-2 rounded-full bg-indigo-400" />
+              </div>
+              <div className="text-zinc-600 mt-2 bg-[#121214]/50 z-10 rounded-full flex items-center justify-center w-5 h-5">
+                <ArrowDown className="w-3.5 h-3.5 text-zinc-500" strokeWidth={3} />
+              </div>
+            </div>
+            <div className="flex flex-col flex-1 min-w-0 pt-0.5">
+              <span className="text-[10px] uppercase text-brand-teal/70 font-bold tracking-wider leading-none mb-1">From</span>
+              {formatLocationString(from)}
+            </div>
+          </div>
+          <div className="flex gap-4 items-start relative z-10">
+            <div className="flex flex-col items-center shrink-0">
+              <div className="w-[24px] h-[24px] rounded-full bg-[#121214] border-2 border-brand-teal/50 flex items-center justify-center mt-0.5 shrink-0 z-10">
+                <div className="w-2 h-2 rounded-full bg-indigo-400" />
+              </div>
+            </div>
+            <div className="flex flex-col flex-1 min-w-0 pt-0.5">
+               {isConsecutive ? (
+                 <>
+                   <span className="text-[10px] uppercase text-brand-teal/70 font-bold tracking-wider leading-none mb-1 text-left block">
+                     TO: NEXT CLIENT HOME
+                   </span>
+                   {formatLocationString(to.replace(/Next Client/i, 'Client').trim())}
+                   <span className="mt-2 inline-flex items-center px-2 py-1 rounded text-[10px] font-bold bg-brand-teal/10 text-brand-teal border border-brand-teal/20 w-max">
+                     (Consecutive Shift - Distance Split 50%)
+                   </span>
+                 </>
+               ) : isReturn ? (
+                 <>
+                   <span className="text-[10px] uppercase text-brand-teal/70 font-bold tracking-wider leading-none mb-1 text-left block">
+                     TO: STAFF HOME (Return trip)
+                   </span>
+                   {formatLocationString(to.replace(/\(Return trip\)/i, '').trim())}
+                 </>
+               ) : (
+                 <>
+                   <span className="text-[10px] uppercase text-brand-teal/70 font-bold tracking-wider leading-none mb-1 text-left block">
+                     To
+                   </span>
+                   {formatLocationString(to)}
+                 </>
+               )}
+            </div>
+          </div>
+          {distance != null && (
+            <div className="flex justify-between items-center mt-2 pt-3 border-t border-white/[0.08]/60 pl-8">
+              <div className="flex gap-2.5 flex-wrap">
+                <span className="text-xs sm:text-sm font-black text-brand-teal bg-indigo-500/10 px-3 py-1.5 rounded-lg border border-brand-teal/30 shadow-sm">
+                  {distance.toFixed(2)} km
+                </span>
+                {durationMins != null && durationMins > 0 && (
+                   <span className="text-xs sm:text-sm font-black text-zinc-300 bg-zinc-800/50 px-3 py-1.5 rounded-lg border border-white/10 shadow-sm">
+                     {durationMins.toFixed(0)} mins
+                   </span>
+                )}
+              </div>
+              {calculatedAt && (
+                <span className="text-[10px] text-zinc-600 font-medium">Calculated: {new Date(calculatedAt).toLocaleString()}</span>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col">
+        {formatLocationString(desc)}
+        {distance != null && distance > 0 && (
+          <div className="flex justify-between items-center mt-3 pt-2 border-t border-white/[0.08]/60">
+            <div className="flex gap-2">
+              <span className="text-xs font-black text-brand-teal bg-indigo-500/10 px-3 py-1 rounded-md border border-brand-teal/30">
+                {distance.toFixed(2)} km
+              </span>
+              {durationMins != null && durationMins > 0 && (
+                <span className="text-xs font-black text-zinc-300 bg-zinc-800/50 px-3 py-1 rounded-md border border-white/10">
+                  {durationMins.toFixed(0)} mins
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const isNDIS = shift.fundingType === 'NDIS' || shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP' || !shift.fundingType;
+  const isHCP = shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP';
   const clientData = clientList.find((c: any) => String(c.id) === String(shift.clientId));
   const clientAddress = clientData?.address;
 
@@ -819,83 +1062,324 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                 {/* 2. Transport & Odometer */}
                 {isNDIS && (
                   <>
-                    <div className="bg-indigo-900/20 rounded-xl p-3 shadow-sm">
-                      <h4 className="text-xs md:text-sm font-bold text-indigo-100 uppercase tracking-wide flex items-center mb-1.5">
+                    <div className="bg-indigo-900/20 rounded-xl p-3.5 shadow-sm border border-indigo-500/20">
+                      <h4 className="text-xs md:text-sm font-bold text-indigo-100 uppercase tracking-wide flex items-center mb-2">
                         <Car className="w-4 h-4 mr-1.5 text-brand-teal shrink-0" /> TRAVEL ALLOWANCE
                       </h4>
-                      <div className="flex justify-between items-center">
-                        <div className="flex flex-col pr-4">
-                          <label className="text-sm md:text-base text-indigo-200 font-semibold leading-snug">Did you perform any travel for the client?</label>
-                          <span className="text-xs text-indigo-300/70 mt-1">(Will update or replace any previous transport entered)</span>
-                        </div>
-                        <button 
-                          onClick={() => setDidTransport(!didTransport)}
-                          className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${didTransport ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-                        >
-                          <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-300 ease-in-out ${didTransport ? 'translate-x-5' : 'translate-x-0'}`} />
-                        </button>
-                      </div>
 
-                      {didTransport && (
-                        <div className="space-y-3 pt-3 mt-3 border-t border-brand-teal/20">
-                          <div className="flex items-start bg-indigo-500/10 border border-brand-teal/20 rounded-lg p-2.5">
-                            <Info className="w-4 h-4 text-brand-teal flex-shrink-0 mt-0.5 mr-2" />
-                            <p className="text-[11px] md:text-xs text-indigo-200 leading-snug font-medium">
-                              Client's Home is automatically your starting point. Add destinations below.
-                            </p>
-                          </div>
-                          <div className="relative">
-                            <div className="flex items-center space-x-3 bg-[#09090b] border border-white/[0.12]/80 rounded-xl px-3 focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal transition-shadow shadow-inner">
-                              <MapPin className="text-brand-teal w-5 h-5 flex-shrink-0" />
-                              <input 
-                                type="text" 
-                                placeholder="Search destination address..." 
-                                className="w-full bg-transparent border-none py-3 text-sm md:text-base text-white focus:outline-none focus:ring-0"
-                                value={searchQuery}
-                                onChange={e => searchLocation(e.target.value)}
-                              />
-                            </div>
-                            
-                            {searchResults.length > 0 && (
-                              <ul className="absolute z-20 w-full mt-2 bg-zinc-800 border border-white/[0.12] rounded-xl shadow-2xl max-h-56 overflow-y-auto divide-y divide-zinc-700/50 font-medium">
-                                {searchResults.map((res: any, idx: number) => (
-                                  <li 
-                                    key={idx} 
-                                    className="px-4 py-3 hover:bg-zinc-700 cursor-pointer text-sm md:text-base transition-colors text-zinc-200 hover:text-white"
-                                    onClick={() => addWaypoint(res)}
-                                  >
-                                    <div className="flex flex-col">
-                                      <span className="truncate">{res.placePrediction.text.text}</span>
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
+                      {shift.status === 'COMPLETED' && (() => {
+                        let log: any = null;
+                        if (shift.transportRouteLog) {
+                          try { log = JSON.parse(shift.transportRouteLog); } catch(e) {}
+                        }
+                        let breakdownArr: string[] = [];
+                        if (shift.travelBreakdown) {
+                          try { breakdownArr = JSON.parse(shift.travelBreakdown); } catch(e) {}
+                        }
 
-                          <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                            {waypoints.map((wp: any, idx: number) => (
-                              <div key={idx} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
-                                <span className="text-sm md:text-base truncate mr-3 text-zinc-300 font-medium flex items-center">
-                                   <span className="flex-shrink-0 w-6 h-6 bg-indigo-500/20 text-brand-teal rounded-full flex items-center justify-center text-xs mr-3 font-bold">{idx + 1}</span>
-                                   {wp.name}
-                                </span>
-                                <button onClick={() => setWaypoints(waypoints.filter((_: any, i: number) => i !== idx))} className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04]">
-                                  <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
-                                </button>
+                        const providerKm = isHCP
+                          ? (shift.homeCareTravelKm ?? shift.providerTravelKm ?? log?.homeCareTravel?.distance ?? 0)
+                          : (shift.providerTravelKm ?? log?.providerTravel?.distance ?? 0);
+
+                        const providerLegMins = isHCP
+                          ? (log?.homeCareTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0)
+                          : (log?.providerTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0);
+
+                        const providerMins = Number(shift.providerTravelMinutes) || (isHCP ? Number(log?.homeCareTravel?.minutes) : Number(log?.providerTravel?.minutes)) || providerLegMins || 0;
+
+                        const abtKmVal = shift.abtKm ?? log?.abt?.distance ?? 0;
+                        const abtMinsVal = Number(log?.abt?.minutes) || (log?.abt?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0) || 0;
+
+                        const hasProviderLegs = log?.providerTravel?.legs && log.providerTravel.legs.length > 0 && !isHCP;
+                        const hasHomeCareLegs = log?.homeCareTravel?.legs && log.homeCareTravel.legs.length > 0;
+                        const hasAbtLog = !!log?.abt;
+                        const hasAnyLogContent = breakdownArr.length > 0 || hasProviderLegs || hasHomeCareLegs || hasAbtLog;
+
+                        return (
+                          <div className="space-y-3 mb-2">
+                            {/* Summary Metrics */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              <div className={`p-3 rounded-xl border flex flex-col justify-center ${providerKm > 0 ? 'bg-indigo-950/40 border-brand-teal/30' : 'bg-zinc-900/60 border-white/[0.08]'}`}>
+                                <p className="text-[11px] font-bold text-brand-teal/90 uppercase tracking-wider mb-1">
+                                  {isHCP ? 'Home Care Provider Travel (Between Shifts)' : 'Provider Travel (To/From Shift)'}
+                                </p>
+                                <div className="flex items-baseline gap-2.5 flex-wrap">
+                                  <span className="text-lg font-extrabold text-white">
+                                    {Number(providerKm).toFixed(2)} <span className="text-xs font-medium text-brand-teal">km</span>
+                                  </span>
+                                  {providerKm > 0 && providerMins > 0 && (
+                                    <span className="text-xs font-bold text-brand-teal bg-brand-teal/15 px-2 py-0.5 rounded-md border border-brand-teal/30">
+                                      {Math.round(providerMins)} mins {isHCP ? 'between shifts' : ''}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                            ))}
+
+                              <div className={`p-3 rounded-xl border flex flex-col justify-center ${abtKmVal > 0 ? 'bg-brand-green/10 border-brand-green/30' : 'bg-zinc-900/60 border-white/[0.08]'}`}>
+                                <p className="text-[11px] font-bold text-brand-green/90 uppercase tracking-wider mb-1">
+                                  Activity Based Transport (Client Travel)
+                                </p>
+                                <div className="flex items-baseline gap-2.5 flex-wrap">
+                                  <span className="text-lg font-extrabold text-white">
+                                    {Number(abtKmVal).toFixed(2)} <span className="text-xs font-medium text-brand-green">km</span>
+                                  </span>
+                                  {abtKmVal > 0 && abtMinsVal > 0 && (
+                                    <span className="text-xs font-bold text-brand-green bg-brand-green/15 px-2 py-0.5 rounded-md border border-brand-green/30">
+                                      {Math.round(abtMinsVal)} mins
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Dropdown Log + Edit Button Row */}
+                            <div className="flex items-start gap-2">
+                              <div className="flex-1 min-w-0 bg-[#09090b]/90 px-3.5 py-2.5 rounded-xl border border-white/[0.1] shadow-inner">
+                                <details className="group">
+                                  <summary className="text-xs sm:text-sm font-semibold text-zinc-200 cursor-pointer flex items-center hover:text-white transition-colors outline-none list-none py-0.5">
+                                    <span className="flex-1">View Transport Route Log</span>
+                                    <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 group-open:rotate-180 transition-transform">
+                                      <ArrowDown className="w-3.5 h-3.5 text-zinc-400" />
+                                    </div>
+                                  </summary>
+                                  <div className="mt-3 space-y-3 pt-3 border-t border-white/[0.08]">
+                                    {breakdownArr.length > 0 && (
+                                      <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                        <span className="text-[11px] font-bold text-brand-teal/80 mb-2.5 uppercase tracking-wider block">Calculated Travel Journey:</span>
+                                        <div className="space-y-2">
+                                          {breakdownArr.map((item, idx) => {
+                                            const isZero = item.includes('0km') || item.includes('Ignored');
+                                            return (
+                                              <div key={idx} className={`text-xs sm:text-sm ${isZero ? 'text-zinc-500 italic' : 'text-zinc-200'}`}>
+                                                {item}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {hasProviderLegs && (
+                                      <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                        <span className="text-[11px] font-bold text-brand-teal/80 mb-3 uppercase tracking-wider block">Provider Travel (To/From Shift):</span>
+                                        <div className="space-y-4">
+                                          {log.providerTravel.legs.map((leg: any, i: number) => (
+                                            <div key={i}>
+                                              {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
+                                            </div>
+                                          ))}
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <span className="inline-flex items-center px-3 py-1.5 bg-brand-blue text-white text-xs font-bold rounded-md">
+                                              {Number(providerKm).toFixed(2)} km
+                                            </span>
+                                            {providerMins > 0 && (
+                                              <span className="inline-flex items-center px-3 py-1.5 bg-zinc-800 text-brand-teal border border-brand-teal/30 text-xs font-bold rounded-md">
+                                                {Math.round(providerMins)} mins
+                                              </span>
+                                            )}
+                                          </div>
+                                          {log.providerTravel.calculatedAt && (
+                                            <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.providerTravel.calculatedAt).toLocaleString()}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {hasHomeCareLegs && (
+                                      <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                        <span className="text-[11px] font-bold text-brand-teal/80 mb-3 uppercase tracking-wider block">Home Care Travel Route:</span>
+                                        <div className="space-y-4">
+                                          {log.homeCareTravel.legs.map((leg: any, i: number) => {
+                                            if (leg.distance === 0 && leg.description && leg.description.includes('Private Commute')) {
+                                              return (
+                                                <div key={i} className="text-xs sm:text-sm text-zinc-400 italic">
+                                                  {leg.description}
+                                                </div>
+                                              );
+                                            }
+                                            if (leg.distance === 0) return null;
+                                            return (
+                                              <div key={i}>
+                                                {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins || providerMins)}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <span className="inline-flex items-center px-3 py-1.5 bg-brand-blue text-white text-xs font-bold rounded-md">
+                                              {Number(providerKm).toFixed(2)} km
+                                            </span>
+                                            {providerKm > 0 && providerMins > 0 && (
+                                              <span className="inline-flex items-center px-3 py-1.5 bg-zinc-800 text-brand-teal border border-brand-teal/30 text-xs font-bold rounded-md">
+                                                Time Travelled Between Shifts: {Math.round(providerMins)} mins
+                                              </span>
+                                            )}
+                                          </div>
+                                          {log.homeCareTravel.calculatedAt && (
+                                            <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.homeCareTravel.calculatedAt).toLocaleString()}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {hasAbtLog ? (
+                                      <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                        <span className="text-[11px] font-bold text-brand-green/80 mb-3 uppercase tracking-wider block">Activity Based Transport (ABT):</span>
+                                        {log.abt.legs && log.abt.legs.length > 0 ? (
+                                          <div className="space-y-4">
+                                            {log.abt.legs.map((leg: any, i: number) => (
+                                              <div key={i}>
+                                                {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <div>{renderFormattedDescription(log.abt.description || 'Activity Based Transport', log.abt.distance, log.abt.calculatedAt, log.abt.minutes)}</div>
+                                        )}
+                                        <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <span className="inline-flex items-center px-3 py-1.5 bg-brand-green/20 text-brand-green text-xs font-black rounded-md border border-brand-green/30">
+                                              {log.abt.distance != null ? Number(log.abt.distance).toFixed(2) : Number(abtKmVal).toFixed(2)} km
+                                            </span>
+                                            {abtMinsVal > 0 && (
+                                              <span className="inline-flex items-center px-3 py-1.5 bg-zinc-800 text-zinc-200 border border-white/10 text-xs font-bold rounded-md">
+                                                {Math.round(abtMinsVal)} mins
+                                              </span>
+                                            )}
+                                          </div>
+                                          {log.abt.calculatedAt && (
+                                            <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.abt.calculatedAt).toLocaleString()}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="bg-[#121214] p-3 rounded-xl border border-white/[0.08] text-xs text-zinc-400 italic">
+                                        No client transport (Activity Based Transport) recorded for this shift.
+                                      </div>
+                                    )}
+
+                                    {!hasAnyLogContent && (
+                                      <div className="text-xs text-zinc-400 italic">
+                                        No billable travel route log recorded for this shift.
+                                      </div>
+                                    )}
+                                  </div>
+                                </details>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => setIsEditingTransport(!isEditingTransport)}
+                                className={`px-3.5 py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 shrink-0 border transition-all shadow-sm ${
+                                  isEditingTransport
+                                    ? 'bg-brand-teal text-zinc-950 border-brand-teal ring-2 ring-brand-teal/30'
+                                    : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border-white/[0.12]'
+                                }`}
+                                title="Edit Client Transport"
+                              >
+                                <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                <span>{isEditingTransport ? 'Editing' : 'Edit'}</span>
+                              </button>
+                            </div>
                           </div>
-                          
-                          <div className="flex justify-between items-center bg-[#09090b]/80 p-3 rounded-xl mt-2 shadow-sm">
-                            <label className="text-sm md:text-base text-zinc-300 font-medium pr-4 leading-snug">Did you return to clients home?</label>
+                        );
+                      })()}
+
+                      {(shift.status !== 'COMPLETED' || isEditingTransport) && (
+                        <div className={shift.status === 'COMPLETED' ? 'pt-3 mt-3 border-t border-indigo-500/30 animate-in fade-in' : ''}>
+                          <div className="flex justify-between items-center">
+                            <div className="flex flex-col pr-4">
+                              <label className="text-sm md:text-base text-indigo-200 font-semibold leading-snug">Did you perform any travel for the client?</label>
+                              <span className="text-xs text-indigo-300/70 mt-1">(Will update or replace any previous transport entered)</span>
+                            </div>
                             <button 
-                              onClick={() => setReturnedHome(!returnedHome)}
-                              className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${returnedHome ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                              type="button"
+                              onClick={() => {
+                                setDidTransport(!didTransport);
+                                setHasModifiedTransport(true);
+                              }}
+                              className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${didTransport ? 'bg-indigo-500' : 'bg-zinc-700'}`}
                             >
-                              <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-300 ease-in-out ${returnedHome ? 'translate-x-5' : 'translate-x-0'}`} />
+                              <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-300 ease-in-out ${didTransport ? 'translate-x-5' : 'translate-x-0'}`} />
                             </button>
                           </div>
+
+                          {didTransport && (
+                            <div className="space-y-3 pt-3 mt-3 border-t border-brand-teal/20">
+                              <div className="flex items-start bg-indigo-500/10 border border-brand-teal/20 rounded-lg p-2.5">
+                                <Info className="w-4 h-4 text-brand-teal flex-shrink-0 mt-0.5 mr-2" />
+                                <p className="text-[11px] md:text-xs text-indigo-200 leading-snug font-medium">
+                                  Client's Home is automatically your starting point. Add destinations below.
+                                </p>
+                              </div>
+                              <div className="relative">
+                                <div className="flex items-center space-x-3 bg-[#09090b] border border-white/[0.12]/80 rounded-xl px-3 focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal transition-shadow shadow-inner">
+                                  <MapPin className="text-brand-teal w-5 h-5 flex-shrink-0" />
+                                  <input 
+                                    type="text" 
+                                    placeholder="Search destination address..." 
+                                    className="w-full bg-transparent border-none py-3 text-sm md:text-base text-white focus:outline-none focus:ring-0"
+                                    value={searchQuery}
+                                    onChange={e => searchLocation(e.target.value)}
+                                  />
+                                </div>
+                                
+                                {searchResults.length > 0 && (
+                                  <ul className="absolute z-20 w-full mt-2 bg-zinc-800 border border-white/[0.12] rounded-xl shadow-2xl max-h-56 overflow-y-auto divide-y divide-zinc-700/50 font-medium">
+                                    {searchResults.map((res: any, idx: number) => (
+                                      <li 
+                                        key={idx} 
+                                        className="px-4 py-3 hover:bg-zinc-700 cursor-pointer text-sm md:text-base transition-colors text-zinc-200 hover:text-white"
+                                        onClick={() => addWaypoint(res)}
+                                      >
+                                        <div className="flex flex-col">
+                                          <span className="truncate">{res.placePrediction.text.text}</span>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+
+                              <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                                {waypoints.map((wp: any, idx: number) => (
+                                  <div key={idx} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 flex items-center justify-between">
+                                    <span className="text-sm md:text-base truncate mr-3 text-zinc-300 font-medium flex items-center min-w-0">
+                                       <span className="flex-shrink-0 w-6 h-6 bg-indigo-500/20 text-brand-teal rounded-full flex items-center justify-center text-xs mr-3 font-bold">{idx + 1}</span>
+                                       <span className="truncate">{wp.name}</span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setWaypoints(waypoints.filter((_: any, i: number) => i !== idx));
+                                        setHasModifiedTransport(true);
+                                      }}
+                                      className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04] shrink-0"
+                                    >
+                                      <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                              
+                              <div className="flex justify-between items-center bg-[#09090b]/80 p-3 rounded-xl mt-2 shadow-sm">
+                                <label className="text-sm md:text-base text-zinc-300 font-medium pr-4 leading-snug">Did you return to clients home?</label>
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    setReturnedHome(!returnedHome);
+                                    setHasModifiedTransport(true);
+                                  }}
+                                  className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${returnedHome ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                                >
+                                  <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-300 ease-in-out ${returnedHome ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

@@ -543,12 +543,27 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                      const isHCP = shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP';
                      const km = isHCP ? (shift.homeCareTravelKm || shift.providerTravelKm || 0) : (shift.providerTravelKm || 0);
                      const title = isHCP ? 'Home Care Travel (Client Gap)' : 'Provider Travel (Distance to Shift)';
+                     let parsedLog: any = null;
+                     if (shift.transportRouteLog) {
+                       try { parsedLog = JSON.parse(shift.transportRouteLog); } catch(e) {}
+                     }
+                     const legMins = isHCP
+                       ? (parsedLog?.homeCareTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0)
+                       : (parsedLog?.providerTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0);
+                     const mins = Number(shift.providerTravelMinutes) || (isHCP ? Number(parsedLog?.homeCareTravel?.minutes) : Number(parsedLog?.providerTravel?.minutes)) || legMins || 0;
                      
                      if (km > 0) {
                        return (
                          <div className="bg-indigo-900/10 p-4 rounded-xl border border-brand-teal/20 shadow-sm flex flex-col justify-center">
                            <p className="text-xs font-medium text-brand-teal/80 mb-1 uppercase tracking-wider">{title}</p>
-                           <p className="text-xl text-indigo-100 font-extrabold">{km.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
+                           <div className="flex items-baseline gap-3 flex-wrap">
+                             <p className="text-xl text-indigo-100 font-extrabold">{km.toFixed(2)} <span className="text-sm font-medium text-brand-teal">km</span></p>
+                             {mins > 0 && (
+                               <span className="text-sm font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-0.5 rounded-md border border-brand-teal/20">
+                                 {Math.round(mins)} mins {isHCP ? '(Between Shifts)' : ''}
+                               </span>
+                             )}
+                           </div>
                          </div>
                        );
                      }
@@ -559,7 +574,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                        </div>
                      );
                    })()}
-                   {!(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') && (
+                   {(!(shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP') || (shift.abtKm && shift.abtKm > 0)) && (
                      <div className="bg-brand-green/10 p-4 rounded-xl border border-brand-green/20 shadow-sm flex flex-col justify-center">
                        <p className="text-xs font-medium text-brand-green/80 mb-1 uppercase tracking-wider">Activity Based Transport (ABT)</p>
                        <p className="text-xl text-white font-extrabold">{shift.abtKm ? shift.abtKm.toFixed(2) : 0} <span className="text-sm font-medium text-brand-green/80">km</span></p>
@@ -628,7 +643,9 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                               </div>
                             )}
 
-                            {log && log.homeCareTravel && log.homeCareTravel.legs && log.homeCareTravel.legs.length > 0 && (
+                            {log && log.homeCareTravel && log.homeCareTravel.legs && log.homeCareTravel.legs.length > 0 && (() => {
+                              const hcTotalMins = Number(shift.providerTravelMinutes) || Number(log.homeCareTravel.minutes) || log.homeCareTravel.legs.reduce((sum: number, leg: any) => sum + (Number(leg.durationMins) || 0), 0);
+                              return (
                               <div className="flex items-start gap-3 pt-2">
                                 <div className="flex-1 min-w-0 bg-[#121214] p-4 md:p-5 rounded-2xl border border-white/[0.08]">
                                   <span className="text-xs font-bold text-brand-teal/80 mb-5 uppercase tracking-wider block">Home Care Travel Route:</span>
@@ -644,22 +661,30 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                                       if (leg.distance === 0) return null;
                                       return (
                                         <div key={i} className="mb-2">
-                                          {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
+                                          {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins || hcTotalMins)}
                                         </div>
                                       );
                                     })}
                                   </div>
                                   <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-6 pt-5 border-t border-white/[0.08]/80 sm:pl-8 gap-3">
-                                    <span className="flex items-center px-4 py-2 bg-brand-blue hover:bg-brand-teal text-white text-[13px] font-medium rounded-md transition-colors w-full justify-center md:w-auto">
-                                      {shift.homeCareTravelKm != null ? shift.homeCareTravelKm.toFixed(2) : log.homeCareTravel.legs.reduce((sum: number, leg: any) => sum + (leg.distance || 0), 0).toFixed(2)} km
-                                    </span>
+                                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                                      <span className="flex items-center px-4 py-2 bg-brand-blue hover:bg-brand-teal text-white text-[13px] font-medium rounded-md transition-colors justify-center">
+                                        {shift.homeCareTravelKm != null ? shift.homeCareTravelKm.toFixed(2) : log.homeCareTravel.legs.reduce((sum: number, leg: any) => sum + (leg.distance || 0), 0).toFixed(2)} km
+                                      </span>
+                                      {hcTotalMins > 0 && (
+                                        <span className="flex items-center px-3 py-2 bg-zinc-800/80 text-brand-teal border border-brand-teal/30 text-[13px] font-bold rounded-md justify-center">
+                                          Time Travelled Between Shifts: {Math.round(hcTotalMins)} mins
+                                        </span>
+                                      )}
+                                    </div>
                                     {log.homeCareTravel.calculatedAt && (
                                       <span className="text-[10px] md:text-xs text-zinc-500 font-medium self-start sm:self-auto text-left sm:text-right">Calculated: <br className="sm:hidden"/>{new Date(log.homeCareTravel.calculatedAt).toLocaleString()}</span>
                                     )}
                                   </div>
                                 </div>
                               </div>
-                            )}
+                              );
+                            })()}
 
 
                             {log && log.abt && (
