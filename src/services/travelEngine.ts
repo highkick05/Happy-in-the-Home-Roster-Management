@@ -2,6 +2,38 @@ import db from '../../db.js';
 import { getGoogleRoutesDistance, getRecordCoordinates } from '../utils/mapUtils.js';
 import { calculateProviderTravel } from '../utils/travelCalculator.js';
 
+const hasNdisProviderTravelService = (shiftRow: any): boolean => {
+  try {
+    const servicesData = shiftRow.services_json ? JSON.parse(shiftRow.services_json) : [];
+    if (Array.isArray(servicesData) && servicesData.length > 0) {
+      for (const sData of servicesData) {
+        let nameLower = String(sData.serviceName || sData.customName || sData.name || '').toLowerCase();
+        let codeLower = String(sData.serviceCode || '').toLowerCase();
+        if (!nameLower && sData.serviceId) {
+          const srv = db.prepare('SELECT name, code FROM services WHERE id = ?').get(sData.serviceId) as any;
+          if (srv) {
+            nameLower = String(srv.name || '').toLowerCase();
+            codeLower = String(srv.code || '').toLowerCase();
+          }
+        }
+        if (nameLower.includes('provider travel') || nameLower.includes('travel - provider') || codeLower.includes('provider travel')) {
+          return true;
+        }
+      }
+      return false;
+    }
+    if (shiftRow.service_id) {
+      const srv = db.prepare('SELECT name, code FROM services WHERE id = ?').get(shiftRow.service_id) as any;
+      if (srv) {
+        const nameLower = String(srv.name || '').toLowerCase();
+        const codeLower = String(srv.code || '').toLowerCase();
+        return nameLower.includes('provider travel') || nameLower.includes('travel - provider') || codeLower.includes('provider travel');
+      }
+    }
+  } catch (e) {}
+  return false;
+};
+
 export const recalculateDayTravelForStaff = async (staffId: number, dateStr: string) => {
   try {
     console.log(`[DEBUG CASCADE] INIT recalculateDayTravelForStaff staffId: ${staffId}, dateStr: ${dateStr}`);
@@ -26,6 +58,7 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
 
     for (let i = 0; i < shifts.length; i++) {
       const currentShift = shifts[i];
+
 
 
       
@@ -123,22 +156,30 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
 
          // NDIS CASCADE LOGIC
          console.log(`[DEBUG CASCADE] NDIS recalculating provider travel for shift ${currentShift.id}`);
-         const pTravel = await calculateProviderTravel(currentShift);
+         const hasCurrentPT = hasNdisProviderTravelService(currentShift);
+         const pTravel = hasCurrentPT
+           ? await calculateProviderTravel(currentShift)
+           : { distance: 0, minutes: 0, cost: 0, routeLogs: [] };
 
          let combinedRouteLog: any = null;
          if (currentShift.transport_route_log) {
              try { combinedRouteLog = JSON.parse(currentShift.transport_route_log); } catch(e){}
          }
          combinedRouteLog = combinedRouteLog || {};
-         combinedRouteLog.providerTravel = {
-             calculatedAt: new Date().toISOString(),
-             distance: pTravel.distance,
-             cost: pTravel.cost,
-             legs: pTravel.routeLogs
-         };
-         const transportRouteLogStr = JSON.stringify(combinedRouteLog);
+         if (hasCurrentPT) {
+           combinedRouteLog.providerTravel = {
+               calculatedAt: new Date().toISOString(),
+               distance: pTravel.distance,
+               minutes: pTravel.minutes,
+               cost: pTravel.cost,
+               legs: pTravel.routeLogs
+           };
+         } else {
+           delete combinedRouteLog.providerTravel;
+         }
+         const transportRouteLogStr = Object.keys(combinedRouteLog).length > 0 ? JSON.stringify(combinedRouteLog) : null;
 
-         const travelBreakdown = (pTravel.routeLogs || []).map((log: any) => log.description);
+         const travelBreakdown = hasCurrentPT ? (pTravel.routeLogs || []).map((log: any) => log.description) : [];
 
          // Update services_json so the UI reflects the math
          const latestShift = db.prepare('SELECT services_json FROM shifts WHERE id = ?').get(currentShift.id) as any;
@@ -173,41 +214,59 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
             update_pt_km, update_pt_mins, update_pt_cost, JSON.stringify(travelBreakdown), transportRouteLogStr, JSON.stringify(servicesData), currentShift.id
          );
 
-         if (prevShift && prevShift.is_historical !== 1) {
+         const prevIsHomeCare = prevShift && (prevShift.funding_type === 'HCP' || prevShift.funding_type === 'Home Care' || prevShift.funding_type === 'HOME_CARE');
+         if (prevShift && !prevIsHomeCare && prevShift.is_historical !== 1) {
              console.log(`[NDIS Sync] Retroactively updating preceding shift: ${prevShift.id}`);
-             const prevPTravel = await calculateProviderTravel(prevShift);
+             const hasPrevPT = hasNdisProviderTravelService(prevShift);
+             const prevPTravel = hasPrevPT
+               ? await calculateProviderTravel(prevShift)
+               : { distance: 0, minutes: 0, cost: 0, routeLogs: [] };
              let prevRouteLog: any = {};
              try {
                  prevRouteLog = JSON.parse(prevShift.transport_route_log || '{}');
              } catch(e) {}
-             prevRouteLog.providerTravel = {
-                 calculatedAt: new Date().toISOString(),
-                 distance: prevPTravel.distance,
-                 cost: prevPTravel.cost,
-                 legs: prevPTravel.routeLogs
-             };
-             const prevBreakdown = (prevPTravel.routeLogs || []).map((log: any) => log.description);
+             if (hasPrevPT) {
+               prevRouteLog.providerTravel = {
+                   calculatedAt: new Date().toISOString(),
+                   distance: prevPTravel.distance,
+                   minutes: prevPTravel.minutes,
+                   cost: prevPTravel.cost,
+                   legs: prevPTravel.routeLogs
+               };
+             } else {
+               delete prevRouteLog.providerTravel;
+             }
+             const prevBreakdown = hasPrevPT ? (prevPTravel.routeLogs || []).map((log: any) => log.description) : [];
              db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, provider_travel_cost = ?, travel_breakdown = ?, transport_route_log = ? WHERE id = ?').run(
-                 prevPTravel.distance, prevPTravel.minutes, prevPTravel.cost, JSON.stringify(prevBreakdown), JSON.stringify(prevRouteLog), prevShift.id
+                 prevPTravel.distance, prevPTravel.minutes, prevPTravel.cost, JSON.stringify(prevBreakdown), Object.keys(prevRouteLog).length > 0 ? JSON.stringify(prevRouteLog) : null, prevShift.id
              );
          }
 
-         if (nextShift && nextShift.is_historical !== 1) {
+         const nextIsHomeCare = nextShift && (nextShift.funding_type === 'HCP' || nextShift.funding_type === 'Home Care' || nextShift.funding_type === 'HOME_CARE');
+         if (nextShift && !nextIsHomeCare && nextShift.is_historical !== 1) {
              console.log(`[NDIS Sync] Retroactively updating succeeding shift: ${nextShift.id}`);
-             const nextPTravel = await calculateProviderTravel(nextShift);
+             const hasNextPT = hasNdisProviderTravelService(nextShift);
+             const nextPTravel = hasNextPT
+               ? await calculateProviderTravel(nextShift)
+               : { distance: 0, minutes: 0, cost: 0, routeLogs: [] };
              let nextRouteLog: any = {};
              try {
                  nextRouteLog = JSON.parse(nextShift.transport_route_log || '{}');
              } catch(e) {}
-             nextRouteLog.providerTravel = {
-                 calculatedAt: new Date().toISOString(),
-                 distance: nextPTravel.distance,
-                 cost: nextPTravel.cost,
-                 legs: nextPTravel.routeLogs
-             };
-             const nextBreakdown = (nextPTravel.routeLogs || []).map((log: any) => log.description);
+             if (hasNextPT) {
+               nextRouteLog.providerTravel = {
+                   calculatedAt: new Date().toISOString(),
+                   distance: nextPTravel.distance,
+                   minutes: nextPTravel.minutes,
+                   cost: nextPTravel.cost,
+                   legs: nextPTravel.routeLogs
+               };
+             } else {
+               delete nextRouteLog.providerTravel;
+             }
+             const nextBreakdown = hasNextPT ? (nextPTravel.routeLogs || []).map((log: any) => log.description) : [];
              db.prepare('UPDATE shifts SET provider_travel_km = ?, provider_travel_minutes = ?, provider_travel_cost = ?, travel_breakdown = ?, transport_route_log = ? WHERE id = ?').run(
-                 nextPTravel.distance, nextPTravel.minutes, nextPTravel.cost, JSON.stringify(nextBreakdown), JSON.stringify(nextRouteLog), nextShift.id
+                 nextPTravel.distance, nextPTravel.minutes, nextPTravel.cost, JSON.stringify(nextBreakdown), Object.keys(nextRouteLog).length > 0 ? JSON.stringify(nextRouteLog) : null, nextShift.id
              );
          }
       }

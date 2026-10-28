@@ -1302,9 +1302,25 @@ export default function RosterCalendar() {
       const staffObj = staffList.find((s: any) => s.id === event.staffId || String(s.id) === String(event.staffId));
       const staffPosition = staffObj?.primary_position || (staffObj?.role === 'ADMIN' ? 'Administrator' : (event.staffId ? 'Support Worker' : ''));
 
-      // Distance and travel time calculation between staff house and client house
-      let distKm = Number(event.providerTravelKm || event.homeCareTravelKm || 0);
-      let travelMins = Number(event.providerTravelMinutes || 0);
+      // Distance, travel time, and ABT calculation for Agenda card
+      const shiftServiceItems = Array.isArray(event.servicesData) ? event.servicesData : [];
+      const resolveServiceName = (sd: any) => {
+        const srv = servicesList.find((s: any) => String(s.id) === String(sd?.serviceId));
+        return String(srv?.name || sd?.serviceName || sd?.customName || sd?.name || '').toLowerCase();
+      };
+      const hasProviderTravelService = isHCP || shiftServiceItems.some((sd: any) => {
+        const n = resolveServiceName(sd);
+        return n.includes('provider travel') || n.includes('travel - provider');
+      }) || String(event.serviceName || '').toLowerCase().includes('provider travel');
+
+      const hasABTService = isHCP || shiftServiceItems.some((sd: any) => {
+        const n = resolveServiceName(sd);
+        return n.includes('activity based transport') || n.includes('activity-based transport');
+      }) || String(event.serviceName || '').toLowerCase().includes('activity based transport');
+
+      let distKm = hasProviderTravelService ? Number(event.providerTravelKm || event.homeCareTravelKm || 0) : 0;
+      let travelMins = hasProviderTravelService ? Number(event.providerTravelMinutes || 0) : 0;
+      let abtKm = hasABTService ? Number(event.abtKm || 0) : 0;
 
       if (event.transportRouteLog) {
         try {
@@ -1312,53 +1328,48 @@ export default function RosterCalendar() {
             ? JSON.parse(event.transportRouteLog)
             : event.transportRouteLog;
           if (parsed) {
-            if (distKm <= 0 && parsed.providerTravel?.distance) distKm = Number(parsed.providerTravel.distance);
-            if (travelMins <= 0 && parsed.providerTravel?.minutes) travelMins = Number(parsed.providerTravel.minutes);
-            if (distKm <= 0 && parsed.homeCareTravel?.distance) distKm = Number(parsed.homeCareTravel.distance);
-            if (travelMins <= 0 && parsed.homeCareTravel?.minutes) travelMins = Number(parsed.homeCareTravel.minutes);
-            if (Array.isArray(parsed.providerTravel?.legs)) {
-              for (const leg of parsed.providerTravel.legs) {
-                if (distKm <= 0 && leg.distance) distKm = Number(leg.distance);
-                if (travelMins <= 0 && (leg.durationMins || leg.minutes)) travelMins = Number(leg.durationMins || leg.minutes);
+            if (hasProviderTravelService) {
+              if (distKm <= 0 && parsed.providerTravel?.distance) distKm = Number(parsed.providerTravel.distance);
+              if (travelMins <= 0 && parsed.providerTravel?.minutes) travelMins = Number(parsed.providerTravel.minutes);
+              if (distKm <= 0 && parsed.homeCareTravel?.distance) distKm = Number(parsed.homeCareTravel.distance);
+              if (travelMins <= 0 && parsed.homeCareTravel?.minutes) travelMins = Number(parsed.homeCareTravel.minutes);
+              if (Array.isArray(parsed.providerTravel?.legs)) {
+                for (const leg of parsed.providerTravel.legs) {
+                  if (distKm <= 0 && leg.distance) distKm = Number(leg.distance);
+                  if (travelMins <= 0 && (leg.durationMins || leg.minutes)) travelMins = Number(leg.durationMins || leg.minutes);
+                }
+              }
+              if (Array.isArray(parsed.homeCareTravel?.legs)) {
+                for (const leg of parsed.homeCareTravel.legs) {
+                  if (distKm <= 0 && leg.distance) distKm = Number(leg.distance);
+                  if (travelMins <= 0 && (leg.durationMins || leg.minutes)) travelMins = Number(leg.durationMins || leg.minutes);
+                }
+              }
+              if (Array.isArray(parsed)) {
+                for (const leg of parsed) {
+                  if (distKm <= 0 && leg.distance) distKm = Number(leg.distance);
+                  if (travelMins <= 0 && (leg.durationMins || leg.minutes)) travelMins = Number(leg.durationMins || leg.minutes);
+                }
               }
             }
-            if (Array.isArray(parsed.homeCareTravel?.legs)) {
-              for (const leg of parsed.homeCareTravel.legs) {
-                if (distKm <= 0 && leg.distance) distKm = Number(leg.distance);
-                if (travelMins <= 0 && (leg.durationMins || leg.minutes)) travelMins = Number(leg.durationMins || leg.minutes);
-              }
-            }
-            if (Array.isArray(parsed)) {
-              for (const leg of parsed) {
-                if (distKm <= 0 && leg.distance) distKm = Number(leg.distance);
-                if (travelMins <= 0 && (leg.durationMins || leg.minutes)) travelMins = Number(leg.durationMins || leg.minutes);
-              }
+            if (hasABTService && abtKm <= 0 && parsed.abt?.distance) {
+              abtKm = Number(parsed.abt.distance);
             }
           }
         } catch (e) {}
       }
 
-      if (distKm > 0 && travelMins <= 0) {
-        travelMins = Math.max(1, Math.round((distKm / 45) * 60));
-      } else if (travelMins > 0 && distKm <= 0) {
-        distKm = Number(((travelMins / 60) * 45).toFixed(1));
-      }
-
-      if (distKm <= 0 && staffObj?.latitude && clientObj?.latitude) {
-        const R = 6371;
-        const dLat = (Number(clientObj.latitude) - Number(staffObj.latitude)) * Math.PI / 180;
-        const dLon = (Number(clientObj.longitude) - Number(staffObj.longitude)) * Math.PI / 180;
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos(Number(staffObj.latitude) * Math.PI / 180) * Math.cos(Number(clientObj.latitude) * Math.PI / 180) *
-          Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        distKm = Number((R * c * 1.25).toFixed(1));
-        travelMins = Math.max(1, Math.round((distKm / 45) * 60));
+      if (hasProviderTravelService) {
+        if (distKm > 0 && travelMins <= 0) {
+          travelMins = Math.max(1, Math.round((distKm / 45) * 60));
+        } else if (travelMins > 0 && distKm <= 0) {
+          distKm = Number(((travelMins / 60) * 45).toFixed(1));
+        }
       }
 
       const formattedDistance = distKm > 0 ? `${distKm.toFixed(1)} km` : (event.staffId ? '0.0 km' : '–');
       const formattedTravelTime = travelMins > 0 ? (travelMins >= 60 ? `${Math.floor(travelMins / 60)}h ${Math.round(travelMins % 60)}m` : `${Math.round(travelMins)} mins`) : (event.staffId ? '0 mins' : '–');
+      const formattedAbtDistance = abtKm > 0 ? `ABT: ${parseFloat(abtKm.toFixed(2))} km` : (event.staffId ? 'ABT: 0.0 km' : 'ABT: –');
 
       return (
         <div 
@@ -1473,20 +1484,27 @@ export default function RosterCalendar() {
 
               {/* Row 3: Travel in 3rd row */}
               {!event.isRespiteWrapper && (
-                <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                   <div 
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-950/40 border border-cyan-500/25 text-cyan-300 text-[9px] sm:text-[9.5px] font-medium shadow-xs"
-                    title="Provider travel distance for this shift"
+                    title={isHCP ? "Between-shift travel distance (Home Care)" : "Provider travel distance for this shift"}
                   >
                     <Car className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-cyan-400 shrink-0 animate-service-drive" />
                     <span>{formattedDistance}</span>
                   </div>
                   <div 
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-950/40 border border-amber-500/25 text-amber-300 text-[9px] sm:text-[9.5px] font-medium shadow-xs"
-                    title="Provider travel time for this shift"
+                    title={isHCP ? "Between-shift travel time (Home Care)" : "Provider travel time for this shift"}
                   >
                     <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 shrink-0" />
                     <span>{formattedTravelTime}</span>
+                  </div>
+                  <div 
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-500/25 text-emerald-300 text-[9px] sm:text-[9.5px] font-medium shadow-xs"
+                    title="Activity Based Transport (Client Travel)"
+                  >
+                    <Car className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-400 shrink-0 animate-service-drive" />
+                    <span>{formattedAbtDistance}</span>
                   </div>
                 </div>
               )}

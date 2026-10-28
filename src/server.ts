@@ -15001,6 +15001,28 @@ app.get("/api/health", (req, res) => {
               s.service_name = 'Orientation';
             }
           }
+          const isHC = s.funding_type === 'HCP' || s.funding_type === 'Home Care' || s.funding_type === 'HOME_CARE';
+          if (!isHC && s.is_historical !== 1) {
+            const hasPT = (Array.isArray(s.servicesData) && s.servicesData.some((sd: any) => {
+              const n = String(sd.serviceName || sd.customName || sd.name || '').toLowerCase();
+              return n.includes('provider travel') || n.includes('travel - provider');
+            })) || String(s.service_name || '').toLowerCase().includes('provider travel');
+            const hasABT = (Array.isArray(s.servicesData) && s.servicesData.some((sd: any) => {
+              const n = String(sd.serviceName || sd.customName || sd.name || '').toLowerCase();
+              return n.includes('activity based transport') || n.includes('activity-based transport');
+            })) || String(s.service_name || '').toLowerCase().includes('activity based transport');
+            if (!hasPT && (Number(s.provider_travel_km) > 0 || Number(s.provider_travel_minutes) > 0 || Number(s.provider_travel_cost) > 0)) {
+              s.provider_travel_km = 0;
+              s.provider_travel_minutes = 0;
+              s.provider_travel_cost = 0;
+              try { db.prepare("UPDATE shifts SET provider_travel_km = 0, provider_travel_minutes = 0, provider_travel_cost = 0 WHERE id = ?").run(s.id); } catch (_) {}
+            }
+            if (!hasABT && (Number(s.abt_km) > 0 || Number(s.abt_cost) > 0)) {
+              s.abt_km = 0;
+              s.abt_cost = 0;
+              try { db.prepare("UPDATE shifts SET abt_km = 0, abt_cost = 0 WHERE id = ?").run(s.id); } catch (_) {}
+            }
+          }
         } catch (e) {
           s.servicesData = [];
         }
@@ -15056,6 +15078,28 @@ app.get("/api/health", (req, res) => {
             }
           } else if (s.services_json && String(s.services_json).toLowerCase().includes('orientation')) {
             s.service_name = 'Orientation';
+          }
+        }
+        const isHC = s.funding_type === 'HCP' || s.funding_type === 'Home Care' || s.funding_type === 'HOME_CARE';
+        if (!isHC && s.is_historical !== 1) {
+          const hasPT = (Array.isArray(s.servicesData) && s.servicesData.some((sd: any) => {
+            const n = String(sd.serviceName || sd.customName || sd.name || '').toLowerCase();
+            return n.includes('provider travel') || n.includes('travel - provider');
+          })) || String(s.service_name || '').toLowerCase().includes('provider travel');
+          const hasABT = (Array.isArray(s.servicesData) && s.servicesData.some((sd: any) => {
+            const n = String(sd.serviceName || sd.customName || sd.name || '').toLowerCase();
+            return n.includes('activity based transport') || n.includes('activity-based transport');
+          })) || String(s.service_name || '').toLowerCase().includes('activity based transport');
+          if (!hasPT && (Number(s.provider_travel_km) > 0 || Number(s.provider_travel_minutes) > 0 || Number(s.provider_travel_cost) > 0)) {
+            s.provider_travel_km = 0;
+            s.provider_travel_minutes = 0;
+            s.provider_travel_cost = 0;
+            try { db.prepare("UPDATE shifts SET provider_travel_km = 0, provider_travel_minutes = 0, provider_travel_cost = 0 WHERE id = ?").run(s.id); } catch (_) {}
+          }
+          if (!hasABT && (Number(s.abt_km) > 0 || Number(s.abt_cost) > 0)) {
+            s.abt_km = 0;
+            s.abt_cost = 0;
+            try { db.prepare("UPDATE shifts SET abt_km = 0, abt_cost = 0 WHERE id = ?").run(s.id); } catch (_) {}
           }
         }
       } catch (e) {
@@ -16663,8 +16707,69 @@ app.get("/api/health", (req, res) => {
         if (req.user.role !== "ADMIN" && shift.staff_id !== req.user.id)
           return res.status(403).json({ error: "Forbidden" });
 
+        const isHomeCare =
+          shift.funding_type === "HCP" ||
+          shift.funding_type === "Home Care" ||
+          shift.funding_type === "HOME_CARE";
+
+        const { checklist } = req.body;
+        const effectiveServicesRaw =
+          checklist && Array.isArray(checklist) && checklist.length > 0
+            ? JSON.stringify(checklist)
+            : shift.services_json || "[]";
+
+        let hasProviderTravelService = isHomeCare;
+        let hasAbtService = isHomeCare;
+        if (!isHomeCare) {
+          try {
+            const parsedServices = JSON.parse(effectiveServicesRaw);
+            if (Array.isArray(parsedServices)) {
+              for (const sData of parsedServices) {
+                const inlineName = String(
+                  sData.serviceName || sData.customName || sData.name || ""
+                ).toLowerCase();
+                let resolvedName = inlineName;
+                if (!resolvedName && sData.serviceId) {
+                  const srvRow = db
+                    .prepare("SELECT name FROM services WHERE id = ?")
+                    .get(sData.serviceId) as any;
+                  if (srvRow?.name) resolvedName = String(srvRow.name).toLowerCase();
+                }
+                if (
+                  resolvedName.includes("provider travel") ||
+                  resolvedName.includes("travel - provider")
+                ) {
+                  hasProviderTravelService = true;
+                }
+                if (
+                  resolvedName.includes("activity based transport") ||
+                  resolvedName.includes("activity-based transport")
+                ) {
+                  hasAbtService = true;
+                }
+              }
+            }
+          } catch (e) {}
+          if ((!hasProviderTravelService || !hasAbtService) && shift.service_id) {
+            try {
+              const primarySrv = db
+                .prepare("SELECT name FROM services WHERE id = ?")
+                .get(shift.service_id) as any;
+              const pName = String(primarySrv?.name || "").toLowerCase();
+              if (pName.includes("provider travel") || pName.includes("travel - provider")) {
+                hasProviderTravelService = true;
+              }
+              if (pName.includes("activity based transport") || pName.includes("activity-based transport")) {
+                hasAbtService = true;
+              }
+            } catch (e) {}
+          }
+        }
+
         // 1. Calculate Provider Travel
-        const pTravel = await calculateProviderTravel(shift);
+        const pTravel = hasProviderTravelService
+          ? await calculateProviderTravel(shift)
+          : { distance: 0, minutes: 0, cost: 0, routeLogs: [] };
         const hcTravel = await calculateHomeCareTravel(shift);
 
         // 2. Calculate ABT if NDIS/HCP and coordinates exist
@@ -16679,7 +16784,7 @@ app.get("/api/health", (req, res) => {
           } catch (e) {}
         }
 
-        if (pTravel.routeLogs && pTravel.routeLogs.length > 0) {
+        if (hasProviderTravelService && pTravel.routeLogs && pTravel.routeLogs.length > 0) {
           combinedRouteLog = combinedRouteLog || {};
           combinedRouteLog.providerTravel = {
             calculatedAt: new Date().toISOString(),
@@ -16701,29 +16806,31 @@ app.get("/api/health", (req, res) => {
           };
         }
 
-        if (preserveAbt && shift.status === "COMPLETED") {
-          abt_km = Number(shift.abt_km) || 0;
-          abt_cost = Number(shift.abt_cost) || 0;
-          if (existingRouteLog?.abt) {
-            combinedRouteLog = combinedRouteLog || {};
-            combinedRouteLog.abt = existingRouteLog.abt;
-          }
-        } else if (Array.isArray(abtCoordinates) && abtCoordinates.length > 0) {
-          const abtTravel = await calculateAbtTravel(shift, abtCoordinates);
-          abt_km = abtTravel.distance;
-          abt_cost = abtTravel.cost;
+        if (hasAbtService) {
+          if (preserveAbt && shift.status === "COMPLETED") {
+            abt_km = Number(shift.abt_km) || 0;
+            abt_cost = Number(shift.abt_cost) || 0;
+            if (existingRouteLog?.abt) {
+              combinedRouteLog = combinedRouteLog || {};
+              combinedRouteLog.abt = existingRouteLog.abt;
+            }
+          } else if (Array.isArray(abtCoordinates) && abtCoordinates.length > 0) {
+            const abtTravel = await calculateAbtTravel(shift, abtCoordinates);
+            abt_km = abtTravel.distance;
+            abt_cost = abtTravel.cost;
 
-          if (abt_km > 0) {
-            combinedRouteLog = combinedRouteLog || {};
-            combinedRouteLog.abt = {
-              description: (abtTravel.routeLogs as any).description,
-              waypoints: (abtTravel.routeLogs as any).waypoints,
-              distance: abt_km,
-              minutes: (abtTravel as any).minutes,
-              cost: abt_cost,
-              calculatedAt: new Date().toISOString(),
-              legs: (abtTravel.routeLogs as any).legs,
-            };
+            if (abt_km > 0) {
+              combinedRouteLog = combinedRouteLog || {};
+              combinedRouteLog.abt = {
+                description: (abtTravel.routeLogs as any).description,
+                waypoints: (abtTravel.routeLogs as any).waypoints,
+                distance: abt_km,
+                minutes: (abtTravel as any).minutes,
+                cost: abt_cost,
+                calculatedAt: new Date().toISOString(),
+                legs: (abtTravel.routeLogs as any).legs,
+              };
+            }
           }
         }
 
@@ -16733,7 +16840,6 @@ app.get("/api/health", (req, res) => {
 
         // 3. Update DB
         let updatedServicesJson = shift.services_json;
-        const { checklist } = req.body;
 
         if (checklist && Array.isArray(checklist) && checklist.length > 0) {
           updatedServicesJson = JSON.stringify(checklist);
@@ -16793,17 +16899,21 @@ app.get("/api/health", (req, res) => {
           }
         }
 
-        const isHomeCare =
-          shift.funding_type === "HCP" ||
-          shift.funding_type === "Home Care" ||
-          shift.funding_type === "HOME_CARE";
-
         const finalProviderKm = isHomeCare
           ? shift.provider_travel_km
-          : pTravel.distance;
+          : hasProviderTravelService
+            ? pTravel.distance
+            : 0;
+        const finalProviderMinutes = isHomeCare
+          ? Number(shift.provider_travel_minutes || 0)
+          : hasProviderTravelService
+            ? Number(pTravel.minutes || 0)
+            : 0;
         const finalProviderCost = isHomeCare
           ? shift.provider_travel_cost
-          : pTravel.cost;
+          : hasProviderTravelService
+            ? pTravel.cost
+            : 0;
 
         // ... Update query downwards
         let updateQueryStr = `
@@ -16813,6 +16923,7 @@ app.get("/api/health", (req, res) => {
           tags = ?,
           status = 'COMPLETED',
           provider_travel_km = ?,
+          provider_travel_minutes = ?,
           provider_travel_cost = ?,
           home_care_travel_km = ?,
           home_care_travel_total = ?,
@@ -16828,6 +16939,7 @@ app.get("/api/health", (req, res) => {
           notes || shift.notes,
           is_incident ? 'Incident' : (shift.tags || null),
           finalProviderKm,
+          finalProviderMinutes,
           finalProviderCost,
           hcTravel.distance,
           hcTravel.cost,
