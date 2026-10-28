@@ -29,9 +29,12 @@ export function renderDocumentBackgroundPdf(doc: any) {
     if (bgBuffer) {
       const drawFeatheredPatch = (cx: number, cy: number, maxR: number, imgX: number, imgY: number, imgW: number) => {
         const rings = [
-          { r: maxR, alpha: 0.026 },
-          { r: maxR * 0.76, alpha: 0.032 },
-          { r: maxR * 0.52, alpha: 0.038 },
+          { r: maxR, alpha: 0.025 },
+          { r: maxR * 0.88, alpha: 0.032 },
+          { r: maxR * 0.76, alpha: 0.040 },
+          { r: maxR * 0.64, alpha: 0.048 },
+          { r: maxR * 0.50, alpha: 0.055 },
+          { r: maxR * 0.36, alpha: 0.055 },
         ];
         for (const ring of rings) {
           doc.save();
@@ -43,11 +46,11 @@ export function renderDocumentBackgroundPdf(doc: any) {
       };
 
       // 1. Top-Right faded houses patch
-      drawFeatheredPatch(515, 82, 145, 330, -25, 320);
+      drawFeatheredPatch(500, 90, 175, 290, -25, 355);
       // 2. Mid-Left faded houses patch
-      drawFeatheredPatch(75, 390, 135, -70, 275, 310);
+      drawFeatheredPatch(85, 390, 160, -65, 260, 340);
       // 3. Bottom-Right faded houses patch
-      drawFeatheredPatch(490, 665, 155, 300, 535, 330);
+      drawFeatheredPatch(480, 660, 180, 270, 515, 360);
     }
 
     // Colour-accent swooshes matching the teal, sage green, and sky blue palette

@@ -315,17 +315,17 @@ export default function InvoicePreviewModal({ shiftId, invoiceId, onClose }: Pro
                 <img
                   src="/hith houses for folder.png"
                   alt=""
-                  className="absolute -top-8 -right-10 w-[440px] h-[310px] object-cover opacity-[0.11] [mask-image:radial-gradient(closest-side,black_20%,transparent_100%)]"
+                  className="absolute -top-6 -right-8 w-[480px] h-[340px] object-cover opacity-[0.26] [mask-image:radial-gradient(ellipse_at_center,black_25%,rgba(0,0,0,0.5)_58%,transparent_88%)] [-webkit-mask-image:radial-gradient(ellipse_at_center,black_25%,rgba(0,0,0,0.5)_58%,transparent_88%)]"
                 />
                 <img
                   src="/hith houses for folder.png"
                   alt=""
-                  className="absolute top-[34%] -left-16 w-[400px] h-[300px] object-cover opacity-[0.09] -rotate-6 [mask-image:radial-gradient(closest-side,black_15%,transparent_100%)]"
+                  className="absolute top-[32%] -left-12 w-[440px] h-[320px] object-cover opacity-[0.22] -rotate-6 [mask-image:radial-gradient(ellipse_at_center,black_20%,rgba(0,0,0,0.45)_55%,transparent_86%)] [-webkit-mask-image:radial-gradient(ellipse_at_center,black_20%,rgba(0,0,0,0.45)_55%,transparent_86%)]"
                 />
                 <img
                   src="/hith houses for folder.png"
                   alt=""
-                  className="absolute -bottom-10 -right-8 w-[460px] h-[320px] object-cover opacity-[0.11] [mask-image:radial-gradient(closest-side,black_20%,transparent_100%)]"
+                  className="absolute -bottom-8 -right-6 w-[500px] h-[350px] object-cover opacity-[0.26] [mask-image:radial-gradient(ellipse_at_center,black_25%,rgba(0,0,0,0.5)_58%,transparent_88%)] [-webkit-mask-image:radial-gradient(ellipse_at_center,black_25%,rgba(0,0,0,0.5)_58%,transparent_88%)]"
                 />
                 <svg className="absolute inset-0 w-full h-full" viewBox="0 0 612 792" preserveAspectRatio="none" fill="none">
                   {/* Top-Right Swooshes */}
