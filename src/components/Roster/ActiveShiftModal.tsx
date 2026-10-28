@@ -370,13 +370,13 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
       e.preventDefault();
       e.stopPropagation();
     }
-    const resolvedWaypoints = didTransport 
+    const resolvedWaypoints = (hasABTService && didTransport)
       ? ['CLIENT_HOME', ...waypoints.map(wp => ({ placeId: wp.placeId, coords: wp.coords, address: wp.name })), ...(returnedHome ? ['CLIENT_HOME'] : [])] 
       : null;
 
-    const shouldPreserveAbt = shift.status === 'COMPLETED' && !isEditingTransport && !hasModifiedTransport;
+    const shouldPreserveAbt = hasABTService && shift.status === 'COMPLETED' && !isEditingTransport && !hasModifiedTransport;
 
-    if (!shouldPreserveAbt && didTransport && waypoints.length === 0) {
+    if (!shouldPreserveAbt && hasABTService && didTransport && waypoints.length === 0) {
        alert("Please add at least 1 destination if you transported the client.");
        return;
     }
@@ -662,6 +662,21 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
 
   const isNDIS = shift.fundingType === 'NDIS' || shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP' || !shift.fundingType;
   const isHCP = shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP';
+  const shiftServiceItems = (shift.servicesData && shift.servicesData.length > 0)
+    ? shift.servicesData
+    : (shift.serviceId || shift.serviceName ? [{ serviceId: shift.serviceId, serviceName: shift.serviceName, serviceCode: shift.serviceCode }] : []);
+  const hasProviderTravelService = isHCP || shiftServiceItems.some((s: any) => {
+    const srv = servicesList.find((srvItem: any) => String(srvItem.id) === String(s.serviceId));
+    const nameLower = String(srv?.name || s.serviceName || s.customName || s.name || '').toLowerCase();
+    const codeLower = String(srv?.code || s.serviceCode || '').toLowerCase();
+    return nameLower.includes('provider travel') || nameLower.includes('travel - provider') || codeLower.includes('provider travel');
+  });
+  const hasABTService = isHCP || shiftServiceItems.some((s: any) => {
+    const srv = servicesList.find((srvItem: any) => String(srvItem.id) === String(s.serviceId));
+    const nameLower = String(srv?.name || s.serviceName || s.customName || s.name || '').toLowerCase();
+    return nameLower.includes('activity based transport') || nameLower.includes('activity-based transport') || nameLower === 'abt';
+  });
+  const hasAnyTravelService = hasProviderTravelService || hasABTService;
   const clientData = clientList.find((c: any) => String(c.id) === String(shift.clientId));
   const clientAddress = clientData?.address;
 
@@ -1063,312 +1078,320 @@ export default function ActiveShiftModal({ isOpen, onClose, onSave, shift, servi
                 {/* 2. Transport & Odometer */}
                 {isNDIS && (
                   <>
-                    <div className="bg-indigo-900/20 rounded-xl p-3.5 shadow-sm border border-indigo-500/20">
-                      <div className="flex items-center justify-between mb-2.5">
-                        <h4 className="text-xs md:text-sm font-bold text-indigo-100 uppercase tracking-wide flex items-center">
-                          <Car className="w-4 h-4 mr-1.5 text-brand-teal shrink-0" /> TRAVEL ALLOWANCE
-                        </h4>
-                        {shift.status === 'COMPLETED' && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextEditing = !isEditingTransport;
-                              setIsEditingTransport(nextEditing);
-                              if (routeLogDetailsRef.current) {
-                                routeLogDetailsRef.current.open = false;
-                              }
-                            }}
-                            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 border transition-all shadow-sm ${
-                              isEditingTransport
-                                ? 'bg-brand-teal text-zinc-950 border-brand-teal ring-2 ring-brand-teal/30'
-                                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border-white/[0.12]'
-                            }`}
-                            title="Edit Client Transport"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                            <span>{isEditingTransport ? 'Editing' : 'Edit'}</span>
-                          </button>
-                        )}
-                      </div>
+                    {(shift.status === 'COMPLETED' ? hasAnyTravelService : hasABTService) && (
+                      <div className="bg-indigo-900/20 rounded-xl p-3.5 shadow-sm border border-indigo-500/20">
+                        <div className="flex items-center justify-between mb-2.5">
+                          <h4 className="text-xs md:text-sm font-bold text-indigo-100 uppercase tracking-wide flex items-center">
+                            <Car className="w-4 h-4 mr-1.5 text-brand-teal shrink-0" /> TRAVEL ALLOWANCE
+                          </h4>
+                          {shift.status === 'COMPLETED' && hasABTService && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextEditing = !isEditingTransport;
+                                setIsEditingTransport(nextEditing);
+                                if (routeLogDetailsRef.current) {
+                                  routeLogDetailsRef.current.open = false;
+                                }
+                              }}
+                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 border transition-all shadow-sm ${
+                                isEditingTransport
+                                  ? 'bg-brand-teal text-zinc-950 border-brand-teal ring-2 ring-brand-teal/30'
+                                  : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border-white/[0.12]'
+                              }`}
+                              title="Edit Client Transport"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                              <span>{isEditingTransport ? 'Editing' : 'Edit'}</span>
+                            </button>
+                          )}
+                        </div>
 
-                      {shift.status === 'COMPLETED' && (() => {
-                        let log: any = null;
-                        if (shift.transportRouteLog) {
-                          try { log = JSON.parse(shift.transportRouteLog); } catch(e) {}
-                        }
-                        let breakdownArr: string[] = [];
-                        if (shift.travelBreakdown) {
-                          try { breakdownArr = JSON.parse(shift.travelBreakdown); } catch(e) {}
-                        }
+                        {shift.status === 'COMPLETED' && (() => {
+                          let log: any = null;
+                          if (shift.transportRouteLog) {
+                            try { log = JSON.parse(shift.transportRouteLog); } catch(e) {}
+                          }
+                          let breakdownArr: string[] = [];
+                          if (shift.travelBreakdown) {
+                            try { breakdownArr = JSON.parse(shift.travelBreakdown); } catch(e) {}
+                          }
 
-                        const providerKm = isHCP
-                          ? (shift.homeCareTravelKm ?? shift.providerTravelKm ?? log?.homeCareTravel?.distance ?? 0)
-                          : (shift.providerTravelKm ?? log?.providerTravel?.distance ?? 0);
+                          const providerKm = isHCP
+                            ? (shift.homeCareTravelKm ?? shift.providerTravelKm ?? log?.homeCareTravel?.distance ?? 0)
+                            : (shift.providerTravelKm ?? log?.providerTravel?.distance ?? 0);
 
-                        const providerLegMins = isHCP
-                          ? (log?.homeCareTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0)
-                          : (log?.providerTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0);
+                          const providerLegMins = isHCP
+                            ? (log?.homeCareTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0)
+                            : (log?.providerTravel?.legs || []).reduce((sum: number, l: any) => sum + (Number(l.durationMins) || 0), 0);
 
-                        const providerMins = Number(shift.providerTravelMinutes) || (isHCP ? Number(log?.homeCareTravel?.minutes) : Number(log?.providerTravel?.minutes)) || providerLegMins || 0;
+                          const providerMins = Number(shift.providerTravelMinutes) || (isHCP ? Number(log?.homeCareTravel?.minutes) : Number(log?.providerTravel?.minutes)) || providerLegMins || 0;
 
-                        const abtKmVal = shift.abtKm ?? log?.abt?.distance ?? 0;
+                          const abtKmVal = shift.abtKm ?? log?.abt?.distance ?? 0;
 
-                        const hasProviderLegs = log?.providerTravel?.legs && log.providerTravel.legs.length > 0 && !isHCP;
-                        const hasHomeCareLegs = log?.homeCareTravel?.legs && log.homeCareTravel.legs.length > 0;
-                        const hasAbtLog = !!log?.abt;
-                        const hasAnyLogContent = breakdownArr.length > 0 || hasProviderLegs || hasHomeCareLegs || hasAbtLog;
+                          const hasProviderLegs = hasProviderTravelService && log?.providerTravel?.legs && log.providerTravel.legs.length > 0 && !isHCP;
+                          const hasHomeCareLegs = hasProviderTravelService && log?.homeCareTravel?.legs && log.homeCareTravel.legs.length > 0;
+                          const hasAbtLog = hasABTService && !!log?.abt;
+                          const hasAnyLogContent = (hasProviderTravelService && breakdownArr.length > 0) || hasProviderLegs || hasHomeCareLegs || hasAbtLog;
 
-                        return (
-                          <div className="space-y-3 mb-2">
-                            {/* Summary Metrics */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                              <div className={`p-3 rounded-xl border flex flex-col justify-center ${providerKm > 0 ? 'bg-indigo-950/40 border-brand-teal/30' : 'bg-zinc-900/60 border-white/[0.08]'}`}>
-                                <p className="text-[11px] font-bold text-brand-teal/90 uppercase tracking-wider mb-1">
-                                  {isHCP ? 'Home Care Provider Travel (Between Shifts)' : 'Provider Travel (To/From Shift)'}
-                                </p>
-                                <div className="flex items-baseline gap-2.5 flex-wrap">
-                                  <span className="text-lg font-extrabold text-white">
-                                    {Number(providerKm).toFixed(2)} <span className="text-xs font-medium text-brand-teal">km</span>
-                                  </span>
-                                  {isHCP && (
-                                    <span className="text-xs font-bold text-brand-teal bg-brand-teal/15 px-2 py-0.5 rounded-md border border-brand-teal/30">
-                                      {Math.round(providerMins)} mins
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className={`p-3 rounded-xl border flex flex-col justify-center ${abtKmVal > 0 ? 'bg-brand-green/10 border-brand-green/30' : 'bg-zinc-900/60 border-white/[0.08]'}`}>
-                                <p className="text-[11px] font-bold text-brand-green/90 uppercase tracking-wider mb-1">
-                                  Activity Based Transport (Client Travel)
-                                </p>
-                                <div className="flex items-baseline gap-2.5 flex-wrap">
-                                  <span className="text-lg font-extrabold text-white">
-                                    {Number(abtKmVal).toFixed(2)} <span className="text-xs font-medium text-brand-green">km</span>
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Full-Width Dropdown Log */}
-                            <div className="w-full bg-[#09090b]/90 px-3.5 py-2.5 rounded-xl border border-white/[0.1] shadow-inner">
-                              <details ref={routeLogDetailsRef} className="group">
-                                <summary className="text-xs sm:text-sm font-semibold text-zinc-200 cursor-pointer flex items-center hover:text-white transition-colors outline-none list-none py-0.5">
-                                  <span className="flex-1">View Transport Route Log</span>
-                                  <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 group-open:rotate-180 transition-transform">
-                                    <ArrowDown className="w-3.5 h-3.5 text-zinc-400" />
-                                  </div>
-                                </summary>
-                                <div className="mt-3 space-y-3 pt-3 border-t border-white/[0.08]">
-                                  {breakdownArr.length > 0 && (
-                                    <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
-                                      <span className="text-[11px] font-bold text-brand-teal/80 mb-2.5 uppercase tracking-wider block">Calculated Travel Journey:</span>
-                                      <div className="space-y-2">
-                                        {breakdownArr.map((item, idx) => {
-                                          const isZero = item.includes('0km') || item.includes('Ignored');
-                                          return (
-                                            <div key={idx} className={`text-xs sm:text-sm ${isZero ? 'text-zinc-500 italic' : 'text-zinc-200'}`}>
-                                              {item}
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {hasProviderLegs && (
-                                    <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
-                                      <span className="text-[11px] font-bold text-brand-teal/80 mb-3 uppercase tracking-wider block">Provider Travel (To/From Shift):</span>
-                                      <div className="space-y-4">
-                                        {log.providerTravel.legs.map((leg: any, i: number) => (
-                                          <div key={i}>
-                                            {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
-                                          </div>
-                                        ))}
-                                      </div>
-                                      <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
-                                        <span className="inline-flex items-center px-3 py-1.5 bg-brand-blue text-white text-xs font-bold rounded-md w-max">
-                                          {Number(providerKm).toFixed(2)} km
+                          return (
+                            <div className="space-y-3 mb-2">
+                              {/* Summary Metrics */}
+                              <div className={`grid grid-cols-1 ${hasProviderTravelService && hasABTService ? 'sm:grid-cols-2' : ''} gap-2.5`}>
+                                {hasProviderTravelService && (
+                                  <div className={`p-3 rounded-xl border flex flex-col justify-center ${providerKm > 0 ? 'bg-indigo-950/40 border-brand-teal/30' : 'bg-zinc-900/60 border-white/[0.08]'}`}>
+                                    <p className="text-[11px] font-bold text-brand-teal/90 uppercase tracking-wider mb-1">
+                                      {isHCP ? 'Home Care Provider Travel (Between Shifts)' : 'Provider Travel (To/From Shift)'}
+                                    </p>
+                                    <div className="flex items-baseline gap-2.5 flex-wrap">
+                                      <span className="text-lg font-extrabold text-white">
+                                        {Number(providerKm).toFixed(2)} <span className="text-xs font-medium text-brand-teal">km</span>
+                                      </span>
+                                      {isHCP && (
+                                        <span className="text-xs font-bold text-brand-teal bg-brand-teal/15 px-2 py-0.5 rounded-md border border-brand-teal/30">
+                                          {Math.round(providerMins)} mins
                                         </span>
-                                        {log.providerTravel.calculatedAt && (
-                                          <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.providerTravel.calculatedAt).toLocaleString()}</span>
-                                        )}
-                                      </div>
+                                      )}
                                     </div>
-                                  )}
+                                  </div>
+                                )}
 
-                                  {hasHomeCareLegs && (
-                                    <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
-                                      <span className="text-[11px] font-bold text-brand-teal/80 mb-3 uppercase tracking-wider block">Home Care Travel Route:</span>
-                                      <div className="space-y-4">
-                                        {log.homeCareTravel.legs.map((leg: any, i: number) => {
-                                          if (leg.distance === 0 && leg.description && leg.description.includes('Private Commute')) {
+                                {hasABTService && (
+                                  <div className={`p-3 rounded-xl border flex flex-col justify-center ${abtKmVal > 0 ? 'bg-brand-green/10 border-brand-green/30' : 'bg-zinc-900/60 border-white/[0.08]'}`}>
+                                    <p className="text-[11px] font-bold text-brand-green/90 uppercase tracking-wider mb-1">
+                                      Activity Based Transport (Client Travel)
+                                    </p>
+                                    <div className="flex items-baseline gap-2.5 flex-wrap">
+                                      <span className="text-lg font-extrabold text-white">
+                                        {Number(abtKmVal).toFixed(2)} <span className="text-xs font-medium text-brand-green">km</span>
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Full-Width Dropdown Log */}
+                              <div className="w-full bg-[#09090b]/90 px-3.5 py-2.5 rounded-xl border border-white/[0.1] shadow-inner">
+                                <details ref={routeLogDetailsRef} className="group">
+                                  <summary className="text-xs sm:text-sm font-semibold text-zinc-200 cursor-pointer flex items-center hover:text-white transition-colors outline-none list-none py-0.5">
+                                    <span className="flex-1">View Transport Route Log</span>
+                                    <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 group-open:rotate-180 transition-transform">
+                                      <ArrowDown className="w-3.5 h-3.5 text-zinc-400" />
+                                    </div>
+                                  </summary>
+                                  <div className="mt-3 space-y-3 pt-3 border-t border-white/[0.08]">
+                                    {hasProviderTravelService && breakdownArr.length > 0 && (
+                                      <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                        <span className="text-[11px] font-bold text-brand-teal/80 mb-2.5 uppercase tracking-wider block">Calculated Travel Journey:</span>
+                                        <div className="space-y-2">
+                                          {breakdownArr.map((item, idx) => {
+                                            const isZero = item.includes('0km') || item.includes('Ignored');
                                             return (
-                                              <div key={i} className="text-xs sm:text-sm text-zinc-400 italic">
-                                                {leg.description}
+                                              <div key={idx} className={`text-xs sm:text-sm ${isZero ? 'text-zinc-500 italic' : 'text-zinc-200'}`}>
+                                                {item}
                                               </div>
                                             );
-                                          }
-                                          if (leg.distance === 0) return null;
-                                          return (
-                                            <div key={i}>
-                                              {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins || providerMins)}
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                      <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <span className="inline-flex items-center px-3 py-1.5 bg-brand-blue text-white text-xs font-bold rounded-md">
-                                            {Number(providerKm).toFixed(2)} km
-                                          </span>
-                                          <span className="inline-flex items-center px-3 py-1.5 bg-zinc-800 text-brand-teal border border-brand-teal/30 text-xs font-bold rounded-md">
-                                            {Math.round(providerMins)} mins
-                                          </span>
+                                          })}
                                         </div>
-                                        {log.homeCareTravel.calculatedAt && (
-                                          <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.homeCareTravel.calculatedAt).toLocaleString()}</span>
-                                        )}
                                       </div>
-                                    </div>
-                                  )}
+                                    )}
 
-                                  {hasAbtLog ? (
-                                    <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
-                                      <span className="text-[11px] font-bold text-brand-green/80 mb-3 uppercase tracking-wider block">Activity Based Transport (ABT):</span>
-                                      {log.abt.legs && log.abt.legs.length > 0 ? (
+                                    {hasProviderLegs && (
+                                      <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                        <span className="text-[11px] font-bold text-brand-teal/80 mb-3 uppercase tracking-wider block">Provider Travel (To/From Shift):</span>
                                         <div className="space-y-4">
-                                          {log.abt.legs.map((leg: any, i: number) => (
+                                          {log.providerTravel.legs.map((leg: any, i: number) => (
                                             <div key={i}>
                                               {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
                                             </div>
                                           ))}
                                         </div>
-                                      ) : (
-                                        <div>{renderFormattedDescription(log.abt.description || 'Activity Based Transport', log.abt.distance, log.abt.calculatedAt, log.abt.minutes)}</div>
-                                      )}
-                                      <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
-                                        <span className="inline-flex items-center px-3 py-1.5 bg-brand-green/20 text-brand-green text-xs font-black rounded-md border border-brand-green/30 w-max">
-                                          {log.abt.distance != null ? Number(log.abt.distance).toFixed(2) : Number(abtKmVal).toFixed(2)} km
-                                        </span>
-                                        {log.abt.calculatedAt && (
-                                          <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.abt.calculatedAt).toLocaleString()}</span>
-                                        )}
+                                        <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
+                                          <span className="inline-flex items-center px-3 py-1.5 bg-brand-blue text-white text-xs font-bold rounded-md w-max">
+                                            {Number(providerKm).toFixed(2)} km
+                                          </span>
+                                          {log.providerTravel.calculatedAt && (
+                                            <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.providerTravel.calculatedAt).toLocaleString()}</span>
+                                          )}
+                                        </div>
                                       </div>
-                                    </div>
-                                  ) : (
-                                    <div className="bg-[#121214] p-3 rounded-xl border border-white/[0.08] text-xs text-zinc-400 italic">
-                                      No client transport (Activity Based Transport) recorded for this shift.
-                                    </div>
-                                  )}
+                                    )}
 
-                                  {!hasAnyLogContent && (
-                                    <div className="text-xs text-zinc-400 italic">
-                                      No billable travel route log recorded for this shift.
-                                    </div>
+                                    {hasHomeCareLegs && (
+                                      <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                        <span className="text-[11px] font-bold text-brand-teal/80 mb-3 uppercase tracking-wider block">Home Care Travel Route:</span>
+                                        <div className="space-y-4">
+                                          {log.homeCareTravel.legs.map((leg: any, i: number) => {
+                                            if (leg.distance === 0 && leg.description && leg.description.includes('Private Commute')) {
+                                              return (
+                                                <div key={i} className="text-xs sm:text-sm text-zinc-400 italic">
+                                                  {leg.description}
+                                                </div>
+                                              );
+                                            }
+                                            if (leg.distance === 0) return null;
+                                            return (
+                                              <div key={i}>
+                                                {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins || providerMins)}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <span className="inline-flex items-center px-3 py-1.5 bg-brand-blue text-white text-xs font-bold rounded-md">
+                                              {Number(providerKm).toFixed(2)} km
+                                            </span>
+                                            <span className="inline-flex items-center px-3 py-1.5 bg-zinc-800 text-brand-teal border border-brand-teal/30 text-xs font-bold rounded-md">
+                                              {Math.round(providerMins)} mins
+                                            </span>
+                                          </div>
+                                          {log.homeCareTravel.calculatedAt && (
+                                            <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.homeCareTravel.calculatedAt).toLocaleString()}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {hasABTService && (
+                                      hasAbtLog ? (
+                                        <div className="bg-[#121214] p-3.5 rounded-xl border border-white/[0.08]">
+                                          <span className="text-[11px] font-bold text-brand-green/80 mb-3 uppercase tracking-wider block">Activity Based Transport (ABT):</span>
+                                          {log.abt.legs && log.abt.legs.length > 0 ? (
+                                            <div className="space-y-4">
+                                              {log.abt.legs.map((leg: any, i: number) => (
+                                                <div key={i}>
+                                                  {renderFormattedDescription(leg.description, leg.distance, undefined, leg.durationMins)}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <div>{renderFormattedDescription(log.abt.description || 'Activity Based Transport', log.abt.distance, log.abt.calculatedAt, log.abt.minutes)}</div>
+                                          )}
+                                          <div className="flex flex-col sm:flex-row justify-between sm:items-center mt-4 pt-3 border-t border-white/[0.08] gap-2">
+                                            <span className="inline-flex items-center px-3 py-1.5 bg-brand-green/20 text-brand-green text-xs font-black rounded-md border border-brand-green/30 w-max">
+                                              {log.abt.distance != null ? Number(log.abt.distance).toFixed(2) : Number(abtKmVal).toFixed(2)} km
+                                            </span>
+                                            {log.abt.calculatedAt && (
+                                              <span className="text-[10px] text-zinc-500 font-medium">Calculated: {new Date(log.abt.calculatedAt).toLocaleString()}</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="bg-[#121214] p-3 rounded-xl border border-white/[0.08] text-xs text-zinc-400 italic">
+                                          No client transport (Activity Based Transport) recorded for this shift.
+                                        </div>
+                                      )
+                                    )}
+
+                                    {!hasAnyLogContent && !hasABTService && (
+                                      <div className="text-xs text-zinc-400 italic">
+                                        No billable travel route log recorded for this shift.
+                                      </div>
+                                    )}
+                                  </div>
+                                </details>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {hasABTService && (shift.status !== 'COMPLETED' || isEditingTransport) && (
+                          <div className={shift.status === 'COMPLETED' ? 'pt-3 mt-3 border-t border-indigo-500/30 animate-in fade-in' : ''}>
+                            <div className="flex justify-between items-center">
+                              <div className="flex flex-col pr-4">
+                                <label className="text-sm md:text-base text-indigo-200 font-semibold leading-snug">Did you perform any travel for the client?</label>
+                                <span className="text-xs text-indigo-300/70 mt-1">(Will update or replace any previous transport entered)</span>
+                              </div>
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  setDidTransport(!didTransport);
+                                  setHasModifiedTransport(true);
+                                }}
+                                className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${didTransport ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                              >
+                                <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-300 ease-in-out ${didTransport ? 'translate-x-5' : 'translate-x-0'}`} />
+                              </button>
+                            </div>
+
+                            {didTransport && (
+                              <div className="space-y-3 pt-3 mt-3 border-t border-brand-teal/20">
+                                <div className="flex items-start bg-indigo-500/10 border border-brand-teal/20 rounded-lg p-2.5">
+                                  <Info className="w-4 h-4 text-brand-teal flex-shrink-0 mt-0.5 mr-2" />
+                                  <p className="text-[11px] md:text-xs text-indigo-200 leading-snug font-medium">
+                                    Client's Home is automatically your starting point. Add destinations below.
+                                  </p>
+                                </div>
+                                <div className="relative">
+                                  <div className="flex items-center space-x-3 bg-[#09090b] border border-white/[0.12]/80 rounded-xl px-3 focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal transition-shadow shadow-inner">
+                                    <MapPin className="text-brand-teal w-5 h-5 flex-shrink-0" />
+                                    <input 
+                                      type="text" 
+                                      placeholder="Search destination address..." 
+                                      className="w-full bg-transparent border-none py-3 text-sm md:text-base text-white focus:outline-none focus:ring-0"
+                                      value={searchQuery}
+                                      onChange={e => searchLocation(e.target.value)}
+                                    />
+                                  </div>
+                                  
+                                  {searchResults.length > 0 && (
+                                    <ul className="absolute z-20 w-full mt-2 bg-zinc-800 border border-white/[0.12] rounded-xl shadow-2xl max-h-56 overflow-y-auto divide-y divide-zinc-700/50 font-medium">
+                                      {searchResults.map((res: any, idx: number) => (
+                                        <li 
+                                          key={idx} 
+                                          className="px-4 py-3 hover:bg-zinc-700 cursor-pointer text-sm md:text-base transition-colors text-zinc-200 hover:text-white"
+                                          onClick={() => addWaypoint(res)}
+                                        >
+                                          <div className="flex flex-col">
+                                            <span className="truncate">{res.placePrediction.text.text}</span>
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
                                   )}
                                 </div>
-                              </details>
-                            </div>
-                          </div>
-                        );
-                      })()}
 
-                      {(shift.status !== 'COMPLETED' || isEditingTransport) && (
-                        <div className={shift.status === 'COMPLETED' ? 'pt-3 mt-3 border-t border-indigo-500/30 animate-in fade-in' : ''}>
-                          <div className="flex justify-between items-center">
-                            <div className="flex flex-col pr-4">
-                              <label className="text-sm md:text-base text-indigo-200 font-semibold leading-snug">Did you perform any travel for the client?</label>
-                              <span className="text-xs text-indigo-300/70 mt-1">(Will update or replace any previous transport entered)</span>
-                            </div>
-                            <button 
-                              type="button"
-                              onClick={() => {
-                                setDidTransport(!didTransport);
-                                setHasModifiedTransport(true);
-                              }}
-                              className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${didTransport ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-                            >
-                              <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-300 ease-in-out ${didTransport ? 'translate-x-5' : 'translate-x-0'}`} />
-                            </button>
-                          </div>
-
-                          {didTransport && (
-                            <div className="space-y-3 pt-3 mt-3 border-t border-brand-teal/20">
-                              <div className="flex items-start bg-indigo-500/10 border border-brand-teal/20 rounded-lg p-2.5">
-                                <Info className="w-4 h-4 text-brand-teal flex-shrink-0 mt-0.5 mr-2" />
-                                <p className="text-[11px] md:text-xs text-indigo-200 leading-snug font-medium">
-                                  Client's Home is automatically your starting point. Add destinations below.
-                                </p>
-                              </div>
-                              <div className="relative">
-                                <div className="flex items-center space-x-3 bg-[#09090b] border border-white/[0.12]/80 rounded-xl px-3 focus-within:border-brand-teal focus-within:ring-1 focus-within:ring-brand-teal transition-shadow shadow-inner">
-                                  <MapPin className="text-brand-teal w-5 h-5 flex-shrink-0" />
-                                  <input 
-                                    type="text" 
-                                    placeholder="Search destination address..." 
-                                    className="w-full bg-transparent border-none py-3 text-sm md:text-base text-white focus:outline-none focus:ring-0"
-                                    value={searchQuery}
-                                    onChange={e => searchLocation(e.target.value)}
-                                  />
+                                <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                                  {waypoints.map((wp: any, idx: number) => (
+                                    <div key={idx} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 flex items-center justify-between">
+                                      <span className="text-sm md:text-base truncate mr-3 text-zinc-300 font-medium flex items-center min-w-0">
+                                         <span className="flex-shrink-0 w-6 h-6 bg-indigo-500/20 text-brand-teal rounded-full flex items-center justify-center text-xs mr-3 font-bold">{idx + 1}</span>
+                                         <span className="truncate">{wp.name}</span>
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setWaypoints(waypoints.filter((_: any, i: number) => i !== idx));
+                                          setHasModifiedTransport(true);
+                                        }}
+                                        className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04] shrink-0"
+                                      >
+                                        <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
+                                      </button>
+                                    </div>
+                                  ))}
                                 </div>
                                 
-                                {searchResults.length > 0 && (
-                                  <ul className="absolute z-20 w-full mt-2 bg-zinc-800 border border-white/[0.12] rounded-xl shadow-2xl max-h-56 overflow-y-auto divide-y divide-zinc-700/50 font-medium">
-                                    {searchResults.map((res: any, idx: number) => (
-                                      <li 
-                                        key={idx} 
-                                        className="px-4 py-3 hover:bg-zinc-700 cursor-pointer text-sm md:text-base transition-colors text-zinc-200 hover:text-white"
-                                        onClick={() => addWaypoint(res)}
-                                      >
-                                        <div className="flex flex-col">
-                                          <span className="truncate">{res.placePrediction.text.text}</span>
-                                        </div>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
+                                <div className="flex justify-between items-center bg-[#09090b]/80 p-3 rounded-xl mt-2 shadow-sm">
+                                  <label className="text-sm md:text-base text-zinc-300 font-medium pr-4 leading-snug">Did you return to clients home?</label>
+                                  <button 
+                                    type="button"
+                                    onClick={() => {
+                                      setReturnedHome(!returnedHome);
+                                      setHasModifiedTransport(true);
+                                    }}
+                                    className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${returnedHome ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                                  >
+                                    <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-300 ease-in-out ${returnedHome ? 'translate-x-5' : 'translate-x-0'}`} />
+                                  </button>
+                                </div>
                               </div>
-
-                              <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                                {waypoints.map((wp: any, idx: number) => (
-                                  <div key={idx} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600 flex items-center justify-between">
-                                    <span className="text-sm md:text-base truncate mr-3 text-zinc-300 font-medium flex items-center min-w-0">
-                                       <span className="flex-shrink-0 w-6 h-6 bg-indigo-500/20 text-brand-teal rounded-full flex items-center justify-center text-xs mr-3 font-bold">{idx + 1}</span>
-                                       <span className="truncate">{wp.name}</span>
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setWaypoints(waypoints.filter((_: any, i: number) => i !== idx));
-                                        setHasModifiedTransport(true);
-                                      }}
-                                      className="p-2 text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04] shrink-0"
-                                    >
-                                      <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                              
-                              <div className="flex justify-between items-center bg-[#09090b]/80 p-3 rounded-xl mt-2 shadow-sm">
-                                <label className="text-sm md:text-base text-zinc-300 font-medium pr-4 leading-snug">Did you return to clients home?</label>
-                                <button 
-                                  type="button"
-                                  onClick={() => {
-                                    setReturnedHome(!returnedHome);
-                                    setHasModifiedTransport(true);
-                                  }}
-                                  className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 focus:ring-offset-zinc-900 shadow-inner ${returnedHome ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-                                >
-                                  <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-300 ease-in-out ${returnedHome ? 'translate-x-5' : 'translate-x-0'}`} />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {shift.status !== 'COMPLETED' && (
                       <div className="bg-emerald-900/10 rounded-xl p-3 space-y-2 mt-1">

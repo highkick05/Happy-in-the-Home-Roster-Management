@@ -14961,7 +14961,7 @@ app.get("/api/health", (req, res) => {
                      sd.serviceName = 'Orientation';
                      sd.customName = 'Orientation';
                  } else if (sd.serviceId && !sd.serviceName) {
-                     let srv = servicesMap.get(sd.serviceId);
+                     let srv = servicesMap.get(sd.serviceId) || servicesMap.get(Number(sd.serviceId));
                      if (srv) {
                          if (srv.status === 'ARCHIVED') {
                              const activeSrv = activeServicesByCodeAndType.get(`${srv.code}-${srv.type}`);
@@ -15018,7 +15018,7 @@ app.get("/api/health", (req, res) => {
                    sd.serviceName = 'Orientation';
                    sd.customName = 'Orientation';
                } else if (sd.serviceId && !sd.serviceName) {
-                   let srv = servicesMap.get(sd.serviceId);
+                   let srv = servicesMap.get(sd.serviceId) || servicesMap.get(Number(sd.serviceId));
                      if (srv) {
                          if (srv.status === 'ARCHIVED') {
                              const activeSrv = activeServicesByCodeAndType.get(`${srv.code}-${srv.type}`);
