@@ -1484,13 +1484,18 @@ export default function RosterCalendar() {
 
               {/* Row 3: Travel in 3rd row */}
               {!event.isRespiteWrapper && (
-                <div className="flex flex-col gap-1 w-full min-w-0 pt-0.5">
+                <div className="flex flex-col gap-1 w-full sm:w-fit max-w-full min-w-0 pt-0.5">
                   <div className="flex items-center gap-2 w-full">
-                    <div className="h-px flex-1 bg-zinc-800/90" />
-                    <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-zinc-400 shrink-0">
-                      Travel Allowance
-                    </span>
-                    <div className="h-px flex-1 bg-zinc-800/90" />
+                    <div className="h-px flex-1 bg-zinc-700/70" />
+                    <div className="inline-flex items-center gap-1.5 shrink-0">
+                      <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-zinc-300">
+                        Travel Allowance
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded bg-brand-teal/15 border border-brand-teal/30 text-brand-teal text-[7.5px] sm:text-[8.5px] font-semibold tracking-tight leading-none shadow-xs">
+                        Click Shift to Edit
+                      </span>
+                    </div>
+                    <div className="h-px flex-1 bg-zinc-700/70" />
                   </div>
                   <div className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-3.5 flex-nowrap w-full min-w-0 overflow-x-auto no-scrollbar">
                     <div className="inline-flex items-center gap-1 sm:gap-1.5 pr-1.5 sm:pr-3.5 border-r border-zinc-700/70 shrink-0">
