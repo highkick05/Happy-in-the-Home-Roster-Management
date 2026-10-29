@@ -2941,12 +2941,13 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
 
         let mappedUnit = srv.unit || "H";
         if (mappedUnit === "Hour") mappedUnit = "H";
+        if (/^(km|kilometre|kilometres|kilometer|kilometers)$/i.test(String(mappedUnit).trim())) mappedUnit = "KM";
         if (
           srv.name &&
           (srv.name.toLowerCase().includes("activity based transport") ||
             srv.name.toLowerCase().includes("provider travel"))
         ) {
-          mappedUnit = "Kilometre";
+          mappedUnit = "KM";
         }
 
         let itemHasGst = false;
@@ -3197,11 +3198,12 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
 
             let mappedUnit = srv.unit || "H";
             if (mappedUnit === "Hour") mappedUnit = "H";
+            if (/^(km|kilometre|kilometres|kilometer|kilometers)$/i.test(String(mappedUnit).trim())) mappedUnit = "KM";
             if (
               srv.name.toLowerCase().includes("activity based transport") ||
               srv.name.toLowerCase().includes("provider travel")
             ) {
-              mappedUnit = "Kilometre";
+              mappedUnit = "KM";
             }
 
             let itemHasGst = false;
@@ -3239,6 +3241,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
     } else if (shift.rate) {
       let fallbackUnit = shift.service_unit || "H";
       if (fallbackUnit === "Hour") fallbackUnit = "H";
+      if (/^(km|kilometre|kilometres|kilometer|kilometers)$/i.test(String(fallbackUnit).trim())) fallbackUnit = "KM";
       if (
         shift.service_name &&
         (shift.service_name
@@ -3246,7 +3249,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
           .includes("activity based transport") ||
           shift.service_name.toLowerCase().includes("provider travel"))
       ) {
-        fallbackUnit = "Kilometre";
+        fallbackUnit = "KM";
       }
 
       const amt = hours * shift.rate;
@@ -3265,7 +3268,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
         rate: shift.rate,
         amount: amt,
         gstType: itemHasGst ? '10%' : 'GST Free',
-        hasGst: itemHasGst,
+        hasGst: isHomeCare,
         gst: itemGst,
       });
 
@@ -3285,7 +3288,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
           code: "04_799_0125_6_1",
           metadata: `Provided by ${staffName}`,
           qty: shift.provider_travel_km,
-          unit: "Kilometre",
+          unit: "KM",
           rate: travelRate,
           amount: travelCost,
           gstType: isHomeCare ? '10%' : 'GST Free',
@@ -3306,7 +3309,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
           code: "04_590_0125_6_1",
           metadata: `Provided by ${staffName}`,
           qty: shift.abt_km,
-          unit: "Kilometre",
+          unit: "KM",
           rate: abtRate,
           amount: abtCost,
           gstType: isHomeCare ? '10%' : 'GST Free',
@@ -19580,6 +19583,13 @@ app.get("/api/health", (req, res) => {
       subtotal += amount;
       gstAmount += itemGst;
 
+      if (
+        /^(km|kilometre|kilometres|kilometer|kilometers)$/i.test(String(unit || "").trim()) ||
+        (name && (name.toLowerCase().includes("activity based transport") || name.toLowerCase().includes("provider travel")))
+      ) {
+        unit = "KM";
+      }
+
       return {
         date: formatToDisplayDate(sd.date || rawDate),
         name,
@@ -20791,9 +20801,9 @@ app.post(
           multGs.end();
           doc.page.ext_gstates["GsLogoMult"] = multGs;
           doc.addContent("/GsLogoMult gs");
-          doc.image(buffer, 50, 25, { fit: [220, 85] });
+          doc.image(buffer, 50, 20, { fit: [260, 105] });
           doc.restore();
-          logoBottomY = 118;
+          logoBottomY = 130;
         }
       } catch (e) {
         console.error("Error drawing letterhead:", e);
@@ -20986,7 +20996,9 @@ app.post(
       doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(String(item.qty ?? ""), 365, currentY, { width: 32, align: "right" });
 
       // Render Unit
-      doc.fillColor("#6B7280").font("Helvetica").fontSize(8).text(item.unit || "Hr", 403, currentY, { width: 32, align: "left" });
+      const rawInvUnit = String(item.unit || "Hr").trim();
+      const invUnitDisplay = /^(km|kilometre|kilometres|kilometer|kilometers)$/i.test(rawInvUnit) ? "KM" : rawInvUnit;
+      doc.fillColor("#6B7280").font("Helvetica").fontSize(8).text(invUnitDisplay, 403, currentY, { width: 32, align: "left" });
 
       // Render Rate
       doc.fillColor("#374151").font("Helvetica").fontSize(8.5).text(`$${Number(item.rate || 0).toFixed(2)}`, 438, currentY, { width: 46, align: "right" });
@@ -21184,9 +21196,9 @@ app.post(
           multGs.end();
           doc.page.ext_gstates["GsLogoMult"] = multGs;
           doc.addContent("/GsLogoMult gs");
-          doc.image(buffer, 50, 25, { fit: [220, 85] });
+          doc.image(buffer, 50, 20, { fit: [260, 105] });
           doc.restore();
-          logoBottomY = 118;
+          logoBottomY = 130;
         }
       } catch (e) {
         console.error("Error drawing letterhead:", e);
@@ -21531,11 +21543,13 @@ app.post(
         });
 
       // Render Unit
+      const rawRemUnit = String(item.unit || "Hour").trim();
+      const remUnitDisplay = /^(km|kilometre|kilometres|kilometer|kilometers)$/i.test(rawRemUnit) ? "KM" : rawRemUnit;
       doc
         .fillColor("#6B7280")
         .font("Helvetica")
         .fontSize(8)
-        .text(item.unit || "Hour", 378, currentY, {
+        .text(remUnitDisplay, 378, currentY, {
           width: 42,
           align: "left",
         });

@@ -441,9 +441,9 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
             multGs.end();
             doc.page.ext_gstates["GsLogoMult"] = multGs;
             doc.addContent("/GsLogoMult gs");
-            doc.image(buffer, 50, 25, { fit: [220, 85] });
+            doc.image(buffer, 50, 20, { fit: [260, 105] });
             doc.restore();
-            logoBottomY = 118;
+            logoBottomY = 130;
           }
         } catch (e) {
           console.error("Error rendering logo in quote PDF:", e);
@@ -676,7 +676,8 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
         doc.fillColor("#111827").font("Helvetica-Bold").fontSize(8.5).text(qty.toString(), 385, currentY, { width: 35, align: "right" });
 
         // Render Unit
-        const unitDisplay = item.unit || srv.unit || "Hr";
+        const rawUnit = String(item.unit || srv.unit || "Hr").trim();
+        const unitDisplay = /^(km|kilometre|kilometres|kilometer|kilometers)$/i.test(rawUnit) ? "KM" : rawUnit;
         doc.fillColor("#6B7280").font("Helvetica").fontSize(8).text(unitDisplay, 428, currentY, { width: 32, align: "left" });
 
         // Render Rate
@@ -884,7 +885,9 @@ export function setupQuotePdfRoutes(app: any, db: any, authenticateToken: any) {
           type: srv.type || "",
           time: timeStr,
           qty,
-          unit: item.unit || srv.unit || "Hr",
+          unit: /^(km|kilometre|kilometres|kilometer|kilometers)$/i.test(String(item.unit || srv.unit || "Hr").trim())
+            ? "KM"
+            : (item.unit || srv.unit || "Hr"),
           rate: finalRate,
           gst: lineGst,
           amount: lineAmount

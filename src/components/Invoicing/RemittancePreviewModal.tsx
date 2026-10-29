@@ -307,19 +307,19 @@ export default function RemittancePreviewModal({ remittanceId, remittanceNumber,
               {/* Subtle Faded Houses & Colour-Accent Swooshes Background */}
               <div className="pointer-events-none select-none absolute inset-0 overflow-hidden -z-10" aria-hidden="true">
                 <img
-                  src="/assets/aistudio/hith_houses_for_folder_3df6b648.png"
+                  src="/hith houses for folder.png"
                   alt=""
-                  className="absolute -top-8 -right-10 w-[440px] h-[310px] object-cover opacity-[0.11] [mask-image:radial-gradient(closest-side,black_20%,transparent_100%)]"
+                  className="absolute -top-6 inset-x-0 w-full h-[360px] object-cover opacity-[0.26] [mask-image:radial-gradient(ellipse_95%_75%_at_85%_25%,black_15%,rgba(0,0,0,0.6)_45%,rgba(0,0,0,0.2)_72%,transparent_96%)] [-webkit-mask-image:radial-gradient(ellipse_95%_75%_at_85%_25%,black_15%,rgba(0,0,0,0.6)_45%,rgba(0,0,0,0.2)_72%,transparent_96%)]"
                 />
                 <img
-                  src="/assets/aistudio/hith_houses_for_folder_3df6b648.png"
+                  src="/hith houses for folder.png"
                   alt=""
-                  className="absolute top-[34%] -left-16 w-[400px] h-[300px] object-cover opacity-[0.09] -rotate-6 [mask-image:radial-gradient(closest-side,black_15%,transparent_100%)]"
+                  className="absolute top-[28%] inset-x-0 w-full h-[360px] object-cover opacity-[0.22] [mask-image:radial-gradient(ellipse_95%_70%_at_15%_50%,black_15%,rgba(0,0,0,0.55)_45%,rgba(0,0,0,0.18)_72%,transparent_96%)] [-webkit-mask-image:radial-gradient(ellipse_95%_70%_at_15%_50%,black_15%,rgba(0,0,0,0.55)_45%,rgba(0,0,0,0.18)_72%,transparent_96%)]"
                 />
                 <img
-                  src="/assets/aistudio/hith_houses_for_folder_3df6b648.png"
+                  src="/hith houses for folder.png"
                   alt=""
-                  className="absolute -bottom-10 -right-8 w-[460px] h-[320px] object-cover opacity-[0.11] [mask-image:radial-gradient(closest-side,black_20%,transparent_100%)]"
+                  className="absolute -bottom-8 inset-x-0 w-full h-[360px] object-cover opacity-[0.26] [mask-image:radial-gradient(ellipse_95%_75%_at_85%_75%,black_15%,rgba(0,0,0,0.6)_45%,rgba(0,0,0,0.2)_72%,transparent_96%)] [-webkit-mask-image:radial-gradient(ellipse_95%_75%_at_85%_75%,black_15%,rgba(0,0,0,0.6)_45%,rgba(0,0,0,0.2)_72%,transparent_96%)]"
                 />
                 <svg className="absolute inset-0 w-full h-full" viewBox="0 0 612 792" preserveAspectRatio="none" fill="none">
                   {/* Top-Right Swooshes */}
@@ -342,7 +342,7 @@ export default function RemittancePreviewModal({ remittanceId, remittanceNumber,
                 {/* Provider Logo */}
                 <div className="flex flex-col max-w-sm">
                   {settingsMap.letterheadLogo ? (
-                    <img src={settingsMap.letterheadLogo} alt="Logo" className="h-36 sm:h-44 max-w-[340px] sm:max-w-[420px] w-auto object-contain" />
+                    <img src={settingsMap.letterheadLogo} alt="Logo" className="h-36 sm:h-44 max-w-[340px] sm:max-w-[420px] w-auto object-contain mix-blend-multiply" />
                   ) : (
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold text-base shadow-sm">
@@ -493,8 +493,8 @@ export default function RemittancePreviewModal({ remittanceId, remittanceNumber,
                           </td>
 
                           {/* Unit */}
-                          <td className="py-3 px-2 text-left text-zinc-500 text-[11px] align-top capitalize">
-                            {item.unit || 'Hour'}
+                          <td className="py-3 px-2 text-left text-zinc-500 text-[11px] align-top">
+                            {/^(km|kilometre|kilometres|kilometer|kilometers)$/i.test(String(item.unit || '').trim()) ? 'KM' : (item.unit || 'Hour')}
                           </td>
 
                           {/* Rate */}

@@ -470,8 +470,8 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
                           </td>
 
                           {/* Unit */}
-                          <td className="py-3 px-2 text-left text-zinc-500 text-[11px] align-top capitalize">
-                            {item.unit || 'Hr'}
+                          <td className="py-3 px-2 text-left text-zinc-500 text-[11px] align-top">
+                            {/^(km|kilometre|kilometres|kilometer|kilometers)$/i.test(String(item.unit || '').trim()) ? 'KM' : (item.unit || 'Hr')}
                           </td>
 
                           {/* Rate */}
