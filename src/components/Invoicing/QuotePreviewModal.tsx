@@ -97,7 +97,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
         <div className="absolute inset-0" onClick={onClose} />
         <div className="bg-[#121216] border border-white/10 rounded-2xl shadow-2xl p-8 flex flex-col items-center justify-center relative z-10 text-center max-w-sm">
           <div className="w-10 h-10 rounded-xl bg-brand-teal/15 flex items-center justify-center text-brand-teal mb-3 animate-pulse border border-brand-teal/30">
@@ -112,7 +112,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
 
   if (!data) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
         <div className="absolute inset-0" onClick={onClose} />
         <div className="bg-[#121216] border border-white/10 rounded-2xl shadow-2xl w-full max-w-md p-8 text-center flex flex-col items-center justify-center gap-4 relative z-10">
           <p className="text-zinc-300 font-semibold text-base">Failed to load quote preview</p>
@@ -178,7 +178,7 @@ export default function QuotePreviewModal({ quoteId, onClose }: Props) {
     : `${quote.client_first_name || ''} ${quote.client_last_name || ''}`.trim() || 'Prospective Client';
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4 md:p-6 overflow-hidden">
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4 md:p-6 overflow-hidden">
       {/* Background Overlay */}
       <div className="absolute inset-0" onClick={onClose} />
       

@@ -105,7 +105,7 @@ export default function RemittancePreviewModal({ remittanceId, remittanceNumber,
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
         <div className="absolute inset-0" onClick={onClose} />
         <div className="bg-[#121216] border border-white/10 rounded-2xl shadow-2xl p-8 flex flex-col items-center justify-center relative z-10 text-center max-w-sm">
           <div className="w-10 h-10 rounded-xl bg-brand-teal/15 flex items-center justify-center text-brand-teal mb-3 animate-pulse border border-brand-teal/30">
@@ -120,7 +120,7 @@ export default function RemittancePreviewModal({ remittanceId, remittanceNumber,
 
   if (!data) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
         <div className="absolute inset-0" onClick={onClose} />
         <div className="bg-[#121216] border border-white/10 rounded-2xl shadow-2xl w-full max-w-md p-8 text-center flex flex-col items-center justify-center gap-4 relative z-10">
           <p className="text-zinc-300 font-semibold text-base">Failed to load remittance preview</p>
@@ -138,7 +138,7 @@ export default function RemittancePreviewModal({ remittanceId, remittanceNumber,
 
   if (data.isHistoricalPdf && pdfBlobUrl) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4 md:p-6 overflow-hidden">
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4 md:p-6 overflow-hidden">
         <div className="absolute inset-0" onClick={onClose} />
         <div className="relative z-10 w-full max-w-5xl flex flex-col h-[92vh] bg-[#121216] rounded-xl shadow-2xl overflow-hidden border border-white/10">
           <div className="flex-none bg-[#161820] border-b border-white/[0.08] px-5 py-3 flex items-center justify-between gap-4">
@@ -207,7 +207,7 @@ export default function RemittancePreviewModal({ remittanceId, remittanceNumber,
   const statusLabel = remittanceStatus || 'GENERATED';
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4 md:p-6 overflow-hidden">
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4 md:p-6 overflow-hidden">
       {/* Background Overlay */}
       <div className="absolute inset-0" onClick={onClose} />
 
