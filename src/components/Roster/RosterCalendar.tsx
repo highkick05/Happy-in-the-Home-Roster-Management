@@ -159,6 +159,13 @@ export default function RosterCalendar() {
   const longPressHandledRef = React.useRef(0);
 
   useEffect(() => {
+    if (activeView === Views.AGENDA && multiSelectMode) {
+      setMultiSelectMode(false);
+      setSelectedEventIds(new Set());
+    }
+  }, [activeView, multiSelectMode]);
+
+  useEffect(() => {
     if (clientList.length > 0 && clientFilter) {
       const recordExists = clientList.some((c: any) => c.id.toString() === clientFilter);
       if (!recordExists) {
@@ -593,7 +600,7 @@ export default function RosterCalendar() {
 
   const onSelectEvent = async (event: ShiftEvent) => {
     if (Date.now() - longPressHandledRef.current < 600) return; // Prevent click immediately after long press
-    if (multiSelectMode) {
+    if (multiSelectMode && activeView !== Views.AGENDA) {
       setSelectedEventIds(prev => {
         const next = new Set(prev);
         if (next.has(event.id)) next.delete(event.id);
@@ -924,7 +931,7 @@ export default function RosterCalendar() {
            border: 'none',
            color: 'inherit',
            padding: '8px',
-           backgroundColor: multiSelectMode && selectedEventIds.has(event.id) ? 'rgba(14, 165, 233, 0.2)' : 'transparent',
+           backgroundColor: 'transparent',
         }
       };
     }
@@ -1209,31 +1216,7 @@ export default function RosterCalendar() {
     };
 
     const AgendaEvent = ({ event }: any) => {
-      const timerRef = React.useRef<any>(null);
-
-      React.useEffect(() => {
-        return () => {
-          if (timerRef.current) clearTimeout(timerRef.current);
-        };
-      }, []);
-
       if (!event) return null;
-
-      const handleMouseDown = () => {
-        if (multiSelectMode) return;
-        timerRef.current = setTimeout(() => {
-          longPressHandledRef.current = Date.now();
-          setMultiSelectMode(true);
-          setSelectedEventIds(new Set([event.id]));
-        }, 500); // long press 500ms
-      };
-
-      const handleMouseUp = () => {
-        if (timerRef.current) {
-          clearTimeout(timerRef.current);
-          timerRef.current = null;
-        }
-      };
 
       let containerClass = 'transition-all duration-150 rounded-xl border border-zinc-700/80 p-2.5 sm:p-3 lg:p-3.5 backdrop-blur-md relative overflow-hidden shadow-lg shadow-black/40 hover:shadow-xl hover:border-zinc-500 hover:-translate-y-px ';
       let badgeLabel = event.status;
@@ -1272,11 +1255,6 @@ export default function RosterCalendar() {
       } else {
          containerClass += 'border-l-[6px] border-l-zinc-600 bg-zinc-900/95 bg-gradient-to-r from-zinc-800/40 via-zinc-900/90 to-zinc-900 hover:bg-zinc-850';
          badgeClass = 'text-zinc-400 bg-zinc-800/60 group-hover:bg-zinc-800';
-      }
-
-      const isSelected = multiSelectMode && selectedEventIds.has(event.id);
-      if (isSelected) {
-         containerClass += ' ring-2 ring-brand-blue ring-offset-2 ring-offset-brand-navy';
       }
 
       const startText = event.start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
@@ -1376,11 +1354,6 @@ export default function RosterCalendar() {
       return (
         <div 
            className={`${containerClass} cursor-pointer w-full group relative`}
-           onMouseDown={handleMouseDown}
-           onMouseUp={handleMouseUp}
-           onMouseLeave={handleMouseUp}
-           onTouchStart={handleMouseDown}
-           onTouchEnd={handleMouseUp}
         >
           {/* Shift Card Layout (3 Clean Rows + Vertical Status Ribbon at the End) */}
           <div className="flex items-stretch justify-between w-full min-w-0">
@@ -1798,12 +1771,14 @@ export default function RosterCalendar() {
                   <>
                     {/* Secondary Actions */}
                     <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => setMultiSelectMode(true)}
-                        className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto"
-                      >
-                        Select Mode
-                      </button>
+                      {activeView !== Views.AGENDA && (
+                        <button 
+                          onClick={() => setMultiSelectMode(true)}
+                          className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto"
+                        >
+                          Select Mode
+                        </button>
+                      )}
                       <button 
                         onClick={handlePublishDrafts}
                         className="flex items-center justify-center px-3 py-1.5 bg-brand-bg border border-border-subtle hover:border-brand-blue text-[#E6EDF3] text-[11px] font-medium rounded-md transition-colors w-full sm:w-auto"
@@ -1918,7 +1893,7 @@ export default function RosterCalendar() {
             components={calendarComponents}
             onSelectEvent={onSelectEvent}
             onSelectSlot={onSelectSlot}
-            selectable={user?.role === 'ADMIN'}
+            selectable={false}
             
             resources={(activeView as View) === Views.DAY ? resources : undefined}
             resourceIdAccessor={(activeView as View) === Views.DAY ? (r: any) => r?.id : undefined}
