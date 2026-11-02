@@ -10050,6 +10050,10 @@ app.get("/api/health", (req, res) => {
   try {
     db.exec("ALTER TABLE sharepoint_items ADD COLUMN web_dav_url TEXT DEFAULT ''");
   } catch {}
+  try {
+    // Clean up any synthetic Graph drive-root items ({ name: 'Files', root: {} }) that lack web_url and last_modified_at
+    db.exec("DELETE FROM sharepoint_items WHERE is_folder = 1 AND web_url = '' AND last_modified_at = ''");
+  } catch {}
 
   let cachedSpToken: { token: string; expiresAt: number; cacheKey: string } | null = null;
   let cachedBaseCategoryFolderIds: Record<string, { folderId: string; resolvedPath: string; expiresAt: number }> = {};
@@ -11061,7 +11065,13 @@ app.get("/api/health", (req, res) => {
       const seenActiveIds = new Set<string>();
 
       // First pass: process folders in breadth-first order so parent paths are known before child items
-      const nonRootItems = rawDeltaItems.filter((it) => it && it.id && String(it.id) !== rootFolderId);
+      const nonRootItems = rawDeltaItems.filter((it) => {
+        if (!it || !it.id || String(it.id) === rootFolderId) return false;
+        // Exclude Microsoft Graph's synthetic drive-root container item ({ name: "Files", root: {}, folder: {} })
+        if (Boolean(it.root)) return false;
+        if (!it.deleted && !it.webUrl && !it.lastModifiedDateTime) return false;
+        return true;
+      });
       const deletedItems = nonRootItems.filter((it) => Boolean(it.deleted));
       const activeFolders = nonRootItems.filter((it) => !it.deleted && Boolean(it.folder));
       const activeFiles = nonRootItems.filter((it) => !it.deleted && !it.folder);
@@ -11083,16 +11093,15 @@ app.get("/api/health", (req, res) => {
           }
         }
         if (nextRemaining.length === unresolvedFolders.length) {
-          // Fallback: derive from parentReference.path if parentId was outside scope
+          // Fallback: derive from parentReference.path if parentId is inside fullPath
           for (const folder of nextRemaining) {
             const rawParentPath = decodeURIComponent(String(folder.parentReference?.path || ""));
             const idx = rawParentPath.toLowerCase().indexOf(fullPath.toLowerCase());
-            let parentSub = "";
             if (idx !== -1) {
-              parentSub = normalizeSpPath(rawParentPath.slice(idx + fullPath.length));
+              const parentSub = normalizeSpPath(rawParentPath.slice(idx + fullPath.length));
+              const relPath = parentSub ? `${parentSub}/${folder.name}` : String(folder.name);
+              folderPathById.set(String(folder.id), relPath);
             }
-            const relPath = parentSub ? `${parentSub}/${folder.name}` : String(folder.name);
-            folderPathById.set(String(folder.id), relPath);
           }
           break;
         }
@@ -11100,6 +11109,11 @@ app.get("/api/health", (req, res) => {
       }
 
       const syncTransaction = db.transaction(() => {
+        // Also ensure any legacy synthetic root rows are removed
+        db.prepare(
+          "DELETE FROM sharepoint_items WHERE client_id = ? AND is_folder = 1 AND web_url = '' AND last_modified_at = ''"
+        ).run(client.id);
+
         for (const del of deletedItems) {
           const delId = String(del.id);
           const prev = existingMap.get(delId);
@@ -11116,14 +11130,19 @@ app.get("/api/health", (req, res) => {
 
         for (const item of [...activeFolders, ...activeFiles]) {
           const itemId = String(item.id);
-          seenActiveIds.add(itemId);
-          const parentId = String(item.parentReference?.id || rootFolderId);
+          const parentId = String(item.parentReference?.id || "");
           let parentSub = folderPathById.get(parentId);
           if (parentSub === undefined) {
             const rawParentPath = decodeURIComponent(String(item.parentReference?.path || ""));
             const idx = rawParentPath.toLowerCase().indexOf(fullPath.toLowerCase());
-            parentSub = idx !== -1 ? normalizeSpPath(rawParentPath.slice(idx + fullPath.length)) : "";
+            if (idx !== -1) {
+              parentSub = normalizeSpPath(rawParentPath.slice(idx + fullPath.length));
+            } else {
+              // Item is outside the client's participant folder hierarchy (e.g. drive root or ancestor)
+              continue;
+            }
           }
+          seenActiveIds.add(itemId);
 
           const prev = existingMap.get(itemId);
           if (!prev) {

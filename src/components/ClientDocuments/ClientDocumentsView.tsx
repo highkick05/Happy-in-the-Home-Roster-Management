@@ -586,7 +586,7 @@ export default function ClientDocumentsView() {
             Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({
-            subpath: currentSubpath,
+            subpath: "",
             full: Boolean(options.full)
           })
         });
@@ -615,7 +615,7 @@ export default function ClientDocumentsView() {
         setSpSyncingDelta(false);
       }
     },
-    [id, token, currentSubpath, applyServerSharePointPayload, showToast]
+    [id, token, applyServerSharePointPayload, showToast]
   );
 
   // Instant Read from Local SQLite Cache on Client Load (<15ms) + Stale-While-Revalidate Delta Check
@@ -656,7 +656,9 @@ export default function ClientDocumentsView() {
     if (storageMode === "SHAREPOINT") {
       fetchSharePointFromLocalCache();
     }
-  }, [id, storageMode, fetchSharePointFromLocalCache]);
+    // Only reset subpath and reload cache when switching clients or storage mode
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, storageMode]);
 
   // Auto-sync delta when user returns to browser window after editing a file in Desktop Word / Excel / OneDrive
   useEffect(() => {
