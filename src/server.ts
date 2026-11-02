@@ -9989,7 +9989,962 @@ app.get("/api/health", (req, res) => {
     }
   });
 
-  
+  // -----------------------------------------------------
+  // MICROSOFT SHAREPOINT ONLINE / GRAPH API INTEGRATION
+  // -----------------------------------------------------
+  try {
+    db.exec("ALTER TABLE clients ADD COLUMN sharepoint_folder_name TEXT");
+  } catch {}
+
+  let cachedSpToken: { token: string; expiresAt: number; cacheKey: string } | null = null;
+
+  const getSharePointSettingsFromDb = (overrides?: any) => {
+    const rows = db
+      .prepare("SELECT key, value FROM settings WHERE key LIKE 'sharepoint_%'")
+      .all() as Array<{ key: string; value: string }>;
+    const map: Record<string, string> = {};
+    for (const r of rows) {
+      let val = r.value;
+      try {
+        const parsed = JSON.parse(r.value);
+        if (typeof parsed === "string") val = parsed;
+      } catch {}
+      map[r.key] = String(val ?? "").trim();
+    }
+
+    return {
+      sharepoint_tenant_id: overrides?.sharepoint_tenant_id ?? map.sharepoint_tenant_id ?? process.env.SHAREPOINT_TENANT_ID ?? "",
+      sharepoint_client_id: overrides?.sharepoint_client_id ?? map.sharepoint_client_id ?? process.env.SHAREPOINT_CLIENT_ID ?? "",
+      sharepoint_client_secret: overrides?.sharepoint_client_secret ?? map.sharepoint_client_secret ?? process.env.SHAREPOINT_CLIENT_SECRET ?? "",
+      sharepoint_site_url: overrides?.sharepoint_site_url ?? map.sharepoint_site_url ?? process.env.SHAREPOINT_SITE_URL ?? "",
+      sharepoint_site_id: overrides?.sharepoint_site_id ?? map.sharepoint_site_id ?? "",
+      sharepoint_drive_id: overrides?.sharepoint_drive_id ?? map.sharepoint_drive_id ?? "",
+      sharepoint_drive_name: overrides?.sharepoint_drive_name ?? map.sharepoint_drive_name ?? "Documents",
+      sharepoint_ndis_base_path: overrides?.sharepoint_ndis_base_path ?? map.sharepoint_ndis_base_path ?? "General\\NDIS\\Participant Files",
+      sharepoint_hc_base_path: overrides?.sharepoint_hc_base_path ?? map.sharepoint_hc_base_path ?? "General\\SAH\\Clients",
+    };
+  };
+
+  const saveSharePointSettingKey = (key: string, value: string) => {
+    db.prepare(
+      "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    ).run(key, JSON.stringify(String(value ?? "").trim()));
+  };
+
+  const normalizeSpPath = (rawPath: string) => {
+    return String(rawPath || "")
+      .replace(/\\/g, "/")
+      .split("/")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join("/");
+  };
+
+  const encodeGraphPath = (rawPath: string) => {
+    const clean = normalizeSpPath(rawPath);
+    if (!clean) return "";
+    return clean
+      .split("/")
+      .map((seg) => encodeURIComponent(seg))
+      .join("/");
+  };
+
+  const parseSharePointSiteUrl = (rawUrl: string): { hostname: string; sitePath: string } => {
+    let urlStr = String(rawUrl || "").trim();
+    if (!urlStr) throw new Error("SharePoint Site URL is required.");
+    if (!/^https?:\/\//i.test(urlStr)) {
+      urlStr = "https://" + urlStr;
+    }
+    const parsed = new URL(urlStr);
+    const hostname = parsed.hostname;
+    const segments = parsed.pathname.split("/").filter(Boolean);
+
+    // Handle /sites/<SiteName> or /teams/<TeamName> even if a deeper library path was pasted
+    if (segments.length >= 2 && (segments[0].toLowerCase() === "sites" || segments[0].toLowerCase() === "teams")) {
+      return {
+        hostname,
+        sitePath: `/${segments[0]}/${segments[1]}`,
+      };
+    }
+    return {
+      hostname,
+      sitePath: "",
+    };
+  };
+
+  const getSharePointAccessToken = async (configOverride?: any): Promise<string> => {
+    const cfg = getSharePointSettingsFromDb(configOverride);
+    if (!cfg.sharepoint_tenant_id || !cfg.sharepoint_client_id || !cfg.sharepoint_client_secret) {
+      throw new Error("Missing Microsoft Entra ID credentials (Tenant ID, Client ID, or Client Secret).");
+    }
+
+    const cacheKey = `${cfg.sharepoint_tenant_id}:${cfg.sharepoint_client_id}:${cfg.sharepoint_client_secret}`;
+    if (cachedSpToken && cachedSpToken.cacheKey === cacheKey && cachedSpToken.expiresAt > Date.now() + 120_000) {
+      return cachedSpToken.token;
+    }
+
+    const tokenUrl = `https://login.microsoftonline.com/${encodeURIComponent(cfg.sharepoint_tenant_id)}/oauth2/v2.0/token`;
+    const body = new URLSearchParams({
+      client_id: cfg.sharepoint_client_id,
+      client_secret: cfg.sharepoint_client_secret,
+      scope: "https://graph.microsoft.com/.default",
+      grant_type: "client_credentials",
+    });
+
+    const resp = await fetch(tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+
+    const data = (await resp.json().catch(() => ({}))) as any;
+    if (!resp.ok || !data.access_token) {
+      throw new Error(
+        data.error_description || data.error || `Microsoft authentication failed (HTTP ${resp.status})`
+      );
+    }
+
+    const expiresInSec = Number(data.expires_in) || 3599;
+    cachedSpToken = {
+      token: data.access_token,
+      expiresAt: Date.now() + expiresInSec * 1000,
+      cacheKey,
+    };
+    return data.access_token;
+  };
+
+  const resolveSharePointSiteAndDrive = async (accessToken: string, configOverride?: any) => {
+    const cfg = getSharePointSettingsFromDb(configOverride);
+    const { hostname, sitePath } = parseSharePointSiteUrl(cfg.sharepoint_site_url);
+
+    const siteEndpoint = sitePath
+      ? `https://graph.microsoft.com/v1.0/sites/${hostname}:${sitePath}`
+      : `https://graph.microsoft.com/v1.0/sites/${hostname}`;
+
+    const siteRes = await fetch(siteEndpoint, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const siteData = (await siteRes.json().catch(() => ({}))) as any;
+    if (!siteRes.ok || !siteData.id) {
+      throw new Error(
+        siteData?.error?.message || `Failed to resolve SharePoint site at ${hostname}${sitePath}`
+      );
+    }
+
+    const drivesRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteData.id}/drives`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const drivesData = (await drivesRes.json().catch(() => ({}))) as any;
+    const drivesList: any[] = Array.isArray(drivesData?.value) ? drivesData.value : [];
+
+    let selectedDrive =
+      drivesList.find((d) => cfg.sharepoint_drive_id && d.id === cfg.sharepoint_drive_id) ||
+      drivesList.find(
+        (d) =>
+          cfg.sharepoint_drive_name &&
+          String(d.name || "").toLowerCase() === cfg.sharepoint_drive_name.toLowerCase()
+      ) ||
+      drivesList.find((d) => ["documents", "shared documents"].includes(String(d.name || "").toLowerCase())) ||
+      drivesList[0];
+
+    if (!selectedDrive) {
+      const defaultDriveRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteData.id}/drive`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const defaultDriveData = (await defaultDriveRes.json().catch(() => ({}))) as any;
+      if (defaultDriveRes.ok && defaultDriveData.id) {
+        selectedDrive = defaultDriveData;
+      }
+    }
+
+    if (!selectedDrive?.id) {
+      throw new Error("Could not find a Document Library (Drive) on the specified SharePoint site.");
+    }
+
+    return {
+      siteId: String(siteData.id),
+      siteName: String(siteData.displayName || siteData.name || hostname),
+      siteWebUrl: String(siteData.webUrl || cfg.sharepoint_site_url),
+      driveId: String(selectedDrive.id),
+      driveName: String(selectedDrive.name || "Documents"),
+      driveWebUrl: String(selectedDrive.webUrl || ""),
+      availableDrives: drivesList.map((d) => ({
+        id: d.id,
+        name: d.name,
+        webUrl: d.webUrl,
+        driveType: d.driveType,
+      })),
+    };
+  };
+
+  const ensureSharePointFolderHierarchy = async (
+    accessToken: string,
+    driveId: string,
+    folderPath: string
+  ): Promise<any> => {
+    const segments = normalizeSpPath(folderPath).split("/").filter(Boolean);
+    let currentParentId = "root";
+    let lastItem: any = null;
+
+    for (const seg of segments) {
+      // Check if child folder exists under currentParentId
+      const childrenUrl =
+        currentParentId === "root"
+          ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root/children?$top=999`
+          : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${currentParentId}/children?$top=999`;
+
+      const listRes = await fetch(childrenUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const listData = (await listRes.json().catch(() => ({}))) as any;
+      const children: any[] = Array.isArray(listData?.value) ? listData.value : [];
+
+      const existing = children.find(
+        (c) => c.folder && String(c.name || "").trim().toLowerCase() === seg.trim().toLowerCase()
+      );
+
+      if (existing) {
+        currentParentId = existing.id;
+        lastItem = existing;
+      } else {
+        const createUrl =
+          currentParentId === "root"
+            ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root/children`
+            : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${currentParentId}/children`;
+
+        const createRes = await fetch(createUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: seg.trim(),
+            folder: {},
+            "@microsoft.graph.conflictBehavior": "fail",
+          }),
+        });
+        const createdItem = (await createRes.json().catch(() => ({}))) as any;
+        if (!createRes.ok || !createdItem.id) {
+          throw new Error(
+            createdItem?.error?.message || `Failed to create folder "${seg}" on SharePoint.`
+          );
+        }
+        currentParentId = createdItem.id;
+        lastItem = createdItem;
+      }
+    }
+
+    return lastItem;
+  };
+
+  // Resolve a Client's SharePoint Folder Info (works identically for ACTIVE and SUSPENDED clients)
+  const resolveClientSharePointFolder = async (clientId: string | number) => {
+    const client = db
+      .prepare(
+        "SELECT id, first_name, last_name, funding_type, home_care_sub_type, status, sharepoint_folder_name FROM clients WHERE id = ?"
+      )
+      .get(clientId) as any;
+
+    if (!client) {
+      throw new Error("Client not found");
+    }
+
+    const cfg = getSharePointSettingsFromDb();
+    const isConfigured = Boolean(
+      cfg.sharepoint_tenant_id &&
+        cfg.sharepoint_client_id &&
+        cfg.sharepoint_client_secret &&
+        cfg.sharepoint_site_url
+    );
+
+    const fType = String(client.funding_type || "").toUpperCase().trim();
+    const isNdis = fType === "NDIS";
+    const baseCategoryPath = normalizeSpPath(
+      isNdis ? cfg.sharepoint_ndis_base_path : cfg.sharepoint_hc_base_path
+    );
+    const defaultClientName = `${client.first_name || ""} ${client.last_name || ""}`
+      .trim()
+      .replace(/[\\/:*?"<>|]/g, "");
+    const preferredFolderName = String(client.sharepoint_folder_name || defaultClientName).trim();
+
+    if (!isConfigured) {
+      return {
+        configured: false,
+        folderExists: false,
+        client,
+        isNdis,
+        baseCategoryPath,
+        folderName: preferredFolderName,
+        fullSharePointPath: `${baseCategoryPath}/${preferredFolderName}`,
+        availableFolders: [] as string[],
+      };
+    }
+
+    const accessToken = await getSharePointAccessToken(cfg);
+    const driveInfo = await resolveSharePointSiteAndDrive(accessToken, cfg);
+
+    // Persist resolved siteId / driveId if not saved yet
+    if (!cfg.sharepoint_site_id && driveInfo.siteId) {
+      saveSharePointSettingKey("sharepoint_site_id", driveInfo.siteId);
+    }
+    if (!cfg.sharepoint_drive_id && driveInfo.driveId) {
+      saveSharePointSettingKey("sharepoint_drive_id", driveInfo.driveId);
+    }
+
+    // Check base category folder children (e.g. General/NDIS/Participant Files or General/SAH/Clients)
+    const encodedBase = encodeGraphPath(baseCategoryPath);
+    const baseChildrenUrl = `https://graph.microsoft.com/v1.0/drives/${driveInfo.driveId}/root:/${encodedBase}:/children?$top=999`;
+    const baseRes = await fetch(baseChildrenUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    let availableFolders: string[] = [];
+    let matchedFolderItem: any = null;
+
+    if (baseRes.ok) {
+      const baseData = (await baseRes.json().catch(() => ({}))) as any;
+      const children: any[] = Array.isArray(baseData?.value) ? baseData.value : [];
+      const folderItems = children.filter((c) => Boolean(c.folder));
+      availableFolders = folderItems.map((f) => String(f.name)).sort((a, b) => a.localeCompare(b));
+
+      const normalizeName = (n: string) =>
+        String(n || "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+
+      matchedFolderItem =
+        folderItems.find((f) => normalizeName(f.name) === normalizeName(preferredFolderName)) ||
+        folderItems.find((f) => normalizeName(f.name) === normalizeName(defaultClientName));
+    }
+
+    const resolvedFolderName = matchedFolderItem ? String(matchedFolderItem.name) : preferredFolderName;
+
+    return {
+      configured: true,
+      accessToken,
+      driveId: driveInfo.driveId,
+      siteId: driveInfo.siteId,
+      folderExists: Boolean(matchedFolderItem),
+      clientFolderItem: matchedFolderItem,
+      client,
+      isNdis,
+      baseCategoryPath,
+      folderName: resolvedFolderName,
+      fullSharePointPath: `${baseCategoryPath}/${resolvedFolderName}`,
+      folderWebUrl: matchedFolderItem?.webUrl || driveInfo.driveWebUrl,
+      availableFolders,
+    };
+  };
+
+  // 1. GET /api/sharepoint/status
+  app.get("/api/sharepoint/status", authenticateToken, async (req: any, res: any) => {
+    try {
+      const cfg = getSharePointSettingsFromDb();
+      const configured = Boolean(
+        cfg.sharepoint_tenant_id &&
+          cfg.sharepoint_client_id &&
+          cfg.sharepoint_client_secret &&
+          cfg.sharepoint_site_url
+      );
+
+      if (!configured) {
+        return res.json({
+          configured: false,
+          connected: false,
+          settings: cfg,
+        });
+      }
+
+      try {
+        const accessToken = await getSharePointAccessToken(cfg);
+        const driveInfo = await resolveSharePointSiteAndDrive(accessToken, cfg);
+        return res.json({
+          configured: true,
+          connected: true,
+          siteName: driveInfo.siteName,
+          siteWebUrl: driveInfo.siteWebUrl,
+          siteId: driveInfo.siteId,
+          driveId: driveInfo.driveId,
+          driveName: driveInfo.driveName,
+          availableDrives: driveInfo.availableDrives,
+          settings: cfg,
+        });
+      } catch (connErr: any) {
+        return res.json({
+          configured: true,
+          connected: false,
+          error: connErr.message,
+          settings: cfg,
+        });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to check SharePoint status" });
+    }
+  });
+
+  // 2. POST /api/sharepoint/settings
+  app.post("/api/sharepoint/settings", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const keys = [
+        "sharepoint_tenant_id",
+        "sharepoint_client_id",
+        "sharepoint_client_secret",
+        "sharepoint_site_url",
+        "sharepoint_site_id",
+        "sharepoint_drive_id",
+        "sharepoint_drive_name",
+        "sharepoint_ndis_base_path",
+        "sharepoint_hc_base_path",
+      ];
+      for (const k of keys) {
+        if (req.body[k] !== undefined) {
+          saveSharePointSettingKey(k, String(req.body[k]));
+        }
+      }
+      cachedSpToken = null;
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to save SharePoint settings" });
+    }
+  });
+
+  // 3. POST /api/sharepoint/test-connection
+  app.post("/api/sharepoint/test-connection", authenticateToken, requireAdmin, async (req: any, res: any) => {
+    try {
+      const cfg = getSharePointSettingsFromDb(req.body);
+      const accessToken = await getSharePointAccessToken(cfg);
+      const driveInfo = await resolveSharePointSiteAndDrive(accessToken, cfg);
+
+      // Save settings & resolved IDs automatically on successful test
+      saveSharePointSettingKey("sharepoint_tenant_id", cfg.sharepoint_tenant_id);
+      saveSharePointSettingKey("sharepoint_client_id", cfg.sharepoint_client_id);
+      saveSharePointSettingKey("sharepoint_client_secret", cfg.sharepoint_client_secret);
+      saveSharePointSettingKey("sharepoint_site_url", cfg.sharepoint_site_url);
+      saveSharePointSettingKey("sharepoint_site_id", driveInfo.siteId);
+      saveSharePointSettingKey("sharepoint_drive_id", driveInfo.driveId);
+      saveSharePointSettingKey("sharepoint_drive_name", driveInfo.driveName);
+      saveSharePointSettingKey("sharepoint_ndis_base_path", cfg.sharepoint_ndis_base_path);
+      saveSharePointSettingKey("sharepoint_hc_base_path", cfg.sharepoint_hc_base_path);
+
+      const checkBasePath = async (rawBasePath: string) => {
+        const clean = normalizeSpPath(rawBasePath);
+        const encoded = encodeGraphPath(clean);
+        const itemRes = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${driveInfo.driveId}/root:/${encoded}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (!itemRes.ok) {
+          return { exists: false, path: rawBasePath };
+        }
+        const itemData = (await itemRes.json().catch(() => ({}))) as any;
+        return {
+          exists: true,
+          path: rawBasePath,
+          childCount: itemData?.folder?.childCount ?? 0,
+          webUrl: itemData?.webUrl,
+        };
+      };
+
+      const [ndisPathStatus, hcPathStatus] = await Promise.all([
+        checkBasePath(cfg.sharepoint_ndis_base_path),
+        checkBasePath(cfg.sharepoint_hc_base_path),
+      ]);
+
+      res.json({
+        success: true,
+        message: `Connected to SharePoint site "${driveInfo.siteName}" (Library: ${driveInfo.driveName})`,
+        siteId: driveInfo.siteId,
+        siteName: driveInfo.siteName,
+        siteWebUrl: driveInfo.siteWebUrl,
+        driveId: driveInfo.driveId,
+        driveName: driveInfo.driveName,
+        availableDrives: driveInfo.availableDrives,
+        ndisPathStatus,
+        hcPathStatus,
+      });
+    } catch (err: any) {
+      res.status(400).json({
+        success: false,
+        error: err.message || "Failed to connect to SharePoint Online.",
+      });
+    }
+  });
+
+  // 4. GET /api/clients/:id/sharepoint/items
+  app.get("/api/clients/:id/sharepoint/items", authenticateToken, async (req: any, res: any) => {
+    try {
+      const clientId = req.params.id;
+      const subpath = normalizeSpPath(String(req.query.subpath || ""));
+      const ctx = await resolveClientSharePointFolder(clientId);
+
+      const clientInfo = {
+        id: ctx.client.id,
+        name: `${ctx.client.first_name || ""} ${ctx.client.last_name || ""}`.trim(),
+        fundingType: ctx.isNdis ? "NDIS" : "HOME_CARE",
+        status: ctx.client.status || "ACTIVE",
+        baseCategoryPath: ctx.baseCategoryPath,
+        folderName: ctx.folderName,
+        fullSharePointPath: ctx.fullSharePointPath,
+        folderWebUrl: ctx.folderWebUrl,
+      };
+
+      if (!ctx.configured) {
+        return res.json({
+          configured: false,
+          folderExists: false,
+          clientInfo,
+          items: [],
+          allSubfolders: [],
+        });
+      }
+
+      if (!ctx.folderExists) {
+        return res.json({
+          configured: true,
+          folderExists: false,
+          clientInfo,
+          availableFolders: ctx.availableFolders,
+          items: [],
+          allSubfolders: [],
+        });
+      }
+
+      const targetPath = subpath
+        ? `${ctx.fullSharePointPath}/${subpath}`
+        : ctx.fullSharePointPath;
+      const encodedTarget = encodeGraphPath(targetPath);
+
+      const childrenRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/root:/${encodedTarget}:/children?$top=999`,
+        { headers: { Authorization: `Bearer ${ctx.accessToken}` } }
+      );
+      const childrenData = (await childrenRes.json().catch(() => ({}))) as any;
+      if (!childrenRes.ok) {
+        throw new Error(
+          childrenData?.error?.message || "Failed to list files from SharePoint folder."
+        );
+      }
+
+      const rawItems: any[] = Array.isArray(childrenData?.value) ? childrenData.value : [];
+      const items = rawItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+        size: item.size || 0,
+        webUrl: item.webUrl || "",
+        lastModifiedDateTime: item.lastModifiedDateTime || "",
+        lastModifiedBy:
+          item.lastModifiedBy?.user?.displayName ||
+          item.createdBy?.user?.displayName ||
+          "SharePoint",
+        isFolder: Boolean(item.folder),
+        childCount: item.folder?.childCount,
+        mimeType: item.file?.mimeType || "",
+        downloadUrl: item["@microsoft.graph.downloadUrl"] || "",
+      }));
+
+      // Collect client's top-level & second-level subfolders for the "Move to Folder" modal
+      const allSubfolders: Array<{ id: string; name: string; path: string }> = [];
+      try {
+        const rootEncoded = encodeGraphPath(ctx.fullSharePointPath);
+        const rootChildrenRes = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/root:/${rootEncoded}:/children?$top=999`,
+          { headers: { Authorization: `Bearer ${ctx.accessToken}` } }
+        );
+        if (rootChildrenRes.ok) {
+          const rootData = (await rootChildrenRes.json().catch(() => ({}))) as any;
+          const rootFolders = (rootData?.value || []).filter((i: any) => Boolean(i.folder));
+          for (const rf of rootFolders) {
+            allSubfolders.push({ id: rf.id, name: rf.name, path: rf.name });
+          }
+        }
+        if (subpath) {
+          for (const it of items) {
+            if (it.isFolder) {
+              const p = `${subpath}/${it.name}`;
+              if (!allSubfolders.some((f) => f.path === p)) {
+                allSubfolders.push({ id: it.id, name: it.name, path: p });
+              }
+            }
+          }
+        }
+      } catch {}
+
+      res.json({
+        configured: true,
+        folderExists: true,
+        clientInfo,
+        items,
+        allSubfolders,
+      });
+    } catch (err: any) {
+      logger.error(`SharePoint list items error: ${err.message}`);
+      res.status(500).json({ error: err.message || "Failed to load SharePoint folder" });
+    }
+  });
+
+  // 5. POST /api/clients/:id/sharepoint/init-folder
+  app.post("/api/clients/:id/sharepoint/init-folder", authenticateToken, async (req: any, res: any) => {
+    try {
+      const ctx = await resolveClientSharePointFolder(req.params.id);
+      if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+        return res.status(400).json({ error: "SharePoint is not configured yet." });
+      }
+
+      const created = await ensureSharePointFolderHierarchy(
+        ctx.accessToken,
+        ctx.driveId,
+        ctx.fullSharePointPath
+      );
+
+      res.json({
+        success: true,
+        folderName: ctx.folderName,
+        fullSharePointPath: ctx.fullSharePointPath,
+        webUrl: created?.webUrl || "",
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to create client folder on SharePoint" });
+    }
+  });
+
+  // 6. POST /api/clients/:id/sharepoint/link-folder
+  app.post("/api/clients/:id/sharepoint/link-folder", authenticateToken, async (req: any, res: any) => {
+    try {
+      const { folderName } = req.body;
+      if (!folderName || !String(folderName).trim()) {
+        return res.status(400).json({ error: "Folder name is required" });
+      }
+      db.prepare("UPDATE clients SET sharepoint_folder_name = ? WHERE id = ?").run(
+        String(folderName).trim(),
+        req.params.id
+      );
+      res.json({ success: true, folderName: String(folderName).trim() });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to link SharePoint folder" });
+    }
+  });
+
+  // 7. POST /api/clients/:id/sharepoint/folders (Create Subfolder)
+  app.post("/api/clients/:id/sharepoint/folders", authenticateToken, async (req: any, res: any) => {
+    try {
+      const { subpath, folderName } = req.body;
+      if (!folderName || !String(folderName).trim()) {
+        return res.status(400).json({ error: "Folder name is required" });
+      }
+
+      const ctx = await resolveClientSharePointFolder(req.params.id);
+      if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+        return res.status(400).json({ error: "SharePoint is not configured." });
+      }
+
+      const cleanSub = normalizeSpPath(subpath || "");
+      const parentPath = cleanSub
+        ? `${ctx.fullSharePointPath}/${cleanSub}`
+        : ctx.fullSharePointPath;
+      const encodedParent = encodeGraphPath(parentPath);
+
+      const createRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/root:/${encodedParent}:/children`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${ctx.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: String(folderName).trim(),
+            folder: {},
+            "@microsoft.graph.conflictBehavior": "rename",
+          }),
+        }
+      );
+
+      const createdData = (await createRes.json().catch(() => ({}))) as any;
+      if (!createRes.ok) {
+        throw new Error(createdData?.error?.message || "Failed to create subfolder on SharePoint");
+      }
+
+      res.json({ success: true, item: createdData });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to create subfolder" });
+    }
+  });
+
+  // 8. POST /api/clients/:id/sharepoint/upload (Upload File to SharePoint)
+  app.post(
+    "/api/clients/:id/sharepoint/upload",
+    authenticateToken,
+    upload.single("file"),
+    async (req: any, res: any) => {
+      const tempFilePath = req.file?.path;
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        const ctx = await resolveClientSharePointFolder(req.params.id);
+        if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+          return res.status(400).json({ error: "SharePoint is not configured." });
+        }
+
+        const cleanSub = normalizeSpPath(req.body?.subpath || "");
+        const targetFolderPath = cleanSub
+          ? `${ctx.fullSharePointPath}/${cleanSub}`
+          : ctx.fullSharePointPath;
+
+        const fileName = req.file.originalname || req.file.filename;
+        const targetFilePath = `${targetFolderPath}/${fileName}`;
+        const encodedFilePath = encodeGraphPath(targetFilePath);
+
+        const fileBuffer = fs.readFileSync(req.file.path);
+
+        if (fileBuffer.length <= 4 * 1024 * 1024) {
+          // Simple upload for files <= 4 MB
+          const putRes = await fetch(
+            `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/root:/${encodedFilePath}:/content`,
+            {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${ctx.accessToken}`,
+                "Content-Type": req.file.mimetype || "application/octet-stream",
+              },
+              body: fileBuffer,
+            }
+          );
+          const putData = (await putRes.json().catch(() => ({}))) as any;
+          if (!putRes.ok) {
+            throw new Error(putData?.error?.message || "Failed to upload file to SharePoint");
+          }
+          return res.json({ success: true, item: putData });
+        } else {
+          // Upload session for files > 4 MB
+          const sessionRes = await fetch(
+            `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/root:/${encodedFilePath}:/createUploadSession`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${ctx.accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                item: {
+                  "@microsoft.graph.conflictBehavior": "replace",
+                  name: fileName,
+                },
+              }),
+            }
+          );
+          const sessionData = (await sessionRes.json().catch(() => ({}))) as any;
+          if (!sessionRes.ok || !sessionData.uploadUrl) {
+            throw new Error(
+              sessionData?.error?.message || "Failed to initialize large file upload session"
+            );
+          }
+
+          const putChunkRes = await fetch(sessionData.uploadUrl, {
+            method: "PUT",
+            headers: {
+              "Content-Length": String(fileBuffer.length),
+              "Content-Range": `bytes 0-${fileBuffer.length - 1}/${fileBuffer.length}`,
+            },
+            body: fileBuffer,
+          });
+          const chunkData = (await putChunkRes.json().catch(() => ({}))) as any;
+          if (!putChunkRes.ok) {
+            throw new Error(chunkData?.error?.message || "Failed during large file upload to SharePoint");
+          }
+          return res.json({ success: true, item: chunkData });
+        }
+      } catch (err: any) {
+        logger.error(`SharePoint upload error: ${err.message}`);
+        res.status(500).json({ error: err.message || "Failed to upload file to SharePoint" });
+      } finally {
+        if (tempFilePath && fs.existsSync(tempFilePath)) {
+          try {
+            fs.unlinkSync(tempFilePath);
+          } catch {}
+        }
+      }
+    }
+  );
+
+  // 9. PATCH /api/clients/:id/sharepoint/items/:itemId (Rename or Move File/Folder)
+  app.patch("/api/clients/:id/sharepoint/items/:itemId", authenticateToken, async (req: any, res: any) => {
+    try {
+      const { itemId } = req.params;
+      const { name, targetSubpath } = req.body;
+
+      const ctx = await resolveClientSharePointFolder(req.params.id);
+      if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+        return res.status(400).json({ error: "SharePoint is not configured." });
+      }
+
+      const patchPayload: any = {};
+      if (name && String(name).trim()) {
+        patchPayload.name = String(name).trim();
+      }
+
+      if (targetSubpath !== undefined) {
+        const cleanDest = normalizeSpPath(String(targetSubpath || ""));
+        const destFullPath = cleanDest
+          ? `${ctx.fullSharePointPath}/${cleanDest}`
+          : ctx.fullSharePointPath;
+        const encodedDest = encodeGraphPath(destFullPath);
+
+        const destRes = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/root:/${encodedDest}`,
+          { headers: { Authorization: `Bearer ${ctx.accessToken}` } }
+        );
+        const destData = (await destRes.json().catch(() => ({}))) as any;
+        if (!destRes.ok || !destData.id) {
+          throw new Error(destData?.error?.message || "Destination folder not found on SharePoint");
+        }
+        patchPayload.parentReference = { id: destData.id };
+      }
+
+      const updateRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(itemId)}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${ctx.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(patchPayload),
+        }
+      );
+
+      const updatedData = (await updateRes.json().catch(() => ({}))) as any;
+      if (!updateRes.ok) {
+        throw new Error(updatedData?.error?.message || "Failed to update item on SharePoint");
+      }
+
+      res.json({ success: true, item: updatedData });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to update SharePoint item" });
+    }
+  });
+
+  // 10. DELETE /api/clients/:id/sharepoint/items/:itemId
+  app.delete("/api/clients/:id/sharepoint/items/:itemId", authenticateToken, async (req: any, res: any) => {
+    try {
+      const { itemId } = req.params;
+      const ctx = await resolveClientSharePointFolder(req.params.id);
+      if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+        return res.status(400).json({ error: "SharePoint is not configured." });
+      }
+
+      const delRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(itemId)}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${ctx.accessToken}` },
+        }
+      );
+
+      if (!delRes.ok && delRes.status !== 204) {
+        const errData = (await delRes.json().catch(() => ({}))) as any;
+        throw new Error(errData?.error?.message || "Failed to delete item from SharePoint");
+      }
+
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to delete SharePoint item" });
+    }
+  });
+
+  // 11. GET /api/clients/:id/sharepoint/items/:itemId/content (Stream Preview or Download)
+  app.get("/api/clients/:id/sharepoint/items/:itemId/content", async (req: any, res: any) => {
+    try {
+      const rawToken =
+        req.headers.authorization?.split(" ")[1] || String(req.query.token || "");
+      if (!rawToken) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      try {
+        jwt.verify(rawToken, JWT_SECRET);
+      } catch {
+        return res.status(403).json({ error: "Invalid token" });
+      }
+
+      const { itemId } = req.params;
+      const isDownload = req.query.download === "1";
+      const fileName = String(req.query.name || "document");
+
+      const ctx = await resolveClientSharePointFolder(req.params.id);
+      if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+        return res.status(400).json({ error: "SharePoint is not configured." });
+      }
+
+      const contentRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(itemId)}/content`,
+        {
+          headers: { Authorization: `Bearer ${ctx.accessToken}` },
+          redirect: "follow",
+        }
+      );
+
+      if (!contentRes.ok) {
+        return res.status(contentRes.status).json({ error: "Failed to fetch content from SharePoint" });
+      }
+
+      const contentType = contentRes.headers.get("content-type") || "application/octet-stream";
+      res.setHeader("Content-Type", contentType);
+      if (isDownload) {
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${fileName.replace(/"/g, "")}"`
+        );
+      }
+
+      const arrayBuf = await contentRes.arrayBuffer();
+      res.send(Buffer.from(arrayBuf));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to stream SharePoint file" });
+    }
+  });
+
+  // 12. PUT /api/clients/:id/sharepoint/items/:itemId/content (Save Edited Content Back to SharePoint)
+  app.put(
+    "/api/clients/:id/sharepoint/items/:itemId/content",
+    authenticateToken,
+    express.text({ type: "*/*", limit: "25mb" }),
+    async (req: any, res: any) => {
+      try {
+        const { itemId } = req.params;
+        const ctx = await resolveClientSharePointFolder(req.params.id);
+        if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+          return res.status(400).json({ error: "SharePoint is not configured." });
+        }
+
+        const bodyBuf = Buffer.from(typeof req.body === "string" ? req.body : JSON.stringify(req.body || ""), "utf8");
+        const putRes = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(itemId)}/content`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${ctx.accessToken}`,
+              "Content-Type": "text/plain; charset=utf-8",
+            },
+            body: bodyBuf,
+          }
+        );
+
+        const putData = (await putRes.json().catch(() => ({}))) as any;
+        if (!putRes.ok) {
+          throw new Error(putData?.error?.message || "Failed to save file content to SharePoint");
+        }
+
+        res.json({ success: true, item: putData });
+      } catch (err: any) {
+        res.status(500).json({ error: err.message || "Failed to save file to SharePoint" });
+      }
+    }
+  );
+
+
   // -----------------------------------------------------
   // TRAINING API
   // -----------------------------------------------------

@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import {  Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download , RefreshCw, MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2, Info, Bot, Building2, Award } from 'lucide-react';
+import {  Upload, FileDown, Plus, Save, X, Database, CheckSquare, ExternalLink, Download , RefreshCw, MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2, Info, Bot, Building2, Award, Cloud } from 'lucide-react';
 import DatabaseSettings from './DatabaseSettings';
 import PayItemsSettings from './PayItemsSettings';
 import FundingTypesSettings from './FundingTypesSettings';
 import EmailWidgetSettings from './EmailWidgetSettings';
 import AiSettings from './AiSettings';
 import XeroSettings from './XeroSettings';
+import SharePointSettings from './SharePointSettings';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 
 export default function SettingsView() {
   const { token, user, updateSettings } = useAuth();
-  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'CHAT' | 'EMAIL' | 'EMAIL_WIDGET' | 'FUNDING_TYPES' | 'DATABASE' | 'AWARD_RATES' | 'SMS' | 'AI' | 'XERO'>('settings_active_tab', 'GENERAL');
+  const [activeTab, setActiveTab] = useLocalStorage<'GENERAL' | 'BILLING' | 'NDIS' | 'HOME_CARE' | 'BRANDING' | 'CHAT' | 'EMAIL' | 'EMAIL_WIDGET' | 'FUNDING_TYPES' | 'DATABASE' | 'AWARD_RATES' | 'SMS' | 'AI' | 'XERO' | 'SHAREPOINT'>('settings_active_tab', 'GENERAL');
   const [ndisServices, setNdisServices] = useState<any[]>([]);
   const [homeCareServices, setHomeCareServices] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
@@ -977,6 +978,13 @@ export default function SettingsView() {
               <Building2 className="w-3.5 h-3.5" />
               Xero
             </button>
+            <button
+              onClick={() => setActiveTab('SHAREPOINT')}
+              className={`px-3 py-1 text-[11px] rounded-md transition-colors uppercase tracking-wider flex items-center gap-1.5 ${activeTab === 'SHAREPOINT' ? 'bg-brand-bg text-brand-teal shadow-sm' : 'text-[#8B949E] hover:text-brand-teal'}`}
+            >
+              <Cloud className="w-3.5 h-3.5" />
+              SharePoint
+            </button>
           </>
         )}
       </div>
@@ -986,6 +994,7 @@ export default function SettingsView() {
         {activeTab === 'AWARD_RATES' && <PayItemsSettings />}
         {activeTab === 'AI' && <AiSettings />}
         {activeTab === 'XERO' && <XeroSettings />}
+        {activeTab === 'SHAREPOINT' && <SharePointSettings />}
         {activeTab === 'GENERAL' && (
           <div className="p-4 max-w-4xl">
             <div className="mb-4">
