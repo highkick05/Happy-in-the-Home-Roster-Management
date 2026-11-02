@@ -22354,13 +22354,13 @@ app.post(
           throw new Error(`PDF file not found and could not be generated at path: ${pdfPath}`);
       }
 
-      // 2. Format Due Date as dd/MM/yyyy (must be at least 8 days in the future for Trilogy Care validation)
-      const safeDate = new Date();
-      safeDate.setDate(safeDate.getDate() + 8);
+      // 2. Format Due Date as dd/MM/yyyy (Trilogy Care requires minimum 14 days on invoice due dates)
+      const safeDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
       const formattedSafeDueDate = safeDate.toLocaleDateString('en-GB', {
         day: '2-digit',
         month: '2-digit',
-        year: 'numeric'
+        year: 'numeric',
+        timeZone: 'Australia/Brisbane'
       });
 
       const caseNotes = "Routine care provided."; // Default or fetch from somewhere if available
@@ -22376,11 +22376,14 @@ app.post(
 
       try {
         // 4. Navigate to form
-        await page.goto('https://forms.zohopublic.com/trilogycare/form/SubmitaBill/formperma/7Gx2G7Q7znBF_iUAsfxsuE989UqORSCbSDZXFuu1LwU');
+        await page.goto('https://forms.zohopublic.com/trilogycare/form/SubmitaBill/formperma/7Gx2G7Q7znBF_iUAsfxsuE989UqORSCbSDZXFuu1LwU', {
+          waitUntil: 'domcontentloaded',
+          timeout: 30000
+        });
 
         // 5. Page 1 - Provider & Consumer Details
         await page.fill('#SingleLine-arialabel', 'HAPPY IN THE HOME');
-        await page.fill('#SingleLine5-arialabel', '69895033115');
+        await page.fill('#SingleLine5-arialabel', '69695033115');
         await page.fill('#Email-arialabel', 'invoices@happyinthehome.org');
         await page.fill('#SingleLine3-arialabel', clientName); 
         await page.fill('#SingleLine4-arialabel', invoice.invoice_number);
@@ -22402,14 +22405,73 @@ app.post(
         
         await page.setInputFiles('#FileUpload-id', pdfPath);
         
-        // Wait for upload to complete (Zoho shows a checkmark or progress bar)
-        // Adjust timeout/selector based on actual form behavior if needed, for now just wait a bit
-        await page.waitForTimeout(3000); 
+        // Wait for Zoho's asynchronous file upload to complete and populate the hidden FileUpload input
+        await page.waitForFunction(() => {
+          const hiddenInputs = Array.from(document.querySelectorAll('input[elname="FileUpload"]')) as HTMLInputElement[];
+          const hasUploadedPath = hiddenInputs.some(el => {
+            const fp = el.getAttribute('filepath');
+            return Boolean((fp && fp.trim().length > 0) || (el.value && el.value.trim().length > 0));
+          });
+          const uploadedCont = document.getElementById('FileUpload-div-files');
+          const hasUploadedItem = Boolean(
+            uploadedCont &&
+            window.getComputedStyle(uploadedCont).display !== 'none' &&
+            uploadedCont.querySelectorAll('[elname="fileSpin"]:not([style*="display: none"])').length === 0 &&
+            uploadedCont.textContent &&
+            uploadedCont.textContent.trim().length > 0
+          );
+          return hasUploadedPath || hasUploadedItem;
+        }, { timeout: 30000 });
+        await page.waitForTimeout(1000);
 
         if (!isTestMode) {
           await page.click('button[elname="submit"]');
-          // Wait for success indicator or navigation
-          await page.waitForLoadState('networkidle');
+
+          // Wait for Zoho to either complete submission (thank-you view / navigation) or surface a validation/CAPTCHA error
+          const submitOutcome = await page.waitForFunction(() => {
+            const isVisible = (el: Element | null) => {
+              if (!el) return false;
+              const style = window.getComputedStyle(el);
+              return style.display !== 'none' && style.visibility !== 'hidden' && (el as HTMLElement).offsetParent !== null;
+            };
+
+            // 1. Check for CAPTCHA popup triggered by rapid submissions
+            const captchaModal = document.querySelector('#pop_captcha_li, #pop_recaptchacbox-li, #captcha-popup');
+            if (isVisible(captchaModal)) {
+              return { status: 'error', reason: 'Trilogy Care Zoho form requested a CAPTCHA verification due to rapid submissions. Please wait a minute and try again.' };
+            }
+
+            // 2. Check for visible field validation errors
+            const errorEls = Array.from(document.querySelectorAll('.errorMessage[elname="error"], #error-FileUpload, #errorDiv'));
+            for (const errEl of errorEls) {
+              if (isVisible(errEl) && errEl.textContent && errEl.textContent.trim().length > 0) {
+                return { status: 'error', reason: `Zoho form validation error: ${errEl.textContent.trim()}` };
+              }
+            }
+
+            // 3. Check for thank-you / confirmation state
+            const thankYouEl = document.querySelector('.thankyouPageWrap, #splash_message, [elname="thankyouMsg"], .thankyou-wrapper');
+            if (isVisible(thankYouEl)) {
+              return { status: 'success' };
+            }
+            if (window.location.href.toLowerCase().includes('thankyou')) {
+              return { status: 'success' };
+            }
+
+            // Also check if the main form submit button has been hidden/removed and body text shows submission confirmation
+            const submitBtn = document.querySelector('button[elname="submit"]');
+            const bodyText = document.body ? document.body.innerText : '';
+            if (!isVisible(submitBtn) && /thank\s*you|response\s*has\s*been\s*submitted|submission\s*received/i.test(bodyText)) {
+              return { status: 'success' };
+            }
+
+            return null;
+          }, { timeout: 30000 }).then((handle: any) => handle.jsonValue()).catch(() => null);
+
+          if (!submitOutcome || submitOutcome.status !== 'success') {
+            const reason = submitOutcome?.reason || 'Zoho form did not confirm submission before timeout (the form may have been blocked or upload was incomplete).';
+            throw new Error(reason);
+          }
         } else {
           // In test mode, we just wait a moment to ensure all fields are filled, but do not click submit.
           await page.waitForTimeout(2000);
