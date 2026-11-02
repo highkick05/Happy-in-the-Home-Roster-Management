@@ -10,12 +10,18 @@ import {
   EyeOff,
   FolderTree,
   HardDrive,
-  Check,
   HelpCircle,
   ShieldCheck,
   FolderCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+
+interface SharePointSiteOption {
+  id: string;
+  name: string;
+  displayName: string;
+  webUrl: string;
+}
 
 interface SharePointDriveOption {
   id: string;
@@ -32,8 +38,10 @@ interface SharePointStatusResponse {
   siteId?: string;
   driveId?: string;
   driveName?: string;
+  tokenRoles?: string[];
   ndisPathStatus?: { exists: boolean; path: string; childCount?: number; webUrl?: string };
   hcPathStatus?: { exists: boolean; path: string; childCount?: number; webUrl?: string };
+  availableSites?: SharePointSiteOption[];
   availableDrives?: SharePointDriveOption[];
   error?: string;
   settings?: {
@@ -71,6 +79,7 @@ export default function SharePointSettings() {
   const [saveSuccess, setSaveSuccess] = useState('');
   const [saveError, setSaveError] = useState('');
   const [statusData, setStatusData] = useState<SharePointStatusResponse | null>(null);
+  const [availableSites, setAvailableSites] = useState<SharePointSiteOption[]>([]);
   const [availableDrives, setAvailableDrives] = useState<SharePointDriveOption[]>([]);
   const [testResult, setTestResult] = useState<{
     success: boolean;
@@ -78,6 +87,7 @@ export default function SharePointSettings() {
     siteName?: string;
     siteWebUrl?: string;
     driveName?: string;
+    tokenRoles?: string[];
     ndisPathStatus?: { exists: boolean; path: string; childCount?: number; webUrl?: string };
     hcPathStatus?: { exists: boolean; path: string; childCount?: number; webUrl?: string };
   } | null>(null);
@@ -91,6 +101,9 @@ export default function SharePointSettings() {
       if (res.ok) {
         const data: SharePointStatusResponse = await res.json();
         setStatusData(data);
+        if (data.availableSites) {
+          setAvailableSites(data.availableSites);
+        }
         if (data.availableDrives) {
           setAvailableDrives(data.availableDrives);
         }
@@ -186,8 +199,10 @@ export default function SharePointSettings() {
       const data = await res.json();
       if (res.ok && data.success) {
         if (data.siteId) setSiteId(data.siteId);
+        if (data.siteWebUrl && !siteUrl.trim()) setSiteUrl(data.siteWebUrl);
         if (data.driveId) setDriveId(data.driveId);
         if (data.driveName) setDriveName(data.driveName);
+        if (data.availableSites) setAvailableSites(data.availableSites);
         if (data.availableDrives) setAvailableDrives(data.availableDrives);
         setTestResult({
           success: true,
@@ -195,6 +210,7 @@ export default function SharePointSettings() {
           siteName: data.siteName,
           siteWebUrl: data.siteWebUrl,
           driveName: data.driveName,
+          tokenRoles: data.tokenRoles,
           ndisPathStatus: data.ndisPathStatus,
           hcPathStatus: data.hcPathStatus
         });
@@ -245,7 +261,7 @@ export default function SharePointSettings() {
               )}
             </div>
             <p className="text-xs text-[#8B949E] mt-1">
-              Sync client & participant documents directly with your SharePoint Document Library in real time.
+              Sync client &amp; participant documents directly with your SharePoint Document Library in real time.
             </p>
           </div>
         </div>
@@ -262,7 +278,7 @@ export default function SharePointSettings() {
           <button
             type="button"
             onClick={handleTestConnection}
-            disabled={testingConnection || !tenantId || !clientId || !clientSecret || !siteUrl}
+            disabled={testingConnection || !tenantId || !clientId || !clientSecret}
             className="px-3.5 py-1.5 rounded-lg bg-brand-teal/15 hover:bg-brand-teal/25 border border-brand-teal/40 text-brand-teal text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${testingConnection ? 'animate-spin' : ''}`} />
@@ -331,7 +347,7 @@ export default function SharePointSettings() {
               : 'bg-red-500/10 border-red-500/30 text-red-300'
           }`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 font-semibold">
               {testResult.success ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -351,6 +367,15 @@ export default function SharePointSettings() {
               </a>
             )}
           </div>
+
+          {testResult.tokenRoles && testResult.tokenRoles.length > 0 && (
+            <div className="text-[11px] text-[#8B949E]">
+              Granted Application Roles:{' '}
+              <span className="font-mono text-brand-teal">
+                {testResult.tokenRoles.join(', ')}
+              </span>
+            </div>
+          )}
 
           {testResult.success && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-white/10">
@@ -468,21 +493,54 @@ export default function SharePointSettings() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="sm:col-span-2">
+            <div className={availableSites.length > 0 ? 'sm:col-span-1' : 'sm:col-span-2'}>
               <label className="block text-xs font-medium text-[#8B949E] mb-1.5">
                 SharePoint Site URL
               </label>
               <input
                 type="text"
                 value={siteUrl}
-                onChange={(e) => setSiteUrl(e.target.value)}
+                onChange={(e) => {
+                  setSiteUrl(e.target.value);
+                  setSiteId('');
+                  setDriveId('');
+                }}
                 placeholder="e.g. https://happyinthehome.sharepoint.com/sites/HappyInTheHome"
                 className="w-full bg-brand-navy border border-border-subtle rounded-lg px-3 py-2 text-xs text-[#E6EDF3] outline-none focus:border-brand-teal transition-colors"
               />
               <p className="text-[11px] text-[#8B949E] mt-1">
-                Paste the URL of your SharePoint site (or paste a full SharePoint library URL — the portal will automatically extract the site path).
+                Paste any URL from your SharePoint site (or leave blank and click &ldquo;Test &amp; Verify Connection&rdquo; to auto-discover your sites).
               </p>
             </div>
+
+            {availableSites.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-[#8B949E] mb-1.5">
+                  Discovered SharePoint Sites
+                </label>
+                <select
+                  value={siteId}
+                  onChange={(e) => {
+                    const selected = availableSites.find((s) => s.id === e.target.value);
+                    setSiteId(e.target.value);
+                    setDriveId('');
+                    if (selected) {
+                      setSiteUrl(selected.webUrl);
+                    }
+                  }}
+                  className="w-full bg-brand-navy border border-border-subtle rounded-lg px-3 py-2 text-xs text-[#E6EDF3] outline-none focus:border-brand-teal transition-colors"
+                >
+                  {availableSites.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.displayName || s.name} ({s.webUrl})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-[#8B949E] mt-1">
+                  Select a discovered site from your Microsoft 365 tenant.
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-[#8B949E] mb-1.5">

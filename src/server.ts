@@ -10049,26 +10049,74 @@ app.get("/api/health", (req, res) => {
       .join("/");
   };
 
-  const parseSharePointSiteUrl = (rawUrl: string): { hostname: string; sitePath: string } => {
+  const extractJwtRoles = (accessToken: string): string[] => {
+    try {
+      const parts = accessToken.split(".");
+      if (parts.length < 2) return [];
+      const payloadJson = Buffer.from(parts[1], "base64").toString("utf8");
+      const payload = JSON.parse(payloadJson);
+      return Array.isArray(payload?.roles) ? payload.roles : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const parseSharePointSiteUrl = (rawUrl: string): { hostname: string; sitePath: string; siteSlug: string } => {
     let urlStr = String(rawUrl || "").trim();
-    if (!urlStr) throw new Error("SharePoint Site URL is required.");
+    if (!urlStr) {
+      return { hostname: "", sitePath: "", siteSlug: "" };
+    }
+    if (!urlStr.includes(".") && !urlStr.includes("/")) {
+      return { hostname: "", sitePath: "", siteSlug: urlStr };
+    }
     if (!/^https?:\/\//i.test(urlStr)) {
       urlStr = "https://" + urlStr;
     }
-    const parsed = new URL(urlStr);
-    const hostname = parsed.hostname;
-    const segments = parsed.pathname.split("/").filter(Boolean);
-
-    // Handle /sites/<SiteName> or /teams/<TeamName> even if a deeper library path was pasted
-    if (segments.length >= 2 && (segments[0].toLowerCase() === "sites" || segments[0].toLowerCase() === "teams")) {
-      return {
-        hostname,
-        sitePath: `/${segments[0]}/${segments[1]}`,
-      };
+    let parsed: URL;
+    try {
+      parsed = new URL(urlStr);
+    } catch {
+      return { hostname: "", sitePath: "", siteSlug: urlStr };
     }
+    const hostname = parsed.hostname;
+    const decodedPathname = decodeURIComponent(parsed.pathname);
+    const segments = decodedPathname.split("/").filter(Boolean);
+
+    // Check if ?id=/sites/<SiteName>/... is in query string (common when copying URL from SharePoint folder view)
+    const idParam = parsed.searchParams.get("id") || parsed.searchParams.get("RootFolder") || "";
+    if (idParam) {
+      const idSegs = decodeURIComponent(idParam).split("/").filter(Boolean);
+      const sitesIdx = idSegs.findIndex((s) => s.toLowerCase() === "sites" || s.toLowerCase() === "teams");
+      if (sitesIdx !== -1 && idSegs[sitesIdx + 1]) {
+        const prefix = idSegs[sitesIdx].toLowerCase();
+        const slug = idSegs[sitesIdx + 1];
+        return { hostname, sitePath: `/${prefix}/${slug}`, siteSlug: slug };
+      }
+    }
+
+    // Handle modern SharePoint sharing/folder links like /:f:/s/<SiteName>/... or /:f:/r/sites/<SiteName>/...
+    for (let i = 0; i < segments.length; i++) {
+      const segLower = segments[i].toLowerCase();
+      if ((segLower === "sites" || segLower === "teams") && segments[i + 1]) {
+        return {
+          hostname,
+          sitePath: `/${segLower}/${segments[i + 1]}`,
+          siteSlug: segments[i + 1],
+        };
+      }
+      if (segLower === "s" && i > 0 && segments[i - 1].startsWith(":") && segments[i + 1]) {
+        return {
+          hostname,
+          sitePath: `/sites/${segments[i + 1]}`,
+          siteSlug: segments[i + 1],
+        };
+      }
+    }
+
     return {
       hostname,
       sitePath: "",
+      siteSlug: segments[0] || "",
     };
   };
 
@@ -10104,6 +10152,13 @@ app.get("/api/health", (req, res) => {
       );
     }
 
+    const roles = extractJwtRoles(data.access_token);
+    if (roles.length === 0) {
+      throw new Error(
+        "Microsoft Entra ID issued a token with NO Application Permissions (roles: []). In Microsoft Entra Admin Center -> App registrations -> API permissions, ensure 'Sites.ReadWrite.All' and 'Files.ReadWrite.All' are added as APPLICATION permissions (not Delegated), and click 'Grant admin consent'."
+      );
+    }
+
     const expiresInSec = Number(data.expires_in) || 3599;
     cachedSpToken = {
       token: data.access_token,
@@ -10115,23 +10170,123 @@ app.get("/api/health", (req, res) => {
 
   const resolveSharePointSiteAndDrive = async (accessToken: string, configOverride?: any) => {
     const cfg = getSharePointSettingsFromDb(configOverride);
-    const { hostname, sitePath } = parseSharePointSiteUrl(cfg.sharepoint_site_url);
+    const { hostname, sitePath, siteSlug } = parseSharePointSiteUrl(cfg.sharepoint_site_url);
+    const tokenRoles = extractJwtRoles(accessToken);
 
-    const siteEndpoint = sitePath
-      ? `https://graph.microsoft.com/v1.0/sites/${hostname}:${sitePath}`
-      : `https://graph.microsoft.com/v1.0/sites/${hostname}`;
+    // 1. Discover available sites in the tenant via search=* so we have a fallback & site dropdown list
+    let availableSites: Array<{ id: string; name: string; displayName: string; webUrl: string }> = [];
+    try {
+      const searchRes = await fetch("https://graph.microsoft.com/v1.0/sites?search=*", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (searchRes.ok) {
+        const searchData = (await searchRes.json().catch(() => ({}))) as any;
+        if (Array.isArray(searchData?.value)) {
+          availableSites = searchData.value
+            .filter((s: any) => s.id && s.webUrl && !String(s.webUrl).includes("-my.sharepoint.com"))
+            .map((s: any) => ({
+              id: String(s.id),
+              name: String(s.name || s.displayName || ""),
+              displayName: String(s.displayName || s.name || ""),
+              webUrl: String(s.webUrl || ""),
+            }));
+        }
+      }
+    } catch {}
 
-    const siteRes = await fetch(siteEndpoint, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const siteData = (await siteRes.json().catch(() => ({}))) as any;
-    if (!siteRes.ok || !siteData.id) {
-      throw new Error(
-        siteData?.error?.message || `Failed to resolve SharePoint site at ${hostname}${sitePath}`
+    let siteData: any = null;
+    const candidateEndpoints: string[] = [];
+
+    // If a specific siteId is already chosen and valid, try it first
+    if (cfg.sharepoint_site_id && cfg.sharepoint_site_id.includes(",")) {
+      candidateEndpoints.push(
+        `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(cfg.sharepoint_site_id)}`
       );
     }
 
-    const drivesRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteData.id}/drives`, {
+    if (hostname && sitePath) {
+      candidateEndpoints.push(`https://graph.microsoft.com/v1.0/sites/${hostname}:${sitePath}`);
+      candidateEndpoints.push(`https://graph.microsoft.com/v1.0/sites/${hostname}:${sitePath}:`);
+    } else if (hostname) {
+      candidateEndpoints.push(`https://graph.microsoft.com/v1.0/sites/root`);
+      candidateEndpoints.push(`https://graph.microsoft.com/v1.0/sites/${hostname}`);
+    } else {
+      candidateEndpoints.push(`https://graph.microsoft.com/v1.0/sites/root`);
+    }
+
+    let lastGraphError = "";
+    for (const endpoint of candidateEndpoints) {
+      try {
+        const res = await fetch(endpoint, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const json = (await res.json().catch(() => ({}))) as any;
+        if (res.ok && json?.id) {
+          siteData = json;
+          break;
+        } else if (json?.error?.message) {
+          lastGraphError = `${json.error.code || res.status}: ${json.error.message}`;
+        }
+      } catch (e: any) {
+        lastGraphError = e.message;
+      }
+    }
+
+    // Fallback: match against discovered availableSites by URL, slug, or display name
+    if (!siteData && availableSites.length > 0) {
+      const cleanInputUrl = cfg.sharepoint_site_url.toLowerCase().replace(/\/+$/, "");
+      const matchedSite =
+        availableSites.find((s) => cleanInputUrl.startsWith(s.webUrl.toLowerCase().replace(/\/+$/, ""))) ||
+        (siteSlug
+          ? availableSites.find(
+              (s) =>
+                s.name.toLowerCase() === siteSlug.toLowerCase() ||
+                s.displayName.toLowerCase() === siteSlug.toLowerCase() ||
+                s.webUrl.toLowerCase().endsWith(`/${siteSlug.toLowerCase()}`)
+            )
+          : null) ||
+        availableSites.find((s) => s.displayName.toLowerCase().includes("happy")) ||
+        availableSites[0];
+
+      if (matchedSite) {
+        siteData = matchedSite;
+      }
+    }
+
+    // Second fallback: search by siteSlug if still not found
+    if (!siteData && siteSlug) {
+      try {
+        const slugRes = await fetch(
+          `https://graph.microsoft.com/v1.0/sites?search=${encodeURIComponent(siteSlug)}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (slugRes.ok) {
+          const slugData = (await slugRes.json().catch(() => ({}))) as any;
+          if (Array.isArray(slugData?.value) && slugData.value.length > 0) {
+            siteData = slugData.value[0];
+          }
+        }
+      } catch {}
+    }
+
+    if (!siteData?.id) {
+      const rolesInfo = tokenRoles.length > 0 ? `Token Roles: [${tokenRoles.join(", ")}]` : "Token Roles: NONE";
+      const hasSitesSelectedOnly =
+        tokenRoles.includes("Sites.Selected") &&
+        !tokenRoles.some((r) =>
+          ["Sites.ReadWrite.All", "Sites.FullControl.All", "Sites.Read.All", "Sites.Manage.All"].includes(r)
+        );
+      if (hasSitesSelectedOnly) {
+        throw new Error(
+          `Your Entra ID app currently only has 'Sites.Selected' permission (${rolesInfo}), which blocks access unless explicitly granted via PowerShell/Graph to that specific site. Please add 'Sites.ReadWrite.All' (Application permission) in Entra ID and click 'Grant admin consent'.`
+        );
+      }
+      throw new Error(
+        `Could not resolve SharePoint site from URL "${cfg.sharepoint_site_url}" (${lastGraphError || "Site not found"}). ${rolesInfo}`
+      );
+    }
+
+    const drivesRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteData.id)}/drives`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const drivesData = (await drivesRes.json().catch(() => ({}))) as any;
@@ -10148,9 +10303,10 @@ app.get("/api/health", (req, res) => {
       drivesList[0];
 
     if (!selectedDrive) {
-      const defaultDriveRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${siteData.id}/drive`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const defaultDriveRes = await fetch(
+        `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteData.id)}/drive`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
       const defaultDriveData = (await defaultDriveRes.json().catch(() => ({}))) as any;
       if (defaultDriveRes.ok && defaultDriveData.id) {
         selectedDrive = defaultDriveData;
@@ -10158,7 +10314,10 @@ app.get("/api/health", (req, res) => {
     }
 
     if (!selectedDrive?.id) {
-      throw new Error("Could not find a Document Library (Drive) on the specified SharePoint site.");
+      throw new Error(
+        drivesData?.error?.message ||
+          "Could not find a Document Library (Drive) on the specified SharePoint site."
+      );
     }
 
     return {
@@ -10168,6 +10327,8 @@ app.get("/api/health", (req, res) => {
       driveId: String(selectedDrive.id),
       driveName: String(selectedDrive.name || "Documents"),
       driveWebUrl: String(selectedDrive.webUrl || ""),
+      tokenRoles,
+      availableSites,
       availableDrives: drivesList.map((d) => ({
         id: d.id,
         name: d.name,
@@ -10177,21 +10338,100 @@ app.get("/api/health", (req, res) => {
     };
   };
 
+  // Safe item-ID based folder traversal (avoids SharePoint colon-path generalException bugs)
+  const findSharePointFolderBySegments = async (
+    accessToken: string,
+    driveId: string,
+    rawFolderPath: string
+  ): Promise<{ exists: boolean; item: any; children: any[]; resolvedPath: string }> => {
+    let segments = normalizeSpPath(rawFolderPath).split("/").filter(Boolean);
+    // Strip leading "Shared Documents" or "Documents" if user included library name in path
+    if (
+      segments.length > 1 &&
+      ["shared documents", "documents"].includes(segments[0].toLowerCase())
+    ) {
+      segments = segments.slice(1);
+    }
+
+    let currentParentId = "root";
+    let currentItem: any = null;
+    const matchedSegments: string[] = [];
+
+    for (const seg of segments) {
+      const listUrl =
+        currentParentId === "root"
+          ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root/children?$top=200`
+          : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${currentParentId}/children?$top=200`;
+
+      const listRes = await fetch(listUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!listRes.ok) {
+        return { exists: false, item: null, children: [], resolvedPath: normalizeSpPath(rawFolderPath) };
+      }
+      const listData = (await listRes.json().catch(() => ({}))) as any;
+      const items: any[] = Array.isArray(listData?.value) ? listData.value : [];
+
+      const match = items.find(
+        (c) =>
+          c.folder &&
+          String(c.name || "")
+            .trim()
+            .replace(/\s+/g, " ")
+            .toLowerCase() ===
+            seg
+              .trim()
+              .replace(/\s+/g, " ")
+              .toLowerCase()
+      );
+
+      if (!match) {
+        return { exists: false, item: null, children: [], resolvedPath: segments.join("/") };
+      }
+      currentParentId = match.id;
+      currentItem = match;
+      matchedSegments.push(String(match.name));
+    }
+
+    // Fetch children of the resolved folder by item ID
+    const finalChildrenUrl =
+      currentParentId === "root"
+        ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root/children?$top=200`
+        : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${currentParentId}/children?$top=200`;
+    const finalRes = await fetch(finalChildrenUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const finalData = (await finalRes.json().catch(() => ({}))) as any;
+    const finalChildren: any[] = Array.isArray(finalData?.value) ? finalData.value : [];
+
+    return {
+      exists: true,
+      item: currentItem,
+      children: finalChildren,
+      resolvedPath: matchedSegments.join("/") || normalizeSpPath(rawFolderPath),
+    };
+  };
+
   const ensureSharePointFolderHierarchy = async (
     accessToken: string,
     driveId: string,
     folderPath: string
   ): Promise<any> => {
-    const segments = normalizeSpPath(folderPath).split("/").filter(Boolean);
+    let segments = normalizeSpPath(folderPath).split("/").filter(Boolean);
+    if (
+      segments.length > 1 &&
+      ["shared documents", "documents"].includes(segments[0].toLowerCase())
+    ) {
+      segments = segments.slice(1);
+    }
     let currentParentId = "root";
     let lastItem: any = null;
 
     for (const seg of segments) {
-      // Check if child folder exists under currentParentId
       const childrenUrl =
         currentParentId === "root"
-          ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root/children?$top=999`
-          : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${currentParentId}/children?$top=999`;
+          ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root/children?$top=200`
+          : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${currentParentId}/children?$top=200`;
 
       const listRes = await fetch(childrenUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -10292,20 +10532,18 @@ app.get("/api/health", (req, res) => {
       saveSharePointSettingKey("sharepoint_drive_id", driveInfo.driveId);
     }
 
-    // Check base category folder children (e.g. General/NDIS/Participant Files or General/SAH/Clients)
-    const encodedBase = encodeGraphPath(baseCategoryPath);
-    const baseChildrenUrl = `https://graph.microsoft.com/v1.0/drives/${driveInfo.driveId}/root:/${encodedBase}:/children?$top=999`;
-    const baseRes = await fetch(baseChildrenUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    // Traverse base category folder by segments (General -> NDIS -> Participant Files or General -> SAH -> Clients)
+    const baseLookup = await findSharePointFolderBySegments(
+      accessToken,
+      driveInfo.driveId,
+      baseCategoryPath
+    );
 
     let availableFolders: string[] = [];
     let matchedFolderItem: any = null;
 
-    if (baseRes.ok) {
-      const baseData = (await baseRes.json().catch(() => ({}))) as any;
-      const children: any[] = Array.isArray(baseData?.value) ? baseData.value : [];
-      const folderItems = children.filter((c) => Boolean(c.folder));
+    if (baseLookup.exists) {
+      const folderItems = baseLookup.children.filter((c) => Boolean(c.folder));
       availableFolders = folderItems.map((f) => String(f.name)).sort((a, b) => a.localeCompare(b));
 
       const normalizeName = (n: string) =>
@@ -10319,6 +10557,7 @@ app.get("/api/health", (req, res) => {
         folderItems.find((f) => normalizeName(f.name) === normalizeName(defaultClientName));
     }
 
+    const resolvedBase = baseLookup.resolvedPath || baseCategoryPath;
     const resolvedFolderName = matchedFolderItem ? String(matchedFolderItem.name) : preferredFolderName;
 
     return {
@@ -10330,9 +10569,9 @@ app.get("/api/health", (req, res) => {
       clientFolderItem: matchedFolderItem,
       client,
       isNdis,
-      baseCategoryPath,
+      baseCategoryPath: resolvedBase,
       folderName: resolvedFolderName,
-      fullSharePointPath: `${baseCategoryPath}/${resolvedFolderName}`,
+      fullSharePointPath: `${resolvedBase}/${resolvedFolderName}`,
       folderWebUrl: matchedFolderItem?.webUrl || driveInfo.driveWebUrl,
       availableFolders,
     };
@@ -10368,6 +10607,8 @@ app.get("/api/health", (req, res) => {
           siteId: driveInfo.siteId,
           driveId: driveInfo.driveId,
           driveName: driveInfo.driveName,
+          tokenRoles: driveInfo.tokenRoles,
+          availableSites: driveInfo.availableSites,
           availableDrives: driveInfo.availableDrives,
           settings: cfg,
         });
@@ -10413,6 +10654,7 @@ app.get("/api/health", (req, res) => {
   // 3. POST /api/sharepoint/test-connection
   app.post("/api/sharepoint/test-connection", authenticateToken, requireAdmin, async (req: any, res: any) => {
     try {
+      cachedSpToken = null; // Force fresh token check during explicit test
       const cfg = getSharePointSettingsFromDb(req.body);
       const accessToken = await getSharePointAccessToken(cfg);
       const driveInfo = await resolveSharePointSiteAndDrive(accessToken, cfg);
@@ -10429,21 +10671,19 @@ app.get("/api/health", (req, res) => {
       saveSharePointSettingKey("sharepoint_hc_base_path", cfg.sharepoint_hc_base_path);
 
       const checkBasePath = async (rawBasePath: string) => {
-        const clean = normalizeSpPath(rawBasePath);
-        const encoded = encodeGraphPath(clean);
-        const itemRes = await fetch(
-          `https://graph.microsoft.com/v1.0/drives/${driveInfo.driveId}/root:/${encoded}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
+        const lookup = await findSharePointFolderBySegments(
+          accessToken,
+          driveInfo.driveId,
+          rawBasePath
         );
-        if (!itemRes.ok) {
+        if (!lookup.exists) {
           return { exists: false, path: rawBasePath };
         }
-        const itemData = (await itemRes.json().catch(() => ({}))) as any;
         return {
           exists: true,
           path: rawBasePath,
-          childCount: itemData?.folder?.childCount ?? 0,
-          webUrl: itemData?.webUrl,
+          childCount: lookup.children.filter((c) => Boolean(c.folder)).length,
+          webUrl: lookup.item?.webUrl,
         };
       };
 
@@ -10460,6 +10700,8 @@ app.get("/api/health", (req, res) => {
         siteWebUrl: driveInfo.siteWebUrl,
         driveId: driveInfo.driveId,
         driveName: driveInfo.driveName,
+        tokenRoles: driveInfo.tokenRoles,
+        availableSites: driveInfo.availableSites,
         availableDrives: driveInfo.availableDrives,
         ndisPathStatus,
         hcPathStatus,
@@ -10500,7 +10742,7 @@ app.get("/api/health", (req, res) => {
         });
       }
 
-      if (!ctx.folderExists) {
+      if (!ctx.folderExists || !ctx.accessToken || !ctx.driveId) {
         return res.json({
           configured: true,
           folderExists: false,
@@ -10514,20 +10756,18 @@ app.get("/api/health", (req, res) => {
       const targetPath = subpath
         ? `${ctx.fullSharePointPath}/${subpath}`
         : ctx.fullSharePointPath;
-      const encodedTarget = encodeGraphPath(targetPath);
 
-      const childrenRes = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/root:/${encodedTarget}:/children?$top=999`,
-        { headers: { Authorization: `Bearer ${ctx.accessToken}` } }
+      const folderLookup = await findSharePointFolderBySegments(
+        ctx.accessToken,
+        ctx.driveId,
+        targetPath
       );
-      const childrenData = (await childrenRes.json().catch(() => ({}))) as any;
-      if (!childrenRes.ok) {
-        throw new Error(
-          childrenData?.error?.message || "Failed to list files from SharePoint folder."
-        );
+
+      if (!folderLookup.exists) {
+        throw new Error(`SharePoint subfolder "${targetPath}" was not found.`);
       }
 
-      const rawItems: any[] = Array.isArray(childrenData?.value) ? childrenData.value : [];
+      const rawItems: any[] = folderLookup.children;
       const items = rawItems.map((item) => ({
         id: item.id,
         name: item.name,
@@ -10544,17 +10784,14 @@ app.get("/api/health", (req, res) => {
         downloadUrl: item["@microsoft.graph.downloadUrl"] || "",
       }));
 
-      // Collect client's top-level & second-level subfolders for the "Move to Folder" modal
+      // Collect client's top-level & current subfolders for the "Move to Folder" modal
       const allSubfolders: Array<{ id: string; name: string; path: string }> = [];
       try {
-        const rootEncoded = encodeGraphPath(ctx.fullSharePointPath);
-        const rootChildrenRes = await fetch(
-          `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/root:/${rootEncoded}:/children?$top=999`,
-          { headers: { Authorization: `Bearer ${ctx.accessToken}` } }
-        );
-        if (rootChildrenRes.ok) {
-          const rootData = (await rootChildrenRes.json().catch(() => ({}))) as any;
-          const rootFolders = (rootData?.value || []).filter((i: any) => Boolean(i.folder));
+        const rootLookup = subpath
+          ? await findSharePointFolderBySegments(ctx.accessToken, ctx.driveId, ctx.fullSharePointPath)
+          : folderLookup;
+        if (rootLookup.exists) {
+          const rootFolders = rootLookup.children.filter((i: any) => Boolean(i.folder));
           for (const rf of rootFolders) {
             allSubfolders.push({ id: rf.id, name: rf.name, path: rf.name });
           }
@@ -10643,10 +10880,15 @@ app.get("/api/health", (req, res) => {
       const parentPath = cleanSub
         ? `${ctx.fullSharePointPath}/${cleanSub}`
         : ctx.fullSharePointPath;
-      const encodedParent = encodeGraphPath(parentPath);
+
+      const parentFolder = await ensureSharePointFolderHierarchy(
+        ctx.accessToken,
+        ctx.driveId,
+        parentPath
+      );
 
       const createRes = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/root:/${encodedParent}:/children`,
+        `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(parentFolder.id)}/children`,
         {
           method: "POST",
           headers: {
@@ -10694,16 +10936,20 @@ app.get("/api/health", (req, res) => {
           ? `${ctx.fullSharePointPath}/${cleanSub}`
           : ctx.fullSharePointPath;
 
-        const fileName = req.file.originalname || req.file.filename;
-        const targetFilePath = `${targetFolderPath}/${fileName}`;
-        const encodedFilePath = encodeGraphPath(targetFilePath);
+        const parentFolder = await ensureSharePointFolderHierarchy(
+          ctx.accessToken,
+          ctx.driveId,
+          targetFolderPath
+        );
 
+        const fileName = req.file.originalname || req.file.filename;
+        const encodedFileName = encodeURIComponent(fileName);
         const fileBuffer = fs.readFileSync(req.file.path);
 
         if (fileBuffer.length <= 4 * 1024 * 1024) {
-          // Simple upload for files <= 4 MB
+          // Simple upload for files <= 4 MB using parentFolder.id
           const putRes = await fetch(
-            `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/root:/${encodedFilePath}:/content`,
+            `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(parentFolder.id)}:/${encodedFileName}:/content`,
             {
               method: "PUT",
               headers: {
@@ -10719,9 +10965,9 @@ app.get("/api/health", (req, res) => {
           }
           return res.json({ success: true, item: putData });
         } else {
-          // Upload session for files > 4 MB
+          // Upload session for files > 4 MB using parentFolder.id
           const sessionRes = await fetch(
-            `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/root:/${encodedFilePath}:/createUploadSession`,
+            `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(parentFolder.id)}:/${encodedFileName}:/createUploadSession`,
             {
               method: "POST",
               headers: {
@@ -10791,17 +11037,16 @@ app.get("/api/health", (req, res) => {
         const destFullPath = cleanDest
           ? `${ctx.fullSharePointPath}/${cleanDest}`
           : ctx.fullSharePointPath;
-        const encodedDest = encodeGraphPath(destFullPath);
 
-        const destRes = await fetch(
-          `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/root:/${encodedDest}`,
-          { headers: { Authorization: `Bearer ${ctx.accessToken}` } }
+        const destLookup = await findSharePointFolderBySegments(
+          ctx.accessToken,
+          ctx.driveId,
+          destFullPath
         );
-        const destData = (await destRes.json().catch(() => ({}))) as any;
-        if (!destRes.ok || !destData.id) {
-          throw new Error(destData?.error?.message || "Destination folder not found on SharePoint");
+        if (!destLookup.exists || !destLookup.item?.id) {
+          throw new Error("Destination folder not found on SharePoint");
         }
-        patchPayload.parentReference = { id: destData.id };
+        patchPayload.parentReference = { id: destLookup.item.id };
       }
 
       const updateRes = await fetch(
