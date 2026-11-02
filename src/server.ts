@@ -9991,12 +9991,63 @@ app.get("/api/health", (req, res) => {
 
   // -----------------------------------------------------
   // MICROSOFT SHAREPOINT ONLINE / GRAPH API INTEGRATION
+  // (Local SQLite Metadata Sync + Graph Delta Architecture)
   // -----------------------------------------------------
   try {
     db.exec("ALTER TABLE clients ADD COLUMN sharepoint_folder_name TEXT");
   } catch {}
+  try {
+    db.exec("ALTER TABLE clients ADD COLUMN sharepoint_folder_id TEXT");
+  } catch {}
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sharepoint_client_roots (
+      client_id INTEGER PRIMARY KEY,
+      drive_id TEXT DEFAULT '',
+      site_id TEXT DEFAULT '',
+      folder_item_id TEXT DEFAULT '',
+      folder_name TEXT DEFAULT '',
+      base_category_path TEXT DEFAULT '',
+      full_path TEXT DEFAULT '',
+      web_url TEXT DEFAULT '',
+      etag TEXT DEFAULT '',
+      ctag TEXT DEFAULT '',
+      delta_link TEXT DEFAULT '',
+      folder_exists INTEGER DEFAULT 0,
+      available_folders_json TEXT DEFAULT '[]',
+      last_synced_at TEXT DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS sharepoint_items (
+      item_id TEXT PRIMARY KEY,
+      client_id INTEGER NOT NULL,
+      drive_id TEXT NOT NULL,
+      parent_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      relative_path TEXT NOT NULL DEFAULT '',
+      parent_subpath TEXT NOT NULL DEFAULT '',
+      is_folder INTEGER NOT NULL DEFAULT 0,
+      child_count INTEGER DEFAULT 0,
+      size INTEGER DEFAULT 0,
+      mime_type TEXT DEFAULT '',
+      file_extension TEXT DEFAULT '',
+      web_url TEXT DEFAULT '',
+      created_at TEXT DEFAULT '',
+      created_by TEXT DEFAULT '',
+      last_modified_at TEXT DEFAULT '',
+      last_modified_by TEXT DEFAULT '',
+      etag TEXT DEFAULT '',
+      ctag TEXT DEFAULT '',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sp_items_client_subpath ON sharepoint_items(client_id, parent_subpath);
+    CREATE INDEX IF NOT EXISTS idx_sp_items_client_folder ON sharepoint_items(client_id, is_folder);
+    CREATE INDEX IF NOT EXISTS idx_sp_items_parent_id ON sharepoint_items(parent_id);
+  `);
 
   let cachedSpToken: { token: string; expiresAt: number; cacheKey: string } | null = null;
+  let cachedBaseCategoryFolderIds: Record<string, { folderId: string; resolvedPath: string; expiresAt: number }> = {};
 
   const getSharePointSettingsFromDb = (overrides?: any) => {
     const rows = db
@@ -10040,13 +10091,11 @@ app.get("/api/health", (req, res) => {
       .join("/");
   };
 
-  const encodeGraphPath = (rawPath: string) => {
-    const clean = normalizeSpPath(rawPath);
-    if (!clean) return "";
-    return clean
-      .split("/")
-      .map((seg) => encodeURIComponent(seg))
-      .join("/");
+  const getFileExtension = (name: string, isFolder: boolean): string => {
+    if (isFolder) return "folder";
+    const idx = String(name || "").lastIndexOf(".");
+    if (idx <= 0 || idx === name.length - 1) return "";
+    return name.slice(idx + 1).toLowerCase();
   };
 
   const extractJwtRoles = (accessToken: string): string[] => {
@@ -10082,7 +10131,6 @@ app.get("/api/health", (req, res) => {
     const decodedPathname = decodeURIComponent(parsed.pathname);
     const segments = decodedPathname.split("/").filter(Boolean);
 
-    // Check if ?id=/sites/<SiteName>/... is in query string (common when copying URL from SharePoint folder view)
     const idParam = parsed.searchParams.get("id") || parsed.searchParams.get("RootFolder") || "";
     if (idParam) {
       const idSegs = decodeURIComponent(idParam).split("/").filter(Boolean);
@@ -10094,7 +10142,6 @@ app.get("/api/health", (req, res) => {
       }
     }
 
-    // Handle modern SharePoint sharing/folder links like /:f:/s/<SiteName>/... or /:f:/r/sites/<SiteName>/...
     for (let i = 0; i < segments.length; i++) {
       const segLower = segments[i].toLowerCase();
       if ((segLower === "sites" || segLower === "teams") && segments[i + 1]) {
@@ -10173,7 +10220,6 @@ app.get("/api/health", (req, res) => {
     const { hostname, sitePath, siteSlug } = parseSharePointSiteUrl(cfg.sharepoint_site_url);
     const tokenRoles = extractJwtRoles(accessToken);
 
-    // 1. Discover available sites in the tenant via search=* so we have a fallback & site dropdown list
     let availableSites: Array<{ id: string; name: string; displayName: string; webUrl: string }> = [];
     try {
       const searchRes = await fetch("https://graph.microsoft.com/v1.0/sites?search=*", {
@@ -10197,7 +10243,6 @@ app.get("/api/health", (req, res) => {
     let siteData: any = null;
     const candidateEndpoints: string[] = [];
 
-    // If a specific siteId is already chosen and valid, try it first
     if (cfg.sharepoint_site_id && cfg.sharepoint_site_id.includes(",")) {
       candidateEndpoints.push(
         `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(cfg.sharepoint_site_id)}`
@@ -10232,7 +10277,6 @@ app.get("/api/health", (req, res) => {
       }
     }
 
-    // Fallback: match against discovered availableSites by URL, slug, or display name
     if (!siteData && availableSites.length > 0) {
       const cleanInputUrl = cfg.sharepoint_site_url.toLowerCase().replace(/\/+$/, "");
       const matchedSite =
@@ -10253,7 +10297,6 @@ app.get("/api/health", (req, res) => {
       }
     }
 
-    // Second fallback: search by siteSlug if still not found
     if (!siteData && siteSlug) {
       try {
         const slugRes = await fetch(
@@ -10338,6 +10381,40 @@ app.get("/api/health", (req, res) => {
     };
   };
 
+  // Fast context getter: reuses saved sharepoint_drive_id & sharepoint_site_id without re-discovering sites/drives
+  const getFastSharePointDriveContext = async () => {
+    const cfg = getSharePointSettingsFromDb();
+    const configured = Boolean(
+      cfg.sharepoint_tenant_id &&
+        cfg.sharepoint_client_id &&
+        cfg.sharepoint_client_secret &&
+        cfg.sharepoint_site_url
+    );
+    if (!configured) {
+      return { configured: false, accessToken: "", driveId: "", siteId: "", cfg };
+    }
+    const accessToken = await getSharePointAccessToken(cfg);
+    if (cfg.sharepoint_drive_id && cfg.sharepoint_site_id) {
+      return {
+        configured: true,
+        accessToken,
+        driveId: cfg.sharepoint_drive_id,
+        siteId: cfg.sharepoint_site_id,
+        cfg,
+      };
+    }
+    const driveInfo = await resolveSharePointSiteAndDrive(accessToken, cfg);
+    if (driveInfo.siteId) saveSharePointSettingKey("sharepoint_site_id", driveInfo.siteId);
+    if (driveInfo.driveId) saveSharePointSettingKey("sharepoint_drive_id", driveInfo.driveId);
+    return {
+      configured: true,
+      accessToken,
+      driveId: driveInfo.driveId,
+      siteId: driveInfo.siteId,
+      cfg,
+    };
+  };
+
   // Safe item-ID based folder traversal (avoids SharePoint colon-path generalException bugs)
   const findSharePointFolderBySegments = async (
     accessToken: string,
@@ -10345,7 +10422,6 @@ app.get("/api/health", (req, res) => {
     rawFolderPath: string
   ): Promise<{ exists: boolean; item: any; children: any[]; resolvedPath: string }> => {
     let segments = normalizeSpPath(rawFolderPath).split("/").filter(Boolean);
-    // Strip leading "Shared Documents" or "Documents" if user included library name in path
     if (
       segments.length > 1 &&
       ["shared documents", "documents"].includes(segments[0].toLowerCase())
@@ -10360,8 +10436,8 @@ app.get("/api/health", (req, res) => {
     for (const seg of segments) {
       const listUrl =
         currentParentId === "root"
-          ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root/children?$top=200`
-          : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${currentParentId}/children?$top=200`;
+          ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root/children?$top=500`
+          : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${currentParentId}/children?$top=500`;
 
       const listRes = await fetch(listUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -10393,11 +10469,10 @@ app.get("/api/health", (req, res) => {
       matchedSegments.push(String(match.name));
     }
 
-    // Fetch children of the resolved folder by item ID
     const finalChildrenUrl =
       currentParentId === "root"
-        ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root/children?$top=200`
-        : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${currentParentId}/children?$top=200`;
+        ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root/children?$top=500`
+        : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${currentParentId}/children?$top=500`;
     const finalRes = await fetch(finalChildrenUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -10430,8 +10505,8 @@ app.get("/api/health", (req, res) => {
     for (const seg of segments) {
       const childrenUrl =
         currentParentId === "root"
-          ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root/children?$top=200`
-          : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${currentParentId}/children?$top=200`;
+          ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root/children?$top=500`
+          : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${currentParentId}/children?$top=500`;
 
       const listRes = await fetch(childrenUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -10440,7 +10515,16 @@ app.get("/api/health", (req, res) => {
       const children: any[] = Array.isArray(listData?.value) ? listData.value : [];
 
       const existing = children.find(
-        (c) => c.folder && String(c.name || "").trim().toLowerCase() === seg.trim().toLowerCase()
+        (c) =>
+          c.folder &&
+          String(c.name || "")
+            .trim()
+            .replace(/\s+/g, " ")
+            .toLowerCase() ===
+            seg
+              .trim()
+              .replace(/\s+/g, " ")
+              .toLowerCase()
       );
 
       if (existing) {
@@ -10478,11 +10562,115 @@ app.get("/api/health", (req, res) => {
     return lastItem;
   };
 
-  // Resolve a Client's SharePoint Folder Info (works identically for ACTIVE and SUSPENDED clients)
-  const resolveClientSharePointFolder = async (clientId: string | number) => {
+  // Upsert a single Graph driveItem into local SQLite sharepoint_items table
+  const upsertSharePointItemToDb = (
+    clientId: number,
+    driveId: string,
+    parentSubpath: string,
+    rawItem: any
+  ) => {
+    const isFolder = Boolean(rawItem.folder);
+    const cleanSub = normalizeSpPath(parentSubpath);
+    const name = String(rawItem.name || "").trim();
+    const relativePath = cleanSub ? `${cleanSub}/${name}` : name;
+    const ext = getFileExtension(name, isFolder);
+    const createdBy =
+      rawItem.createdBy?.user?.displayName ||
+      rawItem.createdBy?.application?.displayName ||
+      "SharePoint";
+    const modifiedBy =
+      rawItem.lastModifiedBy?.user?.displayName ||
+      rawItem.lastModifiedBy?.application?.displayName ||
+      createdBy ||
+      "SharePoint";
+
+    db.prepare(
+      `INSERT INTO sharepoint_items (
+        item_id, client_id, drive_id, parent_id, name, relative_path, parent_subpath,
+        is_folder, child_count, size, mime_type, file_extension, web_url,
+        created_at, created_by, last_modified_at, last_modified_by, etag, ctag, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(item_id) DO UPDATE SET
+        client_id = excluded.client_id,
+        drive_id = excluded.drive_id,
+        parent_id = excluded.parent_id,
+        name = excluded.name,
+        relative_path = excluded.relative_path,
+        parent_subpath = excluded.parent_subpath,
+        is_folder = excluded.is_folder,
+        child_count = excluded.child_count,
+        size = excluded.size,
+        mime_type = excluded.mime_type,
+        file_extension = excluded.file_extension,
+        web_url = excluded.web_url,
+        created_at = excluded.created_at,
+        created_by = excluded.created_by,
+        last_modified_at = excluded.last_modified_at,
+        last_modified_by = excluded.last_modified_by,
+        etag = excluded.etag,
+        ctag = excluded.ctag,
+        updated_at = CURRENT_TIMESTAMP`
+    ).run(
+      String(rawItem.id),
+      Number(clientId),
+      String(driveId),
+      String(rawItem.parentReference?.id || "root"),
+      name,
+      relativePath,
+      cleanSub,
+      isFolder ? 1 : 0,
+      Number(rawItem.folder?.childCount ?? 0),
+      Number(rawItem.size ?? 0),
+      String(rawItem.file?.mimeType || ""),
+      ext,
+      String(rawItem.webUrl || ""),
+      String(rawItem.createdDateTime || ""),
+      String(createdBy),
+      String(rawItem.lastModifiedDateTime || ""),
+      String(modifiedBy),
+      String(rawItem.eTag || ""),
+      String(rawItem.cTag || "")
+    );
+  };
+
+  // Recalculate folder child_counts in SQLite for a client so folder counts are always accurate
+  const recalculateSqliteFolderCounts = (clientId: number) => {
+    db.prepare(
+      `UPDATE sharepoint_items
+       SET child_count = (
+         SELECT COUNT(*) FROM sharepoint_items c
+         WHERE c.client_id = sharepoint_items.client_id
+           AND c.parent_subpath = sharepoint_items.relative_path
+       )
+       WHERE client_id = ? AND is_folder = 1`
+    ).run(Number(clientId));
+  };
+
+  // Format a SQLite row into the API response shape
+  const formatSqliteSpItem = (row: any) => ({
+    id: row.item_id,
+    parentId: row.parent_id,
+    name: row.name,
+    relativePath: row.relative_path,
+    parentSubpath: row.parent_subpath,
+    size: Number(row.size || 0),
+    webUrl: row.web_url || "",
+    createdDateTime: row.created_at || "",
+    createdBy: row.created_by || "SharePoint",
+    lastModifiedDateTime: row.last_modified_at || "",
+    lastModifiedBy: row.last_modified_by || "SharePoint",
+    isFolder: Boolean(row.is_folder),
+    childCount: Number(row.child_count || 0),
+    mimeType: row.mime_type || "",
+    fileExtension: row.file_extension || "",
+    etag: row.etag || "",
+  });
+
+  // Read cached client SharePoint state from SQLite in <5ms
+  const getCachedClientSharePointPayload = (clientId: string | number, requestedSubpath = "") => {
     const client = db
       .prepare(
-        "SELECT id, first_name, last_name, funding_type, home_care_sub_type, status, sharepoint_folder_name FROM clients WHERE id = ?"
+        "SELECT id, first_name, last_name, funding_type, home_care_sub_type, status, sharepoint_folder_name, sharepoint_folder_id FROM clients WHERE id = ?"
       )
       .get(clientId) as any;
 
@@ -10491,13 +10679,149 @@ app.get("/api/health", (req, res) => {
     }
 
     const cfg = getSharePointSettingsFromDb();
-    const isConfigured = Boolean(
+    const configured = Boolean(
       cfg.sharepoint_tenant_id &&
         cfg.sharepoint_client_id &&
         cfg.sharepoint_client_secret &&
         cfg.sharepoint_site_url
     );
+    const fType = String(client.funding_type || "").toUpperCase().trim();
+    const isNdis = fType === "NDIS";
+    const defaultBaseCategoryPath = normalizeSpPath(
+      isNdis ? cfg.sharepoint_ndis_base_path : cfg.sharepoint_hc_base_path
+    );
+    const defaultClientName = `${client.first_name || ""} ${client.last_name || ""}`
+      .trim()
+      .replace(/[\\/:*?"<>|]/g, "");
+    const preferredFolderName = String(client.sharepoint_folder_name || defaultClientName).trim();
 
+    const rootRow = db
+      .prepare("SELECT * FROM sharepoint_client_roots WHERE client_id = ?")
+      .get(client.id) as any;
+
+    const baseCategoryPath = rootRow?.base_category_path || defaultBaseCategoryPath;
+    const folderName = rootRow?.folder_name || preferredFolderName;
+    const fullSharePointPath = rootRow?.full_path || `${baseCategoryPath}/${folderName}`;
+
+    const clientInfo = {
+      id: client.id,
+      name: `${client.first_name || ""} ${client.last_name || ""}`.trim(),
+      fundingType: isNdis ? "NDIS" : "HOME_CARE",
+      status: client.status || "ACTIVE",
+      baseCategoryPath,
+      folderName,
+      fullSharePointPath,
+      folderWebUrl: rootRow?.web_url || "",
+      folderItemId: rootRow?.folder_item_id || client.sharepoint_folder_id || "",
+      lastSyncedAt: rootRow?.last_synced_at || null,
+    };
+
+    if (!configured) {
+      return {
+        hasCache: true,
+        configured: false,
+        folderExists: false,
+        clientInfo,
+        availableFolders: [] as string[],
+        items: [],
+        allItems: [],
+        allSubfolders: [],
+        lastSyncedAt: null,
+      };
+    }
+
+    if (!rootRow) {
+      return {
+        hasCache: false,
+        configured: true,
+        folderExists: false,
+        clientInfo,
+        availableFolders: [] as string[],
+        items: [],
+        allItems: [],
+        allSubfolders: [],
+        lastSyncedAt: null,
+      };
+    }
+
+    let availableFolders: string[] = [];
+    try {
+      availableFolders = JSON.parse(rootRow.available_folders_json || "[]");
+    } catch {}
+
+    if (!rootRow.folder_exists) {
+      return {
+        hasCache: true,
+        configured: true,
+        folderExists: false,
+        clientInfo,
+        availableFolders,
+        items: [],
+        allItems: [],
+        allSubfolders: [],
+        lastSyncedAt: rootRow.last_synced_at || null,
+      };
+    }
+
+    const cleanSub = normalizeSpPath(requestedSubpath);
+    const allRows = db
+      .prepare(
+        "SELECT * FROM sharepoint_items WHERE client_id = ? ORDER BY is_folder DESC, name COLLATE NOCASE ASC"
+      )
+      .all(client.id) as any[];
+
+    const allItems = allRows.map(formatSqliteSpItem);
+    const items = allItems.filter((it) => it.parentSubpath === cleanSub);
+    const allSubfolders = allItems
+      .filter((it) => it.isFolder)
+      .map((it) => ({
+        id: it.id,
+        name: it.name,
+        path: it.relativePath,
+        parentSubpath: it.parentSubpath,
+        childCount: it.childCount,
+      }));
+
+    return {
+      hasCache: true,
+      configured: true,
+      folderExists: true,
+      clientInfo,
+      availableFolders,
+      items,
+      allItems,
+      allSubfolders,
+      lastSyncedAt: rootRow.last_synced_at || null,
+    };
+  };
+
+  // Resolve & Delta-Sync a Client's SharePoint Folder Tree into SQLite
+  const syncClientSharePointDelta = async (
+    clientId: string | number,
+    options: { forceFull?: boolean } = {}
+  ): Promise<{
+    synced: boolean;
+    added: number;
+    updated: number;
+    removed: number;
+    lastSyncedAt: string;
+  }> => {
+    const client = db
+      .prepare(
+        "SELECT id, first_name, last_name, funding_type, home_care_sub_type, status, sharepoint_folder_name, sharepoint_folder_id FROM clients WHERE id = ?"
+      )
+      .get(clientId) as any;
+
+    if (!client) {
+      throw new Error("Client not found");
+    }
+
+    const fastCtx = await getFastSharePointDriveContext();
+    if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
+      return { synced: false, added: 0, updated: 0, removed: 0, lastSyncedAt: "" };
+    }
+
+    const { accessToken, driveId, siteId, cfg } = fastCtx;
     const fType = String(client.funding_type || "").toUpperCase().trim();
     const isNdis = fType === "NDIS";
     const baseCategoryPath = normalizeSpPath(
@@ -10508,73 +10832,408 @@ app.get("/api/health", (req, res) => {
       .replace(/[\\/:*?"<>|]/g, "");
     const preferredFolderName = String(client.sharepoint_folder_name || defaultClientName).trim();
 
-    if (!isConfigured) {
-      return {
-        configured: false,
-        folderExists: false,
-        client,
-        isNdis,
-        baseCategoryPath,
-        folderName: preferredFolderName,
-        fullSharePointPath: `${baseCategoryPath}/${preferredFolderName}`,
-        availableFolders: [] as string[],
-      };
+    const existingRoot = db
+      .prepare("SELECT * FROM sharepoint_client_roots WHERE client_id = ?")
+      .get(client.id) as any;
+
+    let folderItem: any = null;
+    let resolvedBase = existingRoot?.base_category_path || baseCategoryPath;
+    let availableFolders: string[] = [];
+    try {
+      availableFolders = JSON.parse(existingRoot?.available_folders_json || "[]");
+    } catch {}
+
+    // 1. Fast path: if we already have the client's folder_item_id and the preferred name hasn't changed, verify it directly by ID (1 HTTP call)
+    const cachedFolderId = existingRoot?.folder_item_id || client.sharepoint_folder_id || "";
+    const nameUnchanged =
+      !client.sharepoint_folder_name ||
+      !existingRoot?.folder_name ||
+      existingRoot.folder_name.toLowerCase() === preferredFolderName.toLowerCase();
+
+    if (cachedFolderId && nameUnchanged && !options.forceFull) {
+      try {
+        const itemRes = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${encodeURIComponent(cachedFolderId)}?$select=id,name,webUrl,eTag,cTag,folder,deleted`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (itemRes.ok) {
+          const itemJson = (await itemRes.json().catch(() => null)) as any;
+          if (itemJson && itemJson.id && !itemJson.deleted) {
+            folderItem = itemJson;
+          }
+        }
+      } catch {}
     }
 
-    const accessToken = await getSharePointAccessToken(cfg);
-    const driveInfo = await resolveSharePointSiteAndDrive(accessToken, cfg);
+    // 2. If not cached yet or folder was renamed/deleted, resolve from base category folder
+    if (!folderItem) {
+      const baseCacheKey = `${driveId}:${baseCategoryPath.toLowerCase()}`;
+      const cachedBase = cachedBaseCategoryFolderIds[baseCacheKey];
+      let baseChildren: any[] = [];
+      let baseExists = false;
 
-    // Persist resolved siteId / driveId if not saved yet
-    if (!cfg.sharepoint_site_id && driveInfo.siteId) {
-      saveSharePointSettingKey("sharepoint_site_id", driveInfo.siteId);
-    }
-    if (!cfg.sharepoint_drive_id && driveInfo.driveId) {
-      saveSharePointSettingKey("sharepoint_drive_id", driveInfo.driveId);
+      if (cachedBase && cachedBase.expiresAt > Date.now()) {
+        const listRes = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${encodeURIComponent(cachedBase.folderId)}/children?$top=500`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (listRes.ok) {
+          const listData = (await listRes.json().catch(() => ({}))) as any;
+          baseChildren = Array.isArray(listData?.value) ? listData.value : [];
+          resolvedBase = cachedBase.resolvedPath;
+          baseExists = true;
+        }
+      }
+
+      if (!baseExists) {
+        const baseLookup = await findSharePointFolderBySegments(
+          accessToken,
+          driveId,
+          baseCategoryPath
+        );
+        if (baseLookup.exists && baseLookup.item?.id) {
+          baseExists = true;
+          baseChildren = baseLookup.children;
+          resolvedBase = baseLookup.resolvedPath || baseCategoryPath;
+          cachedBaseCategoryFolderIds[baseCacheKey] = {
+            folderId: String(baseLookup.item.id),
+            resolvedPath: resolvedBase,
+            expiresAt: Date.now() + 10 * 60 * 1000,
+          };
+        }
+      }
+
+      if (baseExists) {
+        const folderItems = baseChildren.filter((c) => Boolean(c.folder));
+        availableFolders = folderItems
+          .map((f) => String(f.name))
+          .sort((a, b) => a.localeCompare(b));
+
+        const normalizeName = (n: string) =>
+          String(n || "")
+            .toLowerCase()
+            .replace(/\s+/g, " ")
+            .trim();
+
+        folderItem =
+          folderItems.find((f) => normalizeName(f.name) === normalizeName(preferredFolderName)) ||
+          folderItems.find((f) => normalizeName(f.name) === normalizeName(defaultClientName));
+      }
     }
 
-    // Traverse base category folder by segments (General -> NDIS -> Participant Files or General -> SAH -> Clients)
-    const baseLookup = await findSharePointFolderBySegments(
-      accessToken,
-      driveInfo.driveId,
-      baseCategoryPath
+    const nowIso = new Date().toISOString();
+
+    if (!folderItem?.id) {
+      db.prepare(
+        `INSERT INTO sharepoint_client_roots (
+          client_id, drive_id, site_id, folder_item_id, folder_name,
+          base_category_path, full_path, web_url, etag, ctag, delta_link,
+          folder_exists, available_folders_json, last_synced_at
+        ) VALUES (?, ?, ?, '', ?, ?, ?, '', '', '', '', 0, ?, ?)
+        ON CONFLICT(client_id) DO UPDATE SET
+          drive_id = excluded.drive_id,
+          site_id = excluded.site_id,
+          folder_item_id = '',
+          folder_name = excluded.folder_name,
+          base_category_path = excluded.base_category_path,
+          full_path = excluded.full_path,
+          folder_exists = 0,
+          available_folders_json = excluded.available_folders_json,
+          last_synced_at = excluded.last_synced_at`
+      ).run(
+        client.id,
+        driveId,
+        siteId,
+        preferredFolderName,
+        resolvedBase,
+        `${resolvedBase}/${preferredFolderName}`,
+        JSON.stringify(availableFolders),
+        nowIso
+      );
+      db.prepare("DELETE FROM sharepoint_items WHERE client_id = ?").run(client.id);
+      return { synced: true, added: 0, updated: 0, removed: 0, lastSyncedAt: nowIso };
+    }
+
+    const rootFolderId = String(folderItem.id);
+    const resolvedFolderName = String(folderItem.name || preferredFolderName);
+    const fullPath = `${resolvedBase}/${resolvedFolderName}`;
+
+    // Save resolved folder ID on client row as well
+    db.prepare(
+      "UPDATE clients SET sharepoint_folder_id = ?, sharepoint_folder_name = COALESCE(sharepoint_folder_name, ?) WHERE id = ?"
+    ).run(rootFolderId, resolvedFolderName, client.id);
+
+    // 3. Execute Microsoft Graph Scoped Delta Query (or Full Delta if no delta_link or forceFull)
+    let deltaUrl =
+      !options.forceFull && existingRoot?.delta_link && existingRoot?.folder_item_id === rootFolderId
+        ? String(existingRoot.delta_link)
+        : `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${encodeURIComponent(rootFolderId)}/delta?$top=500`;
+
+    const isInitialOrFullSync = !deltaUrl.includes("token=");
+    let rawDeltaItems: any[] = [];
+    let newDeltaLink = "";
+    let deltaSucceeded = false;
+
+    try {
+      let pageGuard = 0;
+      while (deltaUrl && pageGuard < 20) {
+        pageGuard++;
+        const deltaRes = await fetch(deltaUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!deltaRes.ok) {
+          // If delta token expired (410 Gone / resyncRequired), retry once from fresh delta root
+          if (!isInitialOrFullSync && pageGuard === 1) {
+            deltaUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${encodeURIComponent(rootFolderId)}/delta?$top=500`;
+            continue;
+          }
+          break;
+        }
+        const deltaData = (await deltaRes.json().catch(() => ({}))) as any;
+        if (Array.isArray(deltaData?.value)) {
+          rawDeltaItems.push(...deltaData.value);
+        }
+        if (deltaData?.["@odata.nextLink"]) {
+          deltaUrl = String(deltaData["@odata.nextLink"]);
+        } else {
+          newDeltaLink = String(deltaData?.["@odata.deltaLink"] || "");
+          deltaUrl = "";
+          deltaSucceeded = true;
+        }
+      }
+    } catch (e: any) {
+      logger.warn(`SharePoint delta query fallback triggered: ${e.message}`);
+    }
+
+    let addedCount = 0;
+    let updatedCount = 0;
+    let removedCount = 0;
+
+    // Build lookup of existing items in SQLite for this client
+    const existingRows = db
+      .prepare("SELECT item_id, relative_path, parent_id, is_folder, etag FROM sharepoint_items WHERE client_id = ?")
+      .all(client.id) as Array<{
+      item_id: string;
+      relative_path: string;
+      parent_id: string;
+      is_folder: number;
+      etag: string;
+    }>;
+    const existingMap = new Map(existingRows.map((r) => [r.item_id, r]));
+
+    // Map of folder item_id -> relative_path (relative to client's root folder)
+    const folderPathById = new Map<string, string>();
+    folderPathById.set(rootFolderId, "");
+    for (const r of existingRows) {
+      if (r.is_folder) {
+        folderPathById.set(r.item_id, r.relative_path);
+      }
+    }
+
+    if (deltaSucceeded && rawDeltaItems.length > 0) {
+      const seenActiveIds = new Set<string>();
+
+      // First pass: process folders in breadth-first order so parent paths are known before child items
+      const nonRootItems = rawDeltaItems.filter((it) => it && it.id && String(it.id) !== rootFolderId);
+      const deletedItems = nonRootItems.filter((it) => Boolean(it.deleted));
+      const activeFolders = nonRootItems.filter((it) => !it.deleted && Boolean(it.folder));
+      const activeFiles = nonRootItems.filter((it) => !it.deleted && !it.folder);
+
+      // Resolve nested folder paths iteratively
+      let unresolvedFolders = [...activeFolders];
+      let pass = 0;
+      while (unresolvedFolders.length > 0 && pass < 15) {
+        pass++;
+        const nextRemaining: any[] = [];
+        for (const folder of unresolvedFolders) {
+          const parentId = String(folder.parentReference?.id || "");
+          if (folderPathById.has(parentId)) {
+            const parentSub = folderPathById.get(parentId) || "";
+            const relPath = parentSub ? `${parentSub}/${folder.name}` : String(folder.name);
+            folderPathById.set(String(folder.id), relPath);
+          } else {
+            nextRemaining.push(folder);
+          }
+        }
+        if (nextRemaining.length === unresolvedFolders.length) {
+          // Fallback: derive from parentReference.path if parentId was outside scope
+          for (const folder of nextRemaining) {
+            const rawParentPath = decodeURIComponent(String(folder.parentReference?.path || ""));
+            const idx = rawParentPath.toLowerCase().indexOf(fullPath.toLowerCase());
+            let parentSub = "";
+            if (idx !== -1) {
+              parentSub = normalizeSpPath(rawParentPath.slice(idx + fullPath.length));
+            }
+            const relPath = parentSub ? `${parentSub}/${folder.name}` : String(folder.name);
+            folderPathById.set(String(folder.id), relPath);
+          }
+          break;
+        }
+        unresolvedFolders = nextRemaining;
+      }
+
+      const syncTransaction = db.transaction(() => {
+        for (const del of deletedItems) {
+          const delId = String(del.id);
+          const prev = existingMap.get(delId);
+          if (prev) {
+            db.prepare("DELETE FROM sharepoint_items WHERE item_id = ?").run(delId);
+            if (prev.is_folder && prev.relative_path) {
+              db.prepare(
+                "DELETE FROM sharepoint_items WHERE client_id = ? AND (parent_subpath = ? OR parent_subpath LIKE ?)"
+              ).run(client.id, prev.relative_path, `${prev.relative_path}/%`);
+            }
+            removedCount++;
+          }
+        }
+
+        for (const item of [...activeFolders, ...activeFiles]) {
+          const itemId = String(item.id);
+          seenActiveIds.add(itemId);
+          const parentId = String(item.parentReference?.id || rootFolderId);
+          let parentSub = folderPathById.get(parentId);
+          if (parentSub === undefined) {
+            const rawParentPath = decodeURIComponent(String(item.parentReference?.path || ""));
+            const idx = rawParentPath.toLowerCase().indexOf(fullPath.toLowerCase());
+            parentSub = idx !== -1 ? normalizeSpPath(rawParentPath.slice(idx + fullPath.length)) : "";
+          }
+
+          const prev = existingMap.get(itemId);
+          if (!prev) {
+            addedCount++;
+          } else if (prev.etag !== String(item.eTag || "")) {
+            updatedCount++;
+          }
+
+          upsertSharePointItemToDb(client.id, driveId, parentSub, item);
+        }
+
+        // If this was a full sync (not incremental token), prune any stale SQLite rows that no longer exist on SharePoint
+        if (isInitialOrFullSync || options.forceFull) {
+          for (const [oldId] of existingMap) {
+            if (!seenActiveIds.has(oldId)) {
+              db.prepare("DELETE FROM sharepoint_items WHERE item_id = ?").run(oldId);
+              removedCount++;
+            }
+          }
+        }
+
+        recalculateSqliteFolderCounts(client.id);
+      });
+
+      syncTransaction();
+    } else if (!deltaSucceeded) {
+      // Fallback BFS traversal by folder ID if Graph /delta is unavailable on this tenant
+      const queue: Array<{ folderId: string; subpath: string }> = [
+        { folderId: rootFolderId, subpath: "" },
+      ];
+      const visited = new Set<string>();
+      const collected: Array<{ subpath: string; item: any }> = [];
+
+      while (queue.length > 0 && visited.size < 100) {
+        const current = queue.shift()!;
+        if (visited.has(current.folderId)) continue;
+        visited.add(current.folderId);
+
+        const res = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${encodeURIComponent(current.folderId)}/children?$top=500`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (!res.ok) continue;
+        const data = (await res.json().catch(() => ({}))) as any;
+        const children: any[] = Array.isArray(data?.value) ? data.value : [];
+        for (const ch of children) {
+          collected.push({ subpath: current.subpath, item: ch });
+          if (ch.folder && ch.id) {
+            const nextSub = current.subpath ? `${current.subpath}/${ch.name}` : String(ch.name);
+            queue.push({ folderId: String(ch.id), subpath: nextSub });
+          }
+        }
+      }
+
+      const fallbackTx = db.transaction(() => {
+        db.prepare("DELETE FROM sharepoint_items WHERE client_id = ?").run(client.id);
+        for (const entry of collected) {
+          upsertSharePointItemToDb(client.id, driveId, entry.subpath, entry.item);
+          addedCount++;
+        }
+        recalculateSqliteFolderCounts(client.id);
+      });
+      fallbackTx();
+    }
+
+    // Update sharepoint_client_roots metadata
+    db.prepare(
+      `INSERT INTO sharepoint_client_roots (
+        client_id, drive_id, site_id, folder_item_id, folder_name,
+        base_category_path, full_path, web_url, etag, ctag, delta_link,
+        folder_exists, available_folders_json, last_synced_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      ON CONFLICT(client_id) DO UPDATE SET
+        drive_id = excluded.drive_id,
+        site_id = excluded.site_id,
+        folder_item_id = excluded.folder_item_id,
+        folder_name = excluded.folder_name,
+        base_category_path = excluded.base_category_path,
+        full_path = excluded.full_path,
+        web_url = excluded.web_url,
+        etag = excluded.etag,
+        ctag = excluded.ctag,
+        delta_link = CASE WHEN excluded.delta_link != '' THEN excluded.delta_link ELSE sharepoint_client_roots.delta_link END,
+        folder_exists = 1,
+        available_folders_json = excluded.available_folders_json,
+        last_synced_at = excluded.last_synced_at`
+    ).run(
+      client.id,
+      driveId,
+      siteId,
+      rootFolderId,
+      resolvedFolderName,
+      resolvedBase,
+      fullPath,
+      String(folderItem.webUrl || ""),
+      String(folderItem.eTag || ""),
+      String(folderItem.cTag || ""),
+      newDeltaLink,
+      JSON.stringify(availableFolders),
+      nowIso
     );
 
-    let availableFolders: string[] = [];
-    let matchedFolderItem: any = null;
-
-    if (baseLookup.exists) {
-      const folderItems = baseLookup.children.filter((c) => Boolean(c.folder));
-      availableFolders = folderItems.map((f) => String(f.name)).sort((a, b) => a.localeCompare(b));
-
-      const normalizeName = (n: string) =>
-        String(n || "")
-          .toLowerCase()
-          .replace(/\s+/g, " ")
-          .trim();
-
-      matchedFolderItem =
-        folderItems.find((f) => normalizeName(f.name) === normalizeName(preferredFolderName)) ||
-        folderItems.find((f) => normalizeName(f.name) === normalizeName(defaultClientName));
-    }
-
-    const resolvedBase = baseLookup.resolvedPath || baseCategoryPath;
-    const resolvedFolderName = matchedFolderItem ? String(matchedFolderItem.name) : preferredFolderName;
-
     return {
-      configured: true,
-      accessToken,
-      driveId: driveInfo.driveId,
-      siteId: driveInfo.siteId,
-      folderExists: Boolean(matchedFolderItem),
-      clientFolderItem: matchedFolderItem,
-      client,
-      isNdis,
-      baseCategoryPath: resolvedBase,
-      folderName: resolvedFolderName,
-      fullSharePointPath: `${resolvedBase}/${resolvedFolderName}`,
-      folderWebUrl: matchedFolderItem?.webUrl || driveInfo.driveWebUrl,
-      availableFolders,
+      synced: true,
+      added: addedCount,
+      updated: updatedCount,
+      removed: removedCount,
+      lastSyncedAt: nowIso,
     };
+  };
+
+  // Resolve target folder Graph Item ID from SQLite cache first, falling back to Graph hierarchy creation
+  const resolveTargetFolderIdFast = async (
+    clientId: string | number,
+    accessToken: string,
+    driveId: string,
+    fullSharePointPath: string,
+    rootFolderItemId: string,
+    subpath: string
+  ): Promise<{ folderId: string; cleanSubpath: string }> => {
+    const cleanSub = normalizeSpPath(subpath || "");
+    if (!cleanSub && rootFolderItemId) {
+      return { folderId: rootFolderItemId, cleanSubpath: "" };
+    }
+    if (cleanSub) {
+      const cachedFolder = db
+        .prepare(
+          "SELECT item_id FROM sharepoint_items WHERE client_id = ? AND relative_path = ? AND is_folder = 1"
+        )
+        .get(clientId, cleanSub) as { item_id: string } | undefined;
+      if (cachedFolder?.item_id) {
+        return { folderId: cachedFolder.item_id, cleanSubpath: cleanSub };
+      }
+    }
+    const targetPath = cleanSub ? `${fullSharePointPath}/${cleanSub}` : fullSharePointPath;
+    const ensured = await ensureSharePointFolderHierarchy(accessToken, driveId, targetPath);
+    return { folderId: String(ensured.id), cleanSubpath: cleanSub };
   };
 
   // 1. GET /api/sharepoint/status
@@ -10645,6 +11304,7 @@ app.get("/api/health", (req, res) => {
         }
       }
       cachedSpToken = null;
+      cachedBaseCategoryFolderIds = {};
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Failed to save SharePoint settings" });
@@ -10654,12 +11314,12 @@ app.get("/api/health", (req, res) => {
   // 3. POST /api/sharepoint/test-connection
   app.post("/api/sharepoint/test-connection", authenticateToken, requireAdmin, async (req: any, res: any) => {
     try {
-      cachedSpToken = null; // Force fresh token check during explicit test
+      cachedSpToken = null;
+      cachedBaseCategoryFolderIds = {};
       const cfg = getSharePointSettingsFromDb(req.body);
       const accessToken = await getSharePointAccessToken(cfg);
       const driveInfo = await resolveSharePointSiteAndDrive(accessToken, cfg);
 
-      // Save settings & resolved IDs automatically on successful test
       saveSharePointSettingKey("sharepoint_tenant_id", cfg.sharepoint_tenant_id);
       saveSharePointSettingKey("sharepoint_client_id", cfg.sharepoint_client_id);
       saveSharePointSettingKey("sharepoint_client_secret", cfg.sharepoint_client_secret);
@@ -10714,132 +11374,84 @@ app.get("/api/health", (req, res) => {
     }
   });
 
-  // 4. GET /api/clients/:id/sharepoint/items
+  // 4. GET /api/clients/:id/sharepoint/items (Instant SQLite Metadata Read + Background Delta Sync)
   app.get("/api/clients/:id/sharepoint/items", authenticateToken, async (req: any, res: any) => {
     try {
       const clientId = req.params.id;
       const subpath = normalizeSpPath(String(req.query.subpath || ""));
-      const ctx = await resolveClientSharePointFolder(clientId);
+      const forceSync = req.query.sync === "1";
 
-      const clientInfo = {
-        id: ctx.client.id,
-        name: `${ctx.client.first_name || ""} ${ctx.client.last_name || ""}`.trim(),
-        fundingType: ctx.isNdis ? "NDIS" : "HOME_CARE",
-        status: ctx.client.status || "ACTIVE",
-        baseCategoryPath: ctx.baseCategoryPath,
-        folderName: ctx.folderName,
-        fullSharePointPath: ctx.fullSharePointPath,
-        folderWebUrl: ctx.folderWebUrl,
-      };
+      let cached = getCachedClientSharePointPayload(clientId, subpath);
 
-      if (!ctx.configured) {
-        return res.json({
-          configured: false,
-          folderExists: false,
-          clientInfo,
-          items: [],
-          allSubfolders: [],
-        });
+      if (!cached.configured) {
+        return res.json(cached);
       }
 
-      if (!ctx.folderExists || !ctx.accessToken || !ctx.driveId) {
-        return res.json({
-          configured: true,
-          folderExists: false,
-          clientInfo,
-          availableFolders: ctx.availableFolders,
-          items: [],
-          allSubfolders: [],
-        });
+      // If this client has never been synced into SQLite yet, or explicit sync=1 was requested, run delta sync now
+      if (!cached.hasCache || forceSync) {
+        await syncClientSharePointDelta(clientId, { forceFull: !cached.hasCache });
+        cached = getCachedClientSharePointPayload(clientId, subpath);
       }
 
-      const targetPath = subpath
-        ? `${ctx.fullSharePointPath}/${subpath}`
-        : ctx.fullSharePointPath;
-
-      const folderLookup = await findSharePointFolderBySegments(
-        ctx.accessToken,
-        ctx.driveId,
-        targetPath
-      );
-
-      if (!folderLookup.exists) {
-        throw new Error(`SharePoint subfolder "${targetPath}" was not found.`);
-      }
-
-      const rawItems: any[] = folderLookup.children;
-      const items = rawItems.map((item) => ({
-        id: item.id,
-        name: item.name,
-        size: item.size || 0,
-        webUrl: item.webUrl || "",
-        lastModifiedDateTime: item.lastModifiedDateTime || "",
-        lastModifiedBy:
-          item.lastModifiedBy?.user?.displayName ||
-          item.createdBy?.user?.displayName ||
-          "SharePoint",
-        isFolder: Boolean(item.folder),
-        childCount: item.folder?.childCount,
-        mimeType: item.file?.mimeType || "",
-        downloadUrl: item["@microsoft.graph.downloadUrl"] || "",
-      }));
-
-      // Collect client's top-level & current subfolders for the "Move to Folder" modal
-      const allSubfolders: Array<{ id: string; name: string; path: string }> = [];
-      try {
-        const rootLookup = subpath
-          ? await findSharePointFolderBySegments(ctx.accessToken, ctx.driveId, ctx.fullSharePointPath)
-          : folderLookup;
-        if (rootLookup.exists) {
-          const rootFolders = rootLookup.children.filter((i: any) => Boolean(i.folder));
-          for (const rf of rootFolders) {
-            allSubfolders.push({ id: rf.id, name: rf.name, path: rf.name });
-          }
-        }
-        if (subpath) {
-          for (const it of items) {
-            if (it.isFolder) {
-              const p = `${subpath}/${it.name}`;
-              if (!allSubfolders.some((f) => f.path === p)) {
-                allSubfolders.push({ id: it.id, name: it.name, path: p });
-              }
-            }
-          }
-        }
-      } catch {}
-
-      res.json({
-        configured: true,
-        folderExists: true,
-        clientInfo,
-        items,
-        allSubfolders,
-      });
+      return res.json(cached);
     } catch (err: any) {
       logger.error(`SharePoint list items error: ${err.message}`);
       res.status(500).json({ error: err.message || "Failed to load SharePoint folder" });
     }
   });
 
+  // 4b. POST /api/clients/:id/sharepoint/sync (Background / Manual Delta Sync with Microsoft Graph)
+  app.post("/api/clients/:id/sharepoint/sync", authenticateToken, async (req: any, res: any) => {
+    try {
+      const clientId = req.params.id;
+      const subpath = normalizeSpPath(String(req.body?.subpath || ""));
+      const forceFull = Boolean(req.body?.full);
+
+      const syncStats = await syncClientSharePointDelta(clientId, { forceFull });
+      const payload = getCachedClientSharePointPayload(clientId, subpath);
+
+      res.json({
+        ...payload,
+        syncStats,
+      });
+    } catch (err: any) {
+      logger.error(`SharePoint delta sync error: ${err.message}`);
+      res.status(500).json({ error: err.message || "Failed to sync with SharePoint" });
+    }
+  });
+
   // 5. POST /api/clients/:id/sharepoint/init-folder
   app.post("/api/clients/:id/sharepoint/init-folder", authenticateToken, async (req: any, res: any) => {
     try {
-      const ctx = await resolveClientSharePointFolder(req.params.id);
-      if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+      const clientId = req.params.id;
+      const fastCtx = await getFastSharePointDriveContext();
+      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
         return res.status(400).json({ error: "SharePoint is not configured yet." });
       }
 
+      const cached = getCachedClientSharePointPayload(clientId, "");
       const created = await ensureSharePointFolderHierarchy(
-        ctx.accessToken,
-        ctx.driveId,
-        ctx.fullSharePointPath
+        fastCtx.accessToken,
+        fastCtx.driveId,
+        cached.clientInfo.fullSharePointPath
       );
+
+      if (created?.id) {
+        db.prepare("UPDATE clients SET sharepoint_folder_id = ? WHERE id = ?").run(
+          String(created.id),
+          clientId
+        );
+      }
+
+      await syncClientSharePointDelta(clientId, { forceFull: true });
+      const updatedPayload = getCachedClientSharePointPayload(clientId, "");
 
       res.json({
         success: true,
-        folderName: ctx.folderName,
-        fullSharePointPath: ctx.fullSharePointPath,
-        webUrl: created?.webUrl || "",
+        folderName: updatedPayload.clientInfo.folderName,
+        fullSharePointPath: updatedPayload.clientInfo.fullSharePointPath,
+        webUrl: created?.webUrl || updatedPayload.clientInfo.folderWebUrl || "",
+        payload: updatedPayload,
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Failed to create client folder on SharePoint" });
@@ -10849,50 +11461,61 @@ app.get("/api/health", (req, res) => {
   // 6. POST /api/clients/:id/sharepoint/link-folder
   app.post("/api/clients/:id/sharepoint/link-folder", authenticateToken, async (req: any, res: any) => {
     try {
+      const clientId = req.params.id;
       const { folderName } = req.body;
       if (!folderName || !String(folderName).trim()) {
         return res.status(400).json({ error: "Folder name is required" });
       }
-      db.prepare("UPDATE clients SET sharepoint_folder_name = ? WHERE id = ?").run(
-        String(folderName).trim(),
-        req.params.id
-      );
-      res.json({ success: true, folderName: String(folderName).trim() });
+      const cleanName = String(folderName).trim();
+      db.prepare(
+        "UPDATE clients SET sharepoint_folder_name = ?, sharepoint_folder_id = NULL WHERE id = ?"
+      ).run(cleanName, clientId);
+      db.prepare("DELETE FROM sharepoint_client_roots WHERE client_id = ?").run(clientId);
+      db.prepare("DELETE FROM sharepoint_items WHERE client_id = ?").run(clientId);
+
+      await syncClientSharePointDelta(clientId, { forceFull: true });
+      const updatedPayload = getCachedClientSharePointPayload(clientId, "");
+
+      res.json({
+        success: true,
+        folderName: cleanName,
+        payload: updatedPayload,
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Failed to link SharePoint folder" });
     }
   });
 
-  // 7. POST /api/clients/:id/sharepoint/folders (Create Subfolder)
+  // 7. POST /api/clients/:id/sharepoint/folders (Create Subfolder with Write-Through to SQLite)
   app.post("/api/clients/:id/sharepoint/folders", authenticateToken, async (req: any, res: any) => {
     try {
+      const clientId = Number(req.params.id);
       const { subpath, folderName } = req.body;
       if (!folderName || !String(folderName).trim()) {
         return res.status(400).json({ error: "Folder name is required" });
       }
 
-      const ctx = await resolveClientSharePointFolder(req.params.id);
-      if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+      const fastCtx = await getFastSharePointDriveContext();
+      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
         return res.status(400).json({ error: "SharePoint is not configured." });
       }
 
-      const cleanSub = normalizeSpPath(subpath || "");
-      const parentPath = cleanSub
-        ? `${ctx.fullSharePointPath}/${cleanSub}`
-        : ctx.fullSharePointPath;
-
-      const parentFolder = await ensureSharePointFolderHierarchy(
-        ctx.accessToken,
-        ctx.driveId,
-        parentPath
+      const cached = getCachedClientSharePointPayload(clientId, subpath || "");
+      const { folderId: parentFolderId, cleanSubpath } = await resolveTargetFolderIdFast(
+        clientId,
+        fastCtx.accessToken,
+        fastCtx.driveId,
+        cached.clientInfo.fullSharePointPath,
+        cached.clientInfo.folderItemId,
+        subpath || ""
       );
 
       const createRes = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(parentFolder.id)}/children`,
+        `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(parentFolderId)}/children`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${ctx.accessToken}`,
+            Authorization: `Bearer ${fastCtx.accessToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -10904,17 +11527,28 @@ app.get("/api/health", (req, res) => {
       );
 
       const createdData = (await createRes.json().catch(() => ({}))) as any;
-      if (!createRes.ok) {
+      if (!createRes.ok || !createdData?.id) {
         throw new Error(createdData?.error?.message || "Failed to create subfolder on SharePoint");
       }
 
-      res.json({ success: true, item: createdData });
+      // Write-through to SQLite immediately
+      upsertSharePointItemToDb(clientId, fastCtx.driveId, cleanSubpath, createdData);
+      recalculateSqliteFolderCounts(clientId);
+
+      const createdRow = db
+        .prepare("SELECT * FROM sharepoint_items WHERE item_id = ?")
+        .get(String(createdData.id));
+
+      res.json({
+        success: true,
+        item: createdRow ? formatSqliteSpItem(createdRow) : createdData,
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Failed to create subfolder" });
     }
   });
 
-  // 8. POST /api/clients/:id/sharepoint/upload (Upload File to SharePoint)
+  // 8. POST /api/clients/:id/sharepoint/upload (Upload File with Write-Through to SQLite)
   app.post(
     "/api/clients/:id/sharepoint/upload",
     authenticateToken,
@@ -10926,34 +11560,35 @@ app.get("/api/health", (req, res) => {
           return res.status(400).json({ error: "No file uploaded" });
         }
 
-        const ctx = await resolveClientSharePointFolder(req.params.id);
-        if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+        const clientId = Number(req.params.id);
+        const fastCtx = await getFastSharePointDriveContext();
+        if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
           return res.status(400).json({ error: "SharePoint is not configured." });
         }
 
         const cleanSub = normalizeSpPath(req.body?.subpath || "");
-        const targetFolderPath = cleanSub
-          ? `${ctx.fullSharePointPath}/${cleanSub}`
-          : ctx.fullSharePointPath;
-
-        const parentFolder = await ensureSharePointFolderHierarchy(
-          ctx.accessToken,
-          ctx.driveId,
-          targetFolderPath
+        const cached = getCachedClientSharePointPayload(clientId, cleanSub);
+        const { folderId: parentFolderId } = await resolveTargetFolderIdFast(
+          clientId,
+          fastCtx.accessToken,
+          fastCtx.driveId,
+          cached.clientInfo.fullSharePointPath,
+          cached.clientInfo.folderItemId,
+          cleanSub
         );
 
         const fileName = req.file.originalname || req.file.filename;
         const encodedFileName = encodeURIComponent(fileName);
         const fileBuffer = fs.readFileSync(req.file.path);
+        let uploadedItem: any = null;
 
         if (fileBuffer.length <= 4 * 1024 * 1024) {
-          // Simple upload for files <= 4 MB using parentFolder.id
           const putRes = await fetch(
-            `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(parentFolder.id)}:/${encodedFileName}:/content`,
+            `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(parentFolderId)}:/${encodedFileName}:/content`,
             {
               method: "PUT",
               headers: {
-                Authorization: `Bearer ${ctx.accessToken}`,
+                Authorization: `Bearer ${fastCtx.accessToken}`,
                 "Content-Type": req.file.mimetype || "application/octet-stream",
               },
               body: fileBuffer,
@@ -10963,15 +11598,14 @@ app.get("/api/health", (req, res) => {
           if (!putRes.ok) {
             throw new Error(putData?.error?.message || "Failed to upload file to SharePoint");
           }
-          return res.json({ success: true, item: putData });
+          uploadedItem = putData;
         } else {
-          // Upload session for files > 4 MB using parentFolder.id
           const sessionRes = await fetch(
-            `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(parentFolder.id)}:/${encodedFileName}:/createUploadSession`,
+            `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(parentFolderId)}:/${encodedFileName}:/createUploadSession`,
             {
               method: "POST",
               headers: {
-                Authorization: `Bearer ${ctx.accessToken}`,
+                Authorization: `Bearer ${fastCtx.accessToken}`,
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
@@ -11001,8 +11635,22 @@ app.get("/api/health", (req, res) => {
           if (!putChunkRes.ok) {
             throw new Error(chunkData?.error?.message || "Failed during large file upload to SharePoint");
           }
-          return res.json({ success: true, item: chunkData });
+          uploadedItem = chunkData;
         }
+
+        if (uploadedItem?.id) {
+          upsertSharePointItemToDb(clientId, fastCtx.driveId, cleanSub, uploadedItem);
+          recalculateSqliteFolderCounts(clientId);
+        }
+
+        const savedRow = uploadedItem?.id
+          ? db.prepare("SELECT * FROM sharepoint_items WHERE item_id = ?").get(String(uploadedItem.id))
+          : null;
+
+        return res.json({
+          success: true,
+          item: savedRow ? formatSqliteSpItem(savedRow) : uploadedItem,
+        });
       } catch (err: any) {
         logger.error(`SharePoint upload error: ${err.message}`);
         res.status(500).json({ error: err.message || "Failed to upload file to SharePoint" });
@@ -11016,45 +11664,62 @@ app.get("/api/health", (req, res) => {
     }
   );
 
-  // 9. PATCH /api/clients/:id/sharepoint/items/:itemId (Rename or Move File/Folder)
+  // 9. PATCH /api/clients/:id/sharepoint/items/:itemId (Rename or Move File/Folder with Write-Through to SQLite)
   app.patch("/api/clients/:id/sharepoint/items/:itemId", authenticateToken, async (req: any, res: any) => {
     try {
+      const clientId = Number(req.params.id);
       const { itemId } = req.params;
-      const { name, targetSubpath } = req.body;
+      const { name, targetSubpath, targetFolderId } = req.body;
 
-      const ctx = await resolveClientSharePointFolder(req.params.id);
-      if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+      const fastCtx = await getFastSharePointDriveContext();
+      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
         return res.status(400).json({ error: "SharePoint is not configured." });
       }
 
+      const existingRow = db
+        .prepare("SELECT * FROM sharepoint_items WHERE item_id = ? AND client_id = ?")
+        .get(itemId, clientId) as any;
+
+      const cached = getCachedClientSharePointPayload(clientId, "");
       const patchPayload: any = {};
       if (name && String(name).trim()) {
         patchPayload.name = String(name).trim();
       }
 
-      if (targetSubpath !== undefined) {
-        const cleanDest = normalizeSpPath(String(targetSubpath || ""));
-        const destFullPath = cleanDest
-          ? `${ctx.fullSharePointPath}/${cleanDest}`
-          : ctx.fullSharePointPath;
+      let resolvedDestSubpath =
+        existingRow?.parent_subpath !== undefined ? String(existingRow.parent_subpath) : "";
 
-        const destLookup = await findSharePointFolderBySegments(
-          ctx.accessToken,
-          ctx.driveId,
-          destFullPath
-        );
-        if (!destLookup.exists || !destLookup.item?.id) {
-          throw new Error("Destination folder not found on SharePoint");
+      if (targetFolderId) {
+        patchPayload.parentReference = { id: String(targetFolderId) };
+        if (String(targetFolderId) === cached.clientInfo.folderItemId) {
+          resolvedDestSubpath = "";
+        } else {
+          const targetFolderRow = db
+            .prepare("SELECT relative_path FROM sharepoint_items WHERE item_id = ? AND client_id = ?")
+            .get(String(targetFolderId), clientId) as { relative_path: string } | undefined;
+          if (targetFolderRow) {
+            resolvedDestSubpath = targetFolderRow.relative_path;
+          }
         }
-        patchPayload.parentReference = { id: destLookup.item.id };
+      } else if (targetSubpath !== undefined) {
+        const { folderId: destFolderId, cleanSubpath } = await resolveTargetFolderIdFast(
+          clientId,
+          fastCtx.accessToken,
+          fastCtx.driveId,
+          cached.clientInfo.fullSharePointPath,
+          cached.clientInfo.folderItemId,
+          String(targetSubpath || "")
+        );
+        patchPayload.parentReference = { id: destFolderId };
+        resolvedDestSubpath = cleanSubpath;
       }
 
       const updateRes = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(itemId)}`,
+        `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(itemId)}`,
         {
           method: "PATCH",
           headers: {
-            Authorization: `Bearer ${ctx.accessToken}`,
+            Authorization: `Bearer ${fastCtx.accessToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(patchPayload),
@@ -11066,33 +11731,87 @@ app.get("/api/health", (req, res) => {
         throw new Error(updatedData?.error?.message || "Failed to update item on SharePoint");
       }
 
-      res.json({ success: true, item: updatedData });
+      // Write-through to SQLite (including cascading path updates if a folder was renamed or moved)
+      const oldRelPath = existingRow?.relative_path || "";
+      upsertSharePointItemToDb(clientId, fastCtx.driveId, resolvedDestSubpath, updatedData);
+      const newName = String(updatedData.name || name || existingRow?.name || "").trim();
+      const newRelPath = resolvedDestSubpath ? `${resolvedDestSubpath}/${newName}` : newName;
+
+      if (existingRow?.is_folder && oldRelPath && oldRelPath !== newRelPath) {
+        const descendants = db
+          .prepare(
+            "SELECT item_id, relative_path, parent_subpath FROM sharepoint_items WHERE client_id = ? AND (parent_subpath = ? OR parent_subpath LIKE ?)"
+          )
+          .all(clientId, oldRelPath, `${oldRelPath}/%`) as Array<{
+          item_id: string;
+          relative_path: string;
+          parent_subpath: string;
+        }>;
+
+        for (const desc of descendants) {
+          const updatedParentSub =
+            desc.parent_subpath === oldRelPath
+              ? newRelPath
+              : newRelPath + desc.parent_subpath.slice(oldRelPath.length);
+          const updatedRel =
+            desc.relative_path === oldRelPath
+              ? newRelPath
+              : newRelPath + desc.relative_path.slice(oldRelPath.length);
+          db.prepare(
+            "UPDATE sharepoint_items SET parent_subpath = ?, relative_path = ?, updated_at = CURRENT_TIMESTAMP WHERE item_id = ?"
+          ).run(updatedParentSub, updatedRel, desc.item_id);
+        }
+      }
+
+      recalculateSqliteFolderCounts(clientId);
+
+      const updatedRow = db
+        .prepare("SELECT * FROM sharepoint_items WHERE item_id = ?")
+        .get(String(updatedData.id || itemId));
+
+      res.json({
+        success: true,
+        item: updatedRow ? formatSqliteSpItem(updatedRow) : updatedData,
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Failed to update SharePoint item" });
     }
   });
 
-  // 10. DELETE /api/clients/:id/sharepoint/items/:itemId
+  // 10. DELETE /api/clients/:id/sharepoint/items/:itemId (Delete with Write-Through to SQLite)
   app.delete("/api/clients/:id/sharepoint/items/:itemId", authenticateToken, async (req: any, res: any) => {
     try {
+      const clientId = Number(req.params.id);
       const { itemId } = req.params;
-      const ctx = await resolveClientSharePointFolder(req.params.id);
-      if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+      const fastCtx = await getFastSharePointDriveContext();
+      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
         return res.status(400).json({ error: "SharePoint is not configured." });
       }
 
       const delRes = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(itemId)}`,
+        `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(itemId)}`,
         {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${ctx.accessToken}` },
+          headers: { Authorization: `Bearer ${fastCtx.accessToken}` },
         }
       );
 
-      if (!delRes.ok && delRes.status !== 204) {
+      if (!delRes.ok && delRes.status !== 204 && delRes.status !== 404) {
         const errData = (await delRes.json().catch(() => ({}))) as any;
         throw new Error(errData?.error?.message || "Failed to delete item from SharePoint");
       }
+
+      const existingRow = db
+        .prepare("SELECT is_folder, relative_path FROM sharepoint_items WHERE item_id = ? AND client_id = ?")
+        .get(itemId, clientId) as any;
+
+      db.prepare("DELETE FROM sharepoint_items WHERE item_id = ?").run(itemId);
+      if (existingRow?.is_folder && existingRow.relative_path) {
+        db.prepare(
+          "DELETE FROM sharepoint_items WHERE client_id = ? AND (parent_subpath = ? OR parent_subpath LIKE ?)"
+        ).run(clientId, existingRow.relative_path, `${existingRow.relative_path}/%`);
+      }
+      recalculateSqliteFolderCounts(clientId);
 
       res.json({ success: true });
     } catch (err: any) {
@@ -11100,7 +11819,7 @@ app.get("/api/health", (req, res) => {
     }
   });
 
-  // 11. GET /api/clients/:id/sharepoint/items/:itemId/content (Stream Preview or Download)
+  // 11. GET /api/clients/:id/sharepoint/items/:itemId/content (Stream Preview or Download — Fast Token + DriveID only)
   app.get("/api/clients/:id/sharepoint/items/:itemId/content", async (req: any, res: any) => {
     try {
       const rawToken =
@@ -11118,15 +11837,15 @@ app.get("/api/health", (req, res) => {
       const isDownload = req.query.download === "1";
       const fileName = String(req.query.name || "document");
 
-      const ctx = await resolveClientSharePointFolder(req.params.id);
-      if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+      const fastCtx = await getFastSharePointDriveContext();
+      if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
         return res.status(400).json({ error: "SharePoint is not configured." });
       }
 
       const contentRes = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(itemId)}/content`,
+        `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(itemId)}/content`,
         {
-          headers: { Authorization: `Bearer ${ctx.accessToken}` },
+          headers: { Authorization: `Bearer ${fastCtx.accessToken}` },
           redirect: "follow",
         }
       );
@@ -11151,26 +11870,30 @@ app.get("/api/health", (req, res) => {
     }
   });
 
-  // 12. PUT /api/clients/:id/sharepoint/items/:itemId/content (Save Edited Content Back to SharePoint)
+  // 12. PUT /api/clients/:id/sharepoint/items/:itemId/content (Save Edited Content Back to SharePoint + Update SQLite)
   app.put(
     "/api/clients/:id/sharepoint/items/:itemId/content",
     authenticateToken,
     express.text({ type: "*/*", limit: "25mb" }),
     async (req: any, res: any) => {
       try {
+        const clientId = Number(req.params.id);
         const { itemId } = req.params;
-        const ctx = await resolveClientSharePointFolder(req.params.id);
-        if (!ctx.configured || !ctx.accessToken || !ctx.driveId) {
+        const fastCtx = await getFastSharePointDriveContext();
+        if (!fastCtx.configured || !fastCtx.accessToken || !fastCtx.driveId) {
           return res.status(400).json({ error: "SharePoint is not configured." });
         }
 
-        const bodyBuf = Buffer.from(typeof req.body === "string" ? req.body : JSON.stringify(req.body || ""), "utf8");
+        const bodyBuf = Buffer.from(
+          typeof req.body === "string" ? req.body : JSON.stringify(req.body || ""),
+          "utf8"
+        );
         const putRes = await fetch(
-          `https://graph.microsoft.com/v1.0/drives/${ctx.driveId}/items/${encodeURIComponent(itemId)}/content`,
+          `https://graph.microsoft.com/v1.0/drives/${fastCtx.driveId}/items/${encodeURIComponent(itemId)}/content`,
           {
             method: "PUT",
             headers: {
-              Authorization: `Bearer ${ctx.accessToken}`,
+              Authorization: `Bearer ${fastCtx.accessToken}`,
               "Content-Type": "text/plain; charset=utf-8",
             },
             body: bodyBuf,
@@ -11182,7 +11905,27 @@ app.get("/api/health", (req, res) => {
           throw new Error(putData?.error?.message || "Failed to save file content to SharePoint");
         }
 
-        res.json({ success: true, item: putData });
+        const existingRow = db
+          .prepare("SELECT parent_subpath FROM sharepoint_items WHERE item_id = ? AND client_id = ?")
+          .get(itemId, clientId) as any;
+
+        if (putData?.id) {
+          upsertSharePointItemToDb(
+            clientId,
+            fastCtx.driveId,
+            existingRow?.parent_subpath || "",
+            putData
+          );
+        }
+
+        const savedRow = db
+          .prepare("SELECT * FROM sharepoint_items WHERE item_id = ?")
+          .get(String(putData.id || itemId));
+
+        res.json({
+          success: true,
+          item: savedRow ? formatSqliteSpItem(savedRow) : putData,
+        });
       } catch (err: any) {
         res.status(500).json({ error: err.message || "Failed to save file to SharePoint" });
       }

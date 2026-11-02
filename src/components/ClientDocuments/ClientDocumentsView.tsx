@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useDropzone } from "react-dropzone";
@@ -13,12 +13,15 @@ import {
   FileBarChart2,
   ArrowLeft,
   Folder,
+  FolderOpen,
   FolderPlus,
   RefreshCw,
   ExternalLink,
   Edit2,
   FolderInput,
   ChevronRight,
+  ChevronDown,
+  ChevronLeft,
   CornerLeftUp,
   Search,
   LayoutList,
@@ -30,24 +33,45 @@ import {
   Settings,
   Link2,
   Save,
-  Plus,
-  Eye
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Info,
+  Copy,
+  Check,
+  Monitor,
+  FolderTree,
+  Clock,
+  User as UserIcon,
+  Calendar as CalendarIcon,
+  Database
 } from "lucide-react";
 import * as xlsx from "xlsx";
 import mammoth from "mammoth";
 
 interface SharePointItem {
   id: string;
+  parentId?: string;
   name: string;
+  relativePath?: string;
+  parentSubpath?: string;
   size: number;
   webUrl: string;
+  createdDateTime?: string;
+  createdBy?: string;
   lastModifiedDateTime: string;
   lastModifiedBy?: string;
   isFolder: boolean;
   childCount?: number;
   mimeType?: string;
+  fileExtension?: string;
   downloadUrl?: string;
+  etag?: string;
 }
+
+type SortField = "name" | "type" | "lastModifiedDateTime" | "createdDateTime" | "lastModifiedBy" | "size";
+type SortDirection = "asc" | "desc";
+type FileCategoryFilter = "ALL" | "FOLDERS" | "PDF" | "WORD" | "EXCEL" | "IMAGE";
 
 const formatFileSize = (bytes?: number) => {
   if (!bytes || isNaN(bytes)) return "—";
@@ -55,7 +79,87 @@ const formatFileSize = (bytes?: number) => {
   const kb = bytes / 1024;
   if (kb < 1024) return `${kb.toFixed(1)} KB`;
   const mb = kb / 1024;
-  return `${mb.toFixed(2)} MB`;
+  if (mb < 1024) return `${mb.toFixed(2)} MB`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(2)} GB`;
+};
+
+const formatDateTime = (iso?: string, includeTime = false) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  if (includeTime) {
+    return d.toLocaleString("en-AU", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+  return d.toLocaleDateString("en-AU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+};
+
+const getItemTypeLabel = (item: SharePointItem): string => {
+  if (item.isFolder) return "Folder";
+  const ext = (
+    item.fileExtension ||
+    (item.name.includes(".") ? item.name.split(".").pop() || "" : "")
+  ).toLowerCase();
+  const map: Record<string, string> = {
+    pdf: "PDF Document",
+    doc: "Word Document",
+    docx: "Word Document",
+    xls: "Excel Spreadsheet",
+    xlsx: "Excel Spreadsheet",
+    csv: "CSV Spreadsheet",
+    ppt: "PowerPoint",
+    pptx: "PowerPoint",
+    jpg: "JPEG Image",
+    jpeg: "JPEG Image",
+    png: "PNG Image",
+    gif: "GIF Image",
+    webp: "WebP Image",
+    txt: "Text Document",
+    md: "Markdown",
+    zip: "ZIP Archive"
+  };
+  return map[ext] || (ext ? `${ext.toUpperCase()} File` : "Document");
+};
+
+// Native Microsoft Office Desktop URI Scheme builder (opens directly in local Word / Excel / PowerPoint and auto-saves to SharePoint)
+const getOfficeDesktopAppInfo = (
+  item: SharePointItem
+): { protocolUrl: string; appLabel: string; badgeClass: string } | null => {
+  if (item.isFolder || !item.webUrl) return null;
+  const cleanWebUrl = item.webUrl.split("?")[0];
+  const lower = item.name.toLowerCase();
+  if (/\.(doc|docx|docm|dotx)$/i.test(lower)) {
+    return {
+      protocolUrl: `ms-word:ofe|u|${cleanWebUrl}`,
+      appLabel: "Open in Word App",
+      badgeClass: "text-blue-400 hover:bg-blue-500/15 border-blue-500/30"
+    };
+  }
+  if (/\.(xls|xlsx|xlsm|xlsb|csv)$/i.test(lower)) {
+    return {
+      protocolUrl: `ms-excel:ofe|u|${cleanWebUrl}`,
+      appLabel: "Open in Excel App",
+      badgeClass: "text-emerald-400 hover:bg-emerald-500/15 border-emerald-500/30"
+    };
+  }
+  if (/\.(ppt|pptx|pptm)$/i.test(lower)) {
+    return {
+      protocolUrl: `ms-powerpoint:ofe|u|${cleanWebUrl}`,
+      appLabel: "Open in PowerPoint App",
+      badgeClass: "text-amber-400 hover:bg-amber-500/15 border-amber-500/30"
+    };
+  }
+  return null;
 };
 
 const FileThumbnail = ({
@@ -77,14 +181,14 @@ const FileThumbnail = ({
     return (
       <Folder
         {...iconProps}
-        className={`${iconProps.className} fill-amber-400/20 text-amber-400`}
+        className={`${iconProps.className} fill-amber-400/20 text-amber-400 shrink-0`}
       />
     );
   }
 
   if (!file) {
     return (
-      <FileIcon {...iconProps} className={`${iconProps.className} text-zinc-400`} />
+      <FileIcon {...iconProps} className={`${iconProps.className} text-zinc-400 shrink-0`} />
     );
   }
 
@@ -94,38 +198,38 @@ const FileThumbnail = ({
     /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|heic|heif|avif|tiff|tif)$/i
   );
   const isPdf = originalName.match(/\.pdf$/i);
-  const isWord = originalName.match(/\.(doc|docx)$/i);
-  const isExcel = originalName.match(/\.(xls|xlsx|csv)$/i);
+  const isWord = originalName.match(/\.(doc|docx|docm|dotx)$/i);
+  const isExcel = originalName.match(/\.(xls|xlsx|xlsm|csv)$/i);
 
   if (isImage) {
     return (
       <FileImage
         {...iconProps}
-        className={`${iconProps.className} text-emerald-400`}
+        className={`${iconProps.className} text-emerald-400 shrink-0`}
       />
     );
   }
   if (isPdf) {
     return (
-      <FileText {...iconProps} className={`${iconProps.className} text-rose-500`} />
+      <FileText {...iconProps} className={`${iconProps.className} text-rose-500 shrink-0`} />
     );
   }
   if (isWord) {
     return (
-      <FileText {...iconProps} className={`${iconProps.className} text-blue-400`} />
+      <FileText {...iconProps} className={`${iconProps.className} text-blue-400 shrink-0`} />
     );
   }
   if (isExcel) {
     return (
       <FileBarChart2
         {...iconProps}
-        className={`${iconProps.className} text-green-500`}
+        className={`${iconProps.className} text-green-500 shrink-0`}
       />
     );
   }
 
   return (
-    <FileIcon {...iconProps} className={`${iconProps.className} text-zinc-400`} />
+    <FileIcon {...iconProps} className={`${iconProps.className} text-zinc-400 shrink-0`} />
   );
 };
 
@@ -348,9 +452,10 @@ export default function ClientDocumentsView() {
   );
 
   // ============================================================================
-  // SHAREPOINT CLOUD DRIVE STATE & HANDLERS
+  // SHAREPOINT LOCAL SQLITE METADATA SYNC & ENHANCED FILE MANAGER STATE
   // ============================================================================
-  const [spLoading, setSpLoading] = useState(true);
+  const [spInitialLoading, setSpInitialLoading] = useState(true);
+  const [spSyncingDelta, setSpSyncingDelta] = useState(false);
   const [spError, setSpError] = useState<string | null>(null);
   const [spConfigured, setSpConfigured] = useState(true);
   const [spFolderExists, setSpFolderExists] = useState(false);
@@ -363,23 +468,37 @@ export default function ClientDocumentsView() {
     folderName: string;
     fullSharePointPath: string;
     folderWebUrl?: string;
+    folderItemId?: string;
+    lastSyncedAt?: string | null;
   } | null>(null);
   const [spAvailableSiblingFolders, setSpAvailableSiblingFolders] = useState<string[]>([]);
-  const [spItems, setSpItems] = useState<SharePointItem[]>([]);
-  const [spAllClientFolders, setSpAllClientFolders] = useState<
-    Array<{ id: string; name: string; path: string }>
-  >([]);
+
+  // Complete SQLite-cached tree for this client (enables 0ms subfolder navigation & global search)
+  const [spAllItems, setSpAllItems] = useState<SharePointItem[]>([]);
+  const [spLastSyncedAt, setSpLastSyncedAt] = useState<string | null>(null);
+
+  // Navigation, Filtering, Sorting & Pagination
   const [currentSubpath, setCurrentSubpath] = useState<string>("");
+  const [showFolderTree, setShowFolderTree] = useState<boolean>(true);
+  const [expandedTreePaths, setExpandedTreePaths] = useState<Record<string, boolean>>({ "": true });
   const [driveViewMode, setDriveViewMode] = useState<"list" | "grid">("list");
   const [spSearchQuery, setSpSearchQuery] = useState("");
+  const [searchAllSubfolders, setSearchAllSubfolders] = useState<boolean>(true);
+  const [categoryFilter, setCategoryFilter] = useState<FileCategoryFilter>("ALL");
+  const [sortField, setSortField] = useState<SortField>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // Selected SharePoint File for Preview / Editing
+  // Selected SharePoint File for Details / Preview / Editing
   const [selectedSpItem, setSelectedSpItem] = useState<SharePointItem | null>(null);
+  const [inspectorTab, setInspectorTab] = useState<"PREVIEW" | "DETAILS">("PREVIEW");
   const [spPreviewUrl, setSpPreviewUrl] = useState<string | null>(null);
   const [spPreviewLoading, setSpPreviewLoading] = useState(false);
   const [spTextContent, setSpTextContent] = useState<string | null>(null);
   const [isEditingSpText, setIsEditingSpText] = useState(false);
   const [savingSpText, setSavingSpText] = useState(false);
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
 
   // Modals & Action States
   const [creatingClientFolder, setCreatingClientFolder] = useState(false);
@@ -399,66 +518,269 @@ export default function ClientDocumentsView() {
   const [savingMove, setSavingMove] = useState(false);
 
   const [spUploading, setSpUploading] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState<string>("");
   const [spToast, setSpToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
 
-  const showToast = (type: "success" | "error", text: string) => {
+  const syncInFlightRef = useRef(false);
+
+  const showToast = useCallback((type: "success" | "error", text: string) => {
     setSpToast({ type, text });
     setTimeout(() => setSpToast(null), 4500);
-  };
+  }, []);
 
-  const fetchSharePointDrive = useCallback(
-    async (subpath = currentSubpath) => {
-      if (!id || !token) return;
-      setSpLoading(true);
-      setSpError(null);
+  const applyServerSharePointPayload = useCallback((data: any) => {
+    setSpConfigured(Boolean(data.configured));
+    setSpFolderExists(Boolean(data.folderExists));
+    if (data.clientInfo) {
+      setSpClientInfo(data.clientInfo);
+    }
+    if (Array.isArray(data.availableFolders)) {
+      setSpAvailableSiblingFolders(data.availableFolders);
+    }
+    if (Array.isArray(data.allItems)) {
+      setSpAllItems(data.allItems);
+    } else if (Array.isArray(data.items)) {
+      setSpAllItems(data.items);
+    } else {
+      setSpAllItems([]);
+    }
+    if (data.lastSyncedAt !== undefined) {
+      setSpLastSyncedAt(data.lastSyncedAt);
+    }
+  }, []);
+
+  // Background Microsoft Graph Delta Sync (non-blocking)
+  const triggerBackgroundDeltaSync = useCallback(
+    async (options: { full?: boolean; silent?: boolean } = {}) => {
+      if (!id || !token || syncInFlightRef.current) return;
+      syncInFlightRef.current = true;
+      setSpSyncingDelta(true);
       try {
-        const res = await fetch(
-          `/api/clients/${id}/sharepoint/items?subpath=${encodeURIComponent(subpath)}`,
-          {
-            headers: { Authorization: `Bearer ${token}` }
+        const res = await fetch(`/api/clients/${id}/sharepoint/sync`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            subpath: currentSubpath,
+            full: Boolean(options.full)
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          applyServerSharePointPayload(data);
+          const stats = data.syncStats;
+          if (!options.silent) {
+            const changes = (stats?.added || 0) + (stats?.updated || 0) + (stats?.removed || 0);
+            showToast(
+              "success",
+              changes > 0
+                ? `Synced with SharePoint (${changes} change${changes === 1 ? "" : "s"} updated)`
+                : "SharePoint metadata is up to date"
+            );
           }
-        );
-        const data = await res.json();
-
-        if (!res.ok) {
-          setSpError(data.error || "Failed to load SharePoint folder.");
-          setSpLoading(false);
-          return;
-        }
-
-        setSpConfigured(Boolean(data.configured));
-        setSpFolderExists(Boolean(data.folderExists));
-        if (data.clientInfo) {
-          setSpClientInfo(data.clientInfo);
-        }
-        if (Array.isArray(data.availableFolders)) {
-          setSpAvailableSiblingFolders(data.availableFolders);
-        }
-        if (Array.isArray(data.items)) {
-          setSpItems(data.items);
-        } else {
-          setSpItems([]);
-        }
-        if (Array.isArray(data.allSubfolders)) {
-          setSpAllClientFolders(data.allSubfolders);
+        } else if (!options.silent) {
+          showToast("error", data.error || "Failed to sync with SharePoint");
         }
       } catch (err: any) {
-        setSpError(err.message || "Network error loading SharePoint drive.");
+        if (!options.silent) {
+          showToast("error", err.message || "Error syncing with SharePoint");
+        }
       } finally {
-        setSpLoading(false);
+        syncInFlightRef.current = false;
+        setSpSyncingDelta(false);
       }
     },
-    [id, token, currentSubpath]
+    [id, token, currentSubpath, applyServerSharePointPayload, showToast]
   );
 
-  useEffect(() => {
-    if (storageMode === "SHAREPOINT") {
-      fetchSharePointDrive(currentSubpath);
-    }
-  }, [storageMode, currentSubpath, fetchSharePointDrive]);
+  // Instant Read from Local SQLite Cache on Client Load (<15ms) + Stale-While-Revalidate Delta Check
+  const fetchSharePointFromLocalCache = useCallback(async () => {
+    if (!id || !token) return;
+    setSpInitialLoading(true);
+    setSpError(null);
+    try {
+      const res = await fetch(`/api/clients/${id}/sharepoint/items`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
 
-  // Create the Client's Root Folder on SharePoint (General\NDIS\Participant Files\<Name> or General\SAH\Clients\<Name>)
+      if (!res.ok) {
+        setSpError(data.error || "Failed to load SharePoint folder.");
+        setSpInitialLoading(false);
+        return;
+      }
+
+      applyServerSharePointPayload(data);
+      setSpInitialLoading(false);
+
+      // Trigger silent background Graph Delta sync to pick up any external SharePoint/OneDrive edits
+      if (data.configured) {
+        triggerBackgroundDeltaSync({ silent: true });
+      }
+    } catch (err: any) {
+      setSpError(err.message || "Network error loading SharePoint drive.");
+      setSpInitialLoading(false);
+    }
+  }, [id, token, applyServerSharePointPayload, triggerBackgroundDeltaSync]);
+
+  useEffect(() => {
+    setCurrentSubpath("");
+    setSelectedSpItem(null);
+    setSpSearchQuery("");
+    setCurrentPage(1);
+    if (storageMode === "SHAREPOINT") {
+      fetchSharePointFromLocalCache();
+    }
+  }, [id, storageMode, fetchSharePointFromLocalCache]);
+
+  // Auto-sync delta when user returns to browser window after editing a file in Desktop Word / Excel / OneDrive
+  useEffect(() => {
+    if (storageMode !== "SHAREPOINT" || !spConfigured || !spFolderExists) return;
+    const handleWindowFocus = () => {
+      triggerBackgroundDeltaSync({ silent: true });
+    };
+    window.addEventListener("focus", handleWindowFocus);
+    return () => window.removeEventListener("focus", handleWindowFocus);
+  }, [storageMode, spConfigured, spFolderExists, triggerBackgroundDeltaSync]);
+
+  // Reset pagination to page 1 when folder, search, or filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [currentSubpath, spSearchQuery, categoryFilter, sortField, sortDirection, pageSize]);
+
+  // Expand parent folders automatically in the Folder Tree when navigating
+  useEffect(() => {
+    if (!currentSubpath) return;
+    const parts = currentSubpath.split("/").filter(Boolean);
+    setExpandedTreePaths((prev) => {
+      const next = { ...prev, "": true };
+      let accum = "";
+      for (const p of parts) {
+        accum = accum ? `${accum}/${p}` : p;
+        next[accum] = true;
+      }
+      return next;
+    });
+  }, [currentSubpath]);
+
+  // All subfolders in the client's SharePoint directory (for Folder Tree & Move modal)
+  const spAllSubfolders = useMemo(() => {
+    return spAllItems
+      .filter((it) => it.isFolder)
+      .map((it) => ({
+        id: it.id,
+        name: it.name,
+        path: it.relativePath || it.name,
+        parentSubpath: it.parentSubpath || "",
+        childCount: it.childCount || 0
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }, [spAllItems]);
+
+  // Items visible in the current view (either current folder or global search across all subfolders)
+  const filteredAndSortedSpItems = useMemo(() => {
+    const q = spSearchQuery.trim().toLowerCase();
+    const baseList = spAllItems.filter((item) => {
+      if (q && searchAllSubfolders) {
+        if (!item.name.toLowerCase().includes(q) && !(item.relativePath || "").toLowerCase().includes(q)) {
+          return false;
+        }
+      } else {
+        if ((item.parentSubpath || "") !== currentSubpath) return false;
+        if (q && !item.name.toLowerCase().includes(q)) return false;
+      }
+
+      if (categoryFilter === "FOLDERS") return item.isFolder;
+      if (categoryFilter === "PDF") return !item.isFolder && /\.pdf$/i.test(item.name);
+      if (categoryFilter === "WORD") return !item.isFolder && /\.(doc|docx|docm|dotx|txt|rtf)$/i.test(item.name);
+      if (categoryFilter === "EXCEL") return !item.isFolder && /\.(xls|xlsx|xlsm|csv)$/i.test(item.name);
+      if (categoryFilter === "IMAGE")
+        return !item.isFolder && /\.(jpg|jpeg|png|gif|webp|svg|bmp|heic)$/i.test(item.name);
+      return true;
+    });
+
+    const mult = sortDirection === "asc" ? 1 : -1;
+
+    return [...baseList].sort((a, b) => {
+      // Keep folders grouped at top when sorting by name, or sort normally
+      if (a.isFolder !== b.isFolder) {
+        return a.isFolder ? -1 : 1;
+      }
+
+      if (sortField === "name") {
+        return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }) * mult;
+      }
+      if (sortField === "type") {
+        return getItemTypeLabel(a).localeCompare(getItemTypeLabel(b)) * mult;
+      }
+      if (sortField === "size") {
+        return ((a.size || 0) - (b.size || 0)) * mult;
+      }
+      if (sortField === "lastModifiedBy") {
+        return (a.lastModifiedBy || "").localeCompare(b.lastModifiedBy || "") * mult;
+      }
+      if (sortField === "createdDateTime") {
+        const tA = a.createdDateTime ? new Date(a.createdDateTime).getTime() : 0;
+        const tB = b.createdDateTime ? new Date(b.createdDateTime).getTime() : 0;
+        return (tA - tB) * mult;
+      }
+      // Default: lastModifiedDateTime
+      const mA = a.lastModifiedDateTime ? new Date(a.lastModifiedDateTime).getTime() : 0;
+      const mB = b.lastModifiedDateTime ? new Date(b.lastModifiedDateTime).getTime() : 0;
+      return (mA - mB) * mult;
+    });
+  }, [
+    spAllItems,
+    currentSubpath,
+    spSearchQuery,
+    searchAllSubfolders,
+    categoryFilter,
+    sortField,
+    sortDirection
+  ]);
+
+  // Pagination calculations
+  const totalItemsCount = filteredAndSortedSpItems.length;
+  const totalPages = pageSize > 0 ? Math.max(1, Math.ceil(totalItemsCount / pageSize)) : 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedSpItems = useMemo(() => {
+    if (pageSize <= 0) return filteredAndSortedSpItems;
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredAndSortedSpItems.slice(start, start + pageSize);
+  }, [filteredAndSortedSpItems, pageSize, safeCurrentPage]);
+
+  const currentFolderStats = useMemo(() => {
+    const foldersCount = filteredAndSortedSpItems.filter((i) => i.isFolder).length;
+    const filesCount = filteredAndSortedSpItems.filter((i) => !i.isFolder).length;
+    const totalBytes = filteredAndSortedSpItems.reduce((acc, i) => acc + (i.isFolder ? 0 : i.size || 0), 0);
+    return { foldersCount, filesCount, totalBytes };
+  }, [filteredAndSortedSpItems]);
+
+  const handleSortColumn = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection(field === "name" || field === "type" || field === "lastModifiedBy" ? "asc" : "desc");
+    }
+  };
+
+  const renderSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-zinc-600 inline ml-1 opacity-60 group-hover:opacity-100" />;
+    }
+    return sortDirection === "asc" ? (
+      <ArrowUp className="w-3 h-3 text-brand-teal inline ml-1" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-brand-teal inline ml-1" />
+    );
+  };
+
+  // Create the Client's Root Folder on SharePoint
   const handleCreateClientRootFolder = async () => {
     if (!id || !token) return;
     setCreatingClientFolder(true);
@@ -473,7 +795,11 @@ export default function ClientDocumentsView() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create folder on SharePoint");
       showToast("success", `Created SharePoint folder "${data.folderName}"`);
-      await fetchSharePointDrive("");
+      if (data.payload) {
+        applyServerSharePointPayload(data.payload);
+      } else {
+        await fetchSharePointFromLocalCache();
+      }
     } catch (err: any) {
       showToast("error", err.message || "Could not create SharePoint folder");
     } finally {
@@ -498,7 +824,11 @@ export default function ClientDocumentsView() {
       if (!res.ok) throw new Error(data.error || "Failed to link folder");
       showToast("success", `Linked to SharePoint folder "${selectedLinkFolder}"`);
       setCurrentSubpath("");
-      await fetchSharePointDrive("");
+      if (data.payload) {
+        applyServerSharePointPayload(data.payload);
+      } else {
+        await fetchSharePointFromLocalCache();
+      }
     } catch (err: any) {
       showToast("error", err.message || "Failed to link SharePoint folder");
     } finally {
@@ -506,7 +836,7 @@ export default function ClientDocumentsView() {
     }
   };
 
-  // Create a subfolder inside the current SharePoint directory
+  // Create a subfolder inside the current SharePoint directory (Write-Through to SQLite)
   const handleCreateSubfolder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
@@ -525,10 +855,12 @@ export default function ClientDocumentsView() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create subfolder");
+      if (data.item) {
+        setSpAllItems((prev) => [...prev.filter((i) => i.id !== data.item.id), data.item]);
+      }
       showToast("success", `Created folder "${newFolderName.trim()}"`);
       setNewFolderName("");
       setShowNewFolderModal(false);
-      await fetchSharePointDrive(currentSubpath);
     } catch (err: any) {
       showToast("error", err.message || "Failed to create subfolder");
     } finally {
@@ -536,16 +868,22 @@ export default function ClientDocumentsView() {
     }
   };
 
-  // Upload files to current SharePoint folder
-  const handleSpFileUpload = useCallback(
-    async (acceptedFiles: File[]) => {
+  // Upload files to current SharePoint folder (or a specific dropped subfolder) with Write-Through to SQLite
+  const handleSpFileUploadToSubpath = useCallback(
+    async (acceptedFiles: File[], targetSubpath = currentSubpath) => {
       if (!acceptedFiles.length || !id || !token) return;
       setSpUploading(true);
       let uploadedCount = 0;
-      for (const file of acceptedFiles) {
+      const newItems: SharePointItem[] = [];
+
+      for (let idx = 0; idx < acceptedFiles.length; idx++) {
+        const file = acceptedFiles[idx];
+        setUploadProgressText(
+          `Uploading ${idx + 1} of ${acceptedFiles.length}: ${file.name}...`
+        );
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("subpath", currentSubpath);
+        formData.append("subpath", targetSubpath);
 
         try {
           const res = await fetch(`/api/clients/${id}/sharepoint/upload`, {
@@ -553,25 +891,40 @@ export default function ClientDocumentsView() {
             headers: { Authorization: `Bearer ${token}` },
             body: formData
           });
+          const data = await res.json().catch(() => ({}));
           if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.error || `Failed to upload ${file.name}`);
+            throw new Error(data.error || `Failed to upload ${file.name}`);
+          }
+          if (data.item) {
+            newItems.push(data.item);
           }
           uploadedCount++;
         } catch (err: any) {
           showToast("error", err.message || `Error uploading ${file.name}`);
         }
       }
+
       setSpUploading(false);
+      setUploadProgressText("");
+
+      if (newItems.length > 0) {
+        setSpAllItems((prev) => {
+          const updatedIds = new Set(newItems.map((ni) => ni.id));
+          return [...prev.filter((i) => !updatedIds.has(i.id)), ...newItems];
+        });
+      }
+
       if (uploadedCount > 0) {
         showToast(
           "success",
-          `Uploaded ${uploadedCount} file${uploadedCount > 1 ? "s" : ""} to SharePoint`
+          `Uploaded ${uploadedCount} file${uploadedCount > 1 ? "s" : ""} to SharePoint${
+            targetSubpath ? ` (${targetSubpath})` : ""
+          }`
         );
-        await fetchSharePointDrive(currentSubpath);
+        triggerBackgroundDeltaSync({ silent: true });
       }
     },
-    [id, token, currentSubpath, fetchSharePointDrive]
+    [id, token, currentSubpath, showToast, triggerBackgroundDeltaSync]
   );
 
   const {
@@ -580,15 +933,16 @@ export default function ClientDocumentsView() {
     isDragActive: isSpDragActive,
     open: openSpFileDialog
   } = useDropzone({
-    onDrop: handleSpFileUpload,
+    onDrop: (files) => handleSpFileUploadToSubpath(files, currentSubpath),
     noClick: true,
     noKeyboard: true
   });
 
-  // Rename file or folder on SharePoint
+  // Rename file or folder on SharePoint (Optimistic + Write-Through to SQLite)
   const handleRenameSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!renamingItem || !renameValue.trim()) return;
+    const cleanNewName = renameValue.trim();
     setSavingRename(true);
     try {
       const res = await fetch(
@@ -599,17 +953,21 @@ export default function ClientDocumentsView() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify({ name: renameValue.trim() })
+          body: JSON.stringify({ name: cleanNewName })
         }
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to rename item");
-      showToast("success", `Renamed to "${renameValue.trim()}"`);
-      if (selectedSpItem?.id === renamingItem.id) {
-        setSelectedSpItem((prev) => (prev ? { ...prev, name: renameValue.trim() } : null));
+
+      if (data.item) {
+        setSpAllItems((prev) => prev.map((it) => (it.id === renamingItem.id ? data.item : it)));
       }
+      if (selectedSpItem?.id === renamingItem.id) {
+        setSelectedSpItem((prev) => (prev ? { ...prev, name: cleanNewName } : null));
+      }
+      showToast("success", `Renamed to "${cleanNewName}"`);
       setRenamingItem(null);
-      await fetchSharePointDrive(currentSubpath);
+      triggerBackgroundDeltaSync({ silent: true });
     } catch (err: any) {
       showToast("error", err.message || "Failed to rename item");
     } finally {
@@ -617,8 +975,45 @@ export default function ClientDocumentsView() {
     }
   };
 
-  // Move file or folder to another folder inside the client's SharePoint directory
+  // Move file or folder to another folder inside the client's SharePoint directory (Optimistic + Write-Through)
   const executeMoveItem = async (item: SharePointItem, targetSubpathStr: string) => {
+    const cleanDest = targetSubpathStr.replace(/^\/+|\/+$/g, "");
+    if ((item.parentSubpath || "") === cleanDest) return;
+    if (
+      item.isFolder &&
+      (cleanDest === item.relativePath || cleanDest.startsWith(`${item.relativePath}/`))
+    ) {
+      showToast("error", "Cannot move a folder inside itself");
+      return;
+    }
+
+    // Optimistic local state update so drag-and-drop feels instantaneous
+    const previousItems = spAllItems;
+    const newRelPath = cleanDest ? `${cleanDest}/${item.name}` : item.name;
+    setSpAllItems((prev) =>
+      prev.map((it) => {
+        if (it.id === item.id) {
+          return { ...it, parentSubpath: cleanDest, relativePath: newRelPath };
+        }
+        if (
+          item.isFolder &&
+          it.relativePath &&
+          item.relativePath &&
+          it.parentSubpath &&
+          (it.parentSubpath === item.relativePath ||
+            it.parentSubpath.startsWith(`${item.relativePath}/`))
+        ) {
+          const updatedParentSub =
+            it.parentSubpath === item.relativePath
+              ? newRelPath
+              : newRelPath + it.parentSubpath.slice(item.relativePath.length);
+          const updatedRel = newRelPath + it.relativePath.slice(item.relativePath.length);
+          return { ...it, parentSubpath: updatedParentSub, relativePath: updatedRel };
+        }
+        return it;
+      })
+    );
+
     setSavingMove(true);
     try {
       const res = await fetch(
@@ -629,21 +1024,19 @@ export default function ClientDocumentsView() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify({ targetSubpath: targetSubpathStr })
+          body: JSON.stringify({ targetSubpath: cleanDest })
         }
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to move item");
       showToast(
         "success",
-        `Moved "${item.name}" to ${targetSubpathStr ? targetSubpathStr : "Client Root Folder"}`
+        `Moved "${item.name}" to ${cleanDest ? cleanDest : spClientInfo?.folderName || "Root Folder"}`
       );
-      if (selectedSpItem?.id === item.id) {
-        setSelectedSpItem(null);
-      }
       setMovingItem(null);
-      await fetchSharePointDrive(currentSubpath);
+      triggerBackgroundDeltaSync({ silent: true });
     } catch (err: any) {
+      setSpAllItems(previousItems);
       showToast("error", err.message || "Failed to move item");
     } finally {
       setSavingMove(false);
@@ -656,15 +1049,29 @@ export default function ClientDocumentsView() {
     await executeMoveItem(movingItem, moveTargetSubpath);
   };
 
-  // Delete file or folder on SharePoint
+  // Delete file or folder on SharePoint (Optimistic + Write-Through)
   const handleDeleteSpItem = async (item: SharePointItem) => {
-    if (
-      !window.confirm(
-        `Move "${item.name}" to the SharePoint Recycle Bin?`
-      )
-    ) {
+    if (!window.confirm(`Move "${item.name}" to the SharePoint Recycle Bin?`)) {
       return;
     }
+    const previousItems = spAllItems;
+    setSpAllItems((prev) =>
+      prev.filter(
+        (it) =>
+          it.id !== item.id &&
+          !(
+            item.isFolder &&
+            item.relativePath &&
+            it.parentSubpath &&
+            (it.parentSubpath === item.relativePath ||
+              it.parentSubpath.startsWith(`${item.relativePath}/`))
+          )
+      )
+    );
+    if (selectedSpItem?.id === item.id) {
+      setSelectedSpItem(null);
+    }
+
     try {
       const res = await fetch(
         `/api/clients/${id}/sharepoint/items/${encodeURIComponent(item.id)}`,
@@ -678,11 +1085,8 @@ export default function ClientDocumentsView() {
         throw new Error(data.error || "Failed to delete item");
       }
       showToast("success", `Deleted "${item.name}" from SharePoint`);
-      if (selectedSpItem?.id === item.id) {
-        setSelectedSpItem(null);
-      }
-      await fetchSharePointDrive(currentSubpath);
     } catch (err: any) {
+      setSpAllItems(previousItems);
       showToast("error", err.message || "Failed to delete item");
     }
   };
@@ -696,6 +1100,14 @@ export default function ClientDocumentsView() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  const handleCopySharePointLink = (item: SharePointItem) => {
+    if (!item.webUrl) return;
+    navigator.clipboard.writeText(item.webUrl);
+    setCopiedLinkId(item.id);
+    showToast("success", `Copied SharePoint link for "${item.name}"`);
+    setTimeout(() => setCopiedLinkId(null), 2000);
   };
 
   // Save in-portal edited text file directly back to SharePoint
@@ -716,9 +1128,12 @@ export default function ClientDocumentsView() {
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save changes to SharePoint");
+      if (data.item) {
+        setSpAllItems((prev) => prev.map((it) => (it.id === selectedSpItem.id ? data.item : it)));
+        setSelectedSpItem(data.item);
+      }
       showToast("success", `Saved "${selectedSpItem.name}" to SharePoint`);
       setIsEditingSpText(false);
-      await fetchSharePointDrive(currentSubpath);
     } catch (err: any) {
       showToast("error", err.message || "Failed to save file to SharePoint");
     } finally {
@@ -823,19 +1238,7 @@ export default function ClientDocumentsView() {
     return () => {
       if (revokedUrl) window.URL.revokeObjectURL(revokedUrl);
     };
-  }, [selectedSpItem, id, token]);
-
-  // Filtered SharePoint items (Folders first, then alphabetical)
-  const filteredSpItems = useMemo(() => {
-    const q = spSearchQuery.trim().toLowerCase();
-    return [...spItems]
-      .filter((item) => !q || item.name.toLowerCase().includes(q))
-      .sort((a, b) => {
-        if (a.isFolder && !b.isFolder) return -1;
-        if (!a.isFolder && b.isFolder) return 1;
-        return a.name.localeCompare(b.name);
-      });
-  }, [spItems, spSearchQuery]);
+  }, [selectedSpItem?.id, id, token]);
 
   // Breadcrumb segments
   const breadcrumbs = useMemo(() => {
@@ -843,10 +1246,10 @@ export default function ClientDocumentsView() {
     return currentSubpath.split("/").filter(Boolean);
   }, [currentSubpath]);
 
-  const navigateToSubfolder = (folderName: string) => {
+  const navigateToSubpath = (targetSub: string) => {
     setSelectedSpItem(null);
-    const nextPath = currentSubpath ? `${currentSubpath}/${folderName}` : folderName;
-    setCurrentSubpath(nextPath);
+    setSpSearchQuery("");
+    setCurrentSubpath(targetSub);
   };
 
   const navigateUpOneLevel = () => {
@@ -855,6 +1258,100 @@ export default function ClientDocumentsView() {
     const parts = currentSubpath.split("/").filter(Boolean);
     parts.pop();
     setCurrentSubpath(parts.join("/"));
+  };
+
+  // Recursive Folder Tree Renderer for Left Sidebar (supports Drag & Drop onto any folder!)
+  const renderFolderTreeBranch = (parentPath: string, depth = 0) => {
+    const childFolders = spAllSubfolders.filter((f) => f.parentSubpath === parentPath);
+    if (childFolders.length === 0) return null;
+
+    return (
+      <div className={depth > 0 ? "pl-3 border-l border-white/[0.06] ml-2 space-y-0.5 mt-0.5" : "space-y-0.5"}>
+        {childFolders.map((folder) => {
+          const isCurrent = currentSubpath === folder.path;
+          const hasSubfolders = spAllSubfolders.some((f) => f.parentSubpath === folder.path);
+          const isExpanded = Boolean(expandedTreePaths[folder.path]);
+          const isDragOver = dragOverTarget === `tree:${folder.path}`;
+
+          return (
+            <div key={folder.id}>
+              <div
+                onClick={() => navigateToSubpath(folder.path)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverTarget(`tree:${folder.path}`);
+                }}
+                onDragLeave={() => {
+                  if (dragOverTarget === `tree:${folder.path}`) setDragOverTarget(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverTarget(null);
+                  const draggedJson = e.dataTransfer.getData("application/x-sp-item");
+                  if (draggedJson) {
+                    try {
+                      const dragged = JSON.parse(draggedJson) as SharePointItem;
+                      if (dragged.id !== folder.id) {
+                        executeMoveItem(dragged, folder.path);
+                      }
+                    } catch {}
+                  } else if (e.dataTransfer.files?.length) {
+                    handleSpFileUploadToSubpath(Array.from(e.dataTransfer.files), folder.path);
+                  }
+                }}
+                className={`group flex items-center justify-between px-2 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
+                  isDragOver
+                    ? "bg-brand-teal/25 ring-1 ring-brand-teal text-white"
+                    : isCurrent
+                    ? "bg-brand-teal/15 text-brand-teal font-semibold"
+                    : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  {hasSubfolders ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedTreePaths((prev) => ({
+                          ...prev,
+                          [folder.path]: !prev[folder.path]
+                        }));
+                      }}
+                      className="p-0.5 rounded hover:bg-white/10 text-zinc-500 hover:text-white shrink-0"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-3 h-3" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3" />
+                      )}
+                    </button>
+                  ) : (
+                    <span className="w-4 shrink-0" />
+                  )}
+                  {isCurrent ? (
+                    <FolderOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  ) : (
+                    <Folder className="w-3.5 h-3.5 text-amber-400/80 shrink-0" />
+                  )}
+                  <span className="truncate" title={folder.name}>
+                    {folder.name}
+                  </span>
+                </div>
+                {folder.childCount > 0 && (
+                  <span className="text-[10px] font-mono text-zinc-500 ml-1.5 shrink-0">
+                    {folder.childCount}
+                  </span>
+                )}
+              </div>
+              {hasSubfolders && isExpanded && renderFolderTreeBranch(folder.path, depth + 1)}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -902,6 +1399,25 @@ export default function ClientDocumentsView() {
                   Suspended
                 </span>
               )}
+              {storageMode === "SHAREPOINT" && spFolderExists && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.04] border border-white/[0.08] text-zinc-400"
+                  title={
+                    spLastSyncedAt
+                      ? `Local SQLite Cache • Last delta sync: ${formatDateTime(spLastSyncedAt, true)}`
+                      : "Local SQLite Cache Active"
+                  }
+                >
+                  <Database className="w-2.5 h-2.5 text-brand-teal" />
+                  <span>
+                    {spSyncingDelta
+                      ? "Syncing Delta..."
+                      : spLastSyncedAt
+                      ? `Synced ${ new Date(spLastSyncedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }`
+                      : "Local Cache Ready"}
+                  </span>
+                </span>
+              )}
             </div>
             {spClientInfo?.fullSharePointPath && storageMode === "SHAREPOINT" && (
               <div className="flex items-center gap-2 text-[11px] text-zinc-400 mt-0.5 font-mono truncate">
@@ -916,7 +1432,7 @@ export default function ClientDocumentsView() {
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 text-brand-teal hover:underline font-sans ml-1 shrink-0"
                   >
-                    Open in SharePoint <ExternalLink className="w-3 h-3" />
+                    Open in SharePoint / OneDrive <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
               </div>
@@ -954,16 +1470,16 @@ export default function ClientDocumentsView() {
       </div>
 
       {/* ==================================================================== */}
-      {/* MODE 1: SHAREPOINT CLOUD DRIVE EXPLORER                              */}
+      {/* MODE 1: SHAREPOINT CLOUD DRIVE EXPLORER (SQLITE LOCAL SYNC)          */}
       {/* ==================================================================== */}
       {storageMode === "SHAREPOINT" ? (
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-          {spLoading ? (
+          {spInitialLoading ? (
             <div className="flex-1 flex flex-col items-center justify-center p-12 text-zinc-400">
               <RefreshCw className="w-8 h-8 animate-spin text-brand-teal mb-3" />
-              <p className="text-sm font-medium text-white">Syncing with SharePoint Online...</p>
+              <p className="text-sm font-medium text-white">Loading Client SharePoint Index...</p>
               <p className="text-xs text-zinc-500 mt-1">
-                Resolving participant folder &amp; loading files
+                Indexing folder metadata into local SQLite cache for instant browsing
               </p>
             </div>
           ) : !spConfigured ? (
@@ -1017,7 +1533,7 @@ export default function ClientDocumentsView() {
                 <div className="flex items-center justify-center gap-2.5 pt-2">
                   <button
                     type="button"
-                    onClick={() => fetchSharePointDrive(currentSubpath)}
+                    onClick={() => fetchSharePointFromLocalCache()}
                     className="px-4 py-2 bg-white/10 hover:bg-white/15 text-white rounded-lg text-xs font-medium inline-flex items-center gap-1.5"
                   >
                     <RefreshCw className="w-3.5 h-3.5" /> Retry
@@ -1097,7 +1613,9 @@ export default function ClientDocumentsView() {
                     <div>
                       <div className="text-xs font-semibold text-white flex items-center gap-1.5">
                         <Link2 className="w-3.5 h-3.5 text-brand-teal" />
-                        <span>Or Link to an Existing Folder in {(spClientInfo?.baseCategoryPath || "").replace(/\//g, "\\")}</span>
+                        <span>
+                          Or Link to an Existing Folder in {(spClientInfo?.baseCategoryPath || "").replace(/\//g, "\\")}
+                        </span>
                       </div>
                       <p className="text-[11px] text-zinc-400 mt-0.5">
                         If this participant&apos;s folder already exists on SharePoint under a slightly different spelling, select it below:
@@ -1128,6 +1646,18 @@ export default function ClientDocumentsView() {
                     </div>
                   </div>
                 )}
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => triggerBackgroundDeltaSync({ full: true })}
+                    disabled={spSyncingDelta}
+                    className="text-xs text-zinc-400 hover:text-white inline-flex items-center gap-1.5"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${spSyncingDelta ? "animate-spin" : ""}`} />
+                    <span>Re-check SharePoint Server</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -1138,12 +1668,12 @@ export default function ClientDocumentsView() {
             >
               <input {...getSpDropInputProps()} />
 
-              {/* Drag & Drop Overlay */}
+              {/* Drag & Drop Upload Overlay */}
               {isSpDragActive && (
                 <div className="absolute inset-0 z-40 bg-brand-teal/10 backdrop-blur-xs border-2 border-dashed border-brand-teal rounded-xl m-3 flex flex-col items-center justify-center pointer-events-none">
                   <UploadCloud className="w-14 h-14 text-brand-teal mb-2 animate-bounce" />
                   <p className="text-base font-semibold text-white">
-                    Drop files to upload directly to SharePoint
+                    Drop files to upload &amp; sync to SharePoint
                   </p>
                   <p className="text-xs text-brand-teal mt-1 font-mono">
                     {(spClientInfo?.fullSharePointPath || "").replace(/\//g, "\\")}
@@ -1152,456 +1682,780 @@ export default function ClientDocumentsView() {
                 </div>
               )}
 
-              {/* Drive Toolbar: Breadcrumbs, Search, Actions */}
-              <div className="px-6 py-3 bg-[#141414] border-b border-white/[0.06] flex flex-wrap items-center justify-between gap-3 shrink-0">
-                {/* Breadcrumb Navigation */}
-                <div className="flex items-center gap-1 text-xs overflow-x-auto min-w-0 py-0.5">
-                  {currentSubpath && (
+              {/* Drive Toolbar: Folder Tree Toggle, Breadcrumbs, Filters, Search, Actions */}
+              <div className="px-4 sm:px-6 py-2.5 bg-[#141414] border-b border-white/[0.06] flex flex-col gap-2.5 shrink-0">
+                <div className="flex flex-wrap items-center justify-between gap-2.5">
+                  {/* Left: Sidebar Toggle + Breadcrumb Navigation */}
+                  <div className="flex items-center gap-1 text-xs overflow-x-auto min-w-0 py-0.5">
                     <button
                       type="button"
-                      onClick={navigateUpOneLevel}
-                      className="p-1.5 mr-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-colors"
-                      title="Up one folder"
+                      onClick={() => setShowFolderTree((prev) => !prev)}
+                      className={`p-1.5 mr-1 rounded-lg border transition-colors ${
+                        showFolderTree
+                          ? "bg-brand-teal/15 border-brand-teal/30 text-brand-teal"
+                          : "bg-white/5 border-white/10 text-zinc-400 hover:text-white"
+                      }`}
+                      title="Toggle Folder Tree Sidebar"
                     >
-                      <CornerLeftUp className="w-3.5 h-3.5" />
+                      <FolderTree className="w-3.5 h-3.5" />
                     </button>
-                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSpItem(null);
-                      setCurrentSubpath("");
-                    }}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const draggedItemJson = e.dataTransfer.getData("application/x-sp-item");
-                      if (draggedItemJson && currentSubpath !== "") {
-                        try {
-                          const item = JSON.parse(draggedItemJson) as SharePointItem;
-                          executeMoveItem(item, "");
-                        } catch {}
-                      }
-                    }}
-                    className={`px-2 py-1 rounded-md font-medium flex items-center gap-1.5 transition-colors ${
-                      !currentSubpath
-                        ? "bg-brand-teal/15 text-brand-teal font-semibold"
-                        : "text-zinc-400 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    <Folder className="w-3.5 h-3.5 text-brand-teal" />
-                    <span>{spClientInfo?.folderName || "Participant Root"}</span>
-                  </button>
+                    {currentSubpath && (
+                      <button
+                        type="button"
+                        onClick={navigateUpOneLevel}
+                        className="p-1.5 mr-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-colors"
+                        title="Up one folder"
+                      >
+                        <CornerLeftUp className="w-3.5 h-3.5" />
+                      </button>
+                    )}
 
-                  {breadcrumbs.map((segment, index) => {
-                    const targetSub = breadcrumbs.slice(0, index + 1).join("/");
-                    const isLast = index === breadcrumbs.length - 1;
-                    return (
-                      <React.Fragment key={targetSub}>
-                        <ChevronRight className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                    <button
+                      type="button"
+                      onClick={() => navigateToSubpath("")}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverTarget("crumb:root");
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverTarget === "crumb:root") setDragOverTarget(null);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverTarget(null);
+                        const draggedItemJson = e.dataTransfer.getData("application/x-sp-item");
+                        if (draggedItemJson && currentSubpath !== "") {
+                          try {
+                            const item = JSON.parse(draggedItemJson) as SharePointItem;
+                            executeMoveItem(item, "");
+                          } catch {}
+                        }
+                      }}
+                      className={`px-2.5 py-1 rounded-md font-medium flex items-center gap-1.5 transition-colors ${
+                        dragOverTarget === "crumb:root"
+                          ? "bg-brand-teal/30 ring-1 ring-brand-teal text-white"
+                          : !currentSubpath
+                          ? "bg-brand-teal/15 text-brand-teal font-semibold"
+                          : "text-zinc-400 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      <Folder className="w-3.5 h-3.5 text-brand-teal" />
+                      <span>{spClientInfo?.folderName || "Participant Root"}</span>
+                    </button>
+
+                    {breadcrumbs.map((segment, index) => {
+                      const targetSub = breadcrumbs.slice(0, index + 1).join("/");
+                      const isLast = index === breadcrumbs.length - 1;
+                      const isDragOver = dragOverTarget === `crumb:${targetSub}`;
+                      return (
+                        <React.Fragment key={targetSub}>
+                          <ChevronRight className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                          <button
+                            type="button"
+                            onClick={() => navigateToSubpath(targetSub)}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              setDragOverTarget(`crumb:${targetSub}`);
+                            }}
+                            onDragLeave={() => {
+                              if (dragOverTarget === `crumb:${targetSub}`) setDragOverTarget(null);
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setDragOverTarget(null);
+                              const draggedItemJson = e.dataTransfer.getData("application/x-sp-item");
+                              if (draggedItemJson) {
+                                try {
+                                  const item = JSON.parse(draggedItemJson) as SharePointItem;
+                                  executeMoveItem(item, targetSub);
+                                } catch {}
+                              }
+                            }}
+                            className={`px-2 py-1 rounded-md font-medium truncate max-w-[180px] transition-colors ${
+                              isDragOver
+                                ? "bg-brand-teal/30 ring-1 ring-brand-teal text-white"
+                                : isLast
+                                ? "bg-brand-teal/15 text-brand-teal font-semibold"
+                                : "text-zinc-400 hover:text-white hover:bg-white/5"
+                            }`}
+                          >
+                            {segment}
+                          </button>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+
+                  {/* Right Drive Controls */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Search Input */}
+                    <div className="relative flex items-center">
+                      <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={spSearchQuery}
+                        onChange={(e) => setSpSearchQuery(e.target.value)}
+                        placeholder={
+                          searchAllSubfolders ? "Search all client files..." : "Filter current folder..."
+                        }
+                        className="bg-[#0a0a0a] border border-white/10 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white placeholder-zinc-500 outline-none focus:border-brand-teal w-44 sm:w-56"
+                      />
+                      {spSearchQuery && (
                         <button
                           type="button"
-                          onClick={() => {
-                            setSelectedSpItem(null);
-                            setCurrentSubpath(targetSub);
-                          }}
-                          className={`px-2 py-1 rounded-md font-medium truncate max-w-[180px] transition-colors ${
-                            isLast
-                              ? "bg-brand-teal/15 text-brand-teal font-semibold"
-                              : "text-zinc-400 hover:text-white hover:bg-white/5"
-                          }`}
+                          onClick={() => setSpSearchQuery("")}
+                          className="absolute right-2 text-zinc-500 hover:text-white"
                         >
-                          {segment}
+                          <X className="w-3 h-3" />
                         </button>
-                      </React.Fragment>
-                    );
-                  })}
+                      )}
+                    </div>
+
+                    {/* List / Grid View Toggle */}
+                    <div className="flex items-center bg-[#0a0a0a] p-0.5 rounded-lg border border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => setDriveViewMode("list")}
+                        className={`p-1.5 rounded-md transition-colors ${
+                          driveViewMode === "list"
+                            ? "bg-white/15 text-white"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                        title="Table View"
+                      >
+                        <LayoutList className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDriveViewMode("grid")}
+                        className={`p-1.5 rounded-md transition-colors ${
+                          driveViewMode === "grid"
+                            ? "bg-white/15 text-white"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                        title="Grid View"
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* New Folder Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewFolderName("");
+                        setShowNewFolderModal(true);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-medium text-white inline-flex items-center gap-1.5 transition-colors"
+                    >
+                      <FolderPlus className="w-3.5 h-3.5 text-amber-400" />
+                      <span>New Folder</span>
+                    </button>
+
+                    {/* Upload Files Button */}
+                    <button
+                      type="button"
+                      onClick={openSpFileDialog}
+                      disabled={spUploading}
+                      className="px-3.5 py-1.5 rounded-lg bg-brand-teal hover:bg-teal-400 text-black text-xs font-semibold inline-flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-50"
+                    >
+                      {spUploading ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>{uploadProgressText || "Uploading..."}</span>
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud className="w-3.5 h-3.5" />
+                          <span>Upload to SharePoint</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* Sync Delta Button */}
+                    <button
+                      type="button"
+                      onClick={() => triggerBackgroundDeltaSync({ full: false, silent: false })}
+                      disabled={spSyncingDelta}
+                      className="px-2.5 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.1] border border-white/10 text-zinc-300 hover:text-white text-xs inline-flex items-center gap-1.5 transition-colors"
+                      title="Run Microsoft Graph Delta Sync now"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${spSyncingDelta ? "animate-spin text-brand-teal" : ""}`} />
+                      <span className="hidden xl:inline">Sync</span>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Right Drive Controls */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Search Input */}
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={spSearchQuery}
-                      onChange={(e) => setSpSearchQuery(e.target.value)}
-                      placeholder="Filter folder..."
-                      className="bg-[#0a0a0a] border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 outline-none focus:border-brand-teal w-40 sm:w-48"
-                    />
+                {/* Secondary Filter Bar: File Type Filters + Search Scope + Quick Summary */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-white/[0.04] text-[11px]">
+                  <div className="flex items-center gap-1.5 overflow-x-auto">
+                    {(
+                      [
+                        { id: "ALL", label: "All Items" },
+                        { id: "FOLDERS", label: "Folders" },
+                        { id: "PDF", label: "PDFs" },
+                        { id: "WORD", label: "Word / Docs" },
+                        { id: "EXCEL", label: "Excel / CSV" },
+                        { id: "IMAGE", label: "Images" }
+                      ] as Array<{ id: FileCategoryFilter; label: string }>
+                    ).map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setCategoryFilter(tab.id)}
+                        className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap ${
+                          categoryFilter === tab.id
+                            ? "bg-brand-teal/15 text-brand-teal border border-brand-teal/30"
+                            : "text-zinc-400 hover:text-white hover:bg-white/[0.04] border border-transparent"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
                   </div>
 
-                  {/* List / Grid View Toggle */}
-                  <div className="flex items-center bg-[#0a0a0a] p-0.5 rounded-lg border border-white/10">
-                    <button
-                      type="button"
-                      onClick={() => setDriveViewMode("list")}
-                      className={`p-1.5 rounded-md transition-colors ${
-                        driveViewMode === "list"
-                          ? "bg-white/15 text-white"
-                          : "text-zinc-500 hover:text-zinc-300"
-                      }`}
-                      title="List View"
-                    >
-                      <LayoutList className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDriveViewMode("grid")}
-                      className={`p-1.5 rounded-md transition-colors ${
-                        driveViewMode === "grid"
-                          ? "bg-white/15 text-white"
-                          : "text-zinc-500 hover:text-zinc-300"
-                      }`}
-                      title="Grid View"
-                    >
-                      <LayoutGrid className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* New Folder Button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNewFolderName("");
-                      setShowNewFolderModal(true);
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-medium text-white inline-flex items-center gap-1.5 transition-colors"
-                  >
-                    <FolderPlus className="w-3.5 h-3.5 text-amber-400" />
-                    <span>New Folder</span>
-                  </button>
-
-                  {/* Upload Files Button */}
-                  <button
-                    type="button"
-                    onClick={openSpFileDialog}
-                    disabled={spUploading}
-                    className="px-3.5 py-1.5 rounded-lg bg-brand-teal hover:bg-teal-400 text-black text-xs font-semibold inline-flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-50"
-                  >
-                    {spUploading ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Uploading...</span>
-                      </>
-                    ) : (
-                      <>
-                        <UploadCloud className="w-3.5 h-3.5" />
-                        <span>Upload to SharePoint</span>
-                      </>
+                  <div className="flex items-center gap-3 text-zinc-400">
+                    {spSearchQuery && (
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer select-none text-zinc-300">
+                        <input
+                          type="checkbox"
+                          checked={searchAllSubfolders}
+                          onChange={(e) => setSearchAllSubfolders(e.target.checked)}
+                          className="rounded border-white/20 bg-black text-brand-teal focus:ring-0"
+                        />
+                        <span>Search all subfolders</span>
+                      </label>
                     )}
-                  </button>
-
-                  {/* Refresh Button */}
-                  <button
-                    type="button"
-                    onClick={() => fetchSharePointDrive(currentSubpath)}
-                    className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.1] border border-white/10 text-zinc-300 hover:text-white transition-colors"
-                    title="Refresh from SharePoint"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  </button>
+                    <span className="font-mono text-[11px]">
+                      {currentFolderStats.foldersCount} folder{currentFolderStats.foldersCount === 1 ? "" : "s"} •{" "}
+                      {currentFolderStats.filesCount} file{currentFolderStats.filesCount === 1 ? "" : "s"} (
+                      {formatFileSize(currentFolderStats.totalBytes)})
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Main Split Body: File Explorer (Left) + Preview/Editor (Right) */}
-              <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden min-h-0">
-                {/* Left Explorer Pane */}
-                <div
-                  className={`${
-                    selectedSpItem ? "lg:col-span-7 border-r border-white/[0.06]" : "lg:col-span-12"
-                  } flex flex-col overflow-y-auto min-h-0 p-4 sm:p-6`}
-                >
-                  {filteredSpItems.length === 0 ? (
-                    <div
-                      onClick={openSpFileDialog}
-                      className="flex-1 min-h-[280px] border-2 border-dashed border-white/[0.08] hover:border-brand-teal/40 rounded-2xl flex flex-col items-center justify-center p-8 text-center cursor-pointer transition-colors"
-                    >
-                      <Folder className="w-12 h-12 text-zinc-600 mb-3" />
-                      <p className="text-sm font-medium text-zinc-300">
-                        {spSearchQuery
-                          ? "No files or folders match your search"
-                          : "This SharePoint folder is empty"}
-                      </p>
-                      <p className="text-xs text-zinc-500 mt-1">
-                        Drag &amp; drop files here, click to upload, or click &ldquo;New Folder&rdquo; above
-                      </p>
+              {/* Main 3-Pane Body: Folder Tree Sidebar (Left) + File Table/Grid (Center) + Inspector/Preview (Right) */}
+              <div className="flex-1 flex overflow-hidden min-h-0">
+                {/* Pane 1: Collapsible Folder Tree Sidebar (Supports Drag-and-Drop Organization) */}
+                {showFolderTree && (
+                  <div className="w-56 xl:w-64 border-r border-white/[0.06] bg-[#0e0e0e] flex flex-col shrink-0 hidden md:flex overflow-hidden">
+                    <div className="px-3.5 py-2.5 border-b border-white/[0.05] flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                      <span>Folder Structure</span>
+                      <span className="text-[10px] font-mono text-zinc-500">
+                        {spAllSubfolders.length} subfolders
+                      </span>
                     </div>
-                  ) : driveViewMode === "list" ? (
-                    <div className="bg-[#111] border border-white/[0.06] rounded-xl overflow-hidden">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="border-b border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-zinc-400 bg-white/[0.02]">
-                            <th className="py-2.5 px-4">Name</th>
-                            <th className="py-2.5 px-3 hidden sm:table-cell">Modified</th>
-                            <th className="py-2.5 px-3 hidden md:table-cell">Modified By</th>
-                            <th className="py-2.5 px-3 hidden sm:table-cell text-right">Size</th>
-                            <th className="py-2.5 px-4 text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/[0.04] text-xs">
-                          {filteredSpItems.map((item) => {
-                            const isSelected = selectedSpItem?.id === item.id;
-                            const isDragTarget = dragOverFolderId === item.id;
-                            return (
-                              <tr
-                                key={item.id}
-                                draggable
-                                onDragStart={(e) => {
-                                  e.dataTransfer.setData(
-                                    "application/x-sp-item",
-                                    JSON.stringify(item)
-                                  );
-                                }}
-                                onDragOver={(e) => {
-                                  if (item.isFolder) {
-                                    e.preventDefault();
-                                    setDragOverFolderId(item.id);
-                                  }
-                                }}
-                                onDragLeave={() => {
-                                  if (dragOverFolderId === item.id) setDragOverFolderId(null);
-                                }}
-                                onDrop={(e) => {
-                                  if (!item.isFolder) return;
-                                  e.preventDefault();
-                                  setDragOverFolderId(null);
-                                  const draggedJson = e.dataTransfer.getData("application/x-sp-item");
-                                  if (draggedJson) {
-                                    try {
-                                      const dragged = JSON.parse(draggedJson) as SharePointItem;
-                                      if (dragged.id !== item.id) {
-                                        const targetSub = currentSubpath
-                                          ? `${currentSubpath}/${item.name}`
-                                          : item.name;
-                                        executeMoveItem(dragged, targetSub);
+                    <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+                      {/* Root Participant Folder Node */}
+                      <div
+                        onClick={() => navigateToSubpath("")}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOverTarget("tree:root");
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverTarget === "tree:root") setDragOverTarget(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setDragOverTarget(null);
+                          const draggedJson = e.dataTransfer.getData("application/x-sp-item");
+                          if (draggedJson) {
+                            try {
+                              const dragged = JSON.parse(draggedJson) as SharePointItem;
+                              executeMoveItem(dragged, "");
+                            } catch {}
+                          } else if (e.dataTransfer.files?.length) {
+                            handleSpFileUploadToSubpath(Array.from(e.dataTransfer.files), "");
+                          }
+                        }}
+                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
+                          dragOverTarget === "tree:root"
+                            ? "bg-brand-teal/25 ring-1 ring-brand-teal text-white"
+                            : currentSubpath === ""
+                            ? "bg-brand-teal/15 text-brand-teal font-semibold"
+                            : "text-zinc-300 hover:text-white hover:bg-white/[0.04]"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FolderOpen className="w-4 h-4 text-brand-teal shrink-0" />
+                          <span className="truncate font-medium">
+                            {spClientInfo?.folderName || "Root Folder"}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-zinc-500">
+                          {spAllItems.filter((i) => (i.parentSubpath || "") === "").length}
+                        </span>
+                      </div>
+
+                      {/* Recursive Subfolder Nodes */}
+                      <div className="pl-2 pt-0.5">{renderFolderTreeBranch("", 0)}</div>
+                    </div>
+                    <div className="p-2.5 border-t border-white/[0.05] bg-black/20 text-[10px] text-zinc-500 leading-relaxed">
+                      Tip: Drag any file or folder onto the folder tree to move it instantly.
+                    </div>
+                  </div>
+                )}
+
+                {/* Pane 2: Scrollable File Explorer + Pagination Bar */}
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0">
+                  <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-5">
+                    {paginatedSpItems.length === 0 ? (
+                      <div
+                        onClick={openSpFileDialog}
+                        className="h-full min-h-[260px] border-2 border-dashed border-white/[0.08] hover:border-brand-teal/40 rounded-2xl flex flex-col items-center justify-center p-8 text-center cursor-pointer transition-colors"
+                      >
+                        <Folder className="w-12 h-12 text-zinc-600 mb-3" />
+                        <p className="text-sm font-medium text-zinc-300">
+                          {spSearchQuery || categoryFilter !== "ALL"
+                            ? "No files or folders match your current filter"
+                            : "This SharePoint folder is empty"}
+                        </p>
+                        <p className="text-xs text-zinc-500 mt-1">
+                          Drag &amp; drop files here from your computer, or click to upload to SharePoint
+                        </p>
+                      </div>
+                    ) : driveViewMode === "list" ? (
+                      <div className="bg-[#111] border border-white/[0.06] rounded-xl overflow-hidden shadow-xs">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead className="sticky top-0 z-10 bg-[#161616] border-b border-white/[0.07] text-[10px] font-semibold uppercase tracking-wider text-zinc-400 select-none">
+                              <tr>
+                                <th
+                                  onClick={() => handleSortColumn("name")}
+                                  className="py-2.5 px-4 cursor-pointer hover:text-white group"
+                                >
+                                  Name {renderSortIcon("name")}
+                                </th>
+                                <th
+                                  onClick={() => handleSortColumn("type")}
+                                  className="py-2.5 px-3 hidden xl:table-cell cursor-pointer hover:text-white group"
+                                >
+                                  Type {renderSortIcon("type")}
+                                </th>
+                                <th
+                                  onClick={() => handleSortColumn("lastModifiedDateTime")}
+                                  className="py-2.5 px-3 hidden sm:table-cell cursor-pointer hover:text-white group"
+                                >
+                                  Modified {renderSortIcon("lastModifiedDateTime")}
+                                </th>
+                                <th
+                                  onClick={() => handleSortColumn("lastModifiedBy")}
+                                  className="py-2.5 px-3 hidden md:table-cell cursor-pointer hover:text-white group"
+                                >
+                                  Modified By {renderSortIcon("lastModifiedBy")}
+                                </th>
+                                <th
+                                  onClick={() => handleSortColumn("size")}
+                                  className="py-2.5 px-3 hidden sm:table-cell text-right cursor-pointer hover:text-white group"
+                                >
+                                  Size {renderSortIcon("size")}
+                                </th>
+                                <th className="py-2.5 px-4 text-right">Quick Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/[0.04] text-xs">
+                              {paginatedSpItems.map((item) => {
+                                const isSelected = selectedSpItem?.id === item.id;
+                                const targetFolderPath = item.relativePath || item.name;
+                                const isDragTarget = dragOverTarget === `row:${item.id}`;
+                                const officeDesktop = getOfficeDesktopAppInfo(item);
+
+                                return (
+                                  <tr
+                                    key={item.id}
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData(
+                                        "application/x-sp-item",
+                                        JSON.stringify(item)
+                                      );
+                                    }}
+                                    onDragOver={(e) => {
+                                      if (item.isFolder) {
+                                        e.preventDefault();
+                                        setDragOverTarget(`row:${item.id}`);
                                       }
-                                    } catch {}
-                                  }
-                                }}
-                                onClick={() => {
-                                  if (item.isFolder) {
-                                    navigateToSubfolder(item.name);
-                                  } else {
-                                    setSelectedSpItem(item);
-                                  }
-                                }}
-                                className={`cursor-pointer transition-colors ${
-                                  isDragTarget
-                                    ? "bg-brand-teal/25 ring-1 ring-brand-teal"
-                                    : isSelected
-                                    ? "bg-brand-teal/15"
-                                    : "hover:bg-white/[0.04]"
-                                }`}
-                              >
-                                <td className="py-2.5 px-4 max-w-[260px] sm:max-w-[340px]">
-                                  <div className="flex items-center gap-3 min-w-0">
-                                    <FileThumbnail
-                                      file={item}
-                                      size="sm"
-                                      isFolder={item.isFolder}
-                                    />
-                                    <div className="min-w-0 flex-1">
-                                      <div
-                                        className="font-medium text-white truncate"
-                                        title={item.name}
-                                      >
-                                        {item.name}
-                                      </div>
-                                      {item.isFolder && item.childCount !== undefined && (
-                                        <div className="text-[10px] text-zinc-500">
-                                          {item.childCount} item{item.childCount === 1 ? "" : "s"}
+                                    }}
+                                    onDragLeave={() => {
+                                      if (dragOverTarget === `row:${item.id}`) setDragOverTarget(null);
+                                    }}
+                                    onDrop={(e) => {
+                                      if (!item.isFolder) return;
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setDragOverTarget(null);
+                                      const draggedJson = e.dataTransfer.getData("application/x-sp-item");
+                                      if (draggedJson) {
+                                        try {
+                                          const dragged = JSON.parse(draggedJson) as SharePointItem;
+                                          if (dragged.id !== item.id) {
+                                            executeMoveItem(dragged, targetFolderPath);
+                                          }
+                                        } catch {}
+                                      } else if (e.dataTransfer.files?.length) {
+                                        handleSpFileUploadToSubpath(
+                                          Array.from(e.dataTransfer.files),
+                                          targetFolderPath
+                                        );
+                                      }
+                                    }}
+                                    onClick={() => {
+                                      if (item.isFolder) {
+                                        navigateToSubpath(targetFolderPath);
+                                      } else {
+                                        setSelectedSpItem(item);
+                                      }
+                                    }}
+                                    className={`cursor-pointer transition-colors ${
+                                      isDragTarget
+                                        ? "bg-brand-teal/25 ring-1 ring-brand-teal"
+                                        : isSelected
+                                        ? "bg-brand-teal/15"
+                                        : "hover:bg-white/[0.04]"
+                                    }`}
+                                  >
+                                    <td className="py-2.5 px-4 max-w-[260px] sm:max-w-[360px]">
+                                      <div className="flex items-center gap-3 min-w-0">
+                                        <FileThumbnail
+                                          file={item}
+                                          size="sm"
+                                          isFolder={item.isFolder}
+                                        />
+                                        <div className="min-w-0 flex-1">
+                                          <div
+                                            className="font-medium text-white truncate"
+                                            title={item.name}
+                                          >
+                                            {item.name}
+                                          </div>
+                                          <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                                            {item.isFolder && item.childCount !== undefined && (
+                                              <span>
+                                                {item.childCount} item{item.childCount === 1 ? "" : "s"}
+                                              </span>
+                                            )}
+                                            {spSearchQuery &&
+                                              searchAllSubfolders &&
+                                              item.parentSubpath && (
+                                                <span className="truncate text-brand-teal/80 font-mono">
+                                                  in /{item.parentSubpath}
+                                                </span>
+                                              )}
+                                          </div>
                                         </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="py-2.5 px-3 text-zinc-400 hidden sm:table-cell whitespace-nowrap">
-                                  {item.lastModifiedDateTime
-                                    ? new Date(item.lastModifiedDateTime).toLocaleDateString(
-                                        "en-AU",
-                                        {
-                                          day: "2-digit",
-                                          month: "short",
-                                          year: "numeric"
-                                        }
-                                      )
-                                    : "—"}
-                                </td>
-                                <td className="py-2.5 px-3 text-zinc-400 hidden md:table-cell truncate max-w-[140px]">
-                                  {item.lastModifiedBy || "SharePoint"}
-                                </td>
-                                <td className="py-2.5 px-3 text-zinc-400 hidden sm:table-cell text-right whitespace-nowrap font-mono text-[11px]">
-                                  {item.isFolder ? "Folder" : formatFileSize(item.size)}
-                                </td>
-                                <td
-                                  className="py-2.5 px-4 text-right whitespace-nowrap"
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3 text-zinc-400 hidden xl:table-cell whitespace-nowrap text-[11px]">
+                                      {getItemTypeLabel(item)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-zinc-400 hidden sm:table-cell whitespace-nowrap">
+                                      {formatDateTime(item.lastModifiedDateTime)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-zinc-400 hidden md:table-cell truncate max-w-[140px]">
+                                      {item.lastModifiedBy || "SharePoint"}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-zinc-400 hidden sm:table-cell text-right whitespace-nowrap font-mono text-[11px]">
+                                      {item.isFolder
+                                        ? `${item.childCount ?? 0} items`
+                                        : formatFileSize(item.size)}
+                                    </td>
+                                    <td
+                                      className="py-2.5 px-4 text-right whitespace-nowrap"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <div className="inline-flex items-center gap-1">
+                                        {/* 1-Click Open in Native Desktop Office 365 App (Word / Excel / PowerPoint) */}
+                                        {officeDesktop && (
+                                          <a
+                                            href={officeDesktop.protocolUrl}
+                                            className={`px-2 py-1 rounded border text-[10px] font-medium inline-flex items-center gap-1 transition-colors ${officeDesktop.badgeClass}`}
+                                            title={`${officeDesktop.appLabel} (Edits save directly to SharePoint)`}
+                                          >
+                                            <Monitor className="w-3 h-3" />
+                                            <span className="hidden 2xl:inline">
+                                              {officeDesktop.appLabel}
+                                            </span>
+                                          </a>
+                                        )}
+
+                                        {item.webUrl && (
+                                          <a
+                                            href={item.webUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="p-1.5 text-zinc-400 hover:text-brand-teal hover:bg-brand-teal/10 rounded-md transition-colors"
+                                            title={
+                                              item.isFolder
+                                                ? "Open Folder in SharePoint"
+                                                : "Open in SharePoint / Office Online"
+                                            }
+                                          >
+                                            <ExternalLink className="w-3.5 h-3.5" />
+                                          </a>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedSpItem(item);
+                                            setInspectorTab("DETAILS");
+                                          }}
+                                          className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-md transition-colors"
+                                          title="File Metadata & Details"
+                                        >
+                                          <Info className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setRenamingItem(item);
+                                            setRenameValue(item.name);
+                                          }}
+                                          className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-md transition-colors"
+                                          title="Rename"
+                                        >
+                                          <Edit2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setMovingItem(item);
+                                            setMoveTargetSubpath(item.parentSubpath || currentSubpath);
+                                          }}
+                                          className="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-amber-400/10 rounded-md transition-colors"
+                                          title="Move to Folder..."
+                                        >
+                                          <FolderInput className="w-3.5 h-3.5" />
+                                        </button>
+                                        {!item.isFolder && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDownloadSpItem(item)}
+                                            className="p-1.5 text-zinc-400 hover:text-emerald-400 hover:bg-emerald-400/10 rounded-md transition-colors"
+                                            title="Download"
+                                          >
+                                            <Download className="w-3.5 h-3.5" />
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteSpItem(item)}
+                                          className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
+                                          title="Delete"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Grid View (Supports Drag-and-Drop Organization) */
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {paginatedSpItems.map((item) => {
+                          const isSelected = selectedSpItem?.id === item.id;
+                          const targetFolderPath = item.relativePath || item.name;
+                          const isDragTarget = dragOverTarget === `grid:${item.id}`;
+                          const officeDesktop = getOfficeDesktopAppInfo(item);
+
+                          return (
+                            <div
+                              key={item.id}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData(
+                                  "application/x-sp-item",
+                                  JSON.stringify(item)
+                                );
+                              }}
+                              onDragOver={(e) => {
+                                if (item.isFolder) {
+                                  e.preventDefault();
+                                  setDragOverTarget(`grid:${item.id}`);
+                                }
+                              }}
+                              onDragLeave={() => {
+                                if (dragOverTarget === `grid:${item.id}`) setDragOverTarget(null);
+                              }}
+                              onDrop={(e) => {
+                                if (!item.isFolder) return;
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setDragOverTarget(null);
+                                const draggedJson = e.dataTransfer.getData("application/x-sp-item");
+                                if (draggedJson) {
+                                  try {
+                                    const dragged = JSON.parse(draggedJson) as SharePointItem;
+                                    if (dragged.id !== item.id) {
+                                      executeMoveItem(dragged, targetFolderPath);
+                                    }
+                                  } catch {}
+                                }
+                              }}
+                              onClick={() => {
+                                if (item.isFolder) {
+                                  navigateToSubpath(targetFolderPath);
+                                } else {
+                                  setSelectedSpItem(item);
+                                }
+                              }}
+                              className={`group p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                                isDragTarget
+                                  ? "bg-brand-teal/25 border-brand-teal"
+                                  : isSelected
+                                  ? "bg-brand-teal/15 border-brand-teal/50"
+                                  : "bg-[#111] border-white/[0.06] hover:border-white/20"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2 mb-3">
+                                <FileThumbnail
+                                  file={item}
+                                  size="lg"
+                                  isFolder={item.isFolder}
+                                />
+                                <div
+                                  className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100"
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  <div className="inline-flex items-center gap-1">
-                                    {item.webUrl && (
-                                      <a
-                                        href={item.webUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="p-1.5 text-zinc-400 hover:text-brand-teal hover:bg-brand-teal/10 rounded-md transition-colors"
-                                        title={
-                                          item.isFolder
-                                            ? "Open Folder in SharePoint"
-                                            : "Edit / Open in SharePoint (Office Online)"
-                                        }
-                                      >
-                                        <ExternalLink className="w-3.5 h-3.5" />
-                                      </a>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setRenamingItem(item);
-                                        setRenameValue(item.name);
-                                      }}
-                                      className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-md transition-colors"
-                                      title="Rename"
+                                  {officeDesktop && (
+                                    <a
+                                      href={officeDesktop.protocolUrl}
+                                      className="p-1 text-blue-400 hover:bg-blue-500/15 rounded"
+                                      title={officeDesktop.appLabel}
                                     >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setMovingItem(item);
-                                        setMoveTargetSubpath(currentSubpath);
-                                      }}
-                                      className="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-amber-400/10 rounded-md transition-colors"
-                                      title="Move to Folder..."
+                                      <Monitor className="w-3.5 h-3.5" />
+                                    </a>
+                                  )}
+                                  {item.webUrl && (
+                                    <a
+                                      href={item.webUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="p-1 text-zinc-400 hover:text-brand-teal rounded"
+                                      title="Open in SharePoint"
                                     >
-                                      <FolderInput className="w-3.5 h-3.5" />
-                                    </button>
-                                    {!item.isFolder && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDownloadSpItem(item)}
-                                        className="p-1.5 text-zinc-400 hover:text-emerald-400 hover:bg-emerald-400/10 rounded-md transition-colors"
-                                        title="Download"
-                                      >
-                                        <Download className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteSpItem(item)}
-                                      className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    /* Grid View */
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {filteredSpItems.map((item) => {
-                        const isSelected = selectedSpItem?.id === item.id;
-                        return (
-                          <div
-                            key={item.id}
-                            onClick={() => {
-                              if (item.isFolder) {
-                                navigateToSubfolder(item.name);
-                              } else {
-                                setSelectedSpItem(item);
-                              }
-                            }}
-                            className={`group p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
-                              isSelected
-                                ? "bg-brand-teal/15 border-brand-teal/50"
-                                : "bg-[#111] border-white/[0.06] hover:border-white/20"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2 mb-3">
-                              <FileThumbnail
-                                file={item}
-                                size="lg"
-                                isFolder={item.isFolder}
-                              />
-                              <div
-                                className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {item.webUrl && (
-                                  <a
-                                    href={item.webUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="p-1 text-zinc-400 hover:text-brand-teal rounded"
-                                    title="Edit in SharePoint"
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                    </a>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRenamingItem(item);
+                                      setRenameValue(item.name);
+                                    }}
+                                    className="p-1 text-zinc-400 hover:text-white rounded"
+                                    title="Rename"
                                   >
-                                    <ExternalLink className="w-3.5 h-3.5" />
-                                  </a>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setRenamingItem(item);
-                                    setRenameValue(item.name);
-                                  }}
-                                  className="p-1 text-zinc-400 hover:text-white rounded"
-                                  title="Rename"
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMovingItem(item);
+                                      setMoveTargetSubpath(item.parentSubpath || currentSubpath);
+                                    }}
+                                    className="p-1 text-zinc-400 hover:text-amber-400 rounded"
+                                    title="Move"
+                                  >
+                                    <FolderInput className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                              <div>
+                                <div
+                                  className="text-xs font-medium text-white truncate"
+                                  title={item.name}
                                 >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setMovingItem(item);
-                                    setMoveTargetSubpath(currentSubpath);
-                                  }}
-                                  className="p-1 text-zinc-400 hover:text-amber-400 rounded"
-                                  title="Move"
-                                >
-                                  <FolderInput className="w-3.5 h-3.5" />
-                                </button>
+                                  {item.name}
+                                </div>
+                                <div className="text-[10px] text-zinc-500 mt-0.5 flex items-center justify-between">
+                                  <span>
+                                    {item.isFolder
+                                      ? `${item.childCount ?? 0} items`
+                                      : formatFileSize(item.size)}
+                                  </span>
+                                  <span>{formatDateTime(item.lastModifiedDateTime)}</span>
+                                </div>
                               </div>
                             </div>
-                            <div>
-                              <div
-                                className="text-xs font-medium text-white truncate"
-                                title={item.name}
-                              >
-                                {item.name}
-                              </div>
-                              <div className="text-[10px] text-zinc-500 mt-0.5 flex items-center justify-between">
-                                <span>
-                                  {item.isFolder
-                                    ? `${item.childCount ?? 0} items`
-                                    : formatFileSize(item.size)}
-                                </span>
-                                <span>
-                                  {item.lastModifiedDateTime
-                                    ? new Date(
-                                        item.lastModifiedDateTime
-                                      ).toLocaleDateString("en-AU")
-                                    : ""}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Pagination & Status Footer Bar */}
+                  <div className="px-4 sm:px-6 py-2.5 bg-[#121212] border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-400 shrink-0">
+                    <div className="flex items-center gap-3">
+                      <span>
+                        Showing{" "}
+                        <strong className="text-white">
+                          {totalItemsCount === 0
+                            ? 0
+                            : pageSize > 0
+                            ? (safeCurrentPage - 1) * pageSize + 1
+                            : 1}
+                        </strong>
+                        –
+                        <strong className="text-white">
+                          {pageSize > 0
+                            ? Math.min(safeCurrentPage * pageSize, totalItemsCount)
+                            : totalItemsCount}
+                        </strong>{" "}
+                        of <strong className="text-white">{totalItemsCount}</strong> items
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-zinc-500">Rows:</span>
+                        <select
+                          value={pageSize}
+                          onChange={(e) => setPageSize(Number(e.target.value))}
+                          className="bg-[#0a0a0a] border border-white/10 rounded px-2 py-0.5 text-xs text-white outline-none focus:border-brand-teal"
+                        >
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                          <option value={0}>All</option>
+                        </select>
+                      </div>
                     </div>
-                  )}
+
+                    {pageSize > 0 && totalPages > 1 && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={safeCurrentPage <= 1}
+                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                          className="p-1.5 rounded-md bg-white/5 hover:bg-white/10 text-zinc-300 disabled:opacity-30"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="px-2 font-mono text-[11px]">
+                          Page <strong className="text-white">{safeCurrentPage}</strong> of{" "}
+                          <strong className="text-white">{totalPages}</strong>
+                        </span>
+                        <button
+                          type="button"
+                          disabled={safeCurrentPage >= totalPages}
+                          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                          className="p-1.5 rounded-md bg-white/5 hover:bg-white/10 text-zinc-300 disabled:opacity-30"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Right File Preview & Live Edit Drawer */}
+                {/* Pane 3: Right File Preview, Office 365 Launcher & Metadata Inspector Drawer */}
                 {selectedSpItem && (
-                  <div className="lg:col-span-5 flex flex-col bg-[#0d0d0d] overflow-hidden min-h-0">
+                  <div className="w-full lg:w-[420px] xl:w-[480px] border-l border-white/[0.06] flex flex-col bg-[#0d0d0d] overflow-hidden min-h-0 shrink-0">
                     {/* Drawer Header */}
                     <div className="px-4 py-3 bg-[#141414] border-b border-white/[0.06] flex items-center justify-between gap-2 shrink-0">
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -1614,106 +2468,243 @@ export default function ClientDocumentsView() {
                             {selectedSpItem.name}
                           </h3>
                           <p className="text-[10px] text-zinc-400">
-                            {formatFileSize(selectedSpItem.size)} • Synced with SharePoint
+                            {getItemTypeLabel(selectedSpItem)} • {formatFileSize(selectedSpItem.size)}
                           </p>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedSpItem(null)}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10"
-                        title="Close Preview"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex bg-[#0a0a0a] p-0.5 rounded-lg border border-white/10 text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() => setInspectorTab("PREVIEW")}
+                            className={`px-2 py-1 rounded font-medium ${
+                              inspectorTab === "PREVIEW"
+                                ? "bg-brand-teal text-black font-semibold"
+                                : "text-zinc-400 hover:text-white"
+                            }`}
+                          >
+                            Preview
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setInspectorTab("DETAILS")}
+                            className={`px-2 py-1 rounded font-medium ${
+                              inspectorTab === "DETAILS"
+                                ? "bg-brand-teal text-black font-semibold"
+                                : "text-zinc-400 hover:text-white"
+                            }`}
+                          >
+                            Details
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSpItem(null)}
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10"
+                          title="Close Inspector"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Preview / Editor Body */}
-                    <div className="flex-1 relative flex flex-col items-center justify-center bg-black/40 overflow-hidden min-h-0">
-                      {spPreviewLoading ? (
-                        <div className="text-zinc-400 flex flex-col items-center">
-                          <RefreshCw className="w-8 h-8 animate-spin text-brand-teal mb-2.5" />
-                          <p className="text-xs">Loading preview from SharePoint...</p>
-                        </div>
-                      ) : isEditingSpText && spTextContent !== null ? (
-                        <div className="w-full h-full flex flex-col p-3">
-                          <textarea
-                            value={spTextContent}
-                            onChange={(e) => setSpTextContent(e.target.value)}
-                            className="w-full flex-1 bg-[#111] border border-white/15 rounded-lg p-3 text-xs text-white font-mono outline-none focus:border-brand-teal resize-none"
-                          />
-                          <div className="flex items-center justify-end gap-2 pt-2.5">
-                            <button
-                              type="button"
-                              onClick={() => setIsEditingSpText(false)}
-                              className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-zinc-300"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleSaveSpTextContent}
-                              disabled={savingSpText}
-                              className="px-3.5 py-1.5 rounded-lg bg-brand-teal hover:bg-teal-400 text-black font-semibold text-xs inline-flex items-center gap-1.5"
-                            >
-                              <Save className="w-3.5 h-3.5" />
-                              <span>{savingSpText ? "Saving to SharePoint..." : "Save to SharePoint"}</span>
-                            </button>
+                    {/* Inspector Body: Preview Mode vs Metadata Details Mode */}
+                    {inspectorTab === "DETAILS" ? (
+                      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+                        <div className="p-4 rounded-xl bg-[#141414] border border-white/[0.06] flex items-center gap-3.5">
+                          <FileThumbnail file={selectedSpItem} size="lg" />
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-white break-all">
+                              {selectedSpItem.name}
+                            </div>
+                            <div className="text-[11px] text-brand-teal mt-0.5">
+                              {getItemTypeLabel(selectedSpItem)}
+                            </div>
                           </div>
                         </div>
-                      ) : spPreviewUrl ? (
-                        selectedSpItem.name
-                          .toLowerCase()
-                          .match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|heic|heif|avif|tiff|tif)$/i) ? (
-                          <img
-                            src={spPreviewUrl}
-                            alt={selectedSpItem.name}
-                            className="max-w-full max-h-full object-contain p-4"
-                          />
+
+                        {/* Metadata Properties Card */}
+                        <div className="rounded-xl bg-[#141414] border border-white/[0.06] divide-y divide-white/[0.05]">
+                          <div className="px-3.5 py-2.5 flex items-center justify-between">
+                            <span className="text-zinc-400 flex items-center gap-1.5">
+                              <HardDrive className="w-3.5 h-3.5 text-zinc-500" /> File Size
+                            </span>
+                            <span className="font-mono text-white">
+                              {formatFileSize(selectedSpItem.size)} (
+                              {(selectedSpItem.size || 0).toLocaleString()} bytes)
+                            </span>
+                          </div>
+                          <div className="px-3.5 py-2.5 flex items-center justify-between">
+                            <span className="text-zinc-400 flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-zinc-500" /> Last Modified
+                            </span>
+                            <span className="text-white">
+                              {formatDateTime(selectedSpItem.lastModifiedDateTime, true)}
+                            </span>
+                          </div>
+                          <div className="px-3.5 py-2.5 flex items-center justify-between">
+                            <span className="text-zinc-400 flex items-center gap-1.5">
+                              <UserIcon className="w-3.5 h-3.5 text-zinc-500" /> Modified By
+                            </span>
+                            <span className="text-white font-medium">
+                              {selectedSpItem.lastModifiedBy || "SharePoint"}
+                            </span>
+                          </div>
+                          <div className="px-3.5 py-2.5 flex items-center justify-between">
+                            <span className="text-zinc-400 flex items-center gap-1.5">
+                              <CalendarIcon className="w-3.5 h-3.5 text-zinc-500" /> Created Date
+                            </span>
+                            <span className="text-white">
+                              {formatDateTime(selectedSpItem.createdDateTime, true)}
+                            </span>
+                          </div>
+                          <div className="px-3.5 py-2.5 flex items-center justify-between">
+                            <span className="text-zinc-400 flex items-center gap-1.5">
+                              <UserIcon className="w-3.5 h-3.5 text-zinc-500" /> Created By
+                            </span>
+                            <span className="text-white">
+                              {selectedSpItem.createdBy || selectedSpItem.lastModifiedBy || "SharePoint"}
+                            </span>
+                          </div>
+                          <div className="px-3.5 py-2.5 space-y-1">
+                            <div className="text-zinc-400">SharePoint Relative Path</div>
+                            <div className="font-mono text-[11px] text-zinc-300 bg-black/40 p-2 rounded border border-white/5 break-all">
+                              {(spClientInfo?.fullSharePointPath || "").replace(/\//g, "\\")}\
+                              {(selectedSpItem.relativePath || selectedSpItem.name).replace(/\//g, "\\")}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Quick Management Buttons inside Details */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleCopySharePointLink(selectedSpItem)}
+                            className="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 font-medium inline-flex items-center justify-center gap-1.5 transition-colors"
+                          >
+                            {copiedLinkId === selectedSpItem.id ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                            <span>Copy SharePoint Link</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMovingItem(selectedSpItem);
+                              setMoveTargetSubpath(selectedSpItem.parentSubpath || currentSubpath);
+                            }}
+                            className="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 font-medium inline-flex items-center justify-center gap-1.5 transition-colors"
+                          >
+                            <FolderInput className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Move to Folder...</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 relative flex flex-col items-center justify-center bg-black/40 overflow-hidden min-h-0">
+                        {spPreviewLoading ? (
+                          <div className="text-zinc-400 flex flex-col items-center">
+                            <RefreshCw className="w-8 h-8 animate-spin text-brand-teal mb-2.5" />
+                            <p className="text-xs">Streaming preview from SharePoint...</p>
+                          </div>
+                        ) : isEditingSpText && spTextContent !== null ? (
+                          <div className="w-full h-full flex flex-col p-3">
+                            <textarea
+                              value={spTextContent}
+                              onChange={(e) => setSpTextContent(e.target.value)}
+                              className="w-full flex-1 bg-[#111] border border-white/15 rounded-lg p-3 text-xs text-white font-mono outline-none focus:border-brand-teal resize-none"
+                            />
+                            <div className="flex items-center justify-end gap-2 pt-2.5">
+                              <button
+                                type="button"
+                                onClick={() => setIsEditingSpText(false)}
+                                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-zinc-300"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleSaveSpTextContent}
+                                disabled={savingSpText}
+                                className="px-3.5 py-1.5 rounded-lg bg-brand-teal hover:bg-teal-400 text-black font-semibold text-xs inline-flex items-center gap-1.5"
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                                <span>
+                                  {savingSpText ? "Saving to SharePoint..." : "Save to SharePoint"}
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : spPreviewUrl ? (
+                          selectedSpItem.name
+                            .toLowerCase()
+                            .match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|heic|heif|avif|tiff|tif)$/i) ? (
+                            <img
+                              src={spPreviewUrl}
+                              alt={selectedSpItem.name}
+                              className="max-w-full max-h-full object-contain p-4"
+                            />
+                          ) : (
+                            <iframe
+                              src={spPreviewUrl}
+                              title={selectedSpItem.name}
+                              className="w-full h-full bg-white border-none block"
+                            />
+                          )
                         ) : (
-                          <iframe
-                            src={spPreviewUrl}
-                            title={selectedSpItem.name}
-                            className="w-full h-full bg-white border-none block"
-                          />
-                        )
-                      ) : (
-                        <div className="p-8 text-center space-y-3 max-w-xs">
-                          <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto">
-                            <FileThumbnail file={selectedSpItem} size="lg" />
+                          <div className="p-8 text-center space-y-3 max-w-xs">
+                            <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto">
+                              <FileThumbnail file={selectedSpItem} size="lg" />
+                            </div>
+                            <h4 className="text-sm font-semibold text-white">
+                              {selectedSpItem.name}
+                            </h4>
+                            <p className="text-xs text-zinc-400">
+                              Open this file directly in your desktop Office 365 app or SharePoint Online to view or co-edit in real time.
+                            </p>
                           </div>
-                          <h4 className="text-sm font-semibold text-white">
-                            {selectedSpItem.name}
-                          </h4>
-                          <p className="text-xs text-zinc-400">
-                            Open this file directly in SharePoint Office Online to view or co-edit in real time.
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
 
-                    {/* Drawer Footer Actions */}
+                    {/* Drawer Footer Actions (Desktop Office 365 + SharePoint Online + Download) */}
                     <div className="p-3.5 bg-[#141414] border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-2 shrink-0">
                       <div className="flex items-center gap-2 flex-wrap">
+                        {(() => {
+                          const desktopInfo = getOfficeDesktopAppInfo(selectedSpItem);
+                          if (!desktopInfo) return null;
+                          return (
+                            <a
+                              href={desktopInfo.protocolUrl}
+                              className="px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 text-xs font-semibold rounded-lg inline-flex items-center gap-1.5 transition-colors"
+                              title="Opens directly in your local installed Office 365 desktop app and auto-saves to SharePoint"
+                            >
+                              <Monitor className="w-3.5 h-3.5" />
+                              <span>{desktopInfo.appLabel}</span>
+                            </a>
+                          );
+                        })()}
                         {selectedSpItem.webUrl && (
                           <a
                             href={selectedSpItem.webUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="px-3.5 py-2 bg-brand-teal hover:bg-teal-400 text-black text-xs font-semibold rounded-lg inline-flex items-center gap-1.5 transition-colors shadow-xs"
+                            className="px-3 py-2 bg-brand-teal hover:bg-teal-400 text-black text-xs font-semibold rounded-lg inline-flex items-center gap-1.5 transition-colors shadow-xs"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
-                            <span>Edit in SharePoint / Office Online</span>
+                            <span>SharePoint Online</span>
                           </a>
                         )}
-                        {spTextContent !== null && !isEditingSpText && (
+                        {spTextContent !== null && !isEditingSpText && inspectorTab === "PREVIEW" && (
                           <button
                             type="button"
                             onClick={() => setIsEditingSpText(true)}
-                            className="px-3 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-medium rounded-lg inline-flex items-center gap-1.5 transition-colors"
+                            className="px-2.5 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-medium rounded-lg inline-flex items-center gap-1.5 transition-colors"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
-                            <span>Quick Edit Text</span>
+                            <span>Edit Text</span>
                           </button>
                         )}
                       </div>
@@ -1912,7 +2903,9 @@ export default function ClientDocumentsView() {
             </div>
             <form onSubmit={handleCreateSubfolder} className="space-y-4">
               <div>
-                <label className="block text-xs text-zinc-400 mb-1.5">Folder Name</label>
+                <label className="block text-xs text-zinc-400 mb-1.5">
+                  Folder Name {currentSubpath ? `(inside /${currentSubpath})` : ""}
+                </label>
                 <input
                   type="text"
                   autoFocus
@@ -2026,8 +3019,16 @@ export default function ClientDocumentsView() {
                   <option value="">
                     / ({spClientInfo?.folderName} Root Folder)
                   </option>
-                  {spAllClientFolders
-                    .filter((f) => f.id !== movingItem.id)
+                  {spAllSubfolders
+                    .filter(
+                      (f) =>
+                        f.id !== movingItem.id &&
+                        !(
+                          movingItem.isFolder &&
+                          movingItem.relativePath &&
+                          f.path.startsWith(`${movingItem.relativePath}/`)
+                        )
+                    )
                     .map((folder) => (
                       <option key={folder.id} value={folder.path}>
                         /{folder.path}
@@ -2058,3 +3059,4 @@ export default function ClientDocumentsView() {
     </div>
   );
 }
+
