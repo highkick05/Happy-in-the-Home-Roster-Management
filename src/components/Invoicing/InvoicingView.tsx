@@ -814,6 +814,9 @@ export default function InvoicingView() {
   const [isTesting, setIsTesting] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastSubtext, setToastSubtext] = useState<string | null>(null);
+  const [isToastExpanded, setIsToastExpanded] = useState<boolean>(false);
+  const [toastMode, setToastMode] = useState<'live' | 'dryrun'>('live');
+  const toastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toastLogs, setToastLogs] = useState<Array<{
     stepId: string;
     title: string;
@@ -821,6 +824,13 @@ export default function InvoicingView() {
     status: 'running' | 'success' | 'error';
     timestamp?: string;
   }>>([]);
+
+  const clearToastTimer = () => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+  };
 
   const [allDbClients, setAllDbClients] = useState<any[]>([]);
   const [allDbStaff, setAllDbStaff] = useState<any[]>([]);
@@ -1175,6 +1185,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
   
   const handleSubmitInvoice = async (invoiceId: number, submissionMethod: string) => {
     setIsEmailing(invoiceId);
+    clearToastTimer();
     setToastLogs([]);
 
     const inv = invoices.find(i => i.id === invoiceId);
@@ -1184,6 +1195,8 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
     const invoiceSummary = [invNumber, invClient, invAmount].filter(Boolean).join(' • ');
 
     if (submissionMethod === 'trilogy_form') {
+      setToastMode('live');
+      setIsToastExpanded(false);
       setToastMessage('Submitting to Trilogy Care (1/8)...');
       setToastSubtext(invoiceSummary || 'Starting Zoho portal submission...');
 
@@ -1214,6 +1227,23 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
               try {
                 const evt = JSON.parse(line);
                 if (evt.type === 'step') {
+                  setToastLogs(prev => {
+                    const idx = prev.findIndex(item => item.stepId === evt.stepId);
+                    const updatedEntry = {
+                      stepId: evt.stepId,
+                      title: evt.title,
+                      detail: evt.detail,
+                      status: evt.status,
+                      timestamp: evt.timestamp
+                    };
+                    if (idx >= 0) {
+                      const copy = [...prev];
+                      copy[idx] = updatedEntry;
+                      return copy;
+                    }
+                    return [...prev, updatedEntry];
+                  });
+
                   const stepNum = (evt.stepId || '').replace('step-', '') || '•';
                   const shortTitle = (evt.title || '').replace(/^Step\s+\d+\s*[—-]\s*/i, '');
                   if (evt.status === 'error') {
@@ -1224,15 +1254,28 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                     setToastSubtext(evt.detail || invoiceSummary);
                   }
                 } else if (evt.type === 'done') {
+                  if (Array.isArray(evt.logs)) {
+                    setToastLogs(evt.logs);
+                  }
                   const doneMsg = 'Submitted to Trilogy Care & marked as SENT';
                   setToastMessage(doneMsg);
                   setToastSubtext(`${invoiceSummary} • Zoho confirmation verified ✓`);
                   fetchInvoices();
-                  setTimeout(() => {
-                    setToastMessage(prev => (prev === doneMsg ? null : prev));
-                    setToastSubtext(prev => (prev?.includes('Zoho confirmation verified') ? null : prev));
+                  clearToastTimer();
+                  toastTimerRef.current = setTimeout(() => {
+                    setIsToastExpanded(expanded => {
+                      if (!expanded) {
+                        setToastMessage(null);
+                        setToastSubtext(null);
+                        setToastLogs([]);
+                      }
+                      return expanded;
+                    });
                   }, 6000);
                 } else if (evt.type === 'error') {
+                  if (Array.isArray(evt.logs)) {
+                    setToastLogs(evt.logs);
+                  }
                   encounteredError = evt.error || 'Failed to submit invoice to Trilogy Care';
                   setToastMessage(`Error: ${encounteredError}`);
                 }
@@ -1243,6 +1286,9 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
           }
         } else {
           const data = await response.json();
+          if (Array.isArray(data.logs)) {
+            setToastLogs(data.logs);
+          }
           if (!response.ok) {
             throw new Error(data.error || 'Failed to submit invoice');
           }
@@ -1250,9 +1296,16 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
           setToastMessage(doneMsg);
           setToastSubtext(`${invoiceSummary} • Zoho confirmation verified ✓`);
           fetchInvoices();
-          setTimeout(() => {
-            setToastMessage(prev => (prev === doneMsg ? null : prev));
-            setToastSubtext(null);
+          clearToastTimer();
+          toastTimerRef.current = setTimeout(() => {
+            setIsToastExpanded(expanded => {
+              if (!expanded) {
+                setToastMessage(null);
+                setToastSubtext(null);
+                setToastLogs([]);
+              }
+              return expanded;
+            });
           }, 6000);
         }
       } catch (error: any) {
@@ -1288,6 +1341,9 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
 
   const handleTestTrilogyInvoice = async (invoiceId: number) => {
     setIsTesting(invoiceId);
+    clearToastTimer();
+    setToastMode('dryrun');
+    setIsToastExpanded(true);
     setToastLogs([]);
     setToastSubtext(null);
     setToastMessage('Executing Trilogy Care Zoho Dry Run...');
@@ -1434,13 +1490,13 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
   return (
     <div className="h-full flex flex-col space-y-3 relative">
       {toastMessage && (
-        toastLogs.length > 0 ? (
+        isToastExpanded && toastLogs.length > 0 ? (
           <div className="fixed bottom-6 right-6 z-50 bg-[#0B0F17] border border-white/[0.14] shadow-2xl rounded-xl w-[560px] max-w-[calc(100vw-2rem)] overflow-hidden animate-in fade-in slide-in-from-bottom-4">
             <div className="px-4 py-3 bg-black/60 border-b border-white/[0.08] flex items-center justify-between gap-3">
               <div className="flex items-center space-x-2.5 min-w-0">
                 {toastMessage.includes('Error') ? (
                   <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-                ) : toastMessage.includes('Executing') ? (
+                ) : toastMessage.includes('Executing') || toastMessage.includes('Submitting') ? (
                   <RefreshCw className="w-5 h-5 text-brand-blue animate-spin shrink-0" />
                 ) : (
                   <CheckCircle className="w-5 h-5 text-brand-green shrink-0" />
@@ -1450,7 +1506,9 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                     <span className="text-[13px] text-white font-semibold truncate">{toastMessage}</span>
                   </div>
                   <div className="text-[11px] text-zinc-400">
-                    Trilogy Care Zoho Automation Dry Run • {toastLogs.filter(l => l.status === 'success').length}/8 steps verified
+                    {toastMode === 'dryrun'
+                      ? 'Trilogy Care Zoho Automation Dry Run'
+                      : 'Trilogy Care Zoho Live Submission'} • {toastLogs.filter(l => l.status === 'success').length}/8 steps verified
                   </div>
                 </div>
               </div>
@@ -1469,9 +1527,19 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
                   <span>{copiedText && copiedText.includes('Step 1') ? 'Copied' : 'Copy Log'}</span>
                 </button>
                 <button
+                  onClick={() => setIsToastExpanded(false)}
+                  className="p-1 text-zinc-400 hover:text-white transition-colors rounded hover:bg-white/[0.08]"
+                  title="Minimize to compact view"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                <button
                   onClick={() => {
+                    clearToastTimer();
                     setToastMessage(null);
+                    setToastSubtext(null);
                     setToastLogs([]);
+                    setIsToastExpanded(false);
                   }}
                   className="p-1 text-zinc-400 hover:text-white transition-colors rounded hover:bg-white/[0.08]"
                   title="Close"
@@ -1519,7 +1587,18 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
             </div>
           </div>
         ) : (
-          <div className="fixed bottom-6 right-6 z-50 bg-[#0B0F17] border border-white/[0.12] shadow-2xl rounded-lg px-4 py-3 flex items-center space-x-3 w-[440px] max-w-[calc(100vw-2rem)] animate-in fade-in slide-in-from-bottom-4">
+          <div
+            onClick={() => {
+              if (toastLogs.length > 0) {
+                clearToastTimer();
+                setIsToastExpanded(true);
+              }
+            }}
+            title={toastLogs.length > 0 ? "Click to open full 8-step submission log" : undefined}
+            className={`fixed bottom-6 right-6 z-50 bg-[#0B0F17] border border-white/[0.12] shadow-2xl rounded-lg px-4 py-3 flex items-center space-x-3 w-[460px] max-w-[calc(100vw-2rem)] animate-in fade-in slide-in-from-bottom-4 ${
+              toastLogs.length > 0 ? 'cursor-pointer hover:border-brand-teal/50 hover:bg-[#111723] transition-all group' : ''
+            }`}
+          >
             {toastMessage.includes('Error') ? (
               <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
             ) : toastMessage.includes('Executing') || toastMessage.includes('Submitting') ? (
@@ -1528,8 +1607,16 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
               <CheckCircle className="w-5 h-5 text-brand-green shrink-0" />
             )}
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] text-white font-semibold leading-snug truncate">
-                {toastMessage}
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[13px] text-white font-semibold leading-snug truncate">
+                  {toastMessage}
+                </div>
+                {toastLogs.length > 0 && (
+                  <span className="text-[10px] font-medium text-brand-teal/90 group-hover:text-brand-teal shrink-0 flex items-center gap-0.5">
+                    <span>View Log</span>
+                    <ChevronUp className="w-3 h-3" />
+                  </span>
+                )}
               </div>
               {toastSubtext && (
                 <div className="text-[11px] text-zinc-400 font-mono leading-snug truncate mt-0.5">
@@ -1538,9 +1625,13 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
               )}
             </div>
             <button
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
+                clearToastTimer();
                 setToastMessage(null);
                 setToastSubtext(null);
+                setToastLogs([]);
+                setIsToastExpanded(false);
               }}
               className="p-1 text-zinc-500 hover:text-white transition-colors shrink-0"
               title="Close"
