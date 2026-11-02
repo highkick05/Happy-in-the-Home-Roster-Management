@@ -20290,8 +20290,8 @@ app.post(
           let qty = sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== "" ? Number(sd.qtyOverride) : 1;
           calculatedGst += Math.round((qty * finalRate) * 0.1 * 100) / 100;
         }
-        const gstAmount = isHomeCare ? calculatedGst : 0;
-        const totalAmount = subtotal + gstAmount;
+        const gstAmount = isHomeCare ? Math.round(calculatedGst * 100) / 100 : 0;
+        const totalAmount = Math.round((subtotal + gstAmount) * 100) / 100;
 
         db.transaction(() => {
           const insertResult = db
@@ -22349,12 +22349,18 @@ app.post(
       }
 
       const clientName = `${invoice.first_name} ${invoice.last_name}`.trim();
-      const totalAmount = invoice.amount;
+      const totalAmount = Math.round(Number(invoice.amount || 0) * 100) / 100;
+      const formattedTotalAmount = totalAmount.toFixed(2);
+      if (invoice.amount !== totalAmount) {
+        try {
+          db.prepare("UPDATE invoices SET amount = ? WHERE id = ?").run(totalAmount, invoiceId);
+        } catch (e) {}
+      }
 
       emitStep(
         'step-1',
         'Step 1 — Invoice & Client Lookup',
-        `Invoice: ${invoice.invoice_number || `ID #${invoiceId}`} | Client: ${clientName} | Amount: $${Number(totalAmount || 0).toFixed(2)} | Current Status: ${invoice.status}`,
+        `Invoice: ${invoice.invoice_number || `ID #${invoiceId}`} | Client: ${clientName} | Amount: $${formattedTotalAmount} | Current Status: ${invoice.status}`,
         'success'
       );
       
@@ -22554,13 +22560,13 @@ app.post(
         emitStep(
           'step-7',
           'Step 7 — Page 2 Amount & Async PDF Upload Verification',
-          `Selecting 'Yes' (#Radio1_2), entering $${Number(totalAmount || 0).toFixed(2)}, and uploading ${path.basename(pdfPath)} (${pdfSizeKb} KB)...`,
+          `Selecting 'Yes' (#Radio1_2), entering $${formattedTotalAmount}, and uploading ${path.basename(pdfPath)} (${pdfSizeKb} KB)...`,
           'running'
         );
 
         // Selects "Yes" for having an invoice to attach
         await page.check('#Radio1_2');
-        await page.fill('#Currency1-arialabel', totalAmount.toString());
+        await page.fill('#Currency1-arialabel', formattedTotalAmount);
         
         await page.setInputFiles('#FileUpload-id', pdfPath);
         
