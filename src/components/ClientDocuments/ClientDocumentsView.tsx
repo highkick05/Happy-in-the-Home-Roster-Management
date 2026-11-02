@@ -57,6 +57,7 @@ interface SharePointItem {
   parentSubpath?: string;
   size: number;
   webUrl: string;
+  webDavUrl?: string;
   createdDateTime?: string;
   createdBy?: string;
   lastModifiedDateTime: string;
@@ -133,28 +134,49 @@ const getItemTypeLabel = (item: SharePointItem): string => {
 
 // Native Microsoft Office Desktop URI Scheme builder (opens directly in local Word / Excel / PowerPoint and auto-saves to SharePoint)
 const getOfficeDesktopAppInfo = (
-  item: SharePointItem
+  item: SharePointItem,
+  folderWebUrl?: string
 ): { protocolUrl: string; appLabel: string; badgeClass: string } | null => {
-  if (item.isFolder || !item.webUrl) return null;
-  const cleanWebUrl = item.webUrl.split("?")[0];
+  if (item.isFolder) return null;
+
+  // Office Desktop URI schemes (ms-word:ofe|u|, ms-excel:ofe|u|, ms-powerpoint:ofe|u|)
+  // require the direct SharePoint document library URL (webDavUrl), NOT the WOPI /_layouts/15/Doc.aspx viewer URL.
+  let directFileUrl = "";
+  if (item.webDavUrl && !item.webDavUrl.includes("/_layouts/")) {
+    directFileUrl = item.webDavUrl;
+  } else if (folderWebUrl && !folderWebUrl.includes("/_layouts/")) {
+    const relPath = (item.relativePath || item.name || "")
+      .split("/")
+      .filter(Boolean)
+      .map((seg) => encodeURIComponent(seg))
+      .join("/");
+    directFileUrl = `${folderWebUrl.replace(/\/+$/, "")}/${relPath}`;
+  } else if (item.webUrl && !item.webUrl.includes("/_layouts/")) {
+    directFileUrl = item.webUrl.split("?")[0];
+  } else if (item.webUrl) {
+    directFileUrl = item.webUrl;
+  }
+
+  if (!directFileUrl) return null;
+
   const lower = item.name.toLowerCase();
   if (/\.(doc|docx|docm|dotx)$/i.test(lower)) {
     return {
-      protocolUrl: `ms-word:ofe|u|${cleanWebUrl}`,
+      protocolUrl: `ms-word:ofe|u|${directFileUrl}`,
       appLabel: "Open in Word App",
       badgeClass: "text-blue-400 hover:bg-blue-500/15 border-blue-500/30"
     };
   }
   if (/\.(xls|xlsx|xlsm|xlsb|csv)$/i.test(lower)) {
     return {
-      protocolUrl: `ms-excel:ofe|u|${cleanWebUrl}`,
+      protocolUrl: `ms-excel:ofe|u|${directFileUrl}`,
       appLabel: "Open in Excel App",
       badgeClass: "text-emerald-400 hover:bg-emerald-500/15 border-emerald-500/30"
     };
   }
   if (/\.(ppt|pptx|pptm)$/i.test(lower)) {
     return {
-      protocolUrl: `ms-powerpoint:ofe|u|${cleanWebUrl}`,
+      protocolUrl: `ms-powerpoint:ofe|u|${directFileUrl}`,
       appLabel: "Open in PowerPoint App",
       badgeClass: "text-amber-400 hover:bg-amber-500/15 border-amber-500/30"
     };
@@ -2061,7 +2083,10 @@ export default function ClientDocumentsView() {
                                 const isSelected = selectedSpItem?.id === item.id;
                                 const targetFolderPath = item.relativePath || item.name;
                                 const isDragTarget = dragOverTarget === `row:${item.id}`;
-                                const officeDesktop = getOfficeDesktopAppInfo(item);
+                                const officeDesktop = getOfficeDesktopAppInfo(
+                                  item,
+                                  spClientInfo?.folderWebUrl
+                                );
 
                                 return (
                                   <tr
@@ -2263,7 +2288,10 @@ export default function ClientDocumentsView() {
                           const isSelected = selectedSpItem?.id === item.id;
                           const targetFolderPath = item.relativePath || item.name;
                           const isDragTarget = dragOverTarget === `grid:${item.id}`;
-                          const officeDesktop = getOfficeDesktopAppInfo(item);
+                          const officeDesktop = getOfficeDesktopAppInfo(
+                            item,
+                            spClientInfo?.folderWebUrl
+                          );
 
                           return (
                             <div
@@ -2673,7 +2701,10 @@ export default function ClientDocumentsView() {
                     <div className="p-3.5 bg-[#141414] border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-2 shrink-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         {(() => {
-                          const desktopInfo = getOfficeDesktopAppInfo(selectedSpItem);
+                          const desktopInfo = getOfficeDesktopAppInfo(
+                            selectedSpItem,
+                            spClientInfo?.folderWebUrl
+                          );
                           if (!desktopInfo) return null;
                           return (
                             <a

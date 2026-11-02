@@ -10032,6 +10032,7 @@ app.get("/api/health", (req, res) => {
       mime_type TEXT DEFAULT '',
       file_extension TEXT DEFAULT '',
       web_url TEXT DEFAULT '',
+      web_dav_url TEXT DEFAULT '',
       created_at TEXT DEFAULT '',
       created_by TEXT DEFAULT '',
       last_modified_at TEXT DEFAULT '',
@@ -10045,6 +10046,10 @@ app.get("/api/health", (req, res) => {
     CREATE INDEX IF NOT EXISTS idx_sp_items_client_folder ON sharepoint_items(client_id, is_folder);
     CREATE INDEX IF NOT EXISTS idx_sp_items_parent_id ON sharepoint_items(parent_id);
   `);
+
+  try {
+    db.exec("ALTER TABLE sharepoint_items ADD COLUMN web_dav_url TEXT DEFAULT ''");
+  } catch {}
 
   let cachedSpToken: { token: string; expiresAt: number; cacheKey: string } | null = null;
   let cachedBaseCategoryFolderIds: Record<string, { folderId: string; resolvedPath: string; expiresAt: number }> = {};
@@ -10587,9 +10592,9 @@ app.get("/api/health", (req, res) => {
     db.prepare(
       `INSERT INTO sharepoint_items (
         item_id, client_id, drive_id, parent_id, name, relative_path, parent_subpath,
-        is_folder, child_count, size, mime_type, file_extension, web_url,
+        is_folder, child_count, size, mime_type, file_extension, web_url, web_dav_url,
         created_at, created_by, last_modified_at, last_modified_by, etag, ctag, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(item_id) DO UPDATE SET
         client_id = excluded.client_id,
         drive_id = excluded.drive_id,
@@ -10603,6 +10608,7 @@ app.get("/api/health", (req, res) => {
         mime_type = excluded.mime_type,
         file_extension = excluded.file_extension,
         web_url = excluded.web_url,
+        web_dav_url = CASE WHEN excluded.web_dav_url != '' THEN excluded.web_dav_url ELSE sharepoint_items.web_dav_url END,
         created_at = excluded.created_at,
         created_by = excluded.created_by,
         last_modified_at = excluded.last_modified_at,
@@ -10624,6 +10630,7 @@ app.get("/api/health", (req, res) => {
       String(rawItem.file?.mimeType || ""),
       ext,
       String(rawItem.webUrl || ""),
+      String(rawItem.webDavUrl || ""),
       String(rawItem.createdDateTime || ""),
       String(createdBy),
       String(rawItem.lastModifiedDateTime || ""),
@@ -10647,24 +10654,44 @@ app.get("/api/health", (req, res) => {
   };
 
   // Format a SQLite row into the API response shape
-  const formatSqliteSpItem = (row: any) => ({
-    id: row.item_id,
-    parentId: row.parent_id,
-    name: row.name,
-    relativePath: row.relative_path,
-    parentSubpath: row.parent_subpath,
-    size: Number(row.size || 0),
-    webUrl: row.web_url || "",
-    createdDateTime: row.created_at || "",
-    createdBy: row.created_by || "SharePoint",
-    lastModifiedDateTime: row.last_modified_at || "",
-    lastModifiedBy: row.last_modified_by || "SharePoint",
-    isFolder: Boolean(row.is_folder),
-    childCount: Number(row.child_count || 0),
-    mimeType: row.mime_type || "",
-    fileExtension: row.file_extension || "",
-    etag: row.etag || "",
-  });
+  const formatSqliteSpItem = (row: any, rootFolderWebUrl = "") => {
+    const rawDav = String(row.web_dav_url || "").trim();
+    const rawWeb = String(row.web_url || "").trim();
+    const relPath = String(row.relative_path || row.name || "");
+    let directWebDavUrl = rawDav;
+    if (!directWebDavUrl || directWebDavUrl.includes("/_layouts/")) {
+      if (rootFolderWebUrl && !rootFolderWebUrl.includes("/_layouts/")) {
+        const encodedRel = relPath
+          .split("/")
+          .filter(Boolean)
+          .map((seg) => encodeURIComponent(seg))
+          .join("/");
+        directWebDavUrl = `${rootFolderWebUrl.replace(/\/+$/, "")}/${encodedRel}`;
+      } else if (rawWeb && !rawWeb.includes("/_layouts/")) {
+        directWebDavUrl = rawWeb.split("?")[0];
+      }
+    }
+
+    return {
+      id: row.item_id,
+      parentId: row.parent_id,
+      name: row.name,
+      relativePath: row.relative_path,
+      parentSubpath: row.parent_subpath,
+      size: Number(row.size || 0),
+      webUrl: rawWeb,
+      webDavUrl: directWebDavUrl,
+      createdDateTime: row.created_at || "",
+      createdBy: row.created_by || "SharePoint",
+      lastModifiedDateTime: row.last_modified_at || "",
+      lastModifiedBy: row.last_modified_by || "SharePoint",
+      isFolder: Boolean(row.is_folder),
+      childCount: Number(row.child_count || 0),
+      mimeType: row.mime_type || "",
+      fileExtension: row.file_extension || "",
+      etag: row.etag || "",
+    };
+  };
 
   // Read cached client SharePoint state from SQLite in <5ms
   const getCachedClientSharePointPayload = (clientId: string | number, requestedSubpath = "") => {
@@ -10770,7 +10797,7 @@ app.get("/api/health", (req, res) => {
       )
       .all(client.id) as any[];
 
-    const allItems = allRows.map(formatSqliteSpItem);
+    const allItems = allRows.map((r) => formatSqliteSpItem(r, rootRow.web_url || ""));
     const items = allItems.filter((it) => it.parentSubpath === cleanSub);
     const allSubfolders = allItems
       .filter((it) => it.isFolder)
