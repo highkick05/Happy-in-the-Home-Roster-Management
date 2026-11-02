@@ -813,6 +813,14 @@ export default function InvoicingView() {
   const [isEmailing, setIsEmailing] = useState<number | null>(null);
   const [isTesting, setIsTesting] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastSubtext, setToastSubtext] = useState<string | null>(null);
+  const [toastLogs, setToastLogs] = useState<Array<{
+    stepId: string;
+    title: string;
+    detail: string;
+    status: 'running' | 'success' | 'error';
+    timestamp?: string;
+  }>>([]);
 
   const [allDbClients, setAllDbClients] = useState<any[]>([]);
   const [allDbStaff, setAllDbStaff] = useState<any[]>([]);
@@ -1167,12 +1175,98 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
   
   const handleSubmitInvoice = async (invoiceId: number, submissionMethod: string) => {
     setIsEmailing(invoiceId);
+    setToastLogs([]);
+
+    const inv = invoices.find(i => i.id === invoiceId);
+    const invNumber = inv ? getFallbackInvoiceNumber(inv) : `ID #${invoiceId}`;
+    const invClient = inv ? `${inv.client_first_name || ''} ${inv.client_last_name || ''}`.trim() : '';
+    const invAmount = inv ? `$${Number(inv.amount || 0).toFixed(2)}` : '';
+    const invoiceSummary = [invNumber, invClient, invAmount].filter(Boolean).join(' • ');
+
+    if (submissionMethod === 'trilogy_form') {
+      setToastMessage('Submitting to Trilogy Care (1/8)...');
+      setToastSubtext(invoiceSummary || 'Starting Zoho portal submission...');
+
+      try {
+        const response = await fetch(`/api/invoices/${invoiceId}/submit-trilogy?stream=true`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/x-ndjson') && response.body) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let encounteredError: string | null = null;
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                const evt = JSON.parse(line);
+                if (evt.type === 'step') {
+                  const stepNum = (evt.stepId || '').replace('step-', '') || '•';
+                  const shortTitle = (evt.title || '').replace(/^Step\s+\d+\s*[—-]\s*/i, '');
+                  if (evt.status === 'error') {
+                    setToastMessage(`Error at Step ${stepNum}: ${shortTitle}`);
+                    setToastSubtext(evt.detail || invoiceSummary);
+                  } else {
+                    setToastMessage(`Submitting to Trilogy Care (${stepNum}/8): ${shortTitle}`);
+                    setToastSubtext(evt.detail || invoiceSummary);
+                  }
+                } else if (evt.type === 'done') {
+                  const doneMsg = 'Submitted to Trilogy Care & marked as SENT';
+                  setToastMessage(doneMsg);
+                  setToastSubtext(`${invoiceSummary} • Zoho confirmation verified ✓`);
+                  fetchInvoices();
+                  setTimeout(() => {
+                    setToastMessage(prev => (prev === doneMsg ? null : prev));
+                    setToastSubtext(prev => (prev?.includes('Zoho confirmation verified') ? null : prev));
+                  }, 6000);
+                } else if (evt.type === 'error') {
+                  encounteredError = evt.error || 'Failed to submit invoice to Trilogy Care';
+                  setToastMessage(`Error: ${encounteredError}`);
+                }
+              } catch (parseErr) {
+                console.error('Failed to parse NDJSON line:', parseErr);
+              }
+            }
+          }
+        } else {
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to submit invoice');
+          }
+          const doneMsg = data.message || 'Submitted to Trilogy Care & marked as SENT';
+          setToastMessage(doneMsg);
+          setToastSubtext(`${invoiceSummary} • Zoho confirmation verified ✓`);
+          fetchInvoices();
+          setTimeout(() => {
+            setToastMessage(prev => (prev === doneMsg ? null : prev));
+            setToastSubtext(null);
+          }, 6000);
+        }
+      } catch (error: any) {
+        setToastMessage(`Error: ${error.message || 'Failed to submit invoice'}`);
+        setToastSubtext(invoiceSummary || null);
+        console.error(error);
+      } finally {
+        setIsEmailing(null);
+      }
+      return;
+    }
+
     try {
-      const endpoint = submissionMethod === 'trilogy_form' 
-        ? `/api/invoices/${invoiceId}/submit-trilogy` 
-        : `/api/invoices/${invoiceId}/email`;
-      
-      const response = await fetch(endpoint, {
+      const response = await fetch(`/api/invoices/${invoiceId}/email`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -1182,7 +1276,7 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
       if (!response.ok) {
         throw new Error(data.error || 'Failed to submit invoice');
       }
-      alert(data.message || (submissionMethod === 'trilogy_form' ? 'Invoice submitted to Trilogy Care successfully' : 'Invoice emailed successfully'));
+      alert(data.message || 'Invoice emailed successfully');
       fetchInvoices();
     } catch (error: any) {
       alert(error.message || 'Failed to submit invoice');
@@ -1194,24 +1288,83 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
 
   const handleTestTrilogyInvoice = async (invoiceId: number) => {
     setIsTesting(invoiceId);
-    setToastMessage('Executing Test Run in Browser...');
+    setToastLogs([]);
+    setToastSubtext(null);
+    setToastMessage('Executing Trilogy Care Zoho Dry Run...');
     
     try {
-      const response = await fetch(`/api/invoices/${invoiceId}/submit-trilogy?testMode=true`, {
+      const response = await fetch(`/api/invoices/${invoiceId}/submit-trilogy?testMode=true&stream=true`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to submit test run');
+
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/x-ndjson') && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const evt = JSON.parse(line);
+              if (evt.type === 'step') {
+                setToastLogs(prev => {
+                  const idx = prev.findIndex(item => item.stepId === evt.stepId);
+                  const updatedEntry = {
+                    stepId: evt.stepId,
+                    title: evt.title,
+                    detail: evt.detail,
+                    status: evt.status,
+                    timestamp: evt.timestamp
+                  };
+                  if (idx >= 0) {
+                    const copy = [...prev];
+                    copy[idx] = updatedEntry;
+                    return copy;
+                  }
+                  return [...prev, updatedEntry];
+                });
+                if (evt.status === 'running') {
+                  setToastMessage(`Executing Dry Run: ${evt.title}...`);
+                }
+              } else if (evt.type === 'done') {
+                if (Array.isArray(evt.logs)) {
+                  setToastLogs(evt.logs);
+                }
+                setToastMessage(evt.message || 'Test run completed — all 8 verification steps passed (Dry Run).');
+              } else if (evt.type === 'error') {
+                if (Array.isArray(evt.logs)) {
+                  setToastLogs(evt.logs);
+                }
+                setToastMessage(`Error: ${evt.error || 'Failed to submit test run'}`);
+              }
+            } catch (parseErr) {
+              console.error('Failed to parse NDJSON line:', parseErr);
+            }
+          }
+        }
+      } else {
+        const data = await response.json();
+        if (Array.isArray(data.logs)) {
+          setToastLogs(data.logs);
+        }
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to submit test run');
+        }
+        setToastMessage(data.message || 'Test run completed successfully (Dry Run).');
       }
-      setToastMessage(data.message || 'Test run completed successfully (Dry Run).');
-      setTimeout(() => setToastMessage(null), 5000);
     } catch (error: any) {
       setToastMessage(`Error: ${error.message || 'Failed to submit test run'}`);
-      setTimeout(() => setToastMessage(null), 5000);
       console.error(error);
     } finally {
       setIsTesting(null);
@@ -1281,19 +1434,121 @@ const totalAmount = filteredInvoices.reduce((acc, curr) => acc + Number(curr.amo
   return (
     <div className="h-full flex flex-col space-y-3 relative">
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-black border border-white/[0.08] shadow-lg rounded-lg px-4 py-3 flex items-center space-x-3 max-w-sm animate-in fade-in slide-in-from-bottom-4">
-          {toastMessage.includes('Error') ? (
-            <AlertCircle className="w-5 h-5 text-red-500" />
-          ) : toastMessage.includes('Executing') ? (
-            <RefreshCw className="w-5 h-5 text-brand-blue animate-spin" />
-          ) : (
-            <CheckCircle className="w-5 h-5 text-brand-green" />
-          )}
-          <span className="text-[13px] text-white font-medium leading-snug">{toastMessage}</span>
-          <button onClick={() => setToastMessage(null)} className="p-1 text-zinc-500 hover:text-white transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        toastLogs.length > 0 ? (
+          <div className="fixed bottom-6 right-6 z-50 bg-[#0B0F17] border border-white/[0.14] shadow-2xl rounded-xl w-[560px] max-w-[calc(100vw-2rem)] overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+            <div className="px-4 py-3 bg-black/60 border-b border-white/[0.08] flex items-center justify-between gap-3">
+              <div className="flex items-center space-x-2.5 min-w-0">
+                {toastMessage.includes('Error') ? (
+                  <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+                ) : toastMessage.includes('Executing') ? (
+                  <RefreshCw className="w-5 h-5 text-brand-blue animate-spin shrink-0" />
+                ) : (
+                  <CheckCircle className="w-5 h-5 text-brand-green shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] text-white font-semibold truncate">{toastMessage}</span>
+                  </div>
+                  <div className="text-[11px] text-zinc-400">
+                    Trilogy Care Zoho Automation Dry Run • {toastLogs.filter(l => l.status === 'success').length}/8 steps verified
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-1.5 shrink-0">
+                <button
+                  onClick={() => {
+                    const text = toastLogs
+                      .map(l => `[${l.timestamp || ''}] ${l.status.toUpperCase()} - ${l.title}\n  ${l.detail}`)
+                      .join('\n\n');
+                    handleCopy(text);
+                  }}
+                  title="Copy diagnostic log"
+                  className="px-2 py-1 text-[11px] font-medium bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white rounded transition-colors flex items-center gap-1"
+                >
+                  <Copy className="w-3 h-3" />
+                  <span>{copiedText && copiedText.includes('Step 1') ? 'Copied' : 'Copy Log'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setToastMessage(null);
+                    setToastLogs([]);
+                  }}
+                  className="p-1 text-zinc-400 hover:text-white transition-colors rounded hover:bg-white/[0.08]"
+                  title="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="max-h-[420px] overflow-y-auto p-3 space-y-2">
+              {toastLogs.map((log) => (
+                <div
+                  key={log.stepId}
+                  className={`rounded-lg border p-2.5 transition-colors ${
+                    log.status === 'error'
+                      ? 'bg-red-950/25 border-red-500/40'
+                      : log.status === 'running'
+                      ? 'bg-brand-blue/10 border-brand-blue/30'
+                      : 'bg-white/[0.03] border-white/[0.08]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {log.status === 'error' ? (
+                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                      ) : log.status === 'running' ? (
+                        <RefreshCw className="w-4 h-4 text-brand-blue animate-spin shrink-0" />
+                      ) : (
+                        <CheckCircle className="w-4 h-4 text-brand-green shrink-0" />
+                      )}
+                      <span className="text-[12px] font-semibold text-white truncate">
+                        {log.title}
+                      </span>
+                    </div>
+                    {log.timestamp && (
+                      <span className="text-[10px] font-mono text-zinc-500 shrink-0">
+                        {log.timestamp}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1.5 text-[11px] font-mono text-zinc-300 leading-relaxed break-words bg-black/50 border border-white/[0.05] rounded px-2.5 py-1.5">
+                    {log.detail}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="fixed bottom-6 right-6 z-50 bg-[#0B0F17] border border-white/[0.12] shadow-2xl rounded-lg px-4 py-3 flex items-center space-x-3 w-[440px] max-w-[calc(100vw-2rem)] animate-in fade-in slide-in-from-bottom-4">
+            {toastMessage.includes('Error') ? (
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+            ) : toastMessage.includes('Executing') || toastMessage.includes('Submitting') ? (
+              <RefreshCw className="w-5 h-5 text-brand-blue animate-spin shrink-0" />
+            ) : (
+              <CheckCircle className="w-5 h-5 text-brand-green shrink-0" />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] text-white font-semibold leading-snug truncate">
+                {toastMessage}
+              </div>
+              {toastSubtext && (
+                <div className="text-[11px] text-zinc-400 font-mono leading-snug truncate mt-0.5">
+                  {toastSubtext}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                setToastMessage(null);
+                setToastSubtext(null);
+              }}
+              className="p-1 text-zinc-500 hover:text-white transition-colors shrink-0"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )
       )}
       <div className="flex border-b border-white/[0.08] justify-between items-center">
         <div className="flex space-x-6">

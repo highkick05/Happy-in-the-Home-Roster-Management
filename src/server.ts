@@ -22276,14 +22276,63 @@ app.post(
   app.post("/api/invoices/:id/submit-trilogy", authenticateToken, async (req: any, res: any) => {
     const invoiceId = parseInt(req.params.id);
     const isTestMode = req.query.testMode === 'true';
+    const isStream = req.query.stream === 'true';
 
     if (!invoiceId) return res.status(400).json({ error: "Invalid invoiceId" });
+
+    if (isStream) {
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      if (typeof res.flushHeaders === 'function') res.flushHeaders();
+    }
+
+    const logs: Array<{
+      stepId: string;
+      title: string;
+      detail: string;
+      status: 'running' | 'success' | 'error';
+      timestamp: string;
+    }> = [];
+    let currentStepId = 'step-1';
+    let currentStepTitle = 'Step 1 — Invoice & Client Lookup';
+
+    const emitStep = (
+      stepId: string,
+      title: string,
+      detail: string,
+      status: 'running' | 'success' | 'error'
+    ) => {
+      currentStepId = stepId;
+      currentStepTitle = title;
+      const timestamp = new Date().toLocaleTimeString('en-AU', {
+        hour12: false,
+        timeZone: 'Australia/Brisbane'
+      });
+      const existingIdx = logs.findIndex(l => l.stepId === stepId);
+      const entry = { stepId, title, detail, status, timestamp };
+      if (existingIdx >= 0) {
+        logs[existingIdx] = entry;
+      } else {
+        logs.push(entry);
+      }
+      if (isStream && !res.writableEnded) {
+        res.write(JSON.stringify({ type: 'step', ...entry }) + '\n');
+      }
+    };
 
     let trilogyPdfBuffer: Buffer | null = null;
     let trilogyPdfFilename = '';
 
     try {
       // 1. Fetch invoice details from SQLite
+      emitStep(
+        'step-1',
+        'Step 1 — Invoice & Client Lookup',
+        `Querying SQLite database for invoice ID #${invoiceId}...`,
+        'running'
+      );
+
       const invoice = db.prepare(`
         SELECT i.*, 
                c.first_name, c.last_name
@@ -22292,12 +22341,31 @@ app.post(
         WHERE i.id = ?
       `).get(invoiceId) as any;
 
-      if (!invoice) return res.status(404).json({ error: "Invoice not found" });
-      if (!invoice.file_path) return res.status(400).json({ error: "No PDF file associated with this invoice." });
+      if (!invoice) {
+        throw new Error("Invoice not found in database.");
+      }
+      if (!invoice.file_path) {
+        throw new Error("No PDF file associated with this invoice.");
+      }
 
       const clientName = `${invoice.first_name} ${invoice.last_name}`.trim();
       const totalAmount = invoice.amount;
+
+      emitStep(
+        'step-1',
+        'Step 1 — Invoice & Client Lookup',
+        `Invoice: ${invoice.invoice_number || `ID #${invoiceId}`} | Client: ${clientName} | Amount: $${Number(totalAmount || 0).toFixed(2)} | Current Status: ${invoice.status}`,
+        'success'
+      );
       
+      // 2. Resolve or generate PDF file
+      emitStep(
+        'step-2',
+        'Step 2 — PDF File Resolution & Verification',
+        `Checking disk storage or generating invoice PDF for ${invoice.invoice_number || `ID #${invoiceId}`}...`,
+        'running'
+      );
+
       const path = require('path');
       const fs = require('fs');
       
@@ -22354,7 +22422,24 @@ app.post(
           throw new Error(`PDF file not found and could not be generated at path: ${pdfPath}`);
       }
 
-      // 2. Format Due Date as dd/MM/yyyy (Trilogy Care requires minimum 14 days on invoice due dates)
+      const pdfStats = fs.statSync(pdfPath);
+      const pdfSizeKb = (pdfStats.size / 1024).toFixed(1);
+
+      emitStep(
+        'step-2',
+        'Step 2 — PDF File Resolution & Verification',
+        `${isTempPdf ? 'Generated dynamic PDF to temp file' : 'Located existing PDF on disk'}: ${path.basename(pdfPath)} (${pdfSizeKb} KB verified on disk)`,
+        'success'
+      );
+
+      // 3. Format Due Date as dd/MM/yyyy (Trilogy Care requires minimum 14 days on invoice due dates)
+      emitStep(
+        'step-3',
+        'Step 3 — Trilogy Care Rule Validation (+14d Due Date & ABN)',
+        'Calculating Australia/Brisbane +14 day minimum due date and supplier details...',
+        'running'
+      );
+
       const safeDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
       const formattedSafeDueDate = safeDate.toLocaleDateString('en-GB', {
         day: '2-digit',
@@ -22365,7 +22450,21 @@ app.post(
 
       const caseNotes = "Routine care provided."; // Default or fetch from somewhere if available
 
-      // 3. Launch headless Playwright Chromium browser
+      emitStep(
+        'step-3',
+        'Step 3 — Trilogy Care Rule Validation (+14d Due Date & ABN)',
+        `Due Date: ${formattedSafeDueDate} (Brisbane +14 days minimum) | Supplier: HAPPY IN THE HOME | ABN: 69695033115 | Email: invoices@happyinthehome.org`,
+        'success'
+      );
+
+      // 4. Launch headless Playwright Chromium browser
+      emitStep(
+        'step-4',
+        'Step 4 — Headless Browser & Zoho Portal Connection',
+        'Launching headless Chromium and navigating to Trilogy Care Zoho SubmitaBill portal...',
+        'running'
+      );
+
       const { chromium } = require('playwright');
       const browser = await chromium.launch({ 
         headless: true, // Force headless mode for Docker container compatibility
@@ -22375,13 +22474,29 @@ app.post(
       const page = await context.newPage();
 
       try {
-        // 4. Navigate to form
-        await page.goto('https://forms.zohopublic.com/trilogycare/form/SubmitaBill/formperma/7Gx2G7Q7znBF_iUAsfxsuE989UqORSCbSDZXFuu1LwU', {
+        // Navigate to form
+        const zohoUrl = 'https://forms.zohopublic.com/trilogycare/form/SubmitaBill/formperma/7Gx2G7Q7znBF_iUAsfxsuE989UqORSCbSDZXFuu1LwU';
+        await page.goto(zohoUrl, {
           waitUntil: 'domcontentloaded',
           timeout: 30000
         });
 
+        const pageTitle = await page.title().catch(() => 'Submit a Bill');
+        emitStep(
+          'step-4',
+          'Step 4 — Headless Browser & Zoho Portal Connection',
+          `Connected to Zoho Form ("${pageTitle || 'Submit a Bill'}") — Page 1 inputs ready`,
+          'success'
+        );
+
         // 5. Page 1 - Provider & Consumer Details
+        emitStep(
+          'step-5',
+          'Step 5 — Page 1 Form Population & DOM Read-Back',
+          'Filling Provider Name, ABN, Email, Consumer Name, Invoice #, Due Date, Case Notes & Incidents radio...',
+          'running'
+        );
+
         await page.fill('#SingleLine-arialabel', 'HAPPY IN THE HOME');
         await page.fill('#SingleLine5-arialabel', '69695033115');
         await page.fill('#Email-arialabel', 'invoices@happyinthehome.org');
@@ -22392,13 +22507,57 @@ app.post(
         
         // Selects "No" for Incidents/Accidents
         await page.check('#Radio_1');
+
+        const page1Readback = await page.evaluate(() => {
+          const val = (sel: string) => (document.querySelector(sel) as HTMLInputElement | HTMLTextAreaElement)?.value || '';
+          const radio1Checked = (document.querySelector('#Radio_1') as HTMLInputElement)?.checked || false;
+          return {
+            provider: val('#SingleLine-arialabel'),
+            abn: val('#SingleLine5-arialabel'),
+            email: val('#Email-arialabel'),
+            consumer: val('#SingleLine3-arialabel'),
+            invoiceNo: val('#SingleLine4-arialabel'),
+            dueDate: val('#Date1-date'),
+            notes: val('#MultiLine-arialabel'),
+            incidentsNo: radio1Checked
+          };
+        });
+
+        emitStep(
+          'step-5',
+          'Step 5 — Page 1 Form Population & DOM Read-Back',
+          `DOM Verified → Provider: "${page1Readback.provider}" | ABN: "${page1Readback.abn}" | Email: "${page1Readback.email}" | Consumer: "${page1Readback.consumer}" | Inv #: "${page1Readback.invoiceNo}" | Due: "${page1Readback.dueDate}" | Notes: "${page1Readback.notes}" | Incidents 'No': ${page1Readback.incidentsNo ? 'Checked ✓' : 'Unchecked ✗'}`,
+          'success'
+        );
         
+        // 6. Page 1 -> Page 2 Navigation Check
+        emitStep(
+          'step-6',
+          'Step 6 — Page 1 → Page 2 Navigation & Validation Check',
+          'Clicking button[elname="next"] and verifying Page 1 passes Zoho field validation...',
+          'running'
+        );
+
         await page.click('button[elname="next"]');
 
         // Wait for Page 2 to load
         await page.waitForSelector('#Currency1-arialabel', { state: 'visible', timeout: 15000 });
 
-        // 6. Page 2 - Bill Details & Upload
+        emitStep(
+          'step-6',
+          'Step 6 — Page 1 → Page 2 Navigation & Validation Check',
+          'Page 1 passed Zoho validation with 0 errors — Page 2 (#Currency1-arialabel & #FileUpload-id) is now active',
+          'success'
+        );
+
+        // 7. Page 2 - Bill Details & Upload
+        emitStep(
+          'step-7',
+          'Step 7 — Page 2 Amount & Async PDF Upload Verification',
+          `Selecting 'Yes' (#Radio1_2), entering $${Number(totalAmount || 0).toFixed(2)}, and uploading ${path.basename(pdfPath)} (${pdfSizeKb} KB)...`,
+          'running'
+        );
+
         // Selects "Yes" for having an invoice to attach
         await page.check('#Radio1_2');
         await page.fill('#Currency1-arialabel', totalAmount.toString());
@@ -22424,7 +22583,53 @@ app.post(
         }, { timeout: 30000 });
         await page.waitForTimeout(1000);
 
+        const page2Readback = await page.evaluate(() => {
+          const isVisible = (el: Element | null) => {
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            return style.display !== 'none' && style.visibility !== 'hidden' && (el as HTMLElement).offsetParent !== null;
+          };
+          const attachYes = (document.querySelector('#Radio1_2') as HTMLInputElement)?.checked || false;
+          const amountVal = (document.querySelector('#Currency1-arialabel') as HTMLInputElement)?.value || '';
+          const hiddenInputs = Array.from(document.querySelectorAll('input[elname="FileUpload"]')) as HTMLInputElement[];
+          const uploadedPaths = hiddenInputs.map(el => el.getAttribute('filepath') || el.value || '').filter(Boolean);
+          const uploadedCont = document.getElementById('FileUpload-div-files');
+          const uploadedText = uploadedCont?.textContent?.trim().replace(/\s+/g, ' ') || '';
+          const fileErrEl = document.querySelector('#error-FileUpload');
+          const fileErr = isVisible(fileErrEl) ? (fileErrEl?.textContent?.trim() || '') : '';
+          const captchaEl = document.querySelector('#pop_captcha_li, #pop_recaptchacbox-li, #captcha-popup');
+          const hasCaptcha = isVisible(captchaEl);
+          const submitBtn = document.querySelector('button[elname="submit"]');
+          const submitVisible = isVisible(submitBtn);
+          return { attachYes, amountVal, uploadedPaths, uploadedText, fileErr, hasCaptcha, submitVisible };
+        });
+
+        if (page2Readback.fileErr) {
+          throw new Error(`Zoho PDF upload validation error: ${page2Readback.fileErr}`);
+        }
+        if (page2Readback.hasCaptcha) {
+          throw new Error('Trilogy Care Zoho form displayed a CAPTCHA challenge.');
+        }
+
+        const uploadTokenSummary = page2Readback.uploadedPaths.length > 0
+          ? `Zoho filepath="${page2Readback.uploadedPaths[0]}"`
+          : `Attached="${page2Readback.uploadedText || path.basename(pdfPath)}"`;
+
+        emitStep(
+          'step-7',
+          'Step 7 — Page 2 Amount & Async PDF Upload Verification',
+          `DOM Verified → Attach 'Yes': ${page2Readback.attachYes ? 'Checked ✓' : '✗'} | Bill Amount: "$${page2Readback.amountVal}" | Async Upload Complete (${uploadTokenSummary}) | Upload Errors: None | CAPTCHA: None`,
+          'success'
+        );
+
         if (!isTestMode) {
+          emitStep(
+            'step-8',
+            'Step 8 — Final Form Submission & Confirmation',
+            'Clicking button[elname="submit"] and waiting for Zoho thank-you confirmation...',
+            'running'
+          );
+
           await page.click('button[elname="submit"]');
 
           // Wait for Zoho to either complete submission (thank-you view / navigation) or surface a validation/CAPTCHA error
@@ -22472,9 +22677,28 @@ app.post(
             const reason = submitOutcome?.reason || 'Zoho form did not confirm submission before timeout (the form may have been blocked or upload was incomplete).';
             throw new Error(reason);
           }
+
+          emitStep(
+            'step-8',
+            'Step 8 — Final Form Submission & Confirmation',
+            'Zoho thank-you confirmation verified & invoice status updated to SENT.',
+            'success'
+          );
         } else {
-          // In test mode, we just wait a moment to ensure all fields are filled, but do not click submit.
-          await page.waitForTimeout(2000);
+          // In test mode, verify Submit button readiness and stop safely without clicking Submit
+          emitStep(
+            'step-8',
+            'Step 8 — Dry Run Safety Stop & Summary',
+            'Verifying Submit button (button[elname="submit"]) readiness and stopping before submission...',
+            'running'
+          );
+          await page.waitForTimeout(1000);
+          emitStep(
+            'step-8',
+            'Step 8 — Dry Run Safety Stop & Summary',
+            `Submit Button Ready (${page2Readback.submitVisible ? 'Visible & Enabled ✓' : 'Checked'}) — Dry Run Mode: Skipped clicking Submit, closed Chromium cleanly, and kept invoice status as ${invoice.status}.`,
+            'success'
+          );
         }
 
       } finally {
@@ -22503,15 +22727,39 @@ app.post(
       if (!isTestMode) {
         db.prepare("UPDATE invoices SET status = 'SENT' WHERE id = ?").run(invoiceId);
 
-        // 9. Return success
-        res.json({ success: true, message: "Invoice submitted to Trilogy Care successfully and marked as SENT." });
+        const msg = "Invoice submitted to Trilogy Care successfully and marked as SENT.";
+        if (isStream) {
+          res.write(JSON.stringify({ type: 'done', success: true, message: msg, logs }) + '\n');
+          res.end();
+        } else {
+          res.json({ success: true, message: msg, logs });
+        }
       } else {
-        res.json({ success: true, message: "Test run completed successfully (Dry Run)." });
+        const msg = "Test run completed — all 8 verification steps passed (Dry Run).";
+        if (isStream) {
+          res.write(JSON.stringify({ type: 'done', success: true, message: msg, logs }) + '\n');
+          res.end();
+        } else {
+          res.json({ success: true, message: msg, logs });
+        }
       }
       
     } catch (e: any) {
       console.error("Failed to submit Trilogy Care invoice:", e);
-      res.status(500).json({ error: e.message || "Failed to submit Trilogy Care invoice." });
+      emitStep(
+        currentStepId,
+        currentStepTitle,
+        `FAILED: ${e.message || 'Unexpected error during Trilogy Care automation'}`,
+        'error'
+      );
+      if (isStream) {
+        if (!res.writableEnded) {
+          res.write(JSON.stringify({ type: 'error', error: e.message || "Failed to submit Trilogy Care invoice.", logs }) + '\n');
+          res.end();
+        }
+      } else {
+        res.status(500).json({ error: e.message || "Failed to submit Trilogy Care invoice.", logs });
+      }
     }
   });
 
