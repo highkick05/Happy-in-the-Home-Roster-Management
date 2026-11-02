@@ -9312,8 +9312,11 @@ app.get("/api/health", (req, res) => {
 
     let busyFilter = "";
     let busyParams: any[] = [];
+    if (availableStart && availableEnd) {
+      busyFilter += ` AND UPPER(COALESCE(status, 'ACTIVE')) NOT IN ('INACTIVE', 'SUSPENDED')`;
+    }
     if (busyStaffIds.length > 0) {
-      busyFilter = ` AND id NOT IN (${busyStaffIds.map(() => '?').join(',')})`;
+      busyFilter += ` AND id NOT IN (${busyStaffIds.map(() => '?').join(',')})`;
       busyParams = busyStaffIds;
     }
 
@@ -16161,7 +16164,7 @@ app.get("/api/health", (req, res) => {
         SELECT id, first_name, last_name, email, phone as mobile_number, phone 
         FROM users 
         WHERE id IN (${placeholders}) 
-          AND status != 'INACTIVE' 
+          AND UPPER(COALESCE(status, 'ACTIVE')) NOT IN ('INACTIVE', 'SUSPENDED') 
           AND role = 'STAFF'
           AND ((email IS NOT NULL AND email != '') OR (phone IS NOT NULL AND phone != ''))
       `).all(...staff_ids) as any[];
@@ -16627,6 +16630,15 @@ app.get("/api/health", (req, res) => {
         return res.status(409).json({
           error: "This shift has already been filled. Thank you!",
           alreadyFilled: true
+        });
+      }
+
+      // Prevent suspended or inactive staff from claiming shift offers
+      const claimingStaffRecord = db.prepare("SELECT status FROM users WHERE id = ?").get(staffId) as any;
+      const claimingStatus = String(claimingStaffRecord?.status || "ACTIVE").toUpperCase().trim();
+      if (claimingStatus === "SUSPENDED" || claimingStatus === "INACTIVE") {
+        return res.status(403).json({
+          error: "Your account is currently suspended or inactive and cannot accept shift offers."
         });
       }
 

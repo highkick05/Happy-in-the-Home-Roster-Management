@@ -94,17 +94,21 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
           }
         }
 
-        // Filter strictly to active staff members (excluding admin accounts) who have valid email addresses
+        // Filter strictly to active staff members (excluding suspended, inactive, and admin accounts) who have valid email addresses
         // AND who are NOT already booked on a shift at the same time
         const activeStaff = (Array.isArray(data) ? data : [])
-          .filter((s: StaffMember) => 
-            s.status !== 'INACTIVE' && 
-            s.role !== 'ADMIN' &&
-            (s.role || '').toUpperCase() === 'STAFF' &&
-            s.email && 
-            s.email.trim() !== '' &&
-            !busyStaffIdSet.has(Number(s.id))
-          )
+          .filter((s: StaffMember) => {
+            const staffStatus = (s.status || 'ACTIVE').toUpperCase().trim();
+            return (
+              staffStatus !== 'INACTIVE' &&
+              staffStatus !== 'SUSPENDED' &&
+              s.role !== 'ADMIN' &&
+              (s.role || '').toUpperCase() === 'STAFF' &&
+              s.email &&
+              s.email.trim() !== '' &&
+              !busyStaffIdSet.has(Number(s.id))
+            );
+          })
           .sort((a: StaffMember, b: StaffMember) => 
             (a.first_name || '').localeCompare(b.first_name || '')
           );
