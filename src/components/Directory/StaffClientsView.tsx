@@ -630,12 +630,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 const initials = `${(s.first_name || '').charAt(0)}${(s.last_name || '').charAt(0)}`.toUpperCase();
                 return (
                   <tr key={s.id} onClick={() => handleEditStaff(s)} className={`hover:bg-brand-bg/50 transition-colors cursor-pointer`}>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2">
                       <div className="flex items-center gap-3">
                         {s.avatar_url ? (
-                          <img src={getAvatarUrl(s.avatar_url)} alt={`${s.first_name}`} className="w-8 h-8 rounded-full border border-white/[0.08] bg-[#151515] shrink-0 object-cover" />
+                          <img src={getAvatarUrl(s.avatar_url)} alt={`${s.first_name}`} className="w-7 h-7 rounded-full border border-white/[0.08] bg-[#151515] shrink-0 object-cover" />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal flex items-center justify-center text-[11px] font-semibold shrink-0">
+                          <div className="w-7 h-7 rounded-full bg-brand-teal/10 border border-brand-teal/20 text-brand-teal flex items-center justify-center text-[11px] font-semibold shrink-0">
                             {initials || '?'}
                           </div>
                         )}
@@ -657,16 +657,16 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2">
                       <div className="text-[#E6EDF3] font-medium">{s.email}</div>
                       {s.phone && (
                         <div className="text-[#8B949E] text-xs mt-0.5">{s.phone}</div>
                       )}
                     </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex flex-col gap-1 items-start">
+                    <td className="px-4 py-2">
+                      <div className="flex flex-col gap-0.5 items-start">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase border ${
+                          <span className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold tracking-wider uppercase border ${
                             s.role === 'ADMIN' 
                               ? 'bg-purple-500/10 text-purple-300 border-purple-500/30' 
                               : 'bg-brand-bg text-[#8B949E] border-border-subtle'
@@ -674,7 +674,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                             {s.role}
                           </span>
                           {isStaffCareCoordinator(s) && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wider uppercase bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold tracking-wider uppercase bg-purple-500/15 text-purple-300 border border-purple-500/30">
                               Care Coordinator
                             </span>
                           )}
@@ -686,16 +686,16 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                      <div className="space-y-1.5">
+                    <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="space-y-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {(s.xero_employee_name || s.xero_employee_id) ? (
                             <div 
-                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium bg-sky-500/10 text-sky-300 border border-sky-500/30"
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-medium bg-sky-500/10 text-sky-300 border border-sky-500/30"
                               title={`Linked to Xero Employee: ${s.xero_employee_name || s.xero_employee_id}`}
                             >
                               <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
-                              <span className="font-bold text-sky-400 tracking-wider text-[9px]">XERO:</span>
+                              <span className="font-bold text-sky-400 tracking-wider text-[8px]">XERO:</span>
                               <span className="text-[#E6EDF3] font-medium truncate max-w-[120px]">{s.xero_employee_name || 'Linked'}</span>
                             </div>
                           ) : (
@@ -731,7 +731,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                       <button 
                         onClick={() => { setContractStaffMember(s); setIsContractModalOpen(true); }}
                         className="p-1.5 text-[#8B949E] hover:text-emerald-400 transition-colors rounded-md hover:bg-white/[0.04]"
