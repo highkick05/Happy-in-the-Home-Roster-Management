@@ -424,8 +424,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   };
 
   const handleEditStaff = (s: any) => {
-    setSelectedStaff(s);
-    setIsStaffModalOpen(true);
+    navigate(`/staff/${s.id}`, { replace: true });
   };
 
   const handleEditClient = (c: any) => {
