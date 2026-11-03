@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Radio, Send, CheckSquare, Square, Search, AlertCircle, CheckCircle2, UserCheck, Clock, Calendar, Briefcase, User } from 'lucide-react';
+import { X, Radio, Send, CheckSquare, Square, Search, AlertCircle, CheckCircle2, UserCheck, Clock, Calendar, Briefcase, User, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ShiftEvent } from './types';
 
@@ -21,9 +21,23 @@ interface StaffMember {
   avatar_url?: string;
 }
 
+interface ConflictingShiftInfo {
+  id: number | string;
+  start_time: string;
+  end_time: string;
+  client_name?: string;
+  service_name?: string;
+}
+
+interface ConflictingStaffMember extends StaffMember {
+  conflicts: ConflictingShiftInfo[];
+}
+
 export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcastSuccess }: BroadcastShiftModalProps) {
   const { token } = useAuth();
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [conflictingStaffList, setConflictingStaffList] = useState<ConflictingStaffMember[]>([]);
+  const [showConflictsDropdown, setShowConflictsDropdown] = useState(false);
   const [selectedStaffIds, setSelectedStaffIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -34,6 +48,8 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
   useEffect(() => {
     if (!isOpen || !shift) {
       setSelectedStaffIds([]);
+      setConflictingStaffList([]);
+      setShowConflictsDropdown(false);
       setSearchQuery('');
       setError(null);
       setSuccessMessage(null);
@@ -47,11 +63,9 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
     const endDate = new Date(shift.end);
     const startIso = !isNaN(startDate.getTime()) ? startDate.toISOString() : '';
     const endIso = !isNaN(endDate.getTime()) ? endDate.toISOString() : '';
-    const excludeShiftParam = shift.id ? `&exclude_shift_id=${encodeURIComponent(shift.id)}` : '';
-    const availabilityParams = startIso && endIso ? `&available_start=${encodeURIComponent(startIso)}&available_end=${encodeURIComponent(endIso)}${excludeShiftParam}` : '';
 
     Promise.all([
-      fetch(`/api/staff?role=STAFF${availabilityParams}`, {
+      fetch(`/api/staff?role=STAFF`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -68,7 +82,7 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
         if (!staffRes.ok) throw new Error('Failed to load staff list');
         const data = await staffRes.json();
 
-        const busyStaffIdSet = new Set<number>();
+        const conflictsByStaffId = new Map<number, ConflictingShiftInfo[]>();
         if (shiftsRes && shiftsRes.ok) {
           try {
             const shiftsData = await shiftsRes.json();
@@ -85,7 +99,20 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
                 const sEnd = new Date(s.end_time).getTime();
                 // Overlap condition: start < targetEnd && end > targetStart
                 if (sStart < targetEndTime && sEnd > targetStartTime) {
-                  busyStaffIdSet.add(Number(s.staff_id));
+                  const staffIdNum = Number(s.staff_id);
+                  const existing = conflictsByStaffId.get(staffIdNum) || [];
+                  const clientName =
+                    s.client_name ||
+                    [s.client_first_name, s.client_last_name].filter(Boolean).join(' ') ||
+                    '';
+                  existing.push({
+                    id: s.id,
+                    start_time: s.start_time,
+                    end_time: s.end_time,
+                    client_name: clientName,
+                    service_name: s.service_name || s.service_type || ''
+                  });
+                  conflictsByStaffId.set(staffIdNum, existing);
                 }
               }
             }
@@ -95,8 +122,7 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
         }
 
         // Filter strictly to active staff members (excluding suspended, inactive, and admin accounts) who have valid email addresses
-        // AND who are NOT already booked on a shift at the same time
-        const activeStaff = (Array.isArray(data) ? data : [])
+        const allEligibleActiveStaff = (Array.isArray(data) ? data : [])
           .filter((s: StaffMember) => {
             const staffStatus = (s.status || 'ACTIVE').toUpperCase().trim();
             return (
@@ -105,14 +131,33 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
               s.role !== 'ADMIN' &&
               (s.role || '').toUpperCase() === 'STAFF' &&
               s.email &&
-              s.email.trim() !== '' &&
-              !busyStaffIdSet.has(Number(s.id))
+              s.email.trim() !== ''
             );
           })
           .sort((a: StaffMember, b: StaffMember) => 
             (a.first_name || '').localeCompare(b.first_name || '')
           );
-        setStaffList(activeStaff);
+
+        const availableStaff: StaffMember[] = [];
+        const conflictingStaff: ConflictingStaffMember[] = [];
+
+        for (const staff of allEligibleActiveStaff) {
+          const staffConflicts = conflictsByStaffId.get(Number(staff.id));
+          if (staffConflicts && staffConflicts.length > 0) {
+            staffConflicts.sort(
+              (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+            );
+            conflictingStaff.push({
+              ...staff,
+              conflicts: staffConflicts
+            });
+          } else {
+            availableStaff.push(staff);
+          }
+        }
+
+        setStaffList(availableStaff);
+        setConflictingStaffList(conflictingStaff);
       })
       .catch((err) => {
         console.error('Error fetching staff for shift broadcast:', err);
@@ -334,14 +379,91 @@ export default function BroadcastShiftModal({ isOpen, onClose, shift, onBroadcas
               />
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-zinc-400 px-0.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-400 px-0.5">
               <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Showing available staff with no shift conflicts
               </span>
-              <span className="text-zinc-400">
-                {filteredStaff.length} available
-              </span>
+              <div className="flex items-center gap-3">
+                {conflictingStaffList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowConflictsDropdown((prev) => !prev)}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-medium transition-colors"
+                  >
+                    <AlertTriangle className="w-3 h-3 text-amber-400" />
+                    <span>
+                      Staff with shift conflicts ({conflictingStaffList.length})
+                    </span>
+                    {showConflictsDropdown ? (
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                )}
+                <span className="text-zinc-400">
+                  {filteredStaff.length} available
+                </span>
+              </div>
             </div>
+
+            {showConflictsDropdown && conflictingStaffList.length > 0 && (
+              <div className="border border-amber-500/25 rounded-xl overflow-hidden bg-amber-950/15 animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="px-3.5 py-2 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" /> Conflicting Shifts During This Time Window
+                  </span>
+                  <span className="text-[11px] text-amber-200/70">
+                    {conflictingStaffList.length} staff member{conflictingStaffList.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div className="max-h-44 overflow-y-auto divide-y divide-amber-500/10 custom-scrollbar">
+                  {conflictingStaffList.map((staff) => (
+                    <div
+                      key={staff.id}
+                      className="px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-amber-500/[0.06] transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-zinc-200 truncate">
+                          {staff.first_name} {staff.last_name}
+                        </p>
+                        <p className="text-[11px] text-zinc-500 truncate">
+                          {staff.primary_position || 'Support Worker'} • {staff.email}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">
+                        {staff.conflicts.map((conflict, idx) => {
+                          const cStart = new Date(conflict.start_time);
+                          const cEnd = new Date(conflict.end_time);
+                          const startStr = !isNaN(cStart.getTime())
+                            ? cStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            : '';
+                          const endStr = !isNaN(cEnd.getTime())
+                            ? cEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            : '';
+                          return (
+                            <div
+                              key={`${conflict.id}-${idx}`}
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-[11px] text-amber-200 font-medium"
+                            >
+                              <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                              <span className="font-semibold text-amber-100">
+                                {startStr} - {endStr}
+                              </span>
+                              {(conflict.client_name || conflict.service_name) && (
+                                <span className="text-amber-300/80 truncate max-w-[180px]">
+                                  • {conflict.client_name || conflict.service_name}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Staff List */}
