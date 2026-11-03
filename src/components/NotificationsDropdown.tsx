@@ -100,7 +100,12 @@ export default function NotificationsDropdown() {
     }
     setIsOpen(false);
     if (notif.link) {
-      navigate(notif.link);
+      const legacyProgressNotesMatch = notif.link.match(/^\/clients\/([^/]+)\/progress-notes\/?$/);
+      if (legacyProgressNotesMatch) {
+        navigate(`/progress-notes?client=${encodeURIComponent(legacyProgressNotesMatch[1])}`);
+      } else {
+        navigate(notif.link);
+      }
     }
   };
 

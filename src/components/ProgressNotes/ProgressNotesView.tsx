@@ -10,7 +10,8 @@ export default function ProgressNotesView() {
   const [searchParams, setSearchParams] = useSearchParams();
   
   const [clients, setClients] = useState<any[]>([]);
-  const [selectedClientId, setSelectedClientId] = useLocalStorage<string>('progress_notes_client_id', searchParams.get('client') || '');
+  const urlClientParam = searchParams.get('client');
+  const [selectedClientId, setSelectedClientId] = useLocalStorage<string>('progress_notes_client_id', urlClientParam || '');
   
   const [notes, setNotes] = useState<ProgressNote[]>([]);
   const [loading, setLoading] = useState(false);
@@ -21,6 +22,13 @@ export default function ProgressNotesView() {
 
   const [page, setPage] = useState(1);
   const pageSize = 14;
+
+  // Ensure URL ?client= parameter always takes priority when navigating from notifications or Client Dashboard
+  useEffect(() => {
+    if (urlClientParam && urlClientParam !== selectedClientId) {
+      setSelectedClientId(urlClientParam);
+    }
+  }, [urlClientParam]);
 
   useEffect(() => {
     setPage(1);
@@ -40,16 +48,20 @@ export default function ProgressNotesView() {
 
 
   useEffect(() => {
-    fetchClients(selectedClientId);
+    fetchClients(urlClientParam || selectedClientId);
   }, [token]);
 
   useEffect(() => {
     if (selectedClientId) {
       fetchNotes();
-      setSearchParams(prev => { prev.set('client', selectedClientId); return prev; }, { replace: true });
+      if (searchParams.get('client') !== selectedClientId) {
+        setSearchParams(prev => { prev.set('client', selectedClientId); return prev; }, { replace: true });
+      }
     } else {
       setNotes([]);
-      setSearchParams(prev => { prev.delete('client'); return prev; }, { replace: true });
+      if (searchParams.has('client')) {
+        setSearchParams(prev => { prev.delete('client'); return prev; }, { replace: true });
+      }
     }
   }, [selectedClientId, token]);
 

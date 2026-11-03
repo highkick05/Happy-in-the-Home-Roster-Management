@@ -19179,7 +19179,7 @@ app.get("/api/health", (req, res) => {
                  insertNotification.run(
                    admin.id,
                    `ALERT! ${staffName} has submitted an Incident for ${clientName}`,
-                   `/clients/${shift.client_id}/progress-notes`
+                   `/progress-notes?client=${shift.client_id}`
                  );
               }
         }

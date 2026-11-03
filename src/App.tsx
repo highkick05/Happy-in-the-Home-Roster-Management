@@ -566,6 +566,12 @@ function RootRedirect() {
   return <Navigate to="/roster" replace />;
 }
 
+function ClientProgressNotesRedirect() {
+  const pathParts = window.location.pathname.split('/');
+  const clientId = pathParts[2] || '';
+  return <Navigate to={clientId ? `/progress-notes?client=${encodeURIComponent(clientId)}` : '/progress-notes'} replace />;
+}
+
 export default function App() {
 
   React.useEffect(() => {
@@ -619,6 +625,7 @@ export default function App() {
             <Route path="/clients/:id" element={<ProtectedRoute adminOnly><Layout><ClientDashboardView /></Layout></ProtectedRoute>} />
             <Route path="/clients/:id/budget" element={<ProtectedRoute adminOnly><Layout><ClientBudgetSwitchboard /></Layout></ProtectedRoute>} />
             <Route path="/clients/:id/documents" element={<ProtectedRoute adminOnly><Layout><ClientDocumentsView /></Layout></ProtectedRoute>} />
+            <Route path="/clients/:id/progress-notes" element={<ProtectedRoute><ClientProgressNotesRedirect /></ProtectedRoute>} />
             <Route path="/providers" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="PROVIDERS" /></Layout></ProtectedRoute>} />
             <Route path="/services" element={<ProtectedRoute adminOnly><Layout><StaffClientsView type="CONTRACTORS" /></Layout></ProtectedRoute>} />
             <Route path="/invoices" element={<ProtectedRoute adminOnly><Layout><InvoicingView /></Layout></ProtectedRoute>} />
