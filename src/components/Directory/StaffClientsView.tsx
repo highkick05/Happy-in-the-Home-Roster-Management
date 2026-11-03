@@ -169,7 +169,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [updatingPayCategoryStaffId, setUpdatingPayCategoryStaffId] = useState<number | null>(null);
   const [updatingCoordinatorClientId, setUpdatingCoordinatorClientId] = useState<number | null>(null);
   const [coordinatorFilter, setCoordinatorFilter] = useState<string>('');
-  const [hasInitializedCoordinatorDefault, setHasInitializedCoordinatorDefault] = useState(false);
+  const hasInitializedCoordinatorDefaultRef = React.useRef(false);
 
   const isStaffCareCoordinator = (s: any): boolean => {
     if (!s || s.status === 'SUSPENDED') return false;
@@ -184,6 +184,47 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
       return false;
     }
   };
+
+  const findMatchingCareCoordinator = (coordinators: any[], currentUser: any) => {
+    if (!currentUser || !Array.isArray(coordinators) || coordinators.length === 0) return null;
+    if (currentUser.id != null) {
+      const byId = coordinators.find(cc => Number(cc.id) === Number(currentUser.id));
+      if (byId) return byId;
+    }
+    const userEmail = String(currentUser.email || '').trim().toLowerCase();
+    if (userEmail) {
+      const byEmail = coordinators.find(cc => String(cc.email || '').trim().toLowerCase() === userEmail);
+      if (byEmail) return byEmail;
+    }
+    const userFullName = `${currentUser.firstName || currentUser.first_name || ''} ${currentUser.lastName || currentUser.last_name || ''}`
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+    if (userFullName) {
+      const byName = coordinators.find(
+        cc =>
+          `${cc.first_name || cc.firstName || ''} ${cc.last_name || cc.lastName || ''}`
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, ' ') === userFullName
+      );
+      if (byName) return byName;
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    if (type === 'CLIENTS') {
+      hasInitializedCoordinatorDefaultRef.current = false;
+      if (staff.length > 0 && user) {
+        const matchedCoord = findMatchingCareCoordinator(staff.filter(isStaffCareCoordinator), user);
+        if (matchedCoord) {
+          setCoordinatorFilter(String(matchedCoord.id));
+          hasInitializedCoordinatorDefaultRef.current = true;
+        }
+      }
+    }
+  }, [type]);
 
   const fetchPositions = async () => {
     try {
@@ -326,12 +367,15 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
         const staffData = await staffRes.json();
         if (Array.isArray(staffData)) {
           setStaff(staffData);
-          if (!hasInitializedCoordinatorDefault && user?.id) {
-            const currentUserRecord = staffData.find((s: any) => Number(s.id) === Number(user.id));
-            if (currentUserRecord && isStaffCareCoordinator(currentUserRecord)) {
-              setCoordinatorFilter(String(user.id));
+          if (!hasInitializedCoordinatorDefaultRef.current && user) {
+            const matchedCoord = findMatchingCareCoordinator(
+              staffData.filter(isStaffCareCoordinator),
+              user
+            );
+            if (matchedCoord) {
+              setCoordinatorFilter(String(matchedCoord.id));
             }
-            setHasInitializedCoordinatorDefault(true);
+            hasInitializedCoordinatorDefaultRef.current = true;
           }
         }
       }
@@ -515,15 +559,18 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                   title="Filter Clients by Care Coordinator Portfolio"
                 >
                   <option value="">All Care Coordinators ({clients.filter(c => c.status !== 'SUSPENDED').length})</option>
-                  {careCoordinators.map(cc => {
-                    const count = clients.filter(c => c.status !== 'SUSPENDED' && Number(c.care_coordinator_id) === Number(cc.id)).length;
-                    const isMe = Number(cc.id) === Number(user?.id);
-                    return (
-                      <option key={cc.id} value={String(cc.id)}>
-                        {isMe ? `My Clients — ${cc.first_name} ${cc.last_name} (${count})` : `Coordinator: ${cc.first_name} ${cc.last_name} (${count})`}
-                      </option>
-                    );
-                  })}
+                  {(() => {
+                    const myCoordinator = findMatchingCareCoordinator(careCoordinators, user);
+                    return careCoordinators.map(cc => {
+                      const count = clients.filter(c => c.status !== 'SUSPENDED' && Number(c.care_coordinator_id) === Number(cc.id)).length;
+                      const isMe = Boolean(myCoordinator && Number(cc.id) === Number(myCoordinator.id));
+                      return (
+                        <option key={cc.id} value={String(cc.id)}>
+                          {isMe ? `My Clients — ${cc.first_name} ${cc.last_name} (${count})` : `Coordinator: ${cc.first_name} ${cc.last_name} (${count})`}
+                        </option>
+                      );
+                    });
+                  })()}
                   <option value="unassigned">
                     Unassigned Coordinator ({clients.filter(c => c.status !== 'SUSPENDED' && !c.care_coordinator_id).length})
                   </option>

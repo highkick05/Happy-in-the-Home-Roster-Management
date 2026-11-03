@@ -175,6 +175,34 @@ export default function RosterCalendar() {
     }
   }, []);
 
+  const findMatchingCareCoordinator = React.useCallback((coordinators: any[], currentUser: any) => {
+    if (!currentUser || !Array.isArray(coordinators) || coordinators.length === 0) return null;
+    if (currentUser.id != null) {
+      const byId = coordinators.find(cc => Number(cc.id) === Number(currentUser.id));
+      if (byId) return byId;
+    }
+    const userEmail = String(currentUser.email || '').trim().toLowerCase();
+    if (userEmail) {
+      const byEmail = coordinators.find(cc => String(cc.email || '').trim().toLowerCase() === userEmail);
+      if (byEmail) return byEmail;
+    }
+    const userFullName = `${currentUser.firstName || currentUser.first_name || ''} ${currentUser.lastName || currentUser.last_name || ''}`
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+    if (userFullName) {
+      const byName = coordinators.find(
+        cc =>
+          `${cc.first_name || cc.firstName || ''} ${cc.last_name || cc.lastName || ''}`
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, ' ') === userFullName
+      );
+      if (byName) return byName;
+    }
+    return null;
+  }, []);
+
   useEffect(() => {
     if (activeView === Views.AGENDA && multiSelectMode) {
       setMultiSelectMode(false);
@@ -414,9 +442,9 @@ export default function RosterCalendar() {
 
         if (user?.id && hasInitializedCoordinatorDefaultRef.current !== Number(user.id)) {
           hasInitializedCoordinatorDefaultRef.current = Number(user.id);
-          const myStaffRecord = staffData.find((u: any) => Number(u.id) === Number(user.id));
-          if (myStaffRecord && isUserCareCoordinator(myStaffRecord)) {
-            setCoordinatorFilter(String(user.id));
+          const matchedCoord = findMatchingCareCoordinator(sortedCoordinators, user);
+          if (matchedCoord) {
+            setCoordinatorFilter(String(matchedCoord.id));
           }
         }
       }
@@ -1801,17 +1829,20 @@ export default function RosterCalendar() {
                   title="Filter Roster by Care Coordinator Portfolio"
                 >
                   <option value="">All Care Coordinators (All Clients)</option>
-                  {coordinatorList.map(cc => {
-                    const clientCount = clientList.filter((c: any) => Number(c.care_coordinator_id) === Number(cc.id)).length;
-                    const isMe = Number(cc.id) === Number(user?.id);
-                    return (
-                      <option key={cc.id} value={String(cc.id)}>
-                        {isMe
-                          ? `My Clients — ${cc.first_name} ${cc.last_name} (${clientCount})`
-                          : `Coordinator: ${cc.first_name} ${cc.last_name} (${clientCount})`}
-                      </option>
-                    );
-                  })}
+                  {(() => {
+                    const myCoordinator = findMatchingCareCoordinator(coordinatorList, user);
+                    return coordinatorList.map(cc => {
+                      const clientCount = clientList.filter((c: any) => Number(c.care_coordinator_id) === Number(cc.id)).length;
+                      const isMe = Boolean(myCoordinator && Number(cc.id) === Number(myCoordinator.id));
+                      return (
+                        <option key={cc.id} value={String(cc.id)}>
+                          {isMe
+                            ? `My Clients — ${cc.first_name} ${cc.last_name} (${clientCount})`
+                            : `Coordinator: ${cc.first_name} ${cc.last_name} (${clientCount})`}
+                        </option>
+                      );
+                    });
+                  })()}
                   <option value="unassigned">
                     Unassigned Coordinator ({clientList.filter((c: any) => !c.care_coordinator_id).length})
                   </option>
