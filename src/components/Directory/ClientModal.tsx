@@ -15,6 +15,7 @@ interface ClientModalProps {
 export default function ClientModal({ isOpen, onClose, onSave, token, client }: ClientModalProps) {
   const [providers, setProviders] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
+  const [careCoordinators, setCareCoordinators] = useState<any[]>([]);
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     firstName: '',
@@ -24,6 +25,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
     contactEmail: '',
     contactPhone: '',
     providerId: '',
+    careCoordinatorId: '' as number | string,
     dob: '',
     joinedDate: '',
     fundingType: 'NDIS',
@@ -90,6 +92,30 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
       })
       .then(data => setServices(data))
       .catch(console.error);
+
+      fetch('/api/staff', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) {
+          const coords = data.filter((s: any) => {
+            if (!s || s.status === 'SUSPENDED') return false;
+            if (s.primary_position === 'Care Coordinator') return true;
+            if (!s.additional_positions) return false;
+            try {
+              const parsed = Array.isArray(s.additional_positions)
+                ? s.additional_positions
+                : JSON.parse(s.additional_positions);
+              return Array.isArray(parsed) && parsed.includes('Care Coordinator');
+            } catch {
+              return false;
+            }
+          });
+          setCareCoordinators(coords);
+        }
+      })
+      .catch(() => {});
     }
   }, [isOpen, token]);
 
@@ -103,6 +129,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         contactEmail: client.contact_email || '',
         contactPhone: client.contact_phone || '',
         providerId: client.provider_id || '',
+        careCoordinatorId: client.care_coordinator_id || '',
         dob: client.dob || '',
         joinedDate: client.joined_date ? client.joined_date.split('T')[0] : (client.created_at ? new Date(client.created_at).toISOString().split('T')[0] : ''),
         fundingType: client.funding_type || 'NDIS',
@@ -152,6 +179,7 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
         contactEmail: '',
         contactPhone: '',
         providerId: '',
+        careCoordinatorId: '',
         dob: '',
         joinedDate: '',
         fundingType: 'NDIS',
@@ -421,6 +449,15 @@ export default function ClientModal({ isOpen, onClose, onSave, token, client }: 
                     <input name="myAgedCareId" value={formData.myAgedCareId} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600" />
                   </div>
                 )}
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Care Coordinator</label>
+                  <select name="careCoordinatorId" value={formData.careCoordinatorId} onChange={handleChange} className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600">
+                    <option value="">-- Unassigned --</option>
+                    {careCoordinators.map(cc => (
+                      <option key={cc.id} value={cc.id}>{cc.first_name} {cc.last_name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {formData.fundingType === 'HOME_CARE' && (

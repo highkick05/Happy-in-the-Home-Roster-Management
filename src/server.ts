@@ -2196,7 +2196,8 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
       'Enrolled Nurse',
       'Registered Nurse',
       'Administration',
-      'Manager'
+      'Manager',
+      'Care Coordinator'
     ];
     const insertPos = db.prepare("INSERT OR IGNORE INTO positions (name) VALUES (?)");
     standardPositions.forEach(name => insertPos.run(name));
@@ -9403,6 +9404,9 @@ app.get("/api/health", (req, res) => {
         const pos = db.prepare("SELECT name FROM positions WHERE id = ?").get(targetPosId) as any;
         if (pos) targetPosName = pos.name;
       }
+      const isCareCoordCreate =
+        targetPosName === "Care Coordinator" ||
+        (Array.isArray(additionalPositions) && additionalPositions.includes("Care Coordinator"));
       const stmt = db.prepare(
         "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, position_id, pay_category_id, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, xero_employee_id, xero_employee_name, joined_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
@@ -9423,7 +9427,7 @@ app.get("/api/health", (req, res) => {
         taxNumber,
         superFundName,
         superMemberNumber,
-        canSwitchAdmin ? 1 : 0,
+        canSwitchAdmin || isCareCoordCreate ? 1 : 0,
         avatarUrl || null,
         targetPosName,
         additionalPositions ? JSON.stringify(additionalPositions) : "[]",
@@ -9519,6 +9523,9 @@ app.get("/api/health", (req, res) => {
         const pos = db.prepare("SELECT name FROM positions WHERE id = ?").get(targetPosId) as any;
         if (pos) targetPosName = pos.name;
       }
+      const isCareCoordUpdate =
+        targetPosName === "Care Coordinator" ||
+        (Array.isArray(additionalPositions) && additionalPositions.includes("Care Coordinator"));
       const stmt = db.prepare(
         "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = COALESCE(?, primary_position), additional_positions = ?, position_id = COALESCE(?, position_id), pay_category_id = COALESCE(?, pay_category_id), pay_rate_weekday_id = COALESCE(?, pay_rate_weekday_id), pay_rate_saturday_id = COALESCE(?, pay_rate_saturday_id), pay_rate_sunday_id = COALESCE(?, pay_rate_sunday_id), pay_rate_public_holiday_id = COALESCE(?, pay_rate_public_holiday_id), pay_rate_ndis_travel_id = COALESCE(?, pay_rate_ndis_travel_id), pay_rate_home_care_travel_id = COALESCE(?, pay_rate_home_care_travel_id), xero_employee_id = COALESCE(?, xero_employee_id), xero_employee_name = COALESCE(?, xero_employee_name), joined_date = COALESCE(?, joined_date) WHERE id = ?",
       );
@@ -9538,7 +9545,7 @@ app.get("/api/health", (req, res) => {
         taxNumber,
         superFundName,
         superMemberNumber,
-        canSwitchAdmin ? 1 : 0,
+        canSwitchAdmin || isCareCoordUpdate ? 1 : 0,
         avatarUrl || null,
         targetPosName || null,
         additionalPositions ? JSON.stringify(additionalPositions) : "[]",
@@ -9730,10 +9737,14 @@ app.get("/api/health", (req, res) => {
   // --- End Vehicles API ---
 
   // --- Clients APIs ---
+  try {
+    db.exec("ALTER TABLE clients ADD COLUMN care_coordinator_id INTEGER");
+  } catch {}
+
   app.get("/api/clients", authenticateTokenOrWallboard, (req: any, res: any) => {
     if (req.user.role !== "ADMIN") {
       const clients = db
-        .prepare("SELECT id, first_name, last_name, address FROM clients")
+        .prepare("SELECT id, first_name, last_name, address, care_coordinator_id FROM clients")
         .all();
       return res.json(clients);
     }
@@ -9741,9 +9752,12 @@ app.get("/api/health", (req, res) => {
     const clients = db
       .prepare(
         `
-      SELECT clients.*, providers.company_name as provider_name 
+      SELECT clients.*,
+             providers.company_name as provider_name,
+             TRIM(COALESCE(cc.first_name, '') || ' ' || COALESCE(cc.last_name, '')) as care_coordinator_name
       FROM clients 
       LEFT JOIN providers ON clients.provider_id = providers.id
+      LEFT JOIN users cc ON clients.care_coordinator_id = cc.id
     `,
       )
       .all();
@@ -9760,14 +9774,43 @@ app.get("/api/health", (req, res) => {
     res.json(clientsWithServices);
   });
 
+  app.patch("/api/clients/:id/care-coordinator", authenticateToken, requireAdmin, (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const { careCoordinatorId } = req.body;
+      const targetId = careCoordinatorId ? Number(careCoordinatorId) : null;
+      db.prepare("UPDATE clients SET care_coordinator_id = ? WHERE id = ?").run(targetId, id);
+      const updated = db
+        .prepare(
+          `
+        SELECT clients.id,
+               clients.care_coordinator_id,
+               TRIM(COALESCE(cc.first_name, '') || ' ' || COALESCE(cc.last_name, '')) as care_coordinator_name
+        FROM clients
+        LEFT JOIN users cc ON clients.care_coordinator_id = cc.id
+        WHERE clients.id = ?
+      `
+        )
+        .get(id);
+      res.json({ success: true, client: updated });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message || "Failed to update care coordinator" });
+    }
+  });
+
   app.get("/api/clients/:id", authenticateToken, (req: any, res: any) => {
     try {
       const client = db
         .prepare(
           `
-        SELECT clients.*, providers.company_name as provider_name, providers.management_fee, providers.provider_type
+        SELECT clients.*,
+               providers.company_name as provider_name,
+               providers.management_fee,
+               providers.provider_type,
+               TRIM(COALESCE(cc.first_name, '') || ' ' || COALESCE(cc.last_name, '')) as care_coordinator_name
         FROM clients 
         LEFT JOIN providers ON clients.provider_id = providers.id
+        LEFT JOIN users cc ON clients.care_coordinator_id = cc.id
         WHERE clients.id = ?
       `,
         )
@@ -12488,6 +12531,7 @@ app.get("/api/health", (req, res) => {
           ndisAgreementEndDate,
           ndisAgreementBudget,
           avatarUrl,
+          careCoordinatorId,
         } = reqBody;
 
         const defaultCareCoordRow = db.prepare("SELECT value FROM settings WHERE key = 'defaultCareCoordinationFee'").get() as any;
@@ -12497,7 +12541,7 @@ app.get("/api/health", (req, res) => {
         }
 
         const stmt = db.prepare(
-          "INSERT INTO clients (first_name, last_name, ndis_number, care_plan_details, contact_email, contact_phone, provider_id, dob, funding_type, my_aged_care_id, address, representative_name, representative_phone, representative_email, home_care_sub_type, home_care_level_or_class, joined_date, care_coordination_fee, management_fee, billing_tier, historical_monthly_cap, assessed_independence_pct, assessed_everyday_living_pct, ndis_agreement_start_date, ndis_agreement_end_date, ndis_agreement_budget, avatar_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO clients (first_name, last_name, ndis_number, care_plan_details, contact_email, contact_phone, provider_id, dob, funding_type, my_aged_care_id, address, representative_name, representative_phone, representative_email, home_care_sub_type, home_care_level_or_class, joined_date, care_coordination_fee, management_fee, billing_tier, historical_monthly_cap, assessed_independence_pct, assessed_everyday_living_pct, ndis_agreement_start_date, ndis_agreement_end_date, ndis_agreement_budget, avatar_url, care_coordinator_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         );
         const info = stmt.run(
           firstName,
@@ -12535,6 +12579,7 @@ app.get("/api/health", (req, res) => {
             ? parseFloat(ndisAgreementBudget)
             : 0.0,
           avatarUrl || null,
+          careCoordinatorId ? Number(careCoordinatorId) : null,
         );
 
         const clientId = info.lastInsertRowid;
@@ -12604,10 +12649,21 @@ app.get("/api/health", (req, res) => {
           ndisAgreementEndDate,
           ndisAgreementBudget,
           avatarUrl,
+          careCoordinatorId,
         } = reqBody;
 
+        const existingClient = db
+          .prepare("SELECT care_coordinator_id FROM clients WHERE id = ?")
+          .get(paramId) as any;
+        const resolvedCoordinatorId =
+          careCoordinatorId !== undefined
+            ? careCoordinatorId
+              ? Number(careCoordinatorId)
+              : null
+            : existingClient?.care_coordinator_id ?? null;
+
         const stmt = db.prepare(
-          "UPDATE clients SET first_name = ?, last_name = ?, ndis_number = ?, care_plan_details = ?, contact_email = ?, contact_phone = ?, provider_id = ?, dob = ?, funding_type = ?, my_aged_care_id = ?, address = ?, representative_name = ?, representative_phone = ?, representative_email = ?, home_care_sub_type = ?, home_care_level_or_class = ?, joined_date = ?, care_coordination_fee = ?, management_fee = ?, billing_tier = ?, historical_monthly_cap = ?, assessed_independence_pct = ?, assessed_everyday_living_pct = ?, ndis_agreement_start_date = ?, ndis_agreement_end_date = ?, ndis_agreement_budget = ?, avatar_url = ? WHERE id = ?",
+          "UPDATE clients SET first_name = ?, last_name = ?, ndis_number = ?, care_plan_details = ?, contact_email = ?, contact_phone = ?, provider_id = ?, dob = ?, funding_type = ?, my_aged_care_id = ?, address = ?, representative_name = ?, representative_phone = ?, representative_email = ?, home_care_sub_type = ?, home_care_level_or_class = ?, joined_date = ?, care_coordination_fee = ?, management_fee = ?, billing_tier = ?, historical_monthly_cap = ?, assessed_independence_pct = ?, assessed_everyday_living_pct = ?, ndis_agreement_start_date = ?, ndis_agreement_end_date = ?, ndis_agreement_budget = ?, avatar_url = ?, care_coordinator_id = ? WHERE id = ?",
         );
         stmt.run(
           firstName,
@@ -12645,6 +12701,7 @@ app.get("/api/health", (req, res) => {
             ? parseFloat(ndisAgreementBudget)
             : 0.0,
           avatarUrl || null,
+          resolvedCoordinatorId,
           paramId,
         );
 

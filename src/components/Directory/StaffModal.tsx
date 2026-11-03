@@ -55,7 +55,10 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
       fetch('/api/positions', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json())
         .then(data => {
-          if (Array.isArray(data)) setPositions(data);
+          if (Array.isArray(data)) {
+            const hasCareCoord = data.some((p: any) => p.name === 'Care Coordinator');
+            setPositions(hasCareCoord ? data : [...data, { id: 9999, name: 'Care Coordinator' }]);
+          }
         })
         .catch(err => console.error("Failed to load positions", err));
 
@@ -365,7 +368,14 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                       <select
                         name="primaryPosition"
                         value={formData.primaryPosition}
-                        onChange={handleChange}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFormData(prev => ({
+                            ...prev,
+                            primaryPosition: val,
+                            canSwitchAdmin: val === 'Care Coordinator' ? true : prev.canSwitchAdmin,
+                          }));
+                        }}
                         className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
                       >
                         <option value="">Select a job classification...</option>
@@ -379,38 +389,64 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
                       <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Additional Positions</label>
                       <div className="grid grid-cols-2 gap-2 mt-1">
                         {positions.filter(p => p.name !== formData.primaryPosition).map(p => (
-                          <label key={p.id} className="flex items-center space-x-2 text-[12px] text-zinc-300">
+                          <label key={p.id} className="flex items-center space-x-2 text-[12px] text-zinc-300 cursor-pointer">
                             <input 
                               type="checkbox" 
                               checked={(formData.additionalPositions || []).includes(p.name)}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setFormData(prev => ({ ...prev, additionalPositions: [...(prev.additionalPositions || []), p.name] }));
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    additionalPositions: [...(prev.additionalPositions || []), p.name],
+                                    canSwitchAdmin: p.name === 'Care Coordinator' ? true : prev.canSwitchAdmin,
+                                  }));
                                 } else {
-                                  setFormData(prev => ({ ...prev, additionalPositions: (prev.additionalPositions || []).filter(name => name !== p.name) }));
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    additionalPositions: (prev.additionalPositions || []).filter(name => name !== p.name),
+                                  }));
                                 }
                               }}
                               className="rounded bg-[#121214] border-white/[0.08] text-brand-blue focus:ring-brand-blue w-3.5 h-3.5"
                             />
-                            <span className="truncate">{p.name}</span>
+                            <span className="truncate flex items-center gap-1.5">
+                              {p.name}
+                              {p.name === 'Care Coordinator' && (
+                                <span className="text-[9px] font-semibold px-1 py-0.2 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 uppercase tracking-wider">
+                                  Admin
+                                </span>
+                              )}
+                            </span>
                           </label>
                         ))}
                       </div>
                     </div>
 
                     {formData.role === 'STAFF' && (
-                      <div className="flex items-center pt-2 border-t border-white/[0.06]">
-                        <input
-                          type="checkbox"
-                          id="canSwitchAdmin"
-                          name="canSwitchAdmin"
-                          checked={formData.canSwitchAdmin}
-                          onChange={(e) => setFormData(prev => ({ ...prev, canSwitchAdmin: e.target.checked }))}
-                          className="w-4 h-4 rounded border-white/[0.08] bg-[#121214] text-brand-blue focus:ring-brand-blue"
-                        />
-                        <label htmlFor="canSwitchAdmin" className="ml-2 block text-[13px] text-zinc-300">
-                          Allow switching to Admin portal
-                        </label>
+                      <div className="flex items-center justify-between pt-2 border-t border-white/[0.06]">
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="canSwitchAdmin"
+                            name="canSwitchAdmin"
+                            checked={
+                              formData.canSwitchAdmin ||
+                              formData.primaryPosition === 'Care Coordinator' ||
+                              (formData.additionalPositions || []).includes('Care Coordinator')
+                            }
+                            onChange={(e) => setFormData(prev => ({ ...prev, canSwitchAdmin: e.target.checked }))}
+                            className="w-4 h-4 rounded border-white/[0.08] bg-[#121214] text-brand-blue focus:ring-brand-blue"
+                          />
+                          <label htmlFor="canSwitchAdmin" className="ml-2 block text-[13px] text-zinc-300">
+                            Allow switching to Admin portal
+                          </label>
+                        </div>
+                        {(formData.primaryPosition === 'Care Coordinator' ||
+                          (formData.additionalPositions || []).includes('Care Coordinator')) && (
+                          <span className="text-[10px] text-purple-300 font-medium">
+                            Auto-enabled for Care Coordinator
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

@@ -167,6 +167,23 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [selectedContractor, setSelectedContractor] = useState<any>(null);
   const [payCategories, setPayCategories] = useState<any[]>([]);
   const [updatingPayCategoryStaffId, setUpdatingPayCategoryStaffId] = useState<number | null>(null);
+  const [updatingCoordinatorClientId, setUpdatingCoordinatorClientId] = useState<number | null>(null);
+  const [coordinatorFilter, setCoordinatorFilter] = useState<string>('');
+  const [hasInitializedCoordinatorDefault, setHasInitializedCoordinatorDefault] = useState(false);
+
+  const isStaffCareCoordinator = (s: any): boolean => {
+    if (!s || s.status === 'SUSPENDED') return false;
+    if (s.primary_position === 'Care Coordinator') return true;
+    if (!s.additional_positions) return false;
+    try {
+      const parsed = Array.isArray(s.additional_positions)
+        ? s.additional_positions
+        : JSON.parse(s.additional_positions);
+      return Array.isArray(parsed) && parsed.includes('Care Coordinator');
+    } catch {
+      return false;
+    }
+  };
 
   const fetchPositions = async () => {
     try {
@@ -242,19 +259,81 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
     }
   };
 
+  const handleUpdateClientCoordinator = async (clientId: number, newCoordId: string) => {
+    setUpdatingCoordinatorClientId(clientId);
+    const numId = newCoordId ? Number(newCoordId) : null;
+    const matchedCoord = staff.find(s => s.id === numId);
+    const coordName = matchedCoord
+      ? `${matchedCoord.first_name || ''} ${matchedCoord.last_name || ''}`.trim()
+      : '';
+
+    setClients(prev =>
+      prev.map(c => {
+        if (c.id === clientId) {
+          return {
+            ...c,
+            care_coordinator_id: numId,
+            care_coordinator_name: coordName,
+          };
+        }
+        return c;
+      })
+    );
+
+    try {
+      const authToken = token || localStorage.getItem('token') || '';
+      const res = await fetch(`/api/clients/${clientId}/care-coordinator`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({ careCoordinatorId: numId }),
+      });
+      if (!res.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Failed to update client care coordinator:', err);
+      fetchData();
+    } finally {
+      setUpdatingCoordinatorClientId(null);
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
       const endpoint = (activeTab === "STAFF" ? "/api/staff" : activeTab === "CLIENTS" ? "/api/clients" : activeTab === "CONTRACTORS" ? "/api/contractors" : "/api/providers") + "?t=" + Date.now();
-      const res = await fetch(endpoint, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const requests: Promise<Response>[] = [
+        fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } }),
+      ];
+      if (activeTab === 'CLIENTS') {
+        requests.push(
+          fetch('/api/staff?t=' + Date.now(), { headers: { Authorization: `Bearer ${token}` } })
+        );
+      }
+
+      const [res, staffRes] = await Promise.all(requests);
       if (res.ok) {
         const data = await res.json();
         if (activeTab === 'STAFF') setStaff(data);
         else if (activeTab === 'CLIENTS') setClients(data);
         else if (activeTab === 'CONTRACTORS') setContractors(data);
         else setProviders(data);
+      }
+      if (staffRes && staffRes.ok) {
+        const staffData = await staffRes.json();
+        if (Array.isArray(staffData)) {
+          setStaff(staffData);
+          if (!hasInitializedCoordinatorDefault && user?.id) {
+            const currentUserRecord = staffData.find((s: any) => Number(s.id) === Number(user.id));
+            if (currentUserRecord && isStaffCareCoordinator(currentUserRecord)) {
+              setCoordinatorFilter(String(user.id));
+            }
+            setHasInitializedCoordinatorDefault(true);
+          }
+        }
       }
     } catch (e) {
       console.error(e);
@@ -338,8 +417,19 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
     return nameA.localeCompare(nameB);
   };
 
-  const activeClients = clients.filter(c => c.status !== 'SUSPENDED');
-  const suspendedClients = clients.filter(c => c.status === 'SUSPENDED').sort(sortClients);
+  const careCoordinators = [...staff]
+    .filter(isStaffCareCoordinator)
+    .sort(sortClients);
+
+  const matchesCoordinatorFilter = (c: any) => {
+    if (!coordinatorFilter) return true;
+    if (coordinatorFilter === 'unassigned') return !c.care_coordinator_id;
+    return String(c.care_coordinator_id || '') === String(coordinatorFilter);
+  };
+
+  const filteredClientsPool = clients.filter(matchesCoordinatorFilter);
+  const activeClients = filteredClientsPool.filter(c => c.status !== 'SUSPENDED');
+  const suspendedClients = filteredClientsPool.filter(c => c.status === 'SUSPENDED').sort(sortClients);
   const ndisClients = activeClients.filter(c => !isHomeCare(c)).sort(sortClients);
   const homeCareClients = activeClients.filter(c => isHomeCare(c)).sort(sortClients);
   const displayClients = clientTab === 'NDIS' 
@@ -416,6 +506,30 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
             </div>
           )}
           <div className="flex items-center gap-2 shrink-0">
+            {activeTab === 'CLIENTS' && (
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={coordinatorFilter}
+                  onChange={(e) => setCoordinatorFilter(e.target.value)}
+                  className="bg-[#121214] border border-white/[0.1] hover:border-brand-teal/50 focus:border-brand-teal text-[#E6EDF3] text-xs rounded-md px-2.5 py-1.5 outline-none transition-colors cursor-pointer"
+                  title="Filter Clients by Care Coordinator Portfolio"
+                >
+                  <option value="">All Care Coordinators ({clients.filter(c => c.status !== 'SUSPENDED').length})</option>
+                  {careCoordinators.map(cc => {
+                    const count = clients.filter(c => c.status !== 'SUSPENDED' && Number(c.care_coordinator_id) === Number(cc.id)).length;
+                    const isMe = Number(cc.id) === Number(user?.id);
+                    return (
+                      <option key={cc.id} value={String(cc.id)}>
+                        {isMe ? `My Clients — ${cc.first_name} ${cc.last_name} (${count})` : `Coordinator: ${cc.first_name} ${cc.last_name} (${count})`}
+                      </option>
+                    );
+                  })}
+                  <option value="unassigned">
+                    Unassigned Coordinator ({clients.filter(c => c.status !== 'SUSPENDED' && !c.care_coordinator_id).length})
+                  </option>
+                </select>
+              </div>
+            )}
             <button 
               onClick={handleAddNew}
               className="flex items-center px-3 py-1.5 bg-gradient-to-r from-brand-teal to-brand-green hover:opacity-90 text-white text-xs font-medium rounded-md transition-all shadow-sm shrink-0 cursor-pointer"
@@ -458,6 +572,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                     
                     {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Provider & Services</th>}
                     {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Funding</th>}
+                    {activeTab === 'CLIENTS' && <th className="px-4 py-2 font-semibold">Care Coordinator</th>}
                     <th className="px-4 py-2 font-semibold">Contact Info</th>
                     <th className="px-4 py-2 font-semibold text-right">Actions</th>
                   </>
@@ -504,13 +619,20 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex flex-col gap-1 items-start">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase border ${
-                          s.role === 'ADMIN' 
-                            ? 'bg-purple-500/10 text-purple-300 border-purple-500/30' 
-                            : 'bg-brand-bg text-[#8B949E] border-border-subtle'
-                        }`}>
-                          {s.role}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase border ${
+                            s.role === 'ADMIN' 
+                              ? 'bg-purple-500/10 text-purple-300 border-purple-500/30' 
+                              : 'bg-brand-bg text-[#8B949E] border-border-subtle'
+                          }`}>
+                            {s.role}
+                          </span>
+                          {isStaffCareCoordinator(s) && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wider uppercase bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                              Care Coordinator
+                            </span>
+                          )}
+                        </div>
                         {s.primary_position && (
                           <span className="text-[11px] text-zinc-300 font-medium truncate max-w-[170px]" title={s.primary_position}>
                             {s.primary_position}
@@ -639,6 +761,42 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                         ) : (
                           <>NDIS Number: {c.ndis_number || 'N/A'}</>
                         )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          {c.care_coordinator_id ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-medium bg-purple-500/10 text-purple-300 border border-purple-500/30">
+                              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
+                              <span className="font-bold text-purple-300 tracking-wider uppercase text-[8px]">COORDINATOR</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-medium bg-zinc-800/60 text-zinc-500 border border-zinc-700/50">
+                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
+                              Unassigned
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={c.care_coordinator_id || ''}
+                            onChange={(e) => handleUpdateClientCoordinator(c.id, e.target.value)}
+                            disabled={updatingCoordinatorClientId === c.id}
+                            className="bg-[#121214] border border-white/10 hover:border-purple-400/50 focus:border-purple-400 text-[#E6EDF3] text-[10px] rounded px-1.5 py-0.5 outline-none transition-colors cursor-pointer max-w-[190px] truncate shadow-sm disabled:opacity-50"
+                            title={c.care_coordinator_name ? `Assigned Care Coordinator: ${c.care_coordinator_name}` : 'Assign a Care Coordinator to this client'}
+                          >
+                            <option value="">-- Care Coordinator --</option>
+                            {careCoordinators.map(cc => (
+                              <option key={cc.id} value={cc.id}>
+                                {cc.first_name} {cc.last_name}
+                              </option>
+                            ))}
+                          </select>
+                          {updatingCoordinatorClientId === c.id && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" title="Saving Care Coordinator..." />
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-2">

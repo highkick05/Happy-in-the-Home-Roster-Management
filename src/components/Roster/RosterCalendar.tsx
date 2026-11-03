@@ -138,6 +138,7 @@ export default function RosterCalendar() {
   const [staffList, setStaffList] = useState<any[]>([]);
   const [clientList, setClientList] = useState<any[]>([]);
   const [servicesList, setServicesList] = useState<any[]>([]);
+  const [coordinatorList, setCoordinatorList] = useState<any[]>([]);
   
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [isHistShiftModalOpen, setIsHistShiftModalOpen] = useState(false);
@@ -149,6 +150,8 @@ export default function RosterCalendar() {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   // Filters and Grouping
+  const [coordinatorFilter, setCoordinatorFilter] = useState<string>('');
+  const hasInitializedCoordinatorDefaultRef = React.useRef<number | null>(null);
   const [clientFilter, setClientFilter] = useLocalStorage<string>('roster_client_filter', '');
   const [staffFilter, setStaffFilter] = useLocalStorage<string>('roster_staff_filter', '');
   const [groupBy, setGroupBy] = useLocalStorage<'STAFF' | 'CLIENT'>('roster_group_by', 'STAFF');
@@ -157,6 +160,20 @@ export default function RosterCalendar() {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string | number>>(new Set());
   const longPressHandledRef = React.useRef(0);
+
+  const isUserCareCoordinator = React.useCallback((u: any): boolean => {
+    if (!u || u.status === 'SUSPENDED') return false;
+    if (u.primary_position === 'Care Coordinator') return true;
+    if (!u.additional_positions) return false;
+    try {
+      const parsed = Array.isArray(u.additional_positions)
+        ? u.additional_positions
+        : JSON.parse(u.additional_positions);
+      return Array.isArray(parsed) && parsed.includes('Care Coordinator');
+    } catch {
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     if (activeView === Views.AGENDA && multiSelectMode) {
@@ -380,14 +397,28 @@ export default function RosterCalendar() {
       
       if (staffRes.ok) {
         const staffData = await staffRes.json();
+        const sortByName = (a: any, b: any) => {
+          const lastCmp = (a.last_name || '').trim().localeCompare((b.last_name || '').trim(), undefined, { sensitivity: 'base' });
+          if (lastCmp !== 0) return lastCmp;
+          return (a.first_name || '').trim().localeCompare((b.first_name || '').trim(), undefined, { sensitivity: 'base' });
+        };
         const sortedStaff = staffData
-          .filter((user: any) => user.role !== 'ADMIN' && user.status !== 'SUSPENDED')
-          .sort((a: any, b: any) => {
-            const lastCmp = (a.last_name || '').trim().localeCompare((b.last_name || '').trim(), undefined, { sensitivity: 'base' });
-            if (lastCmp !== 0) return lastCmp;
-            return (a.first_name || '').trim().localeCompare((b.first_name || '').trim(), undefined, { sensitivity: 'base' });
-          });
+          .filter((u: any) => u.role !== 'ADMIN' && u.status !== 'SUSPENDED')
+          .sort(sortByName);
         setStaffList(sortedStaff);
+
+        const sortedCoordinators = staffData
+          .filter(isUserCareCoordinator)
+          .sort(sortByName);
+        setCoordinatorList(sortedCoordinators);
+
+        if (user?.id && hasInitializedCoordinatorDefaultRef.current !== Number(user.id)) {
+          hasInitializedCoordinatorDefaultRef.current = Number(user.id);
+          const myStaffRecord = staffData.find((u: any) => Number(u.id) === Number(user.id));
+          if (myStaffRecord && isUserCareCoordinator(myStaffRecord)) {
+            setCoordinatorFilter(String(user.id));
+          }
+        }
       }
       if (clientsRes.ok) {
         const clientsData = await clientsRes.json();
@@ -404,7 +435,7 @@ export default function RosterCalendar() {
     } catch (e) {
       console.error(e);
     }
-  }, [token, date, view]);
+  }, [token, date, view, user?.id, isUserCareCoordinator]);
 
   useEffect(() => {
     if (token) fetchData();
@@ -475,9 +506,29 @@ export default function RosterCalendar() {
     });
   }, [events]);
 
+  const visibleClientList = React.useMemo(() => {
+    if (!coordinatorFilter) return clientList;
+    if (coordinatorFilter === 'unassigned') {
+      return clientList.filter((c: any) => !c.care_coordinator_id);
+    }
+    return clientList.filter(
+      (c: any) => String(c.care_coordinator_id || '') === String(coordinatorFilter)
+    );
+  }, [clientList, coordinatorFilter]);
+
+  const coordinatorClientIdsSet = React.useMemo(() => {
+    if (!coordinatorFilter) return null;
+    return new Set<number>(visibleClientList.map((c: any) => Number(c.id)));
+  }, [coordinatorFilter, visibleClientList]);
+
   const filteredEvents = events.filter(e => {
-    // Only apply client/staff filters if user is ADMIN (since staff don't have the UI to clear them)
+    // Only apply coordinator/client/staff filters if user is ADMIN (since staff don't have the UI to clear them)
     if (user?.role === 'ADMIN') {
+      if (coordinatorClientIdsSet !== null) {
+        if (!e.clientId || !coordinatorClientIdsSet.has(Number(e.clientId))) {
+          return false;
+        }
+      }
       if (clientFilter && e.clientId?.toString() !== clientFilter) return false;
       
       if (staffFilter === 'unassigned') {
@@ -746,6 +797,11 @@ export default function RosterCalendar() {
       const c = clientList.find(c => c.id.toString() === clientFilter);
       return c ? `Client: ${c.first_name} ${c.last_name}` : 'Filtered by Client';
     }
+    if (coordinatorFilter) {
+      if (coordinatorFilter === 'unassigned') return 'Unassigned Care Coordinator Clients';
+      const cc = coordinatorList.find(s => s.id.toString() === coordinatorFilter);
+      if (cc) return `Care Coordinator: ${cc.first_name} ${cc.last_name}`;
+    }
     if (staffFilter) {
       if (staffFilter === 'unassigned') return 'Unassigned Staff Shifts';
       const s = staffList.find(s => s.id.toString() === staffFilter);
@@ -755,7 +811,7 @@ export default function RosterCalendar() {
       return `Staff: ${user?.firstName || ''} ${user?.lastName || ''}`.trim();
     }
     return 'All Staff & Clients';
-  }, [clientFilter, staffFilter, clientList, staffList, user]);
+  }, [clientFilter, coordinatorFilter, staffFilter, clientList, coordinatorList, staffList, user]);
 
   const handlePrintPdfWithOptions = async (rangeStart: Date, rangeEnd: Date) => {
     try {
@@ -826,6 +882,11 @@ export default function RosterCalendar() {
           if (sDate > rangeEnd || eDate < rangeStart) return false;
 
           if (user?.role === 'ADMIN') {
+            if (coordinatorClientIdsSet !== null) {
+              if (!shift.clientId || !coordinatorClientIdsSet.has(Number(shift.clientId))) {
+                return false;
+              }
+            }
             if (clientFilter && shift.clientId?.toString() !== clientFilter) return false;
             
             if (staffFilter === 'unassigned') {
@@ -852,6 +913,13 @@ export default function RosterCalendar() {
       if (clientFilter) {
         const c = clientList.find(c => c.id.toString() === clientFilter);
         if (c) filterName = `${c.first_name} ${c.last_name}`;
+      } else if (coordinatorFilter) {
+        if (coordinatorFilter === 'unassigned') {
+          filterName = 'Unassigned Care Coordinator';
+        } else {
+          const cc = coordinatorList.find(s => s.id.toString() === coordinatorFilter);
+          if (cc) filterName = `Coordinator ${cc.first_name} ${cc.last_name}`;
+        }
       } else if (staffFilter) {
         if (staffFilter === 'unassigned') {
           filterName = 'Unassigned Staff';
@@ -1714,12 +1782,39 @@ export default function RosterCalendar() {
               {/* Filters Group */}
               <div className="flex flex-wrap items-center gap-2 p-1 bg-black/20 rounded-lg border border-white/5 w-full sm:w-auto">
                 <select
-                  value={groupBy}
-                  onChange={(e) => setGroupBy(e.target.value as 'STAFF' | 'CLIENT')}
+                  value={coordinatorFilter}
+                  onChange={(e) => {
+                    const nextCoord = e.target.value;
+                    setCoordinatorFilter(nextCoord);
+                    if (nextCoord && clientFilter) {
+                      const selectedClient = clientList.find((c: any) => String(c.id) === String(clientFilter));
+                      if (selectedClient) {
+                        const belongs =
+                          nextCoord === 'unassigned'
+                            ? !selectedClient.care_coordinator_id
+                            : String(selectedClient.care_coordinator_id || '') === String(nextCoord);
+                        if (!belongs) setClientFilter('');
+                      }
+                    }
+                  }}
                   className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[11px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
+                  title="Filter Roster by Care Coordinator Portfolio"
                 >
-                  <option value="STAFF">Group by Staff</option>
-                  <option value="CLIENT">Group by Client</option>
+                  <option value="">All Care Coordinators (All Clients)</option>
+                  {coordinatorList.map(cc => {
+                    const clientCount = clientList.filter((c: any) => Number(c.care_coordinator_id) === Number(cc.id)).length;
+                    const isMe = Number(cc.id) === Number(user?.id);
+                    return (
+                      <option key={cc.id} value={String(cc.id)}>
+                        {isMe
+                          ? `My Clients — ${cc.first_name} ${cc.last_name} (${clientCount})`
+                          : `Coordinator: ${cc.first_name} ${cc.last_name} (${clientCount})`}
+                      </option>
+                    );
+                  })}
+                  <option value="unassigned">
+                    Unassigned Coordinator ({clientList.filter((c: any) => !c.care_coordinator_id).length})
+                  </option>
                 </select>
 
                 <select
@@ -1727,8 +1822,10 @@ export default function RosterCalendar() {
                   onChange={(e) => setClientFilter(e.target.value)}
                   className="bg-brand-bg border border-border-subtle rounded-md px-3 py-1.5 text-[11px] text-[#E6EDF3] outline-none focus:border-brand-blue w-full sm:w-auto transition-colors focus:ring-1 focus:ring-brand-blue"
                 >
-                  <option value="">All Clients</option>
-                  {clientList.map(c => (
+                  <option value="">
+                    {coordinatorFilter ? `All Portfolio Clients (${visibleClientList.length})` : 'All Clients'}
+                  </option>
+                  {visibleClientList.map(c => (
                     <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
                   ))}
                 </select>

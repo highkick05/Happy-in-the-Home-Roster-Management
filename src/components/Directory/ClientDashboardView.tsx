@@ -403,8 +403,13 @@ export default function ClientDashboardView() {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h2 className="text-base sm:text-lg font-semibold text-[#E6EDF3] tracking-tight leading-tight flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-semibold text-[#E6EDF3] tracking-tight leading-tight flex items-center gap-2 flex-wrap">
               <span>{client.first_name} {client.last_name}</span>
+              {client.care_coordinator_name && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider bg-purple-500/15 border border-purple-500/30 text-purple-300">
+                  Care Coordinator: {client.care_coordinator_name}
+                </span>
+              )}
               {client.status === 'SUSPENDED' && (
                 <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold tracking-wider bg-red-500/10 border border-red-500/20 text-red-400 uppercase">
                   Suspended
