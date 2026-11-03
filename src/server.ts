@@ -7888,161 +7888,155 @@ function getUnreadChatCount(db: any, userId: number): number {
   app.get("/api/awesome-quotes/daily", (req, res) => {
     try {
       const quotes = [
-        {
-          quote: "The only way to do great work is to love what you do.",
-          author: "Steve Jobs",
-        },
-        {
-          quote: "Believe you can and you're halfway there.",
-          author: "Theodore Roosevelt",
-        },
-        {
-          quote:
-            "It does not matter how slowly you go as long as you do not stop.",
-          author: "Confucius",
-        },
-        {
-          quote:
-            "Success is not final, failure is not fatal: it is the courage to continue that counts.",
-          author: "Winston Churchill",
-        },
-        {
-          quote: "Act as if what you do makes a difference. It does.",
-          author: "William James",
-        },
-        {
-          quote:
-            "What you get by achieving your goals is not as important as what you become by achieving your goals.",
-          author: "Zig Ziglar",
-        },
-        {
-          quote:
-            "I can't change the direction of the wind, but I can adjust my sails to always reach my destination.",
-          author: "Jimmy Dean",
-        },
-        {
-          quote:
-            "You are never too old to set another goal or to dream a new dream.",
-          author: "C.S. Lewis",
-        },
-        {
-          quote: "Limit your 'always' and your 'nevers'.",
-          author: "Amy Poehler",
-        },
-        {
-          quote: "Nothing is impossible. The word itself says 'I'm possible!'",
-          author: "Audrey Hepburn",
-        },
-        { quote: "You are enough just as you are.", author: "Meghan Markle" },
-        {
-          quote:
-            "Keep your face always toward the sunshine, and shadows will fall behind you.",
-          author: "Walt Whitman",
-        },
-        {
-          quote:
-            "The future belongs to those who believe in the beauty of their dreams.",
-          author: "Eleanor Roosevelt",
-        },
-        {
-          quote:
-            "You define your own life. Don't let other people write your script.",
-          author: "Oprah Winfrey",
-        },
-        { quote: "Spread love everywhere you go.", author: "Mother Teresa" },
-        {
-          quote: "Do what you can, with what you have, where you are.",
-          author: "Theodore Roosevelt",
-        },
-        {
-          quote: "The best way to predict the future is to create it.",
-          author: "Abraham Lincoln",
-        },
-        {
-          quote:
-            "Happiness is not something ready made. It comes from your own actions.",
-          author: "Dalai Lama",
-        },
-        {
-          quote:
-            "The only limit to our realization of tomorrow will be our doubts of today.",
-          author: "Franklin D. Roosevelt",
-        },
-        {
-          quote: "We generate fears while we sit. We overcome them by action.",
-          author: "Dr. Henry Link",
-        },
-        {
-          quote: "Whether you think you can or think you can't, you're right.",
-          author: "Henry Ford",
-        },
-        {
-          quote:
-            "Security is mostly a superstition. Life is either a daring adventure or nothing.",
-          author: "Helen Keller",
-        },
-        {
-          quote:
-            "The man who has confidence in himself gains the confidence of others.",
-          author: "Hasidic Proverb",
-        },
-        {
-          quote:
-            "The pessimist sees difficulty in every opportunity. The optimist sees opportunity in every difficulty.",
-          author: "Winston Churchill",
-        },
-        {
-          quote: "Don't let yesterday take up too much of today.",
-          author: "Will Rogers",
-        },
-        {
-          quote:
-            "You learn more from failure than from success. Don't let it stop you.",
-          author: "Unknown",
-        },
-        {
-          quote:
-            "If you are working on something that you really care about, you don't have to be pushed. The vision pulls you.",
-          author: "Steve Jobs",
-        },
-        {
-          quote:
-            "People who are crazy enough to think they can change the world, are the ones who do.",
-          author: "Rob Siltanen",
-        },
-        {
-          quote:
-            "Failure will never overtake me if my determination to succeed is strong enough.",
-          author: "Og Mandino",
-        },
-        {
-          quote:
-            "Entrepreneurs are great at dealing with uncertainty and also very good at minimizing risk.",
-          author: "Mohnish Pabrai",
-        },
-        {
-          quote: "We may encounter many defeats but we must not be defeated.",
-          author: "Maya Angelou",
-        },
-        {
-          quote:
-            "Knowing is not enough; we must apply. Wishing is not enough; we must do.",
-          author: "Johann Wolfgang Von Goethe",
-        },
-        {
-          quote:
-            "Imagine your life is perfect in every respect; what would it look like?",
-          author: "Brian Tracy",
-        },
+        { quote: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+        { quote: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
+        { quote: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
+        { quote: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+        { quote: "Act as if what you do makes a difference. It does.", author: "William James" },
+        { quote: "What you get by achieving your goals is not as important as what you become by achieving your goals.", author: "Zig Ziglar" },
+        { quote: "I can't change the direction of the wind, but I can adjust my sails to always reach my destination.", author: "Jimmy Dean" },
+        { quote: "You are never too old to set another goal or to dream a new dream.", author: "C. S. Lewis" },
+        { quote: "Limit your 'always' and your 'nevers'.", author: "Amy Poehler" },
+        { quote: "Nothing is impossible. The word itself says 'I'm possible!'", author: "Audrey Hepburn" },
+        { quote: "Keep your face always toward the sunshine, and shadows will fall behind you.", author: "Walt Whitman" },
+        { quote: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
+        { quote: "You define your own life. Don't let other people write your script.", author: "Oprah Winfrey" },
+        { quote: "Spread love everywhere you go. Let no one ever come to you without leaving happier.", author: "Mother Teresa" },
+        { quote: "Do what you can, with what you have, where you are.", author: "Theodore Roosevelt" },
+        { quote: "The best way to predict the future is to create it.", author: "Abraham Lincoln" },
+        { quote: "Happiness is not something ready made. It comes from your own actions.", author: "14th Dalai Lama", displayAuthor: "Dalai Lama" },
+        { quote: "The only limit to our realization of tomorrow will be our doubts of today.", author: "Franklin D. Roosevelt" },
+        { quote: "Whether you think you can or think you can't, you're right.", author: "Henry Ford" },
+        { quote: "Security is mostly a superstition. Life is either a daring adventure or nothing.", author: "Helen Keller" },
+        { quote: "The pessimist sees difficulty in every opportunity. The optimist sees opportunity in every difficulty.", author: "Winston Churchill" },
+        { quote: "Don't let yesterday take up too much of today.", author: "Will Rogers" },
+        { quote: "If you are working on something that you really care about, you don't have to be pushed. The vision pulls you.", author: "Steve Jobs" },
+        { quote: "Failure will never overtake me if my determination to succeed is strong enough.", author: "Marcus Aurelius" },
+        { quote: "We may encounter many defeats but we must not be defeated.", author: "Maya Angelou" },
+        { quote: "Knowing is not enough; we must apply. Wishing is not enough; we must do.", author: "Johann Wolfgang von Goethe" },
+        { quote: "The happiness of your life depends upon the quality of your thoughts.", author: "Marcus Aurelius" },
+        { quote: "Waste no more time arguing about what a good man should be. Be one.", author: "Marcus Aurelius" },
+        { quote: "You have power over your mind — not outside events. Realize this, and you will find strength.", author: "Marcus Aurelius" },
+        { quote: "In the middle of every difficulty lies opportunity.", author: "Albert Einstein" },
+        { quote: "Life is like riding a bicycle. To keep your balance, you must keep moving.", author: "Albert Einstein" },
+        { quote: "Strive not to be a success, but rather to be of value.", author: "Albert Einstein" },
+        { quote: "It always seems impossible until it's done.", author: "Nelson Mandela" },
+        { quote: "The greatest glory in living lies not in never falling, but in rising every time we fall.", author: "Nelson Mandela" },
+        { quote: "Education is the most powerful weapon which you can use to change the world.", author: "Nelson Mandela" },
+        { quote: "Be the change that you wish to see in the world.", author: "Mahatma Gandhi" },
+        { quote: "The best way to find yourself is to lose yourself in the service of others.", author: "Mahatma Gandhi" },
+        { quote: "In a gentle way, you can shake the world.", author: "Mahatma Gandhi" },
+        { quote: "People will forget what you said, people will forget what you did, but people will never forget how you made them feel.", author: "Maya Angelou" },
+        { quote: "Try to be a rainbow in someone's cloud.", author: "Maya Angelou" },
+        { quote: "Nothing will work unless you do.", author: "Maya Angelou" },
+        { quote: "Darkness cannot drive out darkness; only light can do that. Hate cannot drive out hate; only love can do that.", author: "Martin Luther King Jr." },
+        { quote: "The time is always right to do what is right.", author: "Martin Luther King Jr." },
+        { quote: "Faith is taking the first step even when you don't see the whole staircase.", author: "Martin Luther King Jr." },
+        { quote: "Life's most persistent and urgent question is, 'What are you doing for others?'", author: "Martin Luther King Jr." },
+        { quote: "Not all of us can do great things. But we can do small things with great love.", author: "Mother Teresa" },
+        { quote: "Kind words can be short and easy to speak, but their echoes are truly endless.", author: "Mother Teresa" },
+        { quote: "Peace begins with a smile.", author: "Mother Teresa" },
+        { quote: "Alone we can do so little; together we can do so much.", author: "Helen Keller" },
+        { quote: "The best and most beautiful things in the world cannot be seen or even touched — they must be felt with the heart.", author: "Helen Keller" },
+        { quote: "Optimism is the faith that leads to achievement. Nothing can be done without hope and confidence.", author: "Helen Keller" },
+        { quote: "Nothing in life is to be feared, it is only to be understood. Now is the time to understand more, so that we may fear less.", author: "Marie Curie" },
+        { quote: "Be less curious about people and more curious about ideas.", author: "Marie Curie" },
+        { quote: "I attribute my success to this: I never gave or took any excuse.", author: "Florence Nightingale" },
+        { quote: "How very little can be done under the spirit of fear.", author: "Florence Nightingale" },
+        { quote: "No act of kindness, no matter how small, is ever wasted.", author: "Aesop" },
+        { quote: "Quality is not an act, it is a habit.", author: "Aristotle" },
+        { quote: "We are what we repeatedly do. Excellence, then, is not an act, but a habit.", author: "Aristotle" },
+        { quote: "The secret of change is to focus all of your energy not on fighting the old, but on building the new.", author: "Socrates" },
+        { quote: "He who has a why to live can bear almost any how.", author: "Friedrich Nietzsche" },
+        { quote: "Happiness depends upon ourselves.", author: "Aristotle" },
+        { quote: "Turn your wounds into wisdom.", author: "Oprah Winfrey" },
+        { quote: "The biggest adventure you can take is to live the life of your dreams.", author: "Oprah Winfrey" },
+        { quote: "If you look at what you have in life, you'll always have more.", author: "Oprah Winfrey" },
+        { quote: "What lies behind us and what lies before us are tiny matters compared to what lies within us.", author: "Ralph Waldo Emerson" },
+        { quote: "Do not go where the path may lead, go instead where there is no path and leave a trail.", author: "Ralph Waldo Emerson" },
+        { quote: "To be yourself in a world that is constantly trying to make you something else is the greatest accomplishment.", author: "Ralph Waldo Emerson" },
+        { quote: "Go confidently in the direction of your dreams! Live the life you've imagined.", author: "Henry David Thoreau" },
+        { quote: "Success usually comes to those who are too busy to be looking for it.", author: "Henry David Thoreau" },
+        { quote: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+        { quote: "Kindness is the language which the deaf can hear and the blind can see.", author: "Mark Twain" },
+        { quote: "Twenty years from now you will be more disappointed by the things that you didn't do than by the ones you did do.", author: "Mark Twain" },
+        { quote: "What you do makes a difference, and you have to decide what kind of difference you want to make.", author: "Jane Goodall" },
+        { quote: "Start where you are. Use what you have. Do what you can.", author: "Arthur Ashe" },
+        { quote: "From what we get, we can make a living; what we give, however, makes a life.", author: "Arthur Ashe" },
+        { quote: "You miss 100% of the shots you don't take.", author: "Wayne Gretzky" },
+        { quote: "I've missed more than 9,000 shots in my career. I've failed over and over and over again in my life. And that is why I succeed.", author: "Michael Jordan" },
+        { quote: "Talent wins games, but teamwork and intelligence win championships.", author: "Michael Jordan" },
+        { quote: "The most important thing is to try and inspire people so that they can be great in whatever they want to do.", author: "Kobe Bryant" },
+        { quote: "Don't count the days, make the days count.", author: "Muhammad Ali" },
+        { quote: "Service to others is the rent you pay for your room here on earth.", author: "Muhammad Ali" },
+        { quote: "He who is not courageous enough to take risks will accomplish nothing in life.", author: "Muhammad Ali" },
+        { quote: "Genius is one percent inspiration and ninety-nine percent perspiration.", author: "Thomas Edison" },
+        { quote: "Our greatest weakness lies in giving up. The most certain way to succeed is always to try just one more time.", author: "Thomas Edison" },
+        { quote: "I have not failed. I've just found 10,000 ways that won't work.", author: "Thomas Edison" },
+        { quote: "Tell me and I forget. Teach me and I remember. Involve me and I learn.", author: "Benjamin Franklin" },
+        { quote: "Well done is better than well said.", author: "Benjamin Franklin" },
+        { quote: "Energy and persistence conquer all things.", author: "Benjamin Franklin" },
+        { quote: "An investment in knowledge pays the best interest.", author: "Benjamin Franklin" },
+        { quote: "Simplicity is the ultimate sophistication.", author: "Leonardo da Vinci" },
+        { quote: "Learning never exhausts the mind.", author: "Leonardo da Vinci" },
+        { quote: "However difficult life may seem, there is always something you can do and succeed at.", author: "Stephen Hawking" },
+        { quote: "Look up at the stars and not down at your feet.", author: "Stephen Hawking" },
+        { quote: "Intelligence is the ability to adapt to change.", author: "Stephen Hawking" },
+        { quote: "If you want to lift yourself up, lift up someone else.", author: "Booker T. Washington" },
+        { quote: "Excellence is to do a common thing in an uncommon way.", author: "Booker T. Washington" },
+        { quote: "How wonderful it is that nobody need wait a single moment before starting to improve the world.", author: "Anne Frank" },
+        { quote: "Where there's hope, there's life. It fills us with fresh courage and makes us strong again.", author: "Anne Frank" },
+        { quote: "No one has ever become poor by giving.", author: "Anne Frank" },
+        { quote: "It is during our darkest moments that we must focus to see the light.", author: "Aristotle" },
+        { quote: "I have learned over the years that when one's mind is made up, this diminishes fear.", author: "Rosa Parks" },
+        { quote: "Every great dream begins with a dreamer.", author: "Harriet Tubman" },
+        { quote: "Somewhere, something incredible is waiting to be known.", author: "Carl Sagan" },
+        { quote: "When we are no longer able to change a situation, we are challenged to change ourselves.", author: "Viktor Frankl" },
+        { quote: "Do your little bit of good where you are; it's those little bits of good put together that overwhelm the world.", author: "Desmond Tutu" },
+        { quote: "Effort and courage are not enough without purpose and direction.", author: "John F. Kennedy" },
+        { quote: "Carry out a random act of kindness, with no expectation of reward.", author: "Diana, Princess of Wales", displayAuthor: "Princess Diana" },
+        { quote: "Your time is limited, so don't waste it living someone else's life.", author: "Steve Jobs" },
+        { quote: "Innovation distinguishes between a leader and a follower.", author: "Steve Jobs" },
+        { quote: "If opportunity doesn't knock, build a door.", author: "Milton Berle" },
+        { quote: "We make a living by what we get, but we make a life by what we give.", author: "Winston Churchill" },
+        { quote: "Continuous effort — not strength or intelligence — is the key to unlocking our potential.", author: "Winston Churchill" },
+        { quote: "Courage is grace under pressure.", author: "Ernest Hemingway" },
+        { quote: "There is nothing noble in being superior to your fellow man; true nobility is being superior to your former self.", author: "Ernest Hemingway" },
+        { quote: "The way to get started is to quit talking and begin doing.", author: "Walt Disney" },
+        { quote: "All our dreams can come true, if we have the courage to pursue them.", author: "Walt Disney" },
+        { quote: "It's kind of fun to do the impossible.", author: "Walt Disney" },
+        { quote: "When you reach the end of your rope, tie a knot in it and hang on.", author: "Franklin D. Roosevelt" },
+        { quote: "No one can make you feel inferior without your consent.", author: "Eleanor Roosevelt" },
+        { quote: "Do one thing every day that scares you.", author: "Eleanor Roosevelt" },
+        { quote: "With the new day comes new strength and new thoughts.", author: "Eleanor Roosevelt" },
+        { quote: "You must do the things you think you cannot do.", author: "Eleanor Roosevelt" },
       ];
-      // Use days since epoch to pick a consistent daily quote that cycles through the array over time
-      const dayIndex = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
-      const dailyQuote = quotes[dayIndex % quotes.length];
-      res.json(dailyQuote);
+
+      const isRandom = String(req.query.random || "").toLowerCase() === "true";
+      const excludeQuote = String(req.query.exclude || "").trim();
+
+      let selected;
+      if (isRandom) {
+        const pool = excludeQuote
+          ? quotes.filter((q) => q.quote !== excludeQuote)
+          : quotes;
+        const source = pool.length > 0 ? pool : quotes;
+        selected = source[Math.floor(Math.random() * source.length)];
+      } else {
+        const dayIndex = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+        selected = quotes[dayIndex % quotes.length];
+      }
+
+      res.json({
+        quote: selected.quote,
+        author: (selected as any).displayAuthor || selected.author,
+        wikiTitle: selected.author,
+      });
     } catch (err) {
       res.json({
         quote: "Innovation distinguishes between a leader and a follower.",
         author: "Steve Jobs",
+        wikiTitle: "Steve Jobs",
       });
     }
   });

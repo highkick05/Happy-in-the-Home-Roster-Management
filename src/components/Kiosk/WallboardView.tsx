@@ -140,139 +140,211 @@ export default function WallboardView() {
     };
   }, []);
 
-  const fetchQuote = async () => {
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const currentQuoteRef = useRef<string>('');
+  const isFetchingRef = useRef<boolean>(false);
+
+  const fetchQuote = async (attempt = 0) => {
     try {
-      const res = await fetch('/api/awesome-quotes/daily');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const excludeParam = currentQuoteRef.current
+        ? `&exclude=${encodeURIComponent(currentQuoteRef.current)}`
+        : '';
+      const res = await fetch(`/api/awesome-quotes/daily?random=true${excludeParam}&_t=${Date.now()}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error('Quote fetch failed');
       const data = await res.json();
-      
+
+      const wikiLookupTitle = data.wikiTitle || data.author;
       try {
-        if (data.author && data.author !== 'Unknown' && !data.author.includes('Proverb')) {
-            const wikiRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(data.author)}&prop=pageimages&format=json&pithumbsize=200&origin=*&redirects=1`);
-            const wikiData = await wikiRes.json();
-            const pages = wikiData.query?.pages;
-            if (pages) {
-                const pageValues = Object.values(pages)[0] as any;
-                if (pageValues.thumbnail?.source) {
-                    data.imageUrl = pageValues.thumbnail.source;
-                }
+        if (wikiLookupTitle && wikiLookupTitle !== 'Unknown' && !wikiLookupTitle.includes('Proverb')) {
+          const wikiController = new AbortController();
+          const wikiTimeout = setTimeout(() => wikiController.abort(), 6000);
+          const wikiRes = await fetch(
+            `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(wikiLookupTitle)}&prop=pageimages&format=json&pithumbsize=240&origin=*&redirects=1`,
+            { signal: wikiController.signal }
+          );
+          clearTimeout(wikiTimeout);
+          const wikiData = await wikiRes.json();
+          const pages = wikiData.query?.pages;
+          if (pages) {
+            const pageValues = Object.values(pages)[0] as any;
+            if (pageValues?.thumbnail?.source) {
+              data.imageUrl = pageValues.thumbnail.source;
             }
+          }
         }
       } catch (e) {
-          console.error("Failed to fetch wiki image", e);
+        console.error("Failed to fetch wiki image", e);
       }
 
+      // If no Wikipedia portrait was found and we have retries left, try picking another quote so a picture is always shown
+      if (!data.imageUrl && attempt < 2) {
+        currentQuoteRef.current = data.quote || '';
+        return fetchQuote(attempt + 1);
+      }
+
+      currentQuoteRef.current = data.quote || '';
       setDailyQuote(data);
-    } catch(e) {
-       console.error(e);
+    } catch (e) {
+      console.error("Failed to fetch quote:", e);
     }
   };
 
   useEffect(() => {
     fetchQuote();
-    const interval = setInterval(fetchQuote, 24 * 60 * 60 * 1000); // Daily
+    // Rotate random quote every 5 minutes
+    const interval = setInterval(() => fetchQuote(), 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
   const fetchData = async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     try {
-      let startBound = subDays(new Date(), 2);
-      let endBound = addDays(new Date(), 2);
+      const startBound = subDays(new Date(), 2);
+      const endBound = addDays(new Date(), 2);
       
       const startIso = startBound.toISOString();
       const endIso = endBound.toISOString();
 
-      const fetchOptions = token ? { headers: { Authorization: `Bearer ${token}` } } : undefined;
+      const fetchOptions: RequestInit = {
+        signal: controller.signal,
+        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {})
+      };
+
       const [shiftsRes, respiteRes] = await Promise.all([
         fetch(`/api/shifts?wallboard=true&start=${startIso}&end=${endIso}&t=` + Date.now(), fetchOptions),
         fetch(`/api/respite-bookings?wallboard=true&start=${startIso}&end=${endIso}&t=` + Date.now(), fetchOptions)
       ]);
 
-      if (shiftsRes.ok) {
+      if (!shiftsRes.ok) {
+        throw new Error(`HTTP ${shiftsRes.status}`);
+      }
 
-        const shiftsData = await shiftsRes.json();
-        const respiteData = respiteRes.ok ? await respiteRes.json() : [];
-        
-        console.log("shiftsData", shiftsData);
-        if (!Array.isArray(shiftsData)) {
-          console.error("shiftsData is not an array", shiftsData);
-          return;
-        }
-        const individualShifts = shiftsData.filter((d: any) => !d.respite_booking_id);
+      const shiftsData = await shiftsRes.json();
+      const respiteData = respiteRes.ok ? await respiteRes.json() : [];
+      
+      if (!Array.isArray(shiftsData)) {
+        throw new Error("Invalid shifts response format");
+      }
 
-        const mappedShifts = individualShifts.map((d: any) => ({
-          id: d.id,
-          title: `${d.client_first_name} ${d.client_last_name} (${d.staff_first_name || 'Unassigned'})`,
+      const individualShifts = shiftsData.filter((d: any) => !d.respite_booking_id);
+
+      const mappedShifts = individualShifts.map((d: any) => ({
+        id: d.id,
+        title: `${d.client_first_name} ${d.client_last_name} (${d.staff_first_name || 'Unassigned'})`,
+        start: new Date((d.start_time || '').includes('T') ? (d.start_time || '') : (d.start_time || '').replace(' ', 'T')),
+        end: new Date((d.end_time || '').includes('T') ? (d.end_time || '') : (d.end_time || '').replace(' ', 'T')),
+        staffId: d.staff_id,
+        staffName: `${d.staff_first_name} ${d.staff_last_name}`.trim(),
+        clientId: d.client_id,
+        clientName: `${d.client_first_name} ${d.client_last_name}`.trim(),
+        status: d.status,
+        serviceName: d.service_name || (d.services_json && String(d.services_json).includes('orientation') ? 'Orientation' : (d.services_json && String(d.services_json).includes('custom') ? 'Custom Service' : '')),
+        actualStartTime: d.actual_start_time,
+        actualEndTime: d.actual_finish_time,
+      }));
+      
+      const mappedRespites: any[] = [];
+      const childShifts: any[] = [];
+
+      respiteData.forEach((d: any) => {
+        mappedRespites.push({
+          id: `rb_${d.id}`,
+          title: `${d.client_first_name} ${d.client_last_name} (STA / Respite)`,
           start: new Date((d.start_time || '').includes('T') ? (d.start_time || '') : (d.start_time || '').replace(' ', 'T')),
           end: new Date((d.end_time || '').includes('T') ? (d.end_time || '') : (d.end_time || '').replace(' ', 'T')),
-          staffId: d.staff_id,
-          staffName: `${d.staff_first_name} ${d.staff_last_name}`.trim(),
           clientId: d.client_id,
           clientName: `${d.client_first_name} ${d.client_last_name}`.trim(),
           status: d.status,
-          serviceName: d.service_name || (d.services_json && String(d.services_json).includes('orientation') ? 'Orientation' : (d.services_json && String(d.services_json).includes('custom') ? 'Custom Service' : '')),
-          actualStartTime: d.actual_start_time,
-          actualEndTime: d.actual_finish_time,
-        }));
-        
-        const mappedRespites: any[] = [];
-        const childShifts: any[] = [];
-
-        respiteData.forEach((d: any) => {
-          mappedRespites.push({
-            id: `rb_${d.id}`,
-            title: `${d.client_first_name} ${d.client_last_name} (STA / Respite)`,
-            start: new Date((d.start_time || '').includes('T') ? (d.start_time || '') : (d.start_time || '').replace(' ', 'T')),
-            end: new Date((d.end_time || '').includes('T') ? (d.end_time || '') : (d.end_time || '').replace(' ', 'T')),
-            clientId: d.client_id,
-            clientName: `${d.client_first_name} ${d.client_last_name}`.trim(),
-            status: d.status,
-            isRespiteWrapper: true,
-          });
-
-          if (Array.isArray(d.shifts)) {
-            d.shifts.forEach((s: any) => {
-              childShifts.push({
-                id: s.id,
-                title: `${d.client_first_name} ${d.client_last_name} (${s.staff_first_name || 'Unassigned'})`,
-                start: new Date((s.start_time || '').includes('T') ? (s.start_time || '') : (s.start_time || '').replace(' ', 'T')),
-                end: new Date((s.end_time || '').includes('T') ? (s.end_time || '') : (s.end_time || '').replace(' ', 'T')),
-                staffId: s.staff_id,
-                staffName: `${s.staff_first_name} ${s.staff_last_name}`.trim(),
-                clientId: d.client_id,
-                clientName: `${d.client_first_name} ${d.client_last_name}`.trim(),
-                status: s.status,
-                serviceName: s.service_name || (s.services_json && String(s.services_json).includes('orientation') ? 'Orientation' : (s.services_json && String(s.services_json).includes('custom') ? 'Custom Service' : '')),
-                actualStartTime: s.actual_start_time,
-                actualEndTime: s.actual_finish_time,
-              });
-            });
-          }
+          isRespiteWrapper: true,
         });
 
-        // Filter out drafts / cancelled so wallboard stays clean if desired, or keep them to show status.
-        // Wallboard shouldn't show deleted or cancelled usually, but we'll show what's passed.
-        setEvents([...mappedShifts, ...mappedRespites, ...childShifts].filter((e: any) => {
-          if (!e.status) return true;
-          return ['PUBLISHED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(e.status.toUpperCase());
-        }));
-      }
+        if (Array.isArray(d.shifts)) {
+          d.shifts.forEach((s: any) => {
+            childShifts.push({
+              id: s.id,
+              title: `${d.client_first_name} ${d.client_last_name} (${s.staff_first_name || 'Unassigned'})`,
+              start: new Date((s.start_time || '').includes('T') ? (s.start_time || '') : (s.start_time || '').replace(' ', 'T')),
+              end: new Date((s.end_time || '').includes('T') ? (s.end_time || '') : (s.end_time || '').replace(' ', 'T')),
+              staffId: s.staff_id,
+              staffName: `${s.staff_first_name} ${s.staff_last_name}`.trim(),
+              clientId: d.client_id,
+              clientName: `${d.client_first_name} ${d.client_last_name}`.trim(),
+              status: s.status,
+              serviceName: s.service_name || (s.services_json && String(s.services_json).includes('orientation') ? 'Orientation' : (s.services_json && String(s.services_json).includes('custom') ? 'Custom Service' : '')),
+              actualStartTime: s.actual_start_time,
+              actualEndTime: s.actual_finish_time,
+            });
+          });
+        }
+      });
+
+      setEvents([...mappedShifts, ...mappedRespites, ...childShifts].filter((e: any) => {
+        if (!e.status) return true;
+        return ['PUBLISHED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(e.status.toUpperCase());
+      }));
+
+      // Clear any previous error or reconnecting state once connection succeeds
+      setFetchError(null);
+      setIsReconnecting(false);
     } catch (e: any) {
       console.error("Wallboard fetch error:", e);
-      setFetchError(e.toString());
+      setIsReconnecting(true);
+      setEvents((prev) => {
+        if (prev.length === 0) {
+          setFetchError(e?.message || 'Connection interrupted');
+        }
+        return prev;
+      });
+    } finally {
+      clearTimeout(timeoutId);
+      isFetchingRef.current = false;
     }
   };
 
   useEffect(() => {
     fetchData();
+
+    // Poll every 5 seconds while reconnecting after a Wi-Fi drop, or every 25 seconds when healthy
+    const pollDelay = isReconnecting ? 5000 : 25000;
     const interval = setInterval(() => {
       fetchData();
       if (!manualMode) {
-        // Keep moving the 'window' forward so yesterday's shifts fall off 24 hours later
         setDate(subDays(new Date(), 1));
       }
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [token, manualMode, date]);
+    }, pollDelay);
+
+    const handleOnline = () => {
+      fetchData();
+      if (!dailyQuote || !dailyQuote.imageUrl) {
+        fetchQuote();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchData();
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [token, manualMode, isReconnecting]);
 
   const handleSelectEvent = (event: ShiftEvent) => {
     if (event.isRespiteWrapper) return;
@@ -349,7 +421,13 @@ export default function WallboardView() {
               Dream Chasers
             </motion.h1>
           </div>
-          <div className="flex-1 flex justify-end items-center">
+          <div className="flex-1 flex justify-end items-center gap-3">
+            {isReconnecting && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-medium animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                Reconnecting...
+              </span>
+            )}
             <div className="text-xl md:text-2xl font-mono text-zinc-300 font-semibold tracking-wider" style={{ zoom: zoomLevel } as any}>
                {format(currentTime, 'h:mm:ss a')}
             </div>
@@ -386,11 +464,11 @@ export default function WallboardView() {
         <div className="flex-1 w-full flex flex-col p-4 md:p-8 overflow-auto">
           <div style={{ zoom: zoomLevel } as any} className="flex-1 w-full max-w-7xl mx-auto flex flex-col gap-8 pb-32">
             <div className="w-full flex flex-col gap-8">
-                  {fetchError ? (
-      <div className="flex items-center justify-center h-48 text-red-500 font-medium text-xl">
-        Error loading shifts: {fetchError}
-      </div>
-    ) : groupedEvents.length === 0 ? (
+                  {fetchError && groupedEvents.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-48 text-amber-400 font-medium text-lg gap-2">
+                      <span>Connection interrupted ({fetchError}). Automatically reconnecting...</span>
+                    </div>
+                  ) : groupedEvents.length === 0 ? (
                     <div className="flex items-center justify-center h-48 text-zinc-500 font-medium">
                       No shifts found starting from {format(date, 'd MMM yyyy')}.
                     </div>
@@ -490,7 +568,11 @@ export default function WallboardView() {
         </div>
 
         {/* Footer with Quote */}
-        <div className="flex flex-col items-center justify-center p-3 sm:px-6 bg-zinc-900/50 border-t border-zinc-800 min-h-[64px] shrink-0">
+        <div
+          onClick={() => fetchQuote()}
+          title="Click for next quote"
+          className="flex flex-col items-center justify-center p-3 sm:px-6 bg-zinc-900/50 border-t border-zinc-800 min-h-[64px] shrink-0 cursor-pointer hover:bg-zinc-900/70 transition-colors"
+        >
           <AnimatePresence mode="wait">
             {dailyQuote ? (
               <motion.div 
@@ -502,12 +584,20 @@ export default function WallboardView() {
                 className="text-center w-full max-w-4xl mx-auto flex flex-col items-center justify-center"
               >
                 <div className="flex items-center justify-center gap-4">
-                  {dailyQuote.imageUrl && (
+                  {dailyQuote.imageUrl ? (
                     <img 
                       src={dailyQuote.imageUrl} 
                       alt={dailyQuote.author} 
-                      className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border border-zinc-700 shadow-sm"
+                      className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border border-zinc-700 shadow-sm shrink-0"
                     />
+                  ) : (
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-brand-teal/15 border border-brand-teal/30 text-brand-teal flex items-center justify-center font-bold text-sm shrink-0">
+                      {(dailyQuote.author || 'Q')
+                        .split(' ')
+                        .map((part) => part[0])
+                        .slice(0, 2)
+                        .join('')}
+                    </div>
                   )}
                   <div className="flex flex-col items-center md:items-start text-center md:text-left">
                     <p className="text-sm md:text-base font-medium text-zinc-200 italic leading-snug">"{dailyQuote.quote}"</p>
