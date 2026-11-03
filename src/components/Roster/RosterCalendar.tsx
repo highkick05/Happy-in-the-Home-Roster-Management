@@ -92,7 +92,11 @@ export default function RosterCalendar() {
   }, [settings?.invoicingStartDay]);
 
   const [events, setEvents] = useState<ShiftEvent[]>([]);
-  const [view, setView] = useLocalStorage<View>('roster_view', Views.WEEK);
+  const [adminView, setAdminView] = useLocalStorage<View>('roster_view_admin', Views.WEEK);
+  const [staffView, setStaffView] = useLocalStorage<View>('roster_view_staff', Views.AGENDA);
+
+  const view = user?.role === 'ADMIN' ? adminView : staffView;
+  const setView = user?.role === 'ADMIN' ? setAdminView : setStaffView;
 
   const [isMobileOrTablet, setIsMobileOrTablet] = useState(
     typeof window !== 'undefined' ? window.innerWidth < 1024 : false
@@ -122,16 +126,16 @@ export default function RosterCalendar() {
     return vObj;
   }, [allowedViews]);
 
-  // Ensure staff sees AGENDA by default on mobile/tablet (if they didn't have it, activeView handles safety during render)
+  // Ensure valid view per role/device without overwriting the other portal's saved view
   useEffect(() => {
     if (isStaffMobileOrTablet) {
-      setView(Views.AGENDA);
-    } else if (user?.role !== 'ADMIN') {
-      setView(Views.AGENDA); // Actually give all staff agenda by default
-    } else if (!allowedViews.includes(view as any)) {
-      setView(Views.WEEK);
+      setStaffView(Views.AGENDA);
+    } else if (user?.role === 'ADMIN' && !allowedViews.includes(adminView as any)) {
+      setAdminView(Views.WEEK);
+    } else if (user?.role !== 'ADMIN' && !allowedViews.includes(staffView as any)) {
+      setStaffView(Views.AGENDA);
     }
-  }, [user?.role, isStaffMobileOrTablet]);
+  }, [user?.role, isStaffMobileOrTablet, adminView, staffView]);
 
   const [date, setDate] = useState(new Date());
 
