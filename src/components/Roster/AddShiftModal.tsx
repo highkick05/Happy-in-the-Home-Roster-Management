@@ -42,6 +42,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
   const [conflictList, setConflictList] = useState<any[]>([]);
 
   const isHistorical = false;
+  const isCompletedShift = initialData?.status === 'COMPLETED' || !!initialData?.isHistorical;
   const [progressNote, setProgressNote] = useState('');
   const [startOdometer, setStartOdometer] = useState('');
   const [endOdometer, setEndOdometer] = useState('');
@@ -74,7 +75,7 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
          cNotes = '';
       }
       
-      setNotes(cNotes);
+      setNotes(cNotes || (initialData?.status === 'COMPLETED' ? pNote : ''));
       setProgressNote(pNote);
   
       setStartOdometer(initialData?.startOdometer ? Number(initialData.startOdometer).toString() : '');
@@ -98,11 +99,19 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
       const defaultQty = calculatedHours !== null ? (calculatedHours % 1 === 0 ? calculatedHours : Number(calculatedHours.toFixed(2))) : undefined;
 
       if (initialData?.servicesData && initialData.servicesData.length > 0) {
-        setServicesData(initialData.servicesData.map((s: any) => ({
-          ...s,
-          serviceId: String(s.serviceId),
-          qtyOverride: s.qtyOverride ?? s.qty
-        })));
+        setServicesData(initialData.servicesData.map((s: any) => {
+          const sName = (s.serviceName || s.name || s.customName || '').toLowerCase();
+          const isABT = sName.includes('activity based transport');
+          const rawQty = s.qtyOverride ?? s.qty;
+          const resolvedQty = (isABT && (!rawQty || Number(rawQty) === 0) && Number(initialData?.abtKm) > 0)
+            ? Number(initialData.abtKm)
+            : rawQty;
+          return {
+            ...s,
+            serviceId: String(s.serviceId),
+            qtyOverride: resolvedQty
+          };
+        }));
       } else {
         setServicesData([
           {
@@ -327,10 +336,10 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
       const method = isEditing ? 'PUT' : 'POST';
 
       const bodyData: any = {
-      is_historical: isHistorical,
-      progress_note: progressNote,
-      start_odometer: startOdometer ? Math.round(Number(startOdometer)) : null,
-      end_odometer: endOdometer ? Math.round(Number(endOdometer)) : null,
+        is_historical: isHistorical,
+        progress_note: isCompletedShift ? (notes || progressNote) : progressNote,
+        start_odometer: startOdometer ? Math.round(Number(startOdometer)) : null,
+        end_odometer: endOdometer ? Math.round(Number(endOdometer)) : null,
 
         staffId: staffId ? parseInt(staffId) : null,
         clientId: parseInt(clientId),
@@ -343,8 +352,8 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
             const isProviderTravel = name.toLowerCase().includes('provider travel');
             const isABT = name.toLowerCase().includes('activity based transport');
             const isTravelOrTransport = isProviderTravel || isABT;
-            const isHistorical = false;
-            const effectiveQty = (isTravelOrTransport && !isHistorical) ? 0 : (s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1));
+            const canEditTravelQty = isHistorical || (isCompletedShift && isABT);
+            const effectiveQty = (isTravelOrTransport && !canEditTravelQty) ? 0 : (s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (isABT ? 0 : (unit === 'Hour' ? shiftHours : 1)));
             const effectiveRate = (s.rateOverride !== undefined && s.rateOverride !== '') ? Number(s.rateOverride) : rate;
             return {
                 ...s,
@@ -524,12 +533,13 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
               </div>
 
               <div>
-                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Notes</label>
+                <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">{isCompletedShift ? 'Progress Notes / Shift Notes' : 'Notes'}</label>
                 <textarea 
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
+                  rows={isCompletedShift ? 4 : 3}
                   className="w-full bg-black/40 border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
-                  placeholder="Optional notes for shift..."
+                  placeholder={isCompletedShift ? "Enter progress note for this completed shift..." : "Optional notes for shift..."}
                 />
               </div>
             </div>
@@ -554,8 +564,9 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                   const isProviderTravel = name.toLowerCase().includes('provider travel');
                   const isABT = name.toLowerCase().includes('activity based transport');
                   const isTravelOrTransport = isProviderTravel || isABT;
+                  const canEditTravelQty = isHistorical || (isCompletedShift && isABT);
                   
-                  const effectiveQty = (isTravelOrTransport && !isHistorical) ? 0 : (s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1));
+                  const effectiveQty = (isTravelOrTransport && !canEditTravelQty) ? 0 : (s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (isABT ? 0 : (unit === 'Hour' ? shiftHours : 1)));
                   const effectiveRate = (s.rateOverride !== undefined && s.rateOverride !== '') ? Number(s.rateOverride) : rate;
                   const subtotal = effectiveQty * effectiveRate;
                   
@@ -624,29 +635,29 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                               />
                             </div>
                             <div>
-                              <span className="text-zinc-500 text-xs block">Qty</span>
-                              {isTravelOrTransport && !isHistorical ? (
+                              <span className="text-zinc-500 text-xs block">{isABT ? 'Qty (KM)' : 'Qty'}</span>
+                              {isTravelOrTransport && !canEditTravelQty ? (
                                 <span className="text-zinc-500 italic">Auto</span>
                               ) : (
                                 <input 
                                   type="number"
-                                  min="0.01"
+                                  min="0"
                                   step="0.01"
                                   value={s.qtyOverride !== undefined && s.qtyOverride !== null ? s.qtyOverride : ''}
                                   onChange={(e) => updateServiceEntry(index, 'qtyOverride', e.target.value)}
                                   placeholder={effectiveQty.toFixed(2)}
-                                  className="w-16 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
+                                  className="w-20 bg-[#09090b] border border-white/[0.12] rounded px-1 py-0.5 text-zinc-300 focus:border-brand-teal outline-none"
                                 />
                               )}
                             </div>
                           </div>
                           
-                          {isTravelOrTransport ? (
+                          {isTravelOrTransport && !canEditTravelQty ? (
                              <div className="text-left md:text-right flex-1 md:ml-4">
                                <span className="inline-block px-2 py-1 bg-indigo-900/40 text-brand-teal rounded border border-brand-teal/30 text-xs">
-                                 {isHistorical ? 'Manual entry enabled for historical shift.' : (isProviderTravel 
+                                 {isProviderTravel 
                                    ? 'Auto-calculated via roster gaps upon save.' 
-                                   : 'Calculated post-shift via worker waypoints.')}
+                                   : 'Calculated post-shift via worker waypoints.'}
                                </span>
                              </div>
                           ) : (
@@ -672,8 +683,9 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                   const { rate, unit, name } = getServiceDetails(s);
                   const isProviderTravel = name.toLowerCase().includes('provider travel');
                   const isABT = name.toLowerCase().includes('activity based transport');
-                  if ((isProviderTravel || isABT) && !isHistorical) return acc;
-                  const effectiveQty = s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (unit === 'Hour' ? shiftHours : 1);
+                  const canEditTravelQty = isHistorical || (isCompletedShift && isABT);
+                  if ((isProviderTravel || isABT) && !canEditTravelQty) return acc;
+                  const effectiveQty = s.qtyOverride !== undefined && s.qtyOverride !== '' ? Number(s.qtyOverride) : (isABT ? 0 : (unit === 'Hour' ? shiftHours : 1));
                   const effectiveRate = s.rateOverride !== undefined && s.rateOverride !== '' ? Number(s.rateOverride) : rate;
                   return acc + (effectiveQty * effectiveRate);
                 }, 0).toFixed(2)}</span>

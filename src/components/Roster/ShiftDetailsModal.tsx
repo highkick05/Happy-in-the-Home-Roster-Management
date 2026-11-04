@@ -20,6 +20,9 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
   const [showCancelPrompt, setShowCancelPrompt] = React.useState(false);
   const [showProgressNotePrompt, setShowProgressNotePrompt] = React.useState(false);
   const [progressNoteText, setProgressNoteText] = React.useState('');
+  const [isEditingAbt, setIsEditingAbt] = React.useState(false);
+  const [abtInputText, setAbtInputText] = React.useState('');
+  const [isSavingAbt, setIsSavingAbt] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState('');
   const [clientGaveNotice, setClientGaveNotice] = React.useState(true);
   const [staffAttended, setStaffAttended] = React.useState(false);
@@ -33,6 +36,9 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
       setShowCancelPrompt(false);
       setShowProgressNotePrompt(false);
       setProgressNoteText('');
+      setIsEditingAbt(false);
+      setAbtInputText('');
+      setIsSavingAbt(false);
       setCancelReason('');
       setClientGaveNotice(true);
       setStaffAttended(false);
@@ -363,10 +369,6 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
     setIsSubmitting(true);
     try {
       const isRespite = shift.isRespiteWrapper;
-      // if respite, maybe we don't have notes update route, but assuming it uses the same PUT or doesn't have notes
-      // We will just do it for shifts. For respite, we can try to PUT /api/respite-bookings/:id ?
-      // Wait, let's just do it for normal shifts. If it's respite, we'll try PUT /api/respite-bookings/:id with notes
-      // Let's check how EditShiftModal saves notes for respite. Usually respite also has notes.
       const endpoint = isRespite 
         ? `/api/respite-bookings/${shift.respiteData?.id}` 
         : `/api/shifts/${shift.id}`;
@@ -377,7 +379,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}` 
         },
-        body: JSON.stringify({ notes: progressNoteText })
+        body: JSON.stringify({ notes: progressNoteText, progress_note: progressNoteText })
       });
       if (res.ok) {
         setShowProgressNotePrompt(false);
@@ -391,6 +393,38 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
       alert('Error saving progress note');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveAbtKm = async () => {
+    if (shift.isRespiteWrapper) return;
+    const parsedKm = abtInputText.trim() === '' ? 0 : Number(abtInputText);
+    if (isNaN(parsedKm) || parsedKm < 0) {
+      alert('Please enter a valid non-negative KM value for Activity Based Transport.');
+      return;
+    }
+    setIsSavingAbt(true);
+    try {
+      const res = await fetch(`/api/shifts/${shift.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ abtKm: parseFloat(parsedKm.toFixed(2)) })
+      });
+      if (res.ok) {
+        setIsEditingAbt(false);
+        onSave();
+      } else {
+        const err = await res.json();
+        alert(`Failed to update Activity Based Transport: ${err.error || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error updating Activity Based Transport');
+    } finally {
+      setIsSavingAbt(false);
     }
   };
 
@@ -608,7 +642,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
               <p className="text-sm text-zinc-400 mt-0.5">{new Date(shift.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(shift.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
             </div>
             
-            {shift.status === 'COMPLETED' && (shift.providerTravelKm !== undefined || shift.homeCareTravelKm !== undefined) && (() => {
+            {shift.status === 'COMPLETED' && !shift.isRespiteWrapper && (() => {
               const isHCP = shift.fundingType === 'HOME_CARE' || shift.fundingType === 'Home Care' || shift.fundingType === 'HCP';
               const shiftServiceItems = Array.isArray(shift.servicesData) ? shift.servicesData : [];
               const resolveSrvName = (sd: any) => {
@@ -619,7 +653,7 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                 const n = resolveSrvName(sd);
                 return n.includes('provider travel') || n.includes('travel - provider');
               }) || String(shift.serviceName || '').toLowerCase().includes('provider travel');
-              const hasABTService = isHCP || shiftServiceItems.some((sd: any) => {
+              const hasABTService = isHCP || isAdmin || Number(shift.abtKm || 0) > 0 || shiftServiceItems.some((sd: any) => {
                 const n = resolveSrvName(sd);
                 return n.includes('activity based transport') || n.includes('activity-based transport');
               }) || String(shift.serviceName || '').toLowerCase().includes('activity based transport');
@@ -640,7 +674,16 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
               const mins = hasProviderTravelService
                 ? (Number(shift.providerTravelMinutes) || (isHCP ? Number(parsedLog?.homeCareTravel?.minutes) : Number(parsedLog?.providerTravel?.minutes)) || legMins || 0)
                 : 0;
-              const abtKmVal = hasABTService ? Number(shift.abtKm || parsedLog?.abt?.distance || 0) : 0;
+              const abtServiceOverride = shiftServiceItems.reduce((acc: number, sd: any) => {
+                const n = resolveSrvName(sd);
+                if ((n.includes('activity based transport') || n.includes('activity-based transport')) && Number(sd?.qtyOverride) > 0) {
+                  return Number(sd.qtyOverride);
+                }
+                return acc;
+              }, 0);
+              const abtKmVal = hasABTService
+                ? Number(shift.abtKm || abtServiceOverride || parsedLog?.abt?.distance || 0)
+                : 0;
 
               return (
               <div className="col-span-1 sm:col-span-2 lg:col-span-4 pt-4 mt-2 border-t border-white/[0.08]/80">
@@ -670,17 +713,65 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                      )
                    )}
                    {hasABTService && (
-                     abtKmVal > 0 ? (
-                       <div className="bg-brand-green/10 p-4 rounded-xl border border-brand-green/20 shadow-sm flex flex-col justify-center">
-                         <p className="text-xs font-medium text-brand-green/80 mb-1 uppercase tracking-wider">Activity Based Transport (ABT)</p>
-                         <p className="text-xl text-white font-extrabold">{abtKmVal.toFixed(2)} <span className="text-sm font-medium text-brand-green/80">km</span></p>
+                     <div className={`${abtKmVal > 0 ? 'bg-brand-green/10 border-brand-green/20' : 'bg-zinc-800/50 border-white/[0.08]/80'} p-4 rounded-xl border shadow-sm flex flex-col justify-center`}>
+                       <div className="flex items-center justify-between gap-2 mb-1">
+                         <p className={`text-xs font-medium ${abtKmVal > 0 ? 'text-brand-green/80' : 'text-zinc-400'} uppercase tracking-wider`}>
+                           Activity Based Transport (ABT)
+                         </p>
+                         {isAdmin && !isEditingAbt && (
+                           <button
+                             type="button"
+                             onClick={() => {
+                               setAbtInputText(abtKmVal > 0 ? abtKmVal.toFixed(2) : '');
+                               setIsEditingAbt(true);
+                             }}
+                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-brand-green/20 hover:bg-brand-green/30 text-brand-green border border-brand-green/30 transition-colors"
+                           >
+                             <Edit className="w-3 h-3" />
+                             {abtKmVal > 0 ? 'Edit ABT' : '+ Add ABT'}
+                           </button>
+                         )}
                        </div>
-                     ) : (
-                       <div className="bg-zinc-800/50 p-4 rounded-xl border border-white/[0.08]/80 shadow-sm flex flex-col justify-center">
-                         <p className="text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider">Activity Based Transport (ABT)</p>
-                         <p className="text-xl text-zinc-300 font-extrabold">0.00 <span className="text-sm font-medium text-zinc-500">km</span></p>
-                       </div>
-                     )
+                       {isEditingAbt ? (
+                         <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                           <div className="flex items-center gap-1.5">
+                             <input
+                               type="number"
+                               min="0"
+                               step="0.01"
+                               autoFocus
+                               value={abtInputText}
+                               onChange={(e) => setAbtInputText(e.target.value)}
+                               placeholder="0.00"
+                               className="w-28 bg-[#09090b] border border-brand-green/50 rounded-lg px-3 py-1.5 text-sm font-bold text-white focus:outline-none focus:ring-1 focus:ring-brand-green"
+                             />
+                             <span className="text-xs font-semibold text-zinc-400">km</span>
+                           </div>
+                           <div className="flex items-center gap-1.5 ml-auto">
+                             <button
+                               type="button"
+                               onClick={() => setIsEditingAbt(false)}
+                               disabled={isSavingAbt}
+                               className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/10 transition-colors"
+                             >
+                               Cancel
+                             </button>
+                             <button
+                               type="button"
+                               onClick={handleSaveAbtKm}
+                               disabled={isSavingAbt}
+                               className="px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-green hover:bg-brand-green/90 text-white shadow-sm transition-colors disabled:opacity-50"
+                             >
+                               {isSavingAbt ? 'Saving...' : 'Save'}
+                             </button>
+                           </div>
+                         </div>
+                       ) : (
+                         <p className={`text-xl ${abtKmVal > 0 ? 'text-white' : 'text-zinc-300'} font-extrabold`}>
+                           {abtKmVal.toFixed(2)} <span className={`text-sm font-medium ${abtKmVal > 0 ? 'text-brand-green/80' : 'text-zinc-500'}`}>km</span>
+                         </p>
+                       )}
+                     </div>
                    )}
                    {(shift.travelBreakdown || shift.transportRouteLog) && (() => {
                      let log: any = null;
@@ -826,6 +917,36 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
             })()}
           </div>
           
+          {!shift.isRespiteWrapper && (isAdmin || shift.notes || shift.progressNote) && (
+            <div className="pt-4 mt-2 border-t border-white/[0.08]/80">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <p className="text-sm md:text-base font-bold text-zinc-300">Progress Note</p>
+                {canEdit && shift.status !== 'CANCELLED' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProgressNoteText(shift.notes || shift.progressNote || '');
+                      setShowProgressNotePrompt(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-teal/15 hover:bg-brand-teal/25 text-brand-teal border border-brand-teal/30 transition-colors"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    {(shift.notes || shift.progressNote) ? 'Edit Progress Note' : '+ Add Progress Note'}
+                  </button>
+                )}
+              </div>
+              {(shift.notes || shift.progressNote) ? (
+                <div className="bg-[#09090b]/90 p-4 rounded-xl border border-white/[0.08] text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed shadow-inner">
+                  {shift.notes || shift.progressNote}
+                </div>
+              ) : (
+                <div className="bg-zinc-800/30 p-3.5 rounded-xl border border-white/[0.06] text-xs text-zinc-500 italic">
+                  No progress note recorded for this shift yet.
+                </div>
+              )}
+            </div>
+          )}
+
           {isAdmin && (shift.serviceId || (shift.servicesData && shift.servicesData.length > 0)) && !shift.isRespiteWrapper && (
             <div className="pt-5 mt-5 border-t border-white/[0.08]/80">
               <p className="text-sm md:text-base font-bold text-zinc-300 mb-4">Billing Information</p>
@@ -905,7 +1026,8 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
                         finalRate = Number(sd.rateOverride);
                       }
                       
-                      const qty = (sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== '') ? Number(sd.qtyOverride) : (unit === 'Hour' ? hours : 1);
+                      const rawQty = (sd.qtyOverride !== undefined && sd.qtyOverride !== null && sd.qtyOverride !== '') ? Number(sd.qtyOverride) : (unit === 'Hour' ? hours : 1);
+                      const qty = (isABT && rawQty === 0 && Number(shift.abtKm) > 0) ? Number(shift.abtKm) : rawQty;
                       const subtotal = qty * finalRate;
                       grandTotal += subtotal;
 
@@ -1016,10 +1138,10 @@ export default function ShiftDetailsModal({ isOpen, onClose, onSave, shift, onEd
             </>
           ) : (
             <>
-              {canEdit && shift.status !== 'COMPLETED' && shift.status !== 'CANCELLED' && (
+              {canEdit && shift.status !== 'CANCELLED' && (
                 <button 
                   onClick={() => {
-                     setProgressNoteText(shift.notes || '');
+                     setProgressNoteText(shift.notes || shift.progressNote || '');
                      setShowProgressNotePrompt(true);
                   }}
                   className="w-full flex items-center justify-center px-4 py-3 bg-brand-teal/20 hover:bg-brand-teal/30 text-brand-teal rounded-xl text-sm md:text-base font-bold transition-all shadow-md border border-brand-teal/30 animate-in fade-in"

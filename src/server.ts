@@ -3297,7 +3297,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
           gst: travelGst,
         });
       }
-      if (shift.abt_km > 0 && !isHomeCare) {
+      if (shift.abt_km > 0) {
         const abtCost = shift.abt_cost || (shift.abt_km * 1.00);
         const abtRate = shift.abt_km > 0 ? abtCost / shift.abt_km : 1.0;
         subtotal += abtCost;
@@ -3307,7 +3307,7 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
           time: timeStr,
           serviceId: null,
           serviceName: "Activity Based Transport",
-          code: "04_590_0125_6_1",
+          code: isHomeCare ? "HC-ABT" : "04_590_0125_6_1",
           metadata: `Provided by ${staffName}`,
           qty: shift.abt_km,
           unit: "KM",
@@ -17692,48 +17692,6 @@ app.get("/api/health", (req, res) => {
 
         }
 
-        let processedServicesData = servicesData
-          ? JSON.parse(JSON.stringify(servicesData))
-          : [];
-        let isAbtApproved = existing.is_abt_approved === 1;
-
-        if (servicesData) {
-          isAbtApproved = false;
-          for (const sData of processedServicesData) {
-            if (sData.serviceId === 'orientation' || sData.customName === 'Orientation' || String(sData.serviceId).toLowerCase().includes('orientation') || String(sData.name).toLowerCase() === 'orientation') {
-              sData.customName = 'Orientation';
-              sData.serviceName = 'Orientation';
-              sData.name = 'Orientation';
-            }
-            const srv = db
-              .prepare("SELECT name, unit FROM services WHERE id = ?")
-              .get(sData.serviceId) as any;
-            if (srv) {
-              const name = srv.name.toLowerCase();
-              const isTravelOrTransport = name.includes("activity based transport") || name.includes("provider travel");
-              if (isTravelOrTransport) {
-                if (sData.rateOverride === undefined || sData.rateOverride === null || sData.rateOverride === '' || isNaN(Number(sData.rateOverride))) {
-                  sData.rateOverride = 1.00;
-                }
-              }
-              if (name.includes("activity based transport")) {
-                isAbtApproved = true;
-                const isHist = is_historical || (is_historical === undefined && existing.status === 'COMPLETED');
-                if (!isHist) sData.qtyOverride = 0;
-              }
-            }
-          }
-        }
-
-        const servicesJson = servicesData
-          ? JSON.stringify(processedServicesData)
-          : existing.services_json;
-        let mainServiceId =
-          (processedServicesData && processedServicesData.length > 0
-            ? processedServicesData[0].serviceId
-            : serviceId || existing.service_id);
-        if (mainServiceId === 'custom' || mainServiceId === 'orientation') mainServiceId = null;
-
         const finalFundingType =
           fundingType ||
           existing.funding_type ||
@@ -17745,40 +17703,241 @@ app.get("/api/health", (req, res) => {
               ) as any
           )?.funding_type ||
           "NDIS";
+        const isHCShift =
+          finalFundingType === "HCP" ||
+          finalFundingType === "Home Care" ||
+          finalFundingType === "HOME_CARE";
 
-        const isHistoricalMode = is_historical || (is_historical === undefined && existing.status === 'COMPLETED');
-        const finalStatus = isHistoricalMode ? 'COMPLETED' : (status !== undefined ? status : existing.status);
-        
-        let updateQuery = "UPDATE shifts SET staff_id = ?, client_id = ?, service_id = ?, start_time = ?, end_time = ?, status = ?, notes = ?, funding_type = ?, services_json = ?, is_abt_approved = ?, provider_travel_km = ?, abt_km = ?";
-        const params = [
+        const isHistoricalMode =
+          is_historical ||
+          (is_historical === undefined && existing.status === "COMPLETED");
+        const finalStatus = isHistoricalMode
+          ? "COMPLETED"
+          : status !== undefined
+            ? status
+            : existing.status;
+
+        let processedServicesData: any[] = [];
+        if (servicesData) {
+          processedServicesData = JSON.parse(JSON.stringify(servicesData));
+        } else if (existing.services_json) {
+          try {
+            const parsedExisting = JSON.parse(existing.services_json);
+            if (Array.isArray(parsedExisting)) {
+              processedServicesData = parsedExisting;
+            }
+          } catch (e) {}
+        }
+        if (
+          processedServicesData.length === 0 &&
+          (serviceId || existing.service_id)
+        ) {
+          processedServicesData = [
+            { serviceId: serviceId || existing.service_id },
+          ];
+        }
+
+        let isAbtApproved = existing.is_abt_approved === 1;
+        let abtFromServices: number | null = null;
+        let abtEntryIndex = -1;
+
+        if (servicesData) {
+          isAbtApproved = false;
+        }
+
+        for (let i = 0; i < processedServicesData.length; i++) {
+          const sData = processedServicesData[i];
+          if (
+            sData.serviceId === "orientation" ||
+            sData.customName === "Orientation" ||
+            String(sData.serviceId).toLowerCase().includes("orientation") ||
+            String(sData.name).toLowerCase() === "orientation"
+          ) {
+            sData.customName = "Orientation";
+            sData.serviceName = "Orientation";
+            sData.name = "Orientation";
+          }
+          const srv =
+            sData.serviceId &&
+            sData.serviceId !== "custom" &&
+            sData.serviceId !== "orientation"
+              ? (db
+                  .prepare("SELECT id, name, code, unit, rate FROM services WHERE id = ?")
+                  .get(sData.serviceId) as any)
+              : null;
+          const resolvedName = String(
+            srv?.name || sData.serviceName || sData.customName || sData.name || "",
+          ).toLowerCase();
+          const isABT =
+            resolvedName.includes("activity based transport") ||
+            resolvedName.includes("activity-based transport");
+          const isPT =
+            resolvedName.includes("provider travel") ||
+            resolvedName.includes("travel - provider");
+
+          if (isABT || isPT) {
+            if (
+              sData.rateOverride === undefined ||
+              sData.rateOverride === null ||
+              sData.rateOverride === "" ||
+              isNaN(Number(sData.rateOverride))
+            ) {
+              sData.rateOverride = 1.0;
+            }
+          }
+          if (isABT) {
+            isAbtApproved = true;
+            abtEntryIndex = i;
+            if (servicesData) {
+              const canKeepManualAbt =
+                isHistoricalMode || finalStatus === "COMPLETED";
+              if (!canKeepManualAbt) {
+                sData.qtyOverride = 0;
+              } else if (
+                sData.qtyOverride !== undefined &&
+                sData.qtyOverride !== null &&
+                sData.qtyOverride !== ""
+              ) {
+                abtFromServices = Math.max(0, Number(sData.qtyOverride) || 0);
+              }
+            }
+          }
+        }
+
+        let finalAbtKm = Number(existing.abt_km) || 0;
+        const abtExplicitlyUpdated =
+          (abtKm !== undefined && abtKm !== null && abtKm !== "") ||
+          abtFromServices !== null;
+
+        if (abtKm !== undefined && abtKm !== null && abtKm !== "") {
+          finalAbtKm = Math.max(0, Number(abtKm) || 0);
+        } else if (abtFromServices !== null) {
+          finalAbtKm = abtFromServices;
+        }
+
+        if (abtEntryIndex !== -1) {
+          if (
+            finalStatus === "COMPLETED" ||
+            isHistoricalMode ||
+            abtExplicitlyUpdated
+          ) {
+            processedServicesData[abtEntryIndex].qtyOverride = parseFloat(
+              finalAbtKm.toFixed(2),
+            );
+            if (
+              processedServicesData[abtEntryIndex].rateOverride === undefined ||
+              processedServicesData[abtEntryIndex].rateOverride === null ||
+              processedServicesData[abtEntryIndex].rateOverride === ""
+            ) {
+              processedServicesData[abtEntryIndex].rateOverride = 1.0;
+            }
+            isAbtApproved = true;
+          }
+        } else if (finalAbtKm > 0) {
+          const targetSrvType = isHCShift ? "HOME_CARE" : "NDIS";
+          const abtSrv = db
+            .prepare(
+              `SELECT id, name, code, rate, unit, type FROM services
+               WHERE (LOWER(name) LIKE '%activity based transport%' OR LOWER(name) LIKE '%activity-based transport%')
+                 AND (status IS NULL OR status != 'ARCHIVED')
+               ORDER BY CASE WHEN UPPER(type) = UPPER(?) THEN 0 ELSE 1 END, id DESC
+               LIMIT 1`,
+            )
+            .get(targetSrvType) as any;
+
+          processedServicesData.push({
+            serviceId: abtSrv ? abtSrv.id : "custom",
+            serviceName: abtSrv ? abtSrv.name : "Activity Based Transport",
+            name: abtSrv ? abtSrv.name : "Activity Based Transport",
+            customName: abtSrv ? undefined : "Activity Based Transport",
+            serviceCode: abtSrv?.code || undefined,
+            serviceUnit: "KM",
+            qtyOverride: parseFloat(finalAbtKm.toFixed(2)),
+            rateOverride: 1.0,
+          });
+          abtEntryIndex = processedServicesData.length - 1;
+          isAbtApproved = true;
+        }
+
+        const abtRate =
+          abtEntryIndex !== -1 &&
+          Number(processedServicesData[abtEntryIndex]?.rateOverride) > 0
+            ? Number(processedServicesData[abtEntryIndex].rateOverride)
+            : 1.0;
+        const finalAbtCost = parseFloat((finalAbtKm * abtRate).toFixed(2));
+
+        const servicesJson =
+          servicesData || abtExplicitlyUpdated || finalAbtKm > 0
+            ? JSON.stringify(processedServicesData)
+            : existing.services_json;
+
+        let mainServiceId =
+          processedServicesData && processedServicesData.length > 0
+            ? processedServicesData[0].serviceId
+            : serviceId || existing.service_id;
+        if (mainServiceId === "custom" || mainServiceId === "orientation")
+          mainServiceId = null;
+
+        let finalNotes = notes !== undefined ? notes : existing.notes;
+        let finalProgressNote =
+          progress_note !== undefined ? progress_note : existing.progress_note;
+        if (finalStatus === "COMPLETED") {
+          if (notes !== undefined && progress_note === undefined) {
+            finalProgressNote = notes;
+          } else if (progress_note !== undefined && notes === undefined) {
+            finalNotes = progress_note;
+          }
+        }
+        const hasAnyNoteText =
+          (finalNotes && String(finalNotes).trim().length > 0) ||
+          (finalProgressNote && String(finalProgressNote).trim().length > 0);
+        const finalProgressNoteStatus =
+          finalStatus === "COMPLETED" && hasAnyNoteText
+            ? "COMPLETED"
+            : existing.progress_note_status;
+
+        let updateQuery =
+          "UPDATE shifts SET staff_id = ?, client_id = ?, service_id = ?, start_time = ?, end_time = ?, status = ?, notes = ?, funding_type = ?, services_json = ?, is_abt_approved = ?, provider_travel_km = ?, abt_km = ?, abt_cost = ?, progress_note_status = ?";
+        const params: any[] = [
           staffId !== undefined ? staffId : existing.staff_id,
           clientId !== undefined ? clientId : existing.client_id,
           mainServiceId,
           startTime !== undefined ? startTime : existing.start_time,
           endTime !== undefined ? endTime : existing.end_time,
           finalStatus,
-          notes !== undefined ? notes : existing.notes,
+          finalNotes,
           finalFundingType,
           servicesJson,
-          isAbtApproved ? 1 : 0,
-          providerTravelKm !== undefined ? providerTravelKm : existing.provider_travel_km,
-          abtKm !== undefined ? abtKm : existing.abt_km,
+          isAbtApproved || finalAbtKm > 0 ? 1 : 0,
+          providerTravelKm !== undefined
+            ? providerTravelKm
+            : existing.provider_travel_km,
+          finalAbtKm,
+          finalAbtCost,
+          finalProgressNoteStatus,
         ];
-        
+
         if (isHistoricalMode) {
-           updateQuery += ", actual_start_time = ?, actual_finish_time = ?, progress_note = ?, odometer_start_reading = ?, odometer_end_reading = ?";
-           params.push(
-               startTime !== undefined ? startTime : existing.start_time,
-               endTime !== undefined ? endTime : existing.end_time,
-               progress_note !== undefined ? progress_note : existing.progress_note,
-               start_odometer !== undefined ? start_odometer : existing.odometer_start_reading,
-               end_odometer !== undefined ? end_odometer : existing.odometer_end_reading
-           );
+          updateQuery +=
+            ", actual_start_time = ?, actual_finish_time = ?, progress_note = ?, odometer_start_reading = ?, odometer_end_reading = ?";
+          params.push(
+            existing.actual_start_time ||
+              (startTime !== undefined ? startTime : existing.start_time),
+            existing.actual_finish_time ||
+              (endTime !== undefined ? endTime : existing.end_time),
+            finalProgressNote,
+            start_odometer !== undefined
+              ? start_odometer
+              : existing.odometer_start_reading,
+            end_odometer !== undefined
+              ? end_odometer
+              : existing.odometer_end_reading,
+          );
         }
-        
+
         updateQuery += " WHERE id = ?";
         params.push(id);
-        
+
         const stmt = db.prepare(updateQuery);
         stmt.run(...params);
 
@@ -17833,6 +17992,71 @@ app.get("/api/health", (req, res) => {
           );
         }
 
+        // Ensure ABT cost, transport_route_log.abt, and Home Care travel total remain synced after travel cascade
+        if (abtExplicitlyUpdated || finalAbtKm > 0) {
+          const postCascadeShift = db
+            .prepare(
+              "SELECT provider_travel_km, provider_travel_cost, home_care_travel_km, transport_route_log FROM shifts WHERE id = ?",
+            )
+            .get(id) as any;
+          if (postCascadeShift) {
+            let routeLogObj: any = {};
+            if (postCascadeShift.transport_route_log) {
+              try {
+                routeLogObj = JSON.parse(postCascadeShift.transport_route_log) || {};
+              } catch (e) {
+                routeLogObj = {};
+              }
+            }
+            if (finalAbtKm > 0 || abtExplicitlyUpdated) {
+              const existingLegs = Array.isArray(routeLogObj.abt?.legs)
+                ? routeLogObj.abt.legs
+                : [];
+              routeLogObj.abt = {
+                ...(routeLogObj.abt || {}),
+                distance: parseFloat(finalAbtKm.toFixed(2)),
+                cost: finalAbtCost,
+                calculatedAt: new Date().toISOString(),
+                description:
+                  finalAbtKm > 0
+                    ? `Activity Based Transport (During Shift): ${finalAbtKm.toFixed(2)} km`
+                    : "No Activity Based Transport recorded",
+                legs:
+                  existingLegs.length > 0 &&
+                  finalAbtKm === Number(existing.abt_km)
+                    ? existingLegs
+                    : finalAbtKm > 0
+                      ? [
+                          {
+                            description: `Activity Based Transport (During Shift)`,
+                            distance: parseFloat(finalAbtKm.toFixed(2)),
+                          },
+                        ]
+                      : [],
+              };
+            }
+            const hcIntershiftCost =
+              Number(postCascadeShift.home_care_travel_km) ||
+              Number(postCascadeShift.provider_travel_km) ||
+              0;
+            const updatedHcTotal = isHCShift
+              ? parseFloat((hcIntershiftCost + finalAbtCost).toFixed(2))
+              : Number(postCascadeShift.home_care_travel_km) || 0;
+
+            db.prepare(
+              "UPDATE shifts SET abt_km = ?, abt_cost = ?, home_care_travel_total = ?, transport_route_log = ? WHERE id = ?",
+            ).run(
+              finalAbtKm,
+              finalAbtCost,
+              updatedHcTotal,
+              Object.keys(routeLogObj).length > 0
+                ? JSON.stringify(routeLogObj)
+                : null,
+              id,
+            );
+          }
+        }
+
         // Audit Log for COMPLETED shift edits
         if (existing.status === "COMPLETED") {
           const newRecord = db
@@ -17848,7 +18072,8 @@ app.get("/api/health", (req, res) => {
           (existing.status !== status ||
             servicesJson !== existing.services_json ||
             providerTravelKm !== undefined ||
-            abtKm !== undefined)
+            abtKm !== undefined ||
+            abtFromServices !== null)
         ) {
           generateInvoiceForShift(id);
         }
@@ -20415,6 +20640,7 @@ app.get("/api/health", (req, res) => {
 
           let primaryQtyOverride: number | null = null;
           let providerTravelQtyOverride: number | null = null;
+          let abtQtyOverride: number | null = null;
           let serviceNamesList: string[] = [];
           let hasProviderTravelService = false;
           let hasABTService = false;
@@ -20458,6 +20684,14 @@ app.get("/api/health", (req, res) => {
                 }
                 if (isABT) {
                   hasABTService = true;
+                  if (
+                    abtQtyOverride === null &&
+                    sData.qtyOverride !== undefined &&
+                    sData.qtyOverride !== "" &&
+                    Number(sData.qtyOverride) > 0
+                  ) {
+                    abtQtyOverride = Number(sData.qtyOverride);
+                  }
                 }
 
                 // Do not list Provider Travel or ABT here; they get their own dedicated rows
@@ -20582,12 +20816,21 @@ app.get("/api/health", (req, res) => {
             }
           }
 
+          const effective_abt_km =
+            Number(shift.abt_km) ||
+            abtQtyOverride ||
+            Number(parsedRouteLog?.abt?.distance) ||
+            0;
+          if (effective_abt_km > 0) {
+            hasABTService = true;
+          }
+
           const hc_intershift_km = shift.respite_booking_id
             ? 0
             : Number(shift.provider_travel_km) || Number(shift.home_care_travel_km) || Number(parsedRouteLog?.homeCareTravel?.distance) || 0;
           const hc_transport_km = (shift.respite_booking_id || isCompanyVehicle || isCancelledPaid)
             ? 0
-            : shift.abt_km || 0;
+            : effective_abt_km;
           const hc_travel_km = hc_intershift_km + hc_transport_km;
           const hc_travel_hrs = shift.respite_booking_id
             ? 0
@@ -20601,7 +20844,7 @@ app.get("/api/health", (req, res) => {
             hasProviderTravelService = true;
           }
           const raw_prov_km = (shift.respite_booking_id ? 0 : effective_prov_km) * (hasProviderTravelService ? 1 : 0);
-          const raw_abt_km = (shift.respite_booking_id || isCancelledPaid ? 0 : shift.abt_km || 0) * (hasABTService ? 1 : 0);
+          const raw_abt_km = (shift.respite_booking_id || isCancelledPaid ? 0 : effective_abt_km) * (hasABTService ? 1 : 0);
 
           const prov_km = isCompanyVehicle ? 0 : raw_prov_km;
           const abt_km = isCompanyVehicle ? 0 : raw_abt_km;
