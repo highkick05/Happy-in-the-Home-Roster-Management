@@ -93,6 +93,8 @@ export default function StaffDashboardView() {
     payCategoryId: null as number | null,
     xeroEmployeeId: '',
     xeroEmployeeName: '',
+    isExternal: false,
+    externalProvider: 'Mable',
   });
 
   const fetchXeroEmployees = () => {
@@ -172,8 +174,10 @@ export default function StaffDashboardView() {
 
       if (foundStaff) {
         setStaff(foundStaff);
+        const rawEmail = foundStaff.email || '';
+        const cleanEmail = rawEmail.endsWith('@external.local') ? '' : rawEmail;
         setFormData({
-          email: foundStaff.email || '',
+          email: cleanEmail,
           role: foundStaff.role || 'STAFF',
           firstName: foundStaff.first_name || '',
           lastName: foundStaff.last_name || '',
@@ -206,6 +210,8 @@ export default function StaffDashboardView() {
           payCategoryId: foundStaff.pay_category_id ? Number(foundStaff.pay_category_id) : null,
           xeroEmployeeId: foundStaff.xero_employee_id || '',
           xeroEmployeeName: foundStaff.xero_employee_name || '',
+          isExternal: !!foundStaff.is_external,
+          externalProvider: foundStaff.external_provider || 'Mable',
         });
       }
     } catch (err) {
@@ -272,15 +278,23 @@ export default function StaffDashboardView() {
     if (e) e.preventDefault();
     setSaveMessage(null);
 
-    if (!formData.firstName?.trim() || !formData.lastName?.trim() || !formData.email?.trim()) {
+    if (!formData.firstName?.trim() || !formData.lastName?.trim()) {
       setActiveTab('general');
       setSaveMessage({
         type: 'error',
-        text: 'Please fill in the required profile fields (First Name, Last Name, Email).'
+        text: 'Please fill in the required profile fields (First Name, Last Name).'
       });
       return;
     }
-    if (!formData.phone?.trim()) {
+    if (!formData.isExternal && !formData.email?.trim()) {
+      setActiveTab('general');
+      setSaveMessage({
+        type: 'error',
+        text: 'Please fill in the required Email address for internal staff.'
+      });
+      return;
+    }
+    if (!formData.isExternal && !formData.phone?.trim()) {
       setActiveTab('personal');
       setSaveMessage({
         type: 'error',
@@ -326,6 +340,8 @@ export default function StaffDashboardView() {
           pay_category_id: formData.payCategoryId,
           xero_employee_id: formData.xeroEmployeeId,
           xero_employee_name: formData.xeroEmployeeName,
+          is_external: formData.isExternal ? 1 : 0,
+          external_provider: formData.externalProvider || 'Mable',
         }));
         setSaveMessage({ type: 'success', text: 'Staff profile changes saved successfully.' });
         setTimeout(() => {
@@ -407,8 +423,8 @@ export default function StaffDashboardView() {
 
   const showGeneral = activeTab === 'general' || activeTab === 'all';
   const showPersonal = activeTab === 'personal' || activeTab === 'all';
-  const showFinancial = activeTab === 'financial' || activeTab === 'all';
-  const showXero = activeTab === 'xero' || activeTab === 'all';
+  const showFinancial = !formData.isExternal && (activeTab === 'financial' || activeTab === 'all');
+  const showXero = !formData.isExternal && (activeTab === 'xero' || activeTab === 'all');
 
   return (
     <div className="w-full flex flex-col h-full space-y-3">
@@ -441,15 +457,21 @@ export default function StaffDashboardView() {
               <span>
                 {formData.firstName} {formData.lastName}
               </span>
-              <span
-                className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase border ${
-                  formData.role === 'ADMIN'
-                    ? 'bg-purple-500/10 text-purple-300 border-purple-500/30'
-                    : 'bg-brand-teal/10 text-brand-teal border-brand-teal/25'
-                }`}
-              >
-                {formData.role}
-              </span>
+              {formData.isExternal ? (
+                <span className="px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase border bg-amber-500/15 text-amber-300 border-amber-500/30">
+                  EXTERNAL • {formData.externalProvider || 'Mable'}
+                </span>
+              ) : (
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase border ${
+                    formData.role === 'ADMIN'
+                      ? 'bg-purple-500/10 text-purple-300 border-purple-500/30'
+                      : 'bg-brand-teal/10 text-brand-teal border-brand-teal/25'
+                  }`}
+                >
+                  {formData.role}
+                </span>
+              )}
               {formData.primaryPosition && (
                 <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.04] border border-white/[0.08] text-zinc-300">
                   {formData.primaryPosition}
@@ -468,14 +490,20 @@ export default function StaffDashboardView() {
             </h2>
 
             <div className="flex items-center text-xs text-[#8B949E] space-x-2 mt-0.5 flex-wrap">
-              <span>{formData.email || 'No email'}</span>
+              <span>
+                {formData.email
+                  ? formData.email
+                  : formData.isExternal
+                    ? `Roster-Only Profile (${formData.externalProvider || 'Mable'})`
+                    : 'No email'}
+              </span>
               {formData.phone && (
                 <>
                   <span>•</span>
                   <span>{formData.phone}</span>
                 </>
               )}
-              {selectedPayCategory && (
+              {!formData.isExternal && selectedPayCategory && (
                 <>
                   <span>•</span>
                   <span className="text-brand-teal font-medium">{selectedPayCategory.name}</span>
@@ -493,15 +521,17 @@ export default function StaffDashboardView() {
 
         {/* Top Right Action Shortcuts */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setIsContractModalOpen(true)}
-            className="px-2.5 py-1.5 min-h-[32px] bg-brand-navy border border-border-subtle hover:border-emerald-400/60 text-[#8B949E] hover:text-[#E6EDF3] rounded-md text-xs font-medium flex items-center space-x-1.5 transition-colors shadow-xs cursor-pointer"
-            title="Generate Employment Contract"
-          >
-            <FileText className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Employment Contract</span>
-          </button>
+          {!formData.isExternal && (
+            <button
+              type="button"
+              onClick={() => setIsContractModalOpen(true)}
+              className="px-2.5 py-1.5 min-h-[32px] bg-brand-navy border border-border-subtle hover:border-emerald-400/60 text-[#8B949E] hover:text-[#E6EDF3] rounded-md text-xs font-medium flex items-center space-x-1.5 transition-colors shadow-xs cursor-pointer"
+              title="Generate Employment Contract"
+            >
+              <FileText className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Employment Contract</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -589,34 +619,46 @@ export default function StaffDashboardView() {
 
           <div className="bg-brand-navy border border-border-subtle rounded-lg px-3.5 py-2.5">
             <span className="block text-[10px] text-[#8B949E] uppercase font-semibold tracking-wider">
-              Award Pay Category
+              {formData.isExternal ? 'External Platform / Agency' : 'Award Pay Category'}
             </span>
-            <div className="text-xs sm:text-sm font-semibold text-brand-teal mt-1 truncate">
-              {selectedPayCategory ? selectedPayCategory.name : 'Default / Unassigned'}
+            <div className={`text-xs sm:text-sm font-semibold mt-1 truncate ${formData.isExternal ? 'text-amber-300' : 'text-brand-teal'}`}>
+              {formData.isExternal
+                ? `${formData.externalProvider || 'Mable'} (Roster-Only)`
+                : selectedPayCategory
+                  ? selectedPayCategory.name
+                  : 'Default / Unassigned'}
             </div>
             <span className="text-[11px] text-[#8B949E] mt-0.5 block truncate">
-              SCHADS / Fair Work Classification
+              {formData.isExternal ? 'Client Invoicing Active' : 'SCHADS / Fair Work Classification'}
             </span>
           </div>
 
           <div className="bg-brand-navy border border-border-subtle rounded-lg px-3.5 py-2.5">
             <span className="block text-[10px] text-[#8B949E] uppercase font-semibold tracking-wider">
-              Xero Payroll Status
+              {formData.isExternal ? 'Payroll & Travel Rules' : 'Xero Payroll Status'}
             </span>
             <div className="flex items-center gap-1.5 mt-1">
               <span
                 className={`w-2 h-2 rounded-full shrink-0 ${
-                  formData.xeroEmployeeId || formData.xeroEmployeeName ? 'bg-sky-400' : 'bg-zinc-600'
+                  formData.isExternal
+                    ? 'bg-amber-400'
+                    : formData.xeroEmployeeId || formData.xeroEmployeeName
+                      ? 'bg-sky-400'
+                      : 'bg-zinc-600'
                 }`}
               />
               <span className="text-xs sm:text-sm font-semibold text-[#E6EDF3] truncate">
-                {formData.xeroEmployeeName || (formData.xeroEmployeeId ? 'Linked to Xero' : 'Not Linked')}
+                {formData.isExternal
+                  ? 'Excluded from Xero & Travel'
+                  : formData.xeroEmployeeName || (formData.xeroEmployeeId ? 'Linked to Xero' : 'Not Linked')}
               </span>
             </div>
             <span className="text-[11px] text-[#8B949E] mt-0.5 block truncate">
-              {formData.xeroEmployeeId || formData.xeroEmployeeName
-                ? 'Timesheets & payslips ready'
-                : 'Link in Xero Payroll tab'}
+              {formData.isExternal
+                ? '0 km automatic travel • Billed externally'
+                : formData.xeroEmployeeId || formData.xeroEmployeeName
+                  ? 'Timesheets & payslips ready'
+                  : 'Link in Xero Payroll tab'}
             </span>
           </div>
 
@@ -653,8 +695,12 @@ export default function StaffDashboardView() {
               {[
                 { id: 'general', label: 'Profile & Role', icon: User },
                 { id: 'personal', label: 'Contact & Personal', icon: Phone },
-                { id: 'financial', label: 'Financial & Tax', icon: Landmark },
-                { id: 'xero', label: 'Xero Payroll', icon: DollarSign },
+                ...(!formData.isExternal
+                  ? [
+                      { id: 'financial', label: 'Financial & Tax', icon: Landmark },
+                      { id: 'xero', label: 'Xero Payroll', icon: DollarSign },
+                    ]
+                  : []),
                 { id: 'all', label: 'All Sections', icon: Layers },
               ].map(tab => {
                 const Icon = tab.icon;
@@ -705,17 +751,92 @@ export default function StaffDashboardView() {
 
                     <div className="p-4 bg-black/40 border border-white/[0.08] rounded-xl space-y-3.5">
                       <div>
-                        <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Account Role *</label>
-                        <select
-                          name="role"
-                          value={formData.role}
-                          onChange={handleChange}
-                          className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
-                        >
-                          <option value="STAFF">Staff</option>
-                          <option value="ADMIN">Admin</option>
-                        </select>
+                        <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Staff Type</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, isExternal: false }))}
+                            className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all cursor-pointer ${
+                              !formData.isExternal
+                                ? 'bg-brand-blue/15 border-brand-blue text-white shadow-xs'
+                                : 'bg-[#121214] border-white/[0.08] text-zinc-400 hover:text-zinc-200'
+                            }`}
+                          >
+                            <div className="font-semibold">Internal Employee</div>
+                            <div className="text-[10px] opacity-75 mt-0.5">Payroll, Travel &amp; App Login</div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFormData(prev => ({
+                                ...prev,
+                                isExternal: true,
+                                role: 'STAFF',
+                                canSwitchAdmin: false,
+                                primaryPosition: prev.primaryPosition || 'Support Worker',
+                              }))
+                            }
+                            className={`px-3 py-2 rounded-lg text-xs font-medium border text-left transition-all cursor-pointer ${
+                              formData.isExternal
+                                ? 'bg-amber-500/15 border-amber-500/40 text-amber-200 shadow-xs'
+                                : 'bg-[#121214] border-white/[0.08] text-zinc-400 hover:text-zinc-200'
+                            }`}
+                          >
+                            <div className="font-semibold">External Worker</div>
+                            <div className="text-[10px] opacity-75 mt-0.5">Mable / Roster-Only</div>
+                          </button>
+                        </div>
                       </div>
+
+                      {formData.isExternal && (
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg space-y-2">
+                          <label className="block text-[11px] font-semibold text-amber-300 uppercase tracking-wider">
+                            External Platform / Agency Name
+                          </label>
+                          <input
+                            type="text"
+                            name="externalProvider"
+                            value={formData.externalProvider}
+                            onChange={handleChange}
+                            placeholder="e.g. Mable, Hireup, Agency..."
+                            className="w-full bg-[#121214] border border-amber-500/30 rounded-md px-3 py-1.5 text-[13px] text-white outline-none focus:border-amber-400 transition-colors"
+                          />
+                          <div className="flex items-center gap-1.5 pt-0.5">
+                            {['Mable', 'Hireup', 'Agency'].map(preset => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, externalProvider: preset }))}
+                                className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors cursor-pointer ${
+                                  formData.externalProvider === preset
+                                    ? 'bg-amber-500/25 border-amber-400 text-amber-200'
+                                    : 'bg-black/40 border-white/[0.08] text-zinc-400 hover:text-zinc-200'
+                                }`}
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-[11px] text-amber-200/80 leading-relaxed pt-1">
+                            Roster-Only Mode: Appears on Roster, Client Invoices, and Trilogy Care Planning. Excluded from automatic Travel Calculations and Xero Pay Runs.
+                          </p>
+                        </div>
+                      )}
+
+                      {!formData.isExternal && (
+                        <div>
+                          <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Account Role *</label>
+                          <select
+                            name="role"
+                            value={formData.role}
+                            onChange={handleChange}
+                            className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
+                          >
+                            <option value="STAFF">Staff</option>
+                            <option value="ADMIN">Admin</option>
+                          </select>
+                        </div>
+                      )}
 
                       <div>
                         <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">
@@ -788,7 +909,7 @@ export default function StaffDashboardView() {
                         </div>
                       </div>
 
-                      {formData.role === 'STAFF' && (
+                      {!formData.isExternal && formData.role === 'STAFF' && (
                         <div className="flex items-center justify-between pt-2 border-t border-white/[0.06]">
                           <div className="flex items-center">
                             <input
@@ -849,14 +970,17 @@ export default function StaffDashboardView() {
                       </div>
 
                       <div>
-                        <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Email *</label>
+                        <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">
+                          {formData.isExternal ? 'Email (Optional for External Worker)' : 'Email *'}
+                        </label>
                         <input
                           type="email"
-                          required
+                          required={!formData.isExternal}
                           name="email"
                           value={formData.email}
                           onChange={handleChange}
-                          className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors"
+                          placeholder={formData.isExternal ? 'Not required for Roster-Only external workers' : ''}
+                          className="w-full bg-[#121214] border border-white/[0.08] rounded-md px-3 py-2 text-[13px] text-white outline-none focus:border-brand-blue transition-colors placeholder-zinc-600"
                         />
                       </div>
                     </div>
@@ -934,9 +1058,11 @@ export default function StaffDashboardView() {
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">Phone *</label>
+                    <label className="block text-[12px] font-medium text-zinc-400 mb-1.5">
+                      {formData.isExternal ? 'Phone (Optional)' : 'Phone *'}
+                    </label>
                     <input
-                      required
+                      required={!formData.isExternal}
                       name="phone"
                       value={formData.phone}
                       onChange={handleChange}

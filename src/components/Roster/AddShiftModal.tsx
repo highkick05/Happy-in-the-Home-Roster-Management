@@ -449,7 +449,10 @@ export default function AddShiftModal({ isOpen, onClose, onSave, staffList, clie
                 >
                   <option value="">Unassigned</option>
                   {staffList.map(s => (
-                    <option key={s.id} value={s.id}>{s.first_name || s.firstName} {s.last_name || s.lastName}</option>
+                    <option key={s.id} value={s.id}>
+                      {s.first_name || s.firstName} {s.last_name || s.lastName}
+                      {s.is_external ? ` (${s.external_provider || 'Mable'})` : ''}
+                    </option>
                   ))}
                 </select>
               </div>

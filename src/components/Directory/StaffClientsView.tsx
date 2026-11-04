@@ -146,7 +146,7 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
   const [providers, setProviders] = useState<any[]>([]);
   const [contractors, setContractors] = useState<any[]>([]);
   const [clientTab, setClientTab] = useLocalStorage<'NDIS' | 'HOME_CARE' | 'SUSPENDED'>('directory_client_tab', 'NDIS');
-  const [staffTab, setStaffTab] = useLocalStorage<'STAFF' | 'ADMIN' | 'SUSPENDED'>('directory_staff_tab', 'STAFF');
+  const [staffTab, setStaffTab] = useLocalStorage<'STAFF' | 'EXTERNAL' | 'ADMIN' | 'SUSPENDED'>('directory_staff_tab', 'STAFF');
 
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [isInviteStaffModalOpen, setIsInviteStaffModalOpen] = useState(false);
@@ -482,14 +482,17 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
       : suspendedClients;
 
   const sortedStaff = [...staff].sort(sortClients);
-  const staffRoleStaff = sortedStaff.filter(s => s.role === 'STAFF' && s.status !== 'SUSPENDED');
-  const staffRoleAdmin = sortedStaff.filter(s => s.role === 'ADMIN' && s.status !== 'SUSPENDED');
+  const staffRoleStaff = sortedStaff.filter(s => s.role === 'STAFF' && !Boolean(s.is_external) && s.status !== 'SUSPENDED');
+  const staffRoleExternal = sortedStaff.filter(s => Boolean(s.is_external) && s.status !== 'SUSPENDED');
+  const staffRoleAdmin = sortedStaff.filter(s => s.role === 'ADMIN' && !Boolean(s.is_external) && s.status !== 'SUSPENDED');
   const staffRoleSuspended = sortedStaff.filter(s => s.status === 'SUSPENDED');
   const displayStaff = staffTab === 'STAFF' 
     ? staffRoleStaff 
-    : staffTab === 'ADMIN' 
-      ? staffRoleAdmin 
-      : staffRoleSuspended;
+    : staffTab === 'EXTERNAL'
+      ? staffRoleExternal
+      : staffTab === 'ADMIN' 
+        ? staffRoleAdmin 
+        : staffRoleSuspended;
 
   const sortedProviders = [...providers].sort((a: any, b: any) => {
     const nameA = a.company_name?.toLowerCase() || '';
@@ -529,6 +532,12 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                 className={`flex items-center px-4 py-2 text-xs font-medium transition-colors border-b-2 mb-[-1px] ${staffTab === 'STAFF' ? 'border-brand-teal text-[#E6EDF3] bg-brand-navy' : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3] hover:bg-brand-navy/50'}`}
               >
                 Staff <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${staffTab === 'STAFF' ? 'bg-brand-teal/10 text-brand-teal' : 'bg-brand-navy border border-border-subtle text-[#8B949E]'}`}>{staffRoleStaff.length}</span>
+              </button>
+              <button
+                onClick={() => setStaffTab('EXTERNAL')}
+                className={`flex items-center px-4 py-2 text-xs font-medium transition-colors border-b-2 mb-[-1px] ${staffTab === 'EXTERNAL' ? 'border-amber-500 text-[#E6EDF3] bg-brand-navy' : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3] hover:bg-brand-navy/50'}`}
+              >
+                External <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${staffTab === 'EXTERNAL' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-brand-navy border border-border-subtle text-[#8B949E]'}`}>{staffRoleExternal.length}</span>
               </button>
               <button
                 onClick={() => setStaffTab('ADMIN')}
@@ -658,7 +667,13 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                       </div>
                     </td>
                     <td className="px-4 py-2">
-                      <div className="text-[#E6EDF3] font-medium">{s.email}</div>
+                      {s.is_external && (!s.email || String(s.email).endsWith('@external.local')) ? (
+                        <div className="text-[#8B949E] italic text-xs">
+                          Roster-Only Profile ({s.external_provider || 'Mable'})
+                        </div>
+                      ) : (
+                        <div className="text-[#E6EDF3] font-medium">{s.email}</div>
+                      )}
                       {s.phone && (
                         <div className="text-[#8B949E] text-xs mt-0.5">{s.phone}</div>
                       )}
@@ -666,14 +681,20 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                     <td className="px-4 py-2">
                       <div className="flex flex-col gap-0.5 items-start">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold tracking-wider uppercase border ${
-                            s.role === 'ADMIN' 
-                              ? 'bg-purple-500/10 text-purple-300 border-purple-500/30' 
-                              : 'bg-brand-bg text-[#8B949E] border-border-subtle'
-                          }`}>
-                            {s.role}
-                          </span>
-                          {isStaffCareCoordinator(s) && (
+                          {Boolean(s.is_external) ? (
+                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold tracking-wider uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              EXTERNAL • {s.external_provider || 'Mable'}
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold tracking-wider uppercase border ${
+                              s.role === 'ADMIN' 
+                                ? 'bg-purple-500/10 text-purple-300 border-purple-500/30' 
+                                : 'bg-brand-bg text-[#8B949E] border-border-subtle'
+                            }`}>
+                              {s.role}
+                            </span>
+                          )}
+                          {!s.is_external && isStaffCareCoordinator(s) && (
                             <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold tracking-wider uppercase bg-purple-500/15 text-purple-300 border border-purple-500/30">
                               Care Coordinator
                             </span>
@@ -687,58 +708,72 @@ export default function StaffClientsView({ type = 'STAFF' }: { type?: 'STAFF' | 
                       </div>
                     </td>
                     <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {(s.xero_employee_name || s.xero_employee_id) ? (
-                            <div 
-                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-medium bg-sky-500/10 text-sky-300 border border-sky-500/30"
-                              title={`Linked to Xero Employee: ${s.xero_employee_name || s.xero_employee_id}`}
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
-                              <span className="font-bold text-sky-400 tracking-wider text-[8px]">XERO:</span>
-                              <span className="text-[#E6EDF3] font-medium truncate max-w-[120px]">{s.xero_employee_name || 'Linked'}</span>
-                            </div>
-                          ) : (
-                            <span 
-                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-medium bg-zinc-800/60 text-zinc-500 border border-zinc-700/50"
-                              title="Not linked to Xero Employee"
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
-                              Not Linked
-                            </span>
-                          )}
+                      {Boolean(s.is_external) ? (
+                        <div className="space-y-1">
+                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                            EXTERNAL • {(s.external_provider || 'MABLE').toUpperCase()}
+                          </div>
+                          <div className="text-[10px] text-[#8B949E]">
+                            Excluded from Xero Pay Run &amp; Travel
+                          </div>
                         </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {(s.xero_employee_name || s.xero_employee_id) ? (
+                              <div 
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-medium bg-sky-500/10 text-sky-300 border border-sky-500/30"
+                                title={`Linked to Xero Employee: ${s.xero_employee_name || s.xero_employee_id}`}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
+                                <span className="font-bold text-sky-400 tracking-wider text-[8px]">XERO:</span>
+                                <span className="text-[#E6EDF3] font-medium truncate max-w-[120px]">{s.xero_employee_name || 'Linked'}</span>
+                              </div>
+                            ) : (
+                              <span 
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-medium bg-zinc-800/60 text-zinc-500 border border-zinc-700/50"
+                                title="Not linked to Xero Employee"
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
+                                Not Linked
+                              </span>
+                            )}
+                          </div>
 
-                        {/* Pay Category Selector */}
-                        <div className="flex items-center gap-1">
-                          <select
-                            value={s.pay_category_id || ''}
-                            onChange={(e) => handleUpdateStaffPayCategory(s.id, e.target.value)}
-                            disabled={updatingPayCategoryStaffId === s.id}
-                            className="bg-[#121214] border border-white/10 hover:border-brand-teal/50 focus:border-brand-teal text-[#E6EDF3] text-[10px] rounded px-1.5 py-0.5 outline-none transition-colors cursor-pointer max-w-[190px] truncate shadow-sm disabled:opacity-50"
-                            title={s.pay_category_name ? `Assigned Xero Pay Category: ${s.pay_category_name}` : 'Assign a Xero Pay Category to inherit award rates'}
-                          >
-                            <option value="">-- Pay Category --</option>
-                            {payCategories.map(c => (
-                              <option key={c.id} value={c.id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
-                          {updatingPayCategoryStaffId === s.id && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-brand-teal animate-ping" title="Saving pay category..." />
-                          )}
+                          {/* Pay Category Selector */}
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={s.pay_category_id || ''}
+                              onChange={(e) => handleUpdateStaffPayCategory(s.id, e.target.value)}
+                              disabled={updatingPayCategoryStaffId === s.id}
+                              className="bg-[#121214] border border-white/10 hover:border-brand-teal/50 focus:border-brand-teal text-[#E6EDF3] text-[10px] rounded px-1.5 py-0.5 outline-none transition-colors cursor-pointer max-w-[190px] truncate shadow-sm disabled:opacity-50"
+                              title={s.pay_category_name ? `Assigned Xero Pay Category: ${s.pay_category_name}` : 'Assign a Xero Pay Category to inherit award rates'}
+                            >
+                              <option value="">-- Pay Category --</option>
+                              {payCategories.map(c => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                            {updatingPayCategoryStaffId === s.id && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-brand-teal animate-ping" title="Saving pay category..." />
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </td>
                     <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                      <button 
-                        onClick={() => { setContractStaffMember(s); setIsContractModalOpen(true); }}
-                        className="p-1.5 text-[#8B949E] hover:text-emerald-400 transition-colors rounded-md hover:bg-white/[0.04]"
-                        title="Generate Employment Contract"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                      </button>
+                      {!s.is_external && (
+                        <button 
+                          onClick={() => { setContractStaffMember(s); setIsContractModalOpen(true); }}
+                          className="p-1.5 text-[#8B949E] hover:text-emerald-400 transition-colors rounded-md hover:bg-white/[0.04]"
+                          title="Generate Employment Contract"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button onClick={() => handleEditStaff(s)} className="p-1.5 text-[#8B949E] hover:text-brand-teal transition-colors rounded-md hover:bg-white/[0.04]">
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>

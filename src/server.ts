@@ -1107,6 +1107,8 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
   try { db.exec("ALTER TABLE users ADD COLUMN pay_rate_home_care_travel_id TEXT DEFAULT ''"); } catch (e: any) {}
   try { db.exec("ALTER TABLE users ADD COLUMN xero_employee_id TEXT DEFAULT ''"); } catch (e: any) {}
   try { db.exec("ALTER TABLE users ADD COLUMN xero_employee_name TEXT DEFAULT ''"); } catch (e: any) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN is_external INTEGER DEFAULT 0"); } catch (e: any) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN external_provider TEXT DEFAULT 'Mable'"); } catch (e: any) {}
 
   // Three-Layer Role Architecture schema extensions
   try { db.exec("ALTER TABLE users ADD COLUMN position_id INTEGER REFERENCES positions(id)"); } catch (e: any) {}
@@ -2506,8 +2508,11 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
     currentShiftId?: string | number,
   ) => {
     const staff = db
-      .prepare("SELECT address FROM users WHERE id = ?")
+      .prepare("SELECT address, COALESCE(is_external, 0) as is_external FROM users WHERE id = ?")
       .get(staffId) as any;
+    if (staff && Number(staff.is_external) === 1) {
+      return { distance: 0, minutes: 0 };
+    }
     const client = db
       .prepare("SELECT address, funding_type FROM clients WHERE id = ?")
       .get(newShiftClientId) as any;
@@ -2690,6 +2695,11 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
     dateIso: string,
   ) => {
     try {
+      const staffRow = db
+        .prepare("SELECT COALESCE(is_external, 0) as is_external FROM users WHERE id = ?")
+        .get(staffId) as any;
+      if (staffRow && Number(staffRow.is_external) === 1) return;
+
       // 1. Get all remaining active shifts for staffId on dateIso
       const shifts = db
         .prepare(
@@ -4258,6 +4268,9 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
     if (!user || !bcrypt.compareSync(password, user.password_hash)) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
+    if (Number(user.is_external) === 1) {
+      return res.status(403).json({ error: "External support worker profiles are Roster-Only and cannot log in." });
+    }
 
         let loginRole = user.role;
     if (user.last_active_role && (user.last_active_role === 'ADMIN' || user.last_active_role === 'STAFF')) {
@@ -5049,6 +5062,7 @@ function getUnreadChatCount(db: any, userId: number): number {
         SELECT id, first_name, last_name, email, role, avatar_url, primary_position, additional_positions, status, can_switch_admin
         FROM users 
         WHERE id != ? 
+          AND COALESCE(is_external, 0) = 0
           AND (status IS NULL OR (status != 'INACTIVE' AND status != 'SUSPENDED'))
           AND (role IS NULL OR UPPER(role) != 'ADMIN' OR can_switch_admin = 1)
         ORDER BY first_name ASC, last_name ASC
@@ -5919,6 +5933,7 @@ function getUnreadChatCount(db: any, userId: number): number {
           `SELECT id, email, role, last_active_role, can_switch_admin, first_name, last_name, avatar_url
            FROM users
            WHERE LOWER(email) IN (${placeholders})
+             AND COALESCE(is_external, 0) = 0
              AND (status IS NULL OR status != 'SUSPENDED')`
         )
         .all(...emails) as any[];
@@ -8771,7 +8786,7 @@ app.get("/api/health", (req, res) => {
 
   app.get("/api/admin/staff-compliance", authenticateToken, requireAdmin, (req: any, res: any) => {
     try {
-      const staffList = db.prepare("SELECT id, first_name, last_name, email, onboarding_json, primary_position, additional_positions, status FROM users WHERE role = 'STAFF' AND (status IS NULL OR status != 'SUSPENDED')").all() as any[];
+      const staffList = db.prepare("SELECT id, first_name, last_name, email, onboarding_json, primary_position, additional_positions, status FROM users WHERE role = 'STAFF' AND COALESCE(is_external, 0) = 0 AND (status IS NULL OR status != 'SUSPENDED')").all() as any[];
       const allFiles = db.prepare("SELECT id, date_issued, date_expires, original_name FROM files").all() as any[];
       const filesMap = new Map(allFiles.map((f) => [f.id, f]));
       
@@ -9316,7 +9331,7 @@ app.get("/api/health", (req, res) => {
     }
 
     const requestedRole = req.query.role ? String(req.query.role).toUpperCase() : null;
-    const staffSelectFields = `id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, position_id, pay_category_id, (SELECT name FROM pay_categories WHERE pay_categories.id = users.pay_category_id) as pay_category_name, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, xero_employee_id, xero_employee_name, ${joinedExpr}, ${createdExpr}`;
+    const staffSelectFields = `id, email, role, status, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, position_id, pay_category_id, (SELECT name FROM pay_categories WHERE pay_categories.id = users.pay_category_id) as pay_category_name, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, xero_employee_id, xero_employee_name, COALESCE(is_external, 0) as is_external, COALESCE(external_provider, 'Mable') as external_provider, ${joinedExpr}, ${createdExpr}`;
     if (req.user.role !== "ADMIN" || requestedRole === "STAFF") {
       const staff = db
         .prepare(
@@ -9386,83 +9401,105 @@ app.get("/api/health", (req, res) => {
       payRateHomeCareTravelId,
       xeroEmployeeId,
       xeroEmployeeName,
+      isExternal,
+      is_external,
+      externalProvider,
+      external_provider,
     } = req.body;
     try {
-      const hash = bcrypt.hashSync(password, 10);
+      const isExt = isExternal === true || isExternal === 1 || is_external === true || is_external === 1 ? 1 : 0;
+      const extProvider = String(externalProvider || external_provider || "Mable").trim() || "Mable";
+      const safeEmail = (email && String(email).trim())
+        ? String(email).trim()
+        : isExt
+          ? `external.${Date.now()}.${Math.random().toString(36).slice(2, 7)}@external.local`
+          : "";
+      if (!safeEmail) {
+        return res.status(400).json({ error: "Email is required for internal staff" });
+      }
+      const rawPassword = (password && String(password).trim())
+        ? String(password)
+        : `ext_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const hash = bcrypt.hashSync(rawPassword, 10);
       const nowIso = new Date().toISOString();
       const safeJoinedDate = joinedDate ? String(joinedDate).split('T')[0] : nowIso.split('T')[0];
       const targetPosId = req.body.positionId || req.body.position_id || null;
-      const targetPayCatId = req.body.payCategoryId || req.body.pay_category_id || null;
-      let targetPosName = primaryPosition || null;
+      const targetPayCatId = isExt ? null : (req.body.payCategoryId || req.body.pay_category_id || null);
+      let targetPosName = primaryPosition || (isExt ? "Support Worker" : null);
       if (targetPosId && !targetPosName) {
         const pos = db.prepare("SELECT name FROM positions WHERE id = ?").get(targetPosId) as any;
         if (pos) targetPosName = pos.name;
       }
       const isCareCoordCreate =
-        targetPosName === "Care Coordinator" ||
-        (Array.isArray(additionalPositions) && additionalPositions.includes("Care Coordinator"));
+        !isExt &&
+        (targetPosName === "Care Coordinator" ||
+        (Array.isArray(additionalPositions) && additionalPositions.includes("Care Coordinator")));
       const stmt = db.prepare(
-        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, position_id, pay_category_id, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, xero_employee_id, xero_employee_name, joined_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO users (email, password_hash, role, first_name, last_name, phone, address, dob, emergency_contact_name, emergency_contact_phone, bank_name, bank_bsb, bank_acc, tax_number, super_fund_name, super_member_number, can_switch_admin, avatar_url, primary_position, additional_positions, position_id, pay_category_id, pay_rate_weekday_id, pay_rate_saturday_id, pay_rate_sunday_id, pay_rate_public_holiday_id, pay_rate_ndis_travel_id, pay_rate_home_care_travel_id, xero_employee_id, xero_employee_name, is_external, external_provider, joined_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       );
       const info = stmt.run(
-        email,
+        safeEmail,
         hash,
-        role || "STAFF",
+        isExt ? "STAFF" : (role || "STAFF"),
         firstName,
         lastName,
-        phone,
-        address,
-        dob,
-        emergencyContactName,
-        emergencyContactPhone,
-        bankName,
-        bankBsb,
-        bankAcc,
-        taxNumber,
-        superFundName,
-        superMemberNumber,
-        canSwitchAdmin || isCareCoordCreate ? 1 : 0,
+        phone || "",
+        address || "",
+        dob || null,
+        emergencyContactName || "",
+        emergencyContactPhone || "",
+        bankName || "",
+        bankBsb || "",
+        bankAcc || "",
+        taxNumber || "",
+        superFundName || "",
+        superMemberNumber || "",
+        (!isExt && (canSwitchAdmin || isCareCoordCreate)) ? 1 : 0,
         avatarUrl || null,
         targetPosName,
         additionalPositions ? JSON.stringify(additionalPositions) : "[]",
         targetPosId,
         targetPayCatId ? Number(targetPayCatId) : null,
-        payRateWeekdayId || "",
-        payRateSaturdayId || "",
-        payRateSundayId || "",
-        payRatePublicHolidayId || "",
-        payRateNdisTravelId || "",
-        payRateHomeCareTravelId || "",
-        xeroEmployeeId || "",
-        xeroEmployeeName || "",
+        isExt ? "" : (payRateWeekdayId || ""),
+        isExt ? "" : (payRateSaturdayId || ""),
+        isExt ? "" : (payRateSundayId || ""),
+        isExt ? "" : (payRatePublicHolidayId || ""),
+        isExt ? "" : (payRateNdisTravelId || ""),
+        isExt ? "" : (payRateHomeCareTravelId || ""),
+        isExt ? "" : (xeroEmployeeId || ""),
+        isExt ? "" : (xeroEmployeeName || ""),
+        isExt,
+        extProvider,
         safeJoinedDate,
         nowIso
       );
       res.json({
         id: info.lastInsertRowid,
-        email,
-        role,
+        email: safeEmail,
+        role: isExt ? "STAFF" : (role || "STAFF"),
         firstName,
         lastName,
-        phone,
-        address,
-        dob,
-        emergencyContactName,
-        emergencyContactPhone,
-        bankName,
-        bankBsb,
-        bankAcc,
-        taxNumber,
-        superFundName,
-        superMemberNumber,
-        pay_rate_weekday_id: payRateWeekdayId || "",
-        pay_rate_saturday_id: payRateSaturdayId || "",
-        pay_rate_sunday_id: payRateSundayId || "",
-        pay_rate_public_holiday_id: payRatePublicHolidayId || "",
-        pay_rate_ndis_travel_id: payRateNdisTravelId || "",
-        pay_rate_home_care_travel_id: payRateHomeCareTravelId || "",
-        xero_employee_id: xeroEmployeeId || "",
-        xero_employee_name: xeroEmployeeName || "",
+        phone: phone || "",
+        address: address || "",
+        dob: dob || null,
+        emergencyContactName: emergencyContactName || "",
+        emergencyContactPhone: emergencyContactPhone || "",
+        bankName: bankName || "",
+        bankBsb: bankBsb || "",
+        bankAcc: bankAcc || "",
+        taxNumber: taxNumber || "",
+        superFundName: superFundName || "",
+        superMemberNumber: superMemberNumber || "",
+        pay_rate_weekday_id: isExt ? "" : (payRateWeekdayId || ""),
+        pay_rate_saturday_id: isExt ? "" : (payRateSaturdayId || ""),
+        pay_rate_sunday_id: isExt ? "" : (payRateSundayId || ""),
+        pay_rate_public_holiday_id: isExt ? "" : (payRatePublicHolidayId || ""),
+        pay_rate_ndis_travel_id: isExt ? "" : (payRateNdisTravelId || ""),
+        pay_rate_home_care_travel_id: isExt ? "" : (payRateHomeCareTravelId || ""),
+        xero_employee_id: isExt ? "" : (xeroEmployeeId || ""),
+        xero_employee_name: isExt ? "" : (xeroEmployeeName || ""),
+        is_external: isExt,
+        external_provider: extProvider,
         joined_date: safeJoinedDate,
         created_at: nowIso,
       });
@@ -9506,75 +9543,101 @@ app.get("/api/health", (req, res) => {
       payRateHomeCareTravelId,
       xeroEmployeeId,
       xeroEmployeeName,
+      isExternal,
+      is_external,
+      externalProvider,
+      external_provider,
     } = req.body;
     const { id } = req.params;
     try {
+      const existingUser = db.prepare("SELECT email, is_external, external_provider FROM users WHERE id = ?").get(id) as any;
+      const isExt =
+        isExternal !== undefined
+          ? (isExternal ? 1 : 0)
+          : is_external !== undefined
+            ? (is_external ? 1 : 0)
+            : Number(existingUser?.is_external || 0);
+      const extProvider =
+        externalProvider !== undefined || external_provider !== undefined
+          ? (String(externalProvider || external_provider || "Mable").trim() || "Mable")
+          : (existingUser?.external_provider || "Mable");
+      const safeEmail = (email && String(email).trim())
+        ? String(email).trim()
+        : isExt
+          ? (existingUser?.email || `external.${Date.now()}.${Math.random().toString(36).slice(2, 7)}@external.local`)
+          : (existingUser?.email || "");
+
       const safeJoinedDate = joinedDate ? String(joinedDate).split('T')[0] : null;
       const targetPosId = req.body.positionId !== undefined ? req.body.positionId : (req.body.position_id !== undefined ? req.body.position_id : null);
-      const targetPayCatId = req.body.payCategoryId !== undefined ? req.body.payCategoryId : (req.body.pay_category_id !== undefined ? req.body.pay_category_id : null);
+      const targetPayCatId = isExt ? null : (req.body.payCategoryId !== undefined ? req.body.payCategoryId : (req.body.pay_category_id !== undefined ? req.body.pay_category_id : null));
       let targetPosName = primaryPosition;
       if (targetPosId && !targetPosName) {
         const pos = db.prepare("SELECT name FROM positions WHERE id = ?").get(targetPosId) as any;
         if (pos) targetPosName = pos.name;
       }
       const isCareCoordUpdate =
-        targetPosName === "Care Coordinator" ||
-        (Array.isArray(additionalPositions) && additionalPositions.includes("Care Coordinator"));
+        !isExt &&
+        (targetPosName === "Care Coordinator" ||
+        (Array.isArray(additionalPositions) && additionalPositions.includes("Care Coordinator")));
       const stmt = db.prepare(
-        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = COALESCE(?, primary_position), additional_positions = ?, position_id = COALESCE(?, position_id), pay_category_id = COALESCE(?, pay_category_id), pay_rate_weekday_id = COALESCE(?, pay_rate_weekday_id), pay_rate_saturday_id = COALESCE(?, pay_rate_saturday_id), pay_rate_sunday_id = COALESCE(?, pay_rate_sunday_id), pay_rate_public_holiday_id = COALESCE(?, pay_rate_public_holiday_id), pay_rate_ndis_travel_id = COALESCE(?, pay_rate_ndis_travel_id), pay_rate_home_care_travel_id = COALESCE(?, pay_rate_home_care_travel_id), xero_employee_id = COALESCE(?, xero_employee_id), xero_employee_name = COALESCE(?, xero_employee_name), joined_date = COALESCE(?, joined_date) WHERE id = ?",
+        "UPDATE users SET email = ?, role = ?, first_name = ?, last_name = ?, phone = ?, address = ?, dob = ?, emergency_contact_name = ?, emergency_contact_phone = ?, bank_name = ?, bank_bsb = ?, bank_acc = ?, tax_number = ?, super_fund_name = ?, super_member_number = ?, can_switch_admin = ?, avatar_url = ?, primary_position = COALESCE(?, primary_position), additional_positions = ?, position_id = COALESCE(?, position_id), pay_category_id = ?, pay_rate_weekday_id = COALESCE(?, pay_rate_weekday_id), pay_rate_saturday_id = COALESCE(?, pay_rate_saturday_id), pay_rate_sunday_id = COALESCE(?, pay_rate_sunday_id), pay_rate_public_holiday_id = COALESCE(?, pay_rate_public_holiday_id), pay_rate_ndis_travel_id = COALESCE(?, pay_rate_ndis_travel_id), pay_rate_home_care_travel_id = COALESCE(?, pay_rate_home_care_travel_id), xero_employee_id = COALESCE(?, xero_employee_id), xero_employee_name = COALESCE(?, xero_employee_name), is_external = ?, external_provider = ?, joined_date = COALESCE(?, joined_date) WHERE id = ?",
       );
       stmt.run(
-        email,
-        role,
+        safeEmail,
+        isExt ? "STAFF" : (role || "STAFF"),
         firstName,
         lastName,
-        phone,
-        address,
-        dob,
-        emergencyContactName,
-        emergencyContactPhone,
-        bankName,
-        bankBsb,
-        bankAcc,
-        taxNumber,
-        superFundName,
-        superMemberNumber,
-        canSwitchAdmin || isCareCoordUpdate ? 1 : 0,
+        phone || "",
+        address || "",
+        dob || null,
+        emergencyContactName || "",
+        emergencyContactPhone || "",
+        bankName || "",
+        bankBsb || "",
+        bankAcc || "",
+        taxNumber || "",
+        superFundName || "",
+        superMemberNumber || "",
+        (!isExt && (canSwitchAdmin || isCareCoordUpdate)) ? 1 : 0,
         avatarUrl || null,
         targetPosName || null,
         additionalPositions ? JSON.stringify(additionalPositions) : "[]",
         targetPosId,
         targetPayCatId,
-        payRateWeekdayId !== undefined ? payRateWeekdayId : null,
-        payRateSaturdayId !== undefined ? payRateSaturdayId : null,
-        payRateSundayId !== undefined ? payRateSundayId : null,
-        payRatePublicHolidayId !== undefined ? payRatePublicHolidayId : null,
-        payRateNdisTravelId !== undefined ? payRateNdisTravelId : null,
-        payRateHomeCareTravelId !== undefined ? payRateHomeCareTravelId : null,
-        xeroEmployeeId !== undefined ? xeroEmployeeId : null,
-        xeroEmployeeName !== undefined ? xeroEmployeeName : null,
+        isExt ? "" : (payRateWeekdayId !== undefined ? payRateWeekdayId : null),
+        isExt ? "" : (payRateSaturdayId !== undefined ? payRateSaturdayId : null),
+        isExt ? "" : (payRateSundayId !== undefined ? payRateSundayId : null),
+        isExt ? "" : (payRatePublicHolidayId !== undefined ? payRatePublicHolidayId : null),
+        isExt ? "" : (payRateNdisTravelId !== undefined ? payRateNdisTravelId : null),
+        isExt ? "" : (payRateHomeCareTravelId !== undefined ? payRateHomeCareTravelId : null),
+        isExt ? "" : (xeroEmployeeId !== undefined ? xeroEmployeeId : null),
+        isExt ? "" : (xeroEmployeeName !== undefined ? xeroEmployeeName : null),
+        isExt,
+        extProvider,
         safeJoinedDate,
         id,
       );
       res.json({
         id,
-        email,
-        role,
+        email: safeEmail,
+        role: isExt ? "STAFF" : (role || "STAFF"),
         firstName,
         lastName,
-        phone,
-        address,
-        dob,
-        emergencyContactName,
-        emergencyContactPhone,
-        bankName,
-        bankBsb,
-        bankAcc,
-        taxNumber,
-        superFundName,
-        superMemberNumber,
-        xero_employee_id: xeroEmployeeId !== undefined ? xeroEmployeeId : undefined,
-        xero_employee_name: xeroEmployeeName !== undefined ? xeroEmployeeName : undefined,
+        phone: phone || "",
+        address: address || "",
+        dob: dob || null,
+        emergencyContactName: emergencyContactName || "",
+        emergencyContactPhone: emergencyContactPhone || "",
+        bankName: bankName || "",
+        bankBsb: bankBsb || "",
+        bankAcc: bankAcc || "",
+        taxNumber: taxNumber || "",
+        superFundName: superFundName || "",
+        superMemberNumber: superMemberNumber || "",
+        xero_employee_id: isExt ? "" : (xeroEmployeeId !== undefined ? xeroEmployeeId : undefined),
+        xero_employee_name: isExt ? "" : (xeroEmployeeName !== undefined ? xeroEmployeeName : undefined),
+        is_external: isExt,
+        external_provider: extProvider,
         joined_date: safeJoinedDate,
       });
     } catch (e: any) {
@@ -16984,6 +17047,7 @@ app.get("/api/health", (req, res) => {
     let query = `
       SELECT s.*, 
              u.first_name as staff_first_name, u.last_name as staff_last_name,
+             COALESCE(u.is_external, 0) as staff_is_external, COALESCE(u.external_provider, 'Mable') as staff_external_provider,
              c.first_name as client_first_name, c.last_name as client_last_name,
              srv.name as service_name, srv.code as service_code, srv.rate as service_rate, srv.unit as service_unit, srv.rates_json as service_rates_json, srv.type as service_type,
              COALESCE(c.funding_type, 'NDIS') as funding_type
@@ -16999,6 +17063,7 @@ app.get("/api/health", (req, res) => {
       const staffQuery = `
          SELECT s.*, COALESCE(c.funding_type, 'NDIS') as funding_type,
                 u.first_name as staff_first_name, u.last_name as staff_last_name,
+                COALESCE(u.is_external, 0) as staff_is_external, COALESCE(u.external_provider, 'Mable') as staff_external_provider,
                 c.first_name as client_first_name, c.last_name as client_last_name,
                 srv.name as service_name, srv.code as service_code, srv.unit as service_unit, srv.type as service_type
          FROM shifts s
@@ -17339,7 +17404,8 @@ app.get("/api/health", (req, res) => {
       
       const insertHistoricalData = (shiftId, single) => {
         if (!isHist) return;
-        const now = new Date().toISOString();
+        const staffRow = single.staffId ? (db.prepare("SELECT COALESCE(is_external, 0) as is_external FROM users WHERE id = ?").get(single.staffId) as any) : null;
+        const isExtStaff = Boolean(staffRow && Number(staffRow.is_external) === 1);
         let travelQty = 0, abtQty = 0;
         let travelCost = 0, abtCost = 0;
         let sData = [];
@@ -17349,11 +17415,11 @@ app.get("/api/health", (req, res) => {
            if (srv) {
              const name = srv.name.toLowerCase();
              const rate = Number(s.rateOverride || srv.rate || 1.00);
-             if (name.includes('provider travel') && s.qtyOverride) {
+             if (!isExtStaff && name.includes('provider travel') && s.qtyOverride) {
                  travelQty += Number(s.qtyOverride);
                  travelCost += Number(s.qtyOverride) * rate;
              }
-             if (name.includes('activity based transport') && s.qtyOverride) {
+             if (!isExtStaff && name.includes('activity based transport') && s.qtyOverride) {
                  abtQty += Number(s.qtyOverride);
                  abtCost += Number(s.qtyOverride) * rate;
              }
@@ -18429,6 +18495,7 @@ app.get("/api/health", (req, res) => {
         SELECT id, first_name, last_name, email, phone as mobile_number, phone 
         FROM users 
         WHERE id IN (${placeholders}) 
+          AND COALESCE(is_external, 0) = 0
           AND UPPER(COALESCE(status, 'ACTIVE')) NOT IN ('INACTIVE', 'SUSPENDED') 
           AND role = 'STAFF'
           AND ((email IS NOT NULL AND email != '') OR (phone IS NOT NULL AND phone != ''))
@@ -19132,9 +19199,14 @@ app.get("/api/health", (req, res) => {
             ? JSON.stringify(checklist)
             : shift.services_json || "[]";
 
-        let hasProviderTravelService = isHomeCare;
-        let hasAbtService = isHomeCare;
-        if (!isHomeCare) {
+        const staffRow = shift.staff_id
+          ? (db.prepare("SELECT COALESCE(is_external, 0) as is_external FROM users WHERE id = ?").get(shift.staff_id) as any)
+          : null;
+        const isExternalStaff = Boolean(staffRow && Number(staffRow.is_external) === 1);
+
+        let hasProviderTravelService = isExternalStaff ? false : isHomeCare;
+        let hasAbtService = isExternalStaff ? false : isHomeCare;
+        if (!isHomeCare && !isExternalStaff) {
           try {
             const parsedServices = JSON.parse(effectiveServicesRaw);
             if (Array.isArray(parsedServices)) {
@@ -19180,11 +19252,13 @@ app.get("/api/health", (req, res) => {
           }
         }
 
-        // 1. Calculate Provider Travel
-        const pTravel = hasProviderTravelService
+        // 1. Calculate Provider Travel (excluded for External Staff)
+        const pTravel = (!isExternalStaff && hasProviderTravelService)
           ? await calculateProviderTravel(shift)
           : { distance: 0, minutes: 0, cost: 0, routeLogs: [] };
-        const hcTravel = await calculateHomeCareTravel(shift);
+        const hcTravel = !isExternalStaff
+          ? await calculateHomeCareTravel(shift)
+          : { distance: 0, cost: 0, routeLogs: [] };
 
         // 2. Calculate ABT if NDIS/HCP and coordinates exist
         let abt_km = 0;
@@ -19313,21 +19387,27 @@ app.get("/api/health", (req, res) => {
           }
         }
 
-        const finalProviderKm = isHomeCare
-          ? shift.provider_travel_km
-          : hasProviderTravelService
-            ? pTravel.distance
-            : 0;
-        const finalProviderMinutes = isHomeCare
-          ? Number(shift.provider_travel_minutes || 0)
-          : hasProviderTravelService
-            ? Number(pTravel.minutes || 0)
-            : 0;
-        const finalProviderCost = isHomeCare
-          ? shift.provider_travel_cost
-          : hasProviderTravelService
-            ? pTravel.cost
-            : 0;
+        const finalProviderKm = isExternalStaff
+          ? 0
+          : isHomeCare
+            ? shift.provider_travel_km
+            : hasProviderTravelService
+              ? pTravel.distance
+              : 0;
+        const finalProviderMinutes = isExternalStaff
+          ? 0
+          : isHomeCare
+            ? Number(shift.provider_travel_minutes || 0)
+            : hasProviderTravelService
+              ? Number(pTravel.minutes || 0)
+              : 0;
+        const finalProviderCost = isExternalStaff
+          ? 0
+          : isHomeCare
+            ? shift.provider_travel_cost
+            : hasProviderTravelService
+              ? pTravel.cost
+              : 0;
 
         // ... Update query downwards
         let updateQueryStr = `
@@ -20542,6 +20622,7 @@ app.get("/api/health", (req, res) => {
         let query = `
         SELECT s.*, 
                u.first_name as staff_first_name, u.last_name as staff_last_name,
+               COALESCE(u.is_external, 0) as staff_is_external, COALESCE(u.external_provider, 'Mable') as staff_external_provider,
                c.first_name as client_first_name, c.last_name as client_last_name,
                srv.name as service_name
         FROM shifts s
@@ -20846,11 +20927,14 @@ app.get("/api/health", (req, res) => {
           const raw_prov_km = (shift.respite_booking_id ? 0 : effective_prov_km) * (hasProviderTravelService ? 1 : 0);
           const raw_abt_km = (shift.respite_booking_id || isCancelledPaid ? 0 : effective_abt_km) * (hasABTService ? 1 : 0);
 
-          const prov_km = isCompanyVehicle ? 0 : raw_prov_km;
-          const abt_km = isCompanyVehicle ? 0 : raw_abt_km;
+          const isExtStaff = Number(shift.staff_is_external) === 1;
+          const prov_km = (isCompanyVehicle || isExtStaff) ? 0 : raw_prov_km;
+          const abt_km = (isCompanyVehicle || isExtStaff) ? 0 : raw_abt_km;
+          const final_hc_travel_km = isExtStaff ? 0 : hc_travel_km;
+          const final_hc_travel_hrs = isExtStaff ? 0 : hc_travel_hrs;
 
-          totals.travelKm += isHomeCare ? hc_travel_km : prov_km + abt_km;
-          totals.travelHrs += isHomeCare ? hc_travel_hrs : 0;
+          totals.travelKm += isHomeCare ? final_hc_travel_km : prov_km + abt_km;
+          totals.travelHrs += isHomeCare ? final_hc_travel_hrs : 0;
           totals.providerTravelKm =
             (totals.providerTravelKm || 0) + (isHomeCare ? 0 : prov_km);
           totals.abtKm = (totals.abtKm || 0) + (isHomeCare ? 0 : abt_km);
@@ -20883,21 +20967,23 @@ app.get("/api/health", (req, res) => {
             hoursWorked: parseFloat(hours.toFixed(2)),
             shiftDuration: parseFloat(scheduledHrs.toFixed(2)),
             dayCategory: dayCategory,
-            travelKm: isHomeCare ? parseFloat(hc_travel_km.toFixed(2)) : 0,
+            travelKm: isHomeCare ? parseFloat(final_hc_travel_km.toFixed(2)) : 0,
             travelHours: isHomeCare
-              ? parseFloat(hc_travel_hrs.toFixed(2))
+              ? parseFloat(final_hc_travel_hrs.toFixed(2))
               : undefined,
             travelReimbursement: undefined,
             providerTravelKm: 0,
             abtKm: 0,
             staffName: `${shift.staff_first_name} ${shift.staff_last_name}`,
+            isExternal: isExtStaff,
+            externalProvider: shift.staff_external_provider || "Mable",
             clientName: shift.client_first_name
               ? `${shift.client_first_name} ${shift.client_last_name || ""}`.trim()
               : "-",
             rawSortTime: shift.start_time,
           });
 
-          if (!isHomeCare && prov_km > 0 && hasProviderTravelService) {
+          if (!isHomeCare && !isExtStaff && prov_km > 0 && hasProviderTravelService) {
             rows.push({
               id: shift.id + "_prov",
               shiftId: shift.id,
@@ -20913,6 +20999,8 @@ app.get("/api/health", (req, res) => {
               providerTravelKm: parseFloat(prov_km.toFixed(2)),
               abtKm: 0,
               staffName: `${shift.staff_first_name} ${shift.staff_last_name}`,
+              isExternal: isExtStaff,
+              externalProvider: shift.staff_external_provider || "Mable",
               clientName: shift.client_first_name
                 ? `${shift.client_first_name} ${shift.client_last_name || ""}`.trim()
                 : "-",
@@ -20920,7 +21008,7 @@ app.get("/api/health", (req, res) => {
             });
           }
 
-          if (!isHomeCare && abt_km > 0 && hasABTService) {
+          if (!isHomeCare && !isExtStaff && abt_km > 0 && hasABTService) {
             rows.push({
               id: shift.id + "_abt",
               shiftId: shift.id,
@@ -20936,6 +21024,8 @@ app.get("/api/health", (req, res) => {
               providerTravelKm: 0,
               abtKm: parseFloat(abt_km.toFixed(2)),
               staffName: `${shift.staff_first_name} ${shift.staff_last_name}`,
+              isExternal: isExtStaff,
+              externalProvider: shift.staff_external_provider || "Mable",
               clientName: shift.client_first_name
                 ? `${shift.client_first_name} ${shift.client_last_name || ""}`.trim()
                 : "-",

@@ -23,6 +23,7 @@ export default function StaffActivityReport() {
 
   const [staffList, setStaffList] = useState<any[]>([]);
   const [staffFilter, setStaffFilter] = useLocalStorage('activity_staff_filter', '');
+  const [staffTypeFilter, setStaffTypeFilter] = useLocalStorage<'INTERNAL' | 'EXTERNAL' | 'ALL'>('activity_staff_type_filter', 'INTERNAL');
 
   const [isPayRunModalOpen, setIsPayRunModalOpen] = useState(false);
   const [showColumnDropdown, setShowColumnDropdown] = useState(false);
@@ -133,15 +134,58 @@ export default function StaffActivityReport() {
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex items-center bg-brand-navy border border-border-subtle rounded-md p-0.5 text-xs">
+            {[
+              { id: 'INTERNAL', label: 'Internal Staff' },
+              { id: 'EXTERNAL', label: 'External (Mable)' },
+              { id: 'ALL', label: 'All' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setStaffTypeFilter(tab.id as 'INTERNAL' | 'EXTERNAL' | 'ALL');
+                  setStaffFilter('');
+                }}
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  staffTypeFilter === tab.id
+                    ? tab.id === 'EXTERNAL'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'bg-brand-teal/20 text-brand-teal border border-brand-teal/30'
+                    : 'text-[#8B949E] hover:text-[#E6EDF3]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           <select 
             value={staffFilter} 
             onChange={(e) => setStaffFilter(e.target.value)}
             className="bg-brand-navy border border-border-subtle text-[#E6EDF3] text-xs rounded-md px-2 py-1 focus:outline-none focus:border-brand-teal transition-colors max-w-[200px]"
           >
-            <option value="">All Staff</option>
-            {staffList.map((st: any) => (
-              <option key={st.id} value={st.id}>{st.first_name} {st.last_name}</option>
-            ))}
+            <option value="">
+              {staffTypeFilter === 'INTERNAL'
+                ? 'All Internal Staff'
+                : staffTypeFilter === 'EXTERNAL'
+                  ? 'All External Staff'
+                  : 'All Staff'}
+            </option>
+            {staffList
+              .filter((st: any) =>
+                staffTypeFilter === 'INTERNAL'
+                  ? !st.is_external
+                  : staffTypeFilter === 'EXTERNAL'
+                    ? Boolean(st.is_external)
+                    : true
+              )
+              .map((st: any) => (
+                <option key={st.id} value={st.id}>
+                  {st.first_name} {st.last_name}
+                  {st.is_external ? ` (${st.external_provider || 'Mable'})` : ''}
+                </option>
+              ))}
           </select>
           <CycleSelector 
             type="payrun" 
@@ -260,16 +304,26 @@ export default function StaffActivityReport() {
                     Loading report data...
                   </td>
                 </tr>
-              ) : reportData?.log.length === 0 ? (
-                <tr>
-                  <td colSpan={visibleColumns.length} className="px-3 py-10 text-center text-[#8B949E]">
-                    No activity found for the selected date range.
-                  </td>
-                </tr>
-              ) : (
-                reportData?.log.map((row: any) => (
+              ) : (() => {
+                const filteredLog = (reportData?.log || []).filter((row: any) =>
+                  staffTypeFilter === 'INTERNAL'
+                    ? !row.isExternal
+                    : staffTypeFilter === 'EXTERNAL'
+                      ? Boolean(row.isExternal)
+                      : true
+                );
+                if (filteredLog.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={visibleColumns.length} className="px-3 py-10 text-center text-[#8B949E]">
+                        No activity found for the selected date range and staff filter.
+                      </td>
+                    </tr>
+                  );
+                }
+                return filteredLog.map((row: any) => (
                   <tr key={row.id} className="hover:bg-brand-bg/50 transition-colors">
-                {visibleColumns.includes('shiftId') && (
+                    {visibleColumns.includes('shiftId') && (
                       <td className="px-3 py-2 whitespace-nowrap text-[#8B949E] text-xs font-mono">#{row.shiftId}</td>
                     )}
                     {visibleColumns.includes('dateAndDay') && (
@@ -279,7 +333,16 @@ export default function StaffActivityReport() {
                       <td className="px-3 py-2 whitespace-nowrap text-[#8B949E] text-xs">{row.timeString}</td>
                     )}
                     {visibleColumns.includes('staffMember') && (
-                      <td className="px-3 py-2 text-[#E6EDF3]">{row.staffName}</td>
+                      <td className="px-3 py-2 text-[#E6EDF3]">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{row.staffName}</span>
+                          {row.isExternal && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              {row.externalProvider || 'Mable'}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                     )}
                     {visibleColumns.includes('client') && (
                       <td className="px-3 py-2 text-[#E6EDF3]">{row.clientName}</td>
@@ -325,52 +388,93 @@ export default function StaffActivityReport() {
                       <td className="px-3 py-2 text-right tabular-nums">{row.travelHours !== undefined ? row.travelHours.toFixed(2) : '-'}</td>
                     )}
                   </tr>
-                ))
-              )}
+                ));
+              })()}
             </tbody>
           </table>
         </div>
 
-        {reportData && (
-          <div className="bg-brand-bg border-t border-border-subtle p-5 mt-auto shrink-0 animate-fade-in">
-            <h3 className="text-xs font-semibold text-[#E6EDF3] uppercase tracking-wider mb-4 flex items-center">
-              <Activity className="w-4 h-4 mr-2 text-brand-teal" /> Unit Totals
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
-              <div className="bg-brand-navy rounded-lg p-3 border border-border-subtle">
-                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Weekday Hrs</div>
-                <div className="text-lg font-bold text-[#E6EDF3] tabular-nums">{reportData.totals.weekdayHours} <span className="text-xs font-normal text-[#8B949E]">hrs</span></div>
-              </div>
-              <div className="bg-brand-navy rounded-lg p-3 border border-border-subtle">
-                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Saturday Hrs</div>
-                <div className="text-lg font-bold text-[#E6EDF3] tabular-nums">{reportData.totals.saturdayHours} <span className="text-xs font-normal text-[#8B949E]">hrs</span></div>
-              </div>
-              <div className="bg-brand-navy rounded-lg p-3 border border-border-subtle">
-                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Sunday Hrs</div>
-                <div className="text-lg font-bold text-[#E6EDF3] tabular-nums">{reportData.totals.sundayHours} <span className="text-xs font-normal text-[#8B949E]">hrs</span></div>
-              </div>
-              <div className="bg-brand-navy rounded-lg p-3 border border-border-subtle">
-                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Pub Hol Hrs</div>
-                <div className="text-lg font-bold text-[#E6EDF3] tabular-nums">{reportData.totals.publicHolidayHours} <span className="text-xs font-normal text-[#8B949E]">hrs</span></div>
-              </div>
-              <div className="bg-gradient-to-br from-brand-teal/10 to-brand-green/10 rounded-lg p-3 border border-brand-teal/20">
-                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Travel Km</div>
-                <div className="text-lg font-bold text-brand-teal tabular-nums">{reportData.totals.travelKm} <span className="text-xs font-normal text-brand-teal/70">km</span></div>
-              </div>
-              <div className="bg-gradient-to-br from-brand-teal/10 to-brand-green/10 rounded-lg p-3 border border-brand-teal/20">
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <span className="text-[#8B949E] text-xs font-semibold uppercase tracking-wide">Total Travel Hrs</span>
-                  <span className="bg-brand-teal/20 text-brand-teal text-[9px] font-bold px-1.5 py-0.5 rounded border border-brand-teal/30 shrink-0">Home Care</span>
+        {reportData && (() => {
+          const filteredLog = (reportData.log || []).filter((row: any) =>
+            staffTypeFilter === 'INTERNAL'
+              ? !row.isExternal
+              : staffTypeFilter === 'EXTERNAL'
+                ? Boolean(row.isExternal)
+                : true
+          );
+          const displayTotals = filteredLog.reduce(
+            (acc: any, row: any) => {
+              const hrs = Number(row.hoursWorked) || 0;
+              if (row.isTraining || row.dayCategory === 'Training') {
+                acc.trainingHours += hrs;
+              } else if (row.dayCategory === 'Public Holiday') {
+                acc.publicHolidayHours += hrs;
+              } else if (row.dayCategory === 'Sunday') {
+                acc.sundayHours += hrs;
+              } else if (row.dayCategory === 'Saturday') {
+                acc.saturdayHours += hrs;
+              } else {
+                acc.weekdayHours += hrs;
+              }
+              acc.travelKm += Number(row.travelKm) || 0;
+              acc.travelHrs += Number(row.travelHours) || 0;
+              return acc;
+            },
+            {
+              weekdayHours: 0,
+              saturdayHours: 0,
+              sundayHours: 0,
+              publicHolidayHours: 0,
+              travelKm: 0,
+              travelHrs: 0,
+              trainingHours: 0,
+            }
+          );
+          const fmt = (n: number) => Number(n.toFixed(2));
+          return (
+            <div className="bg-brand-bg border-t border-border-subtle p-5 mt-auto shrink-0 animate-fade-in">
+              <h3 className="text-xs font-semibold text-[#E6EDF3] uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-brand-teal" />
+                <span>
+                  Unit Totals ({staffTypeFilter === 'INTERNAL' ? 'Internal Staff' : staffTypeFilter === 'EXTERNAL' ? 'External Staff' : 'All Staff'})
+                </span>
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+                <div className="bg-brand-navy rounded-lg p-3 border border-border-subtle">
+                  <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Weekday Hrs</div>
+                  <div className="text-lg font-bold text-[#E6EDF3] tabular-nums">{fmt(displayTotals.weekdayHours)} <span className="text-xs font-normal text-[#8B949E]">hrs</span></div>
                 </div>
-                <div className="text-lg font-bold text-brand-teal tabular-nums">{reportData.totals.travelHrs !== undefined ? reportData.totals.travelHrs : 0} <span className="text-xs font-normal text-brand-teal/70">hrs</span></div>
-              </div>
-              <div className="bg-gradient-to-br from-purple-500/10 to-indigo-500/10 rounded-lg p-3 border border-purple-500/20">
-                <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Training Hrs</div>
-                <div className="text-lg font-bold text-purple-400 tabular-nums">{reportData.totals.trainingHours !== undefined ? reportData.totals.trainingHours : 0} <span className="text-xs font-normal text-purple-400/70">hrs</span></div>
+                <div className="bg-brand-navy rounded-lg p-3 border border-border-subtle">
+                  <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Saturday Hrs</div>
+                  <div className="text-lg font-bold text-[#E6EDF3] tabular-nums">{fmt(displayTotals.saturdayHours)} <span className="text-xs font-normal text-[#8B949E]">hrs</span></div>
+                </div>
+                <div className="bg-brand-navy rounded-lg p-3 border border-border-subtle">
+                  <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Sunday Hrs</div>
+                  <div className="text-lg font-bold text-[#E6EDF3] tabular-nums">{fmt(displayTotals.sundayHours)} <span className="text-xs font-normal text-[#8B949E]">hrs</span></div>
+                </div>
+                <div className="bg-brand-navy rounded-lg p-3 border border-border-subtle">
+                  <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Pub Hol Hrs</div>
+                  <div className="text-lg font-bold text-[#E6EDF3] tabular-nums">{fmt(displayTotals.publicHolidayHours)} <span className="text-xs font-normal text-[#8B949E]">hrs</span></div>
+                </div>
+                <div className="bg-gradient-to-br from-brand-teal/10 to-brand-green/10 rounded-lg p-3 border border-brand-teal/20">
+                  <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Travel Km</div>
+                  <div className="text-lg font-bold text-brand-teal tabular-nums">{fmt(displayTotals.travelKm)} <span className="text-xs font-normal text-brand-teal/70">km</span></div>
+                </div>
+                <div className="bg-gradient-to-br from-brand-teal/10 to-brand-green/10 rounded-lg p-3 border border-brand-teal/20">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-[#8B949E] text-xs font-semibold uppercase tracking-wide">Total Travel Hrs</span>
+                    <span className="bg-brand-teal/20 text-brand-teal text-[9px] font-bold px-1.5 py-0.5 rounded border border-brand-teal/30 shrink-0">Home Care</span>
+                  </div>
+                  <div className="text-lg font-bold text-brand-teal tabular-nums">{fmt(displayTotals.travelHrs)} <span className="text-xs font-normal text-brand-teal/70">hrs</span></div>
+                </div>
+                <div className="bg-gradient-to-br from-purple-500/10 to-indigo-500/10 rounded-lg p-3 border border-purple-500/20">
+                  <div className="text-[#8B949E] text-xs font-semibold mb-1 uppercase tracking-wide">Total Training Hrs</div>
+                  <div className="text-lg font-bold text-purple-400 tabular-nums">{fmt(displayTotals.trainingHours)} <span className="text-xs font-normal text-purple-400/70">hrs</span></div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Xero Pay Run Creation Modal */}

@@ -52,7 +52,31 @@ export const recalculateDayTravelForStaff = async (staffId: number, dateStr: str
     console.log(`[DEBUG CASCADE] DB found ${shifts ? shifts.length : 0} shifts from ${startTimeRangeStart} to ${startTimeRangeEnd}`);
     if (!shifts || shifts.length === 0) return;
 
-    const staffInfo = db.prepare('SELECT address FROM users WHERE id = ?').get(staffId) as any;
+    const staffInfo = db.prepare('SELECT address, COALESCE(is_external, 0) as is_external FROM users WHERE id = ?').get(staffId) as any;
+    if (staffInfo && Number(staffInfo.is_external) === 1) {
+      for (const s of shifts) {
+        if (s.is_historical === 1) continue;
+        let updatedServicesJson = s.services_json;
+        if (updatedServicesJson) {
+          try {
+            const parsed = JSON.parse(updatedServicesJson);
+            if (Array.isArray(parsed)) {
+              for (const sd of parsed) {
+                const n = String(sd.serviceName || sd.customName || sd.name || '').toLowerCase();
+                if (n.includes('provider travel') || n.includes('travel - provider')) {
+                  sd.qtyOverride = 0;
+                }
+              }
+              updatedServicesJson = JSON.stringify(parsed);
+            }
+          } catch (e) {}
+        }
+        const isHC = s.funding_type === 'HCP' || s.funding_type === 'Home Care' || s.funding_type === 'HOME_CARE';
+        const hcAbtCost = isHC ? (Number(s.abt_cost) || Number(s.abt_km) || 0) : 0;
+        db.prepare('UPDATE shifts SET provider_travel_km = 0, provider_travel_minutes = 0, provider_travel_cost = 0, home_care_travel_km = 0, home_care_travel_total = ?, services_json = ? WHERE id = ?').run(hcAbtCost, updatedServicesJson, s.id);
+      }
+      return;
+    }
     let rawStaffHomeCoords = await getRecordCoordinates('users', staffId, staffInfo?.address);
     const staffHomeCoords = rawStaffHomeCoords ? [Number(rawStaffHomeCoords[0]), Number(rawStaffHomeCoords[1])] : [0,0];
 

@@ -1444,6 +1444,7 @@ export function previewXeroPayRun(db: any, params: {
     LEFT JOIN services srv ON s.service_id = srv.id
     WHERE (s.status = 'COMPLETED' OR (s.status = 'CANCELLED' AND COALESCE(s.cancelled_pay_hours, 0) > 0))
       AND s.staff_id IS NOT NULL
+      AND COALESCE(u.is_external, 0) = 0
       AND (s.custom_staff_name IS NULL OR s.custom_staff_name = '')
       AND s.start_time >= ?
       AND s.start_time < ?
