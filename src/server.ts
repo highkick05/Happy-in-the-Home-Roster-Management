@@ -364,7 +364,8 @@ async function startServer() {
         custom_staff_name TEXT,
         provider_travel_minutes REAL DEFAULT 0,
         is_historical INTEGER DEFAULT 0,
-        progress_note TEXT
+        progress_note TEXT,
+        progress_note_status TEXT
       );
 
       
@@ -533,6 +534,7 @@ async function startServer() {
           travel_breakdown TEXT,
           is_historical INTEGER DEFAULT 0,
           progress_note TEXT,
+          progress_note_status TEXT,
           FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE RESTRICT,
           FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
           FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE RESTRICT,
@@ -837,6 +839,13 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
     const shiftCols = db.pragma("table_info(shifts)") as any[];
     const colNames = shiftCols.map((c: any) => c.name);
     const colsToAdd = [
+      ["actual_start_time", "TEXT"],
+      ["actual_finish_time", "TEXT"],
+      ["provider_travel_km", "REAL DEFAULT 0"],
+      ["provider_travel_cost", "REAL DEFAULT 0"],
+      ["abt_km", "REAL DEFAULT 0"],
+      ["abt_cost", "REAL DEFAULT 0"],
+      ["travel_breakdown", "TEXT"],
       ["transport_route_log", "TEXT"],
       ["services_json", "TEXT"],
       ["home_care_travel_km", "REAL DEFAULT 0"],
@@ -848,7 +857,9 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
       ["odometer_end_reading", "REAL"],
       ["vehicle_id", "INTEGER"],
       ["merged_into_shift_id", "INTEGER"],
-      ["cancelled_pay_hours", "REAL DEFAULT 0"]
+      ["cancelled_pay_hours", "REAL DEFAULT 0"],
+      ["progress_note", "TEXT"],
+      ["progress_note_status", "TEXT"]
     ];
     for (const [colName, colType] of colsToAdd) {
       if (!colNames.includes(colName)) {
@@ -856,6 +867,13 @@ db.exec(`DROP INDEX IF EXISTS ${idx.name}`);
         console.log(`[DEBUG] Added missing column shifts.${colName}`);
       }
     }
+    db.exec(`
+      UPDATE shifts
+      SET progress_note_status = 'COMPLETED'
+      WHERE status = 'COMPLETED'
+        AND (progress_note_status IS NULL OR progress_note_status = '')
+        AND ((notes IS NOT NULL AND TRIM(notes) != '') OR (progress_note IS NOT NULL AND TRIM(progress_note) != ''))
+    `);
   } catch (e: any) {
     console.warn("Migration warning for shifts cols:", e.message);
   }
@@ -19482,8 +19500,10 @@ app.get("/api/health", (req, res) => {
           transport_route_log = ?,
           services_json = ?,
           odometer_end_reading = ?,
-          odometer_end_photo = ?
+          odometer_end_photo = ?,
+          progress_note_status = ?
       `;
+        const finalNoteText = notes || shift.notes || shift.progress_note;
         const updateParams = [
           actual_finish_time || new Date().toISOString(),
           notes || shift.notes,
@@ -19503,6 +19523,7 @@ app.get("/api/health", (req, res) => {
           shift.status === "COMPLETED"
             ? odometer_end_photo || shift.odometer_end_photo
             : odometer_end_photo || null,
+          finalNoteText && String(finalNoteText).trim().length > 0 ? "COMPLETED" : shift.progress_note_status || null,
         ];
 
         if (actual_start_time) {
