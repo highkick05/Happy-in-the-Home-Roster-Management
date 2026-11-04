@@ -17870,19 +17870,36 @@ app.get("/api/health", (req, res) => {
           }
         }
 
-        let finalAbtKm = Number(existing.abt_km) || 0;
+        const targetStaffIdForUpdate =
+          staffId !== undefined ? staffId : existing.staff_id;
+        const targetStaffRow = targetStaffIdForUpdate
+          ? (db
+              .prepare("SELECT is_external FROM users WHERE id = ?")
+              .get(targetStaffIdForUpdate) as any)
+          : null;
+        const isExtStaffUpdate = Number(targetStaffRow?.is_external) === 1;
+
+        let finalAbtKm = isExtStaffUpdate ? 0 : Number(existing.abt_km) || 0;
         const abtExplicitlyUpdated =
           (abtKm !== undefined && abtKm !== null && abtKm !== "") ||
           abtFromServices !== null;
 
-        if (abtKm !== undefined && abtKm !== null && abtKm !== "") {
-          finalAbtKm = Math.max(0, Number(abtKm) || 0);
-        } else if (abtFromServices !== null) {
-          finalAbtKm = abtFromServices;
+        if (!isExtStaffUpdate) {
+          if (abtKm !== undefined && abtKm !== null && abtKm !== "") {
+            finalAbtKm = Math.max(0, Number(abtKm) || 0);
+          } else if (abtFromServices !== null) {
+            finalAbtKm = abtFromServices;
+          }
+        } else {
+          finalAbtKm = 0;
+          isAbtApproved = false;
         }
 
         if (abtEntryIndex !== -1) {
-          if (
+          if (isExtStaffUpdate) {
+            processedServicesData[abtEntryIndex].qtyOverride = 0;
+            isAbtApproved = false;
+          } else if (
             finalStatus === "COMPLETED" ||
             isHistoricalMode ||
             abtExplicitlyUpdated
@@ -17899,7 +17916,7 @@ app.get("/api/health", (req, res) => {
             }
             isAbtApproved = true;
           }
-        } else if (finalAbtKm > 0) {
+        } else if (finalAbtKm > 0 && !isExtStaffUpdate) {
           const targetSrvType = isHCShift ? "HOME_CARE" : "NDIS";
           const abtSrv = db
             .prepare(

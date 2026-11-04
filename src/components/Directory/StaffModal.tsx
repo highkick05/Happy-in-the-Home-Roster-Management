@@ -555,7 +555,7 @@ export default function StaffModal({ isOpen, onClose, onSave, token, staff }: St
 
                     {formData.isExternal && (
                       <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[12px] text-amber-200/90 leading-relaxed">
-                        <strong>Roster-Only External Worker:</strong> Only First Name &amp; Last Name are required. Shifts assigned to this worker will still generate client invoices for Trilogy Care, while automatically excluding Xero Payroll and all Travel calculations.
+                        <strong>Roster-Only External Worker:</strong> Only First Name &amp; Last Name are required. Shifts assigned to this worker will still generate client invoices for both <strong>NDIS</strong> and <strong>Home Care (Trilogy Care)</strong>, while automatically excluding Xero Payroll and all Travel calculations.
                       </div>
                     )}
 

@@ -818,7 +818,7 @@ export default function StaffDashboardView() {
                             ))}
                           </div>
                           <p className="text-[11px] text-amber-200/80 leading-relaxed pt-1">
-                            Roster-Only Mode: Appears on Roster, Client Invoices, and Trilogy Care Planning. Excluded from automatic Travel Calculations and Xero Pay Runs.
+                            Roster-Only Mode: Appears on Roster, Client Invoices (both NDIS &amp; Home Care / Trilogy Care), and Trilogy Care Planning. Excluded from automatic Travel Calculations and Xero Pay Runs.
                           </p>
                         </div>
                       )}
